@@ -232,7 +232,7 @@ export function FichaEscuelaPanel({
           )}
         </Desplegable>
 
-        <SeccionPeligro cueAnexo={escuela.cueAnexo} />
+        <SeccionPeligro cueAnexo={escuela.cueAnexo} localidad={escuela.localidad} />
       </div>
 
       <a className="ui-button ui-button--secondary ui-button--sm" href={`/infraestructura/cargar?cue=${encodeURIComponent(escuela.cueAnexo)}`}>
@@ -242,7 +242,7 @@ export function FichaEscuelaPanel({
   )
 }
 
-function SeccionPeligro({ cueAnexo }: { cueAnexo: string }) {
+function SeccionPeligro({ cueAnexo, localidad }: { cueAnexo: string; localidad: string }) {
   const [estadoPeligro, setEstadoPeligro] = useState<EstadoVistaPeligro>('cargando')
   return (
     <section className="map-ficha-escuela__situacion">
@@ -250,7 +250,7 @@ function SeccionPeligro({ cueAnexo }: { cueAnexo: string }) {
         <summary>
           <h3>Peligro hidrometeorológico</h3>
         </summary>
-        <FichaTerritorial cueAnexo={cueAnexo} onEstado={setEstadoPeligro} />
+        <FichaTerritorial cueAnexo={cueAnexo} localidad={localidad} onEstado={setEstadoPeligro} />
       </details>
     </section>
   )

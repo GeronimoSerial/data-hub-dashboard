@@ -1,12 +1,21 @@
 'use client'
 
 import { useEffect, useState, type JSX } from 'react'
-import { formatearFechaLocal } from '@/components/mapas/capa-estaciones-rio'
+import { estadoAltura } from '@/lib/infraestructura/hidrometria/estado-altura'
+import {
+  cantidadLluvia,
+  fechaCorta,
+  resumirSituacionEscuela,
+  type EntradaResumen,
+  type Nivel,
+} from '@/lib/infraestructura/riesgo/resumen-escuela'
 
 export type EstadoVistaPeligro = 'con_datos' | 'sin_datos' | 'cargando'
 
 export interface FichaTerritorialProps {
   cueAnexo: string
+  // Localidad de la escuela: se usa para buscar la estación de río de referencia.
+  localidad?: string
   // Dimensión SEPARADA "acceso territorial" (aislamiento OSM x peligro). No es
   // parte del estado del edificio: son dos estados que pueden coexistir.
   // Opcional para no romper al caller actual: `undefined` = no se renderiza.
@@ -136,6 +145,17 @@ interface RespuestaFuentes {
   fuentes?: FuenteInfraestructura[]
 }
 
+interface RespuestaHidrometria {
+  tramo: { estacionNombre: string | null } | null
+  lectura: {
+    lecturaM: number | null
+    alertaM: number | null
+    evacuacionM: number | null
+    medidaEn: string | null
+    inconsistente: boolean
+  } | null
+}
+
 type EstadoFichaTerritorial =
   | { fase: 'cargando' }
   | { fase: 'sin-perfil' }
@@ -145,6 +165,7 @@ type EstadoFichaTerritorial =
       perfil: PerfilGeografico
       peligro: RespuestaPeligro
       fuentes: FuenteInfraestructura[]
+      hidrometria: RespuestaHidrometria | null
     }
   | { fase: 'error' }
 
@@ -177,17 +198,15 @@ const PALABRA_NIVEL: Record<Exclude<NivelPeligro, 'sin_dato'>, string> = {
   rojo: 'muy alto',
 }
 
-const FRASE_HORIZONTE: Record<HorizontePeligro, string> = {
-  24: 'las próximas 24 h',
-  72: 'las próximas 72 h',
-  240: 'los próximos 7 a 10 días',
+const NIVEL_RESUMEN: Record<Exclude<NivelPeligro, 'sin_dato'>, Nivel> = {
+  verde: 'bajo',
+  amarillo: 'moderado',
+  naranja: 'alto',
+  rojo: 'muy_alto',
 }
 
-const HORIZONTE_CORTO: Record<HorizontePeligro, string> = {
-  24: '24 h',
-  72: '72 h',
-  240: '7 a 10 días',
-}
+// Fracción mínima de gránulos satelitales para considerar un acumulado completo.
+const COBERTURA_MINIMA = 0.8
 
 const HORIZONTE_DETALLE: Record<HorizontePeligro, string> = {
   24: 'Próximas 24 h',
@@ -223,7 +242,7 @@ function fuentesVencidas(fuentes: FuenteInfraestructura[]): FuenteInfraestructur
 
 function textoVencida(fuente: FuenteInfraestructura): string {
   const tipo = capitalizar(tipoFuente(fuente.provider))
-  const cuando = fuente.ultimoExitoEn ? formatearFechaLocal(fuente.ultimoExitoEn) : null
+  const cuando = fuente.ultimoExitoEn ? fechaCorta(fuente.ultimoExitoEn) : null
   return cuando ? `${tipo} desactualizado desde ${cuando}` : `${tipo} desactualizado`
 }
 
@@ -245,71 +264,42 @@ function calcularVista(estado: EstadoFichaTerritorial): EstadoVistaPeligro {
 }
 
 /**
- * Texto de un acumulado observado 24h/72h: siempre incluye la cobertura
- * (gránulos encontrados / esperados), y "sin dato" explícito cuando la
- * cobertura no alcanzó el umbral mínimo — nunca se muestra un acumulado
- * numérico sin decir qué tan completo está.
+ * Texto de un acumulado observado 24h/72h en lenguaje llano. Si la cobertura
+ * no alcanzó el mínimo, se marca "datos incompletos" en vez de mostrar el
+ * porcentaje: nunca se presenta un acumulado sin decir que está incompleto.
  */
+function cobertureParcial(fila: { cobertura: number; acumuladoMm: number | null; granulosEncontrados: number }): boolean {
+  return fila.cobertura < COBERTURA_MINIMA || (fila.acumuladoMm === null && fila.granulosEncontrados > 0)
+}
+
 function textoAcumuladoObservado(fila: {
   acumuladoMm: number | null
   granulosEncontrados: number
   granulosEsperados: number
   cobertura: number
 }): string {
-  const coberturaPct = Math.round(fila.cobertura * 100)
-  if (fila.acumuladoMm === null) {
-    return `sin dato (cobertura ${coberturaPct}%, ${fila.granulosEncontrados}/${fila.granulosEsperados} lecturas)`
-  }
-  return `${formatearValor(fila.acumuladoMm)} mm (cobertura ${coberturaPct}%)`
+  const incompleto = cobertureParcial(fila) ? ' (datos incompletos)' : ''
+  if (fila.acumuladoMm === null) return `sin dato${incompleto}`
+  return `${cantidadLluvia(fila.acumuladoMm)}${incompleto}`
 }
 
-// Frase que explica el nivel por lluvia pronosticada, comparado con el umbral
-// climatológico de su percentil de referencia. `null` si no hay lluvia.
-function fraseLluvia(fila: NivelHorizonte, peligro: RespuestaPeligro): string | null {
-  if (fila.precipitacionMm === null) return null
-  const base = `Por lluvia pronosticada: ${formatearValor(fila.precipitacionMm)} mm en ${HORIZONTE_CORTO[fila.horizonteHoras]}`
-  if (!fila.percentilReferencia) return `${base}.`
-  const umbral = (peligro.climatologia ?? []).find(
-    (fila2) =>
-      fila2.variable === 'precipitacion' &&
-      fila2.percentil === fila.percentilReferencia?.toLowerCase(),
+// Nivel de peligro por horizonte (sólo corto plazo) a partir de los datos ya
+// calculados: se pasa al resumen en lenguaje llano.
+function nivelMaximoResumen(peligro: RespuestaPeligro): EntradaResumen['nivelMaximo'] {
+  const conNivel = (peligro.niveles ?? []).filter(
+    (fila) => fila.nivel !== 'sin_dato' && fila.horizonteHoras <= HORIZONTE_MAX_HORAS,
   )
-  if (!umbral) return `${base}.`
-  const comparacion = fila.precipitacionMm >= umbral.valor ? 'por encima' : 'por debajo'
-  return `${base}, ${comparacion} del umbral habitual (${fila.percentilReferencia} ${formatearValor(umbral.valor)} ${umbral.unidad}).`
-}
-
-// Conclusión: el nivel más alto entre los horizontes (o el caudal, si supera a
-// todos) y una frase con el factor que lo explica.
-function resumirConclusion(peligro: RespuestaPeligro): { titulo: string; frase: string } {
-  const conNivel = (peligro.niveles ?? []).filter((fila) => fila.nivel !== 'sin_dato')
   const maximo = conNivel.reduce<NivelHorizonte | null>(
     (mejor, fila) => (mejor === null || ORDEN_NIVEL[fila.nivel] > ORDEN_NIVEL[mejor.nivel] ? fila : mejor),
     null,
   )
+  if (maximo === null) return { nivel: 'sin_dato', horizonteHoras: null, motivo: null }
+  const nivel: Nivel = NIVEL_RESUMEN[maximo.nivel as Exclude<NivelPeligro, 'sin_dato'>]
   const caudal = peligro.caudal && peligro.caudal.nivel !== 'sin_dato' ? peligro.caudal : null
-
-  if (maximo && (!caudal || ORDEN_NIVEL[maximo.nivel] >= ORDEN_NIVEL[caudal.nivel])) {
-    const palabra = PALABRA_NIVEL[maximo.nivel as Exclude<NivelPeligro, 'sin_dato'>]
-    return {
-      titulo: `Peligro ${palabra} en ${FRASE_HORIZONTE[maximo.horizonteHoras]}`,
-      frase:
-        fraseLluvia(maximo, peligro) ??
-        'Estimación propia a partir del pronóstico y los umbrales históricos de la zona.',
-    }
-  }
-  if (caudal) {
-    const palabra = PALABRA_NIVEL[caudal.nivel as Exclude<NivelPeligro, 'sin_dato'>]
-    const percentil = caudal.percentilActual != null ? `percentil ${caudal.percentilActual}` : 'percentil sin dato'
-    return {
-      titulo: `Peligro ${palabra} por caudal del río`,
-      frase: `Caudal del río en ${percentil}, respecto de su historia.`,
-    }
-  }
-  return {
-    titulo: 'Sin nivel de peligro estimado',
-    frase: 'Hay lluvia observada por satélite, pero todavía no hay un nivel de peligro para los próximos días.',
-  }
+  let motivo: EntradaResumen['nivelMaximo']['motivo'] = null
+  if (caudal && ORDEN_NIVEL[caudal.nivel] >= ORDEN_NIVEL[maximo.nivel]) motivo = 'caudal'
+  else if (maximo.precipitacionMm !== null) motivo = 'lluvia'
+  return { nivel, horizonteHoras: maximo.horizonteHoras, motivo }
 }
 
 function razonSinDatos(perfil: PerfilGeografico, fuentes: FuenteInfraestructura[]): string {
@@ -340,6 +330,7 @@ function SinDatosPeligro({ razon }: { razon: string }): JSX.Element {
  */
 export function FichaTerritorial({
   cueAnexo,
+  localidad,
   riesgoAcceso,
   estadoEdificio,
   onEstado,
@@ -386,9 +377,17 @@ export function FichaTerritorial({
           perfil.geometryRef,
         )}${puntoRioId ? `&puntoRioId=${encodeURIComponent(puntoRioId)}` : ''}`
 
-        const [respuestaPeligro, respuestaFuentes] = await Promise.all([
+        // Río de referencia por localidad: si falla, la ficha sigue sin estación.
+        const pedidoHidrometria = localidad
+          ? fetch(`/api/infraestructura/hidrometria/estado?localidad=${encodeURIComponent(localidad)}`)
+              .then((r) => (r.ok ? (r.json() as Promise<RespuestaHidrometria>) : null))
+              .catch(() => null)
+          : Promise.resolve(null)
+
+        const [respuestaPeligro, respuestaFuentes, hidrometria] = await Promise.all([
           fetch(urlPeligro),
           fetch('/api/infraestructura/fuentes'),
+          pedidoHidrometria,
         ])
         if (!respuestaPeligro.ok || !respuestaFuentes.ok) {
           throw new Error('no se pudo obtener el contexto territorial')
@@ -397,7 +396,7 @@ export function FichaTerritorial({
         const peligro = (await respuestaPeligro.json()) as RespuestaPeligro
         const fuentes = ((await respuestaFuentes.json()) as RespuestaFuentes).fuentes ?? []
 
-        if (vigente) setEstado({ fase: 'listo', perfil, peligro, fuentes })
+        if (vigente) setEstado({ fase: 'listo', perfil, peligro, fuentes, hidrometria })
       } catch {
         // Un fallo de red/ACL no se reintenta solo: mostrar el aviso una vez
         // es más honesto que quedar reintentando en background.
@@ -409,7 +408,7 @@ export function FichaTerritorial({
     return () => {
       vigente = false
     }
-  }, [cueAnexo])
+  }, [cueAnexo, localidad])
 
   if (estado.fase === 'cargando') {
     return (
@@ -443,13 +442,12 @@ export function FichaTerritorial({
     )
   }
 
-  const { perfil, peligro, fuentes } = estado
+  const { perfil, peligro, fuentes, hidrometria } = estado
 
   if (!tieneDatoPeligro(peligro)) {
     return <SinDatosPeligro razon={razonSinDatos(perfil, fuentes)} />
   }
 
-  const conclusion = resumirConclusion(peligro)
   const vencidas = fuentesVencidas(fuentes)
 
   const puntos = (peligro.pronostico ?? []).filter(
@@ -479,8 +477,18 @@ export function FichaTerritorial({
     const climVariable = (peligro.climatologia ?? []).filter((fila) => fila.variable === variable)
     const umbral = (percentil: ClimatologiaPeligro['percentil']) =>
       climVariable.find((fila) => fila.percentil === percentil) ?? null
-    return [{ variable, etiqueta, actual, p90: umbral('p90'), p95: umbral('p95'), p99: umbral('p99') }]
+    const percentiles = [
+      { etiqueta: 'P90', umbral: umbral('p90') },
+      { etiqueta: 'P95', umbral: umbral('p95') },
+      { etiqueta: 'P99', umbral: umbral('p99') },
+    ].filter((p): p is { etiqueta: string; umbral: ClimatologiaPeligro } => p.umbral !== null)
+    // Variable sin ningún umbral: se omite por completo.
+    if (percentiles.length === 0) return []
+    return [{ variable, etiqueta, actual, percentiles }]
   })
+
+  const valorVariable = (variable: string, valor: number, unidad: string): string =>
+    variable === 'precipitacion' ? cantidadLluvia(valor) : `${formatearValor(valor)} ${unidad}`
 
   const tiposFuente = [...new Set(puntos.map((punto) => tipoFuente(punto.provider)))]
   const corridaMasReciente = puntos
@@ -488,7 +496,7 @@ export function FichaTerritorial({
     .filter((valor): valor is string => valor !== null)
     .sort()
     .at(-1)
-  const actualizado = corridaMasReciente ? formatearFechaLocal(corridaMasReciente) : null
+  const actualizado = corridaMasReciente ? fechaCorta(corridaMasReciente) : null
 
   // --- Peligro por horizonte (texto explícito, sin color como única señal) ---
   const niveles = peligro.niveles ?? []
@@ -524,22 +532,60 @@ export function FichaTerritorial({
     return null
   })()
 
-  // --- Lluvia observada por satélite ---
-  const lluviaObservada = (peligro.observado ?? []).find(
-    (fila) => fila.variable === VARIABLE_LLUVIA_OBSERVADA,
-  )
-  const fechaLluviaObservada = lluviaObservada ? formatearFechaLocal(lluviaObservada.observadoEn) : null
-
+  // --- Lluvia observada por satélite (acumulados) ---
   const acumulados = peligro.observadoAcumulado ?? []
   const acumulado24h = acumulados.find((fila) => fila.horizonteHoras === 24) ?? null
   const acumulado72h = acumulados.find((fila) => fila.horizonteHoras === 72) ?? null
 
+  // --- Resumen en lenguaje llano (datos ya calculados arriba) ---
+  const lluviaPronosticada24h = precipitacion
+    .filter((punto) => punto.horizonteHoras <= 24)
+    .reduce<number | null>((total, punto) => (total ?? 0) + punto.valor, null)
+  const lectura = hidrometria?.lectura ?? null
+  const entrada: EntradaResumen = {
+    nivelMaximo: nivelMaximoResumen(peligro),
+    lluviaObservada72h: acumulado72h
+      ? {
+          mm: acumulado72h.acumuladoMm,
+          parcial: cobertureParcial(acumulado72h),
+          hasta: acumulado72h.masRecienteEn,
+        }
+      : { mm: null, parcial: false, hasta: null },
+    lluviaPronosticada24h: { mm: lluviaPronosticada24h },
+    rio: hidrometria?.tramo
+      ? {
+          estado: estadoAltura(
+            lectura
+              ? {
+                  lecturaM: lectura.lecturaM,
+                  variacionM: null,
+                  alertaM: lectura.alertaM,
+                  evacuacionM: lectura.evacuacionM,
+                  inconsistente: lectura.inconsistente,
+                }
+              : null,
+          ).estado,
+          estacionNombre: hidrometria.tramo.estacionNombre ?? 'sin nombre',
+          alturaM: lectura?.lecturaM ?? null,
+          medidaEn: lectura?.medidaEn ?? null,
+        }
+      : null,
+    pronosticoDesactualizadoDesde:
+      vencidas.find((fuente) => tipoFuente(fuente.provider) === 'pronóstico')?.ultimoExitoEn ?? null,
+  }
+  const resumen = resumirSituacionEscuela(entrada)
+
   return (
     <section className="ficha-territorial" data-testid="ficha-territorial-datos">
-      <h4 className="ficha-territorial__conclusion" data-testid="ficha-territorial-conclusion">
-        {conclusion.titulo}
-      </h4>
-      <p className="ficha-territorial__razon">{conclusion.frase}</p>
+      <h4 className="ficha-territorial__titulo">{resumen.titulo}</h4>
+      <p className="ficha-territorial__conclusion" data-testid="ficha-territorial-conclusion">
+        {resumen.conclusion}
+      </p>
+      <ul className="ficha-territorial__puntos" data-testid="ficha-territorial-puntos">
+        {resumen.puntos.map((punto) => (
+          <li key={punto}>{punto}</li>
+        ))}
+      </ul>
 
       {vencidas.map((fuente) => (
         <p
@@ -553,7 +599,7 @@ export function FichaTerritorial({
       ))}
 
       <details className="ficha-territorial__detalle" data-testid="ficha-territorial-detalle">
-        <summary>Ver detalle</summary>
+        <summary>Ver detalle técnico</summary>
 
         <p className="ficha-territorial__dato">Departamento: {perfil.departamento ?? 'No registrado'}</p>
 
@@ -581,7 +627,7 @@ export function FichaTerritorial({
 
         {precipitacion.length > 0 && (
           <p className="ficha-territorial__dato">
-            Lluvia pronosticada próximas 72 h: {formatearValor(lluviaAcumulada)} {precipitacion[0].unidad}
+            Lluvia pronosticada próximas 72 h: {cantidadLluvia(lluviaAcumulada)}
           </p>
         )}
         {rafagas.length > 0 && (
@@ -602,19 +648,13 @@ export function FichaTerritorial({
                 data-testid={`ficha-territorial-umbral-${fila.variable}`}
               >
                 <p className="ficha-territorial__dato">
-                  {fila.etiqueta}, pronóstico: {formatearValor(fila.actual.valor)} {fila.actual.unidad}
+                  {fila.etiqueta}, pronóstico: {valorVariable(fila.variable, fila.actual.valor, fila.actual.unidad)}
                 </p>
                 <dl className="ficha-territorial__umbral-lista">
-                  {(
-                    [
-                      ['P90', fila.p90],
-                      ['P95', fila.p95],
-                      ['P99', fila.p99],
-                    ] as const
-                  ).map(([etiqueta, umbral]) => (
+                  {fila.percentiles.map(({ etiqueta, umbral }) => (
                     <div key={etiqueta} className="ficha-territorial__umbral-item">
                       <dt>{etiqueta}</dt>
-                      <dd>{umbral ? `${formatearValor(umbral.valor)} ${umbral.unidad}` : 'Sin dato'}</dd>
+                      <dd>{valorVariable(fila.variable, umbral.valor, umbral.unidad)}</dd>
                     </div>
                   ))}
                 </dl>
@@ -627,13 +667,6 @@ export function FichaTerritorial({
         )}
 
         {caudal}
-
-        {lluviaObservada && (
-          <p className="ficha-territorial__dato" data-testid="ficha-territorial-lluvia-observada">
-            Última lectura de lluvia por satélite: {formatearValor(lluviaObservada.valor)} {lluviaObservada.unidad}
-            {fechaLluviaObservada ? ` (${fechaLluviaObservada})` : ''}
-          </p>
-        )}
 
         {(acumulado24h || acumulado72h) && (
           <div className="ficha-territorial__observado-acumulado">

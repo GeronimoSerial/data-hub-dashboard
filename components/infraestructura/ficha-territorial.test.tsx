@@ -114,6 +114,7 @@ interface Handlers {
   perfil?: () => Response | Promise<Response>
   peligro?: () => Response | Promise<Response>
   fuentes?: () => Response | Promise<Response>
+  hidrometria?: () => Response | Promise<Response>
 }
 
 function stubFetch(handlers: Handlers = {}) {
@@ -125,6 +126,11 @@ function stubFetch(handlers: Handlers = {}) {
     if (url.includes('/peligro?')) {
       return Promise.resolve(
         handlers.peligro ? handlers.peligro() : jsonOk({ pronostico: [], niveles: [], observado: [] }),
+      )
+    }
+    if (url.includes('/hidrometria/estado')) {
+      return Promise.resolve(
+        handlers.hidrometria ? handlers.hidrometria() : jsonOk({ tramo: null, lectura: null }),
       )
     }
     if (url.includes('/fuentes')) {
@@ -204,14 +210,14 @@ describe('FichaTerritorial', () => {
 
     const datos = await screen.findByTestId('ficha-territorial-datos')
     const conclusion = within(datos).getByTestId('ficha-territorial-conclusion')
-    expect(conclusion).toHaveTextContent('Peligro alto en las próximas 24 h')
-    expect(datos.firstElementChild).toBe(conclusion)
-    expect(screen.getByText(/Por lluvia pronosticada: 85 mm en 24 h, por encima del umbral habitual \(P95 62 mm\)\./)).toBeInTheDocument()
+    expect(conclusion).toHaveTextContent('Riesgo alto por lluvia en las próximas 24 h.')
+    expect(datos.firstElementChild).toHaveTextContent('Situación de la escuela')
+    expect(datos.children[1]).toBe(conclusion)
 
     const detalle = container.querySelector('details')
     expect(detalle).not.toBeNull()
     expect(detalle).not.toHaveAttribute('open')
-    expect(within(detalle as HTMLElement).getByText('Ver detalle')).toBeInTheDocument()
+    expect(within(detalle as HTMLElement).getByText('Ver detalle técnico')).toBeInTheDocument()
     expect(within(detalle as HTMLElement).getAllByTestId('ficha-territorial-nivel-peligro')).toHaveLength(3)
   })
 
@@ -350,7 +356,7 @@ describe('FichaTerritorial', () => {
     expect(bloque).toHaveTextContent('P95')
     expect(bloque).toHaveTextContent('P99')
     expect(bloque).toHaveTextContent('15 mm')
-    expect(bloque).toHaveTextContent('22.5 mm')
+    expect(bloque).toHaveTextContent('23 mm')
     expect(bloque).toHaveTextContent('40 mm')
     expect(bloque).toHaveTextContent('pronóstico: 8 mm')
     expect(bloque).not.toHaveTextContent('20 mm')
@@ -364,7 +370,7 @@ describe('FichaTerritorial', () => {
       peligro: () =>
         jsonOk({
           niveles: [nivel(24, 'verde')],
-          pronostico: [punto('rafagas', 12, 45, 'km/h')],
+          pronostico: [punto('precipitacion', 12, 8, 'mm'), punto('rafagas', 12, 45, 'km/h')],
           climatologia: [climatologia('precipitacion', 'p90', 15, 'mm')],
         }),
     })
@@ -372,9 +378,10 @@ describe('FichaTerritorial', () => {
     render(<FichaTerritorial cueAnexo={CUE} />)
 
     const bloque = await screen.findByTestId('ficha-territorial-umbrales')
-    const filaRafagas = within(bloque).getByTestId('ficha-territorial-umbral-rafagas')
-    expect(filaRafagas).toHaveTextContent('Sin dato')
-    expect(filaRafagas).not.toHaveTextContent('Bajo')
+    // Una variable sin climatología no tiene fila de umbral: se omite, no se muestra "Sin dato".
+    expect(within(bloque).getByTestId('ficha-territorial-umbral-precipitacion')).toBeInTheDocument()
+    expect(within(bloque).queryByTestId('ficha-territorial-umbral-rafagas')).not.toBeInTheDocument()
+    expect(bloque).not.toHaveTextContent('Sin dato')
     expect(bloque).not.toHaveTextContent(/\bBajo\b/)
   })
 
@@ -442,7 +449,7 @@ describe('FichaTerritorial', () => {
     expect(String(llamada?.[0])).toContain('puntoRioId=rio-1801')
   })
 
-  it('muestra la lluvia observada satelital con su rótulo y la fecha', async () => {
+  it('no muestra la lectura satelital por cada 30 min', async () => {
     stubFetch({
       peligro: () => jsonOk({ niveles: [nivel(24, 'verde')], observado: [observadoSatelital()] }),
     })
@@ -450,10 +457,8 @@ describe('FichaTerritorial', () => {
     render(<FichaTerritorial cueAnexo={CUE} />)
 
     await screen.findByTestId('ficha-territorial-datos')
-    const linea = screen.getByTestId('ficha-territorial-lluvia-observada')
-    expect(linea).toHaveTextContent('Última lectura de lluvia por satélite')
-    expect(linea).toHaveTextContent('12.4 mm')
-    expect(linea).toHaveTextContent(/\d{2}\/\d{2} \d{2}:\d{2}/)
+    expect(screen.queryByTestId('ficha-territorial-lluvia-observada')).not.toBeInTheDocument()
+    expect(screen.queryByText(/mm\/30min/)).not.toBeInTheDocument()
   })
 
   it('no muestra la línea de lluvia observada cuando no hay filas de IMERG', async () => {
@@ -497,10 +502,51 @@ describe('FichaTerritorial', () => {
     render(<FichaTerritorial cueAnexo={CUE} />)
 
     await screen.findByTestId('ficha-territorial-datos')
-    expect(screen.getByTestId('ficha-territorial-observado-24h')).toHaveTextContent('18.5 mm')
-    expect(screen.getByTestId('ficha-territorial-observado-24h')).toHaveTextContent('cobertura 100%')
-    expect(screen.getByTestId('ficha-territorial-observado-72h')).toHaveTextContent('sin dato')
-    expect(screen.getByTestId('ficha-territorial-observado-72h')).toHaveTextContent('60/144')
+    const acumulado24h = screen.getByTestId('ficha-territorial-observado-24h')
+    expect(acumulado24h).toHaveTextContent('19 mm')
+    expect(acumulado24h).not.toHaveTextContent('cobertura')
+    expect(acumulado24h).not.toHaveTextContent('datos incompletos')
+    const acumulado72h = screen.getByTestId('ficha-territorial-observado-72h')
+    expect(acumulado72h).toHaveTextContent('sin dato')
+    expect(acumulado72h).toHaveTextContent('datos incompletos')
+    expect(acumulado72h).not.toHaveTextContent('cobertura')
+  })
+
+  it('con localidad y estación en evacuación, la conclusión y los puntos lo dicen', async () => {
+    stubFetch({
+      peligro: () => jsonOk({ niveles: [nivel(24, 'verde')] }),
+      hidrometria: () =>
+        jsonOk({
+          tramo: { estacionNombre: 'Río Paraná - Corrientes' },
+          lectura: {
+            lecturaM: 9.5,
+            alertaM: 8,
+            evacuacionM: 9,
+            medidaEn: '2026-10-13T09:00:00Z',
+            inconsistente: false,
+          },
+        }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} localidad="Corrientes" />)
+
+    const conclusion = await screen.findByTestId('ficha-territorial-conclusion')
+    expect(conclusion).toHaveTextContent('Río en nivel de evacuación en la estación de referencia.')
+    const puntos = screen.getByTestId('ficha-territorial-puntos')
+    expect(puntos).toHaveTextContent('Río (Río Paraná - Corrientes): 9,50 m, evacuación')
+  })
+
+  it('con localidad sin estación de referencia, el río dice que no hay estación cercana', async () => {
+    const fetchMock = stubFetch({
+      peligro: () => jsonOk({ niveles: [nivel(24, 'verde')] }),
+      hidrometria: () => jsonOk({ tramo: null, lectura: null }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} localidad="Monte Caseros" />)
+
+    const puntos = await screen.findByTestId('ficha-territorial-puntos')
+    expect(puntos).toHaveTextContent('Río: sin estación de referencia cercana')
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/hidrometria/estado?localidad=Monte%20Caseros'))).toBe(true)
   })
 
   it('no muestra el acumulado observado cuando la ruta no lo trae', async () => {
