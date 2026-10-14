@@ -85,18 +85,25 @@ Metodología; stale/unpublished Prefectura stations stay grey on the map (invest
 multi-hue sequential palette; school sheet moves to a floating right panel; chevrons of sheet/events disclosures aligned
 right of title; "Escuelas en riesgo hoy" layer in every tab (on in Radar, off elsewhere, persisted); non-risk schools in
 Radar drawn as faint grey clickable dots.
-- [ ] P1 omit all-null/zero sections (planificación exposure block)
-- [ ] P2 'Junto a laguna' tag never clips
-- [ ] P3 thin side-panel scrollbar
-- [ ] P4 events section rename/collapse/hierarchy
-- [ ] P5 tab order
-- [ ] P6 bare '?' methodology link -> info icon with label
-- [ ] P7 consistent close buttons
-- [ ] P8 Prefectura toggle persisted + disappearance fix
-- [ ] P9 'sin dato' stations evidence + fix
-- [ ] P10 rain palette
-- [ ] P11 floating right school sheet
-- [ ] P12 disclosure chevrons alignment
-- [ ] P13 'Escuelas en riesgo hoy' layer all tabs
-- [ ] P14 faint clickable non-risk schools in Radar
-Route: delegated, one haiku writer per item, parent reviews each diff.
+- [x] P1 omit all-null/zero sections (planificación exposure block)
+- [x] P2 'Junto a laguna' tag never clips
+- [x] P3 thin side-panel scrollbar
+- [x] P4 events section rename/collapse/hierarchy
+- [x] P5 tab order
+- [x] P6 bare '?' methodology link -> info icon with label
+- [x] P7 consistent close buttons
+- [x] P8 Prefectura toggle persisted + disappearance fix
+- [x] P9 'sin dato' stations evidence + fix
+- [x] P10 rain palette
+- [x] P11 floating right school sheet
+- [x] P12 disclosure chevrons alignment
+- [x] P13 'Escuelas en riesgo hoy' layer all tabs
+- [x] P14 faint clickable non-risk schools in Radar
+Route: P1, P4 delegated (haiku); after user feedback ("Haiku is bad at UI") the rest inline by the parent with
+Playwright screenshots; P9 investigation and P11 test updates delegated (sonnet).
+Evidence: P9 root cause = 12 h cutoff vs Prefectura 12 h publish cadence (12/21 stations stale at 00:39 ART; all 21
+ingested, no nulls/missing thresholds); cutoff now 18 h. P8 root cause = basemap swap (Radar dark style) drops
+registered images; icons re-registered on styledata; layer visibility persisted in localStorage. P14: user confirmed
+faint dots only visible when zoomed in (legend note: zoom 9+). Screenshots /home/gero/capturas/pre-prod/ (s-/d-/w-).
+Checks: tsc clean; lint 0 errors (15 pre-existing warnings); related vitest suites green.
+Known/left: Radar point popup can sit under the bottom-right legend; at <=1100px the floating sheet covers the side panel.
