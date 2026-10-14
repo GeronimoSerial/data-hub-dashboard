@@ -121,10 +121,33 @@ describe('syncSynopLluvia', () => {
     const resultado = await syncSynopLluvia({ ahora: AHORA, fetchImpl, esperar: sinEsperar })
 
     expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
-    expect(fetchImpl).toHaveBeenCalledTimes(ESTACIONES_SYNOP.length)
+    // Un reintento para la estación que falló.
+    expect(fetchImpl).toHaveBeenCalledTimes(ESTACIONES_SYNOP.length + 1)
     const [job] = await db.select().from(infraJobRun)
     expect(job?.contadores).toMatchObject({ estacionesConError: 1 })
     expect((await db.select().from(lluviaEstacion)).length).toBeGreaterThan(0)
+    // Corrida parcial: la fuente queda degradada, nunca "ok" con estaciones caídas.
+    const [salud] = await db
+      .select()
+      .from(hazardSourceHealth)
+      .where(eq(hazardSourceHealth.provider, 'ogimet-synop'))
+    expect(salud?.estado).toBe('degradado')
+    expect(salud?.ultimoErrorSaneado).toContain('1 de')
+  })
+
+  it('un fallo transitorio se recupera con un reintento y no cuenta como error', async () => {
+    let intentos = 0
+    const base = fetchOgimet({})
+    const fetchImpl = vi.fn(async (url: Parameters<typeof fetch>[0]) => {
+      if (String(url).includes('block=87166') && intentos++ === 0) throw new TypeError('fetch failed')
+      return base(url)
+    })
+
+    const resultado = await syncSynopLluvia({ ahora: AHORA, fetchImpl, esperar: sinEsperar })
+
+    expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
+    const [job] = await db.select().from(infraJobRun)
+    expect(job?.contadores).toMatchObject({ estacionesConError: 0 })
   })
 
   it('si todas las estaciones fallan publica fallido con mensaje fijo y salud degradado en 429', async () => {

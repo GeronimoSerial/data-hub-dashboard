@@ -12,6 +12,10 @@ const TIPO_JOB = 'sync-synop-lluvia'
 const VERSION_CATALOGO_SYNOP = 'estaciones-synop-v1'
 const DURACION_LEASE_MS = 10 * 60 * 1000
 const PAUSA_ENTRE_ESTACIONES_MS = 2000
+// Un reintento por estación ante fallas transitorias (timeouts de conexión
+// observados hacia Ogimet). Nunca ante 429: respetar el límite de la fuente.
+const PAUSA_REINTENTO_MS = 5000
+const INTENTOS_POR_ESTACION = 2
 const VENTANA_HORAS = 30
 const PROVIDER_SALUD = 'ogimet-synop'
 const TTL_SALUD_MINUTOS = 120
@@ -101,12 +105,21 @@ export async function syncSynopLluvia(
     for (const [indice, estacion] of ESTACIONES_SYNOP.entries()) {
       if (indice > 0) await esperar(PAUSA_ENTRE_ESTACIONES_MS)
       try {
-        const cuerpo = await descargarSynopOgimet({
-          wmo: estacion.wmo,
-          desde,
-          hasta,
-          fetchImpl: opts.fetchImpl,
-        })
+        let cuerpo: string | null = null
+        for (let intento = 1; cuerpo === null; intento += 1) {
+          try {
+            cuerpo = await descargarSynopOgimet({
+              wmo: estacion.wmo,
+              desde,
+              hasta,
+              fetchImpl: opts.fetchImpl,
+            })
+          } catch (error) {
+            const limitado = error instanceof ErrorOgimet && error.status === 429
+            if (limitado || intento >= INTENTOS_POR_ESTACION) throw error
+            await esperar(PAUSA_REINTENTO_MS)
+          }
+        }
         const decodificados = parsearRespuestaOgimet(cuerpo)
         registros += await guardarLluviaSynop(getDb(), decodificados, ahora.toISOString())
       } catch (error) {
@@ -132,7 +145,16 @@ export async function syncSynopLluvia(
       contadores,
       ahora,
     })
-    await registrarSaludSynop('ok', null, ahora)
+    // Corrida parcial: la fuente queda degradada (visible en el panel), nunca "ok".
+    if (estacionesConError > 0) {
+      await registrarSaludSynop(
+        'degradado',
+        `${estacionesConError} de ${ESTACIONES_SYNOP.length} estaciones sin datos de Ogimet`,
+        ahora,
+      )
+    } else {
+      await registrarSaludSynop('ok', null, ahora)
+    }
     return { ejecutado: true, estado: 'completo', contadores }
   } catch (error) {
     const mensaje = mensajeSaneado(error)
