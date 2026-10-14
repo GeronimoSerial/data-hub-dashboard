@@ -41,15 +41,22 @@ observada/pronosticada casi no pesa (p. ej. 1801318-00, 31.9 mm/72 h sin umbral 
   `diasDescargados`, `diasPendientes`, `celdasConUmbral`, `diasConError`.
 
 ## Tareas
-- [ ] T1 provider puro `providers/climatologia-imerg.ts` (+test) — delegado (Haiku)
-- [ ] T2 selección de fuente `peligro/fuente-climatologia.ts` (+test) — delegado (Haiku)
-- [ ] T3 usar la selección en `nivel.ts` y `sync-ensemble.ts` (+tests) — delegado (Haiku)
-- [ ] T4 job `jobs/calcular-climatologia-imerg.ts` (+test) — delegado (Haiku)
-- [ ] T5 registro: jobs.mjs(+test), cadencias, jobs-esperados, timer systemd, DEPLOY.md — delegado
-- [ ] T6 validación local contra copia de prod + estimación de corrida completa
+- [x] T1 provider puro `providers/climatologia-imerg.ts` (+test) — delegado (Haiku)
+- [x] T2 selección de fuente `peligro/fuente-climatologia.ts` (+test) — delegado (Haiku)
+- [x] T3 usar la selección en `nivel.ts` y `sync-ensemble.ts` (+tests) — delegado (Haiku)
+- [x] T4 job `jobs/calcular-climatologia-imerg.ts` (+test) — delegado (Haiku)
+- [x] T5 registro: jobs.mjs(+test), cadencias, jobs-esperados, timer systemd, DEPLOY.md — delegado
+- [x] T6 validación local contra copia de prod + estimación de corrida completa
 
 ## Checks
 `timeout 300 npx vitest run <archivos>`, `npx tsc --noEmit -p .`, `npx eslint <archivos>`.
 
 ## Avance
-(se completa por tarea con commit)
+- T1 fdfa753 · T2 32968e0, a8acc09 · T3 722560f, a2c73e2 · T4 de80dae · T5 08ad350 (inline: ediciones mecánicas).
+- Checks: vitest de los archivos tocados en verde (provider 13, fuente 7, nivel 57, sync-ensemble 8, job 6, jobs/cadencias/salud 66, metodología 6); `tsc --noEmit` limpio; eslint limpio.
+- T6 (copia de prod 2026-10-13T23:13Z, Postgres 18 local): 2001-2002 = 730 días, 754 requests, 0 errores, 1742 s
+  (2,4 s/día), 387/387 celdas; job `completado`, salud `ok`. Percentiles IMERG (2 años, indicativos) vs ERA5
+  1991-2020 en las 21 celdas: p90 +5..+30 %, p95 +10..+50 %, p99 +15..+55 % (IMERG resuelve mejor los extremos;
+  2 años es poca muestra). Celda de 1801318-00 (-27.6_-56.4): p90 18.8 / p95 31.7 / p99 66.3 mm.
+- Estimación corrida completa: ~9.130 días × 2,4 s ≈ 6,1 h → ~8 corridas diarias de 1.200 días (~48 min). No se corrió (> 1 h).
+- Pendiente (fuera de alcance): push/PR/deploy y crear la Scheduled Task en Coolify.
