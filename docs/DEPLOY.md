@@ -212,16 +212,14 @@ horaria del servidor de Coolify antes de crearlas, ver `docs/ejecucion-enos/OPS1
 Requisitos en el contenedor: `ENOS_JOBS_ENABLED` distinto de `false`, `AI_VEREDICTO_ENABLED=true` y
 `OPENROUTER_API_KEY` (sin clave el job corre igual y publica la plantilla determinista). La migración `0015` se
 aplica sola: `jobs.mjs` migra antes de despachar. Los días de pronóstico necesitan además
-`sync-pronostico-caudal` y `sync-ensemble`, que hoy no están programados en producción; sin ellos esos días salen
-"Sin dato".
+`sync-pronostico-caudal` y `sync-ensemble` (cada 6 h en producción); sin ellos esos días salen "Sin dato".
 
-Monitoreo: ambos jobs figuran en `lib/infraestructura/riesgo/jobs-esperados.ts` (pasar a `habilitado: true` al
-crear las tareas) y el job publica en `hazard_source_health` los proveedores `veredicto-diario` (TTL 360 min;
+Monitoreo: ambos jobs figuran en `lib/infraestructura/riesgo/jobs-esperados.ts` con `habilitado: true` y el job publica en `hazard_source_health` los proveedores `veredicto-diario` (TTL 360 min;
 `degradado` si una fuente no está disponible o la IA cayó a plantilla) y `registro-eventos-inundaciones` (TTL 7 días).
 Una fuente de entrada vencida (sin salud ni datos dentro de su tolerancia: IMERG 12 h, Prefectura 36 h, SMN 6 h, GloFAS y ensamble 48 h) se excluye y el día se publica como "Sin dato" o con
 "Sin datos de: …", nunca como nivel bajo. Los días de pronóstico usan GloFAS (clasificado contra la climatología
 `caudal_diario`), el ensamble y la lluvia ECMWF; un caudal sin climatología de referencia cuenta como fuente
-ausente. Si `climatologia-caudal` falla (p. ej. `cupo_agotado`), reintentarla: su cron mensual no reintenta solo. Detalle en `odd/tasks/veredicto-diario-ia.md`, "Operación permanente".
+ausente. Si `climatologia-caudal` falla (p. ej. `cupo_agotado`), la tarea reintenta sola a las 22 y 23 h y al día siguiente. Detalle en `odd/tasks/veredicto-diario-ia.md`, "Operación permanente".
 
 ### Procedimientos operativos
 
@@ -239,6 +237,15 @@ docker exec <CONTENEDOR> node scripts/jobs.mjs asociacion-rio
 ```
 
 Los timers mantienen ambos jobs actualizados diariamente. La asociación de ríos corre a las 03:10 UTC, después de `geo-perfiles` (03:00 UTC).
+
+Tareas de IMERG y climatologías de Open-Meteo (Coolify → Scheduled Tasks de la app de producción; tabla
+completa en `docs/ejecucion-enos/OPS1/runbook-scheduler.md`):
+
+| Nombre | Comando | Cron | Timeout |
+|---|---|---|---|
+| `sync-imerg` | `node scripts/jobs.mjs sync-imerg` | `*/30 * * * *` | 300 s |
+| `climatologia-caudal` | `node scripts/jobs.mjs climatologia-caudal` | `41 21-23 * * *` | 1200 s |
+| `climatologia-precipitacion` | `node scripts/jobs.mjs climatologia-precipitacion` | `43 21-23 * * *` | 1200 s |
 
 Climatología de precipitación NASA IMERG (Coolify → Scheduled Tasks de la app de producción):
 

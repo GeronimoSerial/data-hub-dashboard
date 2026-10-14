@@ -18,20 +18,20 @@ Fuente de verdad de la lista de jobs y sus estados esperados:
 
 | Entorno | Mecanismo | Jobs programados | Notas |
 |---|---|---|---|
-| Producción | Coolify Scheduled Tasks | 8 (tabla "Producción") | `sync-imerg`, ambas climatologías y `sync-prefectura-alturas` creadas el 2026-10-13. Flags: ver abajo. |
+| Producción | Coolify Scheduled Tasks | 12 (tabla "Producción") más los que se crean en este despliegue | `sync-imerg`, ambas climatologías y `sync-prefectura-alturas` creadas el 2026-10-13. Flags: ver abajo. |
 | Staging | Timers systemd `enos-ops1-*` | 4 activos; 3 deshabilitados (tabla "Staging") | Corre la app de staging contra la base de staging. |
 
-Los seis jobs no programados en producción (`calcular-riesgo`,
-`sync-pronostico-caudal`, `sync-ensemble`, `situacion-corte`,
-`episodios-derivados`, `sync-seasonal`) se mantienen fuera del scheduler por
-decisión hasta cerrar P-5 (I-6, I-7, G-3 e I-2). Figuran en
+`calcular-riesgo`, `sync-pronostico-caudal`, `sync-ensemble` y
+`situacion-corte` corren en producción y figuran con `habilitado: true`. Los dos
+jobs no programados (`episodios-derivados`, `sync-seasonal`) se mantienen fuera
+del scheduler por decisión hasta cerrar P-5 (I-6, I-7, G-3 e I-2). Figuran en
 `jobs-esperados.ts` con `habilitado: false` y el estado `no_programado`.
 `sync-prefectura-alturas` está programado en Coolify desde el 2026-10-13 y
 figura con `habilitado: true`.
 
 ## Pendiente: jobs de evidencia de río y lluvia medida (rama evidencia-riesgo-escuelas)
 
-Ninguno está programado todavía (`habilitado: false` en `jobs-esperados.ts`). Crear una Scheduled Task
+Se programan en este despliegue (`habilitado: true` en `jobs-esperados.ts`). Crear una Scheduled Task
 de Coolify por job, con el comando `node scripts/jobs.mjs <nombre>`. Todos tienen su propio lease
 idempotente y requieren `ENOS_JOBS_ENABLED` distinto de `false`. Si devuelven `estado: fallido`, salen
 con código `1`. Antes, aplicar las migraciones `0016_lluvia_estacion` y `0017_hidro_referencia_exposicion_dem`.
@@ -56,9 +56,13 @@ Tareas configuradas en Coolify sobre la aplicación de producción:
 | sync-radar-meteo | `27 */3 * * *` | no registrado | `sync-radar-meteo` | cada 3 h |
 | sync-smn-alertas | `7-59/15 * * * *` | no registrado | `sync-smn-alertas` | cada 15 min |
 | verificar-radar-meteo | `30 11 * * *` | no registrado | — (no escribe `infra_job_run`) | diario; estado `sin_trazabilidad` |
-| sync-imerg | `5 * * * *` | 300 s | `sync-hazard-imerg` | creado 2026-10-13 |
-| climatologia-caudal | `41 6 1 * *` | 1200 s | `calcular-hazard-climatologia-caudal` | mensual, cursor resumable; creado 2026-10-13 |
-| climatologia-precipitacion | `43 6 1 * *` | 1200 s | `calculo-climatologia` | mensual, cursor resumable; creado 2026-10-13 |
+| sync-imerg | `*/30 * * * *` | 300 s | `sync-hazard-imerg` | cada 30 min |
+| calcular-riesgo | no registrado | no registrado | `calcular-riesgo-v0` | cada 6 h |
+| sync-pronostico-caudal | no registrado | no registrado | `sync-hazard-pronostico-caudal` | cada 6 h |
+| sync-ensemble | no registrado | no registrado | `sync-hazard-ensemble` | cada 6 h |
+| situacion-corte | no registrado | no registrado | `situacion-corte-v1` | cada hora |
+| climatologia-caudal | `41 21-23 * * *` | 1200 s | `calcular-hazard-climatologia-caudal` | diario, tres intentos (21, 22 y 23 h), cursor resumable |
+| climatologia-precipitacion | `43 21-23 * * *` | 1200 s | `calculo-climatologia` | diario, tres intentos (21, 22 y 23 h), cursor resumable |
 | climatologia-imerg | `20 4 * * *` | 3600 s | `calculo-climatologia-imerg` | diario; cursor resumable por mes, presupuesto `IMERG_CLIMATOLOGIA_DIAS_POR_CORRIDA` (default 1200 días ≈ 45 min). Requiere `EARTHDATA_TOKEN`. Salud: `hazard_source_health` `nasa-imerg-climatologia` (TTL 2 días). |
 | sync-prefectura-alturas | `17 * * * *` | 300 s | `sync-prefectura-alturas` | cada hora; creado 2026-10-13. Requiere `ENOS_JOBS_ENABLED` distinto de `false` en el contenedor. Exit `1` si devuelve `estado: fallido`. |
 | veredicto-diario | `45 0,6,12,18 * * *` | 600 s | `veredicto-diario-v0` | **pendiente de crear**. Comando `node scripts/jobs.mjs veredicto-diario`. Requiere `AI_VEREDICTO_ENABLED=true` (y `OPENROUTER_API_KEY` para texto IA). |
@@ -217,10 +221,10 @@ mayo, el año anterior); no hay fechas fijas. Un día que falla descarta su mes,
 corrida `fallido` y la salud `degradado`; la próxima corrida retoma el mes. Completado el
 período, cada corrida sólo recalcula (minutos). Las celdas sin IMERG completo usan ERA5.
 
-## Climatologías: timers mensuales con cursor resumable (OM-cupo)
+## Climatologías: tareas diarias con cursor resumable (OM-cupo)
 
 `climatologia-precipitacion` (ERA5, ~387 celdas × 30 años) y `climatologia-caudal`
-(GloFAS, 8 `PUNTOS_RIO` fijos × ~10 años) corren mensualmente y avanzan un cursor
+(GloFAS, 8 `PUNTOS_RIO` fijos × ~10 años) corren todos los días (tres intentos, de 21 a 23 h) y avanzan un cursor
 resumable en tandas; el cálculo completo excede el cupo mensual de Open-Meteo en
 una sola corrida (ver `docs/ejecucion-enos/OM-cupo/registro.md`). Nunca recomputan
 una celda ya persistida en `hazard_climatology` para el mismo período y versión
@@ -242,7 +246,7 @@ job se pise a sí mismo, no ordena jobs distintos). Los offsets de `calcular-rie
 definidos en las unidades del repo, que hoy no están activas en staging ni
 programadas en producción: al habilitarlos, la secuencia se revalida en el mismo cambio.
 
-- `calcular-riesgo` no espera a `sync-imerg` (cadencia horaria independiente): puede usar IMERG de hasta ~1 h de antigüedad.
+- `calcular-riesgo` no espera a `sync-imerg` (cadencia de 30 min independiente): puede usar IMERG de hasta ~30 min de antigüedad.
 - `episodios-derivados` y `sync-imerg` comparten `:00` sin offset: `episodios-derivados` puede usar IMERG de la hora anterior. Bajo riesgo: se corrige en la corrida siguiente.
 
 La UI del Centro de Situación (E5) marca el corte como "desactualizado" con
