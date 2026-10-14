@@ -754,11 +754,13 @@ describe('MapInfraestructuraPage — filtros de padrón', () => {
     expect(leyenda).toBeInTheDocument()
     expect(within(screen.getByTestId('panel-lateral')).queryByRole('complementary', { name: 'Referencias del mapa' })).toBeNull()
     expect(within(leyenda).getByText('Crítica')).toBeInTheDocument()
-    const botonSimbolos = within(leyenda).getByRole('button', { name: 'Símbolos' })
-    expect(botonSimbolos).toHaveAttribute('aria-expanded', 'false')
-    expect(within(leyenda).getByText('Sin actualizar')).not.toBeVisible()
-    await userEvent.click(botonSimbolos)
-    expect(within(leyenda).getByText('Sin actualizar')).toBeVisible()
+    // Symbols live in a collapsed section of the single legend panel.
+    const seccionSimbolos = within(leyenda).getByText('Símbolos').closest('details')
+    expect(seccionSimbolos).not.toBeNull()
+    expect(seccionSimbolos).not.toHaveAttribute('open')
+    await userEvent.click(within(leyenda).getByText('Símbolos'))
+    expect(seccionSimbolos).toHaveAttribute('open')
+    expect(within(leyenda).getByText('Sin actualizar')).toBeInTheDocument()
     expect(screen.queryByText('Referencias')).not.toBeInTheDocument()
   })
 
@@ -1677,7 +1679,7 @@ describe('M2: panel de situación actual con padrón', () => {
       'data-filter',
       JSON.stringify(['has', 'point_count']),
     )
-    expect(screen.getByText('Situación actual')).toBeInTheDocument()
+    expect(within(screen.getByTestId('panel-lateral')).getByText('Situación actual')).toBeInTheDocument()
   })
 })
 

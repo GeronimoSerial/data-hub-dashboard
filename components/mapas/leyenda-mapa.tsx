@@ -1,8 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { BookMinus, BookX, Check, ChevronDown, ChevronUp, Clock, DoorOpen, House } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { BookMinus, BookX, Check, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIVEL_PLAN, nivelesLeyendaPlanificacion, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
@@ -12,7 +10,7 @@ import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa
 import type { ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
 import { InsigniaLeyenda, type IdInsignia } from '@/lib/mapas/insignias-mapa'
 
-type ResumenEventosLeyenda = Pick<ResumenEventosReportados, 'resumenProvincial' | 'sinUbicacionPrecisa' | 'actualizadoAl'>
+type RegistroEventosLeyenda = Pick<ResumenEventosReportados, 'actualizadoAl'>
 
 type PropsLeyendaMapa =
   | { pestana: 'actual' }
@@ -36,23 +34,6 @@ const ESTADOS_ALTURA_RIO: ReadonlyArray<{ id: IdInsignia; etiqueta: string }> = 
   { id: 'estacion-sin-dato', etiqueta: 'Sin dato' },
 ]
 
-function LeyendaAlturaRios() {
-  return (
-    <aside className="map-leyenda" aria-label="Altura de ríos">
-      <b className="map-leyenda__titulo">Estaciones de Prefectura</b>
-      <ul className="map-leyenda__fila">
-        {ESTADOS_ALTURA_RIO.map(({ id, etiqueta }) => (
-          <li className="map-leyenda__elemento" key={id}>
-            <InsigniaLeyenda id={id} tamano={22} />
-            <span>{etiqueta}</span>
-          </li>
-        ))}
-      </ul>
-      <small className="muted">Sin dato también cuando la última lectura tiene más de 12 h.</small>
-    </aside>
-  )
-}
-
 const CONFIANZA_EVENTOS: ReadonlyArray<{ id: IdInsignia; etiqueta: string }> = [
   { id: 'evento-alta', etiqueta: 'Confianza alta' },
   { id: 'evento-media', etiqueta: 'Confianza media' },
@@ -67,51 +48,6 @@ function formatearFechaRegistro(fecha: string): string | null {
   return `${coincidencia[3]}/${coincidencia[2]}`
 }
 
-function LeyendaEventosReportados({ resumen }: { resumen?: ResumenEventosLeyenda | null }) {
-  const resumenProvincial = resumen?.resumenProvincial ?? []
-  const sinUbicacionPrecisa = resumen?.sinUbicacionPrecisa ?? []
-  const registroActualizado = resumen?.actualizadoAl ? formatearFechaRegistro(resumen.actualizadoAl) : null
-
-  return (
-    <aside className="map-leyenda" aria-label="Eventos reportados">
-      <b className="map-leyenda__titulo">Eventos reportados</b>
-      <ul className="map-leyenda__fila">
-        {CONFIANZA_EVENTOS.map(({ id, etiqueta }) => (
-          <li className="map-leyenda__elemento" key={id}>
-            <InsigniaLeyenda id={id} />
-            <span>{etiqueta}</span>
-          </li>
-        ))}
-      </ul>
-      {registroActualizado && <small className="muted">{`Registro actualizado al ${registroActualizado}`}</small>}
-      {resumenProvincial.length > 0 && (
-        <section className="map-leyenda__resumen">
-          <b className="map-leyenda__subtitulo">Resumen provincial</b>
-          <ul>
-            {resumenProvincial.map((evento) => {
-              const fuente = evento.fuentes[0]
-              return (
-                <li key={evento.id_evento}>
-                  <span>{evento.titulo}</span>
-                  {evento.hechos[0] && <small>{evento.hechos[0]}</small>}
-                  {fuente && (
-                    <small>
-                      <a href={fuente.url} target="_blank" rel="noopener noreferrer">{fuente.medio}</a>
-                    </small>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </section>
-      )}
-      {sinUbicacionPrecisa.length > 0 && (
-        <small>{`Sin ubicación precisa: ${sinUbicacionPrecisa.map((lugar) => lugar.lugar).join(', ')}`}</small>
-      )}
-    </aside>
-  )
-}
-
 const FORMATO_CORTE_LLUVIA = new Intl.DateTimeFormat('es-AR', {
   day: '2-digit',
   month: '2-digit',
@@ -124,9 +60,9 @@ const FORMATO_CORTE_LLUVIA = new Intl.DateTimeFormat('es-AR', {
 function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
   const hasta = meta.hasta && !Number.isNaN(Date.parse(meta.hasta)) ? FORMATO_CORTE_LLUVIA.format(new Date(meta.hasta)) : null
   return (
-    <aside className="map-leyenda" aria-label="Lluvia observada">
-      <b className="map-leyenda__titulo">Lluvia observada {meta.horas} h (satélite IMERG)</b>
-      <ul className="map-leyenda__fila">
+    <div className="map-leyenda__bloque">
+      <b className="map-leyenda__subtitulo">Lluvia observada {meta.horas} h (satélite IMERG)</b>
+      <ul className="map-leyenda__escala">
         {CLASES_LLUVIA.map((clase) => (
           <li className="map-leyenda__elemento" key={clase.desde}>
             <span aria-hidden="true" className="map-leyenda__muestra" style={{ backgroundColor: clase.color }} />
@@ -138,24 +74,57 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
       {meta.vencida && <small className="map-leyenda__aviso">{`Datos desactualizados: última observación ${hasta ?? 'sin dato'}.`}</small>}
       <small>Estimación satelital, no medición en tierra. Hacé clic en el mapa para ver el valor.</small>
       {meta.parciales > 0 && <small>{meta.parciales} celdas con ventana incompleta (ver detalle al hacer clic)</small>}
-    </aside>
+    </div>
   )
 }
 
-export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; eventosReportados?: boolean; resumenEventos?: ResumenEventosLeyenda | null; lluviaObservada?: MetaLluviaObservada | null }) {
+function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObservada }: {
+  estacionesRio: boolean
+  eventosReportados: boolean
+  registro: RegistroEventosLeyenda | null | undefined
+  lluviaObservada: MetaLluviaObservada | null
+}) {
+  const registroActualizado = registro?.actualizadoAl ? formatearFechaRegistro(registro.actualizadoAl) : null
+
   return (
-    <>
-      {props.estacionesRio && <LeyendaAlturaRios />}
-      {props.eventosReportados && <LeyendaEventosReportados resumen={props.resumenEventos} />}
-      {props.lluviaObservada && <LeyendaLluviaObservada meta={props.lluviaObservada} />}
-      <LeyendaPestana {...props} />
-    </>
+    <details className="map-leyenda__seccion" open>
+      <summary className="map-leyenda__seccion-titulo">Situación actual</summary>
+      <div className="map-leyenda__seccion-cuerpo">
+        {estacionesRio && (
+          <div className="map-leyenda__bloque">
+            <b className="map-leyenda__subtitulo">Estaciones de Prefectura</b>
+            <ul className="map-leyenda__situacion">
+              {ESTADOS_ALTURA_RIO.map(({ id, etiqueta }) => (
+                <li className="map-leyenda__elemento" key={id}>
+                  <InsigniaLeyenda id={id} tamano={22} />
+                  <span>{etiqueta}</span>
+                </li>
+              ))}
+            </ul>
+            <small className="muted">Sin dato también cuando la última lectura tiene más de 12 h.</small>
+          </div>
+        )}
+        {eventosReportados && (
+          <div className="map-leyenda__bloque">
+            <b className="map-leyenda__subtitulo">Eventos reportados</b>
+            <ul className="map-leyenda__situacion">
+              {CONFIANZA_EVENTOS.map(({ id, etiqueta }) => (
+                <li className="map-leyenda__elemento" key={id}>
+                  <InsigniaLeyenda id={id} />
+                  <span>{etiqueta}</span>
+                </li>
+              ))}
+            </ul>
+            {registroActualizado && <small className="muted">{`Registro actualizado al ${registroActualizado}`}</small>}
+          </div>
+        )}
+        {lluviaObservada && <LeyendaLluviaObservada meta={lluviaObservada} />}
+      </div>
+    </details>
   )
 }
 
-function LeyendaPestana(props: PropsLeyendaMapa) {
-  if (props.pestana === 'estadisticas') return null
-
+function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
   if (props.pestana === 'radar') {
     const niveles = [
       ['muy_alto', ETIQUETA_NIVEL_RIESGO.muy_alto],
@@ -165,7 +134,7 @@ function LeyendaPestana(props: PropsLeyendaMapa) {
     ] as const
 
     return (
-      <aside className="map-leyenda" aria-label="Referencias del mapa">
+      <>
         <b className="map-leyenda__titulo">
           Riesgo de afectación · {ETIQUETA_HORIZONTE_MOTOR[props.horizonte]}
         </b>
@@ -181,7 +150,7 @@ function LeyendaPestana(props: PropsLeyendaMapa) {
             </li>
           ))}
         </ul>
-      </aside>
+      </>
     )
   }
 
@@ -189,7 +158,7 @@ function LeyendaPestana(props: PropsLeyendaMapa) {
     const niveles = nivelesLeyendaPlanificacion(props.vista)
 
     return (
-      <aside className="map-leyenda" aria-label="Referencias del mapa">
+      <>
         <b className="map-leyenda__titulo">{TITULO_LEYENDA_VISTA[props.vista]}</b>
         <ul className="map-leyenda__fila">
           {niveles.map((nivel) => (
@@ -209,63 +178,75 @@ function LeyendaPestana(props: PropsLeyendaMapa) {
             </li>
           )}
         </ul>
-      </aside>
+      </>
     )
   }
 
-  return <LeyendaActual />
+  if (props.pestana === 'actual') {
+    return (
+      <ul className="map-leyenda__fila map-leyenda__gravedades">
+        {[...SEVERIDADES].reverse().map((severidad) => (
+          <li className="map-leyenda__elemento" key={severidad}>
+            <span
+              aria-hidden="true"
+              className="map-leyenda__muestra"
+              style={{ backgroundColor: colorSeveridad(severidad) }}
+            />
+            <span>{severidad}</span>
+          </li>
+        ))}
+        <li className="map-leyenda__elemento" key="sin-situaciones">
+          <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--neutra" />
+          <span>Sin situaciones</span>
+        </li>
+      </ul>
+    )
+  }
+
+  return null
 }
 
-function LeyendaActual() {
-  const [simbolosAbiertos, setSimbolosAbiertos] = useState(false)
+export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; eventosReportados?: boolean; resumenEventos?: RegistroEventosLeyenda | null; lluviaObservada?: MetaLluviaObservada | null }) {
+  const estacionesRio = Boolean(props.estacionesRio)
+  const eventosReportados = Boolean(props.eventosReportados)
+  const lluviaObservada = props.lluviaObservada ?? null
+  const hayCapas = estacionesRio || eventosReportados || lluviaObservada !== null
+
+  if (props.pestana === 'estadisticas' && !hayCapas) return null
 
   return (
     <aside className="map-leyenda" aria-label="Referencias del mapa">
-      <div id="map-leyenda-simbolos" hidden={!simbolosAbiertos}>
-        <ul className="map-leyenda__simbolos">
-          {ESTADOS_LEYENDA.map(({ Icono, etiqueta }) => (
-            <li className="map-leyenda__elemento" key={etiqueta}>
-              <Icono aria-hidden="true" className="map-leyenda__icono" size={14} />
-              <span>{etiqueta}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="map-leyenda__actual">
-        <ul className="map-leyenda__fila map-leyenda__gravedades">
-          {[...SEVERIDADES].reverse().map((severidad) => (
-            <li className="map-leyenda__elemento" key={severidad}>
-              <span
-                aria-hidden="true"
-                className="map-leyenda__muestra"
-                style={{ backgroundColor: colorSeveridad(severidad) }}
-              />
-              <span>{severidad}</span>
-            </li>
-          ))}
-          <li className="map-leyenda__elemento" key="sin-situaciones">
-            <span
-              aria-hidden="true"
-              className="map-leyenda__muestra map-leyenda__muestra--neutra"
-            />
-            <span>Sin situaciones</span>
-          </li>
-        </ul>
-        <Button
-          aria-controls="map-leyenda-simbolos"
-          aria-expanded={simbolosAbiertos}
-          className="map-leyenda__boton"
-          onClick={() => setSimbolosAbiertos((abiertos) => !abiertos)}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          Símbolos
-          {simbolosAbiertos
-            ? <ChevronUp aria-hidden="true" size={14} />
-            : <ChevronDown aria-hidden="true" size={14} />}
-        </Button>
-      </div>
+      {hayCapas && (
+        <SituacionActual
+          estacionesRio={estacionesRio}
+          eventosReportados={eventosReportados}
+          registro={props.resumenEventos}
+          lluviaObservada={lluviaObservada}
+        />
+      )}
+      {props.pestana !== 'estadisticas' && (
+        <details className="map-leyenda__seccion" open>
+          <summary className="map-leyenda__seccion-titulo">Riesgo / gravedad</summary>
+          <div className="map-leyenda__seccion-cuerpo">
+            <ReferenciasRiesgo props={props} />
+          </div>
+        </details>
+      )}
+      {props.pestana === 'actual' && (
+        <details className="map-leyenda__seccion">
+          <summary className="map-leyenda__seccion-titulo">Símbolos</summary>
+          <div className="map-leyenda__seccion-cuerpo">
+            <ul className="map-leyenda__simbolos">
+              {ESTADOS_LEYENDA.map(({ Icono, etiqueta }) => (
+                <li className="map-leyenda__elemento" key={etiqueta}>
+                  <Icono aria-hidden="true" className="map-leyenda__icono" size={14} />
+                  <span>{etiqueta}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
     </aside>
   )
 }

@@ -1,12 +1,79 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { fireEvent, render, within } from '@testing-library/react'
+import { render, within } from '@testing-library/react'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, VISTAS_PLANIFICACION } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo } from '@/lib/infraestructura/mapa/radar'
 
+function colorCss(color: string): string {
+  const muestra = document.createElement('span')
+  muestra.style.backgroundColor = color
+  return muestra.style.backgroundColor
+}
+
+function titulosSecciones(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll('aside.map-leyenda details > summary')).map((summary) => summary.textContent ?? '')
+}
+
+describe('LeyendaMapa · contenedor único', () => {
+  it.each(['actual', 'radar', 'planificacion'] as const)('renderiza un único aside.map-leyenda en la pestaña %s', (pestana) => {
+    const props = pestana === 'radar'
+      ? { pestana, horizonte: 72 as const }
+      : pestana === 'planificacion' ? { pestana, vista: 'inundacion' as const } : { pestana }
+    const { container } = render(<LeyendaMapa {...props} estacionesRio eventosReportados lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
+
+    expect(container.querySelectorAll('aside')).toHaveLength(1)
+    expect(container.querySelector('aside.map-leyenda')).toHaveAttribute('aria-label', 'Referencias del mapa')
+  })
+
+  it('usa un solo contenedor con los bloques de altura de ríos, eventos y lluvia dentro', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" estacionesRio eventosReportados lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
+
+    expect(container.querySelectorAll('aside')).toHaveLength(1)
+    const leyenda = within(container.querySelector('aside.map-leyenda') as HTMLElement)
+    expect(leyenda.getByText('Estaciones de Prefectura')).toBeTruthy()
+    expect(leyenda.getByText('Eventos reportados')).toBeTruthy()
+    expect(leyenda.getByText('Lluvia observada 24 h (satélite IMERG)')).toBeTruthy()
+  })
+
+  it('no renderiza nada en Estadísticas sin capas visibles', () => {
+    const { container } = render(<LeyendaMapa pestana="estadisticas" />)
+    expect(container).toBeEmptyDOMElement()
+  })
+})
+
+describe('LeyendaMapa · secciones', () => {
+  it('ordena Situación actual, Riesgo / gravedad y Símbolos, con Situación y Riesgo abiertas', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" estacionesRio lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
+
+    expect(titulosSecciones(container)).toEqual(['Situación actual', 'Riesgo / gravedad', 'Símbolos'])
+    const detalles = Array.from(container.querySelectorAll('aside.map-leyenda details')) as HTMLDetailsElement[]
+    expect(detalles.map((detalle) => detalle.open)).toEqual([true, true, false])
+  })
+
+  it('omite Símbolos fuera de la pestaña Actual y Situación actual sin capas', () => {
+    const { container } = render(<LeyendaMapa pestana="radar" horizonte={72} />)
+
+    expect(titulosSecciones(container)).toEqual(['Riesgo / gravedad'])
+    expect(container.querySelector('aside.map-leyenda')).toHaveAttribute('aria-label', 'Referencias del mapa')
+  })
+
+  it('muestra solo Situación actual en Estadísticas con capas visibles', () => {
+    const { container } = render(<LeyendaMapa pestana="estadisticas" estacionesRio />)
+
+    expect(titulosSecciones(container)).toEqual(['Situación actual'])
+  })
+
+  it('no muestra el resumen provincial ni la ubicación imprecisa en la leyenda', () => {
+    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={{ actualizadoAl: '2026-10-13' }} />)
+
+    expect(within(container).queryByText('Resumen provincial')).toBeNull()
+    expect(within(container).queryByText(/Sin ubicación precisa/)).toBeNull()
+  })
+})
+
 describe('LeyendaMapa · altura de ríos', () => {
-  it('muestra la escala de altura de ríos en cualquier pestaña cuando la capa está visible', () => {
+  it('muestra la escala de altura de ríos cuando la capa está visible', () => {
     const { container } = render(<LeyendaMapa pestana="estadisticas" estacionesRio />)
 
     const leyenda = within(container)
@@ -22,15 +89,9 @@ describe('LeyendaMapa · altura de ríos', () => {
   it('no muestra la escala de altura de ríos cuando la capa está apagada', () => {
     const { container } = render(<LeyendaMapa pestana="actual" estacionesRio={false} />)
 
-    expect(within(container).queryByText('Altura de ríos')).toBeNull()
+    expect(within(container).queryByText('Estaciones de Prefectura')).toBeNull()
   })
 })
-
-function colorCss(color: string): string {
-  const muestra = document.createElement('span')
-  muestra.style.backgroundColor = color
-  return muestra.style.backgroundColor
-}
 
 describe('LeyendaMapa · lluvia observada', () => {
   it('muestra la escala IMERG, la nota de estimación satelital y la fecha de corte en hora argentina', () => {
@@ -65,15 +126,16 @@ describe('LeyendaMapa · lluvia observada', () => {
     expect(aviso.className).toContain('map-leyenda__aviso')
   })
 
-  it('no muestra la leyenda de lluvia cuando la capa está apagada', () => {
+  it('no muestra la sección de lluvia cuando la capa está apagada (null)', () => {
     const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={null} />)
 
     expect(within(container).queryByText(/Lluvia observada \d+ h/)).toBeNull()
+    expect(container.querySelector('.map-leyenda__escala')).toBeNull()
   })
 })
 
-describe('LeyendaMapa', () => {
-  it('muestra gravedad colapsada y despliega símbolos al activarlo', () => {
+describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
+  it('muestra gravedad colapsada y los símbolos dentro de su sección', () => {
     const { container } = render(<LeyendaMapa pestana="actual" />)
     const filas = container.querySelectorAll('.map-leyenda__gravedades')
 
@@ -84,45 +146,17 @@ describe('LeyendaMapa', () => {
     const sinReporte = filas[0].querySelector('li:last-child .map-leyenda__muestra')
     expect(sinReporte).toHaveClass('map-leyenda__muestra--neutra')
     expect((sinReporte as HTMLElement).style.backgroundColor).toBe('')
-    expect(within(container).getByText('Solucionada recientemente')).not.toBeVisible()
-    const boton = within(container).getByRole('button', { name: 'Símbolos' })
-    expect(boton).toHaveAttribute('aria-expanded', 'false')
-    expect(boton).toHaveAttribute('aria-controls', 'map-leyenda-simbolos')
-
-    fireEvent.click(boton)
-    expect(boton).toHaveAttribute('aria-expanded', 'true')
+    expect(container.querySelectorAll('button')).toHaveLength(0)
     expect(Array.from(container.querySelectorAll('.map-leyenda__simbolos li')).map((item) => item.textContent)).toEqual([
       'Funcionamiento interrumpido', 'Funcionamiento parcialmente interrumpido', 'Evacuado', 'Usado como centro de evacuados', 'Sin actualizar', 'Solucionada recientemente',
     ])
     expect(container.querySelector('.map-leyenda__simbolos li:last-child svg')).toHaveAttribute('aria-hidden', 'true')
-
-    fireEvent.click(boton)
-    expect(boton).toHaveAttribute('aria-expanded', 'false')
-    expect(within(container).getByText('Solucionada recientemente')).not.toBeVisible()
     expect(container.querySelector('p')).toBeNull()
-  })
-
-  it('cierra los símbolos al cambiar de pestaña', () => {
-    const { container, rerender } = render(<LeyendaMapa pestana="actual" />)
-    fireEvent.click(within(container).getByRole('button', { name: 'Símbolos' }))
-    rerender(<LeyendaMapa pestana="radar" horizonte={72} />)
-    rerender(<LeyendaMapa pestana="actual" />)
-    expect(within(container).getByRole('button', { name: 'Símbolos' })).toHaveAttribute('aria-expanded', 'false')
-    expect(within(container).getByText('Solucionada recientemente')).not.toBeVisible()
-  })
-
-  it('ancla la leyenda al lado del sidebar en escritorio', async () => {
-    const fs = await import('node:fs')
-    const css = fs.readFileSync('app/globals.css', 'utf8')
-    const regla = css.match(/\.map-leyenda\s*\{([^}]+)\}/)?.[1]
-    expect(regla).toMatch(/left:\s*calc\(55px\s*\+\s*var\(--map-sidebar-ancho\)\s*\+\s*var\(--s-3\)\)/)
-    expect(regla).not.toMatch(/transform:\s*translateX\(-50%\)/)
   })
 
   it('muestra título y escala de riesgo para el horizonte del Radar', () => {
     const { container, rerender } = render(<LeyendaMapa pestana="radar" horizonte={72} />)
 
-    expect(container.querySelector('aside')).toHaveAttribute('aria-label', 'Referencias del mapa')
     expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent('Riesgo de afectación · 72 h')
     expect(Array.from(container.querySelectorAll('.map-leyenda__fila li')).map((item) => item.textContent)).toEqual([
       'Muy alto', 'Alto', 'Moderado', 'Bajo',
@@ -159,11 +193,6 @@ describe('LeyendaMapa', () => {
       unmount()
     }
   })
-
-  it('no muestra referencias en Estadísticas', () => {
-    const { container } = render(<LeyendaMapa pestana="estadisticas" />)
-    expect(container).toBeEmptyDOMElement()
-  })
 })
 
 describe('LeyendaMapa · eventos reportados', () => {
@@ -180,7 +209,7 @@ describe('LeyendaMapa · eventos reportados', () => {
   })
 
   it('muestra la fecha de registro actualizado en dd/MM sin desplazamiento de zona horaria', () => {
-    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={{ resumenProvincial: [], sinUbicacionPrecisa: [], actualizadoAl: '2026-10-13' }} />)
+    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={{ actualizadoAl: '2026-10-13' }} />)
 
     expect(within(container).getByText('Registro actualizado al 13/10')).toBeTruthy()
   })
@@ -190,9 +219,7 @@ describe('LeyendaMapa · eventos reportados', () => {
 
     expect(within(container).queryByText('Eventos reportados')).toBeNull()
   })
-})
 
-describe('LeyendaMapa · altura de ríos y eventos según pestaña', () => {
   it.each(['actual', 'radar'] as const)('muestra ambos bloques en la pestaña %s cuando las capas están visibles', (pestana) => {
     const props = pestana === 'radar' ? { pestana, horizonte: 72 as const } : { pestana }
     const { container } = render(<LeyendaMapa {...props} estacionesRio eventosReportados />)
@@ -211,44 +238,14 @@ describe('LeyendaMapa · altura de ríos y eventos según pestaña', () => {
   })
 })
 
-describe('LeyendaMapa · resumen provincial de eventos', () => {
-  it('muestra el resumen provincial, los lugares sin ubicación precisa y el enlace de fuente', () => {
-    const resumen = {
-      resumenProvincial: [
-        {
-          id_evento: 'EV-9',
-          tipo_afectacion: 'Evacuados',
-          mediciones: '',
-          lugares: ['Corrientes'],
-          titulo: 'Inundación — Evacuados',
-          subtitulo: 'Cifra provincial',
-          hechos: ['120 familias evacuadas'],
-          estadoEtiqueta: 'Activo',
-          confianzaEtiqueta: 'Confianza media',
-          fuentes: [{ medio: 'Prefectura', fecha: '2026-10-02', url: 'https://example.test/alturas' }],
-          fuenteTitulo: 'Prefectura',
-          fuenteUrl: 'https://example.test/alturas',
-        },
-      ],
-      sinUbicacionPrecisa: [
-        { id: 'EV-7', lugar: 'Paso de los Libres', titulo: 'Evacuación', confianza: 'media', confianzaEtiqueta: 'Confianza media', medio: null, fecha: null },
-        { id: 'EV-8', lugar: 'Santo Tomé', titulo: 'Crecida', confianza: 'alta', confianzaEtiqueta: 'Confianza alta', medio: null, fecha: null },
-      ],
-      actualizadoAl: null,
-    }
-    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={resumen} />)
-
-    const leyenda = within(container)
-    expect(leyenda.getByText('Resumen provincial')).toBeTruthy()
-    expect(leyenda.getByText('Inundación — Evacuados')).toBeTruthy()
-    expect(leyenda.getByText('120 familias evacuadas')).toBeTruthy()
-    expect(leyenda.getByRole('link', { name: 'Prefectura' }).getAttribute('href')).toBe('https://example.test/alturas')
-    expect(leyenda.getByText('Sin ubicación precisa: Paso de los Libres, Santo Tomé')).toBeTruthy()
-  })
-
-  it('no muestra el resumen cuando no hay eventos resumidos', () => {
-    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={{ resumenProvincial: [], sinUbicacionPrecisa: [], actualizadoAl: null }} />)
-
-    expect(within(container).queryByText('Resumen provincial')).toBeNull()
+describe('LeyendaMapa · posición', () => {
+  it('ancla la leyenda al lado del sidebar en escritorio', async () => {
+    const fs = await import('node:fs')
+    const css = fs.readFileSync('app/globals.css', 'utf8')
+    const regla = css.match(/\.map-leyenda\s*\{([^}]+)\}/)?.[1]
+    expect(regla).toMatch(/left:\s*calc\(55px\s*\+\s*var\(--map-sidebar-ancho\)\s*\+\s*var\(--s-3\)\)/)
+    expect(regla).not.toMatch(/transform:\s*translateX\(-50%\)/)
+    expect(regla).toMatch(/max-height:\s*min\(60vh,\s*32rem\)/)
+    expect(regla).toMatch(/overscroll-behavior:\s*contain/)
   })
 })

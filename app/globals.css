@@ -2168,9 +2168,12 @@ time {
   left: calc(55px + var(--map-sidebar-ancho) + var(--s-3));
   bottom: var(--s-3);
   display: grid;
-  gap: var(--s-2);
+  min-width: 0;
   max-width: calc(100% - 55px - var(--map-sidebar-ancho) - var(--s-4));
-  padding: var(--s-2) var(--s-3);
+  max-height: min(60vh, 32rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--s-3);
   color: var(--ink);
   background: var(--card);
   border: 1px solid var(--line);
@@ -2178,7 +2181,38 @@ time {
   box-shadow: var(--e-float);
   font-size: var(--t-small);
 }
-.map-leyenda__fila {
+.map-leyenda__seccion {
+  min-width: 0;
+}
+.map-leyenda__seccion + .map-leyenda__seccion {
+  border-top: 1px solid var(--line);
+}
+.map-leyenda__seccion-titulo {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.map-leyenda__seccion-cuerpo {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: 0 0 var(--s-2);
+}
+.map-leyenda__bloque {
+  display: grid;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.map-leyenda__fila,
+.map-leyenda__escala,
+.map-leyenda__situacion {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2187,24 +2221,9 @@ time {
   padding: 0;
   list-style: none;
 }
-.map-leyenda__fila + .map-leyenda__fila {
-  border-top: 1px solid var(--line);
-  padding-top: var(--s-2);
-}
-.map-leyenda__actual {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-1) var(--s-2);
-}
 .map-leyenda__gravedades {
-  flex: 1 1 auto;
-  flex-wrap: wrap;
   gap: var(--s-1) var(--s-2);
 }
-.map-leyenda__actual .map-leyenda__elemento { gap: var(--s-1); }
-.map-leyenda__boton { flex: 0 0 auto; gap: var(--s-1); }
 .map-leyenda__simbolos {
   display: flex;
   flex-direction: column;
@@ -2214,7 +2233,6 @@ time {
   padding: 0;
   list-style: none;
 }
-.map-leyenda__simbolos[hidden] { display: none; }
 .map-leyenda__titulo {
   font-weight: 600;
   font-size: var(--t-small);
@@ -2247,17 +2265,7 @@ time {
   background: transparent;
   border: 1.5px dashed var(--ink-soft);
 }
-.map-leyenda__resumen {
-  display: grid;
-  gap: var(--s-1);
-  min-width: 0;
-  margin-top: var(--s-2);
-  padding-top: var(--s-2);
-  border-top: 1px solid var(--line);
-  font-size: var(--t-small);
-  overflow-wrap: anywhere;
-}
-.map-leyenda__subtitulo { font-weight: 600; }
+.map-leyenda__subtitulo { font-weight: 600; overflow-wrap: anywhere; }
 /* Reported events list in the Situación actual panel: bounded height, own scroll. */
 .map-eventos__lista {
   max-height: min(18rem, 40vh);
