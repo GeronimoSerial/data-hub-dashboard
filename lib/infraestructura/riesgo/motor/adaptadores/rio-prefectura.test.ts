@@ -183,3 +183,46 @@ describe('crearAdapterRioPrefectura', () => {
     expect(cargas).toBe(1)
   })
 })
+
+describe('resolverEvidenciaRio — proximidad a la estación', () => {
+  const sinExposicion = new Map([[CUE, SIN_EXPOSICION]])
+
+  it('escuela a ~1.4 km de la estación de Paso de los Libres queda expuesta', () => {
+    const ev = resolverEvidenciaRio(
+      datos({
+        susceptibilidadPorCue: sinExposicion,
+        coordenadasPorCue: new Map([[CUE, { lat: -29.7085, lon: -57.0858 }]]),
+      }),
+      CUE,
+      ASOF,
+    )
+    expect(ev?.estado).toBe('evacuacion')
+    expect(ev?.criterioExposicion).toMatch(/^estacion_a_1\.\dkm$/)
+  })
+
+  it('escuela del mismo pueblo a ~2.5 km no queda expuesta', () => {
+    const ev = resolverEvidenciaRio(
+      datos({
+        susceptibilidadPorCue: sinExposicion,
+        coordenadasPorCue: new Map([[CUE, { lat: -29.7063, lon: -57.1035 }]]),
+      }),
+      CUE,
+      ASOF,
+    )
+    expect(ev).toBeNull()
+  })
+
+  it('estación con coordenada de baja precisión (Itatí, 2 decimales) no habilita el proxy', () => {
+    const ev = resolverEvidenciaRio(
+      datos({
+        localidadPorCue: new Map([[CUE, 'ITATI']]),
+        susceptibilidadPorCue: sinExposicion,
+        coordenadasPorCue: new Map([[CUE, { lat: -27.27, lon: -58.24 }]]),
+        lecturas: [lectura({ estacionId: 'pna-itati', lecturaM: 7.6, alertaM: 6.8, evacuacionM: 7.5 })],
+      }),
+      CUE,
+      ASOF,
+    )
+    expect(ev).toBeNull()
+  })
+})

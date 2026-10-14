@@ -6,6 +6,15 @@ export const MAX_ANTIGUEDAD_LECTURA_HORAS = 24
 export const DISTANCIA_AGUA_MAX_M = 1000
 export const ALTURA_SOBRE_AGUA_MAX_M = 10
 export const DISTANCIA_PUNTO_RIO_MAX_KM = 3
+// Proxy de ribera: las estaciones de Prefectura están en el puerto, sobre la
+// costa. Sin geometría de río en el repo, una escuela a <= 1.5 km de la
+// estación de su tramo se considera expuesta. Medido contra la realidad local
+// (dump 2026-10-13): los indicadores G1 dan `sin_riesgo` y distancia al agua
+// nula para las 45 escuelas de Paso de los Libres, y su punto GloFAS queda a
+// 24 km. Coordenadas PNA declaradas, sin verificar (mismo proxy aprobado en
+// G-1 para tramos dudosos). Follow-up: reemplazar por distancia a la línea de
+// ribera cuando exista la geometría.
+export const DISTANCIA_ESTACION_MAX_KM = 1.5
 
 const MS_POR_HORA = 60 * 60 * 1000
 const AMENAZA_MAX_NORMAL = 33
@@ -43,6 +52,9 @@ export type DatosExposicionRio = {
   alturaSobreAguaM: number | null
   juntoLaguna: boolean | null
   distanciaPuntoRioKm: number | null
+  // Distancia escuela -> estación de Prefectura del tramo (null si la estación
+  // no tiene coordenada con precisión suficiente).
+  distanciaEstacionKm?: number | null
 }
 
 // Devuelve la etiqueta del primer criterio que coincide, o null si la escuela no está expuesta.
@@ -64,6 +76,13 @@ export function evaluarExposicionRio(d: DatosExposicionRio): string | null {
   }
   if (d.distanciaPuntoRioKm !== null && d.distanciaPuntoRioKm <= DISTANCIA_PUNTO_RIO_MAX_KM) {
     return `punto_rio_a_${d.distanciaPuntoRioKm.toFixed(1)}km`
+  }
+  if (
+    d.distanciaEstacionKm !== undefined &&
+    d.distanciaEstacionKm !== null &&
+    d.distanciaEstacionKm <= DISTANCIA_ESTACION_MAX_KM
+  ) {
+    return `estacion_a_${d.distanciaEstacionKm.toFixed(1)}km`
   }
   return null
 }

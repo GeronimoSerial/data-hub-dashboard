@@ -230,3 +230,25 @@ describe('PISO_NIVEL_POR_ESTADO_RIO', () => {
     expect(PISO_NIVEL_POR_ESTADO_RIO).toEqual({ normal: null, alerta: 'moderado', evacuacion: 'alto' })
   })
 })
+
+describe('evaluarExposicionRio — proximidad a la estación de Prefectura', () => {
+  const sinDatos = {
+    claseRio: 'sin_riesgo',
+    peligroInundacionFluvial: 0,
+    distanciaAguaM: null,
+    alturaSobreAguaM: null,
+    juntoLaguna: false,
+    distanciaPuntoRioKm: 24.5,
+  }
+
+  it('escuela a <= 1.5 km de la estación (puerto, ribera) queda expuesta', () => {
+    expect(evaluarExposicionRio({ ...sinDatos, distanciaEstacionKm: 1.2 })).toBe('estacion_a_1.2km')
+    expect(evaluarExposicionRio({ ...sinDatos, distanciaEstacionKm: 1.5 })).toBe('estacion_a_1.5km')
+  })
+
+  it('más lejos, o sin coordenada de estación, no', () => {
+    expect(evaluarExposicionRio({ ...sinDatos, distanciaEstacionKm: 1.6 })).toBeNull()
+    expect(evaluarExposicionRio({ ...sinDatos, distanciaEstacionKm: null })).toBeNull()
+    expect(evaluarExposicionRio(sinDatos)).toBeNull()
+  })
+})
