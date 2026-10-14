@@ -74,6 +74,52 @@ Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
 - [x] T4 Observed-rain adapter: SYNOP over IMERG + source recorded
 - [x] T5 Local recompute against dump (before/after per department, examples)
 
+## Phase 2 (user request 2026-10-14: static susceptibility wrong along the Uruguay; Puerto Valle)
+
+### Audit findings (JRC v2.1 sampled over HTTP with rasterio, 2026-10-14)
+- Tiles: S20_W60 (id 85) and S30_W60 (id 86) cover lon -60..-50, lat -40..-20. Corrientes bbox fully
+  covered; CRS EPSG:4326, ~93 m pixels, nodata -9999; the pipeline passes (lon, lat) correctly.
+- Paso de los Libres RP100 W-E transects at lat -29.715/-29.720: wet only in the channel
+  (depth 8.7-14.3 m from lon -57.0850 eastward); every town pixel west of the bank is nodata (= dry).
+  School with margin -3.4 m (-29.7200, -57.0873): RP10 and RP100 pixel = nodata. San Cosme 1800133-00:
+  RP10 1.09 m, RP100 3.45 m (wide Paraná floodplain is modelled).
+- Puerto Valle 1801318-00 (-27.617, -56.415): nodata in RP10/RP100 at the point and along a 3 km
+  transect; the Yacyretá reservoir is permanent water and its shore is not a modelled floodplain.
+- Root cause (dataset limitation): the JRC global model at 90 m does not produce a floodplain at the
+  Uruguay towns (incised banks + global DEM); the river-channel depth is modelled, the town is dry. Not a
+  CRS/tile/nodata bug. Static RP classes cannot represent the current event there.
+- Pipeline bug found: `margen_inundacion.py` uses the MAX JRC depth over permanent-water pixels as the
+  RP water rise. Over the channel that is channel depth (~10-14 m), not a rise above the bank, so
+  `margen_rp*` is biased ~10 m low (141 schools <= 1 m). Phase-1 criterion `margen_rp100 <= 1` inherited it.
+
+### Phase 2 design
+- Dynamic DEM exposure ("estimado"): water surface at the school = DEM permanent-water level near the
+  school + (current gauge reading - 365-day median reading of the tramo station), the anomaly linearly
+  interpolated along the river between the two nearest stations of the same river. Exposed when the
+  school is within `DISTANCIA_RIO_MAX_M` (default 500 m) of permanent river water and its ground (p10 of
+  DEM within 50 m) is <= water surface + `MARGEN_DINAMICO_M` (default 1 m). Assumption: the Copernicus
+  GLO-30 water surface corresponds to a typical (median) stage; DEM vertical error ~2 m. Official IGN
+  gauge zeros were not found online (searches recorded in final report); the median-anomaly method
+  avoids needing them and can switch to official zeros when available.
+- Reservoir: schools on the Yacyretá reservoir (upstream of the dam, Paraná, lon > -56.75) get river
+  evidence `no_aplica` (Ituzaingó gauge is downstream of the dam).
+- Static `margen_rp100` criterion removed until the pipeline fix is re-run; JRC class/fluvial and route
+  criteria kept as complementary.
+- Rain: observed rain scored against IMERG climatology percentiles when a climatology row exists for the
+  cell (by provider/version); otherwise documented absolute thresholds per window (24 h: 50/80/120 mm;
+  72 h: 80/120/180 mm, same as `umbrales-provisorios.ts`).
+- Degradation: an exposed school whose station has no reading <= 24 h gets a `rio-prefectura` factor
+  "sin dato" and counts as missing (confidence drops); never imputed normal.
+
+### Phase 2 tasks
+- [ ] T6 geo-static: fix RP water-surface in `margen_inundacion.py` (+tests)
+- [ ] T7 geo-static: job `calcular_exposicion_rio_dem` (ground p10, DEM river level, distance) -> output CSV
+- [ ] T8 table `infra_exposicion_rio_dem` + importer + idempotent scheduled import job
+- [ ] T9 job `sync-prefectura-historico` (daily, 365-day stats per station) + table + health
+- [ ] T10 engine: dynamic exposure (interpolated anomaly), reservoir rule, sin-dato degradation
+- [ ] T11 engine: rain climatology hook + absolute thresholds per window
+- [ ] T12 recompute (incl. 1801318-00) + 'Operación permanente' section
+
 ## Merge note
 - Migration is `drizzle/0016_lluvia_estacion.sql` (journal idx 15, snapshot `0016_snapshot.json`) because
   branch `GeronimoSerial/veredicto-diario-ia` adds 0015 (verdict tables). If that branch merges first,
