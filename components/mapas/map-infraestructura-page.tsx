@@ -79,9 +79,9 @@ import {
   type CapaRadar,
 } from '@/components/mapas/layer-control'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
-import { CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
+import { CAPA_ESTACIONES_RIO_ID, CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
 import { SeccionEventosReportados } from '@/components/mapas/seccion-eventos-reportados'
-import { CapaEventosReportados, type ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
+import { CAPA_EVENTOS_REPORTADOS_ID, CapaEventosReportados, type ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
 import { CapaLluviaObservada, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import {
   CapasAccesosTerritoriales,
@@ -160,6 +160,7 @@ import { coloresRadar, escuelasPorRiesgo } from '@/lib/infraestructura/mapa/rada
 import { coloresPlanificacion, cuesJuntoLagunaPlanificacion, ETIQUETA_NIVEL_PLAN, nivelPlanificacion, TITULO_LEYENDA_VISTA, VISTAS_PLANIFICACION } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
+import { mantenerPopupsVisibles } from '@/components/mapas/popups-visibles'
 import { puntosRiesgoSobreSituacion, soloConDatoOJuntoLaguna } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   ICONOS_CLUSTER_MAPA,
@@ -621,6 +622,8 @@ export default function MapInfraestructuraPage(props: {
   const { mode } = useThemeMode()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
+  const soltarPopupsVisibles = useRef<(() => void) | null>(null)
+  useEffect(() => () => soltarPopupsVisibles.current?.(), [])
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [capasVisibles, setCapasVisibles] = useState<CapasVisibles>(CAPAS_VISIBLES_DEFAULT)
   // Restored after mount (not in the initializer) so server and client render the same first frame.
@@ -1245,6 +1248,11 @@ export default function MapInfraestructuraPage(props: {
     setClusterInfoClic(null)
     setCruceInfoClic(null)
 
+    // Station and media symbols open their own popup: a cluster underneath must not open a second one.
+    const mapaGl = mapRef.current?.getMap()
+    const capasConPopupPropio = [CAPA_ESTACIONES_RIO_ID, CAPA_EVENTOS_REPORTADOS_ID].filter((id) => mapaGl?.getLayer?.(id))
+    if (capasConPopupPropio.length > 0 && (mapaGl?.queryRenderedFeatures?.(event.point, { layers: capasConPopupPropio }).length ?? 0) > 0) return
+
     const puntoRiesgoHoy = features.find((item) => item.layer?.id === CAPA_RIESGO_HOY_ID)
     const cueRiesgoHoy = puntoRiesgoHoy?.properties?.cueAnexo
     if (typeof cueRiesgoHoy === 'string') {
@@ -1412,6 +1420,8 @@ export default function MapInfraestructuraPage(props: {
     actualizarCuesNoAgrupados()
     const map = mapRef.current?.getMap()
     if (map) {
+      soltarPopupsVisibles.current?.()
+      soltarPopupsVisibles.current = mantenerPopupsVisibles(map)
       ultimoEstiloCargado.current = mapStyleRef.current
       const handleStyleLoad = () => {
         if (!map.isStyleLoaded()) return

@@ -22,7 +22,8 @@ import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometri
 const LOCALIDADES_URL = '/data/localities.geojson'
 const RADIO_DESPLAZAMIENTO = 1.1
 const MAX_HECHOS = 3
-const ID_CAPA = 'eventos-reportados-simbolos'
+export const CAPA_EVENTOS_REPORTADOS_ID = 'eventos-reportados-simbolos'
+const ID_CAPA = CAPA_EVENTOS_REPORTADOS_ID
 const ID_FUENTE = 'eventos-reportados-src'
 const INSIGNIAS_EVENTOS = ['evento-alta', 'evento-media', 'evento-baja'] as const
 const CONFIANZAS = ['alta', 'media', 'baja'] as const

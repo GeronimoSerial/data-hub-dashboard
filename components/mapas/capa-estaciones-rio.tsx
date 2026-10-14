@@ -40,7 +40,8 @@ type PuntoEstacion = {
   properties: { estacionId: string; nombre: string; estado: EstadoAltura; insignia: string; altura: string }
 }
 
-const ID_CAPA = 'estaciones-rio-simbolos'
+export const CAPA_ESTACIONES_RIO_ID = 'estaciones-rio-simbolos'
+const ID_CAPA = CAPA_ESTACIONES_RIO_ID
 const ID_FUENTE = 'estaciones-rio-src'
 const INSIGNIAS_ESTACIONES = [
   'estacion-evacuacion',

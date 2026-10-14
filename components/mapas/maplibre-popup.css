@@ -1,14 +1,14 @@
 /*
-  Apilado dentro de .maplibregl-map (ver app/globals.css, sección del mapa):
-  el canvas GL queda debajo; los marcadores DOM encima; luego popups y tooltips.
-  Los paneles y controles del mapa son hermanos de ese contenedor, no hijos.
+  Apilado (ver app/globals.css, sección del mapa): el canvas GL queda debajo,
+  los marcadores DOM encima, después los paneles y la leyenda, y arriba de todo
+  los popups y tooltips. .maplibregl-map no aísla para que puedan superarlos.
 */
 .maplibregl-marker {
   z-index: 1;
 }
 
 .maplibregl-popup {
-  z-index: 2;
+  z-index: 40;
 }
 
 .maplibregl-popup-content {
@@ -59,7 +59,7 @@
 }
 
 .mapa-tooltip.maplibregl-popup {
-  z-index: 3;
+  z-index: 41;
 }
 
 .mapa-tooltip .maplibregl-popup-content {
