@@ -9,7 +9,10 @@ import { hazardObservation } from '@/lib/db/schema'
 import { crearGeneradoresGranulos } from '../../__fixtures__/granulos'
 import type { getDb as GetDb } from '@/lib/db'
 import type { LluviaObservadaCelda } from '../puertos'
-import type { crearAdapterLluvia as CrearAdapterLluvia } from './lluvia'
+import type {
+  crearAdapterLluvia as CrearAdapterLluvia,
+  reducirClimatologiaObservada as ReducirClimatologiaObservada,
+} from './lluvia'
 
 const AS_OF = '2026-09-26T12:00:00.000Z'
 const CELDA = 'geom-1'
@@ -20,11 +23,12 @@ usarDbTemporal('adapter-lluvia-')
 beforeAll(async () => {
   const { getDb } = await import('@/lib/db')
   db = getDb()
-  ;({ crearAdapterLluvia } = await import('./lluvia'))
+  ;({ crearAdapterLluvia, reducirClimatologiaObservada } = await import('./lluvia'))
 })
 
 let db: ReturnType<typeof GetDb>
 let crearAdapterLluvia: typeof CrearAdapterLluvia
+let reducirClimatologiaObservada: typeof ReducirClimatologiaObservada
 
 beforeEach(async () => {
   await db.delete(hazardObservation)
@@ -155,5 +159,49 @@ describe('crearAdapterLluvia — climatología observada de la celda', () => {
     })
     const celda = await adapter.obtenerAcumulado({ geometryRef: 'geom-x', asOf: AS_OF })
     expect(celda.climatologia24h).toBeNull()
+  })
+})
+
+describe('reducirClimatologiaObservada — contrato con climatologia-imerg', () => {
+  const fila = (o: Partial<Parameters<typeof ReducirClimatologiaObservada>[0][number]>) => ({
+    geometryRef: 'c1',
+    variable: 'precipitacion_diaria',
+    percentil: 'p90',
+    muestra: 'todos_los_dias',
+    valor: 10,
+    version: 'climatologia-imerg-v1',
+    calculadoEn: '2026-10-14T00:00:00.000Z',
+    ...o,
+  })
+
+  it('usa la climatología diaria IMERG (p90/p95/p99) para la ventana de 24 h', () => {
+    const m = reducirClimatologiaObservada([
+      fila({ percentil: 'p90', valor: 18 }),
+      fila({ percentil: 'p95', valor: 30 }),
+      fila({ percentil: 'p99', valor: 60 }),
+    ])
+    expect(m.get('c1')).toEqual({ 24: { p90: 18, p95: 30, p99: 60, version: 'climatologia-imerg-v1' } })
+  })
+
+  it('ignora climatología diaria no IMERG (ERA5), días húmedos e incompleta', () => {
+    const m = reducirClimatologiaObservada([
+      fila({ version: 'climatologia-v2-progresiva', percentil: 'p90' }),
+      fila({ version: 'climatologia-v2-progresiva', percentil: 'p95' }),
+      fila({ version: 'climatologia-v2-progresiva', percentil: 'p99' }),
+      fila({ geometryRef: 'c2', muestra: 'dias_humedos', percentil: 'p90' }),
+      fila({ geometryRef: 'c2', muestra: 'dias_humedos', percentil: 'p95' }),
+      fila({ geometryRef: 'c2', muestra: 'dias_humedos', percentil: 'p99' }),
+      fila({ geometryRef: 'c3', percentil: 'p90' }),
+    ])
+    expect(m.size).toBe(0)
+  })
+
+  it('acepta una climatología de 72 h explícita (precipitacion_observada_72h, P90 en mayúscula)', () => {
+    const m = reducirClimatologiaObservada([
+      fila({ variable: 'precipitacion_observada_72h', percentil: 'P90', valor: 40 }),
+      fila({ variable: 'precipitacion_observada_72h', percentil: 'P95', valor: 60 }),
+      fila({ variable: 'precipitacion_observada_72h', percentil: 'P99', valor: 90 }),
+    ])
+    expect(m.get('c1')?.[72]).toMatchObject({ p90: 40, p95: 60, p99: 90 })
   })
 })
