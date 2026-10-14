@@ -51,7 +51,7 @@ export function PanelPlanificacion(props: PanelPlanificacionProps): JSX.Element 
         <p className="map-sitact__vacio">Todavía no hay datos para esta vista.</p>
       ) : (
         <section aria-labelledby="map-planificacion-prioridad-titulo">
-          <h3 id="map-planificacion-prioridad-titulo" className="map-sitact__titulo-seccion">Prioridad</h3>
+          <h3 id="map-planificacion-prioridad-titulo" className="map-sitact__titulo-seccion">Prioridad de planificación (exposición estructural)</h3>
           {lista.length > 0 ? (
             <div className="map-sitact__lista">
               {lista.map((item) => {

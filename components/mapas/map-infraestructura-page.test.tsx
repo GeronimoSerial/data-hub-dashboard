@@ -1284,7 +1284,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   it('muestra la lista simple de riesgo sin paneles de explicación técnica', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    expect(screen.getByText('Escuelas en riesgo')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo actual (hoy)')).toBeInTheDocument()
     expect(screen.queryByTestId('risk-explanation-factores')).not.toBeInTheDocument()
     expect(screen.queryByText('Pronóstico por departamento')).not.toBeInTheDocument()
   })

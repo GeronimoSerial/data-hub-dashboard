@@ -257,7 +257,7 @@ describe('PanelRadar', () => {
   it('muestra motor y pronóstico juntos, y pasa la selección del departamento', () => {
     const onDepartamento = vi.fn()
     render(<PanelRadar {...props({ pronostico: { ...pronosticoVacio, resumen: resumenMeteo(), onDepartamento } })} />)
-    expect(screen.getByText('Escuelas en riesgo')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo actual (hoy)')).toBeInTheDocument()
     expect(screen.getByText('Pronóstico por departamento')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Bella Vista, 70 mm' }))
     expect(onDepartamento).toHaveBeenCalledWith('bella-vista')

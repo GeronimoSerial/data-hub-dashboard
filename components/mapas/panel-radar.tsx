@@ -112,7 +112,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
               </div>
 
               <section aria-labelledby="map-radar-riesgo-titulo">
-                <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Escuelas en riesgo</h3>
+                <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Riesgo actual (hoy)</h3>
                 {lista.length > 0 ? (
                   <div className="map-sitact__lista">
                     {lista.map(({ escuela, nivel, amenaza }) => {
