@@ -1,3 +1,16 @@
+/*
+  Apilado dentro de .maplibregl-map (ver app/globals.css, sección del mapa):
+  el canvas GL queda debajo; los marcadores DOM encima; luego popups y tooltips.
+  Los paneles y controles del mapa son hermanos de ese contenedor, no hijos.
+*/
+.maplibregl-marker {
+  z-index: 1;
+}
+
+.maplibregl-popup {
+  z-index: 2;
+}
+
 .maplibregl-popup-content {
   background: transparent;
   box-shadow: none;
@@ -5,10 +18,34 @@
   border-radius: 0;
 }
 
+/*
+  Botón de cierre dentro de la esquina superior derecha del popup. El área de
+  32 px cumple el mínimo táctil; el padding derecho de .map-popup deja lugar.
+*/
 .maplibregl-popup-close-button {
-  font-size: 18px;
+  top: 4px;
+  right: 4px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  line-height: 1;
+  font-size: 20px;
+  background: transparent;
+  color: var(--ink-soft);
   z-index: 1;
-  color: inherit;
+}
+
+.maplibregl-popup-close-button:hover,
+.maplibregl-popup-close-button:focus-visible {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.maplibregl-popup-close-button:focus-visible {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 1px;
 }
 
 /*
@@ -19,6 +56,10 @@
 */
 .mapa-tooltip {
   pointer-events: none;
+}
+
+.mapa-tooltip.maplibregl-popup {
+  z-index: 3;
 }
 
 .mapa-tooltip .maplibregl-popup-content {
@@ -65,53 +106,6 @@
   color: var(--ink);
   font-size: var(--t-small);
   cursor: pointer;
-}
-
-/*
-  Marcadores de la capa de estaciones y de eventos reportados. El color de
-  relleno es un dato (estado o confianza) y va inline; forma, borde y apilado
-  viven aquí. Las estaciones van por encima de los eventos para que el clic
-  sobre una estación no lo capture un evento en el mismo punto.
-*/
-.map-marcador-estacion,
-.map-marcador-evento {
-  position: relative;
-  padding: 0;
-  cursor: pointer;
-  border: 2px solid var(--card);
-}
-
-/*
-  El z-index va en el wrapper `.maplibregl-marker` (clase pasada a <Marker>), no en
-  el botón: maplibre aplica transform al wrapper, que crea su propio contexto de
-  apilado y encierra cualquier z-index interno.
-*/
-.maplibregl-marker.map-marker-estacion {
-  z-index: 2;
-}
-
-.maplibregl-marker.map-marker-evento {
-  z-index: 1;
-}
-
-.map-marcador-estacion {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-}
-
-.map-marcador-estacion--sin-dato {
-  border: 2px dashed var(--ink-soft);
-}
-
-.map-marcador-evento {
-  width: 12px;
-  height: 12px;
-  transform: rotate(45deg);
-}
-
-.map-marcador-evento--departamento {
-  border: 2px dashed var(--ink-soft);
 }
 
 /*
@@ -179,9 +173,4 @@
 .map-popup-fuentes ul {
   margin: var(--s-1) 0 0;
   padding-left: var(--s-4);
-}
-
-/* Confianza baja: se ve, pero sin competir con los eventos confiables. */
-.map-marcador-evento--baja {
-  opacity: 0.45;
 }

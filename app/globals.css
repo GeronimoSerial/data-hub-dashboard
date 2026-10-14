@@ -2091,6 +2091,23 @@ time {
 
 /* ── Map overlays ──────────────────────────────────────────────────────── */
 
+/*
+  Orden de apilado de la página de mapa (de abajo hacia arriba):
+    1. Canvas GL (.maplibregl-map, z 0 aislado; no escapa de su contexto)
+    2. Marcadores DOM (.maplibregl-marker, z 1), p. ej. escuela destacada
+    3. Popups (.maplibregl-popup, z 2)
+    4. Tooltips (.mapa-tooltip.maplibregl-popup, z 3)
+    5. Paneles, leyenda, controles (.map-panel / .map-leyenda / .map-controls-stack, z 2 a 21)
+    6. Modales (--z-modal 80)
+  `.maplibregl-map` es el contenedor que MapLibre crea dentro de .mapRoot: contiene
+  canvas, marcadores y popups, así que el aislamiento los encierra juntos.
+*/
+.maplibregl-map {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}
+
 .map-shell { --map-sidebar-ancho: 24rem; position: relative; width: 100%; height: 100%; flex-grow: 1; min-height: 0; }
 .map-root { position: absolute; inset: 0; }
 .map-panel {
@@ -2859,6 +2876,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   background: var(--card);
   color: var(--ink);
   padding: var(--s-3);
+  /* Espacio para el botón de cierre absoluto (32 px en la esquina superior derecha). */
+  padding-right: 2.25rem;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   box-shadow: var(--e-float);
