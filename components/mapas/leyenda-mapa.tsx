@@ -1,6 +1,7 @@
 'use client'
 
 
+import { useSyncExternalStore } from 'react'
 import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
 import { BookMinus, BookX, Check, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
@@ -80,6 +81,22 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
         ))}
       </ul>
     </div>
+  )
+}
+
+const CONSULTA_ESTRECHA = '(max-width: 1279px)'
+
+/** En pantallas de hasta 1279 px la leyenda arranca plegada para dejar mapa útil. */
+function usePantallaEstrecha(): boolean {
+  return useSyncExternalStore(
+    (avisar) => {
+      if (typeof window === 'undefined' || !window.matchMedia) return () => {}
+      const consulta = window.matchMedia(CONSULTA_ESTRECHA)
+      consulta.addEventListener('change', avisar)
+      return () => consulta.removeEventListener('change', avisar)
+    },
+    () => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(CONSULTA_ESTRECHA).matches : false),
+    () => false,
   )
 }
 
@@ -212,6 +229,7 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
 }
 
 export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; eventosReportados?: boolean; resumenEventos?: RegistroEventosLeyenda | null; lluviaObservada?: MetaLluviaObservada | null }) {
+  const estrecha = usePantallaEstrecha()
   const estacionesRio = Boolean(props.estacionesRio)
   const eventosReportados = Boolean(props.eventosReportados)
   const lluviaObservada = props.lluviaObservada ?? null
@@ -224,7 +242,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
       {hayCapas && (
         <SituacionActual
           // Fuera de "Situación actual" manda la escala de la pestaña: estas referencias quedan plegadas.
-          abierta={props.pestana === 'actual' || props.pestana === 'estadisticas'}
+          abierta={!estrecha && (props.pestana === 'actual' || props.pestana === 'estadisticas')}
           estacionesRio={estacionesRio}
           eventosReportados={eventosReportados}
           registro={props.resumenEventos}
@@ -232,7 +250,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
         />
       )}
       {props.pestana !== 'estadisticas' && (
-        <details className="map-leyenda__seccion" open>
+        <details className="map-leyenda__seccion" open={!estrecha || props.pestana === 'radar' || props.pestana === 'planificacion'}>
           <summary className="map-leyenda__seccion-titulo">Riesgo / gravedad</summary>
           <div className="map-leyenda__seccion-cuerpo">
             <ReferenciasRiesgo props={props} />
