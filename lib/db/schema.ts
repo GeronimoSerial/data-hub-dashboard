@@ -919,6 +919,28 @@ export const hidroLectura = pgTable(
   (t) => [uniqueIndex('hidro_lectura_estacion_medida_uidx').on(t.estacionId, t.medidaEn)],
 )
 
+// Precipitación SYNOP por estación (Ogimet, FM-12 grupos 6RRRt). Una fila por
+// estación, fin de período (`observado_en`, ISO UTC), duración y sección
+// (1 o 3). Una medición ya guardada se actualiza en lugar de duplicarse.
+export const lluviaEstacion = pgTable(
+  'lluvia_estacion',
+  {
+    id: text('id').primaryKey(),
+    estacionWmo: text('estacion_wmo').notNull(),
+    observadoEn: text('observado_en').notNull(),
+    periodoHoras: integer('periodo_horas').notNull(),
+    seccion: integer('seccion').notNull(),
+    precipitacionMm: doublePrecision('precipitacion_mm').notNull(),
+    traza: boolean('traza').notNull().default(false),
+    fuente: text('fuente').notNull().default('ogimet-synop'),
+    capturadaEn: text('capturada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('lluvia_estacion_uidx').on(t.estacionWmo, t.observadoEn, t.periodoHoras, t.seccion),
+    index('lluvia_estacion_observado_en_idx').on(t.observadoEn),
+  ],
+)
+
 // E7a: episodios derivados (calculados automáticamente)
 // Episodio por unidad territorial (hoy sólo 'departamento'; el tipo queda
 // parametrizado para poder pasar a 'cuenca' en una versión futura de la

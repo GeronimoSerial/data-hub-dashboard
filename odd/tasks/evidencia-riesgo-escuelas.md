@@ -60,11 +60,17 @@ Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
   iR=3 at 00/06/12/18Z ⇒ 0 mm for 6 h; iR=4 ⇒ no data. Trace (990) = 0 mm, traza.
 
 ## Tasks
-- [ ] T1 SYNOP 6RRRt decoder (pure) + real fixtures + tests
+- [x] T1 SYNOP 6RRRt decoder (pure) + real fixtures + tests
 - [ ] T2 Persistence + Ogimet client + job `sync-synop-lluvia` (+cadence, jobs.mjs, DEPLOY notes)
 - [ ] T3 River evidence port/adapter + engine integration + floor + tests
 - [ ] T4 Observed-rain adapter: SYNOP over IMERG + source recorded
 - [ ] T5 Local recompute against dump (before/after per department, examples)
+
+## Merge note
+- Migration is `drizzle/0016_lluvia_estacion.sql` (journal idx 15, snapshot `0016_snapshot.json`) because
+  branch `GeronimoSerial/veredicto-diario-ia` adds 0015 (verdict tables). If that branch merges first,
+  re-order `drizzle/meta/_journal.json` (0015 verdict idx 15, 0016 lluvia idx 16) and regenerate the
+  0016 snapshot on top of the 0015 one (`npx drizzle-kit generate` must report no drift).
 
 ## Checks
 `timeout 300 npx vitest run <related files>`, `npx tsc --noEmit -p .`, `pnpm lint`.
