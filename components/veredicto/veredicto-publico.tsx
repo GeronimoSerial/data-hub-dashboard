@@ -1,6 +1,7 @@
 // Vista pública del veredicto diario, pensada para lectura no técnica.
 // Sin 'use client': es segura para renderizar en servidor.
 import type { DtoVeredicto, MetricaDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
+import { nombreFuente } from '@/lib/infraestructura/veredicto/metricas'
 import { etiquetaNivel, nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
 
 const ETIQUETA_TIPO_DIA: Record<string, string> = {
@@ -21,7 +22,7 @@ function fuentesUnicas(veredictos: DtoVeredicto[]): { etiqueta: string; url: str
   const vistas = new Map<string, string>()
   for (const v of veredictos) {
     for (const m of v.metricas as MetricaDtoVeredicto[]) {
-      if (m.fuenteUrl && !vistas.has(m.fuenteUrl)) vistas.set(m.fuenteUrl, m.etiqueta || m.fuenteUrl)
+      if (m.fuenteUrl && !vistas.has(m.fuenteUrl)) vistas.set(m.fuenteUrl, nombreFuente(m.fuenteUrl))
     }
   }
   return [...vistas].map(([url, etiqueta]) => ({ etiqueta, url }))

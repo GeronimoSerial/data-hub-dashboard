@@ -83,7 +83,8 @@ describe('VeredictoPublico', () => {
 
   it('lista las fuentes con enlace, sin duplicar URLs', () => {
     render(<VeredictoPublico veredictos={VERED} />)
-    const enlaces = screen.getAllByRole('link', { name: 'Lluvia máxima 24h' })
+    // URL fuera del catálogo: el nombre legible cae a la propia URL.
+    const enlaces = screen.getAllByRole('link', { name: 'https://example.org/imerg' })
     expect(enlaces).toHaveLength(1)
     expect(enlaces[0]!.getAttribute('href')).toBe('https://example.org/imerg')
   })

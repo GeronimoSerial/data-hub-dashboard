@@ -3,6 +3,7 @@
 // WinAnsi, por eso todo texto pasa por sanitizarWinAnsi antes de dibujarse.
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
 import type { DtoVeredicto } from './dto'
+import { nombreFuente } from './metricas'
 import { etiquetaNivel, nombreDepartamento } from './niveles'
 
 export type EntradaPdfVeredictos = { veredictos: DtoVeredicto[]; generadoEn: Date }
@@ -172,7 +173,8 @@ export function lineasPdf({ veredictos, generadoEn }: EntradaPdfVeredictos): Lin
   for (const v of veredictos) {
     for (const m of v.metricas) {
       if (!m.fuenteUrl) continue
-      fuentes.set(`${m.etiqueta}\u0000${m.fuenteUrl}`, `${m.etiqueta}: ${m.fuenteUrl}`)
+      // Una línea por fuente (no por métrica): el registro es no técnico.
+      fuentes.set(m.fuenteUrl, `${nombreFuente(m.fuenteUrl)}: ${m.fuenteUrl}`)
     }
   }
   if (fuentes.size > 0) {

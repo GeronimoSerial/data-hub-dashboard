@@ -18,6 +18,19 @@ export const FUENTES_URL = {
   smn: 'https://ssl.smn.gob.ar/CAP/AR.php',
 } as const
 
+const NOMBRE_FUENTE_POR_URL: Record<string, string> = {
+  [FUENTES_URL.imerg]: 'NASA IMERG (lluvia satelital)',
+  [FUENTES_URL.prefectura]: 'Prefectura Naval Argentina (alturas de ríos)',
+  [FUENTES_URL.glofas]: 'GloFAS vía Open-Meteo (caudal pronosticado)',
+  [FUENTES_URL.ensamble]: 'ECMWF ensamble vía Open-Meteo (lluvia pronosticada)',
+  [FUENTES_URL.smn]: 'Servicio Meteorológico Nacional (avisos)',
+}
+
+// Nombre legible de una fuente para listados no técnicos (PDF, vista pública).
+export function nombreFuente(url: string): string {
+  return NOMBRE_FUENTE_POR_URL[url] ?? url
+}
+
 export type EntradaMetricasAmbito = {
   ambito: AmbitoLluvia
   lluvia24?: LluviaObservadaAmbito

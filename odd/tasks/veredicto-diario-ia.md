@@ -64,7 +64,7 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - [x] T8 (V-12, V-13, V-14) Modal autocontenido + punto de entrada en el mapa.
 - [x] T9 (V-15, V-15b) Enlaces con token (crear/revocar, vencimiento 23:59 ART, 410) + vista pública + PDF.
 - [x] T10 (V-18) Retiro de E8 (job, timer, panel, rutas, flag).
-- [ ] T11 E2E local con el dump.
+- [x] T11 E2E local con el dump.
 
 ## Progreso y evidencia
 
@@ -93,3 +93,27 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - T9b2 (delegado, ~101k, levemente sobre el tope): PDF para staff (`/api/infraestructura/veredictos/pdf`), PDF público por token (`/api/veredicto/compartido/[token]/pdf`: 404 inexistente, 410 vencido/revocado sin datos, `X-Robots-Tag: noindex`), página pública `/veredicto/compartido/[token]` (noindex; enlace vencido/revocado sin datos) y `veredicto-publico.tsx`. Ajuste del coordinador: `nombreDepartamento` compartido en `niveles.ts` (el id ya es el nombre normalizado). Desvío registrado: la página Next devuelve 200 con la vista de "Enlace no disponible"; el 410 lo dan las rutas JSON/PDF. Diferidos: rate limit por IP y auditoría de accesos. GREEN 35 tests; tsc/eslint limpios.
 - T9b3 (delegado, ~76k): `veredicto-acciones.tsx` (copiar enlace con fallback manual, descargar PDF, revocar enlaces del día con confirmación), renderizado por defecto en el modal. GREEN 20 tests de componentes; tsc/eslint limpios.
 - T10 (delegado en dos workers; T10a se detuvo correctamente ante un conflicto y retomó con la decisión del coordinador: se conservan `briefing-ia/puertos.ts` y `test-utils/` porque `metricas.ts` los usa). Retirados: job `briefing-ia` (cadencia, timer, `jobs.mjs`), rutas `/api/infraestructura/briefings/*`, `job/generar-briefing-asistido/repositorio/dto`, flag `AI_BRIEFING_ENABLED` (salud ahora reporta `aiVeredictoEnabled`), `BriefingPanel` y su sección en Situación, `scripts/jobs.migracion-legacy.test.ts` (su único caso era el de briefing, ya fallido en la base). Se conservan proveedor, validador, esquema, métricas y presupuesto, y la tabla `infra_briefing` como histórico. tsc limpio; 334 tests verdes en las áreas afectadas.
+- T11 (inline, coordinador): Postgres 18 local descartable (`postgres:18-alpine`, puerto 127.0.0.1:55432) con el dump
+  `prod-20261013T2313Z-post-imerg.dump` (675.636 gránulos IMERG, 26 lecturas de Prefectura; `hazard_forecast` y
+  `hazard_ensemble_prob` vacías). Job real `node scripts/jobs.mjs veredicto-diario` sin clave de OpenRouter:
+  14 veredictos (11 días + 3 departamentos con señal), todos por plantilla (`sin_api_key`). 13/10: provincia
+  **severo**, Paso de los Libres e Ituzaingó **severo** (Prefectura en evacuación: 9,33 m / 8,5 m y 4,03 m / 4 m),
+  San Martín **alerta** (La Cruz 10,32 m / 9,5 m): coherente con la crecida registrada. 06–10/10 `sin_dato` (IMERG
+  con cobertura < 80 % y sin lecturas de Prefectura, tabla nueva); pronóstico `sin_dato` (tablas vacías en el dump).
+  Segunda corrida: 14 sin cambios, 0 insertados (idempotencia). PDF generado y revisado visualmente; enlace válido a
+  las 23:59 ART, vencido a las 00:01, revocado tras `revocarEnlacesDelDia`.
+  Correcciones surgidas del E2E: la plantilla ya no repite fecha/nivel (la primera oración es la señal), el río se
+  describe con estación, estado, altura y umbral, las fuentes ausentes y la lista de fuentes usan nombres legibles.
+  Checks: 256 tests verdes en veredicto/componentes/rutas; tsc y eslint limpios.
+
+## Pendientes y diferidos
+
+- La IA real no se probó (sin credenciales en el E2E, por regla). Primer despliegue: setear `OPENROUTER_API_KEY`,
+  `AI_VEREDICTO_ENABLED=true`, aplicar la migración `0015` e instalar los timers `enos-ops1-veredicto-*`.
+- Cambios de plantilla no regeneran filas existentes (el `inputs_hash` no incluye el texto); se regeneran al
+  cambiar los datos.
+- Nombres de estación en mayúsculas (vienen del catálogo PNA).
+- Diferidos: V-04b (IMERG aguas arriba), V-06b (job ECMWF determinista), eventos reales en "confirmado en terreno"
+  (rama hermana), sincronizar la capa IMERG con el día elegido, rate limit y auditoría del enlace público,
+  V-16/V-17 (calibración formal), V-19 (IMERG Late/Final).
+- La suite completa de vitest no se corrió (se cuelga en esta máquina); corre en CI.

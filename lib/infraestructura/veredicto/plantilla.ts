@@ -22,12 +22,6 @@ const ROTULO_NIVEL: Record<NivelVeredicto, string> = {
   severo: 'Severo',
 }
 
-const ROTULO_TIPO: Record<TipoDia, string> = {
-  observado: 'observado',
-  hoy: 'hoy',
-  pronostico: 'pronóstico',
-}
-
 const ORDEN_NIVEL: Record<NivelVeredicto, number> = {
   sin_dato: -1,
   sin_senal: 0,
@@ -36,9 +30,18 @@ const ORDEN_NIVEL: Record<NivelVeredicto, number> = {
   severo: 3,
 }
 
-function fechaLegible(fecha: string): string {
-  const [anio, mes, dia] = fecha.split('-')
-  return `${dia}/${mes}/${anio}`
+const ROTULO_FUENTE: Record<FuenteVeredicto, string> = {
+  imerg: 'lluvia satelital (IMERG)',
+  prefectura: 'alturas de Prefectura',
+  glofas: 'caudal pronosticado (GloFAS)',
+  ensamble: 'ensamble de lluvia',
+  smn: 'avisos del SMN',
+}
+
+const ROTULO_ESTADO_RIO: Record<string, string> = { alerta: 'en alerta', evacuacion: 'en evacuación', normal: 'normal' }
+
+function numero(valor: number): string {
+  return valor.toLocaleString('es-AR', { maximumFractionDigits: 2 })
 }
 
 function rotuloSenal(ref: string): string {
@@ -58,16 +61,40 @@ function senalPrincipal(traza: TrazaRegla[], metricas: MetricaVeredicto[]): stri
     if (principal === null || ORDEN_NIVEL[entrada.nivel] > ORDEN_NIVEL[principal.nivel]) principal = entrada
   }
   if (principal === null || ORDEN_NIVEL[principal.nivel] <= ORDEN_NIVEL.sin_senal) return null
+  if (principal.ref.startsWith('rio.')) return senalRio(principal, metricas)
   const etiqueta = rotuloSenal(principal.ref)
   if (principal.valor === null) return `${etiqueta}.`
   const unidad = metricas.find((m) => m.id === principal.ref)?.unidad
-  return `${etiqueta}: ${principal.valor}${unidad ? ` ${unidad}` : ''}.`
+  return `${etiqueta}: ${numero(principal.valor)}${unidad ? ` ${unidad}` : ''}.`
 }
 
+// 'rio.<id>.estado_max' → "Prefectura Paso de los Libres en evacuación (altura máxima 9,33 m; evacuación 8,5 m)."
+function senalRio(entrada: TrazaRegla, metricas: MetricaVeredicto[]): string {
+  const prefijo = entrada.ref.replace(/\.estado_max$/, '')
+  const altura = metricas.find((m) => m.id === `${prefijo}.altura_max_m`)
+  const evacuacion = metricas.find((m) => m.id === `${prefijo}.evacuacion_m`)
+  const alerta = metricas.find((m) => m.id === `${prefijo}.alerta_m`)
+  const nombre = altura?.etiqueta.replace(/^Altura máxima /, '') ?? 'estación'
+  const estado = typeof entrada.umbral === 'string' ? (ROTULO_ESTADO_RIO[entrada.umbral] ?? entrada.umbral) : ''
+  const detalle: string[] = []
+  if (altura) detalle.push(`altura máxima ${numero(altura.valor)} m`)
+  if (entrada.umbral === 'evacuacion' && evacuacion) detalle.push(`evacuación ${numero(evacuacion.valor)} m`)
+  else if (alerta) detalle.push(`alerta ${numero(alerta.valor)} m`)
+  return `Prefectura ${nombre}${estado ? ` ${estado}` : ''}${detalle.length > 0 ? ` (${detalle.join('; ')})` : ''}.`
+}
+
+// Sin encabezado de fecha ni nivel: el modal, la vista pública y el PDF ya los
+// muestran, y la primera oración tiene que ser la señal (se usa como resumen).
 export function textoPlantilla(item: ItemPlantilla): string {
-  const partes = [`${fechaLegible(item.fecha)} (${ROTULO_TIPO[item.tipoDia]}) — ${ROTULO_NIVEL[item.nivel]}.`]
+  const partes: string[] = []
   const senal = senalPrincipal(item.traza, item.metricas)
   if (senal) partes.push(senal)
-  if (item.fuentesAusentes.length > 0) partes.push(`Fuentes ausentes: ${item.fuentesAusentes.join(', ')}.`)
+  else partes.push(SIN_SENAL_TEXTO[item.nivel] ?? `${ROTULO_NIVEL[item.nivel]}.`)
+  if (item.fuentesAusentes.length > 0) partes.push(`Sin datos de: ${item.fuentesAusentes.map((f) => ROTULO_FUENTE[f]).join(', ')}.`)
   return partes.join(' ')
+}
+
+const SIN_SENAL_TEXTO: Partial<Record<NivelVeredicto, string>> = {
+  sin_dato: 'Sin datos suficientes para evaluar el día.',
+  sin_senal: 'Sin señales en los datos disponibles.',
 }

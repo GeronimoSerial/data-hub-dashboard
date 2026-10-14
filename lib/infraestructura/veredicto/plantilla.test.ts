@@ -7,7 +7,8 @@ const base = {
   ambito: 'provincia',
   metricas: [
     { id: 'lluvia.obs_24h.max_mm', valor: 62.4, unidad: 'mm', etiqueta: 'x', fuenteUrl: 'https://f' },
-    { id: 'rio.ptl.altura_max_m', valor: 7.25, unidad: 'm', etiqueta: 'x', fuenteUrl: 'https://f' },
+    { id: 'rio.ptl.altura_max_m', valor: 7.25, unidad: 'm', etiqueta: 'Altura máxima Paso de los Libres', fuenteUrl: 'https://f' },
+    { id: 'rio.ptl.alerta_m', valor: 7.1, unidad: 'm', etiqueta: 'Nivel de alerta Paso de los Libres', fuenteUrl: 'https://f' },
   ],
 }
 
@@ -18,18 +19,18 @@ describe('textoPlantilla', () => {
       nivel: 'alerta',
       traza: [
         { regla: 'lluvia.obs_24h', ref: 'lluvia.obs_24h.max_mm', valor: 62.4, umbral: 'p95', nivel: 'vigilancia' },
-        { regla: 'rio.estado', ref: 'rio.ptl.altura_max_m', valor: 7.25, umbral: 'alerta', nivel: 'alerta' },
+        { regla: 'rio.estado', ref: 'rio.ptl.estado_max', valor: 7.25, umbral: 'alerta', nivel: 'alerta' },
       ],
       fuentesAusentes: ['smn', 'glofas'],
     })
     expect(texto).toBe(
-      '12/10/2026 (observado) — Alerta. Nivel del río: 7.25 m. Fuentes ausentes: smn, glofas.',
+      'Prefectura Paso de los Libres en alerta (altura máxima 7,25 m; alerta 7,1 m). Sin datos de: avisos del SMN, caudal pronosticado (GloFAS).',
     )
   })
 
   it('omite la señal y las fuentes ausentes cuando no hay', () => {
     const texto = textoPlantilla({ ...base, nivel: 'sin_senal', traza: [], fuentesAusentes: [] })
-    expect(texto).toBe('12/10/2026 (observado) — Sin señal.')
+    expect(texto).toBe('Sin señales en los datos disponibles.')
   })
 
   it('usa los rótulos de nivel y tipo de día legibles', () => {
@@ -41,12 +42,12 @@ describe('textoPlantilla', () => {
       metricas: [{ id: 'caudal.c1.pico_m3s', valor: 1523.6, unidad: 'm3/s', etiqueta: 'x', fuenteUrl: 'https://f' }],
       fuentesAusentes: [],
     })
-    expect(texto).toBe('12/10/2026 (pronóstico) — Severo. Caudal pico: 1523.6 m3/s.')
+    expect(texto).toBe('Caudal pico: 1.523,6 m3/s.')
   })
 
   it('nivel sin_dato se rotula Sin dato', () => {
     expect(textoPlantilla({ ...base, nivel: 'sin_dato', traza: [], fuentesAusentes: ['imerg'] })).toBe(
-      '12/10/2026 (observado) — Sin dato. Fuentes ausentes: imerg.',
+      'Sin datos suficientes para evaluar el día. Sin datos de: lluvia satelital (IMERG).',
     )
   })
 })
