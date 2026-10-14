@@ -101,7 +101,7 @@ describe('calcularYPublicarRiesgo', () => {
     const vigentes = await db.select().from(infraRiskRun).where(eq(infraRiskRun.estado, 'vigente'))
     expect(vigentes).toHaveLength(1)
     expect(vigentes[0]?.id).toBe(resultado.runId)
-    expect(vigentes[0]?.modeloVersion).toBe('motor-v0.2')
+    expect(vigentes[0]?.modeloVersion).toBe('motor-v0.3')
     expect(vigentes[0]?.cobertura).toEqual({ procesadas: 9, conEvidencia: 6, sinEvidencia: 3 })
 
     const snapshots = await db

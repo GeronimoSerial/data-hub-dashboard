@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   calcularYPublicarRiesgo: vi.fn(),
   correrJobEpisodiosDerivados: vi.fn(),
   syncPrefecturaAlturas: vi.fn(),
+  syncSynopLluvia: vi.fn(),
+  syncPrefecturaHistorico: vi.fn(),
+  importarExposicionRioDem: vi.fn(),
   generarCorte: vi.fn(),
   enosJobsEnabled: vi.fn(),
   adquirirLease: vi.fn(),
@@ -59,6 +62,15 @@ vi.mock('../lib/infraestructura/episodios-derivados/job.ts', () => ({
 }))
 vi.mock('../lib/infraestructura/hidrometria/sync-prefectura-alturas.ts', () => ({
   syncPrefecturaAlturas: mocks.syncPrefecturaAlturas,
+}))
+vi.mock('../lib/infraestructura/lluvia-estaciones/sync-synop-lluvia.ts', () => ({
+  syncSynopLluvia: mocks.syncSynopLluvia,
+}))
+vi.mock('../lib/infraestructura/hidrometria/sync-prefectura-historico.ts', () => ({
+  syncPrefecturaHistorico: mocks.syncPrefecturaHistorico,
+}))
+vi.mock('../lib/infraestructura/riesgo/jobs/importar-exposicion-rio-dem.ts', () => ({
+  importarExposicionRioDem: mocks.importarExposicionRioDem,
 }))
 vi.mock('../lib/infraestructura/riesgo/situacion/corte.ts', () => ({
   generarCorte: mocks.generarCorte,
@@ -185,6 +197,9 @@ describe('gating por ENOS_JOBS_ENABLED', () => {
     ['episodios-derivados', 'correrJobEpisodiosDerivados'],
     ['situacion-corte', 'generarCorte'],
     ['sync-prefectura-alturas', 'syncPrefecturaAlturas'],
+    ['sync-synop-lluvia', 'syncSynopLluvia'],
+    ['sync-prefectura-historico', 'syncPrefecturaHistorico'],
+    ['importar-exposicion-rio-dem', 'importarExposicionRioDem'],
   ]
 
   it.each(casos)('%s con enosJobsEnabled=false no importa ni llama al job real', async (nombre, mockKey) => {

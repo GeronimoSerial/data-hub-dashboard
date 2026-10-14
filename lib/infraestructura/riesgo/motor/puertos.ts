@@ -19,6 +19,7 @@ import type {
   NivelPeligro,
   NivelPeligroCelda,
 } from '../peligro/nivel'
+import type { ClimatologiaObservada } from './lluvia-observada'
 
 export type { HorizontePeligro, NivelCaudalPunto, NivelPeligro, NivelPeligroCelda }
 
@@ -43,6 +44,14 @@ export interface LluviaObservadaCelda {
   acumuladoMm24h: number | null
   acumuladoMm72h: number | null
   observadoEn: string | null
+  // Fuente de cada acumulado cuando hay valor: 'nasa-imerg' o
+  // 'synop:<wmo>:<nombre>:<km>km' (estación SMN medida, preferida sobre IMERG).
+  fuente24h?: string
+  fuente72h?: string
+  // Climatología IMERG de la celda por ventana (P90/P95/P99), si existe; sin
+  // ella el motor puntúa con umbrales absolutos documentados (lluvia-observada.ts).
+  climatologia24h?: ClimatologiaObservada | null
+  climatologia72h?: ClimatologiaObservada | null
 }
 
 export interface PuertoLluviaObservada {
@@ -154,6 +163,49 @@ export interface PuertoExposicion {
   obtenerResumen(params: { cueAnexo: string; asOf: string }): Promise<ResumenExposicion | null>
 }
 
+// Estado oficial de la estación de Prefectura de referencia de la escuela
+// (tramo de referencia por localidad), SÓLO cuando la escuela está físicamente
+// expuesta a ese río. `null` = sin tramo aprobado, escuela no expuesta, sin
+// lectura vigente (> 24 h antes de `asOf`) o lectura inconsistente: nunca se
+// imputa "normal" en esos casos.
+export type EstadoRioPrefectura = 'normal' | 'alerta' | 'evacuacion'
+
+export interface EvidenciaRioPrefectura {
+  cueAnexo: string
+  estacionId: string
+  rio: 'parana' | 'uruguay'
+  lecturaM: number
+  alertaM: number | null
+  evacuacionM: number | null
+  // Variación respecto de la lectura anterior publicada (m); > 0 = crece.
+  variacionM: number | null
+  medidaEn: string
+  estado: EstadoRioPrefectura
+  // Criterio que hizo a la escuela "expuesta" (trazabilidad del factor). Los
+  // criterios basados en DEM empiezan con 'dem_estimado' (exposición estimada).
+  criterioExposicion: string
+}
+
+// Escuela vinculada a un tramo para la que la evidencia del río NO puede
+// evaluarse: 'sin_dato' (expuesta o posiblemente expuesta, pero sin lectura
+// vigente o sin nivel de referencia: nunca se imputa "normal") o 'no_aplica'
+// (p. ej. costa de embalse aguas arriba de la represa: la estación del tramo no
+// la representa). El motor la registra como factor visible, sin puntaje.
+export interface EvidenciaRioNoDisponible {
+  cueAnexo: string
+  estacionId: string
+  rio: 'parana' | 'uruguay'
+  disponibilidad: 'sin_dato' | 'no_aplica'
+  motivo: string
+}
+
+export interface PuertoRioPrefectura {
+  obtenerEvidencia(params: {
+    cueAnexo: string
+    asOf: string
+  }): Promise<EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null>
+}
+
 // Bundle de puertos que motor/calculo.ts recibe por inyección: el núcleo no
 // construye ningún adapter, sólo llama estas interfaces.
 export interface PuertosMotor {
@@ -164,4 +216,6 @@ export interface PuertosMotor {
   susceptibilidad: PuertoSusceptibilidad
   historial: PuertoHistorial
   exposicion: PuertoExposicion
+  // Opcional: los fakes/backtests sin hidrometría no lo inyectan.
+  rioPrefectura?: PuertoRioPrefectura
 }

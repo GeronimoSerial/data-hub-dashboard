@@ -62,4 +62,18 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
   // (docs/DEPLOY.md). Pendientes de crear en producción.
   { nombre: 'veredicto-diario', tipo: 'veredicto-diario-v0', intervaloMinutos: 360, habilitado: false },
   { nombre: 'veredicto-cierre', tipo: 'veredicto-cierre-v0', intervaloMinutos: 1440, habilitado: false },
+  // Not scheduled in production yet: enable once the Coolify task exists.
+  { nombre: 'sync-synop-lluvia', tipo: 'sync-synop-lluvia', intervaloMinutos: 60, habilitado: false },
+  {
+    nombre: 'sync-prefectura-historico',
+    tipo: 'sync-prefectura-historico',
+    intervaloMinutos: 1440,
+    habilitado: false,
+  },
+  {
+    nombre: 'importar-exposicion-rio-dem',
+    tipo: 'importar-exposicion-rio-dem',
+    intervaloMinutos: 1440,
+    habilitado: false,
+  },
 ]

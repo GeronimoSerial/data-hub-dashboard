@@ -16,6 +16,9 @@ export type NombreJob =
   | 'veredicto-diario'
   | 'veredicto-cierre'
   | 'sync-prefectura-alturas'
+  | 'sync-synop-lluvia'
+  | 'sync-prefectura-historico'
+  | 'importar-exposicion-rio-dem'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
   // Cada 6h para alinearse con las corridas ECMWF 00/06/12/18 UTC.
@@ -74,6 +77,21 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
     minutos: 60,
     descripcion: 'Sincroniza alturas hidrométricas de Prefectura Naval Argentina (cada hora)',
   },
+  // Lluvia medida en estaciones SMN (SYNOP vía Ogimet): una consulta por estación por hora.
+  'sync-synop-lluvia': {
+    minutos: 60,
+    descripcion: 'Sincroniza lluvia medida (SYNOP 6RRRt) de estaciones SMN vía Ogimet (cada hora)',
+  },
+  // Nivel de referencia por estación (mediana de 365 días del histórico de PNA).
+  'sync-prefectura-historico': {
+    minutos: 1440,
+    descripcion: 'Recalcula el nivel de referencia (365 días) de cada estación de Prefectura (diario)',
+  },
+  // Capa estática versionada (geo-static): idempotente, no-op si ya está importada.
+  'importar-exposicion-rio-dem': {
+    minutos: 1440,
+    descripcion: 'Importa la exposición estática escuela-río del DEM (geo-static, diario e idempotente)',
+  },
 }
 
 // El `tipo` que cada job persiste en infra_job_run (TIPO_JOB interno) no es el
@@ -98,6 +116,9 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'veredicto-diario-v0': 'veredicto-diario',
   'veredicto-cierre-v0': 'veredicto-cierre',
   'sync-prefectura-alturas': 'sync-prefectura-alturas',
+  'sync-synop-lluvia': 'sync-synop-lluvia',
+  'sync-prefectura-historico': 'sync-prefectura-historico',
+  'importar-exposicion-rio-dem': 'importar-exposicion-rio-dem',
 }
 
 // Un job está atrasado cuando pasaron más de dos cadencias completas desde su
