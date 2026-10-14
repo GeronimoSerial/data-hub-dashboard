@@ -127,7 +127,49 @@ Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
 - [x] T9 job `sync-prefectura-historico` (daily, 365-day stats per station) + table + health
 - [x] T10 engine: dynamic exposure (interpolated anomaly), reservoir rule, sin-dato degradation
 - [x] T11 engine: rain climatology hook + absolute thresholds per window
-- [ ] T12 recompute (incl. 1801318-00) + 'Operación permanente' section
+- [x] T12 recompute (incl. 1801318-00) + 'Operación permanente' section
+
+## Operación permanente
+
+| Dato | Job (jobs.mjs) | Cadencia (cadencias.ts) | Salud (hazard_source_health, TTL) | Falla de la fuente → comportamiento |
+|---|---|---|---|---|
+| Alturas Prefectura (`hidro_lectura`) | `sync-prefectura-alturas` (existente) | 60 min | `prefectura-alturas` 120 min | lectura > 24 h: escuela expuesta → factor `rio-prefectura` "sin dato" (cuenta como faltante, baja la confianza; sin piso), nunca "normal" |
+| Referencia 365 d por estación (`hidro_referencia`) | `sync-prefectura-historico` | 1440 min | `prefectura-historico` 36 h | conserva la fila anterior; sin referencia → exposición DEM "sin dato" (y "sin dato" si no hay criterio estático) |
+| Exposición DEM escuela-río (`infra_exposicion_rio_dem`) | `importar-exposicion-rio-dem` | 1440 min (no-op por versión) | `exposicion-rio-dem` 48 h | sin capa → sólo criterios estáticos JRC/G1 + fallback de estación |
+| Lluvia SYNOP (`lluvia_estacion`) | `sync-synop-lluvia` | 60 min | `ogimet-synop` 120 min | estación sin cobertura de la ventana → IMERG; la fuente usada queda en el factor |
+| Climatología lluvia observada (`hazard_climatology`, `precipitacion_observada_{24,72}h`) | job de climatología IMERG (otro worker) | — | — | sin climatología de la celda → umbrales absolutos `umbrales-provisorios-v0.1` (24 h 50/80/120, 72 h 80/120/180 mm), nunca se ignora la lluvia |
+
+- Cron y comandos de Coolify en `docs/ejecucion-enos/OPS1/runbook-scheduler.md` (sección "Pendiente: jobs de evidencia de río y lluvia medida").
+- Panel de salud: los tres jobs nuevos figuran en `jobs-esperados.ts` (`no_programado` hasta crear la tarea) y quedan marcados como atrasados después de dos cadencias.
+- No hay fechas ni valores del evento fijos en el código. Lo que es configurable y está documentado: umbrales de exposición
+  (`DISTANCIA_RIO_MAX_M` 500, `MARGEN_DINAMICO_M` 1, `TOLERANCIA_NIVEL_RIO_M` 3, `UMBRAL_EMBALSE_M` 10),
+  `ESTACIONES_CON_REPRESA_AGUAS_ARRIBA` (Yacyretá → pna-ituzaingo, infraestructura estática) y
+  `VENTANA_DIAS` 365.
+
+## Phase 2 recompute (dump 2026-10-13T23:13Z + live Prefectura history + DEM layer, ahora 2026-10-14T00:30Z)
+Before = main (all `bajo`). After: 13 `alto`, 8 `moderado`, 1980 unchanged (all horizons).
+
+| Departamento | Escuelas | Expuestas al río | por DEM (estimado) | por criterio estático | sin dato | no aplica | alto | moderado |
+|---|---|---|---|---|---|---|---|---|
+| Ituzaingó | 78 | 9 | 0 | 9 (ruta 4, fluvial 3, clase 2) | 0 | 2 (embalse) | 9 | 0 |
+| Santo Tomé | 103 | 2 | 0 | 2 | 0 | 0 | 0 | 0 |
+| Paso de los Libres | 70 | 4 | 0 | 4 (ruta RP100) | 0 | 0 | 4 | 0 |
+| General Alvear | 25 | 1 | 1 | 0 | 0 | 0 | 0 | 1 |
+| San Martín | 51 | 7 | 0 | 7 (ruta 4, fluvial 3) | 0 | 0 | 0 | 7 |
+| San Cosme | 55 | 14 | 0 | 14 (clase 12) | 0 | 0 | 0 | 0 |
+| Capital | 363 | 55 | 0 | 55 (ruta 36, fluvial 11) | 0 | 0 | 0 | 0 |
+
+- Paso de los Libres: according to the DEM the closest schools stand at 53.8 m and more against a river
+  surface of 42 m; with the current anomaly (+5.0 m over a 4.32 m median) the water is estimated at
+  ~47 m. No school ground is below the current water (+1 m margin): the town sits on the bluff, and
+  the evacuees are riverside households, not schools. The 4 `alto` are there because their access
+  route floods at RP100.
+- Santo Tomé, San Cosme, Capital: river normal at their stations, so exposed schools carry a river
+  factor but no floor.
+- 1801318-00 (Paraje Puerto Valle): river evidence `no_aplica` (Yacyretá reservoir: DEM water 80 m
+  against ~55 m downstream; the Ituzaingó gauge sits below the dam). Rain 72 h IMERG 31.9 mm scored
+  13.2/100 with the absolute thresholds (the cell has no climatology). Level stays `bajo` (score
+  2-4, confianza baja). DEM: ground 89.3 m, 1.17 km from permanent water, 9.3 m above the reservoir.
 
 ## Merge note
 - Migration is `drizzle/0016_lluvia_estacion.sql` (journal idx 15, snapshot `0016_snapshot.json`) because

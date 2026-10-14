@@ -29,12 +29,22 @@ decisión hasta cerrar P-5 (I-6, I-7, G-3 e I-2). Figuran en
 `sync-prefectura-alturas` está programado en Coolify desde el 2026-10-13 y
 figura con `habilitado: true`.
 
-## Pendiente: `sync-synop-lluvia` (lluvia medida SYNOP vía Ogimet)
+## Pendiente: jobs de evidencia de río y lluvia medida (rama evidencia-riesgo-escuelas)
 
-- Job nuevo, **no programado aún** (`habilitado: false` en `jobs-esperados.ts`). Propuesta: Coolify `23 * * * *`, timeout 300 s, `node scripts/jobs.mjs sync-synop-lluvia`. Exit `1` si devuelve `estado: fallido` (todas las estaciones fallaron).
-- Requiere la migración `drizzle/0016_lluvia_estacion.sql` (tabla `lluvia_estacion`).
-- Estaciones: 87155, 87166, 87173, 87178, 87187, 87270, 87281, 87289, 87393 (catálogo en `lib/infraestructura/lluvia-estaciones/estaciones-synop.ts`). Ventana de 30 h por corrida.
-- **Términos de Ogimet:** servicio gratuito de un particular; uso no comercial con atribución ("Ogimet, ogimet.com"; datos OMM/SMN) y baja tasa de consultas. El job hace **una consulta por estación por corrida**, secuencial con 2 s de pausa y `User-Agent` identificado. No bajar la cadencia por debajo de 60 min ni paralelizar. Si Ogimet responde 429 o un mensaje de cupo, el job lo registra como estación con error y la salud de fuente `ogimet-synop` queda `degradado`.
+Ninguno está programado todavía (`habilitado: false` en `jobs-esperados.ts`). Crear una Scheduled Task
+de Coolify por job, con el comando `node scripts/jobs.mjs <nombre>`. Todos tienen su propio lease
+idempotente y requieren `ENOS_JOBS_ENABLED` distinto de `false`. Si devuelven `estado: fallido`, salen
+con código `1`. Antes, aplicar las migraciones `0016_lluvia_estacion` y `0017_hidro_referencia_exposicion_dem`.
+
+| Tarea | Cron | Timeout | `infra_job_run.tipo` | Salud de fuente (TTL) | Si falla |
+|---|---|---|---|---|---|
+| sync-synop-lluvia | `23 * * * *` | 300 s | `sync-synop-lluvia` | `ogimet-synop` (120 min) | estación con error = se cuenta; todas = `fallido`. El motor usa IMERG para esas celdas |
+| sync-prefectura-historico | `35 7 * * *` | 1200 s | `sync-prefectura-historico` | `prefectura-historico` (36 h) | conserva la referencia anterior. Sin referencia, la exposición DEM queda `sin dato` |
+| importar-exposicion-rio-dem | `50 7 * * *` | 600 s | `importar-exposicion-rio-dem` | `exposicion-rio-dem` (48 h) | no-op si la versión ya está importada. Sin archivo = `fallido` y el motor usa sólo criterios estáticos |
+
+- **Ogimet:** servicio gratuito de un particular; uso no comercial con atribución ("Ogimet, ogimet.com"; datos OMM/SMN) y baja tasa de consultas. Se hace una consulta por estación y por corrida, en forma secuencial, con 2 s de pausa y `User-Agent` identificado. No bajar la cadencia de 60 min ni paralelizar.
+- **Prefectura histórico:** una consulta diaria por estación a `alturas/?page=historico&tiempo=365&id=<id>`, en forma secuencial con 2 s de pausa. No hay términos publicados; se atribuye a PNA.
+- **Capa DEM:** se genera fuera de línea con `services/geo-static` (`python -m geo_static.jobs.calcular_exposicion_rio_dem`, Copernicus GLO-30 + JRC GSW). El CSV versionado viaja en la imagen y el job lo importa una vez por versión.
 
 ## Producción (Coolify)
 
