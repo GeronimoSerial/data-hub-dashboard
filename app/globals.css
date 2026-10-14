@@ -6205,3 +6205,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .riesgo-escuela__planificacion dd { margin: 0; font-weight: 600; }
 /* Radar: la leyenda queda arriba de la línea de tiempo y a la izquierda de la escala de lluvia. */
 .map-leyenda--radar { bottom: 122px; max-width: calc(100% - 55px - var(--map-sidebar-ancho) - 270px); }
+.map-leyenda { width: max-content; max-width: min(30rem, calc(100% - 55px - var(--map-sidebar-ancho) - var(--s-4))); }
+.map-leyenda--radar { max-width: min(30rem, calc(100% - 55px - var(--map-sidebar-ancho) - 270px)); }
+.map-leyenda__fila { flex-wrap: wrap; }

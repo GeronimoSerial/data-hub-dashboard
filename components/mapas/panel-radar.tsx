@@ -131,7 +131,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
                             <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
                             <span className="map-sitact__meta">{departamento}{niveles}</span>
                             <span className="map-sitact__chips">
-                              <span className="map-sitact__pill map-sitact__pill--neutro">Prioridad: {ETIQUETA_NIVEL_RIESGO[nivel]}</span>
+                              <span className="map-sitact__pill map-sitact__pill--neutro">Riesgo actual: {ETIQUETA_NIVEL_RIESGO[nivel]}</span>
                               {amenaza && (
                                 <span className={`map-sitact__pill ${amenaza === 'alto' || amenaza === 'muy_alto' ? 'map-sitact__pill--aviso' : 'map-sitact__pill--neutro'}`}>
                                   Amenaza: {ETIQUETA_NIVEL_RIESGO[amenaza]}

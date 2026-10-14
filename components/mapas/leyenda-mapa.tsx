@@ -80,7 +80,8 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
   )
 }
 
-function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObservada }: {
+function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObservada, abierta }: {
+  abierta: boolean
   estacionesRio: boolean
   eventosReportados: boolean
   registro: RegistroEventosLeyenda | null | undefined
@@ -89,7 +90,7 @@ function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObs
   const registroActualizado = registro?.actualizadoAl ? formatearFechaRegistro(registro.actualizadoAl) : null
 
   return (
-    <details className="map-leyenda__seccion" open>
+    <details className="map-leyenda__seccion" open={abierta}>
       <summary className="map-leyenda__seccion-titulo">Situación actual</summary>
       <div className="map-leyenda__seccion-cuerpo">
         {estacionesRio && (
@@ -224,6 +225,8 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
     <aside className={`map-leyenda map-leyenda--${props.pestana}`} aria-label="Referencias del mapa">
       {hayCapas && (
         <SituacionActual
+          // Fuera de "Situación actual" manda la escala de la pestaña: estas referencias quedan plegadas.
+          abierta={props.pestana === 'actual' || props.pestana === 'estadisticas'}
           estacionesRio={estacionesRio}
           eventosReportados={eventosReportados}
           registro={props.resumenEventos}
