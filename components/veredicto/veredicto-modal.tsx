@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { NotaInfo } from '@/components/ui/dato-fechado'
 import { ROTULO_FUENTE } from '@/lib/infraestructura/veredicto/plantilla'
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
@@ -107,6 +108,14 @@ function etiquetaMetrica(metrica: MetricaDtoVeredicto): string {
   return `${metrica.etiqueta} ${String(metrica.valor)}${unidad}`
 }
 
+function notaTecnica(veredicto: DtoVeredicto): string | null {
+  const partes = [
+    veredicto.fuentesAusentes.length > 0 ? `Sin datos de: ${veredicto.fuentesAusentes.map(textoItem).join(', ')}.` : null,
+    veredicto.fuente === 'plantilla' ? 'Generado por reglas (IA no disponible).' : null,
+  ].filter((parte): parte is string => parte !== null)
+  return partes.length > 0 ? partes.join(' ') : null
+}
+
 function textoItem(item: unknown): string {
   if (typeof item === 'string') return (ROTULO_FUENTE as Record<string, string>)[item] ?? item
   if (item !== null && typeof item === 'object') {
@@ -148,6 +157,8 @@ function DetalleVeredicto({
         </h3>
         <NivelChip nivel={veredicto.nivel} />
         {veredicto.enCalibracion ? <span className="badge veredicto-calibracion">En calibración</span> : null}
+        {/* Procedencia y fuentes ausentes: detalle técnico detrás del ícono de info, no en el texto. */}
+        {notaTecnica(veredicto) ? <NotaInfo texto={notaTecnica(veredicto) as string} /> : null}
         <span
           className="veredicto-detalle__meta"
           title={veredicto.imergHasta ? `Lluvia observada hasta ${horaArt(veredicto.imergHasta)}` : undefined}
@@ -205,15 +216,6 @@ function DetalleVeredicto({
         </div>
       ) : null}
 
-      {veredicto.fuentesAusentes.length > 0 ? (
-        <p className="veredicto-detalle__nota">
-          Fuentes ausentes: {veredicto.fuentesAusentes.map(textoItem).join(', ')}
-        </p>
-      ) : null}
-
-      {veredicto.fuente === 'plantilla' ? (
-        <p className="veredicto-detalle__nota">Generado por reglas (IA no disponible)</p>
-      ) : null}
     </section>
   )
 }

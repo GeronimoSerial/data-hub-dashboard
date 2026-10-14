@@ -179,12 +179,14 @@ describe('VeredictoModal', () => {
     expect(escuelas).toHaveTextContent('Escuelas por riesgo actual (hoy): 2 alto · 1 bajo')
   })
 
-  it('muestra la nota de generación por reglas cuando la fuente es plantilla', async () => {
+  it('deja la nota de generación por reglas en el tooltip cuando la fuente es plantilla', async () => {
     mockFetchVeredictos([veredicto({ id: 'p', fecha: hoy, fuente: 'plantilla' })])
 
     render(<VeredictoModal open onOpenChange={() => {}} />)
     const detalle = await screen.findByRole('region', { name: 'Detalle del veredicto' })
-    expect(within(detalle).getByText('Generado por reglas (IA no disponible)')).toBeInTheDocument()
+    // Detalle técnico en el tooltip del ícono de info, no como texto.
+    expect(within(detalle).getByRole('note').getAttribute('title')).toContain('Generado por reglas (IA no disponible).')
+    expect(detalle.textContent).not.toContain('Generado por reglas')
   })
 
   it('lista los eventos confirmados del día seleccionado y el mensaje vacío si no hay', async () => {
