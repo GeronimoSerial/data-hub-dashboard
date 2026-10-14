@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { ROTULO_FUENTE } from '@/lib/infraestructura/veredicto/plantilla'
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -106,17 +107,8 @@ function etiquetaMetrica(metrica: MetricaDtoVeredicto): string {
   return `${metrica.etiqueta} ${String(metrica.valor)}${unidad}`
 }
 
-const NOMBRE_FUENTE: Record<string, string> = {
-  glofas: 'caudal pronosticado (GloFAS)',
-  ensamble: 'ensamble de lluvia',
-  ecmwf: 'lluvia pronosticada (ECMWF)',
-  imerg: 'lluvia observada (NASA IMERG)',
-  prefectura: 'alturas de Prefectura',
-  smn: 'alertas del SMN',
-}
-
 function textoItem(item: unknown): string {
-  if (typeof item === 'string') return NOMBRE_FUENTE[item] ?? item
+  if (typeof item === 'string') return (ROTULO_FUENTE as Record<string, string>)[item] ?? item
   if (item !== null && typeof item === 'object') {
     const r = item as Record<string, unknown>
     return String(r.etiqueta ?? r.id ?? r.fuente ?? JSON.stringify(item))
@@ -140,12 +132,9 @@ function extraerVeredictos(body: unknown): DtoVeredicto[] {
 function DetalleVeredicto({
   veredicto,
   metricas,
-  ahoraMs,
 }: {
   veredicto: DtoVeredicto
   metricas: MetricaDtoVeredicto[]
-  /** Instante de referencia para "hace N h", fijado al abrir el modal. */
-  ahoraMs: number
 }): JSX.Element {
   const frases = (veredicto.frases ?? []) as Array<{
     texto?: string
@@ -159,13 +148,12 @@ function DetalleVeredicto({
         </h3>
         <NivelChip nivel={veredicto.nivel} />
         {veredicto.enCalibracion ? <span className="badge veredicto-calibracion">En calibración</span> : null}
-        <span className="veredicto-detalle__meta">generado {horaArt(veredicto.generadoEn)}</span>
-        {veredicto.tipoDia === 'hoy' && veredicto.imergHasta ? (
-          <span className="veredicto-detalle__meta">
-            Lluvia observada hasta {horaArt(veredicto.imergHasta)} (hace{' '}
-            {Math.round((ahoraMs - Date.parse(veredicto.imergHasta)) / 3600_000)} h)
-          </span>
-        ) : null}
+        <span
+          className="veredicto-detalle__meta"
+          title={veredicto.imergHasta ? `Lluvia observada hasta ${horaArt(veredicto.imergHasta)}` : undefined}
+        >
+          generado {horaArt(veredicto.generadoEn)}
+        </span>
       </header>
 
       {/* Con frases de IA, `texto` es su concatenación: se muestra una sola vez. */}
@@ -242,7 +230,6 @@ export function VeredictoModal({
   const [seleccion, setSeleccion] = useState<string | null>(null)
   const [eventosCargados, setEventosCargados] = useState<EventoTerreno[]>([])
   const [conteoRadar, setConteoRadar] = useState<Record<string, ConteoNiveles>>({})
-  const [ahoraMs] = useState(() => Date.now())
 
   useEffect(() => {
     if (!open) return
@@ -377,7 +364,7 @@ export function VeredictoModal({
             </div>
 
             {provincia ? (
-              <DetalleVeredicto veredicto={provincia} metricas={provincia.metricas} ahoraMs={ahoraMs} />
+              <DetalleVeredicto veredicto={provincia} metricas={provincia.metricas} />
             ) : (
               <p className="veredicto-seccion__vacio">Sin veredicto de provincia para este día.</p>
             )}

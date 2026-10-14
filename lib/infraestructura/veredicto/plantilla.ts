@@ -31,7 +31,8 @@ const ORDEN_NIVEL: Record<NivelVeredicto, number> = {
   severo: 3,
 }
 
-const ROTULO_FUENTE: Record<FuenteVeredicto, string> = {
+/** Nombre legible de cada fuente del veredicto (modal, PDF). */
+export const ROTULO_FUENTE: Record<FuenteVeredicto, string> = {
   imerg: 'lluvia satelital (IMERG)',
   prefectura: 'alturas de Prefectura',
   glofas: 'caudal pronosticado (GloFAS)',
@@ -69,7 +70,7 @@ function senalPrincipal(traza: TrazaRegla[], metricas: MetricaVeredicto[]): stri
   return `${etiqueta}: ${numero(principal.valor)}${unidad ? ` ${unidad}` : ''}.`
 }
 
-// Mismo texto que el modal: "Prefectura Paso de los Libres (río Uruguay): 9,33 m ≥ evacuación 8,50 m."
+// Mismo texto que el modal: "Prefectura Paso de los Libres (río Uruguay) — Altura del río: 9,33 m · Evacuación (evacuación 8,50 m)."
 function senalRio(entrada: TrazaRegla, metricas: MetricaVeredicto[]): string {
   return `${describirTraza(entrada, metricas)}.`
 }
@@ -81,7 +82,7 @@ export function textoPlantilla(item: ItemPlantilla): string {
   const senal = senalPrincipal(item.traza, item.metricas)
   if (senal) partes.push(senal)
   else partes.push(SIN_SENAL_TEXTO[item.nivel] ?? `${ROTULO_NIVEL[item.nivel]}.`)
-  if (item.fuentesAusentes.length > 0) partes.push(`Sin datos de: ${item.fuentesAusentes.map((f) => ROTULO_FUENTE[f]).join(', ')}.`)
+  // Las fuentes ausentes no van en el texto: el modal y el PDF las muestran como detalle técnico.
   return partes.join(' ')
 }
 

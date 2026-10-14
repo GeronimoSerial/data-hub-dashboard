@@ -132,12 +132,14 @@ function describirRio(entrada: TrazaLegible, metricas: MetricaLegible[]): string
     const subida = entrada.valor === null ? 'sin dato' : `subió ${numeroEs(entrada.valor, 2)} ${METRO} en 24 h`
     return `${cabecera}: ${subida} (umbral ${numeroEs(entrada.umbral, 2)} ${METRO})`
   }
-  const altura = entrada.valor === null ? '' : `: ${numeroEs(entrada.valor, 2)} ${METRO}`
+  // Altura siempre explícita, con el estado al lado y el umbral como dato secundario.
+  const altura = `Altura del río: ${entrada.valor === null ? 'sin dato' : `${numeroEs(entrada.valor, 2)} ${METRO}`}`
   const rotulo = typeof entrada.umbral === 'string' ? ROTULO_UMBRAL_RIO[entrada.umbral] : undefined
-  if (!rotulo) return `${cabecera}${altura}`
+  if (!rotulo) return `${cabecera} — ${altura}`
   const cota = valorMetrica(metrica(metricas, `rio.${estacionId}.${entrada.umbral === 'evacuacion' ? 'evacuacion_m' : 'alerta_m'}`))
-  const comparacion = cota === null ? '' : ` ≥ ${rotulo} ${numeroEs(cota, 2)} ${METRO}`
-  return `${cabecera}${altura}${comparacion}`
+  const estado = rotulo.charAt(0).toUpperCase() + rotulo.slice(1)
+  const umbral = cota === null ? '' : ` (${rotulo} ${numeroEs(cota, 2)} ${METRO})`
+  return `${cabecera} — ${altura} · ${estado}${umbral}`
 }
 
 function percentil(umbral: number | string | null): string {
@@ -201,14 +203,14 @@ export function describirTraza(entrada: TrazaLegible, metricas: MetricaLegible[]
 export function describirAguaArriba(a: AguaArribaLegible): string {
   const nombre = nombrePropio(a.nombre)
   const cabecera = `Prefectura ${nombre} (río ${nombreRio(a.rio)})`
-  const altura = a.alturaMaxM === null ? 'sin altura' : `${numeroEs(a.alturaMaxM, 2)} ${METRO}`
-  if (a.umbralM === null) return `${cabecera}: ${altura}`
-  const cota = numeroEs(a.umbralM, 2)
-  const posicion =
+  const altura = `Altura del río: ${a.alturaMaxM === null ? 'sin dato' : `${numeroEs(a.alturaMaxM, 2)} ${METRO}`}`
+  if (a.umbralM === null) return `${cabecera} — ${altura}`
+  const cota = `${numeroEs(a.umbralM, 2)} ${METRO}`
+  const estado =
     a.estadoMax === 'evacuacion'
-      ? `sobre evacuación ${cota} ${METRO}`
+      ? `Evacuación (evacuación ${cota})`
       : a.estadoMax === 'alerta'
-        ? `sobre alerta ${cota} ${METRO}`
-        : `por debajo de alerta ${cota} ${METRO}`
-  return `${cabecera}: ${altura}, ${posicion}`
+        ? `Alerta (alerta ${cota})`
+        : `Normal (alerta ${cota})`
+  return `${cabecera} — ${altura} · ${estado}`
 }
