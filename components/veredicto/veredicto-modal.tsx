@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type JSX } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { DtoVeredicto, MetricaDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import { NivelChip } from './nivel-chip'
+import { VeredictoAcciones } from './veredicto-acciones'
 
 export type EventoTerreno = {
   id: string
@@ -179,7 +180,7 @@ export function VeredictoModal({
   onOpenChange,
   onSeleccionarDepartamento,
   eventos = [],
-  acciones,
+  acciones = <VeredictoAcciones />,
 }: Props): JSX.Element {
   const [estado, setEstado] = useState<EstadoCarga>('cargando')
   const [veredictos, setVeredictos] = useState<DtoVeredicto[]>([])
