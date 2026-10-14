@@ -34,7 +34,9 @@ persistido, visible en un modal desde el mapa de infraestructura y exportable pa
 ## Integración con la rama hermana `GeronimoSerial/mapa-peligro-visible`
 
 El modal es autocontenido (`components/veredicto/veredicto-modal.tsx`). El único punto de entrada en el mapa
-es un botón agregado en `app/(hub)/mapas/infraestructura/map-client.tsx` (ver tarea T9 para la línea exacta).
+es un botón "Veredicto diario" en `components/mapas/map-infraestructura-page.tsx` (bloques marcados con el comentario
+`// Veredicto diario: punto de entrada mínimo`: import, estado `veredictoAbierto`, handler `centrarDepartamentoVeredicto`
+junto a `seleccionarDepartamentoRadar`, y botón + `<VeredictoModal>` antes de `FullscreenButton`).
 Al fusionar la rama hermana, mover ese botón al grupo "Situación actual" de `components/mapas/panel-capas.tsx`
 y pasar los eventos reportados de `lib/mapas/eventos-inundaciones.ts` al prop `eventos` del modal.
 
@@ -59,7 +61,7 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - [x] T5 (V-01, V-08) Prompt, esquema zod, términos prohibidos propios, plantilla de fallback, presupuesto único.
 - [x] T6 (V-09, V-10) Orquestador por corrida + job `veredicto-diario` (cadencia 6 h + cierre de día, timer, `jobs.mjs`, flag).
 - [x] T7 (V-11) API de lectura (vigentes por rango, historial).
-- [ ] T8 (V-12, V-13, V-14) Modal autocontenido + punto de entrada en el mapa.
+- [x] T8 (V-12, V-13, V-14) Modal autocontenido + punto de entrada en el mapa.
 - [ ] T9 (V-15, V-15b) Enlaces con token (crear/revocar, vencimiento 23:59 ART, 410) + vista pública + PDF.
 - [ ] T10 (V-18) Retiro de E8 (job, timer, panel, rutas, flag).
 - [ ] T11 E2E local con el dump.
@@ -85,3 +87,4 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - T6c (delegado en dos workers: el primero se detuvo cerca del tope; el segundo, acotado, ~79k): `job.ts` (lease por slot de 6 h UTC y por día ART para el cierre), flag `AI_VEREDICTO_ENABLED`, cadencias, `jobs.mjs` (gate por `ENOS_JOBS_ENABLED` + `AI_VEREDICTO_ENABLED`), timers `00,06,12,18:45 UTC` y `03:30 UTC`, `DEPLOY.md` y runbook. GREEN: veredicto/job 10, flags+cadencias 41, `scripts/jobs.test.ts` 30; `node --check` ok; tsc limpio.
 - T7 (delegado, ~91k): `dto.ts` (sin tokens/costo/modelo/hash), `GET /api/infraestructura/veredictos` (rango ≤ 31 días, por defecto la ventana 7+hoy+3) y `/veredictos/historial`. Ajuste del coordinador: el listado devuelve `version: null` (la numeración vive en el historial). GREEN 20 tests; tsc/eslint limpios.
 - T8a (delegado, ~89k): `components/veredicto/veredicto-modal.tsx` + `nivel-chip.tsx` (autocontenido: timeline, detalle, traza, fuentes ausentes, departamentos con señal, "confirmado en terreno" por prop `eventos`, `acciones` por prop). Correcciones del coordinador: la etiqueta observado/hoy/pronóstico y el día por defecto salen de `tipoDia` (no del reloj del navegador); con frases de IA no se repite `texto`. GREEN 7 tests; tsc/eslint limpios.
+- T8b (delegado, ~79k): entrada mínima en el mapa. Ajuste del coordinador: botón con clases Tailwind y `bottom-24` para no pisar el botón de pantalla completa en mobile. tsc limpio; `map-client.test.tsx` 24 verdes. La sincronización de la capa IMERG con el día elegido queda para la integración con la rama hermana.
