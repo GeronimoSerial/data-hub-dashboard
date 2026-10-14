@@ -52,7 +52,7 @@ describe('pintarGrillaLluvia', () => {
 
     expect(grilla.ancho).toBe(2)
     expect(grilla.alto).toBe(15)
-    expect(pixel(grilla, 14, 0)).toEqual([96, 165, 250, 191])
+    expect(pixel(grilla, 14, 0)).toEqual([56, 140, 240, 191])
   })
 
   it('deja transparente una celda menor a 1 mm', () => {
@@ -201,7 +201,7 @@ describe('CapaLluviaObservada', () => {
 
   it('expone las clases de lluvia con su umbral y etiqueta en orden creciente', () => {
     expect(CLASES_LLUVIA.map((clase) => clase.desde)).toEqual([1, 10, 25, 50, 100, 150])
-    expect(CLASES_LLUVIA[0]).toEqual({ desde: 1, color: '#dbeafe', etiqueta: '1–10 mm' })
+    expect(CLASES_LLUVIA[0]).toEqual({ desde: 1, color: '#aaeafe', etiqueta: '1–10 mm' })
     expect(CLASES_LLUVIA[5].etiqueta).toBe('150 mm o más')
   })
 })

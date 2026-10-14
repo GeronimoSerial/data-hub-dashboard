@@ -33,13 +33,15 @@ export type GrillaLluvia = {
   coordenadas: Esquinas | null
 }
 
+// Multi-hue sequential ramp (cyan → blue → violet → magenta) with monotone OKLCH
+// lightness 0.90 → 0.35, so neighbouring classes differ in both hue and lightness.
 export const CLASES_LLUVIA: ReadonlyArray<{ desde: number; color: string; etiqueta: string }> = [
-  { desde: 1, color: '#dbeafe', etiqueta: '1–10 mm' },
-  { desde: 10, color: '#93c5fd', etiqueta: '10–25 mm' },
-  { desde: 25, color: '#60a5fa', etiqueta: '25–50 mm' },
-  { desde: 50, color: '#3b82f6', etiqueta: '50–100 mm' },
-  { desde: 100, color: '#1d4ed8', etiqueta: '100–150 mm' },
-  { desde: 150, color: '#1e3a8a', etiqueta: '150 mm o más' },
+  { desde: 1, color: '#aaeafe', etiqueta: '1–10 mm' },
+  { desde: 10, color: '#61c3f9', etiqueta: '10–25 mm' },
+  { desde: 25, color: '#388cf0', etiqueta: '25–50 mm' },
+  { desde: 50, color: '#634cd4', etiqueta: '50–100 mm' },
+  { desde: 100, color: '#8a0193', etiqueta: '100–150 mm' },
+  { desde: 150, color: '#700046', etiqueta: '150 mm o más' },
 ]
 
 const PASO_CELDA = 0.1
