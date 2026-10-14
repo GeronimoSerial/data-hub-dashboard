@@ -170,6 +170,24 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
     }
   }, [mapa])
 
+  // Without a beforeId the stations sit on top of every overlay: layers that mount
+  // later (school clusters load asynchronously) would otherwise cover the station
+  // icons, so the layer is moved back to the top whenever the style changes.
+  useEffect(() => {
+    if (!mapa || !listo || beforeId) return
+    const mapaGl = mapa.getMap()
+    const alTope = () => {
+      const capas = mapaGl.getStyle?.()?.layers
+      if (!capas?.length || !mapaGl.getLayer?.(ID_CAPA)) return
+      if (capas[capas.length - 1].id !== ID_CAPA) mapaGl.moveLayer(ID_CAPA)
+    }
+    alTope()
+    mapaGl.on('styledata', alTope)
+    return () => {
+      mapaGl.off('styledata', alTope)
+    }
+  }, [mapa, listo, beforeId])
+
   useEffect(() => {
     if (!mapa || !listo) return
     const idDe = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
@@ -226,6 +244,8 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
               'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
               'text-field': ['step', ['zoom'], '', 8, ['get', 'altura']],
               'text-size': 11,
+              // MapLibre defaults to Open Sans, which the OpenFreeMap glyph server does not serve.
+              'text-font': ['Noto Sans Regular'],
               'text-offset': [0, 1.6],
               'text-anchor': 'top',
               'text-optional': true,

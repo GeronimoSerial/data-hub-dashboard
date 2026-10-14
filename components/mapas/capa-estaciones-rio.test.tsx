@@ -147,6 +147,43 @@ describe('CapaEstacionesRio', () => {
     expect(capa.layout['icon-image']).toEqual(['get', 'insignia'])
   })
 
+  it('pide la fuente Noto Sans que sirve el basemap (no el Open Sans por defecto de MapLibre)', async () => {
+    render(<CapaEstacionesRio visible />)
+
+    await screen.findByTestId('layer')
+    expect(ultimaCapa().layout['text-font']).toEqual(['Noto Sans Regular'])
+  })
+
+  it('sin beforeId mantiene las estaciones por encima de capas agregadas después (clusters de escuelas)', async () => {
+    const capas = [{ id: 'basemap' }, { id: 'estaciones-rio-simbolos' }, { id: 'infra-partes-cluster' }]
+    const moveLayer = vi.fn((id: string) => {
+      const i = capas.findIndex((c) => c.id === id)
+      capas.push(...capas.splice(i, 1))
+    })
+    const extra = {
+      getStyle: () => ({ layers: capas }),
+      getLayer: (id: string) => capas.find((c) => c.id === id),
+      moveLayer,
+    }
+    Object.assign(mapa, extra)
+    try {
+      render(<CapaEstacionesRio visible />)
+      await screen.findByTestId('layer')
+      expect(ultimaCapa().beforeId).toBeUndefined()
+
+      act(() => mapa.emitir('styledata', '', {}))
+      await waitFor(() => expect(moveLayer).toHaveBeenCalledWith('estaciones-rio-simbolos'))
+      expect(capas.at(-1)?.id).toBe('estaciones-rio-simbolos')
+
+      // Ya arriba: no vuelve a moverla (evita un bucle de styledata).
+      moveLayer.mockClear()
+      act(() => mapa.emitir('styledata', '', {}))
+      expect(moveLayer).not.toHaveBeenCalled()
+    } finally {
+      for (const clave of Object.keys(extra)) delete (mapa as Record<string, unknown>)[clave]
+    }
+  })
+
   it('no renderiza nada cuando la capa está oculta', () => {
     const { container } = render(<CapaEstacionesRio visible={false} />)
 

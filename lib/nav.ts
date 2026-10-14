@@ -14,6 +14,26 @@ export function gatedStaticPath(pathname: string) {
   return hit ? path : null
 }
 
+/**
+ * Legacy static dashboards whose seed rows were migrated to uploaded files
+ * (see SEED_PUBLIC_FILES in lib/seed-files.ts): their `ruta` was cleared, so the
+ * static gate can no longer resolve them and would answer 404. Their entry
+ * URLs now redirect to the `/recursos/[id]` viewer, which enforces access.
+ */
+const LEGACY_RECURSO_IDS: Record<string, string> = {
+  '/tablero': 'r2',
+  '/mapa_interactivo': 'r3',
+  '/mapa_sobreedad': 'r13',
+  '/mapa_notas': 'r14',
+}
+
+export function legacyRecursoRedirect(pathname: string) {
+  const path = pathname.split(/[?#]/, 1)[0] || '/'
+  const root = path.replace(/\/(index\.html)?$/i, '')
+  const id = LEGACY_RECURSO_IDS[root]
+  return id ? `/recursos/${id}` : null
+}
+
 export function isMapViewerPath(pathname: string) {
   return pathname.startsWith('/mapas/') && pathname !== '/mapas'
 }
