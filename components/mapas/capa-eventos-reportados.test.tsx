@@ -77,6 +77,7 @@ const CSV = [
 const RESPUESTAS: Record<string, unknown> = {
   '/data/eventos-inundaciones/eventos.geojson': EVENTOS,
   '/data/localizaciones.json': [],
+  '/data/eventos-inundaciones/gazetteer-osm.json': { lugares: [], sinCoincidencia: [] },
   '/data/localities.geojson': {
     features: [{ properties: { name: 'Bonpland' }, geometry: { type: 'Point', coordinates: [-58.1, -28.4] } }],
   },

@@ -72,6 +72,7 @@ function LeyendaEventosReportados({ resumen }: { resumen?: ResumenEventosLeyenda
           <span>Ubicado sólo a nivel de departamento</span>
         </li>
       </ul>
+      <small className="map-leyenda__credito">Ubicaciones: © OpenStreetMap contributors (ODbL)</small>
       {resumenProvincial.length > 0 && (
         <section className="map-leyenda__resumen">
           <b className="map-leyenda__subtitulo">Resumen provincial</b>

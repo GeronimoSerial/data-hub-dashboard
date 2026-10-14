@@ -37,6 +37,45 @@ const ESTACIONES = [
   { nombrePna: 'ITA IBATE', coordenadas: null },
 ]
 
+const GAZETTEER = {
+  lugares: [
+    {
+      nombre: 'Isla Apipé',
+      consulta: 'Isla Apipé Grande',
+      nombreOsm: 'Isla Apipé Grande',
+      osmType: 'relation',
+      osmId: 6149515,
+      clase: 'place',
+      tipo: 'island',
+      lat: -27.5091532,
+      lon: -56.8424093,
+    },
+    {
+      nombre: 'Ituzaingó (Isla Apipé)',
+      consulta: 'Isla Apipé Grande',
+      nombreOsm: 'Isla Apipé Grande',
+      osmType: 'relation',
+      osmId: 6149515,
+      clase: 'place',
+      tipo: 'island',
+      lat: -27.5091532,
+      lon: -56.8424093,
+    },
+    {
+      nombre: 'Goya',
+      consulta: 'Goya',
+      nombreOsm: 'Municipio de Goya',
+      osmType: 'relation',
+      osmId: 3144223,
+      clase: 'boundary',
+      tipo: 'administrative',
+      lat: -29.1444046,
+      lon: -59.2649825,
+    },
+  ],
+  sinCoincidencia: ['Ituzaingó (represa Yacyretá)'],
+}
+
 type Overrides = Record<string, unknown>
 
 type EventoFixture = {
@@ -74,14 +113,22 @@ function evento(over: Overrides = {}): EventoFixture {
   }
 }
 
-function ubicar(eventos: EventoFixture[], localidades: typeof LOCALIDADES = LOCALIDADES) {
+function ubicar(
+  eventos: EventoFixture[],
+  localidades: Array<(typeof LOCALIDADES)[number] & { origen?: 'localidad' | 'escuelas' }> = LOCALIDADES,
+) {
   return ubicarEventos({
     eventos: { features: eventos },
     evidenciasCsv: CSV_EVIDENCIAS,
     localidades,
     departamentos: DEPARTAMENTOS,
     estaciones: ESTACIONES,
+    gazetteer: GAZETTEER,
   })
+}
+
+function leerGazetteer() {
+  return JSON.parse(readFileSync(resolve(process.cwd(), 'public', 'data/eventos-inundaciones/gazetteer-osm.json'), 'utf8'))
 }
 
 describe('parsearCsv', () => {
@@ -120,27 +167,54 @@ describe('ubicarEventos', () => {
     expect(geojson.features.every((f) => f.properties.multiLugar === true)).toBe(true)
   })
 
-  it('matches the gazetteer on the full place text before stripping the parenthetical', () => {
-    const { geojson } = ubicar([evento({ localidad: 'Ituzaingó (Isla Apipé)' })])
+  it('places an OSM gazetteer hit on the full place text with method osm and its OSM id', () => {
+    const { geojson, sinUbicacionPrecisa } = ubicar([evento({ localidad: 'Ituzaingó (Isla Apipé)' })])
+    expect(sinUbicacionPrecisa).toEqual([])
     expect(geojson.features).toHaveLength(1)
-    expect(geojson.features[0].geometry.coordinates).toEqual([-56.741868, -27.511299])
-    expect(geojson.features[0].properties.metodoUbicacion).toBe('gazetteer')
-    expect(geojson.features[0].properties.lugar).toBe('Ituzaingó (Isla Apipé)')
+    const [f] = geojson.features
+    expect(f.geometry.coordinates).toEqual([-56.8424093, -27.5091532])
+    expect(f.properties).toMatchObject({
+      lugar: 'Ituzaingó (Isla Apipé)',
+      metodoUbicacion: 'osm',
+      precisionMostrada: 'lugar',
+      osmType: 'relation',
+      osmId: 6149515,
+    })
+    expect(auditarUbicaciones(ubicar([evento({ localidad: 'Ituzaingó (Isla Apipé)' })]))[0]).toMatchObject({
+      metodo: 'osm',
+      osm: 'relation/6149515',
+    })
   })
 
-  it('matches a locality ignoring its parenthetical when the full text is not in the gazetteer', () => {
-    const { geojson } = ubicar([evento({ localidad: 'Ituzaingó (Campo)' })])
-    expect(geojson.features[0].geometry.coordinates).toEqual([-56.7, -27.6])
-    expect(geojson.features[0].properties.metodoUbicacion).toBe('localidad')
+  it('reports a boundary gazetteer hit with precisionMostrada localidad', () => {
+    const { geojson } = ubicar([evento({ localidad: 'Goya', departamento: 'Goya' })])
+    expect(geojson.features[0].properties).toMatchObject({ metodoUbicacion: 'osm', precisionMostrada: 'localidad' })
+    expect(geojson.features[0].geometry.coordinates[1]).toBeCloseTo(-29.144, 2)
   })
 
-  it('resolves gazetteer aliases such as Apipé and Yacyretá', () => {
-    const { geojson } = ubicar([
-      evento({ localidad: 'Apipé' }),
-      evento({ id_evento: 'EV-2', localidad: 'Yacyretá' }),
-    ])
-    expect(geojson.features[0].geometry.coordinates).toEqual([-56.741868, -27.511299])
-    expect(geojson.features[1].geometry.coordinates).toEqual([-56.7286, -27.4823])
+  it('never draws an island missing from the gazetteer, even when a school median exists', () => {
+    const { geojson, sinUbicacionPrecisa, sinUbicar } = ubicar(
+      [evento({ localidad: 'Isla Calera', departamento: 'Ituzaingó' })],
+      [...LOCALIDADES, { nombre: 'Isla Calera', lon: -56.74, lat: -27.51, origen: 'escuelas' }],
+    )
+    expect(geojson.features).toEqual([])
+    expect(sinUbicacionPrecisa).toEqual([{ id: 'EV-1', lugar: 'Isla Calera' }])
+    expect(sinUbicar).toEqual([])
+  })
+
+  it('does not draw a parenthesised place without a curated match, even when its bare town exists', () => {
+    const { geojson, sinUbicacionPrecisa } = ubicar([evento({ localidad: 'Ituzaingó (represa Yacyretá)' })])
+    expect(geojson.features).toEqual([])
+    expect(sinUbicacionPrecisa).toEqual([{ id: 'EV-1', lugar: 'Ituzaingó (represa Yacyretá)' }])
+  })
+
+  it('falls back to the school median for a plain locality missing from the gazetteer', () => {
+    const { geojson } = ubicar(
+      [evento({ localidad: 'Santo Tomé' })],
+      [{ nombre: 'Santo Tomé', lon: -56.0, lat: -28.5, origen: 'escuelas' }],
+    )
+    expect(geojson.features[0].geometry.coordinates).toEqual([-56.0, -28.5])
+    expect(geojson.features[0].properties.metodoUbicacion).toBe('escuelas')
   })
 
   it('never pairs a locality with a department by index when the lists differ in length', () => {
@@ -206,7 +280,7 @@ describe('ubicarEventos', () => {
     expect(geojson.features.every((f) => f.properties.agregado === true)).toBe(true)
     expect(geojson.features.every((f) => f.properties.id_evento === 'EV-20261013-007')).toBe(true)
     expect(geojson.features.map((f) => f.geometry.coordinates)).toEqual([
-      [-56.741868, -27.511299],
+      [-56.8424093, -27.5091532],
       [-57.09, -29.68],
     ])
     expect(geojson.features.some((f) => f.properties.precisionMostrada === 'departamento')).toBe(false)
@@ -228,10 +302,10 @@ describe('ubicarEventos', () => {
       evento({ id_evento: 'EV-4', localidad: 'Nada', departamento: 'Nadie' }),
     ])
     const filas = auditarUbicaciones({ geojson, sinUbicar, sinUbicacionPrecisa, resumenProvincial, descartados: [] })
-    expect(filas).toContainEqual({ id: 'EV-1', lugar: 'Bonpland', metodo: 'localidad', lat: -28.4, lon: -58.1 })
-    expect(filas).toContainEqual({ id: 'EV-2', lugar: 'Campo X', metodo: 'no determinada', lat: null, lon: null })
-    expect(filas).toContainEqual({ id: 'EV-3', lugar: 'Campo Z', metodo: 'resumen', lat: null, lon: null })
-    expect(filas).toContainEqual({ id: 'EV-4', lugar: '', metodo: 'no determinada', lat: null, lon: null })
+    expect(filas).toContainEqual({ id: 'EV-1', lugar: 'Bonpland', metodo: 'localidad', osm: null, lat: -28.4, lon: -58.1 })
+    expect(filas).toContainEqual({ id: 'EV-2', lugar: 'Campo X', metodo: 'no determinada', osm: null, lat: null, lon: null })
+    expect(filas).toContainEqual({ id: 'EV-3', lugar: 'Campo Z', metodo: 'resumen', osm: null, lat: null, lon: null })
+    expect(filas).toContainEqual({ id: 'EV-4', lugar: '', metodo: 'no determinada', osm: null, lat: null, lon: null })
   })
 
   it('falls back to the department centroid with precisionMostrada departamento', () => {
@@ -302,6 +376,7 @@ describe('eventos-inundaciones real data', () => {
         lat: f.properties.centroide.lat,
       })),
       estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+      gazetteer: leerGazetteer(),
     })
 
     const idsSalida = new Set(resultado.geojson.features.map((f) => f.properties.id_evento))
@@ -329,6 +404,7 @@ describe('eventos-inundaciones real data', () => {
       localidades: [],
       departamentos: [],
       estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+      gazetteer: leerGazetteer(),
     })
     const descartados = new Map(resultado.descartados.map((d) => [d.id, d.motivo]))
     expect(descartados.has('EV-20261012-003')).toBe(true)
@@ -354,6 +430,7 @@ describe('eventos-inundaciones real data', () => {
         lat: f.properties.centroide.lat,
       })),
       estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+      gazetteer: leerGazetteer(),
     })
     expect(resultado.geojson.features.length).toBeGreaterThan(0)
 
@@ -376,6 +453,28 @@ describe('eventos-inundaciones real data', () => {
     const puntos = resultado.geojson.features.filter((f) => f.properties.id_evento === 'EV-20261013-007')
     expect(puntos.every((f) => f.properties.precisionMostrada !== 'departamento')).toBe(true)
     expect(puntos.every((f) => f.properties.agregado === true)).toBe(true)
+  })
+
+  it('places Isla Apipé and Goya at their OSM points and leaves the represa undetermined', () => {
+    const resultado = ubicarDatosReales()
+    const apipe = resultado.geojson.features.filter((f) => f.properties.lugar.includes('Apipé'))
+    expect(apipe.length).toBeGreaterThan(0)
+    for (const f of apipe) {
+      expect(f.properties.metodoUbicacion).toBe('osm')
+      expect(Math.abs(f.geometry.coordinates[0] + 56.8424)).toBeLessThan(0.001)
+      expect(Math.abs(f.geometry.coordinates[1] + 27.5092)).toBeLessThan(0.001)
+    }
+
+    const goya = resultado.geojson.features.filter((f) => f.properties.lugar === 'Goya')
+    expect(goya.length).toBeGreaterThan(0)
+    for (const f of goya) {
+      expect(Math.abs(f.geometry.coordinates[0] + 59.265)).toBeLessThan(0.05)
+      expect(Math.abs(f.geometry.coordinates[1] + 29.144)).toBeLessThan(0.05)
+    }
+
+    const represa = resultado.sinUbicacionPrecisa.filter((s) => s.lugar === 'Ituzaingó (represa Yacyretá)')
+    expect(represa.length).toBeGreaterThan(0)
+    expect(resultado.geojson.features.some((f) => f.properties.lugar === 'Ituzaingó (represa Yacyretá)')).toBe(false)
   })
 
   it('audits every kept event id from public/data at least once', () => {
@@ -412,6 +511,7 @@ function ubicarDatosReales() {
       lat: f.properties.centroide.lat,
     })),
     estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+    gazetteer: leerGazetteer(),
   })
 }
 

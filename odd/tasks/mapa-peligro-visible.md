@@ -67,46 +67,46 @@ Focused vitest per task; at end `npx tsc --noEmit`, `npm run lint`, relevant vit
 ## Next step
 User: review the branch, run the app with a real session to eyeball the "Situación actual" layers, decide on push/PR. Pending: T3b, T4 (as time allows), T5 follow-up.
 
-## Event placement audit (2026-10-14, registry 4c7f4b7)
-Lookup order: Prefectura station (precision 'estación') → curated gazetteer → school median per locality → localities.geojson → department centroid (single-place events only). Aggregates go to the provincial summary plus one marker per resolved place.
+## Event placement audit (2026-10-14, registry 4c7f4b7, OSM gazetteer)
+Lookup order: Prefectura station (precision 'estación') → OpenStreetMap gazetteer (`gazetteer-osm.json`, curated with `scripts/curar-gazetteer-osm.mjs`, © OpenStreetMap contributors, ODbL) → school median only for plain locality names → department centroid only for single-place plain names → otherwise 'ubicación no determinada' (listed, not drawn). Aggregates go to the provincial summary plus one marker per resolved place.
 
-| Event | Place | Method | Lat | Lon |
-|---|---|---|---|---|
-| EV-20261007-001 | Paso de los Libres | escuelas | -29.7114 | -57.0924 |
-| EV-20261008-001 | Curuzú Cuatiá | escuelas | -29.7897 | -58.0589 |
-| EV-20261008-002 | Corrientes | escuelas | -27.4767 | -58.8228 |
-| EV-20261011-001 | Ituzaingó (Isla Apipé) | gazetteer | -27.5113 | -56.7419 |
-| EV-20261011-002 | Ituzaingó (represa Yacyretá) | gazetteer | -27.4823 | -56.7286 |
-| EV-20261012-001 | Ituzaingó | escuelas | -27.5848 | -56.6835 |
-| EV-20261012-002 | Goya | escuelas | -29.1487 | -59.2611 |
-| EV-20261013-001 | Paso de los Libres | escuelas | -29.7114 | -57.0924 |
-| EV-20261013-002 | Corrientes | estación | -27.4600 | -58.8400 |
-| EV-20261013-002 | Itatí | estación | -27.2700 | -58.2400 |
-| EV-20261013-002 | Paso de la Patria | estación | -27.3158 | -58.5769 |
-| EV-20261013-002 | Bella Vista | estación | -28.5060 | -59.0501 |
-| EV-20261013-002 | Goya | estación | -29.1400 | -59.2700 |
-| EV-20261013-002 | Esquina | estación | -30.0162 | -59.5366 |
-| EV-20261013-003 | Santo Tomé | estación | -28.5454 | -56.0285 |
-| EV-20261013-003 | Garruchos | estación | -28.1777 | -55.6414 |
-| EV-20261013-003 | Monte Caseros | estación | -30.2516 | -57.6213 |
-| EV-20261013-003 | Mocoretá | estación | -30.6904 | -57.8208 |
-| EV-20261013-004 | Alvear | escuelas | -29.0953 | -56.5517 |
-| EV-20261013-004 | La Cruz | escuelas | -29.1776 | -56.6419 |
-| EV-20261013-004 | Yapeyú | escuelas | -29.4704 | -56.8175 |
-| EV-20261013-004 | Bonpland | escuelas | -29.8180 | -57.4271 |
-| EV-20261008-004 | Monte Caseros | escuelas | -30.2522 | -57.6436 |
-| EV-20261008-005 | Monte Caseros | escuelas | -30.2522 | -57.6436 |
-| EV-20261010-001 | Alvear | escuelas | -29.0953 | -56.5517 |
-| EV-20261012-004 | Empedrado | escuelas | -27.9524 | -58.8076 |
-| EV-20261013-005 | Ituzaingó | escuelas | -27.5848 | -56.6835 |
-| EV-20261012-005 | Corrientes | escuelas | -27.4767 | -58.8228 |
-| EV-20261013-007 | Isla Apipé | gazetteer | -27.5113 | -56.7419 |
-| EV-20261013-007 | Paso de los Libres | escuelas | -29.7114 | -57.0924 |
-| EV-20261013-008 | Empedrado | escuelas | -27.9524 | -58.8076 |
-| EV-20261013-009 | Ituzaingó | escuelas | -27.5848 | -56.6835 |
-| EV-20261013-010 | Itatí | escuelas | -27.2714 | -58.2435 |
-| EV-20261013-011 | Alvear | escuelas | -29.0953 | -56.5517 |
-| EV-20261012-006 | La Cruz | escuelas | -29.1776 | -56.6419 |
+| Event | Place | Method | OSM | Lat | Lon |
+|---|---|---|---|---|---|
+| EV-20261007-001 | Paso de los Libres | osm | relation/3157189 | -29.7137 | -57.0861 |
+| EV-20261008-001 | Curuzú Cuatiá | osm | relation/3134569 | -29.7913 | -58.0498 |
+| EV-20261008-002 | Corrientes | osm | relation/3127758 | -27.4687 | -58.8312 |
+| EV-20261011-001 | Ituzaingó (Isla Apipé) | osm | relation/6149515 | -27.5092 | -56.8424 |
+| EV-20261012-001 | Ituzaingó | osm | relation/3149442 | -27.5896 | -56.6893 |
+| EV-20261012-002 | Goya | osm | relation/3144223 | -29.1444 | -59.2650 |
+| EV-20261013-001 | Paso de los Libres | osm | relation/3157189 | -29.7137 | -57.0861 |
+| EV-20261013-002 | Corrientes | estación |  | -27.4600 | -58.8400 |
+| EV-20261013-002 | Itatí | estación |  | -27.2700 | -58.2400 |
+| EV-20261013-002 | Paso de la Patria | estación |  | -27.3158 | -58.5769 |
+| EV-20261013-002 | Bella Vista | estación |  | -28.5060 | -59.0501 |
+| EV-20261013-002 | Goya | estación |  | -29.1400 | -59.2700 |
+| EV-20261013-002 | Esquina | estación |  | -30.0162 | -59.5366 |
+| EV-20261013-003 | Santo Tomé | estación |  | -28.5454 | -56.0285 |
+| EV-20261013-003 | Garruchos | estación |  | -28.1777 | -55.6414 |
+| EV-20261013-003 | Monte Caseros | estación |  | -30.2516 | -57.6213 |
+| EV-20261013-003 | Mocoretá | estación |  | -30.6904 | -57.8208 |
+| EV-20261013-004 | Alvear | osm | relation/3138396 | -29.0989 | -56.5535 |
+| EV-20261013-004 | La Cruz | osm | relation/3164040 | -29.1761 | -56.6427 |
+| EV-20261013-004 | Yapeyú | osm | relation/3164041 | -29.4667 | -56.8164 |
+| EV-20261013-004 | Bonpland | osm | relation/3157194 | -29.8172 | -57.4278 |
+| EV-20261008-004 | Monte Caseros | osm | relation/3156447 | -30.2497 | -57.6294 |
+| EV-20261008-005 | Monte Caseros | osm | relation/3156447 | -30.2497 | -57.6294 |
+| EV-20261010-001 | Alvear | osm | relation/3138396 | -29.0989 | -56.5535 |
+| EV-20261012-004 | Empedrado | osm | relation/3134599 | -27.9543 | -58.8089 |
+| EV-20261013-005 | Ituzaingó | osm | relation/3149442 | -27.5896 | -56.6893 |
+| EV-20261012-005 | Corrientes | osm | relation/3127758 | -27.4687 | -58.8312 |
+| EV-20261013-007 | Isla Apipé | osm | relation/6149515 | -27.5092 | -56.8424 |
+| EV-20261013-007 | Paso de los Libres | osm | relation/3157189 | -29.7137 | -57.0861 |
+| EV-20261013-008 | Empedrado | osm | relation/3134599 | -27.9543 | -58.8089 |
+| EV-20261013-009 | Ituzaingó | osm | relation/3149442 | -27.5896 | -56.6893 |
+| EV-20261013-010 | Itatí | osm | relation/3147849 | -27.2690 | -58.2428 |
+| EV-20261013-011 | Alvear | osm | relation/3138396 | -29.0989 | -56.5535 |
+| EV-20261012-006 | La Cruz | osm | relation/3164040 | -29.1761 | -56.6427 |
+| EV-20261011-002 | Ituzaingó (represa Yacyretá) | no determinada |  |  |  |
 
-Provincial summary: EV-20261013-007. Discarded: EV-20261012-003 (confianza_muy_baja), EV-20261013-006 (confianza_muy_baja).
-Fixed in this audit: Goya and La Cruz were placed from `localities.geojson` area centroids (≈30 km / ≈45 km off); school medians now take precedence. Isla Apipé / Yacyretá use the curated gazetteer; EV-20261013-007 (provincial consolidated figure) is no longer a single point.
+Provincial summary: EV-20261013-007. Not determined: EV-20261011-002 (Ituzaingó (represa Yacyretá)). Discarded: EV-20261012-003 (confianza_muy_baja), EV-20261013-006 (confianza_muy_baja).
+History: Goya/La Cruz were first placed from `localities.geojson` area centroids (≈30/45 km off); Isla Apipé was first placed from school coordinates; both superseded by OSM per user decision 2026-10-14.

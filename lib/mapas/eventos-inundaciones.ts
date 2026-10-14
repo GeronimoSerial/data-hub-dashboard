@@ -3,45 +3,29 @@ import { normalizarNombreDepartamento } from './normalizar-departamento'
 export const EVENTOS_INUNDACIONES_URLS = {
   eventos: '/data/eventos-inundaciones/eventos.geojson',
   evidencias: '/data/eventos-inundaciones/evidencias.csv',
+  gazetteer: '/data/eventos-inundaciones/gazetteer-osm.json',
 } as const
 
-export type PrecisionMostrada = 'estación' | 'localidad' | 'departamento' | string
+export type PrecisionMostrada = 'estación' | 'localidad' | 'lugar' | 'departamento' | string
 
 type Punto = { nombre: string; lon: number; lat: number; origen?: 'localidad' | 'escuelas' }
 
-export type MetodoUbicacion = 'estación' | 'gazetteer' | 'localidad' | 'escuelas' | 'departamento'
+export type MetodoUbicacion = 'estación' | 'osm' | 'localidad' | 'escuelas' | 'departamento'
 
-type EntradaGazetteer = {
+/** One curated OpenStreetMap place from gazetteer-osm.json (© OpenStreetMap contributors, ODbL). */
+export type LugarOsm = {
   nombre: string
-  alias: string[]
+  consulta: string
+  nombreOsm: string
+  osmType: string
+  osmId: number
+  clase: string
+  tipo: string
   lat: number
   lon: number
-  precision: 'localidad'
-  fuente: string
 }
 
-/**
- * Curated places whose coordinates come from a documented source rather than
- * from the generic locality list. Matched before localities.
- */
-export const GAZETTEER_LUGARES: readonly EntradaGazetteer[] = [
-  {
-    nombre: 'Isla Apipé',
-    alias: ['Apipé', 'Isla Apipé Grande', 'San Antonio de Apipé', 'Ituzaingó (Isla Apipé)'],
-    lat: -27.511299,
-    lon: -56.741868,
-    precision: 'localidad',
-    fuente: 'Mediana de escuelas de la isla (APIPE GRANDE / ISLA APIPE CHICO, public/data/localizaciones.json)',
-  },
-  {
-    nombre: 'Represa Yacyretá',
-    alias: ['Ituzaingó (represa Yacyretá)', 'Yacyretá'],
-    lat: -27.4823,
-    lon: -56.7286,
-    precision: 'localidad',
-    fuente: 'Ubicación de la represa (Entidad Binacional Yacyretá)',
-  },
-]
+const TIPOS_LOCALIDAD_OSM = new Set(['city', 'town', 'village'])
 
 type EstacionEntrada = {
   nombrePna: string
@@ -70,6 +54,8 @@ export type PropiedadesUbicacion = {
   fuenteUrl: string | null
   multiLugar: boolean
   metodoUbicacion: MetodoUbicacion | null
+  osmType: string | null
+  osmId: number | null
   agregado: boolean
   titulo: string
   subtitulo: string
@@ -100,6 +86,7 @@ export type FilaAuditoria = {
   id: string
   lugar: string
   metodo: MetodoUbicacion | 'resumen' | 'no determinada'
+  osm: string | null
   lat: number | null
   lon: number | null
 }
@@ -130,6 +117,7 @@ export type EntradaUbicacion = {
   localidades: Punto[]
   departamentos: Punto[]
   estaciones: readonly EstacionEntrada[]
+  gazetteer: { lugares: LugarOsm[]; sinCoincidencia: string[] }
 }
 
 export type EscuelaLocalizada = {
@@ -260,21 +248,29 @@ type UbicacionResuelta = {
   coordenadas: [number, number]
   precision: PrecisionMostrada
   metodo: MetodoUbicacion
+  osmType?: string
+  osmId?: number
 }
 
-/** Gazetteer match on the full text first, then on the name without parentheses. */
-function buscarGazetteer(texto: string): EntradaGazetteer | undefined {
-  const completo = normalizarNombreDepartamento(texto)
-  const porTextoCompleto = GAZETTEER_LUGARES.find((g) =>
-    [g.nombre, ...g.alias].some((n) => normalizarNombreDepartamento(n) === completo),
-  )
-  if (porTextoCompleto) return porTextoCompleto
-  const sinParentesisTexto = clave(texto)
-  if (sinParentesisTexto === '') return undefined
-  // Only parenthesis-free names: a parenthesised alias must not capture its bare town.
-  return GAZETTEER_LUGARES.find((g) =>
-    [g.nombre, ...g.alias].some((n) => !n.includes('(') && clave(n) === sinParentesisTexto),
-  )
+/** Exact place text (normalized) against the curated OSM names. */
+function buscarOsm(texto: string, lugares: readonly LugarOsm[]): LugarOsm | undefined {
+  const buscado = normalizarNombreDepartamento(texto)
+  if (buscado === '') return undefined
+  return lugares.find((l) => normalizarNombreDepartamento(l.nombre) === buscado)
+}
+
+/**
+ * Only plain locality names may use the generic locality list or a department
+ * centroid. Islands, paraje/barrio names and parenthesised names are placed by
+ * a curated source or not at all: a school median would invent their position.
+ */
+function esLocalidadSimple(lugar: string): boolean {
+  const texto = lugar.trim()
+  return !/[()]/.test(texto) && !/^(isla|paraje|barrio)\b/i.test(texto)
+}
+
+function precisionOsm(lugar: LugarOsm): PrecisionMostrada {
+  return lugar.clase === 'boundary' || TIPOS_LOCALIDAD_OSM.has(lugar.tipo) ? 'localidad' : 'lugar'
 }
 
 function ubicarLugar(
@@ -282,11 +278,6 @@ function ubicarLugar(
   datos: EntradaUbicacion,
   precisionFuente: unknown,
 ): UbicacionResuelta | null {
-  const gazetteer = buscarGazetteer(lugar)
-  if (gazetteer) {
-    return { coordenadas: [gazetteer.lon, gazetteer.lat], precision: gazetteer.precision, metodo: 'gazetteer' }
-  }
-
   if (precisionFuente === 'estación') {
     const buscada = clave(lugar)
     const estacion = datos.estaciones.find(
@@ -296,6 +287,19 @@ function ubicarLugar(
       return { coordenadas: [estacion.coordenadas.lon, estacion.coordenadas.lat], precision: 'estación', metodo: 'estación' }
     }
   }
+
+  const osm = buscarOsm(lugar, datos.gazetteer.lugares)
+  if (osm) {
+    return {
+      coordenadas: [osm.lon, osm.lat],
+      precision: precisionOsm(osm),
+      metodo: 'osm',
+      osmType: osm.osmType,
+      osmId: osm.osmId,
+    }
+  }
+
+  if (!esLocalidadSimple(lugar)) return null
 
   const localidad = buscarPorNombre(datos.localidades, lugar)
   if (localidad) {
@@ -315,7 +319,10 @@ function ubicarEnDepartamento(nombreDepartamento: string, datos: EntradaUbicacio
 }
 
 function esNombreDeLocalidad(nombre: string, datos: EntradaUbicacion): boolean {
-  return buscarPorNombre(datos.localidades, nombre) !== undefined || buscarGazetteer(nombre) !== undefined
+  return (
+    buscarPorNombre(datos.localidades, nombre) !== undefined ||
+    buscarOsm(nombre, datos.gazetteer.lugares) !== undefined
+  )
 }
 
 /**
@@ -509,6 +516,8 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
       fuenteUrl: fuente?.url ?? null,
       multiLugar: lugares.length > 1,
       metodoUbicacion: null as MetodoUbicacion | null,
+      osmType: null as string | null,
+      osmId: null as number | null,
       agregado: false,
       titulo: tituloEvento({ tipo_fenomeno: p.tipo_fenomeno, tipo_afectacion: p.tipo_afectacion, curso_agua: p.curso_agua }),
       hechos: hechosEvento(p.mediciones),
@@ -547,6 +556,8 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
             lugar,
             precisionMostrada: ubicado.precision,
             metodoUbicacion: ubicado.metodo,
+            osmType: ubicado.osmType ?? null,
+            osmId: ubicado.osmId ?? null,
             agregado: true,
             subtitulo: subtituloEvento(lugar, p.inicio_evento, p.fin_evento),
           },
@@ -572,10 +583,14 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
 
     let faltaAlgunLugar = lugares.length === 0
     lugares.forEach((lugar, indice) => {
+      const plano = esLocalidadSimple(lugar)
       const ubicado =
-        ubicarLugar(lugar, datos, precisionFuente) ?? ubicarDepartamentoPara(indice, lugares, departamentos, datos)
+        ubicarLugar(lugar, datos, precisionFuente) ??
+        (plano ? ubicarDepartamentoPara(indice, lugares, departamentos, datos) : null)
       if (!ubicado) {
-        faltaAlgunLugar = true
+        // A non-plain place with no curated match is named as undetermined, never a point.
+        if (plano) faltaAlgunLugar = true
+        else sinUbicacionPrecisa.push({ id: idEvento, lugar })
         return
       }
       // A department centroid is not a point for one of several places: it would
@@ -592,6 +607,8 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
           lugar,
           precisionMostrada: ubicado.precision,
           metodoUbicacion: ubicado.metodo,
+          osmType: ubicado.osmType ?? null,
+          osmId: ubicado.osmId ?? null,
           subtitulo: subtituloEvento(lugar, p.inicio_evento, p.fin_evento),
         },
       })
@@ -619,6 +636,7 @@ export function auditarUbicaciones(resultado: ResultadoUbicacion): FilaAuditoria
     id: f.properties.id_evento,
     lugar: f.properties.lugar,
     metodo: f.properties.metodoUbicacion ?? 'localidad',
+    osm: f.properties.osmType && f.properties.osmId !== null ? `${f.properties.osmType}/${f.properties.osmId}` : null,
     lat: f.geometry.coordinates[1],
     lon: f.geometry.coordinates[0],
   }))
@@ -626,17 +644,17 @@ export function auditarUbicaciones(resultado: ResultadoUbicacion): FilaAuditoria
   for (const r of resultado.resumenProvincial) {
     const sinPuntos = r.lugares.filter((lugar) => !filas.some((f) => f.id === r.id_evento && f.lugar === lugar))
     if (sinPuntos.length === 0 && !conFila.has(r.id_evento)) {
-      filas.push({ id: r.id_evento, lugar: '', metodo: 'resumen', lat: null, lon: null })
+      filas.push({ id: r.id_evento, lugar: '', metodo: 'resumen', osm: null, lat: null, lon: null })
     }
     for (const lugar of sinPuntos) {
-      filas.push({ id: r.id_evento, lugar, metodo: 'resumen', lat: null, lon: null })
+      filas.push({ id: r.id_evento, lugar, metodo: 'resumen', osm: null, lat: null, lon: null })
     }
   }
   for (const s of resultado.sinUbicacionPrecisa) {
-    filas.push({ id: s.id, lugar: s.lugar, metodo: 'no determinada', lat: null, lon: null })
+    filas.push({ id: s.id, lugar: s.lugar, metodo: 'no determinada', osm: null, lat: null, lon: null })
   }
   for (const id of resultado.sinUbicar) {
-    filas.push({ id, lugar: '', metodo: 'no determinada', lat: null, lon: null })
+    filas.push({ id, lugar: '', metodo: 'no determinada', osm: null, lat: null, lon: null })
   }
   return filas
 }

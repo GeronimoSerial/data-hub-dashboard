@@ -71,12 +71,13 @@ async function cargarJson(url: string): Promise<unknown> {
 type ResultadoCarga = Pick<ResumenEventosReportados, 'resumenProvincial' | 'sinUbicacionPrecisa'> & { features: EventoUbicado[] }
 
 async function cargarEventos(): Promise<ResultadoCarga> {
-  const [eventos, evidenciasRespuesta, localidades, localizaciones, departamentos] = await Promise.all([
+  const [eventos, evidenciasRespuesta, localidades, localizaciones, departamentos, gazetteer] = await Promise.all([
     cargarJson(EVENTOS_INUNDACIONES_URLS.eventos),
     fetch(EVENTOS_INUNDACIONES_URLS.evidencias).then((r) => (r.ok ? r.text() : Promise.reject(new Error('evidencias')))),
     cargarJson(LOCALIDADES_URL),
     cargarJson(LOCALIZACIONES_ESCUELAS_URL),
     cargarJson(DEPARTAMENTOS_URL),
+    cargarJson(EVENTOS_INUNDACIONES_URLS.gazetteer),
   ])
   const resultado = ubicarEventos({
     eventos: eventos as EntradaUbicacion['eventos'],
@@ -84,6 +85,7 @@ async function cargarEventos(): Promise<ResultadoCarga> {
     localidades: puntosDeLocalidades(puntosDeGeojson(localidades), localizaciones as EscuelaLocalizada[]),
     departamentos: centroidesDepartamentos(departamentos),
     estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+    gazetteer: gazetteer as EntradaUbicacion['gazetteer'],
   })
   return {
     features: resultado.geojson.features,
