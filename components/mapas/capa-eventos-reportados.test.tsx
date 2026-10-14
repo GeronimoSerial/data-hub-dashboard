@@ -154,6 +154,7 @@ type Feature = {
   properties: { indice: number; confianza: string; insignia: string; desplazamiento: [number, number]; lugar: string }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- props serializadas del mock, se leen como JSON libre
 function propsDe(testId: string): Record<string, any> {
   return JSON.parse(screen.getByTestId(testId).getAttribute('data-props') ?? '{}')
 }
