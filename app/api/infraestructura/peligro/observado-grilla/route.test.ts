@@ -99,4 +99,50 @@ describe('GET /api/infraestructura/peligro/observado-grilla', () => {
       },
     })
   })
+
+  describe('vigencia de la observación', () => {
+    async function sembrar(observadoEn: string) {
+      await getDb()
+        .insert(hazardObservation)
+        .values([
+          {
+            id: `g-${observadoEn}`,
+            provider: PROVIDER_OBSERVADO,
+            variable: VARIABLE_OBSERVADA,
+            geometryRef: CELDA,
+            valor: 1,
+            unidad: 'mm',
+            observadoEn,
+            validoDesde: observadoEn,
+            validoHasta: observadoEn,
+            calidad: null,
+            rawRef: null,
+            ingeridoEn: observadoEn,
+          },
+        ])
+    }
+
+    it('marca como vigente una observación de hace 1 hora', async () => {
+      await sembrar(new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString())
+      mockAcceso({ ok: true, user: USER })
+      const body = await (await llamar()).json()
+      expect(body.vencida).toBe(false)
+      expect(body.edadHoras).toBeCloseTo(1, 1)
+    })
+
+    it('marca como vencida una observación de hace 8 horas', async () => {
+      await sembrar(new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString())
+      mockAcceso({ ok: true, user: USER })
+      const body = await (await llamar()).json()
+      expect(body.vencida).toBe(true)
+      expect(body.edadHoras).toBeCloseTo(8, 1)
+    })
+
+    it('sin observaciones devuelve vencida true y edadHoras null', async () => {
+      mockAcceso({ ok: true, user: USER })
+      const body = await (await llamar()).json()
+      expect(body.vencida).toBe(true)
+      expect(body.edadHoras).toBeNull()
+    })
+  })
 })
