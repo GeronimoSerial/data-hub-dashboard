@@ -1,4 +1,4 @@
-CREATE TABLE "hidro_referencia" (
+CREATE TABLE IF NOT EXISTS "hidro_referencia" (
 	"estacion_id" text NOT NULL,
 	"ventana_dias" integer NOT NULL,
 	"n" integer NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE "hidro_referencia" (
 	CONSTRAINT "hidro_referencia_estacion_id_ventana_dias_pk" PRIMARY KEY("estacion_id","ventana_dias")
 );
 --> statement-breakpoint
-CREATE TABLE "infra_exposicion_rio_dem" (
+CREATE TABLE IF NOT EXISTS "infra_exposicion_rio_dem" (
 	"cue_anexo" text NOT NULL,
 	"version_job" text NOT NULL,
 	"suelo_m" real,
