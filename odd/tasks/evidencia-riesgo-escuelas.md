@@ -171,6 +171,72 @@ Before = main (all `bajo`). After: 13 `alto`, 8 `moderado`, 1980 unchanged (all 
   13.2/100 with the absolute thresholds (the cell has no climatology). Level stays `bajo` (score
   2-4, confianza baja). DEM: ground 89.3 m, 1.17 km from permanent water, 9.3 m above the reservoir.
 
+## Production deploy steps (ordered; executed and verified on dhd-verif 2026-10-14)
+
+Prerequisite: the branch merged including `c4ed640`, `a479914` and `48571d3` (Ogimet retry/degraded health,
+Node happy-eyeballs fix, IMERG daily climatology contract). The local integration worktree
+`verificacion-integrada` (d144278) does NOT have them yet: re-merge before deploying. If the
+veredicto branch (0015) merges first, check the drizzle journal order (see Merge note).
+
+1. **Deploy the image.** Migrations `0016_lluvia_estacion` and `0017_hidro_referencia_exposicion_dem`
+   (idempotent, `IF NOT EXISTS`) are applied by the app's migrator on first DB access (the first
+   job below also triggers it). Check:
+   `select to_regclass('lluvia_estacion'), to_regclass('hidro_referencia'), to_regclass('infra_exposicion_rio_dem');`
+   (all three non-null).
+2. **Static susceptibility v2 (corrected margins):**
+   `node scripts/importar-geo-static.mjs --inundacion-v2 services/geo-static/output/inundacion_v2-v1-2026-10-14.csv`
+   Expected: `procesadas 2001, ok 2001, fallidas 0`. Same static-layer mechanism as before;
+   idempotent (updates v2 columns by cue_anexo).
+3. **School-river DEM exposure:** `node scripts/jobs.mjs importar-exposicion-rio-dem`.
+   Expected `{"estado":"completo","contadores":{"filas":2001,"guardadas":2001}}`; a rerun on another
+   day reports `omitidas: 2001`.
+4. **Current river heights:** `node scripts/jobs.mjs sync-prefectura-alturas` (already scheduled
+   hourly; run once so readings are <= 24 h old).
+5. **Station reference (365 d):** `node scripts/jobs.mjs sync-prefectura-historico`.
+   Expected `guardadas: 18, estacionesConError: 0`. Check
+   `select count(*) from hidro_referencia where ventana_dias = 365;` → 18.
+6. **Measured rain:** `node scripts/jobs.mjs sync-synop-lluvia`. Expected `estaciones: 9`,
+   `estacionesConError: 0` (with a479914; without it Node timed out on 4-6 stations). The 72 h station
+   window needs ~66 h of hourly runs to fill; until then 72 h uses IMERG (logged in the factor).
+7. **Create the Coolify Scheduled Tasks** (cron/timeout table in
+   `docs/ejecucion-enos/OPS1/runbook-scheduler.md`, section "Pendiente: jobs de evidencia de río..."):
+   `sync-synop-lluvia` `23 * * * *`, `sync-prefectura-historico` `35 7 * * *`,
+   `importar-exposicion-rio-dem` `50 7 * * *`. Then flip `habilitado: true` for those three in
+   `lib/infraestructura/riesgo/jobs-esperados.ts` (follow-up commit) so the health panel tracks them.
+8. **Risk recompute:** `node scripts/jobs.mjs calcular-riesgo`. If it returns
+   `ya_completado` for the current 6 h block, wait for the next block (never delete `infra_job_run`
+   rows in production; that was done only on the throwaway DBs).
+9. **Verify:** `select provider, estado, ultimo_error_saneado from hazard_source_health where provider in
+   ('ogimet-synop','prefectura-historico','exposicion-rio-dem','prefectura-alturas');` all `ok`; and
+   per-department counts as in the verification below.
+
+### Verification on dhd-verif (integrated worktree d144278, 2026-10-14 02:20Z)
+Loaded: inundacion_v2 2001 ok; exposicion DEM 2001; alturas +3 readings; historico 18 stations;
+SYNOP 9/9 stations (run with `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000`,
+equivalent to a479914, which the integrated tree lacks). Then calcular-riesgo run `eb591fe5`:
+13 alto, 8 moderado, 1980 bajo (all horizons) - identical to the supervisor's previous run, i.e.
+the levels were already right; the loaded data adds the DEM/rain evidence and the no_aplica label.
+
+| Departamento | Escuelas | Expuestas | por DEM | no_aplica | alto | moderado | Station state |
+|---|---|---|---|---|---|---|---|
+| Ituzaingó | 78 | 9 | 0 | 2 | 9 | 0 | Ituzaingó 4.03 m evacuación |
+| Santo Tomé | 103 | 2 | 0 | 0 | 0 | 0 | 11.18 m < alerta 11.5 (normal); nearest school 28 m above the river |
+| Paso de los Libres | 70 | 4 | 0 | 0 | 4 | 0 | 9.35 m evacuación; schools >= 11.8 m above river |
+| General Alvear | 25 | 1 | 1 | 0 | 0 | 1 | Alvear 10.36 m alerta |
+| San Martín | 51 | 7 | 0 | 0 | 0 | 7 | La Cruz / Yapeyú alerta |
+| San Cosme | 55 | 14 | 0 | 0 | 0 | 0 | Paso de la Patria 5.58 m normal |
+| Capital | 363 | 55 | 0 | 0 | 0 | 0 | Corrientes 5.46 m normal |
+
+- 1801318-00 Puerto Valle: bajo (score 0-1, confianza baja); river `no_aplica` (Yacyretá reservoir,
+  DEM water 80 m vs ~55 m downstream); rain 72 h 31.9 mm → 13.2/100 (absolute thresholds, no IMERG
+  climatology for that cell yet); forecast cell verde.
+- 1800133-00 (localidad Paso de la Patria, dept San Cosme): bajo (score 3); exposed by JRC
+  `clase_rio=medio`, river normal (5.58 m, alerta 6.5); rain 72 h 5.1 mm → 2.1/100. DEM: ground 53 m,
+  river 45 m, 190 m from water.
+- Integration finding fixed in 48571d3: the climatologia-imerg branch writes DAILY percentiles
+  (`precipitacion_diaria`, `p90..p99` lowercase, version `climatologia-imerg-v1`). The engine now
+  uses them for the 24 h window; 72 h keeps absolute thresholds until a 72 h climatology exists.
+
 ## Merge note
 - Migration is `drizzle/0016_lluvia_estacion.sql` (journal idx 15, snapshot `0016_snapshot.json`) because
   branch `GeronimoSerial/veredicto-diario-ia` adds 0015 (verdict tables). If that branch merges first,
