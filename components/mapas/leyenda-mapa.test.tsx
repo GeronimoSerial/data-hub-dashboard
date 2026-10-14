@@ -33,7 +33,7 @@ describe('LeyendaMapa · contenedor único', () => {
     const leyenda = within(container.querySelector('aside.map-leyenda') as HTMLElement)
     expect(leyenda.getByText('Estaciones de Prefectura')).toBeTruthy()
     expect(leyenda.getByText('Eventos reportados')).toBeTruthy()
-    expect(leyenda.getByText('Lluvia observada 24 h (satélite IMERG)')).toBeTruthy()
+    expect(leyenda.getByText('Lluvia observada 24 h')).toBeTruthy()
   })
 
   it('no renderiza nada en Estadísticas sin capas visibles', () => {
@@ -94,36 +94,32 @@ describe('LeyendaMapa · altura de ríos', () => {
 })
 
 describe('LeyendaMapa · lluvia observada', () => {
-  it('muestra la escala IMERG, la nota de estimación satelital y la fecha de corte en hora argentina', () => {
+  it('muestra la escala IMERG; la fecha de corte y la nota satelital van en tooltips, no en el texto', () => {
     const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: '2026-10-13T12:00:00Z', horas: 72, parciales: 0, vencida: false }} />)
-
     const leyenda = within(container)
-    expect(leyenda.getByText('Lluvia observada 72 h (satélite IMERG)')).toBeTruthy()
+
+    expect(leyenda.getByText('Lluvia observada 72 h')).toBeTruthy()
     expect(leyenda.getByText('1–10 mm')).toBeTruthy()
     expect(leyenda.getByText('150 mm o más')).toBeTruthy()
-    expect(leyenda.getByText(/Hasta: 13\/10\/2026/)).toBeTruthy()
-    expect(leyenda.getByText(/Estimación satelital, no medición en tierra\. Hacé clic en el mapa para ver el valor\./)).toBeTruthy()
-    expect(leyenda.queryByText(/celdas con ventana incompleta/)).toBeNull()
+    expect(container.querySelector('.dato-fechado')?.getAttribute('title')).toMatch(/^Actualizado 13\/10\/2026/)
+    expect(leyenda.getByRole('note').getAttribute('title')).toBe('Estimación satelital (NASA IMERG), no medición en tierra. Hacé clic en el mapa para ver el valor.')
+    expect(container.textContent).not.toMatch(/Estimación satelital|celdas con ventana incompleta/)
   })
 
-  it('indica sin dato cuando no hay fecha de corte', () => {
+  it('sin fecha de corte el tooltip lo dice', () => {
     const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
-
-    expect(within(container).getByText('Lluvia observada 24 h (satélite IMERG)')).toBeTruthy()
-    expect(within(container).getByText(/Sin dato/)).toBeTruthy()
+    expect(container.querySelector('.dato-fechado')?.getAttribute('title')).toBe('Sin fecha de actualización')
   })
 
-  it('avisa las celdas con ventana incompleta solo cuando las hay', () => {
+  it('las celdas con ventana incompleta van en la nota de info', () => {
     const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: null, horas: 72, parciales: 3, vencida: false }} />)
-
-    expect(within(container).getByText('3 celdas con ventana incompleta (ver detalle al hacer clic)')).toBeTruthy()
+    expect(within(container).getByRole('note').getAttribute('title')).toContain('3 celdas con ventana incompleta.')
   })
 
-  it('avisa que los datos están desactualizados cuando la observación está vencida', () => {
+  it('con la observación vencida atenúa el título sin texto de aviso', () => {
     const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: '2026-10-10T12:00:00Z', horas: 72, parciales: 0, vencida: true }} />)
-
-    const aviso = within(container).getByText(/Datos desactualizados: última observación 10\/10\/2026/)
-    expect(aviso.className).toContain('map-leyenda__aviso')
+    expect(container.querySelector('.dato-fechado--vencido')).not.toBeNull()
+    expect(container.textContent).not.toMatch(/desactualizad/i)
   })
 
   it('no muestra la sección de lluvia cuando la capa está apagada (null)', () => {

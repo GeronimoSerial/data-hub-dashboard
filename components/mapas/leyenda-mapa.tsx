@@ -1,6 +1,7 @@
 'use client'
 
 
+import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
 import { BookMinus, BookX, Check, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIVEL_PLAN, nivelesLeyendaPlanificacion, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
@@ -62,7 +63,14 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
   const hasta = meta.hasta && !Number.isNaN(Date.parse(meta.hasta)) ? FORMATO_CORTE_LLUVIA.format(new Date(meta.hasta)) : null
   return (
     <div className="map-leyenda__bloque">
-      <b className="map-leyenda__subtitulo">Lluvia observada {meta.horas} h (satélite IMERG)</b>
+      <b className="map-leyenda__subtitulo">
+        <DatoFechado actualizado={hasta ? `Actualizado ${hasta}` : 'Sin fecha de actualización'} vencido={meta.vencida}>
+          Lluvia observada {meta.horas} h
+        </DatoFechado>
+        <NotaInfo
+          texto={`Estimación satelital (NASA IMERG), no medición en tierra.${meta.parciales > 0 ? ` ${meta.parciales} celdas con ventana incompleta.` : ''} Hacé clic en el mapa para ver el valor.`}
+        />
+      </b>
       <ul className="map-leyenda__escala">
         {CLASES_LLUVIA.map((clase) => (
           <li className="map-leyenda__elemento" key={clase.desde}>
@@ -71,10 +79,6 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
           </li>
         ))}
       </ul>
-      <small>Hasta: {hasta ?? 'Sin dato'}</small>
-      {meta.vencida && <small className="map-leyenda__aviso">{`Datos desactualizados: última observación ${hasta ?? 'sin dato'}.`}</small>}
-      <small>Estimación satelital, no medición en tierra. Hacé clic en el mapa para ver el valor.</small>
-      {meta.parciales > 0 && <small>{meta.parciales} celdas con ventana incompleta (ver detalle al hacer clic)</small>}
     </div>
   )
 }
