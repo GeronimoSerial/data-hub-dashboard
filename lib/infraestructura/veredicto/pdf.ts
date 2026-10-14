@@ -3,7 +3,7 @@
 // WinAnsi, por eso todo texto pasa por sanitizarWinAnsi antes de dibujarse.
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
 import type { DtoVeredicto } from './dto'
-import { etiquetaNivel } from './niveles'
+import { etiquetaNivel, nombreDepartamento } from './niveles'
 
 export type EntradaPdfVeredictos = { veredictos: DtoVeredicto[]; generadoEn: Date }
 
@@ -41,8 +41,6 @@ const TIPO_DIA: Record<string, string> = {
 }
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
-const CONECTORES = new Set(['de', 'del', 'la', 'las', 'los', 'y'])
-
 // Reemplazos explícitos antes de codificar: comillas, guiones, símbolos y puntos suspensivos.
 const REEMPLAZOS: Record<string, string> = {
   '“': '"',
@@ -96,19 +94,6 @@ function fechaEmision(generadoEn: Date): string {
   const hh = String(local.getUTCHours()).padStart(2, '0')
   const min = String(local.getUTCMinutes()).padStart(2, '0')
   return `${dd}/${mm}/${aaaa} ${hh}:${min}`
-}
-
-function nombreDepartamento(ambito: string): string {
-  const crudo = ambito.replace(/^departamento[:_-]/i, '')
-  return crudo
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((palabra, i) => {
-      const minuscula = palabra.toLowerCase()
-      if (i > 0 && CONECTORES.has(minuscula)) return minuscula
-      return minuscula.charAt(0).toUpperCase() + minuscula.slice(1)
-    })
-    .join(' ')
 }
 
 function primeraFrase(texto: string | null): string {
