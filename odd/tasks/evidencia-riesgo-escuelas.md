@@ -125,7 +125,7 @@ Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
 - [x] T7 geo-static: job `calcular_exposicion_rio_dem` (ground p10, DEM river level, distance) -> output CSV
 - [x] T8 table `infra_exposicion_rio_dem` + importer + idempotent scheduled import job
 - [x] T9 job `sync-prefectura-historico` (daily, 365-day stats per station) + table + health
-- [ ] T10 engine: dynamic exposure (interpolated anomaly), reservoir rule, sin-dato degradation
+- [x] T10 engine: dynamic exposure (interpolated anomaly), reservoir rule, sin-dato degradation
 - [ ] T11 engine: rain climatology hook + absolute thresholds per window
 - [ ] T12 recompute (incl. 1801318-00) + 'Operación permanente' section
 

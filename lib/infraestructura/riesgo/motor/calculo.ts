@@ -275,11 +275,29 @@ export async function calcularRiesgoEscuela(params: {
   if (!lluviaPresente) cantidadFaltantes += 1
 
   // PASO 2d - Río observado (Prefectura). El adapter ya filtró tramo,
-  // exposición física y vigencia (<= 24 h): `null` significa "no aplica" y NO
-  // cuenta como faltante (la mayoría de las escuelas no está junto a un río).
-  const rio = puertos.rioPrefectura
+  // exposición física y vigencia (<= 24 h): `null` significa "escuela no
+  // vinculada o no expuesta" y NO cuenta como faltante (la mayoría de las
+  // escuelas no está junto a un río). 'sin_dato' (expuesta sin lectura o
+  // referencia vigente) SÍ cuenta como faltante y queda como factor visible;
+  // 'no_aplica' (costa de embalse) queda visible sin puntaje ni penalidad.
+  const evidenciaRio = puertos.rioPrefectura
     ? await puertos.rioPrefectura.obtenerEvidencia({ cueAnexo, asOf })
     : null
+  const rio = evidenciaRio !== null && !('disponibilidad' in evidenciaRio) ? evidenciaRio : null
+  if (evidenciaRio !== null && 'disponibilidad' in evidenciaRio) {
+    factores.push({
+      tipo: 'amenaza',
+      fuente: 'rio-prefectura',
+      variable: 'altura_rio',
+      valor: null,
+      unidad: evidenciaRio.disponibilidad,
+      contribucion: 0,
+      peso: 0,
+      explicacion: `Rio ${evidenciaRio.rio} (${evidenciaRio.estacionId}): ${evidenciaRio.disponibilidad === 'sin_dato' ? 'sin dato' : 'no aplica'} - ${evidenciaRio.motivo}`,
+      observadoEn: null,
+    })
+    if (evidenciaRio.disponibilidad === 'sin_dato') cantidadFaltantes += 1
+  }
   if (rio !== null) {
     const valorNumerico = valorAmenazaRio(rio)
     const tendencia =
@@ -292,7 +310,7 @@ export async function calcularRiesgoEscuela(params: {
       unidad: 'm',
       contribucion: 0,
       peso: 0,
-      explicacion: `Rio ${rio.rio} en ${rio.estacionId}: ${rio.lecturaM}m, estado ${rio.estado} (alerta ${rio.alertaM ?? 's/d'}m, evacuacion ${rio.evacuacionM ?? 's/d'}m), tendencia ${tendencia}; escuela expuesta por ${rio.criterioExposicion}`,
+      explicacion: `Rio ${rio.rio} en ${rio.estacionId}: ${rio.lecturaM}m, estado ${rio.estado} (alerta ${rio.alertaM ?? 's/d'}m, evacuacion ${rio.evacuacionM ?? 's/d'}m), tendencia ${tendencia}; escuela expuesta por ${rio.criterioExposicion}${rio.criterioExposicion.startsWith('dem_estimado') ? ' (estimado)' : ''}`,
       observadoEn: rio.medidaEn,
     }
     factores.push(factor)

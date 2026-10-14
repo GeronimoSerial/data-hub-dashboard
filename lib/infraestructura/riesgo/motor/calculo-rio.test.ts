@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { crearPuertosFake } from './__fixtures__/puertos-fake'
 import { calcularRiesgoEscuela } from './calculo'
 import { MOTOR_VERSION, UMBRAL_ALTO, UMBRAL_MODERADO } from './config'
-import type { EvidenciaRioPrefectura, PuertosMotor } from './puertos'
+import type { EvidenciaRioNoDisponible, EvidenciaRioPrefectura, PuertosMotor } from './puertos'
 
 const CUE = 'cue-rio'
 const GEOM = 'celda-rio'
@@ -26,7 +26,7 @@ function evidencia(over: Partial<EvidenciaRioPrefectura> = {}): EvidenciaRioPref
 
 // Escuela con celda verde, sin caudal, poca lluvia y vulnerabilidad baja: el
 // caso real de prod en el que todo daba "bajo".
-function puertos(ev: EvidenciaRioPrefectura | null | 'sin_puerto'): PuertosMotor {
+function puertos(ev: EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null | 'sin_puerto'): PuertosMotor {
   const base = crearPuertosFake({
     territorio: {
       [CUE]: {
@@ -110,5 +110,41 @@ describe('calcularRiesgoEscuela — evidencia de río (Prefectura)', () => {
     expect(nula.scoreRiesgo).toBe(sinPuerto.scoreRiesgo)
     expect(nula.confianza).toBe(sinPuerto.confianza)
     expect(nula.factores.some((f) => f.fuente === 'rio-prefectura')).toBe(false)
+  })
+
+  it('sin_dato: factor visible "sin dato", cuenta como faltante y no aplica piso', async () => {
+    const nula = await calcular(puertos(null))
+    const r = await calcular(
+      puertos({
+        cueAnexo: CUE,
+        estacionId: 'pna-paso-de-los-libres',
+        rio: 'uruguay',
+        disponibilidad: 'sin_dato',
+        motivo: 'sin lectura vigente',
+      }),
+    )
+    const factor = r.factores.find((f) => f.fuente === 'rio-prefectura')
+    expect(factor?.unidad).toBe('sin_dato')
+    expect(factor?.valor).toBeNull()
+    expect(factor?.explicacion).toContain('sin dato')
+    expect(r.scoreRiesgo).toBe(nula.scoreRiesgo)
+    const orden = ['alta', 'media', 'baja']
+    expect(orden.indexOf(r.confianza)).toBeGreaterThanOrEqual(orden.indexOf(nula.confianza))
+  })
+
+  it('no_aplica (embalse): factor visible sin penalidad de confianza', async () => {
+    const nula = await calcular(puertos(null))
+    const r = await calcular(
+      puertos({
+        cueAnexo: CUE,
+        estacionId: 'pna-ituzaingo',
+        rio: 'parana',
+        disponibilidad: 'no_aplica',
+        motivo: 'embalse',
+      }),
+    )
+    expect(r.factores.find((f) => f.fuente === 'rio-prefectura')?.unidad).toBe('no_aplica')
+    expect(r.confianza).toBe(nula.confianza)
+    expect(r.scoreRiesgo).toBe(nula.scoreRiesgo)
   })
 })

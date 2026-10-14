@@ -176,12 +176,29 @@ export interface EvidenciaRioPrefectura {
   variacionM: number | null
   medidaEn: string
   estado: EstadoRioPrefectura
-  // Criterio que hizo a la escuela "expuesta" (trazabilidad del factor).
+  // Criterio que hizo a la escuela "expuesta" (trazabilidad del factor). Los
+  // criterios basados en DEM empiezan con 'dem_estimado' (exposición estimada).
   criterioExposicion: string
 }
 
+// Escuela vinculada a un tramo para la que la evidencia del río NO puede
+// evaluarse: 'sin_dato' (expuesta o posiblemente expuesta, pero sin lectura
+// vigente o sin nivel de referencia: nunca se imputa "normal") o 'no_aplica'
+// (p. ej. costa de embalse aguas arriba de la represa: la estación del tramo no
+// la representa). El motor la registra como factor visible, sin puntaje.
+export interface EvidenciaRioNoDisponible {
+  cueAnexo: string
+  estacionId: string
+  rio: 'parana' | 'uruguay'
+  disponibilidad: 'sin_dato' | 'no_aplica'
+  motivo: string
+}
+
 export interface PuertoRioPrefectura {
-  obtenerEvidencia(params: { cueAnexo: string; asOf: string }): Promise<EvidenciaRioPrefectura | null>
+  obtenerEvidencia(params: {
+    cueAnexo: string
+    asOf: string
+  }): Promise<EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null>
 }
 
 // Bundle de puertos que motor/calculo.ts recibe por inyección: el núcleo no

@@ -39,6 +39,7 @@ import type {
   NivelPeligroCelda,
   PerfilTerritorio,
   PuertosMotor,
+  EvidenciaRioNoDisponible,
   EvidenciaRioPrefectura,
   ResumenExposicion,
   ResumenHistorial,
@@ -128,7 +129,7 @@ function crearPuertosConCache(puertos: PuertosMotor): PuertosMotor {
   const aislamientos = new Map<string, Promise<IndiceAislamiento | null>>()
   const susceptibilidades = new Map<string, Promise<IndicadoresSusceptibilidad | null>>()
   const exposiciones = new Map<string, Promise<ResumenExposicion | null>>()
-  const evidenciasRio = new Map<string, Promise<EvidenciaRioPrefectura | null>>()
+  const evidenciasRio = new Map<string, Promise<EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null>>()
 
   function memoizar<K, V>(
     cache: Map<K, Promise<V>>,

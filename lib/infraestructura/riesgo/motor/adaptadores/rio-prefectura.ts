@@ -10,10 +10,12 @@
 //
 // Contrato: null es "sin evidencia". Nunca se imputa "normal" cuando falta
 // tramo aprobado, exposición, lectura vigente o estado oficial.
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import {
   hidroLectura,
+  hidroReferencia,
+  infraExposicionRioDem,
   infraExposicionRutaInundacion,
   infraGeoProfile,
   infraGeoRio,
@@ -26,7 +28,14 @@ import {
   evaluarExposicionRio,
   lecturaVigente,
 } from '../rio-prefectura'
-import type { EvidenciaRioPrefectura, PuertoRioPrefectura } from '../puertos'
+import type { EvidenciaRioNoDisponible, EvidenciaRioPrefectura, PuertoRioPrefectura } from '../puertos'
+import {
+  anomaliaInterpolada,
+  evaluarExposicionDinamica,
+  nivelRioTramo,
+  type DatosDemEscuela,
+  type EstacionAnomalia,
+} from '../exposicion-dinamica'
 import { ultimaFilaConservadoraPorCue } from './susceptibilidad'
 
 // Valores numéricos pueden llegar como string desde pg (numeric/doublePrecision).
@@ -60,6 +69,12 @@ export interface DatosRio {
   coordenadasPorCue?: Map<string, { lat: number; lon: number }>
   // Profundidad máxima RP100 sobre la ruta de acceso (infra_exposicion_ruta_inundacion).
   rutaProfundidadMaxMPorCue?: Map<string, Numerico>
+  // Exposición estática DEM por escuela (infra_exposicion_rio_dem, última versión).
+  demPorCue?: Map<string, DatosDemEscuela>
+  // Mediana de 365 días por estación (hidro_referencia).
+  medianaPorEstacion?: Map<string, number>
+  // Memo interno: nivel DEM típico del río por estación de tramo.
+  nivelTramoCache?: Map<string, number | null>
 }
 
 // Una coordenada PNA con menos de 4 decimales (~11 m) puede errar ~1 km: no
@@ -94,13 +109,97 @@ function num(valor: Numerico | undefined): number | null {
   return Number.isNaN(n) ? null : n
 }
 
-// Decide la evidencia oficial de una escuela a partir de datos ya cargados.
+// Estaciones con una represa inmediatamente aguas arriba: la costa del embalse
+// no está representada por su escala (dato estático de infraestructura).
+// Ventana del nivel de referencia (sync-prefectura-historico).
+const VENTANA_REFERENCIA_DIAS = 365
+
+export const ESTACIONES_CON_REPRESA_AGUAS_ARRIBA: ReadonlySet<string> = new Set(['pna-ituzaingo'])
+
+// Última lectura publicada de una estación válida para asOf (ignora futuras,
+// inconsistentes y no numéricas); null si no hay ninguna.
+function ultimaLectura(datos: DatosRio, estacionId: string, asOfMs: number): FilaLecturaRio | null {
+  let ultima: FilaLecturaRio | null = null
+  let ultimaMs = Number.NEGATIVE_INFINITY
+  for (const lectura of datos.lecturas) {
+    if (lectura.estacionId !== estacionId) continue
+    if (lectura.inconsistente === true || num(lectura.lecturaM) === null) continue
+    const medidaMs = Date.parse(lectura.medidaEn)
+    if (Number.isNaN(medidaMs) || medidaMs > asOfMs) continue
+    if (medidaMs > ultimaMs) {
+      ultima = lectura
+      ultimaMs = medidaMs
+    }
+  }
+  return ultima
+}
+
+// Anomalía actual de una estación: lectura vigente (<= 24 h) menos su mediana
+// de 365 días (sync-prefectura-historico). null si falta cualquiera de los dos.
+function anomaliaEstacion(datos: DatosRio, estacionId: string, asOf: string, asOfMs: number): number | null {
+  const mediana = datos.medianaPorEstacion?.get(estacionId)
+  if (mediana === undefined || mediana === null) return null
+  const ultima = ultimaLectura(datos, estacionId, asOfMs)
+  if (ultima === null || !lecturaVigente(ultima.medidaEn, asOf)) return null
+  const lectura = num(ultima.lecturaM)
+  return lectura === null ? null : lectura - mediana
+}
+
+// Nivel típico del río del tramo según el DEM: mediana del nivel de agua de las
+// escuelas del tramo a <= 500 m del agua. Memoizado por estación.
+function nivelRioDelTramo(datos: DatosRio, estacionId: string): number | null {
+  datos.nivelTramoCache ??= new Map()
+  const cacheado = datos.nivelTramoCache.get(estacionId)
+  if (cacheado !== undefined) return cacheado
+  const niveles: DatosDemEscuela[] = []
+  for (const [cue, localidad] of datos.localidadPorCue) {
+    if (!localidad || estacionParaLocalidad(localidad)?.estacionId !== estacionId) continue
+    const dem = datos.demPorCue?.get(cue)
+    if (dem) niveles.push(dem)
+  }
+  const nivel = nivelRioTramo(niveles)
+  datos.nivelTramoCache.set(estacionId, nivel)
+  return nivel
+}
+
+function anomaliaInterpoladaEscuela(
+  datos: DatosRio,
+  cueAnexo: string,
+  rio: 'parana' | 'uruguay',
+  asOf: string,
+  asOfMs: number,
+): number | null {
+  const coordenadas = datos.coordenadasPorCue?.get(cueAnexo)
+  if (!coordenadas) return null
+  const estaciones: EstacionAnomalia[] = CATALOGO_ESTACIONES_PREFECTURA.filter(
+    (e) => e.rol === 'corrientes' && e.rio === rio && e.coordenadas !== null,
+  ).map((e) => ({
+    estacionId: e.estacionId,
+    lat: e.coordenadas!.lat,
+    lon: e.coordenadas!.lon,
+    anomaliaM: anomaliaEstacion(datos, e.estacionId, asOf, asOfMs),
+  }))
+  return anomaliaInterpolada(coordenadas, estaciones)?.anomaliaM ?? null
+}
+
+// Decide la evidencia del río para una escuela a partir de datos ya cargados.
 // Función pura: sin base de datos ni reloj (asOf llega por parámetro).
+//
+// Exposición (cualquiera alcanza, en este orden):
+// 1. DEM dinámico ("dem_estimado"): suelo de la escuela <= nivel de agua estimado
+//    (nivel DEM del río junto a la escuela + anomalía actual interpolada entre
+//    estaciones) + 1 m, a <= 500 m del río (ver motor/exposicion-dinamica.ts).
+// 2. Criterios estáticos JRC/G1 (clase_rio, peligro fluvial, ruta RP100,
+//    proximidad al agua, punto de río). El margen RP100 estático NO se usa: el
+//    pipeline tenía un sesgo de ~10 m (ver odd/tasks/evidencia-riesgo-escuelas.md).
+// 3. Fallback por cercanía a la estación, sólo sin datos de susceptibilidad.
+// Costa de embalse aguas arriba de la represa => 'no_aplica'. Escuela expuesta
+// sin lectura vigente (o sin referencia para el DEM) => 'sin_dato'.
 export function resolverEvidenciaRio(
   datos: DatosRio,
   cueAnexo: string,
   asOf: string,
-): EvidenciaRioPrefectura | null {
+): EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null {
   const localidad = datos.localidadPorCue.get(cueAnexo)
   if (!localidad) return null
 
@@ -110,50 +209,61 @@ export function resolverEvidenciaRio(
 
   const asOfMs = Date.parse(asOf)
   if (Number.isNaN(asOfMs)) return null
+  const base = { cueAnexo, estacionId: tramo.estacionId, rio: tramo.rio }
 
-  // Exposición física al río: sin ella la escuela no recibe el estado del tramo.
+  const dem = datos.demPorCue?.get(cueAnexo) ?? null
+  const dinamica = evaluarExposicionDinamica(
+    dem,
+    nivelRioDelTramo(datos, tramo.estacionId),
+    anomaliaInterpoladaEscuela(datos, cueAnexo, tramo.rio, asOf, asOfMs),
+    ESTACIONES_CON_REPRESA_AGUAS_ARRIBA.has(tramo.estacionId),
+  )
+  if (dinamica.tipo === 'no_aplica_embalse') {
+    return { ...base, disponibilidad: 'no_aplica', motivo: `embalse aguas arriba de la represa: ${dinamica.detalle}` }
+  }
+
   const susceptibilidad = datos.susceptibilidadPorCue.get(cueAnexo)
-  const criterio = evaluarExposicionRio({
+  const criterioEstatico = evaluarExposicionRio({
     claseRio: susceptibilidad?.claseRio ?? null,
     peligroInundacionFluvial: num(susceptibilidad?.peligroInundacionFluvial),
     distanciaAguaM: num(susceptibilidad?.distanciaAguaM),
     alturaSobreAguaM: num(susceptibilidad?.alturaSobreAguaM),
     juntoLaguna: susceptibilidad?.juntoLaguna ?? null,
     distanciaPuntoRioKm: num(datos.distanciaRioKmPorCue.get(cueAnexo)),
-    margenRp100M: num(susceptibilidad?.margenRp100M),
+    margenRp100M: null,
     rutaProfundidadMaxM: num(datos.rutaProfundidadMaxMPorCue?.get(cueAnexo)),
     tieneDatosSusceptibilidad: susceptibilidad !== undefined,
     distanciaEstacionKm: distanciaAEstacionKm(datos, cueAnexo, tramo.estacionId),
   })
-  if (criterio === null) return null
+  const criterio =
+    dinamica.tipo === 'expuesta' ? `dem_estimado: ${dinamica.detalle}` : criterioEstatico
 
-  // Última lectura publicada, válida para el momento asOf (ignora futuras e inconsistentes).
-  let ultima: FilaLecturaRio | null = null
-  let ultimaMs = Number.NEGATIVE_INFINITY
-  for (const lectura of datos.lecturas) {
-    if (lectura.estacionId !== tramo.estacionId) continue
-    if (lectura.inconsistente === true || num(lectura.lecturaM) === null) continue
-    const medidaMs = Date.parse(lectura.medidaEn)
-    if (Number.isNaN(medidaMs) || medidaMs > asOfMs) continue
-    if (medidaMs > ultimaMs) {
-      ultima = lectura
-      ultimaMs = medidaMs
+  if (criterio === null) {
+    // Sin criterio estático y el DEM no pudo evaluarse por falta de nivel
+    // actual: posiblemente expuesta, nunca "no expuesta" por omisión.
+    if (dinamica.tipo === 'sin_dato') {
+      return { ...base, disponibilidad: 'sin_dato', motivo: `exposición DEM no evaluable: ${dinamica.detalle}` }
     }
+    return null
   }
-  if (ultima === null || !lecturaVigente(ultima.medidaEn, asOf)) return null
 
+  const ultima = ultimaLectura(datos, tramo.estacionId, asOfMs)
+  if (ultima === null || !lecturaVigente(ultima.medidaEn, asOf)) {
+    return { ...base, disponibilidad: 'sin_dato', motivo: `sin lectura vigente (<= 24 h) de ${tramo.estacionId}` }
+  }
   const lecturaM = num(ultima.lecturaM)
-  if (lecturaM === null) return null
+  if (lecturaM === null) {
+    return { ...base, disponibilidad: 'sin_dato', motivo: `lectura no numérica de ${tramo.estacionId}` }
+  }
   const alertaM = num(ultima.alertaM)
   const evacuacionM = num(ultima.evacuacionM)
-
   const estado = estadoDeLectura(lecturaM, alertaM, evacuacionM)
-  if (estado === null) return null
+  if (estado === null) {
+    return { ...base, disponibilidad: 'sin_dato', motivo: `${tramo.estacionId} sin umbrales oficiales` }
+  }
 
   return {
-    cueAnexo,
-    estacionId: tramo.estacionId,
-    rio: tramo.rio,
+    ...base,
     lecturaM,
     alertaM,
     evacuacionM,
@@ -167,7 +277,16 @@ export function resolverEvidenciaRio(
 // Carga única de todas las fuentes necesarias. Cada tabla se lee en batch.
 export async function cargarDatosRioDesdeDb(): Promise<DatosRio> {
   const db = getDb()
-  const [resLocalidad, filasSusceptibilidad, filasGeo, filasLectura, filasPerfil, filasRuta] = await Promise.all([
+  const [
+    resLocalidad,
+    filasSusceptibilidad,
+    filasGeo,
+    filasLectura,
+    filasPerfil,
+    filasRuta,
+    filasDem,
+    filasReferencia,
+  ] = await Promise.all([
     db.execute(sql`select cue_anexo, localidad from ge.ge_localizacion`),
     db.select().from(infraSusceptibilidadEstatica),
     db.select().from(infraGeoRio),
@@ -191,6 +310,11 @@ export async function cargarDatosRioDesdeDb(): Promise<DatosRio> {
         profundidadMaxM: infraExposicionRutaInundacion.profundidadMaxM,
       })
       .from(infraExposicionRutaInundacion),
+    db.select().from(infraExposicionRioDem),
+    db
+      .select({ estacionId: hidroReferencia.estacionId, medianaM: hidroReferencia.medianaM })
+      .from(hidroReferencia)
+      .where(eq(hidroReferencia.ventanaDias, VENTANA_REFERENCIA_DIAS)),
   ])
 
   // El driver puede devolver { rows } o directamente el array.
@@ -235,7 +359,30 @@ export async function cargarDatosRioDesdeDb(): Promise<DatosRio> {
     if (nueva !== null && (actual === null || nueva > actual)) rutaProfundidadMaxMPorCue.set(fila.cueAnexo, nueva)
   }
 
+  // Varias versiones por escuela: gana la de versionJob numéricamente mayor.
+  const demPorCue = new Map<string, DatosDemEscuela>()
+  const versionDemPorCue = new Map<string, number>()
+  for (const fila of filasDem) {
+    const version = Number(fila.versionJob)
+    const previa = versionDemPorCue.get(fila.cueAnexo)
+    if (previa !== undefined && !(version > previa)) continue
+    versionDemPorCue.set(fila.cueAnexo, version)
+    demPorCue.set(fila.cueAnexo, {
+      sueloM: num(fila.sueloM),
+      nivelRioDemM: num(fila.nivelRioDemM),
+      distanciaRioM: num(fila.distanciaRioM),
+    })
+  }
+
+  const medianaPorEstacion = new Map<string, number>()
+  for (const fila of filasReferencia) {
+    const mediana = num(fila.medianaM)
+    if (mediana !== null) medianaPorEstacion.set(fila.estacionId, mediana)
+  }
+
   return {
+    demPorCue,
+    medianaPorEstacion,
     coordenadasPorCue,
     rutaProfundidadMaxMPorCue,
     localidadPorCue,
