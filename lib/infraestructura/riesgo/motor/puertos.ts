@@ -154,6 +154,32 @@ export interface PuertoExposicion {
   obtenerResumen(params: { cueAnexo: string; asOf: string }): Promise<ResumenExposicion | null>
 }
 
+// Estado oficial de la estación de Prefectura de referencia de la escuela
+// (tramo de referencia por localidad), SÓLO cuando la escuela está físicamente
+// expuesta a ese río. `null` = sin tramo aprobado, escuela no expuesta, sin
+// lectura vigente (> 24 h antes de `asOf`) o lectura inconsistente: nunca se
+// imputa "normal" en esos casos.
+export type EstadoRioPrefectura = 'normal' | 'alerta' | 'evacuacion'
+
+export interface EvidenciaRioPrefectura {
+  cueAnexo: string
+  estacionId: string
+  rio: 'parana' | 'uruguay'
+  lecturaM: number
+  alertaM: number | null
+  evacuacionM: number | null
+  // Variación respecto de la lectura anterior publicada (m); > 0 = crece.
+  variacionM: number | null
+  medidaEn: string
+  estado: EstadoRioPrefectura
+  // Criterio que hizo a la escuela "expuesta" (trazabilidad del factor).
+  criterioExposicion: string
+}
+
+export interface PuertoRioPrefectura {
+  obtenerEvidencia(params: { cueAnexo: string; asOf: string }): Promise<EvidenciaRioPrefectura | null>
+}
+
 // Bundle de puertos que motor/calculo.ts recibe por inyección: el núcleo no
 // construye ningún adapter, sólo llama estas interfaces.
 export interface PuertosMotor {
@@ -164,4 +190,6 @@ export interface PuertosMotor {
   susceptibilidad: PuertoSusceptibilidad
   historial: PuertoHistorial
   exposicion: PuertoExposicion
+  // Opcional: los fakes/backtests sin hidrometría no lo inyectan.
+  rioPrefectura?: PuertoRioPrefectura
 }
