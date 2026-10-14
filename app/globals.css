@@ -6260,3 +6260,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 /* La esquina inferior derecha también tiene "Veredicto diario" sobre "Pantalla completa": la leyenda va arriba de ambos. */
 .map-shell:not([data-radar-activo='true']) .map-leyenda { bottom: 7.25rem; }
+
+/* Thin, subtle scrollbar for the left panel: never wider than the gutter it reserves. */
+.map-panel-lateral__cuerpo {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink-soft) 35%, transparent) transparent;
+  scrollbar-gutter: stable;
+}
+.map-panel-lateral__cuerpo::-webkit-scrollbar { width: 6px; }
+.map-panel-lateral__cuerpo::-webkit-scrollbar-track { background: transparent; }
+.map-panel-lateral__cuerpo::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink-soft) 35%, transparent);
+  border-radius: 999px;
+}
