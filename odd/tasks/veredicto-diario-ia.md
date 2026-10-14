@@ -56,7 +56,7 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - [x] T2 (V-02, V-04) Celda → departamento y agregador de lluvia observada por departamento-día con cobertura.
 - [x] T3 (V-05, V-06) Agregadores de ríos y de pronóstico (GloFAS vs climatología, ensamble, SMN).
 - [x] T4 (V-07) Reglas deterministas `reglas-veredicto-v0.1` con traza.
-- [ ] T5 (V-01, V-08) Prompt, esquema zod, términos prohibidos propios, plantilla de fallback, presupuesto único.
+- [x] T5 (V-01, V-08) Prompt, esquema zod, términos prohibidos propios, plantilla de fallback, presupuesto único.
 - [ ] T6 (V-09, V-10) Orquestador por corrida + job `veredicto-diario` (cadencia 6 h + cierre de día, timer, `jobs.mjs`, flag).
 - [ ] T7 (V-11) API de lectura (vigentes por rango, historial).
 - [ ] T8 (V-12, V-13, V-14) Modal autocontenido + punto de entrada en el mapa.
@@ -79,3 +79,4 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - T3b (delegado; el worker cerró en ~107k tokens, por encima del tope): `pronostico.ts` (caudal GloFAS vs climatología, ensamble, avisos SMN). Correcciones del coordinador: el caudal diario GloFAS se ancla a `T00:00Z`, así que se filtra por día calendario UTC (test de regresión agregado); `smn_alerta.nivel_sat` se guarda siempre nulo (`smn-alertas.ts:446`), así que el color sale de la `severity` CAP (Moderate=amarillo, Severe=naranja, Extreme=rojo). GREEN 6 tests; tsc/eslint limpios.
 - T4 (delegado; worker en ~119k tokens, por encima del tope): `reglas.ts` `reglas-veredicto-v0.1`. Corrección del coordinador: el SMN sin avisos no alcanza para `sin_senal`; se exige una fuente cuantitativa (4 tests actualizados). Defaults aceptados: el tope de ensamble aplica solo a días `pronostico`; la lluvia provincial no dispara nivel (el provincial es el máximo departamental); estaciones fuera de la provincia aparecen en la traza provincial sin subir el nivel. GREEN 50 tests; tsc/eslint limpios.
 - T5a (delegado, ~95k tokens): validador E8 con verificador de términos opcional (sin cambio para E8), `esquema.ts` (zod; se descarta `factores` porque la traza ya los lleva), `terminos.ts` (prohibidos propios con permiso por ref). RED → GREEN 60 tests; E8 completo 117 verdes; tsc/eslint limpios.
+- T5b (delegado; ~112k tokens, por encima del tope): `metricas.ts` (ids alineados con las refs de reglas, URL de fuente), `prompt.ts`, `plantilla.ts`, `hash.ts`. Correcciones del coordinador: métricas `rio.<id>.evacuacion_m` / `alerta_m` (altura máx + margen); prompt reescrito en español neutro y con la forma real del esquema (`veredictos[]`). GREEN 14 tests; tsc/eslint limpios.
