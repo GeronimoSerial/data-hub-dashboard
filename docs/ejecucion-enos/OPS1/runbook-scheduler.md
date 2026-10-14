@@ -57,10 +57,10 @@ Tareas configuradas en Coolify sobre la aplicación de producción:
 | sync-smn-alertas | `7-59/15 * * * *` | no registrado | `sync-smn-alertas` | cada 15 min |
 | verificar-radar-meteo | `30 11 * * *` | no registrado | — (no escribe `infra_job_run`) | diario; estado `sin_trazabilidad` |
 | sync-imerg | `*/30 * * * *` | 300 s | `sync-hazard-imerg` | cada 30 min |
-| calcular-riesgo | no registrado | no registrado | `calcular-riesgo-v0` | cada 6 h |
-| sync-pronostico-caudal | no registrado | no registrado | `sync-hazard-pronostico-caudal` | cada 6 h |
-| sync-ensemble | no registrado | no registrado | `sync-hazard-ensemble` | cada 6 h |
-| situacion-corte | no registrado | no registrado | `situacion-corte-v1` | cada hora |
+| calcular-riesgo | `15 2,8,14,20 * * *` | no registrado | `calcular-riesgo-v0` | cada 6 h |
+| sync-pronostico-caudal | `0 2,8,14,20 * * *` | no registrado | `sync-hazard-pronostico-caudal` | cada 6 h |
+| sync-ensemble | `5 2,8,14,20 * * *` | no registrado | `sync-hazard-ensemble` | cada 6 h |
+| situacion-corte | `20 * * * *` | no registrado | `situacion-corte-v1` | cada hora |
 | climatologia-caudal | `41 21-23 * * *` | 1200 s | `calcular-hazard-climatologia-caudal` | diario, tres intentos (21, 22 y 23 h), cursor resumable |
 | climatologia-precipitacion | `43 21-23 * * *` | 1200 s | `calculo-climatologia` | diario, tres intentos (21, 22 y 23 h), cursor resumable |
 | climatologia-imerg | `20 4 * * *` | 3600 s | `calculo-climatologia-imerg` | diario; cursor resumable por mes, presupuesto `IMERG_CLIMATOLOGIA_DIAS_POR_CORRIDA` (default 1200 días ≈ 45 min). Requiere `EARTHDATA_TOKEN`. Salud: `hazard_source_health` `nasa-imerg-climatologia` (TTL 2 días). |

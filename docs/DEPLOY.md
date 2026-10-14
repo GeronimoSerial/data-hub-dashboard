@@ -212,7 +212,7 @@ horaria del servidor de Coolify antes de crearlas, ver `docs/ejecucion-enos/OPS1
 Requisitos en el contenedor: `ENOS_JOBS_ENABLED` distinto de `false`, `AI_VEREDICTO_ENABLED=true` y
 `OPENROUTER_API_KEY` (sin clave el job corre igual y publica la plantilla determinista). La migración `0015` se
 aplica sola: `jobs.mjs` migra antes de despachar. Los días de pronóstico necesitan además
-`sync-pronostico-caudal` y `sync-ensemble` (cada 6 h en producción); sin ellos esos días salen "Sin dato".
+`sync-pronostico-caudal` (`0 2,8,14,20 * * *`) y `sync-ensemble` (`5 2,8,14,20 * * *`), seguidos de `calcular-riesgo` (`15 2,8,14,20 * * *`); sin ellos esos días salen "Sin dato".
 
 Monitoreo: ambos jobs figuran en `lib/infraestructura/riesgo/jobs-esperados.ts` con `habilitado: true` y el job publica en `hazard_source_health` los proveedores `veredicto-diario` (TTL 360 min;
 `degradado` si una fuente no está disponible o la IA cayó a plantilla) y `registro-eventos-inundaciones` (TTL 7 días).
