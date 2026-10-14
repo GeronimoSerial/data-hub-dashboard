@@ -14,6 +14,8 @@ export type NombreJob =
   | 'sync-seasonal'
   | 'situacion-corte'
   | 'briefing-ia'
+  | 'veredicto-diario'
+  | 'veredicto-cierre'
   | 'sync-prefectura-alturas'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
@@ -35,6 +37,10 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
   // Briefing narrativo asistido por IA a partir del corte ya persistido; corre
   // 10min después de situacion-corte para asegurar que el corte esté listo.
   'briefing-ia': { minutos: 60, descripcion: 'Genera el briefing narrativo asistido por IA a partir del corte del Centro de Situación (cada hora)' },
+  // Veredicto diario asistido por IA: corre en los slots de 6h (00/06/12/18 UTC).
+  'veredicto-diario': { minutos: 360, descripcion: 'Genera los veredictos diarios asistidos por IA (cada 6h)' },
+  // Cierre del día ART anterior; una corrida diaria alcanza.
+  'veredicto-cierre': { minutos: 1440, descripcion: 'Cierra el día anterior de veredictos (diario)' },
   // Proceso pesado de agregación: alcanza con una corrida diaria.
   'geo-perfiles': { minutos: 1440, descripcion: 'Reconstruye los perfiles geográficos (diario)' },
   // Open-Meteo Seasonal (EC46+SEAS5): capa opcional de tendencia a 30-90 días
@@ -92,6 +98,8 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'sync-hazard-seasonal': 'sync-seasonal',
   'situacion-corte-v1': 'situacion-corte',
   'briefing-ia-v0': 'briefing-ia',
+  'veredicto-diario-v0': 'veredicto-diario',
+  'veredicto-cierre-v0': 'veredicto-cierre',
   'sync-prefectura-alturas': 'sync-prefectura-alturas',
 }
 

@@ -24,6 +24,11 @@ export function aiBriefingEnabled(): boolean {
   return esTrue(process.env.AI_BRIEFING_ENABLED)
 }
 
+// Apagado por defecto: habilita el job de veredicto diario asistido por IA.
+export function aiVeredictoEnabled(): boolean {
+  return esTrue(process.env.AI_VEREDICTO_ENABLED)
+}
+
 // Gobierna sólo la UI nueva de E2 (ficha territorial + vista técnica de
 // fuentes). Las APIs /fuentes, /peligro y /geo-perfiles/:cueAnexo existen
 // siempre, protegidas por ACL; este flag no las oculta, sólo el frontend.
@@ -61,6 +66,7 @@ export function listarFlagsOperativas(): Array<{ nombre: string; valor: string }
     { nombre: 'RISK_ENGINE_ENABLED', valor: String(riskEngineEnabled()) },
     { nombre: 'RISK_RADAR_ENABLED', valor: String(riskRadarEnabled()) },
     { nombre: 'AI_BRIEFING_ENABLED', valor: String(aiBriefingEnabled()) },
+    { nombre: 'AI_VEREDICTO_ENABLED', valor: String(aiVeredictoEnabled()) },
     { nombre: 'HAZARD_CONTEXT_ENABLED', valor: String(hazardContextEnabled()) },
     { nombre: 'SEASONAL_ENABLED', valor: String(seasonalEnabled()) },
     { nombre: 'RISK_MODE', valor: riskMode() },

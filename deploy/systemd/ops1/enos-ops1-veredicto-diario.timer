@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer OPS1 ENOS: veredicto-diario (4 veces al dia, 00/06/12/18:45 UTC)
+
+[Timer]
+# Veredicto diario asistido por IA: corre después de las ventanas de datos
+# de cada bloque de 6 h. Requiere AI_VEREDICTO_ENABLED=true para ejecutar.
+OnCalendar=*-*-* 00,06,12,18:45:00 UTC
+RandomizedDelaySec=60
+Persistent=true
+Unit=enos-ops1@veredicto-diario.service
+
+[Install]
+WantedBy=timers.target

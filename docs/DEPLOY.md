@@ -190,6 +190,9 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `OPENROUTER_MODEL` | `deepseek/deepseek-v4.1-flash` | Modelo de briefing | Briefing IA |
 | `E8_PRESUPUESTO_USD_MES` | `5` | Presupuesto mensual máximo | Briefing IA |
 | `E8_COSTO_MAXIMO_USD_LLAMADA` | `0.01` | Reserva/tope por llamada | Briefing IA |
+| `AI_VEREDICTO_ENABLED` | `false` | Veredicto diario asistido | Veredicto IA |
+| `VEREDICTO_PRESUPUESTO_USD_MES` | `5` (alias `E8_PRESUPUESTO_USD_MES`) | Presupuesto mensual único de IA | Veredicto IA |
+| `VEREDICTO_COSTO_MAXIMO_USD_LLAMADA` | `0.02` (alias `E8_COSTO_MAXIMO_USD_LLAMADA`) | Reserva por llamada | Veredicto IA |
 | `DATASET_SALT_E7B` | sin default | Seudonimización estable | Exportación dataset |
 | `DEMO_OK` | sin default | Confirmación explícita de seed demo | Seed de demostración |
 | `NODE_ENV` | `production` en despliegue | Cookies seguras por entorno | Runtime |

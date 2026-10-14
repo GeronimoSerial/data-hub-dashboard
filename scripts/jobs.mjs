@@ -46,6 +46,8 @@ const NOMBRES_VALIDOS = [
   'sync-seasonal',
   'situacion-corte',
   'briefing-ia',
+  'veredicto-diario',
+  'veredicto-cierre',
   'sync-prefectura-alturas',
 ]
 
@@ -364,6 +366,24 @@ async function correrBriefingIA() {
   return correrJobBriefingIA()
 }
 
+// veredicto-diario y veredicto-cierre gestionan su propio lease y su presupuesto
+// de IA: jobs.mjs sólo verifica el flag y los invoca.
+async function correrVeredictoDiario() {
+  if (!(await jobsActivos())) return flagDeshabilitado('veredicto-diario')
+  const { aiVeredictoEnabled } = await import('../lib/infraestructura/riesgo/flags.ts')
+  if (aiVeredictoEnabled() === false) return flagDeshabilitado('veredicto-diario')
+  const { correrJobVeredicto } = await import('../lib/infraestructura/veredicto/job.ts')
+  return correrJobVeredicto()
+}
+
+async function correrVeredictoCierre() {
+  if (!(await jobsActivos())) return flagDeshabilitado('veredicto-cierre')
+  const { aiVeredictoEnabled } = await import('../lib/infraestructura/riesgo/flags.ts')
+  if (aiVeredictoEnabled() === false) return flagDeshabilitado('veredicto-cierre')
+  const { correrJobCierreVeredicto } = await import('../lib/infraestructura/veredicto/job.ts')
+  return correrJobCierreVeredicto()
+}
+
 export async function correrJob(nombre, opts) {
   if (!NOMBRES_VALIDOS.includes(nombre)) {
     throw new JobDesconocidoError(nombre)
@@ -416,6 +436,10 @@ export async function correrJob(nombre, opts) {
       return correrSituacionCorte(opts)
     case 'briefing-ia':
       return correrBriefingIA()
+    case 'veredicto-diario':
+      return correrVeredictoDiario()
+    case 'veredicto-cierre':
+      return correrVeredictoCierre()
     case 'sync-prefectura-alturas':
       return correrSyncPrefecturaAlturas()
     default:

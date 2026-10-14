@@ -313,6 +313,8 @@ Referencia de `OnCalendar` en UTC de las unidades de `deploy/systemd/ops1/`. Par
 | geo-perfiles | diario | `*-*-* 03:00:00` | `enos-ops1-geo-perfiles.timer` |
 | asociacion-rio | diario | `*-*-* 03:10:00` | `enos-ops1-asociacion-rio.timer` |
 | briefing-ia | cada hora | `*-*-* *:30:00` | `enos-ops1-briefing-ia.timer` |
+| veredicto-diario | 4 veces al día | `*-*-* 00,06,12,18:45:00` | `enos-ops1-veredicto-diario.timer` |
+| veredicto-cierre | diario | `*-*-* 03:30:00` | `enos-ops1-veredicto-cierre.timer` |
 | situacion-corte | 1h | `*-*-* *:20:00` | `enos-ops1-situacion-corte.timer` |
 | climatologia-precipitacion | mensual, cursor resumable | `*-*-01 06:40:00` | `enos-ops1-climatologia-precipitacion.timer` |
 | climatologia-caudal | mensual, cursor resumable | `*-*-01 06:40:00` | `enos-ops1-climatologia-caudal.timer` |

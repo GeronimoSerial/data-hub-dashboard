@@ -57,7 +57,7 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - [x] T3 (V-05, V-06) Agregadores de ríos y de pronóstico (GloFAS vs climatología, ensamble, SMN).
 - [x] T4 (V-07) Reglas deterministas `reglas-veredicto-v0.1` con traza.
 - [x] T5 (V-01, V-08) Prompt, esquema zod, términos prohibidos propios, plantilla de fallback, presupuesto único.
-- [ ] T6 (V-09, V-10) Orquestador por corrida + job `veredicto-diario` (cadencia 6 h + cierre de día, timer, `jobs.mjs`, flag).
+- [x] T6 (V-09, V-10) Orquestador por corrida + job `veredicto-diario` (cadencia 6 h + cierre de día, timer, `jobs.mjs`, flag).
 - [ ] T7 (V-11) API de lectura (vigentes por rango, historial).
 - [ ] T8 (V-12, V-13, V-14) Modal autocontenido + punto de entrada en el mapa.
 - [ ] T9 (V-15, V-15b) Enlaces con token (crear/revocar, vencimiento 23:59 ART, 410) + vista pública + PDF.
@@ -82,3 +82,4 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - T5b (delegado; ~112k tokens, por encima del tope): `metricas.ts` (ids alineados con las refs de reglas, URL de fuente), `prompt.ts`, `plantilla.ts`, `hash.ts`. Correcciones del coordinador: métricas `rio.<id>.evacuacion_m` / `alerta_m` (altura máx + margen); prompt reescrito en español neutro y con la forma real del esquema (`veredictos[]`). GREEN 14 tests; tsc/eslint limpios.
 - T6a (delegado, ~100k tokens): `entradas.ts` (`fechasVentana` 7+hoy+3, `calcularDia`), `listarDepartamentos`. Default: celdas fuera de los polígonos departamentales no cuentan para la lluvia provincial. RED → GREEN; veredicto 158 tests verdes; tsc/eslint limpios.
 - T6b (delegado, ~107k tokens): `generar.ts` (una llamada por corrida, validación por ámbito-día, plantilla, presupuesto con reserva y ajuste, `cerrarDiaAnterior`). Formas persistidas: `traza_reglas = { reglas }`, `metricas = { metricas }`; tokens/costo solo en la primera fila de cada llamada. GREEN 6 tests; tsc/eslint limpios.
+- T6c (delegado en dos workers: el primero se detuvo cerca del tope; el segundo, acotado, ~79k): `job.ts` (lease por slot de 6 h UTC y por día ART para el cierre), flag `AI_VEREDICTO_ENABLED`, cadencias, `jobs.mjs` (gate por `ENOS_JOBS_ENABLED` + `AI_VEREDICTO_ENABLED`), timers `00,06,12,18:45 UTC` y `03:30 UTC`, `DEPLOY.md` y runbook. GREEN: veredicto/job 10, flags+cadencias 41, `scripts/jobs.test.ts` 30; `node --check` ok; tsc limpio.
