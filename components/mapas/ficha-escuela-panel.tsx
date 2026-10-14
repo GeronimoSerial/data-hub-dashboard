@@ -30,7 +30,7 @@ interface FichaEscuelaPanelProps {
   /** Mismo horizonte que la lista y los marcadores del Radar. */
   horizonteRiesgo?: HorizonteMotor
   /** Mismo nivel que la lista de Planificación para la vista activa. */
-  planificacion?: { etiquetaVista: string; etiquetaNivel: string } | null
+  planificacion?: { etiquetaVista: string; etiquetaNivel: string }[] | null
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')

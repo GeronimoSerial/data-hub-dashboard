@@ -6198,3 +6198,10 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .riesgo-escuela__tecnico dt { font-weight: 600; }
 .riesgo-escuela__tecnico dd { margin: 0; overflow-wrap: anywhere; }
 .map-leyenda__muestra--anillo { background: transparent; border: 2px solid; box-sizing: border-box; }
+.riesgo-escuela__nivel--bajo { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.riesgo-escuela__planificacion { display: grid; gap: 2px; margin: 0; font-size: var(--t-small); }
+.riesgo-escuela__planificacion > div { display: flex; justify-content: space-between; gap: var(--s-2); }
+.riesgo-escuela__planificacion dt { color: var(--ink-soft); }
+.riesgo-escuela__planificacion dd { margin: 0; font-weight: 600; }
+/* Radar: la leyenda queda arriba de la línea de tiempo y a la izquierda de la escala de lluvia. */
+.map-leyenda--radar { bottom: 122px; max-width: calc(100% - 55px - var(--map-sidebar-ancho) - 270px); }

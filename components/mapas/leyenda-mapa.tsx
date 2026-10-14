@@ -221,7 +221,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
   if (props.pestana === 'estadisticas' && !hayCapas) return null
 
   return (
-    <aside className="map-leyenda" aria-label="Referencias del mapa">
+    <aside className={`map-leyenda map-leyenda--${props.pestana}`} aria-label="Referencias del mapa">
       {hayCapas && (
         <SituacionActual
           estacionesRio={estacionesRio}

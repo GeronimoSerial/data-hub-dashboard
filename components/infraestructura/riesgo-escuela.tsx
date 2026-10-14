@@ -7,9 +7,9 @@ import {
   type FactorMotor,
   type SnapshotMotor,
 } from '@/lib/infraestructura/riesgo/explicar-snapshot'
-import { ETIQUETA_HORIZONTE_MOTOR, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
+import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 
-type Planificacion = { etiquetaVista: string; etiquetaNivel: string }
+type Planificacion = { etiquetaVista: string; etiquetaNivel: string }[]
 
 export type RiesgoEscuelaProps = {
   cueAnexo: string
@@ -71,10 +71,15 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
 
       <div className="riesgo-escuela__bloque" data-testid="riesgo-escuela-planificacion">
         <h3 className="riesgo-escuela__titulo">Prioridad de planificación (exposición estructural)</h3>
-        {planificacion ? (
-          <p>
-            <strong>{planificacion.etiquetaNivel}</strong> · {planificacion.etiquetaVista}
-          </p>
+        {planificacion && planificacion.length > 0 ? (
+          <dl className="riesgo-escuela__planificacion">
+            {planificacion.map((fila) => (
+              <div key={fila.etiquetaVista}>
+                <dt>{fila.etiquetaVista}</dt>
+                <dd>{fila.etiquetaNivel}</dd>
+              </div>
+            ))}
+          </dl>
         ) : (
           <p>Sin dato de planificación.</p>
         )}
@@ -85,11 +90,15 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
 }
 
 function ContenidoRiesgo({ explicacion }: { explicacion: ExplicacionSnapshot }): JSX.Element {
-  const { nivel, etiquetaNivel, conclusion, situacionActual, zonaExpuesta, detalleTecnico } = explicacion
+  const { nivel, etiquetaNivel, conclusion, zonaExpuesta, detalleTecnico } = explicacion
+  // La primera evidencia ya está en la conclusión: no se repite en la lista.
+  const situacionActual = explicacion.situacionActual.filter((linea) => !conclusion.includes(linea))
   return (
     <>
       <span
         className={`riesgo-escuela__nivel riesgo-escuela__nivel--${nivel ?? 'sin_dato'}`}
+        // Mismo color que el marcador y la leyenda del Radar.
+        style={nivel && nivel !== 'bajo' ? { backgroundColor: colorRiesgo(nivel) } : undefined}
         data-testid="riesgo-escuela-nivel"
       >
         {etiquetaNivel}

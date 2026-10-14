@@ -157,7 +157,7 @@ export {
 } from '@/lib/infraestructura/mapa/punto'
 import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
 import { coloresRadar, cuesAmenazaAltaRadar } from '@/lib/infraestructura/mapa/radar'
-import { coloresPlanificacion, cuesJuntoLagunaPlanificacion, ETIQUETA_NIVEL_PLAN, ETIQUETA_VISTA, nivelPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
+import { coloresPlanificacion, cuesJuntoLagunaPlanificacion, ETIQUETA_NIVEL_PLAN, nivelPlanificacion, TITULO_LEYENDA_VISTA, VISTAS_PLANIFICACION } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
 import { puntosRiesgoSobreSituacion, soloConDatoOJuntoLaguna } from '@/lib/infraestructura/mapa/puntos-nivel'
@@ -1977,10 +1977,12 @@ export default function MapInfraestructuraPage(props: {
                 key={seleccionCue}
                 escuela={escuelaSeleccionada}
                 horizonteRiesgo={horizonteEfectivo}
-                planificacion={{
-                  etiquetaVista: ETIQUETA_VISTA[vistaPlanificacion],
-                  etiquetaNivel: ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vistaPlanificacion, { territorio })],
-                }}
+                planificacion={VISTAS_PLANIFICACION.map((vista) => ({
+                  etiquetaVista: TITULO_LEYENDA_VISTA[vista],
+                  etiquetaNivel: vista === 'historial'
+                    ? `${ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })]} (${escuelaSeleccionada.situacionesHistoricas})`
+                    : ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })],
+                }))}
                 acceso={(
                   <BloqueAcceso
                     geometria={geometria}

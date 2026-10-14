@@ -34,7 +34,7 @@ function snapshot(nivelRiesgo: 'bajo' | 'moderado' | 'alto' | 'muy_alto' | null,
   }
 }
 
-const PLANIFICACION = { etiquetaVista: 'Vista regional', etiquetaNivel: 'Prioridad alta' }
+const PLANIFICACION = [{ etiquetaVista: 'Vista regional', etiquetaNivel: 'Prioridad alta' }]
 
 describe('RiesgoEscuela', () => {
   let fetchMock: ReturnType<typeof vi.fn>

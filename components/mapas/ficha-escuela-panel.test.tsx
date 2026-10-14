@@ -17,8 +17,8 @@ vi.mock('@/components/infraestructura/ficha-territorial', () => ({
 }))
 
 vi.mock('@/components/infraestructura/riesgo-escuela', () => ({
-  RiesgoEscuela: ({ horizonte, planificacion }: { horizonte: number; planificacion: { etiquetaVista: string; etiquetaNivel: string } | null }) => (
-    <div data-testid="riesgo-escuela-mock">{`${horizonte}|${planificacion?.etiquetaNivel ?? '-'}|${planificacion?.etiquetaVista ?? '-'}`}</div>
+  RiesgoEscuela: ({ horizonte, planificacion }: { horizonte: number; planificacion: { etiquetaVista: string; etiquetaNivel: string }[] | null }) => (
+    <div data-testid="riesgo-escuela-mock">{`${horizonte}|${planificacion?.[0]?.etiquetaNivel ?? '-'}|${planificacion?.[0]?.etiquetaVista ?? '-'}`}</div>
   ),
 }))
 
@@ -119,7 +119,7 @@ describe('FichaEscuelaPanel', () => {
         onVerAlumnosAlcanzados={vi.fn()}
         onVerHistorialCompleto={vi.fn()}
         horizonteRiesgo={24}
-        planificacion={{ etiquetaVista: 'Inundación', etiquetaNivel: 'Alto' }}
+        planificacion={[{ etiquetaVista: 'Inundación', etiquetaNivel: 'Alto' }]}
       />,
     )
     expect(screen.getByTestId('riesgo-escuela-mock')).toHaveTextContent('24|Alto|Inundación')
