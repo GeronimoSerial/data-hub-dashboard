@@ -6208,3 +6208,11 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-leyenda { width: max-content; max-width: min(30rem, calc(100% - 55px - var(--map-sidebar-ancho) - var(--s-4))); }
 .map-leyenda--radar { max-width: min(30rem, calc(100% - 55px - var(--map-sidebar-ancho) - 270px)); }
 .map-leyenda__fila { flex-wrap: wrap; }
+/* Resumen provincial de eventos: no lleva barra de color, ocupa todo el ancho de la fila. */
+.map-eventos__provincial { grid-template-columns: minmax(0, 1fr); cursor: default; }
+.map-sitact__eventos > summary { display: flex; align-items: baseline; gap: var(--s-2); list-style: none; padding: var(--s-1) 0; }
+.map-sitact__eventos > summary::-webkit-details-marker { display: none; }
+.map-sitact__eventos > summary::before { content: ''; flex: none; width: 0.45rem; height: 0.45rem; border-right: 2px solid var(--ink-soft); border-bottom: 2px solid var(--ink-soft); transform: rotate(-45deg); transition: transform 0.15s; }
+.map-sitact__eventos[open] > summary::before { transform: rotate(45deg); }
+.map-sitact__eventos > summary > h3 { flex: 1; min-width: 0; }
+.map-sitact__eventos > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
