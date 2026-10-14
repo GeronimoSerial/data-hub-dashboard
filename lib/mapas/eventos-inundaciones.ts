@@ -434,14 +434,47 @@ export function subtituloEvento(lugar: string, inicio: unknown, fin: unknown): s
 const MAX_HECHOS = 3
 const MAX_LARGO_HECHO = 140
 
+// Prefectura publishes the river state as upper-case codes; show them in plain words.
+const ESTADOS_PREFECTURA: [RegExp, string][] = [
+  [/\bEVACUACION\b/g, 'evacuación,'],
+  [/\bALERTA\b/g, 'alerta,'],
+  [/\bNORMAL\b/g, 'normal,'],
+  [/\bCRECE\b/g, 'crece'],
+  [/\bBAJA\b/g, 'baja'],
+  [/\bESTAC\b\.?/g, 'estacionario'],
+]
+
+/** Splits on ";" or ". " only outside parentheses, so "(alerta 7,50; evacuación 8,50)" stays whole. */
+function clausulasDeNivelSuperior(texto: string): string[] {
+  const clausulas: string[] = []
+  let profundidad = 0
+  let actual = ''
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i]
+    if (c === '(') profundidad++
+    if (c === ')') profundidad = Math.max(0, profundidad - 1)
+    const corte = profundidad === 0 && (c === ';' || (c === '.' && /\s/.test(texto[i + 1] ?? '')))
+    if (corte) {
+      clausulas.push(actual)
+      actual = ''
+    } else {
+      actual += c
+    }
+  }
+  clausulas.push(actual)
+  return clausulas
+}
+
 /** Up to three short facts from the measurements text, with evidence references removed. */
 export function hechosEvento(mediciones: unknown): string[] {
   if (typeof mediciones !== 'string') return []
   const hechos: string[] = []
-  for (const clausula of mediciones.split(/;|\.\s+/)) {
-    const limpia = clausula
+  for (const clausula of clausulasDeNivelSuperior(mediciones)) {
+    const sinIds = clausula
       .replace(/\s*\([^()]*\bEVD?-\d[^()]*\)/g, ' ')
       .replace(ID_EVIDENCIA, ' ')
+    const limpia = ESTADOS_PREFECTURA.reduce((texto, [patron, palabra]) => texto.replace(patron, palabra), sinIds)
+      .replace(/,(\s*,)+/g, ',')
       .replace(/\s+/g, ' ')
       .replace(/^[\s,:]+|[\s,:]+$/g, '')
     if (limpia.length < 3 || /^ver\b/i.test(limpia)) continue
