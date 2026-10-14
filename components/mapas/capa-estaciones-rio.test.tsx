@@ -8,9 +8,10 @@ const mapa = vi.hoisted(() => {
   type Manejador = (evento: unknown) => void
   const manejadores = new Map<string, Manejador[]>()
   const fake = {
-    on: (tipo: string, capa: string, fn: Manejador) => {
-      const clave = `${tipo}:${capa}`
-      manejadores.set(clave, [...(manejadores.get(clave) ?? []), fn])
+    on: (tipo: string, capa: string | Manejador, fn?: Manejador) => {
+      const clave = typeof capa === 'string' ? `${tipo}:${capa}` : `${tipo}:`
+      const manejador = typeof capa === 'string' ? fn! : capa
+      manejadores.set(clave, [...(manejadores.get(clave) ?? []), manejador])
     },
     off: () => {},
     getCanvas: () => ({ style: { cursor: '' } }),
@@ -125,6 +126,14 @@ describe('CapaEstacionesRio', () => {
       expect.anything(),
       ['estacion-evacuacion', 'estacion-alerta', 'estacion-normal', 'estacion-sin-dato'],
     )
+  })
+
+  it('vuelve a registrar las insignias cuando cambia el estilo del mapa', async () => {
+    render(<CapaEstacionesRio visible />)
+    await waitFor(() => expect(registrarInsignias).toHaveBeenCalled())
+    const antes = vi.mocked(registrarInsignias).mock.calls.length
+    act(() => mapa.emitir('styledata', '', {}))
+    expect(vi.mocked(registrarInsignias).mock.calls.length).toBeGreaterThan(antes)
   })
 
   it('usa una capa symbol con beforeId y solapamiento de iconos permitido', async () => {

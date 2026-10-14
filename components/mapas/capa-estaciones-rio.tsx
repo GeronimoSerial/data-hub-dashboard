@@ -153,11 +153,19 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
   useEffect(() => {
     let vigente = true
     if (!mapa) return
-    registrarInsignias(mapa.getMap(), INSIGNIAS_ESTACIONES).then(() => {
-      if (vigente) setListo(true)
-    })
+    const mapaGl = mapa.getMap()
+    // A basemap swap (e.g. Radar's dark style) drops every registered image, which
+    // leaves the symbols invisible: register again whenever the style changes.
+    const registrar = () => {
+      registrarInsignias(mapaGl, INSIGNIAS_ESTACIONES).then(() => {
+        if (vigente) setListo(true)
+      })
+    }
+    registrar()
+    mapaGl.on('styledata', registrar)
     return () => {
       vigente = false
+      mapaGl.off('styledata', registrar)
     }
   }, [mapa])
 

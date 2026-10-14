@@ -7,7 +7,7 @@ import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
 const { mapa } = vi.hoisted(() => {
   const manejadores = new Map<string, Array<(evento: unknown) => void>>()
   const mapa = {
-    getMap: () => ({}),
+    getMap: () => ({ on: () => {}, off: () => {} }),
     getCanvas: () => ({ style: { cursor: '' } }),
     on: (tipo: string, capa: string, fn: (evento: unknown) => void) => {
       const clave = `${tipo}:${capa}`
