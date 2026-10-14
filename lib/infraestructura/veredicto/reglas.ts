@@ -3,7 +3,7 @@
 
 import type { AmbitoLluvia, LluviaObservadaAmbito, PercentilLluvia } from './lluvia-observada'
 import type { AvisoSmnDia, CaudalDia, EnsambleDia, NivelAvisoSmn } from './pronostico'
-import type { RioDia } from './rios'
+import type { EstadoAltura, RioDia } from './rios'
 
 export const VERSION_REGLAS = 'reglas-veredicto-v0.1'
 
@@ -32,12 +32,25 @@ export type TrazaRegla = {
   nivel: NivelVeredicto
 }
 
+/** Estación de aguas arriba con dato: contexto informativo, nunca eleva el nivel. */
+export type AguaArribaVeredicto = {
+  estacionId: string
+  nombre: string
+  rio: 'parana' | 'uruguay'
+  estadoMax: EstadoAltura
+  alturaMaxM: number | null
+  /** Cota de evacuación si el estado es evacuación; si no, la de alerta. Null sin margen. */
+  umbralM: number | null
+}
+
 export type ResultadoAmbito = {
   ambito: AmbitoLluvia
   nivel: NivelVeredicto
   traza: TrazaRegla[]
   fuentesAusentes: FuenteVeredicto[]
   conSenal: boolean
+  /** Sólo el ámbito provincial informa aguas arriba; los departamentos reciben `[]`. */
+  aguasArriba: AguaArribaVeredicto[]
 }
 
 /** Umbrales de las reglas. Borrador, en calibración (D11). */
@@ -228,7 +241,7 @@ function evaluarDepartamento(id: string, e: EntradaEvaluacion): Evaluacion {
   }
 
   if (fuentes.includes('prefectura')) {
-    const r = evaluarRios(e.rios.filter((x) => x.departamento === id))
+    const r = evaluarRios(e.rios.filter((x) => x.rol === 'corrientes' && x.departamento === id))
     disparos.push(...r.disparos)
     presencia.prefectura = r.dato
     senalRio = r.senal
@@ -278,14 +291,32 @@ function cerrarAmbito(
     traza: disparos,
     fuentesAusentes: ORDEN_FUENTES.filter((f) => fuentes.includes(f) && !presencia[f]),
     conSenal: RANGO[nivel] >= RANGO.vigilancia || senalRio,
+    aguasArriba: [],
   }
+}
+
+function aguasArribaDe(rios: RioDia[]): AguaArribaVeredicto[] {
+  return rios
+    .filter((r) => r.rol === 'contexto-aguas-arriba' && r.estadoMax !== 'sin_dato')
+    .map((r) => {
+      const margen = r.estadoMax === 'evacuacion' ? r.margenEvacM : r.margenAlertaM
+      const umbralM = margen === null || r.alturaMaxM === null ? null : Math.round((r.alturaMaxM + margen) * 100) / 100
+      return {
+        estacionId: r.estacionId,
+        nombre: r.nombre,
+        rio: r.rio,
+        estadoMax: r.estadoMax,
+        alturaMaxM: r.alturaMaxM,
+        umbralM,
+      }
+    })
 }
 
 /**
  * Evalúa un día: primero el ámbito provincial y luego un resultado por departamento.
- * El nivel provincial es el máximo departamental. Las estaciones sin departamento
- * aparecen en la traza provincial (y pueden dar `conSenal`), pero NO elevan el nivel
- * provincial: se mantienen como contexto aguas arriba.
+ * El nivel provincial es el máximo entre los departamentos y las estaciones de
+ * corrientes sin departamento. Sólo las estaciones de corrientes cuentan; las de
+ * aguas arriba se listan aparte en `aguasArriba` y nunca elevan el nivel ni entran en la traza.
  * La lluvia provincial se usa sólo para saber si la fuente IMERG tiene dato.
  */
 export function evaluarDia(entrada: EntradaEvaluacion): ResultadoAmbito[] {
@@ -308,7 +339,7 @@ export function evaluarDia(entrada: EntradaEvaluacion): ResultadoAmbito[] {
   if (fuentes.includes('smn')) presencia.smn = entrada.smnDisponible !== false
 
   const riosSinDepto = fuentes.includes('prefectura')
-    ? evaluarRios(entrada.rios.filter((r) => r.departamento === null))
+    ? evaluarRios(entrada.rios.filter((r) => r.rol === 'corrientes' && r.departamento === null))
     : { disparos: [], dato: false, senal: false }
   if (riosSinDepto.dato) presencia.prefectura = true
 
@@ -318,8 +349,10 @@ export function evaluarDia(entrada: EntradaEvaluacion): ResultadoAmbito[] {
   ]
   const senalProvincia = departamentos.some(({ ev }) => ev.senalRio) || riosSinDepto.senal
 
-  const nivelProvincia: NivelVeredicto = resultadosDepto.reduce<NivelVeredicto>(
-    (acc, r) => nivelMayor(acc, r.nivel),
+  // Las corrientes sin departamento están dentro de la provincia: sí elevan su nivel.
+  const nivelRiosSinDepto = riosSinDepto.disparos.reduce<NivelVeredicto>((acc, d) => nivelMayor(acc, d.nivel), 'sin_dato')
+  const nivelProvincia: NivelVeredicto = [...resultadosDepto.map((r) => r.nivel), nivelRiosSinDepto].reduce<NivelVeredicto>(
+    (acc, nivel) => nivelMayor(acc, nivel),
     'sin_dato',
   )
   const provincia: ResultadoAmbito = {
@@ -328,6 +361,7 @@ export function evaluarDia(entrada: EntradaEvaluacion): ResultadoAmbito[] {
     traza: disparosProvincia,
     fuentesAusentes: ORDEN_FUENTES.filter((f) => fuentes.includes(f) && !presencia[f]),
     conSenal: RANGO[nivelProvincia] >= RANGO.vigilancia || senalProvincia,
+    aguasArriba: aguasArribaDe(entrada.rios),
   }
 
   return [provincia, ...resultadosDepto]

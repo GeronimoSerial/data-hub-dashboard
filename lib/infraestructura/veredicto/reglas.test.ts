@@ -28,6 +28,7 @@ function rio(over: Partial<RioDia> = {}): RioDia {
     nombre: 'Estación 1',
     rio: 'uruguay',
     departamento: 'd1',
+    rol: 'corrientes',
     estadoMax: 'normal',
     alturaMaxM: 3,
     tendenciaM24h: 0,
@@ -200,6 +201,62 @@ describe('reglas de veredicto', () => {
       const r = ambito(evaluarDia(entrada({ tipoDia: 'observado', departamentos: ['d1'], rios: [rio({ estadoMax: 'sin_dato' })] })), 'd1')
       expect(r.nivel).toBe('sin_dato')
       expect(r.fuentesAusentes).toEqual(['imerg', 'prefectura'])
+    })
+  })
+
+  describe('rol de la estación (corrientes frente a aguas arriba)', () => {
+    it('una estación de aguas arriba en evacuación no eleva la provincia ni entra en la traza', () => {
+      const arriba = rio({
+        estacionId: 'pna-iguazu',
+        nombre: 'IGUAZU',
+        rio: 'parana',
+        departamento: null,
+        rol: 'contexto-aguas-arriba',
+        estadoMax: 'evacuacion',
+        alturaMaxM: 5,
+        margenEvacM: -0.2,
+        margenAlertaM: -1,
+      })
+      const resultados = evaluarDia(entrada({ tipoDia: 'observado', departamentos: [], rios: [arriba] }))
+      const prov = provincia(resultados)
+      expect(prov.nivel).toBe('sin_dato')
+      expect(prov.traza).toEqual([])
+      expect(prov.conSenal).toBe(false)
+      expect(prov.aguasArriba).toHaveLength(1)
+      expect(prov.aguasArriba[0]).toMatchObject({
+        estacionId: 'pna-iguazu',
+        nombre: 'IGUAZU',
+        rio: 'parana',
+        estadoMax: 'evacuacion',
+        alturaMaxM: 5,
+      })
+      expect(prov.aguasArriba[0].umbralM).toBeCloseTo(4.8)
+    })
+
+    it('una estación de corrientes sin departamento eleva la provincia y aparece en su traza', () => {
+      const corrientes = rio({
+        estacionId: 'pna-corrientes',
+        nombre: 'CORRIENTES',
+        departamento: null,
+        rol: 'corrientes',
+        estadoMax: 'alerta',
+        alturaMaxM: 6,
+        tendenciaM24h: 0,
+      })
+      const resultados = evaluarDia(entrada({ tipoDia: 'observado', departamentos: [], rios: [corrientes] }))
+      const prov = provincia(resultados)
+      expect(prov.nivel).toBe('alerta')
+      expect(prov.conSenal).toBe(true)
+      expect(prov.traza).toEqual([
+        expect.objectContaining({ regla: 'rio.estado', ref: 'rio.pna-corrientes.estado_max', nivel: 'alerta' }),
+      ])
+      expect(prov.aguasArriba).toEqual([])
+    })
+
+    it('los departamentos no reciben aguas arriba', () => {
+      const arriba = rio({ estacionId: 'pna-iguazu', departamento: null, rol: 'contexto-aguas-arriba', estadoMax: 'alerta', alturaMaxM: 3, margenAlertaM: 0.2 })
+      const resultados = evaluarDia(entrada({ tipoDia: 'observado', departamentos: ['d1'], rios: [arriba] }))
+      expect(ambito(resultados, 'd1').aguasArriba).toEqual([])
     })
   })
 
@@ -384,7 +441,7 @@ describe('reglas de veredicto', () => {
       expect(provincia(resultados).nivel).toBe('sin_senal')
     })
 
-    it('estación sin departamento aparece en la traza provincial pero no eleva el nivel', () => {
+    it('estación de corrientes sin departamento aparece en la traza provincial y eleva el nivel', () => {
       const resultados = evaluarDia(
         entrada({
           tipoDia: 'observado',
@@ -394,7 +451,7 @@ describe('reglas de veredicto', () => {
         }),
       )
       const prov = provincia(resultados)
-      expect(prov.nivel).toBe('sin_senal')
+      expect(prov.nivel).toBe('alerta')
       expect(prov.traza.map((t) => t.ref)).toEqual(['rio.est-1.estado_max'])
       expect(prov.conSenal).toBe(true)
       expect(ambito(resultados, 'd1').conSenal).toBe(false)

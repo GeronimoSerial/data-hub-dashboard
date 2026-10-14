@@ -74,6 +74,7 @@ describe('aDtoVeredicto', () => {
         },
       ],
       fuentesAusentes: ['rios'],
+      aguasArriba: [],
     })
   })
 
@@ -107,6 +108,15 @@ describe('aDtoVeredicto', () => {
   it('tolera jsonb sin las claves esperadas', () => {
     const dto = aDtoVeredicto(fila({ trazaReglas: {}, metricas: {}, cobertura: {}, textoFinal: null }), 1)
     expect(dto.traza).toEqual([])
+    expect(dto.aguasArriba).toEqual([])
+  })
+
+  it('expone las aguas arriba de la traza persistida', () => {
+    const aguasArriba = [
+      { estacionId: 'pna-iguazu', nombre: 'IGUAZU', rio: 'parana', estadoMax: 'evacuacion', alturaMaxM: 5, umbralM: 4.8 },
+    ]
+    const dto = aDtoVeredicto(fila({ trazaReglas: { reglas: [], aguasArriba }, metricas: {}, cobertura: {}, textoFinal: null }), 1)
+    expect(dto.aguasArriba).toEqual(aguasArriba)
     expect(dto.metricas).toEqual([])
     expect(dto.fuentesAusentes).toEqual([])
     expect(dto.texto).toBeNull()

@@ -22,6 +22,7 @@ function veredicto(over: Partial<DtoVeredicto> = {}): DtoVeredicto {
       { id: 'p95_caudal', valor: 1, unidad: null, etiqueta: 'Caudal del río', fuenteUrl: 'https://example.org/caudal' },
     ],
     fuentesAusentes: [],
+    aguasArriba: [],
     ...over,
   }
 }

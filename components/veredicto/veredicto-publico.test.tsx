@@ -31,6 +31,7 @@ function dto(parcial: Partial<DtoVeredicto>): DtoVeredicto {
       },
     ],
     fuentesAusentes: [],
+    aguasArriba: [],
     ...parcial,
   }
 }

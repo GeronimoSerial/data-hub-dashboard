@@ -171,6 +171,11 @@ Reglas generales:
 - **Días futuros:** solo pronóstico (caudal, ensamble, SMN, lluvia pronosticada). Etiqueta visible "pronóstico". Se permite nivel máximo `alerta` desde ensamble/lluvia; `severo` futuro solo por caudal ≥ p99 o SMN rojo (a calibrar).
 - **Departamentos con señal (D1):** nivel ≥ `vigilancia` o estación ribereña en `alerta`/`evacuacion`.
 - **Eventos reportados:** nunca entran a estas reglas (D5).
+- **Estaciones aguas arriba:** solo las estaciones de Prefectura con `rol: 'corrientes'` en
+  `hidrometria/estaciones-prefectura.ts` fijan nivel. Las de `rol: 'contexto-aguas-arriba'` (Iguazú, Libertador,
+  Posadas, en Misiones) se listan aparte en el veredicto provincial como contexto ("aguas arriba"): no suben el
+  nivel de ningún ámbito ni aparecen en la traza. Una estación de Corrientes sin departamento asignado sí cuenta
+  para el nivel provincial.
 - Versionado: `reglas-veredicto-v0.1`, guardado en cada fila.
 - **En calibración (D11):** mientras `version_reglas` no tenga métricas de evaluación publicadas, cada veredicto (modal, enlace y PDF) muestra la marca "en calibración". La marca se quita solo cuando V-17 registra las métricas del conjunto de desarrollo y se congela la versión.
 

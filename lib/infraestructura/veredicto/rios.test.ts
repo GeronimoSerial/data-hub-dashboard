@@ -156,6 +156,8 @@ describe('leerRiosDia', () => {
     expect(corrientes?.departamento).not.toBeNull()
     expect(iguazu).toMatchObject({ nombre: 'IGUAZU', alturaMaxM: 3, tendenciaM24h: null })
     expect(iguazu?.departamento).toBeNull()
+    expect(corrientes?.rol).toBe('corrientes')
+    expect(iguazu?.rol).toBe('contexto-aguas-arriba')
   })
 
   it('descarta la lectura previa más vieja de 36 h como faltante', async () => {

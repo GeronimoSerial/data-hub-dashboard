@@ -31,6 +31,8 @@ export type RioDia = AgregadoRioDia & {
   estacionId: string
   nombre: string
   rio: 'parana' | 'uruguay'
+  /** `corrientes` puede elevar el nivel; `contexto-aguas-arriba` sólo se informa. */
+  rol: 'corrientes' | 'contexto-aguas-arriba'
   departamento: string | null
 }
 
@@ -138,6 +140,7 @@ export async function leerRiosDia(db: Db, fecha: string): Promise<RioDia[]> {
       estacionId: estacion.estacionId,
       nombre: estacion.nombrePna,
       rio: estacion.rio,
+      rol: estacion.rol,
       departamento: estacion.coordenadas
         ? departamentoDeCoordenada(estacion.coordenadas.lat, estacion.coordenadas.lon)
         : null,

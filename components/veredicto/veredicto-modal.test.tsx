@@ -41,6 +41,7 @@ function veredicto(overrides: Partial<DtoVeredicto>): DtoVeredicto {
     traza: [],
     metricas: [],
     fuentesAusentes: [],
+    aguasArriba: [],
     ...overrides,
   }
 }

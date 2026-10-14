@@ -9,6 +9,8 @@ export type EntradaHash = {
   nivel: NivelVeredicto
   versionReglas: string
   versionPrompt: string
+  // Contexto aguas arriba (solo provincia): no fija nivel, pero se persiste y se muestra.
+  aguasArriba?: unknown[]
 }
 
 // Serialización con claves ordenadas, para que el hash no dependa del orden de inserción.
@@ -29,6 +31,8 @@ export function calcularInputsHash(entrada: EntradaHash): string {
     nivel: entrada.nivel,
     versionReglas: entrada.versionReglas,
     versionPrompt: entrada.versionPrompt,
+    // Solo entra al hash cuando hay contexto, para no invalidar las huellas existentes.
+    ...(entrada.aguasArriba && entrada.aguasArriba.length > 0 ? { aguasArriba: entrada.aguasArriba } : {}),
   })
   return createHash('sha256').update(canonico).digest('hex')
 }

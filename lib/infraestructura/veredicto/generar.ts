@@ -192,7 +192,7 @@ export async function generarVeredictos(
       ambito: item.ambito,
       tipoDia: item.tipoDia,
       nivel: item.nivel,
-      trazaReglas: { reglas: item.traza },
+      trazaReglas: { reglas: item.traza, aguasArriba: item.aguasArriba },
       versionReglas: VERSION_REGLAS,
       metricas: { metricas: item.metricas },
       inputsHash: item.inputsHash,

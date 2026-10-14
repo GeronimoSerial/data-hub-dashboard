@@ -19,6 +19,7 @@ const lluvia72: LluviaObservadaAmbito = { ...lluvia24, promMm: 40.1, maxMm: 110.
 
 const rio = (id: string, departamento: string | null, overrides: Partial<RioDia> = {}): RioDia => ({
   estacionId: id,
+  rol: 'corrientes',
   nombre: `Estacion ${id}`,
   rio: 'parana',
   departamento,

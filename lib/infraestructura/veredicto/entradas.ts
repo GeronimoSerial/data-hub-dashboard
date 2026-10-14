@@ -33,6 +33,7 @@ import {
   type FuenteVeredicto,
   type NivelVeredicto,
   type TipoDia,
+  type AguaArribaVeredicto,
   type TrazaRegla,
 } from './reglas'
 
@@ -44,6 +45,8 @@ export type ItemDia = {
   ambito: LluviaObservadaAmbitoId
   nivel: NivelVeredicto
   traza: TrazaRegla[]
+  /** Sólo provincia; contexto informativo, no entra en `inputsHash` (ver nota allí). */
+  aguasArriba: AguaArribaVeredicto[]
   fuentesAusentes: FuenteVeredicto[]
   conSenal: boolean
   metricas: MetricaVeredicto[]
@@ -163,6 +166,7 @@ export async function calcularDia(
         ambito: resultado.ambito,
         nivel: resultado.nivel,
         traza: resultado.traza,
+        aguasArriba: resultado.aguasArriba,
         fuentesAusentes: resultado.fuentesAusentes,
         conSenal: resultado.conSenal,
         metricas,
@@ -175,6 +179,7 @@ export async function calcularDia(
           nivel: resultado.nivel,
           versionReglas: VERSION_REGLAS,
           versionPrompt: VERSION_PROMPT_VEREDICTO,
+          aguasArriba: resultado.aguasArriba,
         }),
       }
     })
