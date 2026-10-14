@@ -55,7 +55,8 @@ const mapaVariable: Record<VariableRadarUI, (value: number | null) => readonly [
 }
 
 const paintRaster: RasterLayerSpecification['paint'] = {
-  'raster-opacity': 0.82,
+  // La grilla es gruesa: de cerca (zoom a una escuela) se desvanece para no tapar el mapa.
+  'raster-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.82, 11, 0.35, 13, 0.15],
   'raster-resampling': 'linear',
 }
 
