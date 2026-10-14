@@ -36,6 +36,8 @@ export type ResumenEventosReportados = {
   resumenProvincial: ResumenProvincial[]
   sinUbicacionPrecisa: LugarSinPrecision[]
   total: number
+  /** Registry date (YYYY-MM-DD) so the legend can show how old the event list is. */
+  actualizadoAl: string | null
 }
 
 type PuntoGeo = { type: 'Feature'; geometry: { coordinates: number[] }; properties: { name?: string; nombre?: string; centroide?: { lon: number; lat: number } } }
@@ -75,7 +77,7 @@ async function cargarJson(url: string): Promise<unknown> {
   return respuesta.json()
 }
 
-type ResultadoCarga = Pick<ResumenEventosReportados, 'resumenProvincial' | 'sinUbicacionPrecisa'> & { features: EventoUbicado[] }
+type ResultadoCarga = Pick<ResumenEventosReportados, 'resumenProvincial' | 'sinUbicacionPrecisa' | 'actualizadoAl'> & { features: EventoUbicado[] }
 
 async function cargarEventos(): Promise<ResultadoCarga> {
   const [eventos, evidenciasRespuesta, localidades, localizaciones, departamentos, gazetteer] = await Promise.all([
@@ -98,6 +100,7 @@ async function cargarEventos(): Promise<ResultadoCarga> {
     features: resultado.geojson.features,
     resumenProvincial: resultado.resumenProvincial,
     sinUbicacionPrecisa: resultado.sinUbicacionPrecisa,
+    actualizadoAl: resultado.actualizadoAl,
   }
 }
 
@@ -240,13 +243,14 @@ function CapaEventosReportadosActiva({
   useEffect(() => {
     const controller = new AbortController()
     cargarEventos()
-      .then(({ features, resumenProvincial, sinUbicacionPrecisa }) => {
+      .then(({ features, resumenProvincial, sinUbicacionPrecisa, actualizadoAl }) => {
         if (controller.signal.aborted) return
         setEventos(features)
         onResumenRef.current?.({
           resumenProvincial,
           sinUbicacionPrecisa,
           total: new Set(features.map((f) => f.properties.id_evento)).size,
+          actualizadoAl,
         })
       })
       .catch(() => {

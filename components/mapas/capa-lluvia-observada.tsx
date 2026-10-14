@@ -6,7 +6,13 @@ import { formatearFechaLocal } from '@/components/mapas/capa-estaciones-rio'
 
 export type HorasLluvia = 24 | 72
 
-export type MetaLluviaObservada = { hasta: string | null; horas: HorasLluvia; parciales: number }
+export type MetaLluviaObservada = {
+  hasta: string | null
+  horas: HorasLluvia
+  parciales: number
+  /** The API flags grids older than its freshness limit; the legend labels them as outdated. */
+  vencida: boolean
+}
 
 type PropiedadesCelda = { geometryRef: string; acumuladoMm: number; granulos: number; esperados: number; cobertura: number; parcial: boolean }
 
@@ -173,12 +179,18 @@ function CapaLluviaObservadaActiva({
     const controller = new AbortController()
     fetch(`/api/infraestructura/peligro/observado-grilla?horas=${horas}`, { signal: controller.signal })
       .then((respuestaHttp) => (respuestaHttp.ok ? respuestaHttp.json() : Promise.reject(new Error('observado-grilla'))))
-      .then((cuerpo: { desde?: unknown; hasta?: unknown; geojson?: { features?: unknown } }) => {
+      .then((cuerpo: { desde?: unknown; hasta?: unknown; vencida?: unknown; geojson?: { features?: unknown } }) => {
         if (!Array.isArray(cuerpo?.geojson?.features)) return
         const features = cuerpo.geojson.features as CeldaLluvia[]
         const hasta = typeof cuerpo.hasta === 'string' ? cuerpo.hasta : null
         setRespuesta({ desde: typeof cuerpo.desde === 'string' ? cuerpo.desde : null, hasta, features })
-        onMeta?.({ hasta, horas, parciales: features.filter((feature) => feature.properties?.parcial === true).length })
+        onMeta?.({
+          hasta,
+          horas,
+          parciales: features.filter((feature) => feature.properties?.parcial === true).length,
+          // Missing flag (older API) counts as outdated: never present unknown freshness as current.
+          vencida: cuerpo.vencida !== false,
+        })
       })
       .catch(() => {})
     return () => controller.abort()

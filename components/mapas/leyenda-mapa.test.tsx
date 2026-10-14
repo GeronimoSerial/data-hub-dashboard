@@ -10,11 +10,13 @@ describe('LeyendaMapa · altura de ríos', () => {
     const { container } = render(<LeyendaMapa pestana="estadisticas" estacionesRio />)
 
     const leyenda = within(container)
-    expect(leyenda.getByText('Altura de ríos')).toBeTruthy()
+    expect(leyenda.getByText('Estaciones de Prefectura')).toBeTruthy()
     expect(leyenda.getByText('Evacuación')).toBeTruthy()
     expect(leyenda.getByText('Alerta')).toBeTruthy()
     expect(leyenda.getByText('Normal')).toBeTruthy()
     expect(leyenda.getByText('Sin dato')).toBeTruthy()
+    expect(container.querySelectorAll('.map-insignia')).toHaveLength(4)
+    expect(leyenda.getByText('Sin dato también cuando la última lectura tiene más de 12 h.')).toBeTruthy()
   })
 
   it('no muestra la escala de altura de ríos cuando la capa está apagada', () => {
@@ -32,7 +34,7 @@ function colorCss(color: string): string {
 
 describe('LeyendaMapa · lluvia observada', () => {
   it('muestra la escala IMERG, la nota de estimación satelital y la fecha de corte en hora argentina', () => {
-    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: '2026-10-13T12:00:00Z', horas: 72, parciales: 0 }} />)
+    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: '2026-10-13T12:00:00Z', horas: 72, parciales: 0, vencida: false }} />)
 
     const leyenda = within(container)
     expect(leyenda.getByText('Lluvia observada 72 h (satélite IMERG)')).toBeTruthy()
@@ -44,16 +46,23 @@ describe('LeyendaMapa · lluvia observada', () => {
   })
 
   it('indica sin dato cuando no hay fecha de corte', () => {
-    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: null, horas: 24, parciales: 0 }} />)
+    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
 
     expect(within(container).getByText('Lluvia observada 24 h (satélite IMERG)')).toBeTruthy()
     expect(within(container).getByText(/Sin dato/)).toBeTruthy()
   })
 
   it('avisa las celdas con ventana incompleta solo cuando las hay', () => {
-    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: null, horas: 72, parciales: 3 }} />)
+    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: null, horas: 72, parciales: 3, vencida: false }} />)
 
     expect(within(container).getByText('3 celdas con ventana incompleta (ver detalle al hacer clic)')).toBeTruthy()
+  })
+
+  it('avisa que los datos están desactualizados cuando la observación está vencida', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: '2026-10-10T12:00:00Z', horas: 72, parciales: 0, vencida: true }} />)
+
+    const aviso = within(container).getByText(/Datos desactualizados: última observación 10\/10\/2026/)
+    expect(aviso.className).toContain('map-leyenda__aviso')
   })
 
   it('no muestra la leyenda de lluvia cuando la capa está apagada', () => {
@@ -158,7 +167,7 @@ describe('LeyendaMapa', () => {
 })
 
 describe('LeyendaMapa · eventos reportados', () => {
-  it('muestra la escala de confianza y la muestra punteada de ubicación por departamento cuando la capa está visible', () => {
+  it('muestra la escala de confianza con insignias y sin la referencia de ubicación departamental', () => {
     const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados />)
 
     const leyenda = within(container)
@@ -166,7 +175,14 @@ describe('LeyendaMapa · eventos reportados', () => {
     expect(leyenda.getByText('Confianza alta')).toBeTruthy()
     expect(leyenda.getByText('Confianza media')).toBeTruthy()
     expect(leyenda.getByText('Confianza baja')).toBeTruthy()
-    expect(leyenda.getByText('Ubicado sólo a nivel de departamento')).toBeTruthy()
+    expect(container.querySelectorAll('.map-insignia')).toHaveLength(3)
+    expect(leyenda.queryByText('Ubicado sólo a nivel de departamento')).toBeNull()
+  })
+
+  it('muestra la fecha de registro actualizado en dd/MM sin desplazamiento de zona horaria', () => {
+    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={{ resumenProvincial: [], sinUbicacionPrecisa: [], actualizadoAl: '2026-10-13' }} />)
+
+    expect(within(container).getByText('Registro actualizado al 13/10')).toBeTruthy()
   })
 
   it('no muestra la leyenda de eventos reportados cuando la capa está apagada', () => {
@@ -182,7 +198,7 @@ describe('LeyendaMapa · altura de ríos y eventos según pestaña', () => {
     const { container } = render(<LeyendaMapa {...props} estacionesRio eventosReportados />)
 
     const leyenda = within(container)
-    expect(leyenda.getByText('Altura de ríos')).toBeTruthy()
+    expect(leyenda.getByText('Estaciones de Prefectura')).toBeTruthy()
     expect(leyenda.getByText('Evacuación')).toBeTruthy()
     expect(leyenda.getByText('Alerta')).toBeTruthy()
     expect(leyenda.getByText('Normal')).toBeTruthy()
@@ -191,7 +207,7 @@ describe('LeyendaMapa · altura de ríos y eventos según pestaña', () => {
     expect(leyenda.getByText('Confianza alta')).toBeTruthy()
     expect(leyenda.getByText('Confianza media')).toBeTruthy()
     expect(leyenda.getByText('Confianza baja')).toBeTruthy()
-    expect(leyenda.getByText('Ubicado sólo a nivel de departamento')).toBeTruthy()
+    expect(leyenda.queryByText('Ubicado sólo a nivel de departamento')).toBeNull()
   })
 })
 
@@ -218,6 +234,7 @@ describe('LeyendaMapa · resumen provincial de eventos', () => {
         { id: 'EV-7', lugar: 'Paso de los Libres' },
         { id: 'EV-8', lugar: 'Santo Tomé' },
       ],
+      actualizadoAl: null,
     }
     const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={resumen} />)
 
@@ -230,7 +247,7 @@ describe('LeyendaMapa · resumen provincial de eventos', () => {
   })
 
   it('no muestra el resumen cuando no hay eventos resumidos', () => {
-    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={{ resumenProvincial: [], sinUbicacionPrecisa: [] }} />)
+    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={{ resumenProvincial: [], sinUbicacionPrecisa: [], actualizadoAl: null }} />)
 
     expect(within(container).queryByText('Resumen provincial')).toBeNull()
   })

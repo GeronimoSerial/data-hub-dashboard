@@ -8,11 +8,11 @@ import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIV
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import { COLOR_ESTADO_ALTURA, etiquetaEstadoAltura } from '@/components/mapas/capa-estaciones-rio'
 import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import type { ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
+import { InsigniaLeyenda, type IdInsignia } from '@/lib/mapas/insignias-mapa'
 
-type ResumenEventosLeyenda = Pick<ResumenEventosReportados, 'resumenProvincial' | 'sinUbicacionPrecisa'>
+type ResumenEventosLeyenda = Pick<ResumenEventosReportados, 'resumenProvincial' | 'sinUbicacionPrecisa' | 'actualizadoAl'>
 
 type PropsLeyendaMapa =
   | { pestana: 'actual' }
@@ -29,49 +29,61 @@ const ESTADOS_LEYENDA = [
   { Icono: Check, etiqueta: 'Solucionada recientemente' },
 ] as const
 
-const ESTADOS_ALTURA_RIO = ['evacuacion', 'alerta', 'normal', 'sin_dato'] as const
+const ESTADOS_ALTURA_RIO: ReadonlyArray<{ id: IdInsignia; etiqueta: string }> = [
+  { id: 'estacion-evacuacion', etiqueta: 'Evacuación' },
+  { id: 'estacion-alerta', etiqueta: 'Alerta' },
+  { id: 'estacion-normal', etiqueta: 'Normal' },
+  { id: 'estacion-sin-dato', etiqueta: 'Sin dato' },
+]
 
 function LeyendaAlturaRios() {
   return (
     <aside className="map-leyenda" aria-label="Altura de ríos">
-      <b className="map-leyenda__titulo">Altura de ríos</b>
+      <b className="map-leyenda__titulo">Estaciones de Prefectura</b>
       <ul className="map-leyenda__fila">
-        {ESTADOS_ALTURA_RIO.map((estado) => (
-          <li className="map-leyenda__elemento" key={estado}>
-            <span aria-hidden="true" className="map-leyenda__muestra" style={{ backgroundColor: COLOR_ESTADO_ALTURA[estado] }} />
-            <span>{etiquetaEstadoAltura(estado)}</span>
+        {ESTADOS_ALTURA_RIO.map(({ id, etiqueta }) => (
+          <li className="map-leyenda__elemento" key={id}>
+            <InsigniaLeyenda id={id} tamano={22} />
+            <span>{etiqueta}</span>
           </li>
         ))}
       </ul>
+      <small className="muted">Sin dato también cuando la última lectura tiene más de 12 h.</small>
     </aside>
   )
 }
 
-const CONFIANZA_EVENTOS = [
-  { confianza: 'alta', etiqueta: 'Confianza alta', color: '#7c2d12' },
-  { confianza: 'media', etiqueta: 'Confianza media', color: '#c2410c' },
-  { confianza: 'baja', etiqueta: 'Confianza baja', color: '#fdba74' },
-] as const
+const CONFIANZA_EVENTOS: ReadonlyArray<{ id: IdInsignia; etiqueta: string }> = [
+  { id: 'evento-alta', etiqueta: 'Confianza alta' },
+  { id: 'evento-media', etiqueta: 'Confianza media' },
+  { id: 'evento-baja', etiqueta: 'Confianza baja' },
+]
+
+const FORMATO_FECHA_REGISTRO = /^(\d{4})-(\d{2})-(\d{2})$/
+
+function formatearFechaRegistro(fecha: string): string | null {
+  const coincidencia = FORMATO_FECHA_REGISTRO.exec(fecha)
+  if (!coincidencia) return null
+  return `${coincidencia[3]}/${coincidencia[2]}`
+}
 
 function LeyendaEventosReportados({ resumen }: { resumen?: ResumenEventosLeyenda | null }) {
   const resumenProvincial = resumen?.resumenProvincial ?? []
   const sinUbicacionPrecisa = resumen?.sinUbicacionPrecisa ?? []
+  const registroActualizado = resumen?.actualizadoAl ? formatearFechaRegistro(resumen.actualizadoAl) : null
 
   return (
     <aside className="map-leyenda" aria-label="Eventos reportados">
       <b className="map-leyenda__titulo">Eventos reportados</b>
       <ul className="map-leyenda__fila">
-        {CONFIANZA_EVENTOS.map(({ confianza, etiqueta, color }) => (
-          <li className="map-leyenda__elemento" key={confianza}>
-            <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--rombo" style={{ backgroundColor: color }} />
+        {CONFIANZA_EVENTOS.map(({ id, etiqueta }) => (
+          <li className="map-leyenda__elemento" key={id}>
+            <InsigniaLeyenda id={id} />
             <span>{etiqueta}</span>
           </li>
         ))}
-        <li className="map-leyenda__elemento">
-          <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--rombo map-leyenda__muestra--punteada" />
-          <span>Ubicado sólo a nivel de departamento</span>
-        </li>
       </ul>
+      {registroActualizado && <small className="muted">{`Registro actualizado al ${registroActualizado}`}</small>}
       {resumenProvincial.length > 0 && (
         <section className="map-leyenda__resumen">
           <b className="map-leyenda__subtitulo">Resumen provincial</b>
@@ -123,6 +135,7 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
         ))}
       </ul>
       <small>Hasta: {hasta ?? 'Sin dato'}</small>
+      {meta.vencida && <small className="map-leyenda__aviso">{`Datos desactualizados: última observación ${hasta ?? 'sin dato'}.`}</small>}
       <small>Estimación satelital, no medición en tierra. Hacé clic en el mapa para ver el valor.</small>
       {meta.parciales > 0 && <small>{meta.parciales} celdas con ventana incompleta (ver detalle al hacer clic)</small>}
     </aside>

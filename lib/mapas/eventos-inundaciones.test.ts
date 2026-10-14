@@ -5,6 +5,7 @@ import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometri
 import { auditarUbicaciones,
   centroidesLocalidadesEscuelas,
   puntosDeLocalidades,
+  fechaMasReciente,
   etiquetaConfianza,
   etiquetaEstado,
   EVENTOS_INUNDACIONES_URLS,
@@ -301,7 +302,7 @@ describe('ubicarEventos', () => {
       evento({ id_evento: 'EV-3', localidad: 'Campo Z', departamento: 'Nadie', tipo_afectacion: 'provincial' }),
       evento({ id_evento: 'EV-4', localidad: 'Nada', departamento: 'Nadie' }),
     ])
-    const filas = auditarUbicaciones({ geojson, sinUbicar, sinUbicacionPrecisa, resumenProvincial, descartados: [] })
+    const filas = auditarUbicaciones({ geojson, sinUbicar, sinUbicacionPrecisa, resumenProvincial, descartados: [], actualizadoAl: null })
     expect(filas).toContainEqual({ id: 'EV-1', lugar: 'Bonpland', metodo: 'localidad', osm: null, lat: -28.4, lon: -58.1 })
     expect(filas).toContainEqual({ id: 'EV-2', lugar: 'Campo X', metodo: 'no determinada', osm: null, lat: null, lon: null })
     expect(filas).toContainEqual({ id: 'EV-3', lugar: 'Campo Z', metodo: 'resumen', osm: null, lat: null, lon: null })
@@ -630,5 +631,12 @@ describe('puntosDeLocalidades', () => {
       [{ localidad: 'GOYA', lat: -29.1487, lon: -59.2611, geoCalidad: null }],
     )
     expect(puntos[0]).toMatchObject({ nombre: 'GOYA', lat: -29.1487 })
+  })
+})
+
+describe('fechaMasReciente', () => {
+  it('returns the latest leading date and ignores free text without a date', () => {
+    expect(fechaMasReciente(['2026-10-12', '2026-10-13 (aprox.)', 'no informado', null])).toBe('2026-10-13')
+    expect(fechaMasReciente(['sin fecha'])).toBeNull()
   })
 })

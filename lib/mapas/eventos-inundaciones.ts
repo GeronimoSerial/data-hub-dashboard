@@ -109,6 +109,8 @@ export type ResultadoUbicacion = {
   sinUbicacionPrecisa: LugarSinPrecision[]
   resumenProvincial: ResumenProvincial[]
   descartados: EventoDescartado[]
+  /** Latest `ultima_actualizacion` date (YYYY-MM-DD) in the registry, or null. Lets the map show the registry age. */
+  actualizadoAl: string | null
 }
 
 export type EntradaUbicacion = {
@@ -623,7 +625,16 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
     sinUbicacionPrecisa,
     resumenProvincial,
     descartados,
+    actualizadoAl: fechaMasReciente(datos.eventos.features.map((evento) => evento.properties.ultima_actualizacion)),
   }
+}
+
+/** Latest leading YYYY-MM-DD among free-text registry dates ('2026-10-12', '2026-10-13 (aprox.)'). */
+export function fechaMasReciente(valores: readonly unknown[]): string | null {
+  const fechas = valores
+    .map((valor) => /^(\d{4}-\d{2}-\d{2})/.exec(String(valor ?? ''))?.[1])
+    .filter((fecha): fecha is string => fecha !== undefined)
+  return fechas.length === 0 ? null : fechas.sort().at(-1)!
 }
 
 /**

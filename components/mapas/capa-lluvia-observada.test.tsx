@@ -142,7 +142,7 @@ describe('CapaLluviaObservada', () => {
   it('vuelve a pedir los datos al cambiar la ventana a 24 horas y avisa la fecha de corte y las celdas parciales', async () => {
     const onMeta = vi.fn()
     const { rerender } = render(<CapaLluviaObservada visible horas={72} onMeta={onMeta} />)
-    await waitFor(() => expect(onMeta).toHaveBeenCalledWith({ hasta: '2026-10-13T00:00:00Z', horas: 72, parciales: 1 }))
+    await waitFor(() => expect(onMeta).toHaveBeenCalledWith({ hasta: '2026-10-13T00:00:00Z', horas: 72, parciales: 1, vencida: true }))
 
     rerender(<CapaLluviaObservada visible horas={24} onMeta={onMeta} />)
     await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith('/api/infraestructura/peligro/observado-grilla?horas=24', expect.anything()))
