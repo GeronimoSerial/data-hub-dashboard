@@ -1859,9 +1859,11 @@ export default function MapInfraestructuraPage(props: {
           ))}
 
           </Fragment>
-          <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} />
-          <CapaEventosReportados visible={capasVisibles.eventosReportados} onResumen={setResumenEventos} />
-          <CapaEstacionesRio visible={capasVisibles.estacionesRio} />
+          {/* Stacking (bottom → top): rain raster below the department areas; events
+              below stations, both below the school layers. DOM popups sit above all GL layers. */}
+          <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} beforeId={CAPA_DEPARTAMENTOS_RELLENO_ID} />
+          <CapaEventosReportados visible={capasVisibles.eventosReportados} onResumen={setResumenEventos} beforeId={CAPA_PARTES_ID} />
+          <CapaEstacionesRio visible={capasVisibles.estacionesRio} beforeId={CAPA_PARTES_ID} />
         </MapGL>
       </div>
 

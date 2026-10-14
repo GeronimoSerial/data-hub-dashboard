@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Marker, Popup } from 'react-map-gl/maplibre'
+import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
+import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
 import {
   puntosDeLocalidades,
   EVENTOS_INUNDACIONES_URLS,
@@ -18,15 +19,12 @@ import { DEPARTAMENTOS_URL } from '@/lib/mapas/departamentos'
 import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 
 const LOCALIDADES_URL = '/data/localities.geojson'
-const DESPLAZAMIENTO_PX = 8
+const RADIO_DESPLAZAMIENTO = 1.1
 const MAX_HECHOS = 3
-const COLOR_SIN_CONFIANZA = '#9ca3af'
-
-const COLOR_CONFIANZA: Record<string, string> = {
-  alta: '#7c2d12',
-  media: '#c2410c',
-  baja: '#fdba74',
-}
+const ID_CAPA = 'eventos-reportados-simbolos'
+const ID_FUENTE = 'eventos-reportados-src'
+const INSIGNIAS_EVENTOS = ['evento-alta', 'evento-media', 'evento-baja'] as const
+const CONFIANZAS = ['alta', 'media', 'baja'] as const
 
 const ETIQUETA_PRECISION: Record<string, string> = {
   localidad: 'localidad',
@@ -42,8 +40,17 @@ export type ResumenEventosReportados = {
 
 type PuntoGeo = { type: 'Feature'; geometry: { coordinates: number[] }; properties: { name?: string; nombre?: string; centroide?: { lon: number; lat: number } } }
 
-function texto(valor: unknown): string {
-  return valor == null || valor === '' ? 'Sin dato' : String(valor)
+type PuntoEvento = {
+  type: 'Feature'
+  geometry: { type: 'Point'; coordinates: [number, number] }
+  properties: {
+    indice: number
+    titulo: string
+    lugar: string
+    confianza: string
+    insignia: string
+    desplazamiento: [number, number]
+  }
 }
 
 function puntosDeGeojson(datos: unknown): { nombre: string; lon: number; lat: number }[] {
@@ -152,12 +159,78 @@ function PopupEvento({ propiedades }: { propiedades: EventoUbicado['properties']
   )
 }
 
-export function CapaEventosReportados({ visible, onResumen }: { visible: boolean; onResumen?: (resumen: ResumenEventosReportados) => void }) {
-  const [eventos, setEventos] = useState<EventoUbicado[]>([])
-  const [seleccionado, setSeleccionado] = useState<number | null>(null)
+function insigniaDe(confianza: string): string {
+  const normalizada = (CONFIANZAS as readonly string[]).includes(confianza) ? confianza : 'baja'
+  return `evento-${normalizada}`
+}
 
-  const pedidaRef = useRef(false)
-  const controladorRef = useRef<AbortController | null>(null)
+// Events placed on identical coordinates are spread on a ring so each badge stays clickable.
+// Groups of one keep [0, 0]; the n-th of k>1 features sits at angle 2πn/k, radius RADIO_DESPLAZAMIENTO.
+function desplazamientosDe(eventos: EventoUbicado[]): [number, number][] {
+  const tamanos = new Map<string, number>()
+  for (const evento of eventos) {
+    const clave = evento.geometry.coordinates.join(',')
+    tamanos.set(clave, (tamanos.get(clave) ?? 0) + 1)
+  }
+  const vistos = new Map<string, number>()
+  const redondeo = (valor: number) => Math.round(valor * 1000) / 1000
+  return eventos.map((evento) => {
+    const clave = evento.geometry.coordinates.join(',')
+    const k = tamanos.get(clave) ?? 1
+    if (k <= 1) return [0, 0]
+    const n = vistos.get(clave) ?? 0
+    vistos.set(clave, n + 1)
+    const angulo = (2 * Math.PI * n) / k
+    return [redondeo(RADIO_DESPLAZAMIENTO * Math.cos(angulo)), redondeo(RADIO_DESPLAZAMIENTO * Math.sin(angulo))]
+  })
+}
+
+function puntosDe(eventos: EventoUbicado[], desplazamientos: [number, number][]): { type: 'FeatureCollection'; features: PuntoEvento[] } {
+  return {
+    type: 'FeatureCollection',
+    features: eventos.map((evento, indice) => {
+      const confianza = String(evento.properties.confianza)
+      return {
+        type: 'Feature',
+        geometry: evento.geometry,
+        properties: {
+          indice,
+          titulo: String(evento.properties.titulo),
+          lugar: String(evento.properties.lugar),
+          confianza,
+          insignia: insigniaDe(confianza),
+          desplazamiento: desplazamientos[indice],
+        },
+      }
+    }),
+  }
+}
+
+export function CapaEventosReportados({
+  visible,
+  beforeId,
+  onResumen,
+}: {
+  visible: boolean
+  beforeId?: string
+  onResumen?: (resumen: ResumenEventosReportados) => void
+}) {
+  if (!visible) return null
+  return <CapaEventosReportadosActiva beforeId={beforeId} onResumen={onResumen} />
+}
+
+function CapaEventosReportadosActiva({
+  beforeId,
+  onResumen,
+}: {
+  beforeId?: string
+  onResumen?: (resumen: ResumenEventosReportados) => void
+}) {
+  const [eventos, setEventos] = useState<EventoUbicado[]>([])
+  const [listo, setListo] = useState(false)
+  const [seleccionado, setSeleccionado] = useState<number | null>(null)
+  const [enfocado, setEnfocado] = useState<number | null>(null)
+  const { current: mapa } = useMap()
   const onResumenRef = useRef(onResumen)
 
   useEffect(() => {
@@ -165,10 +238,7 @@ export function CapaEventosReportados({ visible, onResumen }: { visible: boolean
   })
 
   useEffect(() => {
-    if (!visible || pedidaRef.current) return
-    pedidaRef.current = true
     const controller = new AbortController()
-    controladorRef.current = controller
     cargarEventos()
       .then(({ features, resumenProvincial, sinUbicacionPrecisa }) => {
         if (controller.signal.aborted) return
@@ -179,51 +249,90 @@ export function CapaEventosReportados({ visible, onResumen }: { visible: boolean
           total: new Set(features.map((f) => f.properties.id_evento)).size,
         })
       })
-      .catch(() => setEventos([]))
-  }, [visible])
+      .catch(() => {
+        if (!controller.signal.aborted) setEventos([])
+      })
+    return () => controller.abort()
+  }, [])
 
-  useEffect(() => () => controladorRef.current?.abort(), [])
-
-  // Events placed on the same coordinates are spread horizontally so each marker stays clickable.
-  // Offsets start at one step (never [0,0]) and alternate sides: +1, -2, +3, ... steps.
-  const desplazamientos = useMemo(() => {
-    const porPunto = new Map<string, number>()
-    return eventos.map((evento) => {
-      const clave = evento.geometry.coordinates.join(',')
-      const indice = porPunto.get(clave) ?? 0
-      porPunto.set(clave, indice + 1)
-      const signo = indice % 2 === 0 ? 1 : -1
-      return signo * (indice + 1) * DESPLAZAMIENTO_PX
+  useEffect(() => {
+    let vigente = true
+    if (!mapa) return
+    registrarInsignias(mapa.getMap(), INSIGNIAS_EVENTOS).then(() => {
+      if (vigente) setListo(true)
     })
-  }, [eventos])
+    return () => {
+      vigente = false
+    }
+  }, [mapa])
 
-  if (!visible) return null
+  useEffect(() => {
+    if (!mapa || !listo) return
+    const indiceDe = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
+      const indice = evento.features?.[0]?.properties.indice
+      return typeof indice === 'number' ? indice : undefined
+    }
+    const alEntrar = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
+      const indice = indiceDe(evento)
+      if (indice === undefined) return
+      mapa.getCanvas().style.cursor = 'pointer'
+      setEnfocado(indice)
+    }
+    const alSalir = () => {
+      mapa.getCanvas().style.cursor = ''
+      setEnfocado(null)
+    }
+    const alHacerClic = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
+      const indice = indiceDe(evento)
+      if (indice !== undefined) setSeleccionado(indice)
+    }
+    mapa.on('mouseenter', ID_CAPA, alEntrar)
+    mapa.on('mouseleave', ID_CAPA, alSalir)
+    mapa.on('click', ID_CAPA, alHacerClic)
+    return () => {
+      mapa.off('mouseenter', ID_CAPA, alEntrar)
+      mapa.off('mouseleave', ID_CAPA, alSalir)
+      mapa.off('click', ID_CAPA, alHacerClic)
+    }
+  }, [mapa, listo])
+
+  const desplazamientos = useMemo(() => desplazamientosDe(eventos), [eventos])
+  const datos = useMemo(() => puntosDe(eventos, desplazamientos), [eventos, desplazamientos])
   const activo = seleccionado === null ? null : eventos[seleccionado] ?? null
+  const enfoque = enfocado === null ? null : eventos[enfocado] ?? null
 
   return (
     <>
-      {eventos.map((evento, indice) => {
-        const { properties: propiedades, geometry } = evento
-        const [lon, lat] = geometry.coordinates
-        const confianza = String(propiedades.confianza)
-        const color = COLOR_CONFIANZA[confianza] ?? COLOR_SIN_CONFIANZA
-        const soloDepartamento = propiedades.precisionMostrada === 'departamento'
-        const baja = confianza === 'baja'
-        const clases = ['map-marcador-evento']
-        if (soloDepartamento) clases.push('map-marcador-evento--departamento')
-        if (baja) clases.push('map-marcador-evento--baja')
-        return (
-          <Marker key={`${propiedades.id_evento}-${indice}`} className="map-marker-evento" longitude={lon} latitude={lat} anchor="center" offset={[desplazamientos[indice], 0]}>
-            <button
-              type="button"
-              aria-label={`Evento ${texto(propiedades.tipo_afectacion)} en ${propiedades.lugar}${baja ? ', confianza baja' : ''}`}
-              onClick={() => setSeleccionado(indice)}
-              className={clases.join(' ')}
-              style={{ background: color }}
-            />
-          </Marker>
-        )
-      })}
+      {listo && (
+        <Source id={ID_FUENTE} type="geojson" data={datos} attribution="Ubicaciones © OpenStreetMap contributors">
+          <Layer
+            id={ID_CAPA}
+            type="symbol"
+            beforeId={beforeId}
+            layout={{
+              'icon-image': ['get', 'insignia'],
+              'icon-offset': ['get', 'desplazamiento'],
+              'icon-allow-overlap': false,
+              'icon-ignore-placement': false,
+              'symbol-sort-key': ['match', ['get', 'confianza'], 'alta', 0, 'media', 1, 2],
+            }}
+            paint={{ 'icon-opacity': ['case', ['==', ['get', 'confianza'], 'baja'], 0.6, 1] }}
+          />
+        </Source>
+      )}
+      {enfoque && !activo && (
+        <Popup
+          longitude={enfoque.geometry.coordinates[0]}
+          latitude={enfoque.geometry.coordinates[1]}
+          anchor="bottom"
+          closeButton={false}
+          closeOnClick={false}
+          className="mapa-tooltip"
+          offset={18}
+        >
+          {`${enfoque.properties.titulo} · ${enfoque.properties.lugar} — clic para ver detalle`}
+        </Popup>
+      )}
       {activo && (
         <Popup
           longitude={activo.geometry.coordinates[0]}

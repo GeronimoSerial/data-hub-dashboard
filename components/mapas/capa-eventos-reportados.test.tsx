@@ -1,13 +1,44 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import { CapaEventosReportados } from './capa-eventos-reportados'
+import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
+
+const { mapa } = vi.hoisted(() => {
+  const manejadores = new Map<string, Array<(evento: unknown) => void>>()
+  const mapa = {
+    getMap: () => ({}),
+    getCanvas: () => ({ style: { cursor: '' } }),
+    on: (tipo: string, capa: string, fn: (evento: unknown) => void) => {
+      const clave = `${tipo}:${capa}`
+      manejadores.set(clave, [...(manejadores.get(clave) ?? []), fn])
+    },
+    off: (tipo: string, capa: string, fn: (evento: unknown) => void) => {
+      const clave = `${tipo}:${capa}`
+      manejadores.set(clave, (manejadores.get(clave) ?? []).filter((f) => f !== fn))
+    },
+    emitir: (tipo: string, capa: string, evento: unknown) => {
+      for (const fn of manejadores.get(`${tipo}:${capa}`) ?? []) fn(evento)
+    },
+  }
+  return { mapa }
+})
 
 vi.mock('react-map-gl/maplibre', () => ({
-  Marker: ({ children, offset }: { children: React.ReactNode; offset?: unknown }) => (
-    <div data-testid="marker" data-offset={JSON.stringify(offset ?? null)}>{children}</div>
+  Source: ({ id, data, attribution, children }: { id: string; data: unknown; attribution?: string; children: React.ReactNode }) => (
+    <div data-testid="source" data-props={JSON.stringify({ id, data, attribution })}>
+      {children}
+    </div>
   ),
-  Popup: ({ children }: { children: React.ReactNode }) => <div data-testid="popup">{children}</div>,
+  Layer: (props: Record<string, unknown>) => <div data-testid="layer" data-props={JSON.stringify(props)} />,
+  Popup: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div data-testid={className === 'mapa-tooltip' ? 'tooltip' : 'popup'}>{children}</div>
+  ),
+  useMap: () => ({ current: mapa }),
+}))
+
+vi.mock('@/lib/mapas/insignias-mapa', () => ({
+  registrarInsignias: vi.fn(),
 }))
 
 const EVENTOS = {
@@ -95,77 +126,101 @@ function mockFetch() {
   }) as unknown as typeof fetch
 }
 
+type Feature = {
+  geometry: { coordinates: [number, number] }
+  properties: { indice: number; confianza: string; insignia: string; desplazamiento: [number, number]; lugar: string }
+}
+
+function propsDe(testId: string): Record<string, any> {
+  return JSON.parse(screen.getByTestId(testId).getAttribute('data-props') ?? '{}')
+}
+
+async function fuenteCargada(): Promise<{ id: string; attribution: string; data: { features: Feature[] } }> {
+  await screen.findByTestId('source')
+  await waitFor(() => expect(propsDe('source').data.features).toHaveLength(3))
+  return propsDe('source') as { id: string; attribution: string; data: { features: Feature[] } }
+}
+
+function indiceDe(features: Feature[], confianza: string): number {
+  return features.find((f) => f.properties.confianza === confianza)!.properties.indice
+}
+
 describe('CapaEventosReportados', () => {
-  beforeEach(() => mockFetch())
+  beforeEach(() => {
+    mockFetch()
+    vi.mocked(registrarInsignias).mockResolvedValue(undefined)
+  })
 
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
   })
 
-  it('muestra un marcador accesible por evento ubicado', async () => {
+  it('publica una feature por evento ubicado con la insignia de su confianza', async () => {
     render(<CapaEventosReportados visible />)
 
-    expect(await screen.findByRole('button', { name: 'Evento Evacuados en Bonpland' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Evento Cortes de ruta en Bonpland' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Evento Daños en Paso de los Libres, confianza baja' })).toBeTruthy()
+    const fuente = await fuenteCargada()
+    expect(fuente.id).toBe('eventos-reportados-src')
+    expect(fuente.data.features.map((f) => f.properties.insignia).sort()).toEqual(['evento-alta', 'evento-baja', 'evento-media'])
+    expect(registrarInsignias).toHaveBeenCalledWith(expect.anything(), ['evento-alta', 'evento-media', 'evento-baja'])
   })
 
-  it('desplaza los marcadores que comparten coordenadas para que todos sean clicables', async () => {
-    const { container } = render(<CapaEventosReportados visible />)
-    await screen.findByRole('button', { name: 'Evento Evacuados en Bonpland' })
-
-    // EV-1 and EV-2 both resolve to Bonpland; EV-3 is elsewhere. No marker may sit at [0,0],
-    // so a station centred on an event stays clickable.
-    const marcadores = Array.from(container.querySelectorAll('[data-testid="marker"]')).map((m) => m.getAttribute('data-offset'))
-    expect(marcadores[0]).not.toBe(marcadores[1])
-    expect(marcadores[0]).not.toBe(JSON.stringify([0, 0]))
-    expect(marcadores[2]).not.toBe(JSON.stringify([0, 0]))
-  })
-
-  it('marca con borde punteado los eventos ubicados sólo a nivel de departamento', async () => {
+  it('desplaza los eventos co-ubicados con desplazamientos distintos y no nulos', async () => {
     render(<CapaEventosReportados visible />)
 
-    const departamento = await screen.findByRole('button', { name: 'Evento Daños en Paso de los Libres, confianza baja' })
-    expect(departamento.className).toContain('map-marcador-evento--departamento')
-    const localidad = screen.getByRole('button', { name: 'Evento Evacuados en Bonpland' })
-    expect(localidad.className).not.toContain('map-marcador-evento--departamento')
+    const { data } = await fuenteCargada()
+    const alta = data.features.find((f) => f.properties.confianza === 'alta')!
+    const media = data.features.find((f) => f.properties.confianza === 'media')!
+    const baja = data.features.find((f) => f.properties.confianza === 'baja')!
+    expect(alta.geometry.coordinates).toEqual(media.geometry.coordinates)
+    expect(alta.properties.desplazamiento).not.toEqual([0, 0])
+    expect(media.properties.desplazamiento).not.toEqual([0, 0])
+    expect(alta.properties.desplazamiento).not.toEqual(media.properties.desplazamiento)
+    expect(baja.properties.desplazamiento).toEqual([0, 0])
   })
 
-  it('muestra el popup en lenguaje de lectura con fuente, estado y badge de confianza', async () => {
+  it('atribuye OpenStreetMap en la fuente', async () => {
     render(<CapaEventosReportados visible />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Evento Evacuados en Bonpland' }))
+    const fuente = await fuenteCargada()
+    expect(fuente.attribution).toBe('Ubicaciones © OpenStreetMap contributors')
+  })
+
+  it('crea la capa de símbolos antes de beforeId y no permite solapamiento de insignias', async () => {
+    render(<CapaEventosReportados visible beforeId="etiquetas-mapa" />)
+
+    await fuenteCargada()
+    const capa = propsDe('layer')
+    expect(capa.id).toBe('eventos-reportados-simbolos')
+    expect(capa.beforeId).toBe('etiquetas-mapa')
+    expect(capa.layout['icon-allow-overlap']).toBe(false)
+    expect(capa.layout['icon-image']).toEqual(['get', 'insignia'])
+  })
+
+  it('al hacer clic en un evento abre el popup con su fuente y confianza', async () => {
+    render(<CapaEventosReportados visible />)
+
+    const fuente = await fuenteCargada()
+    const indice = indiceDe(fuente.data.features, 'alta')
+    act(() => mapa.emitir('click', 'eventos-reportados-simbolos', { features: [{ properties: { indice } }] }))
 
     const popup = await waitFor(() => screen.getByTestId('popup'))
-    expect(within(popup).getByText('Evacuados')).toBeTruthy()
-    expect(within(popup).getByText('Estado sin informar')).toBeTruthy()
     expect(within(popup).getByText('Confianza alta')).toBeTruthy()
-    expect(within(popup).getByText('Ubicación aproximada: localidad')).toBeTruthy()
-    const enlace = within(popup).getByRole('link', { name: 'Diario Local, 1/10' })
-    expect(enlace.getAttribute('href')).toBe('https://example.test/nota')
-    expect(enlace.getAttribute('target')).toBe('_blank')
-    expect(enlace.getAttribute('rel')).toBe('noopener noreferrer')
-    expect(within(popup).getByText('ver 1 fuentes más')).toBeTruthy()
-    expect(within(popup).getByRole('link', { name: 'Prefectura, 2/10' })).toBeTruthy()
+    expect(within(popup).getByRole('link', { name: 'Diario Local, 1/10' }).getAttribute('href')).toBe('https://example.test/nota')
   })
 
-  it('no imprime texto con formato de identificador en el popup', async () => {
+  it('al pasar el cursor muestra un tooltip de una línea con título, lugar y pista de clic', async () => {
     render(<CapaEventosReportados visible />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Evento Evacuados en Bonpland' }))
+    const fuente = await fuenteCargada()
+    const indice = indiceDe(fuente.data.features, 'baja')
+    act(() => mapa.emitir('mouseenter', 'eventos-reportados-simbolos', { features: [{ properties: { indice } }] }))
 
-    const popup = await waitFor(() => screen.getByTestId('popup'))
-    expect(popup.textContent ?? '').not.toMatch(/[a-z]+_[a-z]+/)
-  })
-
-  it('marca con opacidad reducida y nombra la confianza baja en los marcadores de baja confianza', async () => {
-    render(<CapaEventosReportados visible />)
-
-    const baja = await screen.findByRole('button', { name: 'Evento Daños en Paso de los Libres, confianza baja' })
-    expect(baja.className).toContain('map-marcador-evento--baja')
-    const alta = screen.getByRole('button', { name: 'Evento Evacuados en Bonpland' })
-    expect(alta.className).not.toContain('map-marcador-evento--baja')
+    const tooltip = await waitFor(() => screen.getByTestId('tooltip'))
+    expect(tooltip.textContent ?? '').toMatch(/^.+ · .+ — clic para ver detalle$/)
+    expect(tooltip.textContent ?? '').toContain(' · ')
+    act(() => mapa.emitir('mouseleave', 'eventos-reportados-simbolos', {}))
+    await waitFor(() => expect(screen.queryByTestId('tooltip')).toBeNull())
   })
 
   it('informa el resumen provincial y el total de eventos dibujados tras cargar', async () => {
@@ -188,9 +243,11 @@ describe('CapaEventosReportados', () => {
 
   it('no rompe la capa si alguna carga falla', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('red caída')) as unknown as typeof fetch
-    const { container } = render(<CapaEventosReportados visible />)
+    render(<CapaEventosReportados visible />)
 
+    await screen.findByTestId('source')
     await waitFor(() => expect(global.fetch).toHaveBeenCalled())
-    expect(container.querySelectorAll('button').length).toBe(0)
+    expect(propsDe('source').data.features).toHaveLength(0)
+    expect(screen.queryByTestId('popup')).toBeNull()
   })
 })

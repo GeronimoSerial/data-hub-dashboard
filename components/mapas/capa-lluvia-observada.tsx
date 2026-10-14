@@ -145,21 +145,25 @@ export function CapaLluviaObservada({
   visible,
   horas,
   onMeta,
+  beforeId,
 }: {
   visible: boolean
   horas: HorasLluvia
   onMeta?: (meta: MetaLluviaObservada) => void
+  beforeId?: string
 }) {
   if (!visible) return null
-  return <CapaLluviaObservadaActiva horas={horas} onMeta={onMeta} />
+  return <CapaLluviaObservadaActiva horas={horas} onMeta={onMeta} beforeId={beforeId} />
 }
 
 function CapaLluviaObservadaActiva({
   horas,
   onMeta,
+  beforeId,
 }: {
   horas: HorasLluvia
   onMeta?: (meta: MetaLluviaObservada) => void
+  beforeId?: string
 }) {
   const [respuesta, setRespuesta] = useState<RespuestaLluvia | null>(null)
   const [clic, setClic] = useState<ClicLluvia | null>(null)
@@ -189,23 +193,24 @@ function CapaLluviaObservadaActiva({
 
   useEffect(() => {
     if (!mapa) return
-    const alEntrar = () => {
-      mapa.getCanvas().style.cursor = 'pointer'
-    }
-    const alSalir = () => {
-      mapa.getCanvas().style.cursor = ''
-    }
-    const alHacerClic = (evento: { lngLat: { lng: number; lat: number }; features?: Array<{ properties: unknown }> }) => {
+    // The rain covers the whole province: no pointer cursor (it would make every
+    // spot look clickable), and a click over a point marker (school, station,
+    // event) belongs to that marker, not to the rain cell under it.
+    const alHacerClic = (evento: {
+      point: { x: number; y: number }
+      lngLat: { lng: number; lat: number }
+      features?: Array<{ properties: unknown }>
+    }) => {
       const propiedades = evento.features?.[0]?.properties as PropiedadesCelda | undefined
       if (!propiedades) return
+      const marcadores = mapa
+        .queryRenderedFeatures([evento.point.x, evento.point.y])
+        .filter((feature) => feature.layer.type === 'symbol' || feature.layer.type === 'circle')
+      if (marcadores.length > 0) return
       setClic({ lon: evento.lngLat.lng, lat: evento.lngLat.lat, propiedades })
     }
-    mapa.on('mouseenter', ID_HIT, alEntrar)
-    mapa.on('mouseleave', ID_HIT, alSalir)
     mapa.on('click', ID_HIT, alHacerClic)
     return () => {
-      mapa.off('mouseenter', ID_HIT, alEntrar)
-      mapa.off('mouseleave', ID_HIT, alSalir)
       mapa.off('click', ID_HIT, alHacerClic)
     }
   }, [mapa])
@@ -221,12 +226,13 @@ function CapaLluviaObservadaActiva({
           <Layer
             id="lluvia-observada-raster"
             type="raster"
+            beforeId={beforeId}
             paint={{ 'raster-opacity': 0.65, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }}
           />
         </Source>
       )}
       <Source id="lluvia-observada-hit-src" type="geojson" data={datosHit as never}>
-        <Layer id={ID_HIT} type="fill" paint={{ 'fill-opacity': 0 }} />
+        <Layer id={ID_HIT} type="fill" beforeId={beforeId} paint={{ 'fill-opacity': 0 }} />
       </Source>
       {clic && (
         <Popup longitude={clic.lon} latitude={clic.lat} anchor="bottom" onClose={() => setClic(null)} closeOnClick={false}>

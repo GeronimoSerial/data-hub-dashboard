@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { CapaLluviaObservada, CLASES_LLUVIA, pintarGrillaLluvia } from './capa-lluvia-observada'
 
-const mapa = vi.hoisted(() => ({ on: vi.fn(), off: vi.fn(), getCanvas: vi.fn(() => ({ style: {} })) }))
+const mapa = vi.hoisted(() => ({
+  on: vi.fn(),
+  off: vi.fn(),
+  getCanvas: vi.fn(() => ({ style: {} })),
+  queryRenderedFeatures: vi.fn((): Array<{ layer: { type: string } }> => []),
+}))
 
 vi.mock('react-map-gl/maplibre', () => ({
   Source: ({ id, children }: { id: string; children: React.ReactNode }) => <div data-testid="source" data-id={id}>{children}</div>,
@@ -151,16 +156,17 @@ describe('CapaLluviaObservada', () => {
     expect(container.querySelector('[data-testid="source"]')).toBeNull()
   })
 
-  it('registra clic y cursor sobre la capa de valores y muestra el valor de la celda con su ventana', async () => {
+  it('registra el clic sobre la capa de valores (sin cursor de mano) y muestra el valor de la celda con su ventana', async () => {
     render(<CapaLluviaObservada visible horas={72} />)
     await waitFor(() => expect(screen.getAllByTestId('source').length).toBeGreaterThan(0))
 
     const manejadorClic = mapa.on.mock.calls.find((llamada) => llamada[0] === 'click' && llamada[1] === 'lluvia-observada-hit')?.[2]
     expect(manejadorClic).toBeTypeOf('function')
-    expect(mapa.on.mock.calls.map((llamada) => llamada[0])).toEqual(expect.arrayContaining(['mouseenter', 'mouseleave']))
+    expect(mapa.on.mock.calls.map((llamada) => llamada[0])).not.toContain('mouseenter')
 
     act(() => {
       manejadorClic({
+        point: { x: 10, y: 10 },
         lngLat: { lng: -58.8, lat: -27.4 },
         features: [{ properties: CELDA_PARCIAL }],
       })
@@ -172,12 +178,25 @@ describe('CapaLluviaObservada', () => {
     expect(popup.textContent).toContain('Ventana incompleta: 100/144 gránulos (cobertura 69 %) — el valor puede subestimar la lluvia.')
   })
 
+  it('no abre el popup de lluvia cuando el clic cae sobre un marcador', async () => {
+    render(<CapaLluviaObservada visible horas={72} />)
+    await waitFor(() => expect(screen.getAllByTestId('source').length).toBeGreaterThan(0))
+    const manejadorClic = mapa.on.mock.calls.find((llamada) => llamada[0] === 'click' && llamada[1] === 'lluvia-observada-hit')?.[2]
+    mapa.queryRenderedFeatures.mockReturnValueOnce([{ layer: { type: 'symbol' } }])
+
+    act(() => {
+      manejadorClic({ point: { x: 10, y: 10 }, lngLat: { lng: -58.8, lat: -27.4 }, features: [{ properties: CELDA_PARCIAL }] })
+    })
+
+    expect(screen.queryByTestId('popup')).toBeNull()
+  })
+
   it('quita los listeners del mapa al desmontar', async () => {
     const { unmount } = render(<CapaLluviaObservada visible horas={72} />)
     await waitFor(() => expect(screen.getAllByTestId('source').length).toBeGreaterThan(0))
 
     unmount()
-    expect(mapa.off.mock.calls.map((llamada) => llamada[0])).toEqual(expect.arrayContaining(['click', 'mouseenter', 'mouseleave']))
+    expect(mapa.off.mock.calls.map((llamada) => llamada[0])).toEqual(expect.arrayContaining(['click']))
   })
 
   it('expone las clases de lluvia con su umbral y etiqueta en orden creciente', () => {
