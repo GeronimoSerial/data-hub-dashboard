@@ -94,5 +94,7 @@ describe('jobs.mjs — migración del esquema antes de despachar', () => {
       }
       rmSync(dir, { recursive: true, force: true })
     }
-  })
+    // Migra una base completa y corre el job real: bajo carga en paralelo supera los
+    // 5 s por defecto (timeout intermitente observado), no es un cuelgue.
+  }, 30_000)
 })
