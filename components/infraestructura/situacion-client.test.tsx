@@ -38,9 +38,6 @@ beforeEach(() => {
     if (url.includes('/situacion/cambios')) {
       return { ok: true, json: async () => CAMBIOS_VACIOS }
     }
-    if (url.includes('/briefings/ultimo')) {
-      return { ok: true, json: async () => ({ textoFinal: 'Briefing IA disponible', fuente: 'plantilla', salidaIa: null, creadaEn: '2026-09-27T12:00:00.000Z' }) }
-    }
     return { ok: true, json: async () => ESTADO_CON_CORTE }
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -62,51 +59,6 @@ describe('SituacionClient', () => {
     ).toHaveTextContent('2')
     expect(screen.getByTestId('situacion-kpi-Escuelas con riesgo alto o muy alto (24 h)')).toHaveTextContent('3')
     expect(screen.getByTestId('situacion-kpi-Fuentes vencidas')).toHaveTextContent('1')
-  })
-
-  it('carga y muestra el briefing asistido cuando el flag está habilitado', async () => {
-    render(<SituacionClient estadoInicial={ESTADO_CON_CORTE} aiBriefingEnabled />)
-    expect(await screen.findByText('Briefing IA disponible')).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledWith('/api/infraestructura/briefings/ultimo')
-  })
-
-  it('muestra un estado vacío ante 404', async () => {
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url.includes('/situacion/cambios')) return { ok: true, json: async () => CAMBIOS_VACIOS }
-      if (url.includes('/briefings/ultimo')) return { ok: false, status: 404, json: async () => ({ error: 'No hay briefings generados todavía' }) }
-      return { ok: true, json: async () => ESTADO_CON_CORTE }
-    })
-    const { rerender } = render(<SituacionClient estadoInicial={ESTADO_CON_CORTE} aiBriefingEnabled />)
-    expect(await screen.findByText('Todavía no hay un briefing generado.')).toBeInTheDocument()
-    fetchMock.mockClear()
-    rerender(<SituacionClient estadoInicial={ESTADO_CON_CORTE} aiBriefingEnabled={false} />)
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/briefings/ultimo'))).toBe(false)
-  })
-
-  it('muestra un error distinto si falla la carga del briefing', async () => {
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url.includes('/situacion/cambios')) return { ok: true, json: async () => CAMBIOS_VACIOS }
-      if (url.includes('/briefings/ultimo')) return { ok: false, status: 500, json: async () => ({ error: 'Error interno' }) }
-      return { ok: true, json: async () => ESTADO_CON_CORTE }
-    })
-    render(<SituacionClient estadoInicial={ESTADO_CON_CORTE} aiBriefingEnabled />)
-    expect(await screen.findByText('No se pudo cargar el briefing asistido.')).toBeInTheDocument()
-    expect(screen.queryByText('Todavía no hay un briefing generado.')).not.toBeInTheDocument()
-  })
-
-  it('si falla la conexión, muestra el error de carga', async () => {
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url.includes('/situacion/cambios')) return { ok: true, json: async () => CAMBIOS_VACIOS }
-      if (url.includes('/briefings/ultimo')) throw new Error('Error de red')
-      return { ok: true, json: async () => ESTADO_CON_CORTE }
-    })
-    render(<SituacionClient estadoInicial={ESTADO_CON_CORTE} aiBriefingEnabled />)
-    expect(await screen.findByText('No se pudo cargar el briefing asistido.')).toBeInTheDocument()
-  })
-
-  it('no solicita briefing si el flag está apagado', () => {
-    render(<SituacionClient estadoInicial={ESTADO_CON_CORTE} aiBriefingEnabled={false} />)
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/briefings/ultimo'))).toBe(false)
   })
 
   it('enlaza la exportación CSV al endpoint cuando hay corte y la deshabilita sin corte', () => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
-  aiBriefingEnabled,
+  aiVeredictoEnabled,
   hazardContextEnabled,
   listarFlagsOperativas,
   riskEngineEnabled,
@@ -13,7 +13,7 @@ import {
 const CLAVES = [
   'RISK_ENGINE_ENABLED',
   'RISK_RADAR_ENABLED',
-  'AI_BRIEFING_ENABLED',
+  'AI_VEREDICTO_ENABLED',
   'RISK_MODE',
   'HAZARD_CONTEXT_ENABLED',
   'SEASONAL_ENABLED',
@@ -39,7 +39,7 @@ type BooleanFlag = readonly [string, string, () => boolean, string]
 const BOOLEAN_FLAGS: readonly BooleanFlag[] = [
   ['riskEngineEnabled', 'RISK_ENGINE_ENABLED', riskEngineEnabled, 'devuelve false sin la variable seteada'],
   ['riskRadarEnabled', 'RISK_RADAR_ENABLED', riskRadarEnabled, 'devuelve false sin la variable seteada'],
-  ['aiBriefingEnabled', 'AI_BRIEFING_ENABLED', aiBriefingEnabled, 'devuelve false sin la variable seteada'],
+  ['aiVeredictoEnabled', 'AI_VEREDICTO_ENABLED', aiVeredictoEnabled, 'devuelve false sin la variable seteada'],
   ['hazardContextEnabled', 'HAZARD_CONTEXT_ENABLED', hazardContextEnabled, 'devuelve false sin la variable seteada'],
   ['seasonalEnabled', 'SEASONAL_ENABLED', seasonalEnabled, 'devuelve false por defecto (sin la variable seteada)'],
   ['situacionEnabled', 'SITUACION_ENABLED', situacionEnabled, 'devuelve false sin la variable seteada'],
@@ -87,7 +87,7 @@ describe('listarFlagsOperativas', () => {
   it('enumera todos los flags y refleja process.env al momento de la llamada', () => {
     const lista = listarFlagsOperativas()
     expect(lista.map(({ nombre }) => nombre)).toEqual([
-      'RISK_ENGINE_ENABLED', 'RISK_RADAR_ENABLED', 'AI_BRIEFING_ENABLED',
+      'RISK_ENGINE_ENABLED', 'RISK_RADAR_ENABLED', 'AI_VEREDICTO_ENABLED',
       'HAZARD_CONTEXT_ENABLED', 'SEASONAL_ENABLED',
       'RISK_MODE', 'SITUACION_ENABLED', 'EPISODIOS_DERIVADOS_ENABLED', 'ENOS_JOBS_ENABLED',
     ])

@@ -1,3 +1,16 @@
+/*
+  Apilado (ver app/globals.css, sección del mapa): el canvas GL queda debajo,
+  los marcadores DOM encima, después los paneles y la leyenda, y arriba de todo
+  los popups y tooltips. .maplibregl-map no aísla para que puedan superarlos.
+*/
+.maplibregl-marker {
+  z-index: 1;
+}
+
+.maplibregl-popup {
+  z-index: 40;
+}
+
 .maplibregl-popup-content {
   background: transparent;
   box-shadow: none;
@@ -5,10 +18,34 @@
   border-radius: 0;
 }
 
+/*
+  Botón de cierre dentro de la esquina superior derecha del popup. El área de
+  32 px cumple el mínimo táctil; el padding derecho de .map-popup deja lugar.
+*/
 .maplibregl-popup-close-button {
-  font-size: 18px;
+  top: 4px;
+  right: 4px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  line-height: 1;
+  font-size: 20px;
+  background: transparent;
+  color: var(--ink-soft);
   z-index: 1;
-  color: inherit;
+}
+
+.maplibregl-popup-close-button:hover,
+.maplibregl-popup-close-button:focus-visible {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.maplibregl-popup-close-button:focus-visible {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 1px;
 }
 
 /*
@@ -19,6 +56,10 @@
 */
 .mapa-tooltip {
   pointer-events: none;
+}
+
+.mapa-tooltip.maplibregl-popup {
+  z-index: 41;
 }
 
 .mapa-tooltip .maplibregl-popup-content {
@@ -65,4 +106,71 @@
   color: var(--ink);
   font-size: var(--t-small);
   cursor: pointer;
+}
+
+/*
+  Popup de evento reportado. Título y badge de confianza comparten fila; el
+  subtítulo y la nota de ubicación van atenuados para que el titular mande.
+*/
+.map-popup-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.map-popup-cabecera .map-popup-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.map-popup-subtitle {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+}
+
+.map-popup-hechos {
+  margin: var(--s-2) 0 0;
+  padding-left: var(--s-4);
+  font-size: var(--t-micro);
+}
+
+.map-popup-badge {
+  flex-shrink: 0;
+  padding: 1px var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.map-popup-badge--alta {
+  background: var(--ok-tint);
+  color: var(--ok);
+}
+
+.map-popup-badge--media {
+  background: var(--warn-tint);
+  color: var(--warn);
+}
+
+.map-popup-badge--baja {
+  background: var(--fill);
+  color: var(--ink-soft);
+}
+
+.map-popup-fuentes {
+  margin: var(--s-1) 0;
+  font-size: var(--t-micro);
+}
+
+.map-popup-fuentes summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.map-popup-fuentes ul {
+  margin: var(--s-1) 0 0;
+  padding-left: var(--s-4);
 }

@@ -2091,6 +2091,20 @@ time {
 
 /* ── Map overlays ──────────────────────────────────────────────────────── */
 
+/*
+  Orden de apilado de la página de mapa (de abajo hacia arriba):
+    1. Canvas GL (.maplibregl-map, sin contexto de apilado propio)
+    2. Marcadores DOM (.maplibregl-marker, z 1), p. ej. escuela destacada
+    3. Paneles, leyenda, controles (.map-panel / .map-leyenda / .map-controls-stack, z 2 a 21)
+    4. Popups (.maplibregl-popup y .radar-meteo-popup, z 40) y tooltips (z 41)
+    5. Modales (--z-modal 80)
+  `.maplibregl-map` no aísla: si lo hiciera, sus popups quedarían encerrados debajo
+  de la leyenda y los paneles, que son hermanos del contenedor y no hijos.
+*/
+.maplibregl-map {
+  position: relative;
+}
+
 .map-shell { --map-sidebar-ancho: 24rem; position: relative; width: 100%; height: 100%; flex-grow: 1; min-height: 0; }
 .map-root { position: absolute; inset: 0; }
 .map-panel {
@@ -2148,12 +2162,17 @@ time {
 .map-leyenda {
   position: absolute;
   z-index: 2;
-  left: calc(55px + var(--map-sidebar-ancho) + var(--s-3));
-  bottom: var(--s-3);
+  /* Bottom-right, above the attribution line and the fullscreen button, so it
+     never covers the province or a popup opened near the center. */
+  right: var(--s-3);
+  bottom: 4.25rem;
   display: grid;
-  gap: var(--s-2);
-  max-width: calc(100% - 55px - var(--map-sidebar-ancho) - var(--s-4));
-  padding: var(--s-2) var(--s-3);
+  min-width: 0;
+  width: min(20rem, calc(100% - 55px - var(--map-sidebar-ancho) - var(--s-4)));
+  max-height: min(45vh, 26rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--s-3);
   color: var(--ink);
   background: var(--card);
   border: 1px solid var(--line);
@@ -2161,7 +2180,38 @@ time {
   box-shadow: var(--e-float);
   font-size: var(--t-small);
 }
-.map-leyenda__fila {
+.map-leyenda__seccion {
+  min-width: 0;
+}
+.map-leyenda__seccion + .map-leyenda__seccion {
+  border-top: 1px solid var(--line);
+}
+.map-leyenda__seccion-titulo {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.map-leyenda__seccion-cuerpo {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: 0 0 var(--s-2);
+}
+.map-leyenda__bloque {
+  display: grid;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.map-leyenda__fila,
+.map-leyenda__escala,
+.map-leyenda__situacion {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2170,24 +2220,9 @@ time {
   padding: 0;
   list-style: none;
 }
-.map-leyenda__fila + .map-leyenda__fila {
-  border-top: 1px solid var(--line);
-  padding-top: var(--s-2);
-}
-.map-leyenda__actual {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-1) var(--s-2);
-}
 .map-leyenda__gravedades {
-  flex: 1 1 auto;
-  flex-wrap: wrap;
   gap: var(--s-1) var(--s-2);
 }
-.map-leyenda__actual .map-leyenda__elemento { gap: var(--s-1); }
-.map-leyenda__boton { flex: 0 0 auto; gap: var(--s-1); }
 .map-leyenda__simbolos {
   display: flex;
   flex-direction: column;
@@ -2197,7 +2232,6 @@ time {
   padding: 0;
   list-style: none;
 }
-.map-leyenda__simbolos[hidden] { display: none; }
 .map-leyenda__titulo {
   font-weight: 600;
   font-size: var(--t-small);
@@ -2219,6 +2253,43 @@ time {
   background: var(--page);
   border: 1.5px solid var(--ink-faint);
 }
+.map-leyenda__muestra--rombo {
+  border-radius: 0;
+  width: 0.6rem;
+  height: 0.6rem;
+  border: 2px solid var(--card);
+  transform: rotate(45deg);
+}
+.map-leyenda__muestra--punteada {
+  background: transparent;
+  border: 1.5px dashed var(--ink-soft);
+}
+.map-leyenda__subtitulo { font-weight: 600; overflow-wrap: anywhere; }
+/* Reported events list in the Situación actual panel: bounded height, own scroll. */
+.map-eventos__lista {
+  max-height: min(18rem, 40vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-width: 0;
+}
+/* Event rows carry an 18 px badge instead of the 4 px severity stripe; the
+   provincial row has no badge and spans the full width. */
+.map-sitact__fila.map-eventos__fila { grid-template-columns: 18px minmax(0, 1fr); }
+.map-sitact__fila.map-eventos__provincial { grid-template-columns: minmax(0, 1fr); cursor: default; }
+.map-eventos__etiqueta { margin: var(--s-2) 0 var(--s-1); font-size: var(--t-micro); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); }
+.map-sitact__eventos > summary { display: flex; align-items: baseline; gap: var(--s-2); cursor: pointer; list-style: none; }
+.map-sitact__eventos > summary::-webkit-details-marker { display: none; }
+.map-sitact__eventos > summary::before { content: '▸'; color: var(--ink-faint); }
+.map-sitact__eventos[open] > summary::before { content: '▾'; }
+.map-sitact__eventos .map-sitact__titulo-seccion { flex: 1 1 auto; flex-wrap: wrap; row-gap: 2px; }
+.map-leyenda__aviso {
+  margin-top: var(--s-1);
+  padding: var(--s-1) var(--s-2);
+  border-radius: 4px;
+  background: var(--warn-tint);
+  color: var(--ink);
+  font-size: var(--t-small);
+}
 .map-leyenda__icono { width: 14px; height: 14px; flex: 0 0 auto; color: var(--ink); }
 .map-shell[data-radar-activo='true'] .map-leyenda {
   z-index: 13;
@@ -2226,8 +2297,9 @@ time {
 }
 @media (max-width: 720px) {
   .map-leyenda {
+    right: auto;
     left: 50%;
-    max-width: calc(100% - var(--s-4));
+    width: calc(100% - var(--s-4));
     transform: translateX(-50%);
   }
 }
@@ -2314,6 +2386,54 @@ time {
 .ficha-territorial__ayuda p,
 .ayuda-leyenda p,
 .ayuda-leyenda li { font-size: var(--t-small); margin: 0.25rem 0; }
+
+.ficha-territorial__conclusion {
+  margin: 0.25rem 0 0.15rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.ficha-territorial__razon {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.ficha-territorial--sin-datos .ficha-territorial__titulo {
+  margin: 0;
+}
+
+.ficha-territorial__detalle {
+  margin: 0.5rem 0;
+}
+
+.ficha-territorial__detalle > summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}
+
+.ficha-territorial__umbrales {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ficha-territorial__umbral {
+  min-width: 0;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line);
+}
+.ficha-territorial__umbral-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
+  gap: var(--s-1) var(--s-2);
+  margin: var(--s-1) 0 0;
+  font-size: var(--t-small);
+}
+.ficha-territorial__umbral-item { min-width: 0; }
+.ficha-territorial__umbral-item dt { color: var(--ink-soft); }
+.ficha-territorial__umbral-item dd { margin: 0; font-variant-numeric: tabular-nums; }
 
 .map-sitact__resumen-depto {
   display: grid;
@@ -2412,7 +2532,7 @@ time {
   box-shadow:0 8px 28px rgba(0,0,0,.28); backdrop-filter:blur(12px); border-radius:12px; font-size:12px;
 }
 .radar-meteo-loading { color:#b5d6e7; animation:radar-shimmer 1.3s infinite alternate; }
-.radar-meteo-skeleton { position:absolute; z-index:4; pointer-events:none; inset:0; background:linear-gradient(105deg,transparent 35%,rgba(180,220,245,.07) 48%,transparent 62%); background-size:220% 100%; animation:radar-skeleton 1.4s linear infinite; }
+.radar-meteo-skeleton { position:absolute; z-index:1; pointer-events:none; inset:0; background:linear-gradient(105deg,transparent 35%,rgba(180,220,245,.07) 48%,transparent 62%); background-size:220% 100%; animation:radar-skeleton 1.4s linear infinite; }
 @keyframes radar-shimmer { to { opacity:.4 } }
 @keyframes radar-skeleton { to { background-position:-220% 0; } }
 .radar-meteo-legend { right:16px; bottom:122px; width:224px; padding:12px; display:grid; gap:7px; }
@@ -2789,6 +2909,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   background: var(--card);
   color: var(--ink);
   padding: var(--s-3);
+  /* Espacio para el botón de cierre absoluto (32 px en la esquina superior derecha). */
+  padding-right: 2.25rem;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   box-shadow: var(--e-float);
@@ -2801,6 +2923,10 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   line-height: 1;
   margin: 0 0 var(--s-2);
 }
+.map-popup-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-2); }
+.map-popup-cabecera .map-popup-title { flex: 1 1 auto; min-width: 0; line-height: 1.15; overflow-wrap: break-word; }
+.map-popup-badge { flex: 0 0 auto; white-space: nowrap; }
+.map-popup-hechos { margin: var(--s-1) 0; padding-left: 1.1rem; }
 .map-popup-row { margin: 2px 0; }
 .map-popup-muted { color: var(--ink-soft); }
 .map-popup-rule { margin: var(--s-2) 0; border: 0; border-top: 1px solid var(--line-soft); }
@@ -2827,9 +2953,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .map-bloque-acceso__fila {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s-2);
   min-width: 0;
+}
+
+.map-bloque-acceso__fila > .badge {
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .map-bloque-acceso__fila > svg {
@@ -5995,3 +6128,246 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 @media (prefers-reduced-motion: reduce) {
   .metodologia .bar i, .metodologia .wf .seg, .metodologia-seccion--destacada { transition: none; animation: none; }
 }
+
+/* ── Veredicto diario ──────────────────────────────────────────────
+   Modal del mapa, acciones de exportación y vista pública del enlace.
+   Solo tokens existentes: superficie `--card` (opaca en ambos temas),
+   chips de nivel sobre `.badge` con la barra en `--nivel-peligro-*`. */
+.ui-dialog-popup.veredicto-modal { width: min(56rem, 100%); max-height: calc(100dvh - 2rem); }
+.veredicto-modal__cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); padding-right: var(--s-6); }
+.veredicto-modal__cabecera h2 { margin: 0; }
+.veredicto-modal__cuerpo { display: grid; gap: var(--s-5); margin-top: var(--s-4); }
+.veredicto-modal__estado { margin: var(--s-4) 0 0; color: var(--ink-soft); font-size: var(--t-small); }
+.veredicto-modal__estado--error { color: var(--danger-ink); }
+
+.veredicto-timeline { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.veredicto-timeline__dia { flex-direction: column; align-items: flex-start; gap: var(--s-1); padding: var(--s-2) var(--s-3); cursor: pointer; color: var(--ink); font-family: var(--font-body); }
+.veredicto-timeline__dia[aria-pressed='true'] { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--marker); }
+.veredicto-timeline__fecha { font-weight: 700; }
+.veredicto-timeline__tipo { color: var(--ink-faint); font-size: var(--t-micro); font-weight: 400; }
+
+.veredicto-detalle { display: grid; gap: var(--s-3); }
+.veredicto-detalle__encabezado { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.veredicto-detalle__encabezado h3 { margin: 0; font-size: 1.1rem; }
+.veredicto-detalle__meta { color: var(--ink-faint); font-size: var(--t-micro); }
+.veredicto-detalle p { margin: 0; }
+.veredicto-detalle__frases { margin: 0; padding-left: var(--s-4); display: grid; gap: var(--s-2); }
+.veredicto-detalle__refs { color: var(--ink-soft); font-size: var(--t-micro); }
+.veredicto-detalle__refs a { color: var(--accent); }
+.veredicto-detalle__nota { color: var(--ink-soft); font-size: var(--t-micro); }
+
+.veredicto-seccion { display: grid; gap: var(--s-2); padding-top: var(--s-4); border-top: 1px solid var(--line); }
+.veredicto-seccion h3, .veredicto-seccion h4 { margin: 0; font-size: var(--t-body); }
+.veredicto-seccion ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.veredicto-seccion__vacio { margin: 0; color: var(--ink-soft); font-size: var(--t-small); }
+.veredicto-depto { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3); background: var(--fill); border-radius: var(--r-sm); }
+.veredicto-depto__nombre { font-weight: 700; }
+.veredicto-depto__resumen { flex: 1 1 16rem; color: var(--ink-soft); font-size: var(--t-small); }
+.veredicto-depto__escuelas { flex: 1 1 100%; color: var(--ink-soft); font-size: var(--t-micro); }
+.veredicto-seccion__nota { margin: 0 0 var(--s-2); color: var(--ink-soft); font-size: var(--t-micro); }
+.veredicto-evento { display: grid; gap: var(--s-1); padding: var(--s-2) var(--s-3); border-left: 3px solid var(--line); font-size: var(--t-small); }
+.veredicto-evento a { color: var(--accent); }
+
+.badge.veredicto-nivel { background: var(--fill); color: var(--ink); border-left-color: var(--nivel-peligro-sin-dato); }
+.badge.veredicto-nivel--sin_senal { border-left-color: var(--line); color: var(--ink-soft); }
+.badge.veredicto-nivel--vigilancia { border-left-color: var(--nivel-peligro-amarillo); }
+.badge.veredicto-nivel--alerta { border-left-color: var(--nivel-peligro-naranja); }
+.badge.veredicto-nivel--severo { border-left-color: var(--nivel-peligro-rojo); background: var(--danger-tint); color: var(--danger-ink); }
+.badge.veredicto-calibracion { background: var(--warn-tint); color: var(--warn); }
+
+.veredicto-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.veredicto-acciones__estado { flex-basis: 100%; margin: 0; color: var(--ink-soft); font-size: var(--t-micro); }
+.veredicto-acciones__url { flex-basis: 100%; }
+
+/* Mismo botón que .map-fullscreen-btn, apilado encima de él. */
+.map-veredicto-btn { position: absolute; right: 12px; bottom: 69px; z-index: 3; }
+
+.veredicto-publico { min-height: 100dvh; background: var(--page); color: var(--ink); }
+.veredicto-publico__contenido { max-width: 52rem; margin: 0 auto; padding: var(--s-6) var(--s-4); display: grid; gap: var(--s-5); }
+.veredicto-publico__contenido h1 { margin: 0; font-size: 1.6rem; }
+.veredicto-publico__aviso { margin: 0; padding: var(--s-3) var(--s-4); background: var(--band); border-left: 3px solid var(--ink); font-size: var(--t-small); }
+.veredicto-publico__dia { display: grid; gap: var(--s-3); padding: var(--s-4) var(--s-5); background: var(--card); border: 1px solid var(--line); border-radius: var(--r-md); }
+.veredicto-publico__dia h2 { margin: 0; font-size: 1.15rem; }
+.veredicto-publico__fuentes { margin: 0; padding-left: var(--s-4); font-size: var(--t-small); }
+.veredicto-publico__fuentes a, .veredicto-publico a { color: var(--accent); }
+
+@media (max-width: 719px) {
+  .map-veredicto-btn { bottom: 90px; }
+  .map-shell[data-ficha-abierta="true"] .map-veredicto-btn { bottom: calc(60vh + 56px); }
+  .veredicto-publico__contenido { padding: var(--s-5) var(--s-4); }
+}
+
+/* Riesgo de la escuela en la ficha: "Riesgo actual (hoy)" (motor) y "Prioridad de planificación". */
+.riesgo-escuela { display: grid; gap: var(--s-3); margin: var(--s-3) 0; }
+.riesgo-escuela__bloque { display: grid; gap: var(--s-1); padding: var(--s-3); border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--fill); }
+.riesgo-escuela__bloque p, .riesgo-escuela__bloque ul { margin: 0; }
+.riesgo-escuela__bloque ul { padding-left: 1.1rem; font-size: var(--t-small); line-height: 1.4; }
+.riesgo-escuela__titulo { margin: 0; font-family: var(--font-display); font-size: var(--t-small); font-weight: 600; }
+.riesgo-escuela__subtitulo, .riesgo-escuela__nota { color: var(--ink-soft); font-size: var(--t-micro); }
+.riesgo-escuela__subtitulo-seccion { margin: var(--s-2) 0 0; font-size: var(--t-micro); font-weight: 600; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
+.riesgo-escuela__conclusion { font-weight: 600; line-height: 1.35; }
+.riesgo-escuela__nivel { justify-self: start; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: var(--t-micro); font-weight: 700; color: #fff; background: var(--nivel-peligro-sin-dato); }
+.riesgo-escuela__nivel--bajo { background: var(--nivel-peligro-verde); }
+.riesgo-escuela__nivel--moderado { background: var(--nivel-peligro-amarillo); color: #1f1f1f; }
+.riesgo-escuela__nivel--alto { background: var(--nivel-peligro-naranja); color: #1f1f1f; }
+.riesgo-escuela__nivel--muy_alto { background: var(--nivel-peligro-rojo); }
+.riesgo-escuela__tecnico { margin-top: var(--s-2); font-size: var(--t-micro); color: var(--ink-soft); }
+.riesgo-escuela__tecnico > summary { cursor: pointer; font-weight: 600; }
+.riesgo-escuela__tecnico > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.riesgo-escuela__tecnico dl { display: grid; gap: var(--s-1); margin: var(--s-2) 0 0; }
+.riesgo-escuela__tecnico dt { font-weight: 600; }
+.riesgo-escuela__tecnico dd { margin: 0; overflow-wrap: anywhere; }
+.riesgo-escuela__nivel--bajo { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.riesgo-escuela__planificacion { display: grid; gap: 2px; margin: 0; font-size: var(--t-small); }
+.riesgo-escuela__planificacion > div { display: flex; justify-content: space-between; gap: var(--s-2); }
+.riesgo-escuela__planificacion dt { color: var(--ink-soft); }
+.riesgo-escuela__planificacion dd { margin: 0; font-weight: 600; }
+/* Radar: la leyenda (abajo a la derecha) se apila sobre la escala de lluvia, que ocupa
+   esa esquina por encima de la línea de tiempo; nunca se superponen. */
+.map-shell[data-radar-activo='true'] .map-leyenda--radar { bottom: calc(122px + 6.5rem); width: 224px; }
+.map-leyenda__fila { flex-wrap: wrap; }
+/* Resumen provincial de eventos: no lleva barra de color, ocupa todo el ancho de la fila. */
+.map-eventos__provincial { grid-template-columns: minmax(0, 1fr); cursor: default; border-left: 2px solid var(--ink-faint); border-bottom: 0; padding: var(--s-1) 0 var(--s-1) var(--s-2); }
+.map-eventos__provincial .map-sitact__nombre { font-size: var(--t-small); }
+.map-sitact__eventos > summary { display: flex; align-items: baseline; gap: var(--s-2); list-style: none; padding: var(--s-1) 0; }
+.map-sitact__eventos > summary::-webkit-details-marker { display: none; }
+.map-sitact__eventos > summary::before { content: ''; flex: none; width: 0.45rem; height: 0.45rem; border-right: 2px solid var(--ink-soft); border-bottom: 2px solid var(--ink-soft); transform: rotate(-45deg); transition: transform 0.15s; }
+.map-sitact__eventos[open] > summary::before { transform: rotate(45deg); }
+.map-sitact__eventos > summary > h3 { flex: 1; min-width: 0; }
+.map-sitact__eventos > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* Teléfono: pestañas en una fila propia (con scroll horizontal) y filtros debajo; nada se superpone. */
+@media (max-width: 720px) {
+  .mapa-pestanas-barra { flex-wrap: wrap; gap: var(--s-1); }
+  .mapa-pestanas-barra > .ui-tabs { flex: 1 1 100%; overflow-x: auto; scrollbar-width: none; }
+  .mapa-pestanas-barra > .ui-tabs::-webkit-scrollbar { display: none; }
+  .mapa-pestanas-barra .filtros-barra { flex: 1 1 100%; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+}
+@media (max-width: 720px) {
+  /* Radar en teléfono: la leyenda queda arriba de la escala de lluvia, no encima. */
+  .map-shell[data-radar-activo='true'] .map-leyenda { left: var(--s-2); transform: none; bottom: 7.5rem; max-width: calc(100% - 13rem); }
+}
+/* Dato con fecha en tooltip; atenuado si la fuente está vencida. Nota de procedencia tras un ícono. */
+.dato-fechado { cursor: help; border-radius: 2px; }
+.dato-fechado:focus-visible, .nota-info:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.dato-fechado--vencido { color: var(--ink-faint); }
+.nota-info { display: inline-flex; vertical-align: middle; margin-left: 0.25rem; color: var(--ink-faint); cursor: help; border-radius: 50%; }
+.nota-info:hover { color: var(--ink-soft); }
+.ficha-territorial__detalle-punto { display: block; color: var(--ink-soft); font-size: var(--t-micro); }
+/* Escritorio chico (1024–1279 px): panel lateral más angosto para dejar mapa útil. */
+@media (max-width: 1279px) and (min-width: 721px) {
+  .map-shell, .map-left-stack { --map-sidebar-ancho: 20rem; }
+}
+/* La esquina inferior derecha también tiene "Veredicto diario" sobre "Pantalla completa": la leyenda va arriba de ambos. */
+.map-shell:not([data-radar-activo='true']) .map-leyenda { bottom: 7.25rem; }
+
+/* Thin, subtle scrollbar for the left panel: never wider than the gutter it reserves. */
+.map-panel-lateral__cuerpo {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink-soft) 35%, transparent) transparent;
+  scrollbar-gutter: stable;
+}
+.map-panel-lateral__cuerpo::-webkit-scrollbar { width: 6px; }
+.map-panel-lateral__cuerpo::-webkit-scrollbar-track { background: transparent; }
+.map-panel-lateral__cuerpo::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink-soft) 35%, transparent);
+  border-radius: 999px;
+}
+
+/* Disclosure summaries: one chevron, centred, to the right of the title, never over it. */
+.ficha-territorial__ayuda > summary,
+.ayuda-leyenda > summary,
+.ficha-territorial__detalle > summary,
+.riesgo-escuela__tecnico > summary,
+.map-sitact__eventos > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  list-style: none;
+}
+.ficha-territorial__ayuda > summary::-webkit-details-marker,
+.ayuda-leyenda > summary::-webkit-details-marker,
+.ficha-territorial__detalle > summary::-webkit-details-marker,
+.riesgo-escuela__tecnico > summary::-webkit-details-marker { display: none; }
+.map-sitact__eventos > summary::before,
+.map-sitact__eventos[open] > summary::before { content: none; }
+.ficha-territorial__ayuda > summary::after,
+.ayuda-leyenda > summary::after,
+.ficha-territorial__detalle > summary::after,
+.riesgo-escuela__tecnico > summary::after,
+.map-sitact__eventos > summary::after {
+  content: '';
+  flex: none;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-left: auto;
+  border-right: 2px solid var(--ink-soft);
+  border-bottom: 2px solid var(--ink-soft);
+  transform: translateY(-25%) rotate(45deg);
+  transition: transform 0.15s;
+}
+.ficha-territorial__ayuda[open] > summary::after,
+.ayuda-leyenda[open] > summary::after,
+.ficha-territorial__detalle[open] > summary::after,
+.riesgo-escuela__tecnico[open] > summary::after,
+.map-sitact__eventos[open] > summary::after { transform: translateY(25%) rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) {
+  .map-sitact__eventos > summary::after,
+  .riesgo-escuela__tecnico > summary::after { transition: none; }
+}
+
+/* One close button for every map popup and card: 32px hit area, centred 16px X. */
+.map-cerrar,
+.radar-escuela-card header button.map-cerrar,
+.radar-meteo-popup button.map-cerrar,
+.maplibregl-popup-close-button {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.map-cerrar > svg { width: 16px; height: 16px; }
+.map-cerrar:hover,
+.maplibregl-popup-close-button:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.map-cerrar:focus-visible,
+.maplibregl-popup-close-button:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; opacity: 1; }
+.radar-meteo-popup button.map-cerrar { position: absolute; top: 4px; right: 4px; }
+.maplibregl-popup-close-button { position: absolute; top: 2px; right: 2px; }
+.radar-meteo-popup > strong { display: block; padding-right: 32px; }
+
+/* School sheet floats on the right so the side panel underneath keeps its content. */
+.map-ficha-flotante {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  bottom: var(--s-3);
+  z-index: 14;
+  width: min(24rem, calc(100vw - 80px));
+  max-height: calc(100% - 2 * var(--s-3));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
+  box-shadow: var(--e-float);
+  padding: 0.7rem 0.95rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink-soft) 35%, transparent) transparent;
+}
+@media (max-width: 1100px) {
+  /* Too narrow for two columns: the sheet covers the side panel instead of the map. */
+  .map-ficha-flotante { left: 55px; right: auto; }
+}
+.map-ficha-escuela__cerrar { justify-self: end; margin: -0.35rem -0.5rem -0.75rem 0; }
+
+/* Map popups sit above every panel and the legend (see the stacking order above). */
+.radar-meteo-popup { z-index: 40; }

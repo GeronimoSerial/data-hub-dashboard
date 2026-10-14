@@ -64,7 +64,7 @@ describe('GET /api/infraestructura/operacion/salud', () => {
     expect(data.flags).toBeTypeOf('object')
     expect(data.flags.riskEngineEnabled).toBeTypeOf('boolean')
     expect(data.flags.riskRadarEnabled).toBeTypeOf('boolean')
-    expect(data.flags.aiBriefingEnabled).toBeTypeOf('boolean')
+    expect(data.flags.aiVeredictoEnabled).toBeTypeOf('boolean')
     expect(['shadow', 'advisory']).toContain(data.flags.riskMode)
     expect(Array.isArray(data.jobs)).toBe(true)
     expect(data.generadoEn).toBeTypeOf('string')

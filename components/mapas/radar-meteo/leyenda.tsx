@@ -52,7 +52,13 @@ export function LeyendaRadar({
         onClick={() => setExpanded((current) => !current)}
       >
         <span className="radar-meteo-legend-title">
-          <b>{titulos[variable]}</b>
+          {/* Frescura en el tooltip; un pronóstico vencido se ve atenuado, sin texto de aviso. */}
+          <b
+            className={desactualizado ? 'is-stale' : undefined}
+            title={minutos != null ? `Actualizado ${formatearAntiguedad(minutos)}` : undefined}
+          >
+            {titulos[variable]}
+          </b>
           <small>{variable === 'lluvia' ? etiquetaUnidadLluvia(paso) : unidades[variable]}</small>
         </span>
         <span className={`radar-meteo-gradient radar-meteo-gradient--${variable}`} />
@@ -61,11 +67,6 @@ export function LeyendaRadar({
         <div className="radar-meteo-legend-labels">
           {etiquetas[variable].map((label) => <span key={label}>{label}</span>)}
         </div>
-        {minutos != null && (
-          <span className={desactualizado ? 'is-stale' : undefined}>
-            Actualizado {formatearAntiguedad(minutos)}
-          </span>
-        )}
       </div>
     </div>
   )

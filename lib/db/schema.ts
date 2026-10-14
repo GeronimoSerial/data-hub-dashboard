@@ -919,6 +919,69 @@ export const hidroLectura = pgTable(
   (t) => [uniqueIndex('hidro_lectura_estacion_medida_uidx').on(t.estacionId, t.medidaEn)],
 )
 
+// Precipitación SYNOP por estación (Ogimet, FM-12 grupos 6RRRt). Una fila por
+// estación, fin de período (`observado_en`, ISO UTC), duración y sección
+// (1 o 3). Una medición ya guardada se actualiza en lugar de duplicarse.
+export const lluviaEstacion = pgTable(
+  'lluvia_estacion',
+  {
+    id: text('id').primaryKey(),
+    estacionWmo: text('estacion_wmo').notNull(),
+    observadoEn: text('observado_en').notNull(),
+    periodoHoras: integer('periodo_horas').notNull(),
+    seccion: integer('seccion').notNull(),
+    precipitacionMm: doublePrecision('precipitacion_mm').notNull(),
+    traza: boolean('traza').notNull().default(false),
+    fuente: text('fuente').notNull().default('ogimet-synop'),
+    capturadaEn: text('capturada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('lluvia_estacion_uidx').on(t.estacionWmo, t.observadoEn, t.periodoHoras, t.seccion),
+    index('lluvia_estacion_observado_en_idx').on(t.observadoEn),
+  ],
+)
+
+// Nivel de referencia por estación de Prefectura: estadísticas de las lecturas
+// de los últimos `ventana_dias` días (página histórica de PNA). El motor usa la
+// mediana como el nivel "típico" al que corresponde la superficie de agua del
+// DEM (anomalía = lectura actual - mediana). Una fila por estación y ventana.
+export const hidroReferencia = pgTable(
+  'hidro_referencia',
+  {
+    estacionId: text('estacion_id').notNull(),
+    ventanaDias: integer('ventana_dias').notNull(),
+    n: integer('n').notNull(),
+    medianaM: doublePrecision('mediana_m').notNull(),
+    p10M: doublePrecision('p10_m').notNull(),
+    p90M: doublePrecision('p90_m').notNull(),
+    desde: text('desde').notNull(),
+    hasta: text('hasta').notNull(),
+    fuente: text('fuente').notNull().default('prefectura-historico'),
+    calculadoEn: text('calculado_en').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.estacionId, t.ventanaDias] })],
+)
+
+// Exposición física estática de la escuela al río según el DEM (geo-static,
+// job calcular_exposicion_rio_dem): cota del suelo (p10 DEM a 50 m), cota DEM
+// del agua permanente más cercana (p10 de píxeles GSW >= 90 a <= 2 km) y
+// distancia horizontal a ese agua. El motor la combina con el nivel actual del
+// río (anomalía de la estación) para la exposición dinámica "estimada".
+export const infraExposicionRioDem = pgTable(
+  'infra_exposicion_rio_dem',
+  {
+    cueAnexo: text('cue_anexo').notNull(),
+    versionJob: text('version_job').notNull(),
+    sueloM: real('suelo_m'),
+    nivelRioDemM: real('nivel_rio_dem_m'),
+    distanciaRioM: real('distancia_rio_m'),
+    fuente: text('fuente').notNull(),
+    fechaCorrida: text('fecha_corrida').notNull(),
+    importadoEn: text('importado_en').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })],
+)
+
 // E7a: episodios derivados (calculados automáticamente)
 // Episodio por unidad territorial (hoy sólo 'departamento'; el tipo queda
 // parametrizado para poder pasar a 'cuenca' en una versión futura de la
@@ -1165,6 +1228,71 @@ export const infraBriefingPresupuestoMes = pgTable('infra_briefing_presupuesto_m
   acumuladoUsd: real('acumulado_usd').notNull(),
   actualizadaEn: text('actualizada_en').notNull(),
 })
+
+// Veredicto diario de IA (ver docs/propuestas/veredicto-diario-ia.md). Cada
+// versión de un (fecha, ambito) queda registrada; `reemplazado_por` marca la
+// versión que la sucedió y la vigente es la de `reemplazado_por` nulo. Nunca
+// se borra una fila.
+export const infraVeredictoDia = pgTable(
+  'infra_veredicto_dia',
+  {
+    id: text('id').primaryKey(),
+    // Día ART en YYYY-MM-DD.
+    fecha: text('fecha').notNull(),
+    // 'provincia' | 'departamento:<id>'.
+    ambito: text('ambito').notNull(),
+    // 'observado' | 'hoy' | 'pronostico'.
+    tipoDia: text('tipo_dia').notNull(),
+    // 'sin_senal' | 'vigilancia' | 'alerta' | 'severo' | 'sin_dato'.
+    nivel: text('nivel').notNull(),
+    trazaReglas: jsonb('traza_reglas').$type<Record<string, unknown>>().notNull(),
+    versionReglas: text('version_reglas'),
+    metricas: jsonb('metricas').$type<Record<string, unknown>>().notNull(),
+    inputsHash: text('inputs_hash'),
+    cobertura: jsonb('cobertura').$type<Record<string, unknown>>().notNull(),
+    textoFinal: text('texto_final'),
+    salidaIa: jsonb('salida_ia').$type<Record<string, unknown> | null>(),
+    // 'ia' | 'plantilla'.
+    fuente: text('fuente').notNull(),
+    // Motivo por el que se usó la plantilla en lugar de la IA; null si fue IA.
+    motivoFallback: text('motivo_fallback'),
+    modelo: text('modelo'),
+    versionPrompt: text('version_prompt'),
+    tokensEntrada: integer('tokens_entrada'),
+    tokensSalida: integer('tokens_salida'),
+    costoUsd: real('costo_usd'),
+    latenciaMs: integer('latencia_ms'),
+    enCalibracion: boolean('en_calibracion').notNull().default(true),
+    generadoEn: text('generado_en').notNull(),
+    jobRunId: text('job_run_id'),
+    reemplazadoPor: text('reemplazado_por'),
+    cerrado: boolean('cerrado').notNull().default(false),
+  },
+  (t) => [
+    index('infra_veredicto_dia_hash_idx').on(t.fecha, t.ambito, t.inputsHash),
+    uniqueIndex('infra_veredicto_dia_vigente_uidx')
+      .on(t.fecha, t.ambito)
+      .where(sql`${t.reemplazadoPor} is null`),
+    index('infra_veredicto_dia_generado_en_idx').on(t.generadoEn),
+  ],
+)
+
+// Enlaces de acceso de solo lectura al veredicto. Solo se guarda el hash del
+// token; el token en claro nunca se persiste.
+export const infraVeredictoEnlace = pgTable(
+  'infra_veredicto_enlace',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull().unique(),
+    fechaDesde: text('fecha_desde'),
+    fechaHasta: text('fecha_hasta'),
+    creadoPor: text('creado_por').notNull(),
+    creadoEn: text('creado_en'),
+    venceEn: text('vence_en'),
+    revocadoEn: text('revocado_en'),
+    revocadoPor: text('revocado_por'),
+  },
+)
 
 // ============================================================
 // G1: capas territoriales estáticas

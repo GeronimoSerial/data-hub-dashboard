@@ -27,12 +27,11 @@ import {
   IMERG_LON_MAX,
   IMERG_LON_MIN,
   calcularIndicesGrillaImerg,
-  construirUrlSubsetImerg,
   listarGranulosDelPayload,
   mapearAsciiImergACeldas,
-  parsearRespuestaAsciiImerg,
 } from '../providers/imerg'
 import type { GranuloImerg, HazardObservationPunto } from '../providers/imerg'
+import { obtenerParseadoImerg } from '../providers/imerg-descarga'
 import type {
   GranuloSatelital,
   ObservacionPrecipitacionCelda,
@@ -106,12 +105,13 @@ export function crearAdaptadorImerg(
         IMERG_LON_MIN,
         IMERG_LON_MAX,
       )
-      const urlSubset = construirUrlSubsetImerg({ urlDatosGranulo: granulo.urlDatos, ...indices })
-      const respuesta = await fetchEfectivo()(urlSubset, { headers: autorizacion() })
-      if (!respuesta.ok) throw new Error(`subset HTTP ${respuesta.status}`)
-
-      // Es ASCII plano, no JSON.
-      const parseado = parsearRespuestaAsciiImerg(await respuesta.text())
+      // OPeNDAP ASCII; si no responde, fallback a la descarga HDF5 del gránulo.
+      const { parseado } = await obtenerParseadoImerg({
+        urlDatosGranulo: granulo.urlDatos,
+        indices,
+        fetchImpl: fetchEfectivo(),
+        headers: autorizacion(),
+      })
       const puntos = mapearAsciiImergACeldas({
         parseado,
         // El instante observado es el INICIO del gránulo; la ventana válida

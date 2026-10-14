@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, CircleHelp, Route, School, TriangleAlert } from 'lucide-react'
+import { Check, Info, Route, School, TriangleAlert } from 'lucide-react'
 import { lineasAcceso, type EtiquetaRiesgoAcceso } from '@/lib/infraestructura/mapa/acceso'
 import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
@@ -30,7 +30,7 @@ function LinkMetodologia({ seccion }: { seccion: string }) {
       aria-label="Cómo se calcula"
       title="Cómo se calcula"
     >
-      <CircleHelp aria-hidden="true" />
+      <Info aria-hidden="true" />
     </a>
   )
 }

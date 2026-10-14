@@ -17,7 +17,6 @@ vi.mock('./ficha-territorial', () => ({
 }))
 
 import { FichaAccesoTerritorial, type FichaAccesoTerritorialProps } from './ficha-acceso-territorial'
-import { FichaParteModal } from './ficha-parte-modal'
 
 const CUE = '1801605-04'
 
@@ -525,60 +524,5 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
     const detalle = container.querySelector('details')
     const visible = (container.textContent ?? '').replace(detalle?.textContent ?? '', '')
     expect(visible).not.toMatch(/OSM|OpenStreetMap|physrisk|período de retorno|escenario/i)
-  })
-})
-
-describe('FichaParteModal - gateo de la sección de acceso territorial', () => {
-  function stubFetch() {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.includes('/parte?')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ ok: true, periodo: null, parte: null, afectaciones: [] }),
-        } as Response)
-      }
-      if (url.includes('/historial?')) {
-        return Promise.resolve({ ok: true, json: async () => ({ movimientos: [] }) } as Response)
-      }
-      return Promise.reject(new Error(`URL inesperada: ${url}`))
-    })
-    vi.stubGlobal('fetch', fetchMock)
-    return fetchMock
-  }
-
-  const accesoTerritorial = props({
-    territorio: territorioCon({ [CUE]: filaAislamiento({ nivel: 1 }) }, null),
-  })
-
-  function renderModal(habilitado: boolean) {
-    return render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={null}
-        escuela={null}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-        habilitado={habilitado}
-        accesoTerritorial={accesoTerritorial}
-      />,
-    )
-  }
-
-  it('no renderiza la sección con `habilitado` en false', () => {
-    stubFetch()
-    renderModal(false)
-
-    expect(screen.queryByTestId('ficha-acceso-territorial')).not.toBeInTheDocument()
-  })
-
-  it('renderiza la sección con `habilitado` en true', () => {
-    stubFetch()
-    renderModal(true)
-
-    expect(screen.getByTestId('ficha-acceso-territorial')).toBeInTheDocument()
   })
 })

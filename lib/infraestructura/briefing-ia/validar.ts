@@ -89,7 +89,7 @@ function reemplazarConfusables(texto: string): string {
 // marcas combinantes) y por último resuelve homoglifos. El orden importa: el
 // mapa de confusables está escrito en minúsculas y sin tildes, así que corre
 // último.
-function normalizarSinTildes(texto: string): string {
+export function normalizarSinTildes(texto: string): string {
   const base = texto
     .normalize('NFKC')
     .toLowerCase()
@@ -290,18 +290,26 @@ function valorCoincide(numero: number, metrica: MetricaAutorizada): boolean {
   )
 }
 
+export interface OpcionesValidacionBriefing {
+  // Verificador de términos prohibidos. Por defecto, el de E8. Lo usa el
+  // veredicto diario (E-veredicto) con su propia lista de afirmaciones.
+  contieneTerminoProhibido?: (texto: string) => boolean
+}
+
 export function validarTrazabilidadBriefing(
   salida: SalidaBriefingIA,
   metricas: MetricaAutorizada[],
+  opciones: OpcionesValidacionBriefing = {},
 ): ResultadoValidacionBriefing {
   if (salida.frases.length === 0) {
     return { valida: false, motivo: MOTIVO_SIN_FRASES, frasesValidas: [] }
   }
 
   const metricasPorId = mapaMetricasPorId(metricas)
+  const verificarTermino = opciones.contieneTerminoProhibido ?? contieneTerminoProhibido
 
   for (const frase of salida.frases) {
-    if (contieneTerminoProhibido(frase.texto)) {
+    if (verificarTermino(frase.texto)) {
       return { valida: false, motivo: MOTIVO_TERMINO_PROHIBIDO, frasesValidas: [] }
     }
 

@@ -108,12 +108,12 @@ describe('PanelRadar', () => {
     render(<PanelRadar {...props({ puntos: conAmenaza })} />)
 
     const moderada = screen.getByRole('button', { name: 'Escuela Moderada, General Alvear' })
-    expect(within(moderada).getByText('Prioridad: Moderado')).toBeInTheDocument()
+    expect(within(moderada).getByText('Riesgo actual: Moderado')).toBeInTheDocument()
     expect(within(moderada).getByText('Amenaza: Muy alto')).toBeInTheDocument()
 
     // Sin dato de amenaza no se inventa un nivel: sólo queda la prioridad.
     const alta = screen.getByRole('button', { name: 'Escuela Alta, Bella Vista' })
-    expect(within(alta).getByText('Prioridad: Alto')).toBeInTheDocument()
+    expect(within(alta).getByText('Riesgo actual: Alto')).toBeInTheDocument()
     expect(within(alta).queryByText(/Amenaza/)).not.toBeInTheDocument()
   })
 
@@ -134,7 +134,7 @@ describe('PanelRadar', () => {
       'Escuela Moderada, General Alvear',
       'Escuela Baja, Ituzaingó',
     ])
-    expect(within(filas[3]).getByText('Prioridad: Bajo')).toBeInTheDocument()
+    expect(within(filas[3]).getByText('Riesgo actual: Bajo')).toBeInTheDocument()
     expect(within(filas[3]).getByText('Amenaza: Alto')).toBeInTheDocument()
     // Los KPIs siguen contando sólo la prioridad educativa alta o muy alta.
     expect(screen.getByText('Riesgo alto o muy alto').previousElementSibling).toHaveTextContent('2')
@@ -257,7 +257,7 @@ describe('PanelRadar', () => {
   it('muestra motor y pronóstico juntos, y pasa la selección del departamento', () => {
     const onDepartamento = vi.fn()
     render(<PanelRadar {...props({ pronostico: { ...pronosticoVacio, resumen: resumenMeteo(), onDepartamento } })} />)
-    expect(screen.getByText('Escuelas en riesgo')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo actual (hoy)')).toBeInTheDocument()
     expect(screen.getByText('Pronóstico por departamento')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Bella Vista, 70 mm' }))
     expect(onDepartamento).toHaveBeenCalledWith('bella-vista')

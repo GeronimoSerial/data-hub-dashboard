@@ -9,12 +9,17 @@ export type NombreJob =
   | 'sync-imerg'
   | 'climatologia-precipitacion'
   | 'climatologia-caudal'
+  | 'climatologia-imerg'
   | 'calcular-riesgo'
   | 'episodios-derivados'
   | 'sync-seasonal'
   | 'situacion-corte'
-  | 'briefing-ia'
+  | 'veredicto-diario'
+  | 'veredicto-cierre'
   | 'sync-prefectura-alturas'
+  | 'sync-synop-lluvia'
+  | 'sync-prefectura-historico'
+  | 'importar-exposicion-rio-dem'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
   // Cada 6h para alinearse con las corridas ECMWF 00/06/12/18 UTC.
@@ -32,9 +37,10 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
   // Corte del Centro de Situación: cadencia horaria, también encadenado tras
   // calcular-riesgo (la cadencia base declarada es 1h).
   'situacion-corte': { minutos: 60, descripcion: 'Genera el corte del Centro de Situación (cada hora, y encadenado tras calcular-riesgo)' },
-  // Briefing narrativo asistido por IA a partir del corte ya persistido; corre
-  // 10min después de situacion-corte para asegurar que el corte esté listo.
-  'briefing-ia': { minutos: 60, descripcion: 'Genera el briefing narrativo asistido por IA a partir del corte del Centro de Situación (cada hora)' },
+  // Veredicto diario asistido por IA: corre en los slots de 6h (00/06/12/18 UTC).
+  'veredicto-diario': { minutos: 360, descripcion: 'Genera los veredictos diarios asistidos por IA (cada 6h)' },
+  // Cierre del día ART anterior; una corrida diaria alcanza.
+  'veredicto-cierre': { minutos: 1440, descripcion: 'Cierra el día anterior de veredictos (diario)' },
   // Proceso pesado de agregación: alcanza con una corrida diaria.
   'geo-perfiles': { minutos: 1440, descripcion: 'Reconstruye los perfiles geográficos (diario)' },
   // Open-Meteo Seasonal (EC46+SEAS5): capa opcional de tendencia a 30-90 días
@@ -67,10 +73,32 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
     minutos: 1440,
     descripcion: 'Climatología de caudal (diario, avanza por cursor resumable de cupo)',
   },
+  // NASA IMERG Final diario: corrida diaria con presupuesto de días por corrida
+  // (cursor resumable por mes en hazard_precipitacion_serie). Al completar el
+  // período cada corrida sólo recalcula; al cambiar el año extiende la serie.
+  'climatologia-imerg': {
+    minutos: 1440,
+    descripcion: 'Climatología de precipitación NASA IMERG Final (diario, cursor resumable por mes)',
+  },
   // Alturas horarias de Prefectura (PNA); la fuente publica una tabla por hora.
   'sync-prefectura-alturas': {
     minutos: 60,
     descripcion: 'Sincroniza alturas hidrométricas de Prefectura Naval Argentina (cada hora)',
+  },
+  // Lluvia medida en estaciones SMN (SYNOP vía Ogimet): una consulta por estación por hora.
+  'sync-synop-lluvia': {
+    minutos: 60,
+    descripcion: 'Sincroniza lluvia medida (SYNOP 6RRRt) de estaciones SMN vía Ogimet (cada hora)',
+  },
+  // Nivel de referencia por estación (mediana de 365 días del histórico de PNA).
+  'sync-prefectura-historico': {
+    minutos: 1440,
+    descripcion: 'Recalcula el nivel de referencia (365 días) de cada estación de Prefectura (diario)',
+  },
+  // Capa estática versionada (geo-static): idempotente, no-op si ya está importada.
+  'importar-exposicion-rio-dem': {
+    minutos: 1440,
+    descripcion: 'Importa la exposición estática escuela-río del DEM (geo-static, diario e idempotente)',
   },
 }
 
@@ -87,12 +115,19 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'sync-hazard-imerg': 'sync-imerg',
   'calculo-climatologia': 'climatologia-precipitacion',
   'calcular-hazard-climatologia-caudal': 'climatologia-caudal',
+  'calculo-climatologia-imerg': 'climatologia-imerg',
   'calcular-riesgo-v0': 'calcular-riesgo',
   'episodios-derivados-v0': 'episodios-derivados',
   'sync-hazard-seasonal': 'sync-seasonal',
   'situacion-corte-v1': 'situacion-corte',
-  'briefing-ia-v0': 'briefing-ia',
+  // 'briefing-ia-v0' (E8) se quitó junto con el job briefing-ia: las corridas
+  // históricas de ese tipo ya no se mapean a un NombreJob.
+  'veredicto-diario-v0': 'veredicto-diario',
+  'veredicto-cierre-v0': 'veredicto-cierre',
   'sync-prefectura-alturas': 'sync-prefectura-alturas',
+  'sync-synop-lluvia': 'sync-synop-lluvia',
+  'sync-prefectura-historico': 'sync-prefectura-historico',
+  'importar-exposicion-rio-dem': 'importar-exposicion-rio-dem',
 }
 
 // Un job está atrasado cuando pasaron más de dos cadencias completas desde su
