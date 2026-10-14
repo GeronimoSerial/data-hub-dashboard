@@ -6228,3 +6228,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   /* Radar en teléfono: la leyenda queda arriba de la escala de lluvia, no encima. */
   .map-shell[data-radar-activo='true'] .map-leyenda { left: var(--s-2); transform: none; bottom: 7.5rem; max-width: calc(100% - 13rem); }
 }
+/* Dato con fecha en tooltip; atenuado si la fuente está vencida. Nota de procedencia tras un ícono. */
+.dato-fechado { cursor: help; border-radius: 2px; }
+.dato-fechado:focus-visible, .nota-info:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.dato-fechado--vencido { color: var(--ink-faint); }
+.nota-info { display: inline-flex; vertical-align: middle; margin-left: 0.25rem; color: var(--ink-faint); cursor: help; border-radius: 50%; }
+.nota-info:hover { color: var(--ink-soft); }
