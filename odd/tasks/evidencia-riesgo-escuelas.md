@@ -111,11 +111,20 @@ Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
 - Degradation: an exposed school whose station has no reading <= 24 h gets a `rio-prefectura` factor
   "sin dato" and counts as missing (confidence drops); never imputed normal.
 
+- Pipeline fix verified: the median floodplain surface inflated by DSM canopy (school 17 m above river
+  got -9 m) -> switched to p10 (127 schools <= 1 m; that school +1.3 m). Copernicus GLO-30 is a DSM.
+- Dynamic rule guards (data-driven, no event values): school water level must be within +-3 m of the
+  tramo's typical river level (median DEM water level of tramo schools <= 500 m from water) - else the
+  nearby water is a lagoon; > +10 m above it -> reservoir/perched water -> river evidence `no_aplica`
+  (Yacyretá reservoir: Puerto Valle 80.0 m vs Ituzaingó river ~54.5 m).
+- Station references (sync-prefectura-historico, 2026-10-14): 18 stations, ~700-740 readings each;
+  medians e.g. Paso de los Libres 4.32 m, Santo Tomé 3.74, Ituzaingó 1.20, Corrientes 2.79.
+
 ### Phase 2 tasks
-- [ ] T6 geo-static: fix RP water-surface in `margen_inundacion.py` (+tests)
-- [ ] T7 geo-static: job `calcular_exposicion_rio_dem` (ground p10, DEM river level, distance) -> output CSV
-- [ ] T8 table `infra_exposicion_rio_dem` + importer + idempotent scheduled import job
-- [ ] T9 job `sync-prefectura-historico` (daily, 365-day stats per station) + table + health
+- [x] T6 geo-static: fix RP water-surface in `margen_inundacion.py` (+tests)
+- [x] T7 geo-static: job `calcular_exposicion_rio_dem` (ground p10, DEM river level, distance) -> output CSV
+- [x] T8 table `infra_exposicion_rio_dem` + importer + idempotent scheduled import job
+- [x] T9 job `sync-prefectura-historico` (daily, 365-day stats per station) + table + health
 - [ ] T10 engine: dynamic exposure (interpolated anomaly), reservoir rule, sin-dato degradation
 - [ ] T11 engine: rain climatology hook + absolute thresholds per window
 - [ ] T12 recompute (incl. 1801318-00) + 'Operación permanente' section
