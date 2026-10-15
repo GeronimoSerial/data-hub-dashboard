@@ -27,6 +27,8 @@ const {
   tieneAccesoAlParteDesdeCookies,
   tieneAccesoAlParteParaCue,
   tieneAccesoAlParteParaCueDesdeCookies,
+  codigoSinAccesoParte,
+  resolverAccesoParteDesdeCookies,
 } = await import('@/lib/infraestructura/acceso-parte')
 const { NOMBRE_COOKIE, crearTokenSesion } = await import('@/lib/infraestructura/acceso-publico')
 const { NOMBRE_COOKIE_SESION_VERIFICACION, crearSesionVerificacion } = await import(
@@ -259,5 +261,40 @@ describe('tieneAccesoAlParteParaCueDesdeCookies (re-chequeo, subconjunto)', () =
   it('un administrador sigue dando true sin sesión de verificación', async () => {
     getSessionUserMock.mockResolvedValue(usuario('admin'))
     await expect(tieneAccesoAlParteParaCueDesdeCookies('140000000')).resolves.toBe(true)
+  })
+})
+
+// Sesión por rol: el operador sólo entra a su CUE (sin ?cue usa el de su sesión)
+// y un director sólo a CUE de sus niveles. La pantalla y la API comparten esta guarda.
+describe('acceso por sesión de operador de establecimiento', () => {
+  const CUE_PROPIO = '1801605-04'
+  const CUE_AJENO = '1800001-00'
+  const operadorSesion = { ...usuario('operador_establecimiento'), cueAnexo: CUE_PROPIO }
+
+  it('sin ?cue la página usa el CUE de la sesión', async () => {
+    getSessionUserMock.mockResolvedValue(operadorSesion)
+    await expect(resolverAccesoParteDesdeCookies(null)).resolves.toEqual({ permitido: true, cue: CUE_PROPIO })
+  })
+
+  it('un CUE ajeno en la página queda sin acceso', async () => {
+    getSessionUserMock.mockResolvedValue(operadorSesion)
+    await expect(tieneAccesoAlParteParaCueDesdeCookies(CUE_AJENO)).resolves.toBe(false)
+    await expect(resolverAccesoParteDesdeCookies(CUE_AJENO)).resolves.toEqual({ permitido: false, cue: CUE_AJENO })
+  })
+
+  it('la API con su CUE entra y con un CUE ajeno responde 403', async () => {
+    getSessionUserMock.mockResolvedValue(operadorSesion)
+    await expect(tieneAccesoAlParteParaCue(requestConCookie(), CUE_PROPIO)).resolves.toBe(true)
+    await expect(tieneAccesoAlParteParaCue(requestConCookie(), CUE_AJENO)).resolves.toBe(false)
+    await expect(codigoSinAccesoParte()).resolves.toBe(403)
+  })
+
+  it('sin sesión de rol por CUE la denegación sigue siendo 401', async () => {
+    await expect(codigoSinAccesoParte()).resolves.toBe(401)
+  })
+
+  it('un director sin niveles asignados no entra a ningún CUE', async () => {
+    getSessionUserMock.mockResolvedValue({ ...usuario('director_nivel'), cueAnexo: null })
+    await expect(tieneAccesoAlParteParaCueDesdeCookies(CUE_AJENO)).resolves.toBe(false)
   })
 })
