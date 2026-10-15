@@ -114,6 +114,23 @@ export const niveles: Nivel[] = [
   { id: 'transversal', nombre: 'Transversal', orden: 5 },
 ]
 
+// Catálogo de niveles jurisdiccionales de GE (ids fijos de GE, ver
+// ge.ge_nivel_jurisdiccional). Se siembra en la migración y en seedHub.
+export interface NivelJurisdiccional {
+  id: number
+  nombre: string
+}
+
+export const nivelesJurisdiccionales: NivelJurisdiccional[] = [
+  { id: 1, nombre: 'Dirección de Nivel Secundario' },
+  { id: 2, nombre: 'Dirección de Enseñanza Privada' },
+  { id: 4, nombre: 'Dirección de Nivel Superior' },
+  { id: 5, nombre: 'Dirección de Educación Técnico Profesional' },
+  { id: 6, nombre: 'Dirección de Educación Física' },
+  { id: 7, nombre: 'Nivel Central' },
+  { id: 9, nombre: 'Consejo General de Educación' },
+]
+
 export const tipos: Tipo[] = [
   { id: 'informe', nombre: 'Informe de gestión', aplicaA: ['reporte'] },
   { id: 'boletin', nombre: 'Boletín estadístico', aplicaA: ['reporte'] },
