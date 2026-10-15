@@ -4,7 +4,14 @@ import { nextCookies } from 'better-auth/next-js'
 import { admin as adminPlugin } from 'better-auth/plugins'
 import { getDb } from '@/lib/db'
 import * as schema from '@/lib/db/schema'
-import { ac, admin, editor, consulta } from '@/lib/auth-permissions'
+import {
+  ac,
+  admin,
+  editor,
+  consulta,
+  directorNivel,
+  operadorEstablecimiento,
+} from '@/lib/auth-permissions'
 
 // Función real, sin invocar todavía: se usa tanto para construir la
 // instancia (una sola vez, ver construirAuth) como para que TypeScript infiera
@@ -28,7 +35,13 @@ function crearInstanciaAuth() {
     plugins: [
       adminPlugin({
         ac,
-        roles: { admin, editor, consulta },
+        roles: {
+          admin,
+          editor,
+          consulta,
+          director_nivel: directorNivel,
+          operador_establecimiento: operadorEstablecimiento,
+        },
         defaultRole: 'consulta',
         adminRoles: ['admin'],
       }),

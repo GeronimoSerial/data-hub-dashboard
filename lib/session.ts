@@ -31,7 +31,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       .from(userRecursos)
       .where(eq(userRecursos.userId, session.user.id)),
     db
-      .select({ accesoRecursos: userTable.accesoRecursos })
+      .select({ accesoRecursos: userTable.accesoRecursos, geCueAnexo: userTable.geCueAnexo })
       .from(userTable)
       .where(eq(userTable.id, session.user.id)),
   ])
@@ -44,6 +44,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     nivelJurIds: nivelRows.map((r) => r.nivelJurisdiccionalId),
     accesoRecursos,
     recursoIds: recursoRows.map((r) => r.recursoId),
+    cueAnexo: userRow?.geCueAnexo ?? null,
   }
 }
 

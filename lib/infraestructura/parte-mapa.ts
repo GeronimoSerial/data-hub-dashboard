@@ -40,6 +40,9 @@ import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
 // persistido — ver servicio-educativo.ts).
 export interface FiltrosMapa {
   territorio?: string
+  // Alcance por nivel jurisdiccional (rol director_nivel, ver alcance-mapa.ts).
+  // undefined = sin restricción; [] = no matchea ninguna escuela.
+  nivelesJurIds?: number[]
   nivel?: string
   cueAnexo?: string
   motivo?: string
@@ -161,6 +164,21 @@ interface ParteRow {
 // en SQL, contra infra_parte + ge.ge_localizacion (+ EXISTS contra
 // ge.ge_seccion para nivel, porque el nivel es un atributo de las secciones
 // del establecimiento en el corte vigente, no una columna del parte).
+// Alcance por nivel jurisdiccional: sólo escuelas cuyo nivel asignado (último
+// import del padrón) está en la lista. Sin fila en ge_escuela_nivel_jur no
+// matchea, así que una escuela sin nivel queda fuera del alcance.
+function clausulaNivelesJur(cueColumna: string, ids: number[]): { sql: string; args: number[] } {
+  if (ids.length === 0) return { sql: '1 = 0', args: [] }
+  const marcas = ids.map(() => '?').join(', ')
+  return {
+    sql: `EXISTS (
+        SELECT 1 FROM ge.ge_escuela_nivel_jur nje
+        WHERE nje.cue_anexo = ${cueColumna} AND nje.nivel_jurisdiccional_id IN (${marcas})
+      )`,
+    args: ids,
+  }
+}
+
 function filtrosParteSql(filtros: FiltrosMapa): { clausulas: string[]; args: (string | number)[] } {
   const clausulas: string[] = []
   const args: (string | number)[] = []
@@ -183,6 +201,11 @@ function filtrosParteSql(filtros: FiltrosMapa): { clausulas: string[]; args: (st
   if (activo(filtros.cueAnexo)) {
     clausulas.push('p.cue_anexo = ?')
     args.push(filtros.cueAnexo!)
+  }
+  if (filtros.nivelesJurIds) {
+    const nivel = clausulaNivelesJur('p.cue_anexo', filtros.nivelesJurIds)
+    clausulas.push(nivel.sql)
+    args.push(...nivel.args)
   }
   return { clausulas, args }
 }
@@ -534,6 +557,7 @@ export interface EscuelaMapa {
   lat: number | null
   lon: number | null
   estado: 'afectada' | 'sin_afectacion_reportada'
+  nivelJurisdiccional?: { id: number; nombre: string } | null
   // Presente sólo si estado === 'afectada'; mismo shape que ParteMapa.
   parte?: ParteMapa
 }
@@ -563,6 +587,7 @@ interface EscuelaPadronRow {
   localidad: string
   lat: number | null
   lon: number | null
+  nivelJurisdiccional?: { id: number; nombre: string } | null
 }
 
 // Filtros de ESTABLECIMIENTO (territorio, cueAnexo, nivel) aplicados al
@@ -597,6 +622,11 @@ async function cargarPadronEscuelas(
     clausulas.push('l.cue_anexo = ?')
     args.push(filtros.cueAnexo!)
   }
+  if (filtros.nivelesJurIds) {
+    const nivel = clausulaNivelesJur('l.cue_anexo', filtros.nivelesJurIds)
+    clausulas.push(nivel.sql)
+    args.push(...nivel.args)
+  }
   if (activo(filtros.nivel)) {
     // El nivel es un atributo de las secciones del corte vigente, no del
     // padrón: sin corte no hay contra qué resolverlo, así que el filtro no
@@ -613,8 +643,11 @@ async function cargarPadronEscuelas(
 
   const where = clausulas.length > 0 ? `WHERE ${clausulas.join('\n  AND ')}` : ''
   const res = await client.execute({
-    sql: `SELECT l.cue_anexo, l.cui, l.nombre, l.departamento, l.localidad, l.lat, l.lon
+    sql: `SELECT l.cue_anexo, l.cui, l.nombre, l.departamento, l.localidad, l.lat, l.lon,
+            nj.id AS nivel_id, nj.nombre AS nivel_nombre
           FROM ge.ge_localizacion l
+          LEFT JOIN ge.ge_escuela_nivel_jur ej ON ej.cue_anexo = l.cue_anexo
+          LEFT JOIN ge.ge_nivel_jurisdiccional nj ON nj.id = ej.nivel_jurisdiccional_id
           ${where}`,
     args,
   })
@@ -626,6 +659,10 @@ async function cargarPadronEscuelas(
     localidad: stringValor(r.localidad),
     lat: coordenada(r.lat),
     lon: coordenada(r.lon),
+    nivelJurisdiccional:
+      r.nivel_id === null || r.nivel_id === undefined
+        ? null
+        : { id: Number(r.nivel_id), nombre: stringValor(r.nivel_nombre) },
   }))
 }
 
@@ -673,6 +710,7 @@ export async function listarEscuelasMapa(
       localidad: fila.localidad,
       lat: redondearCoordenada(fila.lat),
       lon: redondearCoordenada(fila.lon),
+      nivelJurisdiccional: fila.nivelJurisdiccional,
       estado: parte ? 'afectada' : 'sin_afectacion_reportada',
       ...(parte ? { parte } : {}),
     })
