@@ -12,6 +12,7 @@ import {
   directorNivel,
   operadorEstablecimiento,
 } from '@/lib/auth-permissions'
+import { geSsoPlugin } from '@/lib/ge-sso/plugin'
 
 // Función real, sin invocar todavía: se usa tanto para construir la
 // instancia (una sola vez, ver construirAuth) como para que TypeScript infiera
@@ -45,6 +46,8 @@ function crearInstanciaAuth() {
         defaultRole: 'consulta',
         adminRoles: ['admin'],
       }),
+      // SSO desde GE (T6): canje de ticket -> sesión. Ver lib/ge-sso/.
+      geSsoPlugin(),
       nextCookies(),
     ],
   })

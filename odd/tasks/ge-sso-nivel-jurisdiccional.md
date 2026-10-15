@@ -26,7 +26,7 @@ GE's nivel jurisdiccional, replacing the hub's own niveles taxonomy.
 - [x] T4 Admin/UI (hub-data, taxonomia, admin pages) on jurisdiccional catalog
 - [x] T5a Roles director_nivel/operador_establecimiento, user.ge_cue_anexo, alcanceMapa + server-side scope (403 / EXISTS on ge_escuela_nivel_jur), data enrichment + filter logic
 - [x] T5b Dirección chip group UI, ROLES in lib/usuarios.ts, nominal link scope, PGlite test of the EXISTS scope
-- [ ] T6 SSO endpoint `POST /api/auth/ge-login` + ticket + `/auth/ge-callback` → better-auth session, role/scope on user + hardening + tests
+- [x] T6 SSO endpoint `POST /api/auth/ge-login` + ticket + `/auth/ge-callback` → better-auth session, role/scope on user + hardening + tests
 - [ ] T7 Parte without `?cue` for operador (CUE from session; foreign CUE → 403)
 
 ## Progress / evidence
@@ -36,6 +36,7 @@ GE's nivel jurisdiccional, replacing the hub's own niveles taxonomy.
 - T4 (delegated Haiku): admin pickers on jur catalog + read-only "Direcciones (GE)" tab; vitest 62 passed, tsc 0, lint 0 errors. Follow-up: taxonomia in-use count still reads legacy tables until they are dropped.
 - T5a (delegated Haiku, checkpointed): vitest 8 files/123 passed, tsc 0, lint 0 errors; migration renamed to 0014_user_ge_cue_anexo (db index test passes).
 - T5b (delegated Haiku): Dirección chips, ROLES, nominal scope, PGlite EXISTS test. Parent fix (inline): deny-list checks let new roles list users and see borradores → switched `listUsuariosDenied` and borrador rule to `!isStaff` with tests. 5 files/108 passed, tsc 0, lint 0 errors.
+- T6 (delegated Haiku): lib/ge-sso/* plugin + `app/api/auth/ge-login` + `app/auth/ge-callback`, migration 0015 ge_sso_evento; 85 passed (23 ge-sso PGlite), tsc 0, lint 0 errors. Follow-ups: .env.example not updated (sandbox), per-process rate limit, 429s audited per request, concurrent first-login race → 500, CUE not validated against catalog.
 
 ## Next step
-T6.
+T7.

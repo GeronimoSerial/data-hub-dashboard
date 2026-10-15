@@ -220,6 +220,21 @@ export const verification = pgTable(
   (table) => [index('verification_identifier_idx').on(table.identifier)],
 )
 
+// Auditoría del SSO desde Gestión Educativa (GE, T6): cada login aceptado o
+// rechazado y cada consumo de ticket. Nunca guarda la api_key.
+export const geSsoEvento = pgTable('ge_sso_evento', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+  at: timestamp('at', { withTimezone: true })
+    .default(sql`now()`)
+    .notNull(),
+  email: text('email'),
+  rol: text('rol'),
+  cue: text('cue'),
+  nivelJurisdiccionalId: integer('nivel_jurisdiccional_id'),
+  ip: text('ip'),
+  resultado: text('resultado').notNull(),
+})
+
 export const userNiveles = pgTable(
   'user_niveles',
   {
