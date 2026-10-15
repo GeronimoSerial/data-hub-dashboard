@@ -11,16 +11,16 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B0-OBS survey done (docs/relevamiento-obs.md); bucket reportes-infraestructura created (la-south-2); IAM user reportes-infraestructura-app via bucket policy (verified); prod CORS origin set.
 - [ ] B1 Reliable local persistence
   - [x] B1-T1 (haiku, 84e7d60; vitest 495 ok, tsc ok, eslint ok) Shared IndexedDB store: stores, oncomplete, migration, Blob files, generations (haiku)
-  - [ ] B1-T2 Wire forms: restore before autosave, error states (haiku)
+  - [~] B1-T2 (gpt-6-luna, acd46f3 merged; 57 test regressions → fix in reportes-fix-b1t2-b5t2) Wire forms: restore before autosave, error states (haiku)
   - [x] B1-T3 (haiku, 80b3477; vitest parte 72 ok, tsc ok) sw-parte.js adapter on shared contract (haiku)
 - [ ] B2 Coordinated queue and confirmations
-  - [ ] B2-T1 Job store: immutable body + idempotency key persisted before first attempt; confirmation (movimientoId) persisted before removing pending
+  - [ ] B2-T1 [in progress: gpt-6-luna, reportes-b2-t1-jobs] Job store: immutable body + idempotency key persisted before first attempt; confirmation (movimientoId) persisted before removing pending
   - [ ] B2-T2 Page/worker coordination: locks, interrupted-job recovery, priorities (final report > draft sync > photos)
   - [ ] B2-T3 Retry policy: backoff + open/online/visibility triggers; error classes (recoverable, validation, server limit, expired session)
   - [ ] B2-T4 Forms consume confirmations on reopen without restoring sent drafts; keep attachments on form clear
 - [ ] B3 Server-synced drafts
-  - [ ] B3-T1 [in progress: gpt-6-luna high, worktree reportes-b3-t1-schema] Schema + migration 0018 (drafts, revisions, closure tombstones); mirror ALTERs in lib/db/seed.ts
-  - [ ] B3-T2 API: create, sync (partial validation + revision control), read, discard; tombstones reject late syncs
+  - [x] B3-T1 (gpt-6-luna, f88e89c merged) Schema + migration 0018 (drafts, revisions, closure tombstones); mirror ALTERs in lib/db/seed.ts
+  - [ ] B3-T2 [in progress: gpt-6-luna, reportes-b3-t2-api] API: create, sync (partial validation + revision control), read, discard; tombstones reject late syncs
   - [ ] B3-T3 Client batching: sync on step complete/abandon, consolidate offline edits, keep local changes on conflict
   - [ ] B3-T4 Final submission links and closes its draft consistently
   - [ ] B3-T5 Aggregated map queries + permission-filtered detail (no nominal data)
@@ -30,8 +30,8 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [ ] B4-T3 Failed-navigation fallback preserving flow and CUE
   - [ ] B4-T4 Reconnect: restore + sync, validate stale context without discarding answers
 - [ ] B5 Local selection and optimization
-  - [ ] B5-T1 Photo picker: select, preview, remove (max 3 per submission)
-  - [ ] B5-T2 [in progress: gpt-6-luna high, worktree reportes-b5-t2-pipeline] Worker pipeline: one at a time off main thread, optimized + thumbnail, orientation, strip metadata, no original fallback
+  - [ ] B5-T1 [in progress: gpt-6-luna, reportes-b5-t1-picker] Photo picker: select, preview, remove (max 3 per submission)
+  - [~] B5-T2 (gpt-6-luna, 84a3e95 merged; vitest 4 ok, tsc TS1294 → fix in reportes-fix-b1t2-b5t2) Worker pipeline: one at a time off main thread, optimized + thumbnail, orientation, strip metadata, no original fallback
   - [ ] B5-T3 Limits (input, memory, formats) + replace originals only after variants persisted; resumable after close
   - [ ] B5-T4 Measure weights with real photos on modest devices
 - [ ] B6 Attachments and direct OBS upload (depends on B0-OBS)
