@@ -1,1 +1,0 @@
-ALTER TABLE "user" ADD COLUMN "ge_cue_anexo" text;

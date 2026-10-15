@@ -38,6 +38,8 @@ Coolify debe montar un volumen en `/data`. Con `DATABASE_URL` configurada, el hu
 | `PGLITE_DATA_DIR` | Ruta PGlite persistida opcional; por defecto `DATA_DIR/pg`. |
 | `BETTER_AUTH_SECRET` | Secreto de sesión de Better Auth. |
 | `BETTER_AUTH_URL` | URL pública del FQDN. |
+| `GE_SSO_API_KEY` | **Obligatoria para el SSO desde Gestión Educativa.** Clave compartida con GE para `POST /api/auth/ge-login`. Sin ella el endpoint responde 503 (fail closed). |
+| `GE_SSO_ALLOWED_ORIGIN` | Origen CORS permitido para GE. Default `https://ge.mec.gob.ar`. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Usuario inicial, solo primer seed. |
 | `DEMO_OK` | Confirmación `1` requerida por el seed de demostración. |
 | `NOMINAL_ENCRYPTION_KEY` | **Obligatoria.** 32 bytes en base64 (`openssl rand -base64 32`). Cifra la identidad de los alumnos con AES-256-GCM. Sin ella, el alcance nominal falla al arrancar. **Si se pierde, los nombres quedan irrecuperables y hay que reimportar el padrón.** Ver `docs/rotacion-clave-nominal.md`. |
@@ -162,6 +164,8 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `DATABASE_STATEMENT_TIMEOUT_MS` | `30000` | Timeout de consulta | Ajuste Postgres |
 | `BETTER_AUTH_SECRET` | sin default | Firma de sesión | Autenticación |
 | `BETTER_AUTH_URL` | `http://localhost:3000` | URL pública de Auth | Autenticación |
+| `GE_SSO_API_KEY` | sin default (503 si falta) | Clave del SSO desde Gestión Educativa | SSO GE |
+| `GE_SSO_ALLOWED_ORIGIN` | `https://ge.mec.gob.ar` | Origen CORS permitido para GE | SSO GE |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | sin default | Primer usuario administrador | Seed inicial |
 | `NOMINAL_ENCRYPTION_KEY` | sin default | Cifrado AES-256-GCM de identidad | Padrón nominal |
 | `PROBLEMATICAS_ACCESO_PASSWORD` | sin default | Acceso temporal a formularios | Formularios públicos |
