@@ -170,6 +170,20 @@ const GE_DDL: string[] = [
     lon REAL,
     geo_calidad TEXT
   )`,
+  // Catálogo de niveles jurisdiccionales de GE (1 Secundario, 2 Privada, ...)
+  // y, por CUE-anexo, el nivel que GE le asigna en el ciclo importado. Ambas
+  // tablas se pueblan en el import de padrón desde Postgres; el import HTML no
+  // las toca. Van antes de los índices porque ge_escuela_nivel_jur referencia
+  // al catálogo.
+  `CREATE TABLE IF NOT EXISTS ge.ge_nivel_jurisdiccional (
+    id INTEGER PRIMARY KEY,
+    nombre TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS ge.ge_escuela_nivel_jur (
+    cue_anexo TEXT PRIMARY KEY,
+    nivel_jurisdiccional_id INTEGER NOT NULL REFERENCES ge.ge_nivel_jurisdiccional(id),
+    ciclo_lectivo INTEGER NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS ge.ge_alumno_identidad (
     ge_person_id BIGINT PRIMARY KEY,
     payload_cifrado TEXT NOT NULL

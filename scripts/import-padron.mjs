@@ -339,7 +339,27 @@ export async function insertarIdentidades(conexion, personas) {
   return pendientes.length
 }
 
-const USO = `Uso:
+// Upsert del catálogo de niveles jurisdiccionales y de la asignación CUE → nivel
+// del ciclo. El catálogo va primero: ge_escuela_nivel_jur referencia a sus ids.
+export async function insertarNivelesJurisdiccionales(conexion, cicloLectivo, { niveles, cues }) {
+  await ejecutarEnLotes(conexion, niveles, async (client, n) => {
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_nivel_jurisdiccional (id, nombre) VALUES (?,?) ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre',
+      args: [n.id, n.nombre],
+    })
+  })
+  await ejecutarEnLotes(conexion, cues, async (client, c) => {
+    await client.execute({
+      sql: `INSERT INTO ge.ge_escuela_nivel_jur (cue_anexo, nivel_jurisdiccional_id, ciclo_lectivo) VALUES (?,?,?)
+            ON CONFLICT (cue_anexo) DO UPDATE SET
+              nivel_jurisdiccional_id = EXCLUDED.nivel_jurisdiccional_id,
+              ciclo_lectivo = EXCLUDED.ciclo_lectivo`,
+      args: [c.cueAnexo, c.nivelJurisdiccionalId, cicloLectivo],
+    })
+  })
+}
+
+const USO =`Uso:
   node scripts/import-padron.mjs --ge [--ciclo <año>]   # padrón desde Gestión Educativa (Postgres)
   node scripts/import-padron.mjs <ruta-al-html>         # padrón desde un tablero HTML local`
 
@@ -372,7 +392,7 @@ async function consumirOrigen(argv, cuesConocidos, acumulador) {
     const ciclo = indiceCiclo === -1 ? String(new Date().getFullYear()) : argv[indiceCiclo + 1]
     if (!ciclo) throw new Error('--ciclo necesita un año')
 
-    const { recorrerPadronDesdeGe } = await import('./padron-ge.mjs')
+    const { recorrerPadronDesdeGe, leerNivelesJurisdiccionalesDesdeGe } = await import('./padron-ge.mjs')
     console.log(`Origen: Gestión Educativa (Postgres), ciclo ${ciclo}`)
 
     const totales = await recorrerPadronDesdeGe({
@@ -393,7 +413,12 @@ async function consumirOrigen(argv, cuesConocidos, acumulador) {
     if (totales.sinDocumento > 0) {
       console.log(`Filas descartadas por documento vacío: ${totales.sinDocumento}`)
     }
-    return { resumen, cicloLectivo: totales.cicloLectivo }
+    // El HTML no trae nivel jurisdiccional: en ese caso no se tocan las tablas.
+    const nivelesJurisdiccionales = await leerNivelesJurisdiccionalesDesdeGe({ cicloLectivo: ciclo })
+    console.log(
+      `Niveles jurisdiccionales: ${nivelesJurisdiccionales.niveles.length}, CUE asignados: ${nivelesJurisdiccionales.cues.length}`,
+    )
+    return { resumen, cicloLectivo: totales.cicloLectivo, nivelesJurisdiccionales }
   }
 
   const rutaHtml = argv[0]
@@ -403,7 +428,7 @@ async function consumirOrigen(argv, cuesConocidos, acumulador) {
   console.log(`Origen: HTML ${rutaHtml}`)
   resumen.leidas = padron.r.length
   consumirLote(padron.r.filter((fila) => Array.isArray(fila)).map(normalizarFilaHtml))
-  return { resumen, cicloLectivo: String(new Date().getFullYear()) }
+  return { resumen, cicloLectivo: String(new Date().getFullYear()), nivelesJurisdiccionales: null }
 }
 
 // Relee el corte recién cargado y falla si no quedó vigente o quedó vacío.
@@ -461,10 +486,12 @@ async function main() {
   const acumulador = crearAcumulador()
   let clasificacion
   let cicloLectivo
+  let nivelesJurisdiccionales
   try {
     const r = await consumirOrigen(process.argv.slice(2), cuesConocidos, acumulador)
     clasificacion = r.resumen
     cicloLectivo = r.cicloLectivo
+    nivelesJurisdiccionales = r.nivelesJurisdiccionales
   } catch (err) {
     console.error(err.message)
     process.exit(1)
@@ -481,6 +508,9 @@ async function main() {
   await insertarSecciones(conexion, corteId, secciones)
   await insertarMembresias(conexion, corteId, membresias)
   const identidadesInsertadas = await insertarIdentidades(conexion, personas)
+  if (nivelesJurisdiccionales) {
+    await insertarNivelesJurisdiccionales(conexion, Number(cicloLectivo), nivelesJurisdiccionales)
+  }
 
   try {
     await activarCorte(conexion.client, corteId)
