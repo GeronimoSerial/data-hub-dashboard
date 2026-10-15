@@ -16,7 +16,7 @@ import { limpiarVinculoVerificacion, leerVinculoVerificacion } from '@/component
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 import { eliminarBorradorFormulario, guardarBorradorFormulario, leerBorradorFormulario, type BorradorFormulario } from '@/lib/infraestructura/parte/borrador-formulario'
 import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
-import { crearAlmacenLocalStorage, claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
+import { claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
@@ -211,6 +211,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [borradorPendiente, setBorradorPendiente] = useState<BorradorRecorridoActualizacion | null>(null)
   const [confirmarDescarte, setConfirmarDescarte] = useState(false)
   const [avisoBorrador, setAvisoBorrador] = useState<string | null>(null)
+  const [avisoAlmacen, setAvisoAlmacen] = useState<string | null>(null)
   const [borradorLeido, setBorradorLeido] = useState(false)
   const [interaccionIniciada, setInteraccionIniciada] = useState(false)
   const generacionRef = useRef<string | null>(null)
@@ -277,9 +278,12 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       } catch (error) {
         if (!cancelado) {
           persistenciaBloqueadaRef.current = true
-          setAvisoBorrador(error instanceof Error
-            ? `${MENSAJE_BORRADOR_INVALIDO} ${error.message} Puede enviar las respuestas.`
-            : 'No se pudo acceder al almacenamiento local. Puede enviar las respuestas.')
+          const mensaje = error instanceof Error ? error.message : 'No se pudo acceder al almacenamiento local.'
+          if (mensaje.includes('IndexedDB')) {
+            setAvisoAlmacen(`${mensaje} Puede enviar las respuestas.`)
+          } else {
+            setAvisoBorrador(`${MENSAJE_BORRADOR_INVALIDO} ${mensaje} Puede enviar las respuestas.`)
+          }
           try {
             const anterior: unknown = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
             if (esBorradorActualizacionConFotos(anterior)) {
@@ -325,8 +329,9 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     void guardarBorradorFormulario(actual, datos).then((guardado) => {
       borradorCompartidoRef.current = guardado
       setAvisoBorrador(null)
+      try { localStorage.setItem(claveBorrador, JSON.stringify(datos)) } catch { /* IndexedDB sigue siendo el almacenamiento principal. */ }
     }).catch((error: unknown) => {
-      setAvisoBorrador(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo guardar el borrador local. Puede enviar las respuestas.')
+      setAvisoAlmacen(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo guardar el borrador local. Puede enviar las respuestas.')
     })
   }, [borradorLeido, interaccionIniciada, borradorPendiente, claveBorrador, cue, etapa, recorrido, asistenciaPedagogica, situaciones])
 
@@ -369,7 +374,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const alEnviarConExito = useCallback(() => {
     const actual = borradorCompartidoRef.current
     if (actual) {
-      void eliminarBorradorFormulario(actual).then(() => { borradorCompartidoRef.current = null }).catch((error: unknown) => {
+      void eliminarBorradorFormulario(actual).then(() => {
+        borradorCompartidoRef.current = null
+        localStorage.removeItem(claveBorrador)
+      }).catch((error: unknown) => {
         setAvisoBorrador(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo limpiar el borrador local.')
       })
     }
@@ -378,7 +386,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     setGuardado(true)
     setEnviando(false)
     enviandoRef.current = false
-  }, [])
+  }, [claveBorrador])
 
   useEffect(() => {
     let cancelado = false
@@ -508,7 +516,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   if (guardado || etapa === 'enviado') {
     return <ConfirmacionEnviado cue={cue} onRecargar={() => {
       const actual = borradorCompartidoRef.current
-      if (actual) void eliminarBorradorFormulario(actual).then(() => { borradorCompartidoRef.current = null }).catch(() => {})
+      if (actual) void eliminarBorradorFormulario(actual).then(() => {
+        borradorCompartidoRef.current = null
+        localStorage.removeItem(claveBorrador)
+      }).catch(() => {})
       setBorradorPendiente(null)
       onRecargar()
     }} />
@@ -529,6 +540,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         <p>Puede seguir donde lo dejó o descartarlo y empezar de nuevo.</p>
       </ConfirmSheet>
       {avisoBorrador ? <p className="recorrido-actualizacion__aviso" role="alert">{avisoBorrador}</p> : null}
+      {avisoAlmacen && !estadoAvisoEnvio ? <p className="recorrido-actualizacion__aviso" role="status">{avisoAlmacen}</p> : null}
       {etapa === 'entrada' ? (
         <EntradaActualizar
           situaciones={situaciones}
@@ -691,7 +703,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
                 setConfirmarDescarte(false)
                 return
               }
-              if (!actual) localStorage.removeItem(claveBorrador)
+              localStorage.removeItem(claveBorrador)
               borradorCompartidoRef.current = null
               generacionAlmacenRef.current += 1
               generacionRef.current = crypto.randomUUID()

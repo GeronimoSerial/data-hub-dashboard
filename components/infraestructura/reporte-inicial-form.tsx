@@ -46,7 +46,6 @@ import {
   leerPasoBaseHistorial,
 } from '@/lib/infraestructura/parte/borrador-historial'
 import {
-  crearAlmacenLocalStorage,
   claveBorrador as claveBorradorCola,
   esEstadoReintentable,
   intentarEnviar,
@@ -62,8 +61,6 @@ import {
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 import { eliminarBorradorFormulario, guardarBorradorFormulario, leerBorradorFormulario, type BorradorFormulario } from '@/lib/infraestructura/parte/borrador-formulario'
 import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
-
-const almacenBorradores = crearAlmacenLocalStorage()
 
 export interface ReporteInicialFormProps {
   cue: string
@@ -269,6 +266,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   const generacionRef = useRef<string | null>(null)
   const generacionAlmacenRef = useRef(1)
   const borradorCompartidoRef = useRef<BorradorFormulario<BorradorParteNuevo> | null>(null)
+  const interaccionRef = useRef(false)
+  const borradorResueltoRef = useRef(false)
   // La primera ejecución del efecto de escritura es el montaje (o el tras
   // "registrar otra"): en ambos casos hay que dejar el storage como está.
   const omitirEscrituraRef = useRef(true)
@@ -318,6 +317,21 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   // restaurar y el asistente arranca limpio en el paso 1.
   useEffect(() => {
     let cancelado = false
+    try {
+      const legado: unknown = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
+      if (esBorradorParteNuevo(legado)) {
+        queueMicrotask(() => {
+          if (cancelado) return
+          if (legado.paso === 1 && !esAfectacionParcial(legado.afectacion) && !esAfectacionLista(legado.afectacion)) {
+            aplicarBorrador(legado)
+          } else {
+            setBorradorPendiente(legado)
+          }
+        })
+      }
+    } catch {
+      // The async reader reports invalid legacy data without blocking the form.
+    }
     ;(async () => {
       try {
         const guardado = await leerBorradorFormulario(
@@ -330,13 +344,13 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           borradorCompartidoRef.current = guardado
           generacionAlmacenRef.current = guardado.registro.generacion
           const borrador = guardado.datos
-          if (
+          if (!borradorResueltoRef.current && (
             borrador.paso === 1 &&
             !esAfectacionParcial(borrador.afectacion) &&
             !esAfectacionLista(borrador.afectacion)
-          ) {
+          )) {
             aplicarBorrador(borrador)
-          } else {
+          } else if (!borradorResueltoRef.current) {
             setBorradorPendiente(borrador)
           }
         }
@@ -345,7 +359,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           setAvisoAlmacen(error instanceof Error ? error.message : 'No se pudo acceder al almacenamiento local. Puede enviar sus respuestas.')
           try {
             const anterior: unknown = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
-            if (esBorradorParteNuevo(anterior)) {
+            if (esBorradorParteNuevo(anterior) && !borradorResueltoRef.current) {
               if (anterior.paso === 1 && !esAfectacionParcial(anterior.afectacion) && !esAfectacionLista(anterior.afectacion)) aplicarBorrador(anterior)
               else setBorradorPendiente(anterior)
             }
@@ -519,6 +533,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     if (borradorActual) {
       void eliminarBorradorFormulario(borradorActual).then(() => {
         borradorCompartidoRef.current = null
+        localStorage.removeItem(claveBorrador)
       }).catch((error: unknown) => {
         setAvisoAlmacen(error instanceof Error ? error.message : MENSAJE_ERROR_GUARDADO)
       })
@@ -598,10 +613,11 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   useEffect(() => {
     if (!restauracionCompleta) return
     if (borradorPendiente) return
-    if (omitirEscrituraRef.current) {
+    if (omitirEscrituraRef.current && !interaccionRef.current) {
       omitirEscrituraRef.current = false
       return
     }
+    omitirEscrituraRef.current = false
     const datos: BorradorParteNuevo = {
       generacion: generacionVigente(),
       referenciasFotos: borradorCompartidoRef.current?.datos.referenciasFotos ?? [],
@@ -628,6 +644,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     void guardarBorradorFormulario(actual, datos).then((guardado) => {
       borradorCompartidoRef.current = guardado
       setAvisoAlmacen(null)
+      try { localStorage.setItem(claveBorrador, JSON.stringify(datos)) } catch { /* IndexedDB sigue siendo el almacenamiento principal. */ }
     }).catch((error: unknown) => {
       setAvisoAlmacen(error instanceof Error ? error.message : 'No se pudo guardar el borrador local. Puede enviar sus respuestas.')
     })
@@ -728,8 +745,11 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   function registrarOtra() {
     onGuardadoChange?.(false)
     omitirEscrituraRef.current = true
+    interaccionRef.current = false
+    borradorResueltoRef.current = true
     const anterior = borradorCompartidoRef.current
     if (anterior) void eliminarBorradorFormulario(anterior).catch(() => {})
+    localStorage.removeItem(claveBorrador)
     generacionAlmacenRef.current += 1
     borradorCompartidoRef.current = null
     generacionRef.current = crypto.randomUUID()
@@ -746,10 +766,6 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     setEnviando(false)
     setError(null)
     setGuardado(null)
-  }
-
-  if (!restauracionCompleta) {
-    return <p role="status">Recuperando el borrador local…</p>
   }
 
   if (guardado) {
@@ -796,8 +812,12 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   })
 
   return (
-    <form className="reporte-inicial reporte-inicial--asistente" onSubmit={manejarEnvio}>
-      {avisoAlmacen && <p role="alert">{avisoAlmacen} Puede continuar y enviar las respuestas.</p>}
+    <form
+      className="reporte-inicial reporte-inicial--asistente"
+      onSubmit={manejarEnvio}
+      onChangeCapture={() => { interaccionRef.current = true }}
+    >
+      {avisoAlmacen && <p role="status">{avisoAlmacen} Puede continuar y enviar las respuestas.</p>}
       <ConfirmSheet
         open={borradorPendiente !== null && !confirmarDescarte}
         titulo={MENSAJE_BORRADOR_PENDIENTE}
@@ -805,12 +825,14 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         cancelarLabel="Descartar"
         onConfirmar={() => {
           if (!borradorPendiente) return
+          borradorResueltoRef.current = true
           aplicarBorrador(borradorPendiente)
           setBorradorPendiente(null)
         }}
         onCancelar={() => setConfirmarDescarte(true)}
         onCerrar={() => {
           if (!borradorPendiente) return
+          borradorResueltoRef.current = true
           aplicarBorrador(borradorPendiente)
           setBorradorPendiente(null)
         }}
@@ -1004,8 +1026,10 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
                 setConfirmarDescarte(false)
                 return
               }
-              if (!actual) localStorage.removeItem(claveBorrador)
+              localStorage.removeItem(claveBorrador)
               borradorCompartidoRef.current = null
+              interaccionRef.current = false
+              borradorResueltoRef.current = true
               generacionAlmacenRef.current += 1
               generacionRef.current = crypto.randomUUID()
               omitirEscrituraRef.current = true
