@@ -65,11 +65,14 @@ export interface RegistroBorradorLocal {
 
 export interface TrabajoEnvioLocal {
   idempotencyKey: string
-  draftId: string
+  draftId?: string
   cuerpo: unknown
   cuerpoHash: string
   estado: 'pendiente' | 'enviando' | 'error'
   version: typeof CONTRATO_VERSION
+  /** Queue category; missing on records written by earlier clients. */
+  tipo?: 'reporte_final' | 'sincronizacion_borrador' | 'foto'
+  creadoEn?: string
 }
 
 export interface ConfirmacionLocal {
@@ -262,6 +265,8 @@ export interface AlmacenParte {
   /** Borra el borrador sólo si su generación sigue siendo la confirmada. Devuelve si borró. */
   eliminarBorradorSiGeneracion(draftId: string, generacion: number): Promise<boolean>
   guardarTrabajoEnvio(trabajo: TrabajoEnvioLocal): Promise<void>
+  /** Inserts a job only if its idempotency key does not already exist. */
+  guardarTrabajoEnvioSiAusente(trabajo: TrabajoEnvioLocal): Promise<boolean>
   obtenerTrabajosEnvio(): Promise<TrabajoEnvioLocal[]>
   eliminarTrabajoEnvio(idempotencyKey: string): Promise<void>
   guardarConfirmacion(confirmacion: ConfirmacionLocal): Promise<void>
@@ -298,6 +303,19 @@ export async function abrirAlmacenParte(nombre: string = NOMBRE_DB_PARTE): Promi
         return () => borrado
       }),
     guardarTrabajoEnvio: (trabajo) => escribirRegistro(nombre, STORES_PARTE.trabajosEnvio, trabajo),
+    guardarTrabajoEnvioSiAusente: (trabajo) =>
+      operar(nombre, [STORES_PARTE.trabajosEnvio], 'readwrite', (tx) => {
+        const store = tx.objectStore(STORES_PARTE.trabajosEnvio)
+        let insertado = false
+        const req = store.get(trabajo.idempotencyKey)
+        req.onsuccess = () => {
+          if (req.result === undefined) {
+            store.add(trabajo)
+            insertado = true
+          }
+        }
+        return () => insertado
+      }),
     obtenerTrabajosEnvio: () => leerTodos<TrabajoEnvioLocal>(nombre, STORES_PARTE.trabajosEnvio),
     eliminarTrabajoEnvio: (key) => borrarRegistro(nombre, STORES_PARTE.trabajosEnvio, key),
     guardarConfirmacion: (confirmacion) => escribirRegistro(nombre, STORES_PARTE.confirmaciones, confirmacion),
