@@ -54,6 +54,9 @@ export function contarOpciones(
       case 'niveles':
         for (const nivel of new Set(escuela.niveles)) sumar(nivel)
         break
+      case 'direcciones':
+        if (typeof escuela.nivelJurisdiccionalId === 'number') sumar(String(escuela.nivelJurisdiccionalId))
+        break
       case 'gravedades':
         sumar(String(escuela.gravedad))
         break

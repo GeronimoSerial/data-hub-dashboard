@@ -182,6 +182,31 @@ export async function listarAfectadosNominal(
   return { secciones, cantidad: todosLosPersonIds.size }
 }
 
+// Alcance por nivel jurisdiccional (rol director_nivel): la afectación sólo es
+// visible si su establecimiento tiene asignado alguno de los niveles. Usa la
+// misma regla EXISTS sobre ge_escuela_nivel_jur que el mapa (parte-mapa.ts);
+// sin este chequeo un director podría leer nombres de otra dirección por id.
+// Lista vacía = ningún alcance, así que devuelve false.
+export async function afectacionDentroDeNiveles(
+  client: EjecutorSql,
+  afectacionId: string,
+  nivelesJurIds: number[],
+): Promise<boolean> {
+  if (nivelesJurIds.length === 0) return false
+  await asegurarGeAdjuntada(client)
+  const marcas = nivelesJurIds.map(() => '?').join(', ')
+  const res = await client.execute({
+    sql: `SELECT a.id FROM infra_afectacion a
+          JOIN infra_parte p ON p.id = a.parte_id
+          WHERE a.id = ? AND EXISTS (
+            SELECT 1 FROM ge.ge_escuela_nivel_jur nje
+            WHERE nje.cue_anexo = p.cue_anexo AND nje.nivel_jurisdiccional_id IN (${marcas})
+          )`,
+    args: [afectacionId, ...nivelesJurIds],
+  })
+  return res.rows.length > 0
+}
+
 // Procedimiento de rotación de clave (ver docs/rotacion-clave-nominal.md):
 // descifra cada fila con la clave vieja y la recifra con la nueva, dentro de
 // una única transacción sobre ge.ge_alumno_identidad. Vive en este

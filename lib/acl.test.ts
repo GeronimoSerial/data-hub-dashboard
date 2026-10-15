@@ -69,6 +69,12 @@ describe('puedeAbrir', () => {
     ).toBe(false)
   })
 
+  it('denies GE SSO roles on borrador', () => {
+    for (const role of ['director_nivel', 'operador_establecimiento'] as const) {
+      expect(puedeAbrir(consulta({ role }), { ...pub, estado: 'borrador' })).toBe(false)
+    }
+  })
+
   it('allows editor and admin on borrador', () => {
     expect(
       puedeAbrir(consulta({ role: 'editor' }), { ...pub, estado: 'borrador' }),

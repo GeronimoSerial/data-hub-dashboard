@@ -1,5 +1,5 @@
 import { eq, inArray } from 'drizzle-orm'
-import type { Role, SessionUser } from '@/lib/acl'
+import { isStaff, type Role, type SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import {
   nivelesJurisdiccionales,
@@ -14,7 +14,7 @@ export const UNKNOWN_RECURSOS_ERROR = 'Hay recursos seleccionados que no existen
 export const UNKNOWN_NIVELES_JUR_ERROR =
   'Hay niveles jurisdiccionales seleccionados que no existen'
 
-const ROLES: Role[] = ['admin', 'editor', 'consulta']
+const ROLES: Role[] = ['admin', 'editor', 'consulta', 'director_nivel', 'operador_establecimiento']
 const MIN_PASSWORD = 8
 
 export type AccesoRecursos = 'todos' | 'seleccionados'
@@ -53,7 +53,7 @@ export type PatchUserBody = {
 
 export function listUsuariosDenied(user: SessionUser | null) {
   if (!user) return { status: 401 as const, error: 'No autenticado' }
-  if (user.banned || user.role === 'consulta')
+  if (user.banned || !isStaff(user.role))
     return { status: 403 as const, error: 'No tiene acceso a este recurso' }
   return null
 }

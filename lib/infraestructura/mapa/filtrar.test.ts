@@ -80,6 +80,16 @@ describe('filtrarEscuelas', () => {
 })
 
 describe('contarOpciones', () => {
+  it('cuenta direcciones por id de nivel jurisdiccional y omite las escuelas sin dirección', () => {
+    const conteos = contarOpciones([
+      esc({ nivelJurisdiccionalId: 2, nivelJurisdiccionalNombre: 'Secundario' }),
+      esc({ nivelJurisdiccionalId: 2, nivelJurisdiccionalNombre: 'Secundario' }),
+      esc({ nivelJurisdiccionalId: null }),
+    ], 'direcciones')
+    expect(conteos.get('2')).toBe(2)
+    expect(conteos.size).toBe(1)
+  })
+
   it('cuenta una escuela con dos niveles una vez por nivel', () => {
     const conteos = contarOpciones([esc({ niveles: ['Inicial', 'Primario'] })], 'niveles')
     expect(conteos).toEqual(new Map([['Inicial', 1], ['Primario', 1]]))

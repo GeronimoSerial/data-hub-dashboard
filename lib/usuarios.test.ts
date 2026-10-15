@@ -58,6 +58,12 @@ describe('listUsuariosDenied', () => {
     })
   })
 
+  it('returns 403 for GE SSO roles', () => {
+    for (const role of ['director_nivel', 'operador_establecimiento'] as const) {
+      expect(listUsuariosDenied({ ...consulta, role })?.status).toBe(403)
+    }
+  })
+
   it('allows admin and editor', () => {
     expect(listUsuariosDenied(admin)).toBeNull()
     expect(listUsuariosDenied(editor)).toBeNull()
@@ -118,6 +124,11 @@ describe('parseCreateUserBody', () => {
 
   it('rejects unknown roles', () => {
     expect(parseCreateUserBody({ ...base, role: 'superadmin' })).toBeNull()
+  })
+
+  it('accepts the director_nivel and operador_establecimiento roles', () => {
+    expect(parseCreateUserBody({ ...base, role: 'director_nivel' })?.role).toBe('director_nivel')
+    expect(parseCreateUserBody({ ...base, role: 'operador_establecimiento' })?.role).toBe('operador_establecimiento')
   })
 
   it('defaults accesoRecursos to todos when omitted', () => {

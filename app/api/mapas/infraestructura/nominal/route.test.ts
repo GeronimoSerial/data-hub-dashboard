@@ -156,4 +156,81 @@ describe('GET /api/mapas/infraestructura/nominal', () => {
     const despues = await contarLogsDe('usuario-con-grant')
     expect(despues - antes).toBe(1)
   })
+
+  describe('alcance por nivel jurisdiccional', () => {
+    const NIVEL_EN_ALCANCE = 5
+    const NIVEL_FUERA_DE_ALCANCE = 6
+
+    beforeAll(async () => {
+      const client = crearEjecutorSql(getRawClient())
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_nivel_jurisdiccional (id, nombre) VALUES (?, ?), (?, ?) ON CONFLICT (id) DO NOTHING',
+        args: [NIVEL_EN_ALCANCE, 'Secundario', NIVEL_FUERA_DE_ALCANCE, 'Primario'],
+      })
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_escuela_nivel_jur (cue_anexo, nivel_jurisdiccional_id, ciclo_lectivo) VALUES (?, ?, ?)',
+        args: [CUE, NIVEL_EN_ALCANCE, 2025],
+      })
+    })
+
+    it('un director de nivel con grant ve la afectación de su dirección y registra el acceso', async () => {
+      await otorgarPermisoNominal({
+        userId: 'director-en-alcance',
+        otorgadoPor: 'admin-x',
+        venceEn: new Date(Date.now() + 60_000),
+      })
+      vi.mocked(getSessionUser).mockResolvedValue({
+        id: 'director-en-alcance',
+        role: 'director_nivel',
+        banned: false,
+        nivelJurIds: [NIVEL_EN_ALCANCE],
+        accesoRecursos: 'todos',
+        recursoIds: [],
+      })
+      const { GET } = await import('./route')
+      const res = await GET(req())
+      expect(res.status).toBe(200)
+      expect(await contarLogsDe('director-en-alcance')).toBe(1)
+    })
+
+    it('un director de nivel con grant no ve una afectación de otra dirección, y no deja log', async () => {
+      await otorgarPermisoNominal({
+        userId: 'director-fuera-alcance',
+        otorgadoPor: 'admin-x',
+        venceEn: new Date(Date.now() + 60_000),
+      })
+      vi.mocked(getSessionUser).mockResolvedValue({
+        id: 'director-fuera-alcance',
+        role: 'director_nivel',
+        banned: false,
+        nivelJurIds: [NIVEL_FUERA_DE_ALCANCE],
+        accesoRecursos: 'todos',
+        recursoIds: [],
+      })
+      const { GET } = await import('./route')
+      const res = await GET(req())
+      expect(res.status).toBe(403)
+      expect(await contarLogsDe('director-fuera-alcance')).toBe(0)
+    })
+
+    it('un operador de establecimiento recibe 403 aunque tenga grant vigente', async () => {
+      await otorgarPermisoNominal({
+        userId: 'operador-con-grant',
+        otorgadoPor: 'admin-x',
+        venceEn: new Date(Date.now() + 60_000),
+      })
+      vi.mocked(getSessionUser).mockResolvedValue({
+        id: 'operador-con-grant',
+        role: 'operador_establecimiento',
+        banned: false,
+        nivelJurIds: [NIVEL_EN_ALCANCE],
+        accesoRecursos: 'todos',
+        recursoIds: [],
+      })
+      const { GET } = await import('./route')
+      const res = await GET(req())
+      expect(res.status).toBe(403)
+      expect(await contarLogsDe('operador-con-grant')).toBe(0)
+    })
+  })
 })

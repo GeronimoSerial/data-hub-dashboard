@@ -5,15 +5,15 @@ import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, Clock, Search, SlidersHorizontal, X } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
-import { contarOpciones, filtrarEscuelas, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
+import { contarOpciones, filtrarEscuelas, opcionesDireccion, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
 import { etiquetaDepartamento, ETIQUETA_APOYO, ETIQUETA_ESTADO_CLASES, ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type EstadoClases, type FiltrosMapa, type GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import { cantidadFiltrosEnLinea } from '@/lib/infraestructura/mapa/filtros-en-linea'
 
-type ClaveFiltro = 'departamentos' | 'niveles' | 'gravedades' | 'clases' | 'apoyo'
+type ClaveFiltro = 'departamentos' | 'niveles' | 'gravedades' | 'clases' | 'apoyo' | 'direcciones'
 type Opcion = { valor: string; etiqueta: string }
 
-const CLAVES_DESPLEGABLES: readonly ClaveFiltro[] = ['departamentos', 'niveles', 'gravedades', 'clases', 'apoyo']
+const CLAVES_DESPLEGABLES: readonly ClaveFiltro[] = ['departamentos', 'niveles', 'gravedades', 'clases', 'apoyo', 'direcciones']
 const CLAVES_INTERRUPTOR = ['sinActualizar', 'solucionadasRecientes'] as const
 const CLAVES_FILTROS_EN_ORDEN = [...CLAVES_DESPLEGABLES, ...CLAVES_INTERRUPTOR]
 
@@ -38,6 +38,7 @@ const ETIQUETAS_FILTRO: Record<ClaveFiltro, string> = {
   gravedades: 'Gravedad',
   clases: 'Clases',
   apoyo: 'Asistencia pedagógica',
+  direcciones: 'Dirección',
 }
 
 function valoresSeleccionados(filtros: FiltrosMapa, clave: ClaveFiltro): string[] {
@@ -61,6 +62,7 @@ function opcionesPorFiltro(escuelas: EscuelaMapaEnriquecida[], clave: ClaveFiltr
     const disponibles = opcionesDisponibles(escuelas)[clave]
     return disponibles.map((valor) => ({ valor, etiqueta: clave === 'departamentos' ? etiquetaDepartamento(valor) : valor }))
   }
+  if (clave === 'direcciones') return opcionesDireccion(escuelas).map((direccion) => ({ valor: String(direccion.id), etiqueta: direccion.nombre }))
   if (clave === 'gravedades') return OPCIONES_GRAVEDAD
   if (clave === 'clases') return OPCIONES_CLASES
   return OPCIONES_APOYO
@@ -76,6 +78,7 @@ function alternarValor(filtros: FiltrosMapa, clave: ClaveFiltro, valor: string):
     case 'gravedades': return { ...filtros, gravedades: siguiente.map(Number).filter(esGravedadMapa) }
     case 'clases': return { ...filtros, clases: siguiente.filter(esClase) }
     case 'apoyo': return { ...filtros, apoyo: siguiente.filter(esApoyo) }
+    case 'direcciones': return { ...filtros, direcciones: siguiente.map(Number).filter(Number.isInteger) }
   }
 }
 
@@ -223,7 +226,7 @@ export function FiltrosChips({
 
   const interruptoresActivos = Number(filtros.sinActualizar) + Number(filtros.solucionadasRecientes)
   const cantidadFiltrosActivos = filtros.departamentos.length + filtros.niveles.length
-    + filtros.gravedades.length + filtros.clases.length + filtros.apoyo.length + interruptoresActivos
+    + filtros.gravedades.length + filtros.clases.length + filtros.apoyo.length + filtros.direcciones.length + interruptoresActivos
   const cantidadFuera = CLAVES_FILTROS_EN_ORDEN.length - cantidadEnLinea
   const sinFiltrosEnLinea = cantidadEnLinea === 0
   const etiquetaBotonMas = sinFiltrosEnLinea ? 'Filtros' : 'Más filtros'
@@ -233,6 +236,7 @@ export function FiltrosChips({
     filtros.gravedades.length,
     filtros.clases.length,
     filtros.apoyo.length,
+    filtros.direcciones.length,
     Number(filtros.sinActualizar),
     Number(filtros.solucionadasRecientes),
   ]
