@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { describe, expect, it, vi } from 'vitest'
-import { crearAlmacenIndexedDb } from './almacen-indexeddb'
+import { VERSION_DB_PARTE, crearAlmacenIndexedDb } from './almacen-indexeddb'
 
 async function cargarSw() {
   const listeners: Record<string, (e: unknown) => void> = {}
@@ -37,7 +37,7 @@ describe('sw-parte procesarColaSync', () => {
     })
     const sw = await cargarSw()
     const abrir = () => new Promise<IDBDatabase>((res) => {
-      const r = indexedDB.open(nombre, 1)
+      const r = indexedDB.open(nombre, VERSION_DB_PARTE)
       r.onsuccess = () => res(r.result)
     })
     const r = await sw.procesarColaSync(abrir, fetchImpl)
