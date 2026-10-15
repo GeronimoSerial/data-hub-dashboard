@@ -10,7 +10,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
 - [x] B0 Contracts — docs/contratos-reportes-offline.md, lib/infraestructura/reportes-offline-contratos.ts (77b39f3, a4da765, 98f10cf). Vitest 5/5, tsc ok, eslint ok.
   - [ ] B0-OBS bucket survey — BLOCKED: awaiting explicit user authorization (bucket + credentials).
 - [ ] B1 Reliable local persistence
-  - [ ] B1-T1 Shared IndexedDB store: stores, oncomplete, migration, Blob files, generations (haiku)
+  - [x] B1-T1 (haiku, 84e7d60; vitest 495 ok, tsc ok, eslint ok) Shared IndexedDB store: stores, oncomplete, migration, Blob files, generations (haiku)
   - [ ] B1-T2 Wire forms: restore before autosave, error states (haiku)
   - [ ] B1-T3 sw-parte.js adapter on shared contract (haiku)
 - [ ] B2 Coordinated queue and confirmations
@@ -19,7 +19,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [ ] B2-T3 Retry policy: backoff + open/online/visibility triggers; error classes (recoverable, validation, server limit, expired session)
   - [ ] B2-T4 Forms consume confirmations on reopen without restoring sent drafts; keep attachments on form clear
 - [ ] B3 Server-synced drafts
-  - [ ] B3-T1 Schema + migration 0018 (drafts, revisions, closure tombstones); mirror ALTERs in lib/db/seed.ts
+  - [ ] B3-T1 [in progress: gpt-6-luna high, worktree reportes-b3-t1-schema] Schema + migration 0018 (drafts, revisions, closure tombstones); mirror ALTERs in lib/db/seed.ts
   - [ ] B3-T2 API: create, sync (partial validation + revision control), read, discard; tombstones reject late syncs
   - [ ] B3-T3 Client batching: sync on step complete/abandon, consolidate offline edits, keep local changes on conflict
   - [ ] B3-T4 Final submission links and closes its draft consistently
@@ -31,7 +31,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [ ] B4-T4 Reconnect: restore + sync, validate stale context without discarding answers
 - [ ] B5 Local selection and optimization
   - [ ] B5-T1 Photo picker: select, preview, remove (max 3 per submission)
-  - [ ] B5-T2 Worker pipeline: one at a time off main thread, optimized + thumbnail, orientation, strip metadata, no original fallback
+  - [ ] B5-T2 [in progress: gpt-6-luna high, worktree reportes-b5-t2-pipeline] Worker pipeline: one at a time off main thread, optimized + thumbnail, orientation, strip metadata, no original fallback
   - [ ] B5-T3 Limits (input, memory, formats) + replace originals only after variants persisted; resumable after close
   - [ ] B5-T4 Measure weights with real photos on modest devices
 - [ ] B6 Attachments and direct OBS upload (depends on B0-OBS)
