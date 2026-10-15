@@ -6,6 +6,7 @@ import {
 import {
   contarOpciones,
   filtrarEscuelas,
+  opcionesDireccion,
   opcionesDisponibles,
 } from '@/lib/infraestructura/mapa/filtrar'
 
@@ -18,6 +19,8 @@ function esc(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquec
     lat: null,
     lon: null,
     niveles: ['Primario'],
+    nivelJurisdiccionalId: null,
+    nivelJurisdiccionalNombre: null,
     alumnos: 0,
     gravedad: 0,
     categoriaPrincipal: null,
@@ -111,5 +114,29 @@ describe('opcionesDisponibles', () => {
       departamentos: ['Ángel de la Guarda', 'Goya'],
       niveles: ['Inicial', 'Primario', 'Secundario'],
     })
+  })
+})
+
+describe('filtro Dirección (nivel jurisdiccional)', () => {
+  const lista = [
+    esc({ nombre: 'A', nivelJurisdiccionalId: 1, nivelJurisdiccionalNombre: 'Capital' }),
+    esc({ nombre: 'B', nivelJurisdiccionalId: 2, nivelJurisdiccionalNombre: 'Esquina' }),
+    esc({ nombre: 'C', nivelJurisdiccionalId: null }),
+  ]
+
+  it('sin dirección seleccionada no filtra', () => {
+    expect(filtrarEscuelas(lista, FILTROS_MAPA_VACIOS)).toHaveLength(3)
+  })
+
+  it('con dirección seleccionada deja sólo esas escuelas (sin nivel no matchea)', () => {
+    const r = filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, direcciones: [2] })
+    expect(r.map((e) => e.nombre)).toEqual(['B'])
+  })
+
+  it('opcionesDireccion lista sólo los niveles presentes, sin duplicados y ordenados', () => {
+    expect(opcionesDireccion([...lista, esc({ nivelJurisdiccionalId: 1, nivelJurisdiccionalNombre: 'Capital' })])).toEqual([
+      { id: 1, nombre: 'Capital' },
+      { id: 2, nombre: 'Esquina' },
+    ])
   })
 })

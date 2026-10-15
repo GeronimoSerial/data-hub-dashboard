@@ -24,7 +24,8 @@ GE's nivel jurisdiccional, replacing the hub's own niveles taxonomy.
 - [x] T2 Hub tables `niveles_jurisdiccionales`, `user_niveles_jur`, `recurso_audiencia_niveles_jur` (drizzle migration) + backfill script with old→new mapping + tests
 - [x] T3 ACL/usuarios/recurso-access on jurisdiccional ids + tests
 - [x] T4 Admin/UI (hub-data, taxonomia, admin pages) on jurisdiccional catalog
-- [ ] T5 Map: "Dirección" filter + server-side forced scope for director_nivel
+- [x] T5a Roles director_nivel/operador_establecimiento, user.ge_cue_anexo, alcanceMapa + server-side scope (403 / EXISTS on ge_escuela_nivel_jur), data enrichment + filter logic
+- [ ] T5b Dirección chip group UI, ROLES in lib/usuarios.ts, nominal link scope, PGlite test of the EXISTS scope
 - [ ] T6 SSO endpoint `POST /api/auth/ge-login` + ticket + `/auth/ge-callback` → better-auth session, role/scope on user + hardening + tests
 - [ ] T7 Parte without `?cue` for operador (CUE from session; foreign CUE → 403)
 
@@ -33,6 +34,7 @@ GE's nivel jurisdiccional, replacing the hub's own niveles taxonomy.
 - T2 (delegated Haiku): migration 0013 + catalog seed + mapping + backfill; vitest 26+57 passed, tsc 0, lint 0 errors. Backfill is a one-off script (`node scripts/backfill-niveles-jur.mjs`, run once per env after deploy), not wired into seedHub to avoid re-adding admin-removed rows.
 - T3 (delegated Haiku, overran budget ~250k): ACL/usuarios/audiencias on *_jur tables; tsc 0, lint 0 errors. 12-file check: same 4 failures as HEAD baseline (radar lluvia, 2 seed "base ya poblada" timeouts, jobs migracion-legacy) → pre-existing. admin-page only minimally adapted (T4).
 - T4 (delegated Haiku): admin pickers on jur catalog + read-only "Direcciones (GE)" tab; vitest 62 passed, tsc 0, lint 0 errors. Follow-up: taxonomia in-use count still reads legacy tables until they are dropped.
+- T5a (delegated Haiku, checkpointed): vitest 8 files/123 passed, tsc 0, lint 0 errors; migration renamed to 0014_user_ge_cue_anexo (db index test passes).
 
 ## Next step
-T5.
+T5b.

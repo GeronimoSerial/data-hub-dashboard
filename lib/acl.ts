@@ -1,4 +1,9 @@
-export type Role = 'admin' | 'editor' | 'consulta'
+export type Role =
+  | 'admin'
+  | 'editor'
+  | 'consulta'
+  | 'director_nivel'
+  | 'operador_establecimiento'
 
 export type SessionUser = {
   id: string
@@ -10,6 +15,8 @@ export type SessionUser = {
   // la audiencia propia del recurso.
   accesoRecursos: 'todos' | 'seleccionados'
   recursoIds: string[]
+  // CUE-anexo del establecimiento del operador (ge_cue_anexo, lo puebla T6).
+  cueAnexo?: string | null
 }
 
 export type RecursoAccess = {

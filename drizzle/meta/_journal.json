@@ -99,6 +99,13 @@
       "when": 1792101678755,
       "tag": "0013_niveles_jurisdiccionales",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792103156276,
+      "tag": "0014_user_ge_cue_anexo",
+      "breakpoints": true
     }
   ]
 }

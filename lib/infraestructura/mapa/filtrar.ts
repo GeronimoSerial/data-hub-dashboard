@@ -22,6 +22,7 @@ export function filtrarEscuelas<T extends EscuelaMapaEnriquecida>(escuelas: T[],
   return escuelas.filter((escuela) => {
     if (f.departamentos.length > 0 && !f.departamentos.includes(escuela.departamento)) return false
     if (f.niveles.length > 0 && !escuela.niveles.some((nivel) => f.niveles.includes(nivel))) return false
+    if (f.direcciones.length > 0 && (typeof escuela.nivelJurisdiccionalId !== 'number' || !f.direcciones.includes(escuela.nivelJurisdiccionalId))) return false
     if (f.gravedades.length > 0 && !f.gravedades.includes(escuela.gravedad)) return false
     if (f.clases.length > 0 && !f.clases.includes(escuela.clases)) return false
     if (f.apoyo.length > 0 && !f.apoyo.some((opcion) => coincideApoyo(escuela, opcion))) return false
@@ -84,4 +85,21 @@ export function opcionesDisponibles(escuelas: EscuelaMapaEnriquecida[]): { depar
     departamentos: [...departamentos].sort(ordenar),
     niveles: [...niveles].sort(ordenar),
   }
+}
+
+// Opciones del filtro "Dirección": los niveles jurisdiccionales presentes en las
+// escuelas recibidas. El servidor ya limita esas escuelas al alcance del rol
+// (director_nivel sólo recibe las de sus niveles), así que las opciones también.
+export function opcionesDireccion(
+  escuelas: EscuelaMapaEnriquecida[],
+): Array<{ id: number; nombre: string }> {
+  const porId = new Map<number, string>()
+  for (const escuela of escuelas) {
+    if (typeof escuela.nivelJurisdiccionalId === 'number' && escuela.nivelJurisdiccionalNombre) {
+      porId.set(escuela.nivelJurisdiccionalId, escuela.nivelJurisdiccionalNombre)
+    }
+  }
+  return [...porId]
+    .map(([id, nombre]) => ({ id, nombre }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 }

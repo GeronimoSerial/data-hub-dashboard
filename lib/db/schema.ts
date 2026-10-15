@@ -146,6 +146,8 @@ export const user = pgTable('user', {
   // consulta se restringe a los recursos listados en user_recursos (además
   // de la audiencia propia del recurso, ver lib/acl.ts puedeAbrir).
   accesoRecursos: text('acceso_recursos').notNull().default('todos'),
+  // CUE-anexo del establecimiento asignado al operador_establecimiento (T6).
+  geCueAnexo: text('ge_cue_anexo'),
 })
 
 export const session = pgTable(
