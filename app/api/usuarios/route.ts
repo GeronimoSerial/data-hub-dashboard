@@ -2,15 +2,17 @@ import { auth } from '@/lib/auth'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser } from '@/lib/session'
 import {
+  UNKNOWN_NIVELES_JUR_ERROR,
   UNKNOWN_RECURSOS_ERROR,
   authApiError,
   listHubUsers,
   listUsuariosDenied,
   mutateUsuariosDenied,
   parseCreateUserBody,
-  replaceUserNiveles,
+  replaceUserNivelesJur,
   replaceUserRecursos,
   setAccesoRecursos,
+  unknownNivelJurIds,
   unknownRecursoIds,
 } from '@/lib/usuarios'
 
@@ -45,6 +47,10 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Cuerpo inválido' }, { status: 400 })
   }
 
+  if ((await unknownNivelJurIds(parsed.nivelJurIds)).length > 0) {
+    return Response.json({ error: UNKNOWN_NIVELES_JUR_ERROR }, { status: 400 })
+  }
+
   if ((await unknownRecursoIds(parsed.recursoIds)).length > 0) {
     return Response.json({ error: UNKNOWN_RECURSOS_ERROR }, { status: 400 })
   }
@@ -60,7 +66,7 @@ export async function POST(request: Request) {
       headers: request.headers,
     })
     const id = created.user.id
-    await replaceUserNiveles(id, parsed.nivelIds)
+    await replaceUserNivelesJur(id, parsed.nivelJurIds)
     await setAccesoRecursos(id, parsed.accesoRecursos)
     await replaceUserRecursos(id, parsed.recursoIds)
     return Response.json({ ok: true, id }, { status: 201 })

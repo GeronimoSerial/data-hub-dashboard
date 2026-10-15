@@ -38,11 +38,11 @@ export type ResourcePresentation = {
  * ACL decision; this only informs the UI before the click.
  */
 export function resourceAccessState(
-  recurso: Pick<Recurso, 'audienciaNivelIds' | 'audienciaUserIds'>,
+  recurso: Pick<Recurso, 'audienciaNivelJurIds' | 'audienciaUserIds'>,
   auth: ResourceAccessAuth = { hasUser: false },
 ): ResourceAccessState {
   const audienceLocked =
-    Boolean(recurso.audienciaNivelIds?.length) ||
+    Boolean(recurso.audienciaNivelJurIds?.length) ||
     Boolean(recurso.audienciaUserIds?.length)
   if (audienceLocked) return 'restricted'
   return auth.isPending ? 'sign-in' : auth.hasUser ? 'public' : 'sign-in'

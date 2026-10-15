@@ -1,10 +1,18 @@
 import { eq, inArray } from 'drizzle-orm'
 import type { Role, SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
-import { recursos, user, userNiveles, userRecursos } from '@/lib/db/schema'
+import {
+  nivelesJurisdiccionales,
+  recursos,
+  user,
+  userNivelesJur,
+  userRecursos,
+} from '@/lib/db/schema'
 
 export const LAST_ADMIN_ERROR = 'No se puede quitar el último administrador'
 export const UNKNOWN_RECURSOS_ERROR = 'Hay recursos seleccionados que no existen'
+export const UNKNOWN_NIVELES_JUR_ERROR =
+  'Hay niveles jurisdiccionales seleccionados que no existen'
 
 const ROLES: Role[] = ['admin', 'editor', 'consulta']
 const MIN_PASSWORD = 8
@@ -18,7 +26,7 @@ export type HubUser = {
   email: string
   role: Role
   banned: boolean
-  nivelIds: string[]
+  nivelJurIds: number[]
   accesoRecursos: AccesoRecursos
   recursoIds: string[]
 }
@@ -28,7 +36,7 @@ export type CreateUserBody = {
   name: string
   password: string
   role: Role
-  nivelIds: string[]
+  nivelJurIds: number[]
   accesoRecursos: AccesoRecursos
   recursoIds: string[]
 }
@@ -38,7 +46,7 @@ export type PatchUserBody = {
   role?: Role
   banned?: boolean
   password?: string
-  nivelIds?: string[]
+  nivelJurIds?: number[]
   accesoRecursos?: AccesoRecursos
   recursoIds?: string[]
 }
@@ -87,6 +95,16 @@ function asStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === 'string' && item.length > 0)
 }
 
+// Ids de nivel jurisdiccional (enteros positivos, según ge_nivel_jurisdiccional).
+// Los valores que no son enteros se descartan; la existencia en el catálogo se
+// valida aparte con unknownNivelJurIds.
+function asIntArray(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (item): item is number => Number.isInteger(item) && item > 0,
+  )
+}
+
 export function parseCreateUserBody(body: unknown): CreateUserBody | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
@@ -107,7 +125,7 @@ export function parseCreateUserBody(body: unknown): CreateUserBody | null {
     name: b.name.trim(),
     password: b.password,
     role,
-    nivelIds: asStringArray(b.nivelIds),
+    nivelJurIds: asIntArray(b.nivelJurIds),
     accesoRecursos,
     recursoIds: asStringArray(b.recursoIds),
   }
@@ -142,9 +160,9 @@ export function parsePatchUserBody(body: unknown): PatchUserBody | null {
       patch.password = password
     }
   }
-  if ('nivelIds' in b) {
-    if (!Array.isArray(b.nivelIds)) return null
-    patch.nivelIds = asStringArray(b.nivelIds)
+  if ('nivelJurIds' in b) {
+    if (!Array.isArray(b.nivelJurIds)) return null
+    patch.nivelJurIds = asIntArray(b.nivelJurIds)
   }
   if ('accesoRecursos' in b) {
     const accesoRecursos = asAccesoRecursos(b.accesoRecursos)
@@ -205,14 +223,14 @@ export async function listHubUsers(): Promise<HubUser[]> {
         accesoRecursos: user.accesoRecursos,
       })
       .from(user),
-    db.select().from(userNiveles),
+    db.select().from(userNivelesJur),
     db.select().from(userRecursos),
   ])
-  const nivelIdsByUser = new Map<string, string[]>()
+  const nivelJurIdsByUser = new Map<string, number[]>()
   for (const row of nivelRows) {
-    const list = nivelIdsByUser.get(row.userId)
-    if (list) list.push(row.nivelId)
-    else nivelIdsByUser.set(row.userId, [row.nivelId])
+    const list = nivelJurIdsByUser.get(row.userId)
+    if (list) list.push(row.nivelJurisdiccionalId)
+    else nivelJurIdsByUser.set(row.userId, [row.nivelJurisdiccionalId])
   }
   const recursoIdsByUser = new Map<string, string[]>()
   for (const row of recursoRows) {
@@ -226,7 +244,7 @@ export async function listHubUsers(): Promise<HubUser[]> {
     email: row.email,
     role: (row.role as Role | null) ?? 'consulta',
     banned: Boolean(row.banned),
-    nivelIds: nivelIdsByUser.get(row.id) ?? [],
+    nivelJurIds: nivelJurIdsByUser.get(row.id) ?? [],
     accesoRecursos:
       row.accesoRecursos === 'seleccionados' ? 'seleccionados' : 'todos',
     recursoIds: recursoIdsByUser.get(row.id) ?? [],
@@ -241,12 +259,27 @@ export async function unbannedAdminIds() {
   return rows.filter((row) => !row.banned).map((row) => row.id)
 }
 
-export async function replaceUserNiveles(userId: string, nivelIds: string[]) {
+/** Ids de nivel jurisdiccional en `nivelJurIds` que no existen en el catálogo
+ *  `niveles_jurisdiccionales`. Vacío si todos son válidos. */
+export async function unknownNivelJurIds(nivelJurIds: number[]): Promise<number[]> {
+  const unique = [...new Set(nivelJurIds)]
+  if (unique.length === 0) return []
+  const rows = await getDb()
+    .select({ id: nivelesJurisdiccionales.id })
+    .from(nivelesJurisdiccionales)
+    .where(inArray(nivelesJurisdiccionales.id, unique))
+  const found = new Set(rows.map((r) => r.id))
+  return unique.filter((id) => !found.has(id))
+}
+
+export async function replaceUserNivelesJur(userId: string, nivelJurIds: number[]) {
   const db = getDb()
-  await db.delete(userNiveles).where(eq(userNiveles.userId, userId))
-  const unique = [...new Set(nivelIds.filter(Boolean))]
+  await db.delete(userNivelesJur).where(eq(userNivelesJur.userId, userId))
+  const unique = [...new Set(nivelJurIds)]
   if (unique.length === 0) return
-  await db.insert(userNiveles).values(unique.map((nivelId) => ({ userId, nivelId })))
+  await db
+    .insert(userNivelesJur)
+    .values(unique.map((nivelJurisdiccionalId) => ({ userId, nivelJurisdiccionalId })))
 }
 
 /** Recurso ids en `recursoIds` que no existen en `recursos`. Vacío si todos

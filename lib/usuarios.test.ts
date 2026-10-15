@@ -20,7 +20,7 @@ const admin: SessionUser = {
   id: 'a1',
   role: 'admin',
   banned: false,
-  nivelIds: [],
+  nivelJurIds: [],
   accesoRecursos: 'todos',
   recursoIds: [],
 }
@@ -29,7 +29,7 @@ const editor: SessionUser = {
   id: 'e1',
   role: 'editor',
   banned: false,
-  nivelIds: [],
+  nivelJurIds: [],
   accesoRecursos: 'todos',
   recursoIds: [],
 }
@@ -38,7 +38,7 @@ const consulta: SessionUser = {
   id: 'c1',
   role: 'consulta',
   banned: false,
-  nivelIds: ['primario'],
+  nivelJurIds: [1],
   accesoRecursos: 'todos',
   recursoIds: [],
 }
@@ -100,7 +100,7 @@ describe('parseCreateUserBody', () => {
     name: 'Ana',
     password: 'password1',
     role: 'consulta',
-    nivelIds: ['primario'],
+    nivelJurIds: [1],
   }
 
   it('accepts a valid body', () => {
@@ -152,12 +152,12 @@ describe('parsePatchUserBody', () => {
         role: 'editor',
         banned: true,
         password: '  ',
-        nivelIds: ['inicial'],
+        nivelJurIds: [3],
       }),
     ).toEqual({
       role: 'editor',
       banned: true,
-      nivelIds: ['inicial'],
+      nivelJurIds: [3],
     })
   })
 

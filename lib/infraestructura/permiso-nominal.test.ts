@@ -9,7 +9,7 @@ function user(overrides: Partial<SessionUser>): SessionUser {
     id: 'sin-uso',
     role: 'consulta',
     banned: false,
-    nivelIds: [],
+    nivelJurIds: [],
     accesoRecursos: 'todos',
     recursoIds: [],
     ...overrides,

@@ -4,7 +4,7 @@ export type SessionUser = {
   id: string
   role: Role
   banned: boolean
-  nivelIds: string[]
+  nivelJurIds: number[]
   // 'todos' | 'seleccionados': si es 'seleccionados', puedeAbrir restringe al
   // usuario consulta a los recursos listados en recursoIds, antes de aplicar
   // la audiencia propia del recurso.
@@ -15,7 +15,7 @@ export type SessionUser = {
 export type RecursoAccess = {
   id: string
   estado: 'publicado' | 'borrador'
-  audienciaNivelIds: string[]
+  audienciaNivelJurIds: number[]
   audienciaUserIds: string[]
 }
 
@@ -33,11 +33,11 @@ export function puedeAbrir(
   )
     return false
   const noAudience =
-    recurso.audienciaNivelIds.length === 0 &&
+    recurso.audienciaNivelJurIds.length === 0 &&
     recurso.audienciaUserIds.length === 0
   if (noAudience) return true
   if (recurso.audienciaUserIds.includes(user.id)) return true
-  return user.nivelIds.some((id) => recurso.audienciaNivelIds.includes(id))
+  return user.nivelJurIds.some((id) => recurso.audienciaNivelJurIds.includes(id))
 }
 
 // Cualquier item de catálogo (Recurso, RecursoAccess) que traiga estos campos
@@ -47,7 +47,7 @@ export function puedeAbrir(
 type FiltrableAccess = {
   id: string
   estado: 'publicado' | 'borrador'
-  audienciaNivelIds?: string[]
+  audienciaNivelJurIds?: number[]
   audienciaUserIds?: string[]
 }
 
@@ -66,7 +66,7 @@ export function accesoDe<T extends FiltrableAccess>(
   const puede = puedeAbrir(user, {
     id: recurso.id,
     estado: recurso.estado,
-    audienciaNivelIds: recurso.audienciaNivelIds ?? [],
+    audienciaNivelJurIds: recurso.audienciaNivelJurIds ?? [],
     audienciaUserIds: recurso.audienciaUserIds ?? [],
   })
   return puede ? 'abrir' : 'restringido'

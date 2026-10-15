@@ -61,7 +61,7 @@ afterEach(() => {
 })
 
 function usuario(role: string, banned = false) {
-  return { id: 'u1', role, banned, nivelIds: [] }
+  return { id: 'u1', role, banned, nivelJurIds: [] }
 }
 
 function requestConCookie(valor?: string) {

@@ -41,7 +41,7 @@ describe('resource access states (batch spec wording)', () => {
   })
 
   it('shows "Acceso restringido" when an audience exists regardless of session', () => {
-    const restricted = { audienciaNivelIds: ['secundario'], audienciaUserIds: [] }
+    const restricted = { audienciaNivelJurIds: [2], audienciaUserIds: [] }
     expect(resourceAccessState(restricted, { isPending: false, hasUser: true })).toBe('restricted')
     expect(resourceAccessState(restricted, { isPending: false, hasUser: false })).toBe('restricted')
   })

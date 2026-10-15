@@ -6,14 +6,16 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser } from '@/lib/session'
 import {
   LAST_ADMIN_ERROR,
+  UNKNOWN_NIVELES_JUR_ERROR,
   UNKNOWN_RECURSOS_ERROR,
   authApiError,
   mutateUsuariosDenied,
   parsePatchUserBody,
-  replaceUserNiveles,
+  replaceUserNivelesJur,
   replaceUserRecursos,
   setAccesoRecursos,
   unbannedAdminIds,
+  unknownNivelJurIds,
   unknownRecursoIds,
   wouldRemoveLastAdmin,
 } from '@/lib/usuarios'
@@ -41,6 +43,13 @@ export async function PATCH(request: Request, ctx: Ctx) {
   const parsed = parsePatchUserBody(body)
   if (!parsed) {
     return Response.json({ error: 'Cuerpo inválido' }, { status: 400 })
+  }
+
+  if (
+    parsed.nivelJurIds &&
+    (await unknownNivelJurIds(parsed.nivelJurIds)).length > 0
+  ) {
+    return Response.json({ error: UNKNOWN_NIVELES_JUR_ERROR }, { status: 400 })
   }
 
   if (
@@ -95,8 +104,8 @@ export async function PATCH(request: Request, ctx: Ctx) {
         headers,
       })
     }
-    if (parsed.nivelIds) {
-      await replaceUserNiveles(id, parsed.nivelIds)
+    if (parsed.nivelJurIds) {
+      await replaceUserNivelesJur(id, parsed.nivelJurIds)
     }
     if (parsed.accesoRecursos) {
       await setAccesoRecursos(id, parsed.accesoRecursos)

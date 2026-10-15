@@ -27,13 +27,13 @@ beforeEach(() => {
 })
 
 function editor() {
-  return { id: 'editor-1', role: 'editor' as const, banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
+  return { id: 'editor-1', role: 'editor' as const, banned: false, nivelJurIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
 }
 function admin() {
-  return { id: 'admin-1', role: 'admin' as const, banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
+  return { id: 'admin-1', role: 'admin' as const, banned: false, nivelJurIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
 }
 function consulta() {
-  return { id: 'consulta-1', role: 'consulta' as const, banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
+  return { id: 'consulta-1', role: 'consulta' as const, banned: false, nivelJurIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
 }
 
 async function contarJobs() {

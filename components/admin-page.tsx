@@ -18,6 +18,7 @@ import {
 } from '@/lib/model'
 import { useHubData } from '@/components/hub-data'
 import type { Role } from '@/lib/acl'
+import { nivelesJurisdiccionales } from '@/lib/model'
 import { isAllowedUpload } from '@/lib/upload'
 import { Button } from '@/components/ui/button'
 import { ConfirmDelete } from '@/components/confirm-delete'
@@ -55,7 +56,7 @@ type HubUserRow = {
   email: string
   role: Role
   banned: boolean
-  nivelIds: string[]
+  nivelJurIds: number[]
   accesoRecursos: AccesoRecursos
   recursoIds: string[]
 }
@@ -281,14 +282,14 @@ function RecursoForm({
     area: '',
     actualizado: new Date().toISOString().slice(0, 10),
     estado: 'borrador',
-    audienciaNivelIds: [],
+    audienciaNivelJurIds: [],
     audienciaUserIds: [],
   }
   const [draft, setDraft] = React.useState<Recurso>(() =>
     editing
       ? {
           ...editing,
-          audienciaNivelIds: editing.audienciaNivelIds ?? [],
+          audienciaNivelJurIds: editing.audienciaNivelJurIds ?? [],
           audienciaUserIds: editing.audienciaUserIds ?? [],
         }
       : empty,
@@ -340,7 +341,7 @@ function RecursoForm({
       id,
       tipoId: tipoOk ? draft.tipoId : (tiposValidos[0]?.id ?? ''),
       actualizado: new Date().toISOString().slice(0, 10),
-      audienciaNivelIds: draft.audienciaNivelIds ?? [],
+      audienciaNivelJurIds: draft.audienciaNivelJurIds ?? [],
       audienciaUserIds: draft.audienciaUserIds ?? [],
     }
     if (destino === 'ruta') {
@@ -539,11 +540,9 @@ function RecursoForm({
             hint="Si no se selecciona ninguna persona ni nivel, puede abrirlo cualquier usuario con sesión iniciada."
           >
             <MultiSelect<string>
-              value={draft.audienciaNivelIds ?? []}
-              onChange={(next) => set('audienciaNivelIds', next)}
-              options={[...niveles]
-                .sort((a, b) => a.orden - b.orden)
-                .map((n) => ({ value: n.id as string, label: n.nombre }))}
+              value={(draft.audienciaNivelJurIds ?? []).map(String)}
+              onChange={(next) => set('audienciaNivelJurIds', next.map(Number))}
+              options={nivelesJurisdiccionales.map((n) => ({ value: String(n.id), label: n.nombre }))}
               placeholder="Seleccione niveles"
             />
           </AdminField>
@@ -928,7 +927,7 @@ function UserForm({
     password: '',
     role: 'consulta' as Role,
     banned: false,
-    nivelIds: [] as string[],
+    nivelJurIds: [] as string[],
     accesoRecursos: 'todos' as AccesoRecursos,
     recursoIds: [] as string[],
   }
@@ -940,7 +939,7 @@ function UserForm({
           password: '',
           role: editing.role,
           banned: editing.banned,
-          nivelIds: editing.nivelIds,
+          nivelJurIds: editing.nivelJurIds.map(String),
           accesoRecursos: editing.accesoRecursos,
           recursoIds: editing.recursoIds,
         }
@@ -970,7 +969,7 @@ function UserForm({
               role: draft.role,
               banned: draft.banned,
               password: draft.password,
-              nivelIds: draft.nivelIds,
+              nivelJurIds: draft.nivelJurIds.map(Number),
               accesoRecursos: draft.accesoRecursos,
               recursoIds: draft.recursoIds,
             }),
@@ -983,7 +982,7 @@ function UserForm({
               email: draft.email,
               password: draft.password,
               role: draft.role,
-              nivelIds: draft.nivelIds,
+              nivelJurIds: draft.nivelJurIds.map(Number),
               accesoRecursos: draft.accesoRecursos,
               recursoIds: draft.recursoIds,
             }),
@@ -1052,11 +1051,9 @@ function UserForm({
           />
           <AdminField label="Niveles">
             <MultiSelect<string>
-              value={draft.nivelIds}
-              onChange={(next) => setDraft((prev) => ({ ...prev, nivelIds: next }))}
-              options={[...niveles]
-                .sort((a, b) => a.orden - b.orden)
-                .map((n) => ({ value: n.id, label: n.nombre }))}
+              value={draft.nivelJurIds}
+              onChange={(next) => setDraft((prev) => ({ ...prev, nivelJurIds: next }))}
+              options={nivelesJurisdiccionales.map((n) => ({ value: String(n.id), label: n.nombre }))}
               placeholder="Seleccione niveles"
             />
           </AdminField>
@@ -1158,8 +1155,8 @@ function UsersAdmin() {
                 <td>{u.email}</td>
                 <td>{rolLabel(u.role)}</td>
                 <td>
-                  {u.nivelIds
-                    .map((id) => niveles.find((n) => n.id === id)?.nombre)
+                  {u.nivelJurIds
+                    .map((id) => nivelesJurisdiccionales.find((n) => n.id === id)?.nombre)
                     .filter(Boolean)
                     .join(', ') || '—'}
                   {u.accesoRecursos === 'seleccionados' ? (

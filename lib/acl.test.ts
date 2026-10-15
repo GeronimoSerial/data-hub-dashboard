@@ -12,7 +12,7 @@ import {
 const pub: RecursoAccess = {
   id: 'r1',
   estado: 'publicado',
-  audienciaNivelIds: [],
+  audienciaNivelJurIds: [],
   audienciaUserIds: [],
 }
 
@@ -20,7 +20,7 @@ const consulta = (over: Partial<SessionUser> = {}): SessionUser => ({
   id: 'u1',
   role: 'consulta',
   banned: false,
-  nivelIds: [],
+  nivelJurIds: [],
   accesoRecursos: 'todos',
   recursoIds: [],
   ...over,
@@ -37,27 +37,27 @@ describe('puedeAbrir', () => {
 
   it('allows consulta when nivel intersects', () => {
     expect(
-      puedeAbrir(consulta({ nivelIds: ['primario', 'secundario'] }), {
+      puedeAbrir(consulta({ nivelJurIds: [1, 2] }), {
         ...pub,
-        audienciaNivelIds: ['primario'],
+        audienciaNivelJurIds: [1],
       }),
     ).toBe(true)
   })
 
   it('denies consulta when nivel misses and not nominated', () => {
     expect(
-      puedeAbrir(consulta({ nivelIds: ['inicial'] }), {
+      puedeAbrir(consulta({ nivelJurIds: [3] }), {
         ...pub,
-        audienciaNivelIds: ['primario'],
+        audienciaNivelJurIds: [1],
       }),
     ).toBe(false)
   })
 
   it('allows nominated consulta without matching nivel', () => {
     expect(
-      puedeAbrir(consulta({ id: 'u9', nivelIds: [] }), {
+      puedeAbrir(consulta({ id: 'u9', nivelJurIds: [] }), {
         ...pub,
-        audienciaNivelIds: ['primario'],
+        audienciaNivelJurIds: [1],
         audienciaUserIds: ['u9'],
       }),
     ).toBe(true)
@@ -106,9 +106,9 @@ describe('puedeAbrir', () => {
         consulta({
           accesoRecursos: 'seleccionados',
           recursoIds: ['r1'],
-          nivelIds: [],
+          nivelJurIds: [],
         }),
-        { ...pub, audienciaNivelIds: ['primario'] },
+        { ...pub, audienciaNivelJurIds: [1] },
       ),
     ).toBe(false)
   })
@@ -186,7 +186,7 @@ describe('accesoDe', () => {
       accesoDe(consulta({ accesoRecursos: 'seleccionados', recursoIds: ['otro'] }), pub),
     ).toBe('restringido')
     expect(
-      accesoDe(consulta(), { ...pub, audienciaNivelIds: ['secundario'] }),
+      accesoDe(consulta(), { ...pub, audienciaNivelJurIds: [2] }),
     ).toBe('restringido')
   })
 
@@ -203,7 +203,7 @@ describe('marcarAcceso', () => {
   const restringido = {
     id: 'r3',
     estado: 'publicado' as const,
-    audienciaNivelIds: ['secundario'],
+    audienciaNivelJurIds: [2],
     audienciaUserIds: [],
   }
   const catalogo = [abierto, borrador, restringido]
@@ -225,7 +225,7 @@ describe('marcarAcceso', () => {
   })
 
   it('consulta+todos sees restringido become abrir when the nivel matches', () => {
-    expect(marcarAcceso(consulta({ nivelIds: ['secundario'] }), catalogo)).toEqual([
+    expect(marcarAcceso(consulta({ nivelJurIds: [2] }), catalogo)).toEqual([
       { ...abierto, acceso: 'abrir' },
       { ...borrador, acceso: 'restringido' },
       { ...restringido, acceso: 'abrir' },
