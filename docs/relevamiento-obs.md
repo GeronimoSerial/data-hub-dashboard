@@ -20,13 +20,13 @@ No bucket is referenced by this repository yet (no OBS config in code or `.env.e
 
 ## Findings
 
-- **Security (outside this feature):** `asistencias-bucket` allows anonymous write and read (`Principal: *` with `s3:PutObject`, `PutObjectAcl`, `GetObject`, plus AllUsers READ ACL). Anyone can upload or overwrite objects. Recommend restricting to the app's IAM principal.
+- A security finding about another bucket is tracked outside the repository.
 - No bucket has CORS, lifecycle, versioning or default encryption configured.
 - ETag is returned on listing (MD5 for single-part uploads), so upload verification can use `HeadObject` + ETag without downloading (answers B0 open question 2).
 
 ## Changes needed for the offline reports plan (B6)
 
-Target bucket: pending decision (dedicated private bucket recommended; must not be any public bucket above).
+Target bucket: **`reportes-infraestructura`** (la-south-2, Santiago), created 2026-10-15: private ACL, SSE AES256, CORS PUT/GET/HEAD from `http://localhost:3000` exposing ETag (production origin still to add), lifecycle abort-incomplete-MPU 1 day + expire `huerfanos/` 7 days. Items 1–5 below are applied; item 6 (dedicated IAM user) is pending.
 
 1. Private bucket, no ACL/policy grants to `*`; access only via presigned URLs issued by the app server.
 2. CORS: allow `PUT`, `GET`, `HEAD` from the app origin(s); allowed headers `content-type`, `content-md5`, `x-amz-*`/`x-obs-*`; expose `ETag`; max-age 3600.
