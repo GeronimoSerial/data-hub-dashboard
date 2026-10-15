@@ -21,7 +21,7 @@ GE's nivel jurisdiccional, replacing the hub's own niveles taxonomy.
 
 ## Tasks
 - [x] T1 Import nivel jurisdiccional catalog + CUE→nivel in padrón sync (ge schema, padron-ge.mjs, import-padron.mjs) + tests
-- [ ] T2 Hub tables `niveles_jurisdiccionales`, `user_niveles_jur`, `recurso_audiencia_niveles_jur` (drizzle migration) + backfill script with old→new mapping + tests
+- [x] T2 Hub tables `niveles_jurisdiccionales`, `user_niveles_jur`, `recurso_audiencia_niveles_jur` (drizzle migration) + backfill script with old→new mapping + tests
 - [ ] T3 ACL/usuarios/recurso-access on jurisdiccional ids + tests
 - [ ] T4 Admin/UI (hub-data, taxonomia, admin pages) on jurisdiccional catalog
 - [ ] T5 Map: "Dirección" filter + server-side forced scope for director_nivel
@@ -30,6 +30,7 @@ GE's nivel jurisdiccional, replacing the hub's own niveles taxonomy.
 
 ## Progress / evidence
 - T1 (delegated Haiku): vitest 4 files/56 passed, tsc 0, lint 0 errors (14 pre-existing warnings). CUE with 2 niveles aborts import (deliberate); not yet run against real GE.
+- T2 (delegated Haiku): migration 0013 + catalog seed + mapping + backfill; vitest 26+57 passed, tsc 0, lint 0 errors. Backfill is a one-off script (`node scripts/backfill-niveles-jur.mjs`, run once per env after deploy), not wired into seedHub to avoid re-adding admin-removed rows.
 
 ## Next step
-T2.
+T3.
