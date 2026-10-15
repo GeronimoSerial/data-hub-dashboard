@@ -8,7 +8,7 @@ import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 import { MENSAJES_ESTADO, guardarBorrador as guardarBorradorEnvio } from '@/lib/infraestructura/parte/envio-offline'
-import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { crearAlmacenParte, abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 
 const props = { cue: '12345678', turnos, motivos }
 
@@ -129,6 +129,32 @@ afterEach(() => {
 })
 
 describe('ReporteInicialForm', () => {
+  it('migra el borrador legacy a IndexedDB antes de habilitar su guardado', async () => {
+    sembrarBorradorWizard()
+    renderFormulario()
+    await waitFor(async () => {
+      const store = await abrirAlmacenParte()
+      const borrador = await store.obtenerBorrador(`parte-inicial:${props.cue}`)
+      expect(borrador?.datos).toMatchObject({ paso: 2, generacion: 'generacion-test' })
+    })
+    expect(localStorage.getItem(`parte-nuevo:draft:${props.cue}`)).toBeNull()
+  })
+
+  it('conserva las referencias a fotos del borrador al guardar respuestas', async () => {
+    const key = `parte-nuevo:draft:${props.cue}`
+    sembrarBorradorWizard({ paso: 2 })
+    const datos = JSON.parse(localStorage.getItem(key) ?? '{}')
+    datos.referenciasFotos = ['foto-1']
+    localStorage.setItem(key, JSON.stringify(datos))
+    renderFormulario()
+    await screen.findByRole('dialog', { name: MENSAJE_BORRADOR_PENDIENTE })
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    await waitFor(async () => {
+      const store = await abrirAlmacenParte()
+      expect((await store.obtenerBorrador(`parte-inicial:${props.cue}`))?.datos).toMatchObject({ referenciasFotos: ['foto-1'] })
+    })
+  })
+
   it('después de guardar, "Cargar otra situación" deja el botón de guardar habilitado (#73)', async () => {
     const fetchMock = stubFetch()
     renderFormulario()
