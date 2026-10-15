@@ -1,25 +1,54 @@
 // Service worker del parte: reenvía la cola de IndexedDB cuando vuelve la
 // conectividad, aunque la pestaña esté cerrada. El formulario conserva su
 // reintento en primer plano en navegadores sin Background Sync.
+// Contrato compartido con lib/infraestructura/parte/almacen-indexeddb.ts.
+// Cambiar aquí la versión o los stores exige cambiarlo también allí.
 const DB = 'parte-offline'
+const VERSION_DB = 2
 const STORE = 'kv'
+const STORES_CONTRATO = [
+  { nombre: 'kv' },
+  { nombre: 'contextos', keyPath: 'draftId' },
+  { nombre: 'borradores', keyPath: 'draftId' },
+  { nombre: 'trabajos_envio', keyPath: 'idempotencyKey' },
+  { nombre: 'confirmaciones', keyPath: 'idempotencyKey' },
+  { nombre: 'archivos' },
+  { nombre: 'descartes', keyPath: 'draftId' },
+]
 const PREFIJO = 'parte:'
 const REINTENTABLES = ['pendiente-envio', 'error-servidor']
 
+function migrar(db) {
+  // Nunca se borra ningún almacén existente: los datos de versiones anteriores se conservan.
+  for (const { nombre, keyPath } of STORES_CONTRATO) {
+    if (!db.objectStoreNames.contains(nombre)) {
+      db.createObjectStore(nombre, keyPath ? { keyPath } : undefined)
+    }
+  }
+}
+
 function abrirDb() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 1)
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE)
-    req.onsuccess = () => resolve(req.result)
+    const req = indexedDB.open(DB, VERSION_DB)
+    req.onupgradeneeded = () => migrar(req.result)
+    req.onblocked = () => reject(new Error('Otra pestaña impide actualizar el almacenamiento local'))
+    req.onsuccess = () => {
+      const db = req.result
+      // Cede la base a otra pestaña que necesite un cambio de versión.
+      db.onversionchange = () => db.close()
+      resolve(db)
+    }
     req.onerror = () => reject(req.error)
   })
 }
 
 function op(db, modo, fn) {
   return new Promise((resolve, reject) => {
-    const req = fn(db.transaction(STORE, modo).objectStore(STORE))
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
+    const tx = db.transaction(STORE, modo)
+    const req = fn(tx.objectStore(STORE))
+    tx.oncomplete = () => resolve(req.result)
+    tx.onabort = () => reject(tx.error ?? new Error('Transacción abortada'))
+    tx.onerror = () => reject(req.error ?? tx.error)
   })
 }
 
