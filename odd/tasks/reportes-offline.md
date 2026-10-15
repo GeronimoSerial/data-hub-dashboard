@@ -8,11 +8,11 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
 ## Checklist
 
 - [x] B0 Contracts — docs/contratos-reportes-offline.md, lib/infraestructura/reportes-offline-contratos.ts (77b39f3, a4da765, 98f10cf). Vitest 5/5, tsc ok, eslint ok.
-  - [ ] B0-OBS bucket survey — BLOCKED: awaiting explicit user authorization (bucket + credentials).
+  - [x] B0-OBS survey done (docs/relevamiento-obs.md); target bucket pending user decision.
 - [ ] B1 Reliable local persistence
   - [x] B1-T1 (haiku, 84e7d60; vitest 495 ok, tsc ok, eslint ok) Shared IndexedDB store: stores, oncomplete, migration, Blob files, generations (haiku)
   - [ ] B1-T2 Wire forms: restore before autosave, error states (haiku)
-  - [ ] B1-T3 sw-parte.js adapter on shared contract (haiku)
+  - [x] B1-T3 (haiku, 80b3477; vitest parte 72 ok, tsc ok) sw-parte.js adapter on shared contract (haiku)
 - [ ] B2 Coordinated queue and confirmations
   - [ ] B2-T1 Job store: immutable body + idempotency key persisted before first attempt; confirmation (movimientoId) persisted before removing pending
   - [ ] B2-T2 Page/worker coordination: locks, interrupted-job recovery, priorities (final report > draft sync > photos)
