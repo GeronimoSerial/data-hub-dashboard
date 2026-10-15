@@ -198,3 +198,71 @@ export async function leerPadronDesdeGe(opciones = {}) {
   })
   return { filas, leidas, sinDocumento, cicloLectivo }
 }
+
+// Niveles jurisdiccionales por CUE-anexo del ciclo. `secciones` trae el nivel
+// que GE asigna a cada sección; el DISTINCT colapsa las secciones de un mismo CUE.
+const SQL_NIVELES_JURISDICCIONALES = `
+  SELECT DISTINCT s.cue_anexo              AS cue_anexo,
+                  s.nivel_jurisdiccional_id AS nivel_jurisdiccional_id,
+                  s.nivel_jurisdiccional    AS nivel_jurisdiccional
+  FROM secciones s
+  WHERE s.ciclo_lectivo = $1
+    AND s.nivel_jurisdiccional_id IS NOT NULL
+`
+
+/**
+ * Agrupa las filas de SQL_NIVELES_JURISDICCIONALES en catálogo (id → nombre) y
+ * asignación (CUE → id). Falla si un CUE aparece con dos niveles o si un id
+ * aparece con dos nombres: en ese caso no hay una verdad única que importar.
+ *
+ * @param {{ cue_anexo: unknown, nivel_jurisdiccional_id: unknown, nivel_jurisdiccional: unknown }[]} filas
+ */
+export function agruparNivelesJurisdiccionales(filas) {
+  const niveles = new Map()
+  const cues = new Map()
+
+  for (const row of filas) {
+    const id = Number(row.nivel_jurisdiccional_id)
+    const nombre = String(row.nivel_jurisdiccional ?? '').trim()
+    const cue = String(row.cue_anexo ?? '').trim()
+    if (cue === '') continue
+
+    const nombreExistente = niveles.get(id)
+    if (nombreExistente !== undefined && nombreExistente !== nombre) {
+      throw new Error(`Nivel jurisdiccional ${id} con nombres distintos: "${nombreExistente}" y "${nombre}"`)
+    }
+    niveles.set(id, nombre)
+
+    const idExistente = cues.get(cue)
+    if (idExistente !== undefined && idExistente !== id) {
+      throw new Error(`CUE ${cue} con más de un nivel jurisdiccional en el ciclo: ${idExistente} y ${id}`)
+    }
+    cues.set(cue, id)
+  }
+
+  return {
+    niveles: [...niveles.entries()].map(([id, nombre]) => ({ id, nombre })),
+    cues: [...cues.entries()].map(([cueAnexo, nivelJurisdiccionalId]) => ({ cueAnexo, nivelJurisdiccionalId })),
+  }
+}
+
+/**
+ * Lee el catálogo de niveles jurisdiccionales y la asignación CUE → nivel del
+ * ciclo. Usa la misma conexión que recorrerPadronDesdeGe.
+ *
+ * @param {OpcionesConsultaPadronGe} [opciones]
+ */
+export async function leerNivelesJurisdiccionalesDesdeGe({
+  conexion,
+  cicloLectivo = CICLO_LECTIVO_POR_DEFECTO,
+  Client = pg.Client,
+} = {}) {
+  const client = new Client(conexion ?? conexionDesdeEntorno())
+  await client.connect()
+  try {
+    const res = await client.query(SQL_NIVELES_JURISDICCIONALES, [String(cicloLectivo)])
+    return { ...agruparNivelesJurisdiccionales(res.rows), cicloLectivo: String(cicloLectivo) }
+  } finally {
+    await client.end()
+  }
+}

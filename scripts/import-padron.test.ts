@@ -19,11 +19,13 @@ import {
   extraerB64DeHtml,
   insertarIdentidades,
   insertarMembresias,
+  insertarNivelesJurisdiccionales,
   insertarSecciones,
   normalizarFilaHtml,
   reconciliarFilas,
   verificarCorte,
 } from './import-padron.mjs'
+import { listarNivelesJurisdiccionales, nivelJurisdiccionalDeCue } from '../lib/infraestructura/nivel-jurisdiccional'
 
 function htmlConPadron(payload: unknown): string {
   const b64 = gzipSync(Buffer.from(JSON.stringify(payload))).toString('base64')
@@ -228,6 +230,51 @@ describe('normalizarFilaHtml / reconciliarFilas', () => {
       cuesConocidos,
     )
     expect(r.aceptadas[0]?.cueAnexo).toBe('1800001-00')
+  })
+})
+
+// Nivel jurisdiccional: upsert del catálogo y de la asignación CUE → nivel.
+describe('insertarNivelesJurisdiccionales (PGlite)', () => {
+  const conexionPglite = () => ({ client: crearEjecutorSql(getRawClient()), raw: getRawClient() })
+
+  beforeEach(async () => {
+    const client = crearEjecutorSql(getRawClient())
+    await ensureGeSchema(client)
+    await client.execute('DELETE FROM ge.ge_escuela_nivel_jur')
+    await client.execute('DELETE FROM ge.ge_nivel_jurisdiccional')
+  })
+
+  it('inserta catálogo y asignaciones y, al reimportar, actualiza en vez de duplicar', async () => {
+    const conexion = conexionPglite()
+    await insertarNivelesJurisdiccionales(conexion, 2026, {
+      niveles: [
+        { id: 1, nombre: 'Secundario' },
+        { id: 9, nombre: 'Consejo General' },
+      ],
+      cues: [
+        { cueAnexo: '1800001-00', nivelJurisdiccionalId: 1 },
+        { cueAnexo: '1800002-00', nivelJurisdiccionalId: 9 },
+      ],
+    })
+    await insertarNivelesJurisdiccionales(conexion, 2027, {
+      niveles: [{ id: 1, nombre: 'Secundario (renombrado)' }],
+      cues: [{ cueAnexo: '1800001-00', nivelJurisdiccionalId: 9 }],
+    })
+
+    expect(await listarNivelesJurisdiccionales(conexion.client)).toEqual([
+      { id: 1, nombre: 'Secundario (renombrado)' },
+      { id: 9, nombre: 'Consejo General' },
+    ])
+    expect(await nivelJurisdiccionalDeCue(conexion.client, '1800001-00')).toEqual({
+      id: 9,
+      nombre: 'Consejo General',
+      cicloLectivo: 2027,
+    })
+    expect(await nivelJurisdiccionalDeCue(conexion.client, '1800002-00')).toEqual({
+      id: 9,
+      nombre: 'Consejo General',
+      cicloLectivo: 2026,
+    })
   })
 })
 

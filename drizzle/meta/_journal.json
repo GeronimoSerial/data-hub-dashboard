@@ -127,6 +127,13 @@
       "when": 1791942615136,
       "tag": "0017_hidro_referencia_exposicion_dem",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792108185808,
+      "tag": "0018_ge_sso_nivel_jurisdiccional",
+      "breakpoints": true
     }
   ]
 }

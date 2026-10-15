@@ -24,7 +24,7 @@ function usuario(): SessionUser {
     id: 'u-1',
     role: 'consulta',
     banned: false,
-    nivelIds: [],
+    nivelJurIds: [],
     accesoRecursos: 'todos' as const,
     recursoIds: [],
   }

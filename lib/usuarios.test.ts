@@ -20,7 +20,7 @@ const admin: SessionUser = {
   id: 'a1',
   role: 'admin',
   banned: false,
-  nivelIds: [],
+  nivelJurIds: [],
   accesoRecursos: 'todos',
   recursoIds: [],
 }
@@ -29,7 +29,7 @@ const editor: SessionUser = {
   id: 'e1',
   role: 'editor',
   banned: false,
-  nivelIds: [],
+  nivelJurIds: [],
   accesoRecursos: 'todos',
   recursoIds: [],
 }
@@ -38,7 +38,7 @@ const consulta: SessionUser = {
   id: 'c1',
   role: 'consulta',
   banned: false,
-  nivelIds: ['primario'],
+  nivelJurIds: [1],
   accesoRecursos: 'todos',
   recursoIds: [],
 }
@@ -56,6 +56,12 @@ describe('listUsuariosDenied', () => {
       status: 403,
       error: 'No tiene acceso a este recurso',
     })
+  })
+
+  it('returns 403 for GE SSO roles', () => {
+    for (const role of ['director_nivel', 'operador_establecimiento'] as const) {
+      expect(listUsuariosDenied({ ...consulta, role })?.status).toBe(403)
+    }
   })
 
   it('allows admin and editor', () => {
@@ -100,7 +106,7 @@ describe('parseCreateUserBody', () => {
     name: 'Ana',
     password: 'password1',
     role: 'consulta',
-    nivelIds: ['primario'],
+    nivelJurIds: [1],
   }
 
   it('accepts a valid body', () => {
@@ -118,6 +124,11 @@ describe('parseCreateUserBody', () => {
 
   it('rejects unknown roles', () => {
     expect(parseCreateUserBody({ ...base, role: 'superadmin' })).toBeNull()
+  })
+
+  it('accepts the director_nivel and operador_establecimiento roles', () => {
+    expect(parseCreateUserBody({ ...base, role: 'director_nivel' })?.role).toBe('director_nivel')
+    expect(parseCreateUserBody({ ...base, role: 'operador_establecimiento' })?.role).toBe('operador_establecimiento')
   })
 
   it('defaults accesoRecursos to todos when omitted', () => {
@@ -152,12 +163,12 @@ describe('parsePatchUserBody', () => {
         role: 'editor',
         banned: true,
         password: '  ',
-        nivelIds: ['inicial'],
+        nivelJurIds: [3],
       }),
     ).toEqual({
       role: 'editor',
       banned: true,
-      nivelIds: ['inicial'],
+      nivelJurIds: [3],
     })
   })
 

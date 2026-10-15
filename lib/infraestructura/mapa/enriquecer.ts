@@ -87,6 +87,8 @@ export function enriquecerEscuela(
     lat: e.lat,
     lon: e.lon,
     niveles,
+    nivelJurisdiccionalId: e.nivelJurisdiccional?.id ?? null,
+    nivelJurisdiccionalNombre: e.nivelJurisdiccional?.nombre ?? null,
     alumnos: extra.alumnos,
     gravedad: principal ? gravedadDeSeveridad(principal.severidad) : 0,
     categoriaPrincipal: principal?.categoria ?? null,
