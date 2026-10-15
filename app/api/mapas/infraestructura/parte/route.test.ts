@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '@/lib/db'
-import { infraAfectacion, infraAfectacionAlumno, infraAfectacionSeccion, infraParte, recursoAudienciaNiveles } from '@/lib/db/schema'
+import { infraAfectacion, infraAfectacionAlumno, infraAfectacionSeccion, infraParte, recursoAudienciaNivelesJur } from '@/lib/db/schema'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { getSessionUser } from '@/lib/session'
 
@@ -132,22 +132,22 @@ describe('GET /api/mapas/infraestructura/parte', () => {
   it('rechaza a un usuario sin audiencia permitida', async () => {
     const db = getDb()
     await db
-      .insert(recursoAudienciaNiveles)
-      .values({ recursoId: 'recurso-infraestructura', nivelId: 'secundario' })
+      .insert(recursoAudienciaNivelesJur)
+      .values({ recursoId: 'recurso-infraestructura', nivelJurisdiccionalId: 2 })
       .onConflictDoNothing()
 
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'u1',
       role: 'consulta',
       banned: false,
-      nivelIds: ['inicial'],
+      nivelJurIds: [3],
       accesoRecursos: 'todos',
       recursoIds: [],
     })
     const res = await GET(req())
     expect(res.status).toBe(403)
 
-    await db.delete(recursoAudienciaNiveles)
+    await db.delete(recursoAudienciaNivelesJur)
   })
 
   it('un usuario con acceso obtiene la ficha con totales, sin nombres ni ids de alumno', async () => {
@@ -155,7 +155,7 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       id: 'u2',
       role: 'consulta',
       banned: false,
-      nivelIds: [],
+      nivelJurIds: [],
       accesoRecursos: 'todos',
       recursoIds: [],
     })
@@ -203,7 +203,7 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       id: 'u3',
       role: 'consulta',
       banned: false,
-      nivelIds: [],
+      nivelJurIds: [],
       accesoRecursos: 'todos' as const,
       recursoIds: [],
     })
@@ -229,7 +229,7 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       id: 'u4',
       role: 'consulta',
       banned: false,
-      nivelIds: [],
+      nivelJurIds: [],
       accesoRecursos: 'todos' as const,
       recursoIds: [],
     })

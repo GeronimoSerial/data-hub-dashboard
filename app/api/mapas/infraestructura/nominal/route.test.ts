@@ -112,7 +112,7 @@ describe('GET /api/mapas/infraestructura/nominal', () => {
       id: 'consulta-sin-grant',
       role: 'consulta',
       banned: false,
-      nivelIds: [],
+      nivelJurIds: [],
       accesoRecursos: 'todos',
       recursoIds: [],
     })
@@ -135,7 +135,7 @@ describe('GET /api/mapas/infraestructura/nominal', () => {
       id: 'usuario-con-grant',
       role: 'consulta',
       banned: false,
-      nivelIds: [],
+      nivelJurIds: [],
       accesoRecursos: 'todos',
       recursoIds: [],
     })

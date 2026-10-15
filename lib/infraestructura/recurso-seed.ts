@@ -34,7 +34,7 @@ const RECURSO_INFRAESTRUCTURA = {
 
 // Alta idempotente del recurso del catálogo, pensada para correr en cada
 // arranque sobre una base ya poblada (no solo en el seed inicial). Nunca
-// toca recurso_audiencia_niveles ni recurso_audiencia_usuarios: la audiencia
+// toca recurso_audiencia_niveles_jur ni recurso_audiencia_usuarios: la audiencia
 // que un admin configuró para este recurso no se pisa en un reinicio.
 export async function upsertRecursoInfraestructura() {
   const db = getDb()

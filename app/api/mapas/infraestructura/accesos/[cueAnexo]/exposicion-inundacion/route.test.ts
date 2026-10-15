@@ -16,7 +16,7 @@ let GET: typeof Ruta.GET
 beforeAll(async () => { GET = (await import('./route')).GET })
 
 function usuario(): SessionUser {
-  return { id: 'u-1', role: 'consulta', banned: false, nivelIds: [], accesoRecursos: 'todos', recursoIds: [] }
+  return { id: 'u-1', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
 }
 function ctx(cueAnexo: string) { return { params: Promise.resolve({ cueAnexo }) } }
 function req(cueAnexo = 'CUE-1') {

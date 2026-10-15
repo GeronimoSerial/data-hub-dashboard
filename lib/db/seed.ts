@@ -162,7 +162,7 @@ async function seedHub() {
         await tx.insert(tags).values(seedTags)
         await tx.insert(recursos).values(
           seeded.map(
-            ({ tagIds: _tagIds, audienciaNivelIds: _n, audienciaUserIds: _u, ...row }) =>
+            ({ tagIds: _tagIds, audienciaNivelJurIds: _n, audienciaUserIds: _u, ...row }) =>
               row,
           ),
         )

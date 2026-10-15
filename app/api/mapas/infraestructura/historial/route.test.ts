@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '@/lib/db'
-import { infraMovimiento, infraParte, recursoAudienciaNiveles } from '@/lib/db/schema'
+import { infraMovimiento, infraParte, recursoAudienciaNivelesJur } from '@/lib/db/schema'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { getSessionUser } from '@/lib/session'
 
@@ -83,22 +83,22 @@ describe('GET /api/mapas/infraestructura/historial', () => {
   it('rechaza a un usuario sin audiencia permitida', async () => {
     const db = getDb()
     await db
-      .insert(recursoAudienciaNiveles)
-      .values({ recursoId: 'recurso-infraestructura', nivelId: 'secundario' })
+      .insert(recursoAudienciaNivelesJur)
+      .values({ recursoId: 'recurso-infraestructura', nivelJurisdiccionalId: 2 })
       .onConflictDoNothing()
 
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'u1',
       role: 'consulta',
       banned: false,
-      nivelIds: ['inicial'],
+      nivelJurIds: [3],
       accesoRecursos: 'todos',
       recursoIds: [],
     })
     const res = await GET(req())
     expect(res.status).toBe(403)
 
-    await db.delete(recursoAudienciaNiveles)
+    await db.delete(recursoAudienciaNivelesJur)
   })
 
   it('un usuario con acceso obtiene los movimientos con la forma esperada', async () => {
@@ -106,7 +106,7 @@ describe('GET /api/mapas/infraestructura/historial', () => {
       id: 'u2',
       role: 'consulta',
       banned: false,
-      nivelIds: [],
+      nivelJurIds: [],
       accesoRecursos: 'todos',
       recursoIds: [],
     })
@@ -126,7 +126,7 @@ describe('GET /api/mapas/infraestructura/historial', () => {
       id: 'u3',
       role: 'consulta',
       banned: false,
-      nivelIds: [],
+      nivelJurIds: [],
       accesoRecursos: 'todos',
       recursoIds: [],
     })

@@ -56,7 +56,7 @@ beforeEach(() => {
     id: 'u-sin-corte',
     role: 'consulta',
     banned: false,
-    nivelIds: [],
+    nivelJurIds: [],
     accesoRecursos: 'todos',
     recursoIds: [],
   })

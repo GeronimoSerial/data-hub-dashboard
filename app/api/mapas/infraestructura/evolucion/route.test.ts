@@ -52,7 +52,7 @@ describe('GET /api/mapas/infraestructura/evolucion', () => {
       id: 'u1',
       role: 'consulta',
       banned: false,
-      nivelIds: [],
+      nivelJurIds: [],
       accesoRecursos: 'todos',
       recursoIds: [],
     })
@@ -72,7 +72,7 @@ describe('GET /api/mapas/infraestructura/evolucion', () => {
       id: 'u2',
       role: 'consulta',
       banned: false,
-      nivelIds: [],
+      nivelJurIds: [],
       accesoRecursos: 'todos',
       recursoIds: [],
     })
@@ -87,7 +87,7 @@ describe('GET /api/mapas/infraestructura/evolucion', () => {
       id: 'u3',
       role: 'consulta',
       banned: false,
-      nivelIds: [],
+      nivelJurIds: [],
       accesoRecursos: 'todos',
       recursoIds: [],
     })

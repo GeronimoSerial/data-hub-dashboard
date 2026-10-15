@@ -96,7 +96,7 @@ export interface Recurso {
   mime?: string
   nombreOriginal?: string
   size?: number
-  audienciaNivelIds?: string[]
+  audienciaNivelJurIds?: number[]
   audienciaUserIds?: string[]
   /** Calculado por el servidor al armar el catálogo (ver lib/acl.ts
    *  marcarAcceso): no se persiste ni se administra. Ausente en los seeds
