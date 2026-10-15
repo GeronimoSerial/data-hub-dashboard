@@ -3,7 +3,8 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { crearEjecutorSql } from '@/lib/infraestructura/ge-db'
-import { consultarYRegistrarAfectados } from '@/lib/infraestructura/identidad'
+import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
+import { afectacionDentroDeNiveles, consultarYRegistrarAfectados } from '@/lib/infraestructura/identidad'
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 
@@ -41,7 +42,17 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Falta el parámetro afectacionId' }, { status: 400 })
   }
 
+  // El alcance del rol se chequea ANTES de consultar: una afectación fuera de
+  // la dirección del director responde 403 y no deja fila en el log.
+  const alcance = alcanceMapa(acceso.user)
   const client = crearEjecutorSql(getRawClient())
+  if (alcance.tipo === 'ninguno') {
+    return Response.json({ error: 'No tiene acceso al alcance nominal' }, { status: 403 })
+  }
+  if (alcance.tipo === 'niveles' && !(await afectacionDentroDeNiveles(client, afectacionId, alcance.ids))) {
+    return Response.json({ error: 'La afectación queda fuera de su alcance' }, { status: 403 })
+  }
+
   const resultado = await consultarYRegistrarAfectados(client, acceso.user.id, afectacionId, ahora)
   if (!resultado) {
     return Response.json({ error: 'Afectación no encontrada' }, { status: 404 })

@@ -32,7 +32,7 @@ export function puedeAbrir(
 ): boolean {
   if (!user) return false
   if (user.banned) return false
-  if (recurso.estado === 'borrador' && user.role === 'consulta') return false
+  if (recurso.estado === 'borrador' && !isStaff(user.role)) return false
   if (user.role === 'admin' || user.role === 'editor') return true
   if (
     user.accesoRecursos === 'seleccionados' &&

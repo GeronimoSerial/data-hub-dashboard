@@ -125,6 +125,25 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
     ).toBeInTheDocument()
   })
 
+  it('ofrece los roles director de nivel y operador del establecimiento con sus etiquetas', async () => {
+    const user = userEvent.setup()
+    window.location.hash = '#usuarios'
+    render(<AdminPage role="admin" />)
+
+    await user.click(await screen.findByRole('button', { name: 'Editar' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('combobox', { name: 'Rol' }))
+
+    const opciones = await screen.findAllByRole('option')
+    expect(opciones.map((opcion) => opcion.textContent?.trim())).toEqual([
+      'Administrador',
+      'Editor',
+      'Consulta',
+      'Director de nivel',
+      'Operador del establecimiento',
+    ])
+  })
+
   it('envía nivelJurIds como números al guardar un usuario editado', async () => {
     const user = userEvent.setup()
     window.location.hash = '#usuarios'

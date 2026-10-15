@@ -61,11 +61,13 @@ type HubUserRow = {
   recursoIds: string[]
 }
 
-const ROLES: Role[] = ['admin', 'editor', 'consulta']
+const ROLES: Role[] = ['admin', 'editor', 'consulta', 'director_nivel', 'operador_establecimiento']
 
 function rolLabel(role: Role) {
   if (role === 'admin') return 'Administrador'
   if (role === 'editor') return 'Editor'
+  if (role === 'director_nivel') return 'Director de nivel'
+  if (role === 'operador_establecimiento') return 'Operador del establecimiento'
   return 'Consulta'
 }
 
