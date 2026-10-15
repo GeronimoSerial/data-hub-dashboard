@@ -5,9 +5,11 @@ export type CodigoErrorPipelineFoto =
   | 'processing_failed'
 
 export class ErrorPipelineFoto extends Error {
-  readonly name = 'ErrorPipelineFoto'
+  readonly name: string = 'ErrorPipelineFoto'
+  readonly code: CodigoErrorPipelineFoto
 
-  constructor(readonly code: CodigoErrorPipelineFoto, message: string, options?: ErrorOptions) {
+  constructor(code: CodigoErrorPipelineFoto, message: string, options?: ErrorOptions) {
     super(message, options)
+    this.code = code
   }
 }
