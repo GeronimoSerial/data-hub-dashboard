@@ -34,10 +34,10 @@ export default async function NuevoPartePage({
 }) {
   const { cue } = await searchParams
 
-  const bloqueo = await bloqueoDeAcceso(cue, TITULO)
+  const { bloqueo, cue: cueParte } = await bloqueoDeAcceso(cue, TITULO)
   if (bloqueo) return bloqueo
   // The current cut is read alongside context using the same client for redirect resolution.
-  const { resultado, corteId } = await cargarContextoParte(cue)
+  const { resultado, corteId } = await cargarContextoParte(cueParte)
 
   if (!resultado.ok) {
     return (

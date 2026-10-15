@@ -11,6 +11,14 @@ import {
   verificacionIdDeSesionValida,
 } from '@/lib/infraestructura/verificacion-sesion'
 import { verificacionHabilitaSesionEscritura } from '@/lib/infraestructura/verificaciones'
+import { getRawClient } from '@/lib/db'
+import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
+import { nivelJurisdiccionalDeCue } from '@/lib/infraestructura/nivel-jurisdiccional'
+import { normalizeCue } from '@/lib/infraestructura/cue'
+import {
+  accesoParteSesion,
+  type DecisionAccesoParte,
+} from '@/lib/infraestructura/acceso-parte-sesion'
 
 /*
   Guarda del recorrido del parte: contraseña pública O sesión de administrador.
@@ -52,16 +60,57 @@ export async function tieneAccesoAlParteDesdeCookies(): Promise<boolean> {
 }
 
 /**
+ * Decisión por rol de sesión (operador de establecimiento / director de nivel).
+ * Sólo consulta la base cuando la contraseña y la verificación ya fallaron, y
+ * para director sólo si hay CUE, para resolver su nivel jurisdiccional.
+ */
+export async function decisionAccesoParteDeSesion(cuePedido: string | null): Promise<DecisionAccesoParte> {
+  const user = await getSessionUser()
+  const pedido = normalizeCue(cuePedido ?? '')?.value ?? null
+  let nivelDeCue: number | null = null
+  if (user && !user.banned && user.role === 'director_nivel' && pedido) {
+    const client = crearEjecutorSql(getRawClient())
+    await ensureGeSchema(client)
+    nivelDeCue = (await nivelJurisdiccionalDeCue(client, pedido))?.id ?? null
+  }
+  return accesoParteSesion(user, pedido, nivelDeCue)
+}
+
+/**
+ * Código de denegación para una API del parte: 403 si la sesión es de un rol
+ * con alcance por CUE (ya autenticada, pero fuera de su alcance); 401 en el
+ * resto, como siempre.
+ */
+export async function codigoSinAccesoParte(): Promise<401 | 403> {
+  const user = await getSessionUser()
+  if (user && !user.banned && (user.role === 'operador_establecimiento' || user.role === 'director_nivel')) {
+    return 403
+  }
+  return 401
+}
+
+/**
  * Acceso acotado al CUE exacto de una verificación (batch E1): un director
  * que entró por el enlace de "Hay afectación" puede usar el formulario de
  * parte SIN la contraseña compartida, pero SÓLO para ese CUE y sólo mientras
  * la sesión canjeada del token no venció. Nunca amplía a otro CUE ni a rol
  * admin — ver verificacion-sesion.ts para el alcance exacto.
+ * Después, la sesión por rol (operador/director) con su alcance propio.
  */
 export async function tieneAccesoAlParteParaCue(request: Request, cueAnexo: string): Promise<boolean> {
   if (await tieneAccesoAlParte(request)) return true
   const cookieHeader = request.headers.get('cookie')
   const valor = extraerCookieVerificacionSesion(cookieHeader)
+  const verificacionId = verificacionIdDeSesionValida(valor, cueAnexo)
+  if (verificacionId && (await verificacionHabilitaSesionEscritura(verificacionId))) return true
+  return (await decisionAccesoParteDeSesion(cueAnexo)).permitido
+}
+
+async function tieneCredencialParteDesdeCookies(cueAnexo: string | null): Promise<boolean> {
+  if (await tieneAccesoAlParteDesdeCookies()) return true
+  if (!cueAnexo) return false
+  const cookieStore = await cookies()
+  const valor = cookieStore.get(NOMBRE_COOKIE_SESION_VERIFICACION)?.value
   const verificacionId = verificacionIdDeSesionValida(valor, cueAnexo)
   if (!verificacionId) return false
   return verificacionHabilitaSesionEscritura(verificacionId)
@@ -69,10 +118,17 @@ export async function tieneAccesoAlParteParaCue(request: Request, cueAnexo: stri
 
 /** Para Server Components (app/problematicas/parte/page.tsx). */
 export async function tieneAccesoAlParteParaCueDesdeCookies(cueAnexo: string): Promise<boolean> {
-  if (await tieneAccesoAlParteDesdeCookies()) return true
-  const cookieStore = await cookies()
-  const valor = cookieStore.get(NOMBRE_COOKIE_SESION_VERIFICACION)?.value
-  const verificacionId = verificacionIdDeSesionValida(valor, cueAnexo)
-  if (!verificacionId) return false
-  return verificacionHabilitaSesionEscritura(verificacionId)
+  if (await tieneCredencialParteDesdeCookies(cueAnexo)) return true
+  return (await decisionAccesoParteDeSesion(cueAnexo)).permitido
+}
+
+/**
+ * Para páginas del parte: resuelve si se puede entrar y con qué CUE. Sin ?cue,
+ * el operador usa el CUE de su sesión; el director debe elegirlo por URL.
+ */
+export async function resolverAccesoParteDesdeCookies(cuePedido: string | null): Promise<DecisionAccesoParte> {
+  if (await tieneCredencialParteDesdeCookies(cuePedido)) {
+    return { permitido: true, cue: cuePedido }
+  }
+  return decisionAccesoParteDeSesion(cuePedido)
 }

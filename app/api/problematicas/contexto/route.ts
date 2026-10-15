@@ -1,5 +1,9 @@
 import { getRawClient } from '@/lib/db'
-import { tieneAccesoAlParte } from '@/lib/infraestructura/acceso-parte'
+import {
+  codigoSinAccesoParte,
+  decisionAccesoParteDeSesion,
+  tieneAccesoAlParte,
+} from '@/lib/infraestructura/acceso-parte'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
@@ -31,12 +35,18 @@ const STATUS_ERROR: Record<ContextoErrorKind, number> = {
 // autenticación por token que viene después) porque ahora el contexto puede
 // incluir identidad de alumnos (ver lib/infraestructura/contexto.ts).
 export async function GET(request: Request) {
-  if (!(await tieneAccesoAlParte(request))) {
-    return Response.json({ error: 'No autorizado' }, { status: 401 })
-  }
-
   const url = new URL(request.url)
-  const cue = url.searchParams.get('cue')
+  let cue = url.searchParams.get('cue')
+
+  if (!(await tieneAccesoAlParte(request))) {
+    // Operador o director: su alcance por CUE sale de la sesión (sin ?cue el
+    // operador recibe el de su establecimiento).
+    const decision = await decisionAccesoParteDeSesion(cue)
+    if (!decision.permitido) {
+      return Response.json({ error: 'No autorizado' }, { status: await codigoSinAccesoParte() })
+    }
+    cue = decision.cue
+  }
 
   // Esta ruta no llama ensureSeeded() a proposito: es publica y no debe disparar
   // el seed completo del Hub. Pero si necesita ge_localizacion, que se siembra
