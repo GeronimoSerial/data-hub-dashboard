@@ -26,7 +26,7 @@ No bucket is referenced by this repository yet (no OBS config in code or `.env.e
 
 ## Changes needed for the offline reports plan (B6)
 
-Target bucket: **`reportes-infraestructura`** (la-south-2, Santiago), created 2026-10-15: private ACL, SSE AES256, CORS PUT/GET/HEAD from `http://localhost:3000` exposing ETag (production origin still to add), lifecycle abort-incomplete-MPU 1 day + expire `huerfanos/` 7 days. Items 1–5 below are applied; item 6 (dedicated IAM user) is pending.
+Target bucket: **`reportes-infraestructura`** (la-south-2, Santiago), created 2026-10-15: private ACL, SSE AES256, CORS PUT/GET/HEAD from `http://localhost:3000` exposing ETag (production origin still to add), lifecycle abort-incomplete-MPU 1 day + expire `huerfanos/` 7 days. Items 1–6 below are applied. App IAM user `reportes-infraestructura-app` (programmatic only) is granted by bucket policy (Sids `app-objects`, `app-bucket`); verified: put/list/delete allowed on this bucket, denied on others. The IAM custom policy `reportes-infraestructura-obs` attached to group `reportes-infraestructura-app` did not take effect for OBS; the bucket policy is the source of truth. Access key stored outside the repo.
 
 1. Private bucket, no ACL/policy grants to `*`; access only via presigned URLs issued by the app server.
 2. CORS: allow `PUT`, `GET`, `HEAD` from the app origin(s); allowed headers `content-type`, `content-md5`, `x-amz-*`/`x-obs-*`; expose `ETag`; max-age 3600.
