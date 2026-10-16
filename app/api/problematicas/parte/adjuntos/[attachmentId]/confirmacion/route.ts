@@ -45,7 +45,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   }
   try {
     await ensureSeeded()
-    const [movement] = await getDb().select({ cueAnexo: infraParte.cueAnexo })
+    const [movement] = await getDb().select({ cueAnexo: infraParte.cueAnexo, movimientoId: infraAdjunto.movimientoId })
       .from(infraAdjunto)
       .innerJoin(infraMovimiento, eq(infraAdjunto.movimientoId, infraMovimiento.id))
       .innerJoin(infraParte, eq(infraMovimiento.parteId, infraParte.id))
@@ -53,6 +53,10 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     if (!movement) return Response.json({ code: 'not_found' }, { status: 404, headers: NO_STORE })
     if (!(await tieneAccesoAlParteParaCue(request, movement.cueAnexo))) {
       return Response.json({ code: 'session_expired' }, { status: 401, headers: NO_STORE })
+    }
+    if (movement.movimientoId && movement.movimientoId !== movimientoId) {
+      // Lets clients holding a stale movement id rebind to the movement that owns the attachment.
+      return Response.json({ code: 'not_found', movimientoId: movement.movimientoId }, { status: 404, headers: NO_STORE })
     }
 
     const result = await confirmarAdjunto({ attachmentId, movimientoId, optimizadaEtag, miniaturaEtag })
