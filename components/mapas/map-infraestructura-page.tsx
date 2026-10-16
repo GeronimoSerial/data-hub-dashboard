@@ -71,6 +71,7 @@ import { horaActualizacion, PanelSituacionActual } from '@/components/mapas/pane
 import { PanelRadar } from '@/components/mapas/panel-radar'
 import { PanelPlanificacion } from '@/components/mapas/panel-planificacion'
 import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
+import { useDraftCounts } from '@/components/infraestructura/borradores/use-draft-counts'
 import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
@@ -821,6 +822,7 @@ export default function MapInfraestructuraPage(props: {
   }, [data])
 
   const dataEscuelasMapa = props.escuelasMapa
+  const borradoresMapa = useDraftCounts()
   const contextoTerritorial = props.hazardContextEnabled ?? false
   const {
     data: territorio,
@@ -966,6 +968,15 @@ export default function MapInfraestructuraPage(props: {
     cuesNoAgrupados,
     dataEscuelasMapaVisible,
   ])
+
+  const badgesBorradores = useMemo(() => {
+    if (cuesNoAgrupados === null || ocultarPartes) return []
+    return (dataEscuelasMapaVisible?.escuelas ?? []).flatMap((escuela) => {
+      const count = borradoresMapa.counts.get(escuela.cueAnexo) ?? 0
+      if (count < 1 || escuela.lat === null || escuela.lon === null || !cuesNoAgrupados.has(escuela.cueAnexo)) return []
+      return [{ cue: escuela.cueAnexo, nombre: escuela.nombre, lat: escuela.lat, lon: escuela.lon, count }]
+    })
+  }, [borradoresMapa.counts, cuesNoAgrupados, dataEscuelasMapaVisible, ocultarPartes])
 
   // F2.4: el GeoJSON de departamentos se pide una vez más, aparte del que ya
   // pide <Source> por URL, porque <Source> no expone sus features parseadas
@@ -1843,6 +1854,25 @@ export default function MapInfraestructuraPage(props: {
             )
           })}
 
+          {badgesBorradores.map((badge) => (
+            <Marker
+              key={`infra-borradores-${badge.cue}`}
+              longitude={badge.lon}
+              latitude={badge.lat}
+              anchor="top-left"
+              offset={[8, 7]}
+            >
+              <span
+                role="img"
+                aria-label={`${badge.count} ${badge.count === 1 ? 'borrador sin enviar' : 'borradores sin enviar'}: ${badge.nombre}`}
+                title={`${badge.count} ${badge.count === 1 ? 'borrador sin enviar' : 'borradores sin enviar'}`}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 22, height: 22, padding: '0 5px', border: '1px solid var(--line)', borderRadius: 999, background: 'var(--card)', color: 'var(--ink-soft)', boxShadow: '0 1px 4px #0005', fontSize: 11, fontWeight: 700 }}
+              >
+                {badge.count}
+              </span>
+            </Marker>
+          ))}
+
           {(radarActivo || esPlanificacion) && (
             <CapaPuntosNivel
               radar={radarActivo}
@@ -2098,6 +2128,7 @@ export default function MapInfraestructuraPage(props: {
               <FichaEscuelaPanel
                 key={seleccionCue}
                 escuela={escuelaSeleccionada}
+                borradoresServerCount={borradoresMapa.error ? null : (borradoresMapa.counts.get(escuelaSeleccionada.cueAnexo) ?? (borradoresMapa.loading ? null : 0))}
                 horizonteRiesgo={horizonteEfectivo}
                 planificacion={VISTAS_PLANIFICACION.map((vista) => ({
                   etiquetaVista: TITULO_LEYENDA_VISTA[vista],

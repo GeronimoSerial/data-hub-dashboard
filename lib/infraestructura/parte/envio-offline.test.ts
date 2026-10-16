@@ -34,10 +34,11 @@ function crearBorrador(overrides: Partial<BorradorParte<{ observacion: string }>
   }
 }
 
-function respuesta(ok: boolean, status: number, cuerpo: unknown): Response {
+function respuesta(ok: boolean, status: number, cuerpo: unknown, headers: Record<string, string> = {}): Response {
   return {
     ok,
     status,
+    headers: new Headers(headers),
     json: () => Promise.resolve(cuerpo),
   } as unknown as Response
 }
@@ -77,8 +78,11 @@ describe('clasificación de respuestas', () => {
     [500, 'reintentable'],
     [599, 'reintentable'],
     [401, 'sesion-vencida'],
-    [403, 'sesion-vencida'],
-    [410, 'sesion-vencida'],
+    [403, 'no-reintentable'],
+    [410, 'no-reintentable'],
+    [413, 'reintentable'],
+    [429, 'reintentable'],
+    [408, 'reintentable'],
     [400, 'no-reintentable'],
     [422, 'no-reintentable'],
   ] as const)('clasifica %s como %s', (status, esperado) => {
@@ -87,18 +91,45 @@ describe('clasificación de respuestas', () => {
 })
 
 describe('espera de reintento', () => {
-  it('crece con los intentos y nunca supera los 30000 ms', () => {
-    expect(calcularEsperaReintento(0)).toBe(1000)
-    expect(calcularEsperaReintento(1)).toBe(2000)
-    expect(calcularEsperaReintento(2)).toBe(4000)
+  it('applies jitter to exponential backoff and never exceeds 30000 ms', () => {
+    const jitterLow = () => 0
+    const jitterHigh = () => 1
+    expect(calcularEsperaReintento(0, jitterLow)).toBe(750)
+    expect(calcularEsperaReintento(1, jitterLow)).toBe(1500)
+    expect(calcularEsperaReintento(2, jitterHigh)).toBe(5000)
     let anterior = 0
     for (let intentos = 0; intentos <= 12; intentos += 1) {
-      const espera = calcularEsperaReintento(intentos)
+      const espera = calcularEsperaReintento(intentos, jitterHigh)
       expect(espera).toBeGreaterThanOrEqual(anterior)
       expect(espera).toBeLessThanOrEqual(30000)
       anterior = espera
     }
-    expect(calcularEsperaReintento(10)).toBe(30000)
+    expect(calcularEsperaReintento(10, jitterHigh)).toBe(30000)
+  })
+})
+
+describe('server limits', () => {
+  it.each([413, 429])('keeps a %s response retryable until Retry-After', async (status) => {
+    const almacen = crearAlmacenMemoria()
+    const fetchImpl = vi.fn(async () => respuesta(false, status, { error: 'wait' }, { 'Retry-After': '60' }))
+    const opciones = {
+      almacen, tipo: 'nuevo', cue: `limit-${status}`, fetchImpl, url: '/api',
+      construirCuerpo: (datos: { observacion: string }, key: string) => ({ ...datos, key }),
+    }
+    expect(await intentarEnviar({ observacion: 'keep' }, opciones)).toMatchObject({ ok: false, estado: 'error-servidor' })
+    const guardado = await leerBorrador(almacen, 'nuevo', `limit-${status}`)
+    expect(guardado?.datos).toEqual({ observacion: 'keep' })
+    expect(guardado?.reintentarDespues).toBeGreaterThan(Date.now())
+    expect(await reenviarCola(opciones)).toBeNull()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    const esperaRestante = Math.max(0, (guardado?.reintentarDespues ?? Date.now()) - Date.now())
+    vi.useFakeTimers()
+    const callback = vi.fn()
+    const cancelar = programarReintento(0, callback)
+    vi.advanceTimersByTime(Math.max(0, esperaRestante - 1000))
+    expect(callback).not.toHaveBeenCalled()
+    cancelar()
+    vi.useRealTimers()
   })
 })
 
@@ -507,16 +538,44 @@ describe('intentarEnviar', () => {
 })
 
 describe('registrarAutoReintento', () => {
-  it('dispara el callback online y deja de hacerlo tras la limpieza', () => {
+  it('tries the pending queue when the page opens', () => {
     const callback = vi.fn()
     const limpiar = registrarAutoReintento(callback)
+    expect(callback).toHaveBeenCalledTimes(1)
+    limpiar()
+  })
+
+  it('dispara el callback online y deja de hacerlo tras la limpieza', () => {
+    vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const callback = vi.fn()
+    const limpiar = registrarAutoReintento(callback)
+    expect(callback).toHaveBeenCalledTimes(1)
 
     window.dispatchEvent(new Event('online'))
-    expect(callback).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(1000)
+    expect(callback).toHaveBeenCalledTimes(2)
 
     limpiar()
     window.dispatchEvent(new Event('online'))
-    expect(callback).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(1000)
+    expect(callback).toHaveBeenCalledTimes(2)
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it('retries when the document becomes visible', () => {
+    vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const callback = vi.fn()
+    const limpiar = registrarAutoReintento(callback)
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+    vi.advanceTimersByTime(1000)
+    expect(callback).toHaveBeenCalledTimes(2)
+    limpiar()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
   })
 
   // Hallazgo de revisión #4 (gate N1): calcularEsperaReintento estaba
@@ -525,9 +584,11 @@ describe('registrarAutoReintento', () => {
   describe('backoff acotado ante conexión "flapeando" (hallazgo #4)', () => {
     beforeEach(() => {
       vi.useFakeTimers()
+      vi.spyOn(Math, 'random').mockReturnValue(0.5)
     })
 
     afterEach(() => {
+      vi.restoreAllMocks()
       vi.useRealTimers()
     })
 
@@ -629,8 +690,14 @@ describe('reenviarCola', () => {
 })
 
 describe('programarReintento', () => {
-  beforeEach(() => vi.useFakeTimers())
-  afterEach(() => vi.useRealTimers())
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
 
   it('dispara después de la espera con backoff y se puede cancelar', () => {
     const callback = vi.fn()

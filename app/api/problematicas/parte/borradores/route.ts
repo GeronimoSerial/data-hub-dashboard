@@ -1,0 +1,42 @@
+import { ensureSeeded } from '@/lib/db/seed'
+import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
+import { BorradorError, createDraft, readJsonBody } from '@/lib/infraestructura/borradores/service'
+import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+const NO_STORE = { 'Cache-Control': 'private, no-store' }
+
+function errorResponse(error: unknown): Response {
+  if (!(error instanceof BorradorError)) throw error
+  if (error.code === 'invalid') return Response.json({ code: 'validacion', campos: error.fields }, { status: 422, headers: NO_STORE })
+  if (error.code === 'too_large') return Response.json({ code: 'limite', error: 'El cuerpo supera 64 KB.' }, { status: 413, headers: NO_STORE })
+  if (error.code === 'conflict') return Response.json({ code: 'conflicto', revisionServidor: error.remoteRevision }, { status: 409, headers: NO_STORE })
+  if (error.code === 'closed') return Response.json({ code: 'cerrado', estado: error.estado }, { status: 410, headers: NO_STORE })
+  if (error.code === 'not_found') return Response.json({ error: 'Borrador no encontrado' }, { status: 404, headers: NO_STORE })
+  throw error
+}
+
+export async function POST(request: Request) {
+  if (!getReportesOfflineFeatures().borradoresSync) return reportesOfflineFlagDisabledResponse()
+  let body: unknown
+  try {
+    body = await readJsonBody(request)
+    const cue = typeof body === 'object' && body !== null && 'contexto' in body &&
+      typeof body.contexto === 'object' && body.contexto !== null && 'cue' in body.contexto
+      ? body.contexto.cue
+      : null
+    if (typeof cue !== 'string' || !/^\d{7}-\d{2}$/.test(cue)) {
+      return Response.json({ code: 'validacion', campos: ['contexto.cue'] }, { status: 422, headers: NO_STORE })
+    }
+    if (!(await tieneAccesoAlParteParaCue(request, cue))) {
+      return Response.json({ error: 'No autorizado' }, { status: 401, headers: NO_STORE })
+    }
+    await ensureSeeded()
+    const result = await createDraft(body)
+    return Response.json(result.draft, { status: result.created ? 201 : 200, headers: NO_STORE })
+  } catch (error) {
+    return errorResponse(error)
+  }
+}

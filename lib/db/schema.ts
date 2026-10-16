@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, text, integer, bigint, boolean, doublePrecision, jsonb, real, primaryKey, index, uniqueIndex, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, bigint, boolean, doublePrecision, jsonb, real, primaryKey, index, uniqueIndex, timestamp, check } from 'drizzle-orm/pg-core'
 
 export const niveles = pgTable('niveles', {
   id: text('id').primaryKey(),
@@ -499,6 +499,89 @@ export const infraMovimiento = pgTable(
   (t) => [
     index('infra_movimiento_parte_id_idx').on(t.parteId),
     uniqueIndex('infra_movimiento_idempotency_key_uidx').on(t.idempotencyKey),
+  ],
+)
+
+// Server-synced draft snapshot. The revision is owned by the server and only
+// advances when a consolidated sync is accepted. Context is metadata only;
+// photo bytes are never stored in JSON.
+export const infraBorrador = pgTable(
+  'infra_borrador',
+  {
+    id: text('id').primaryKey(),
+    generacion: integer('generacion').notNull(),
+    cueAnexo: text('cue_anexo').notNull(),
+    contexto: jsonb('contexto').$type<Record<string, unknown>>().notNull(),
+    paso: text('paso').notNull(),
+    respuestas: jsonb('respuestas').$type<Record<string, unknown>>().notNull(),
+    revision: integer('revision').notNull().default(0),
+    estado: text('estado').notNull().default('open'),
+    movimientoId: text('movimiento_id').references(() => infraMovimiento.id),
+    creadoEn: text('creado_en').notNull(),
+    actividadEn: text('actividad_en').notNull(),
+    sincronizadoEn: text('sincronizado_en'),
+  },
+  (t) => [
+    check('infra_borrador_generacion_check', sql`${t.generacion} > 0`),
+    check('infra_borrador_revision_check', sql`${t.revision} >= 0`),
+    check('infra_borrador_estado_check', sql`${t.estado} IN ('open', 'submitted', 'discarded')`),
+    index('infra_borrador_cue_estado_idx').on(t.cueAnexo, t.estado),
+    index('infra_borrador_cue_estado_actividad_id_idx').on(
+      t.cueAnexo,
+      t.estado,
+      t.actividadEn,
+      t.id,
+    ),
+  ],
+)
+
+// Permanent closure marker. Sync handlers check this key before accepting a
+// write; the migration trigger also blocks late INSERT/UPDATE requests.
+export const infraBorradorCierre = pgTable(
+  'infra_borrador_cierre',
+  {
+    draftId: text('draft_id').primaryKey(),
+    cueAnexo: text('cue_anexo').notNull(),
+    estadoCierre: text('estado_cierre').notNull(),
+    revisionCierre: integer('revision_cierre').notNull(),
+    movimientoId: text('movimiento_id').references(() => infraMovimiento.id),
+    cerradoEn: text('cerrado_en').notNull(),
+  },
+  (t) => [
+    check(
+      'infra_borrador_cierre_estado_check',
+      sql`${t.estadoCierre} IN ('submitted', 'discarded')`,
+    ),
+    check('infra_borrador_cierre_revision_check', sql`${t.revisionCierre} >= 0`),
+  ],
+)
+
+// Photo evidence linked to a movement. Object bytes stay in OBS; this row
+// stores only the two server-controlled object keys and their verification
+// metadata. One row represents one photo and its optimized/thumbnail variants.
+export const infraAdjunto = pgTable(
+  'infra_adjunto',
+  {
+    id: text('id').primaryKey(),
+    movimientoId: text('movimiento_id')
+      .notNull()
+      .references(() => infraMovimiento.id, { onDelete: 'cascade' }),
+    optimizadaObsKey: text('optimizada_obs_key').notNull(),
+    optimizadaSize: integer('optimizada_size').notNull(),
+    optimizadaContentType: text('optimizada_content_type').notNull(),
+    optimizadaEtag: text('optimizada_etag'),
+    miniaturaObsKey: text('miniatura_obs_key').notNull(),
+    miniaturaSize: integer('miniatura_size').notNull(),
+    miniaturaContentType: text('miniatura_content_type').notNull(),
+    miniaturaEtag: text('miniatura_etag'),
+    estado: text('estado').notNull().default('pending'),
+    creadaPor: text('creada_por').notNull(),
+  },
+  (t) => [
+    check('infra_adjunto_optimizada_size_check', sql`${t.optimizadaSize} > 0`),
+    check('infra_adjunto_miniatura_size_check', sql`${t.miniaturaSize} > 0`),
+    check('infra_adjunto_estado_check', sql`${t.estado} IN ('pending', 'confirmed')`),
+    index('infra_adjunto_movimiento_id_idx').on(t.movimientoId),
   ],
 )
 
