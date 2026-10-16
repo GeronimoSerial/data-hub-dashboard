@@ -17,7 +17,9 @@ afterEach(() => {
 
 describe('GaleriaEvidencia', () => {
   it('loads thumbnails for the opened school sheet and groups them under their movement date', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ movements: groups }) })
+    const fetchMock = vi.fn(async (url: string) => url.includes('/config')
+      ? Response.json({ fotos: true })
+      : { ok: true, json: async () => ({ movements: groups }) })
     vi.stubGlobal('fetch', fetchMock)
 
     render(<GaleriaEvidencia cue="180000123-00" />)
@@ -29,9 +31,11 @@ describe('GaleriaEvidencia', () => {
   })
 
   it('requests the optimized image only after selection', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ movements: groups }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ url: 'https://obs.example/full' }) })
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/config')) return Response.json({ fotos: true })
+      if (url.includes('attachmentId=')) return { ok: true, json: async () => ({ url: 'https://obs.example/full' }) }
+      return { ok: true, json: async () => ({ movements: groups }) }
+    })
     vi.stubGlobal('fetch', fetchMock)
     render(<GaleriaEvidencia cue="180000123-00" />)
 

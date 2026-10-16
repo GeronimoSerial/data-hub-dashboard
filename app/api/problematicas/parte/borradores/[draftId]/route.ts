@@ -1,6 +1,7 @@
 import { ensureSeeded } from '@/lib/db/seed'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { BorradorError, getDraft, getDraftCue, readJsonBody, syncDraft } from '@/lib/infraestructura/borradores/service'
+import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,6 +41,7 @@ export async function GET(request: Request, context: Context) {
 }
 
 export async function PUT(request: Request, context: Context) {
+  if (!getReportesOfflineFeatures().borradoresSync) return reportesOfflineFlagDisabledResponse()
   try {
     const { draftId } = await context.params
     const denied = await authorize(request, draftId)

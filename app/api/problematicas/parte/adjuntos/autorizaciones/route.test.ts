@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { POST } from './route'
 
 const { limitMock, authMock, permissionMock } = vi.hoisted(() => ({
@@ -44,9 +44,21 @@ function request(body: unknown) {
 
 describe('POST /api/problematicas/parte/adjuntos/autorizaciones', () => {
   beforeEach(() => {
+    vi.stubEnv('REPORTES_OFFLINE_FOTOS', 'true')
+    process.env.REPORTES_OFFLINE_FOTOS = 'true'
     limitMock.mockReset().mockResolvedValue([{ cueAnexo: '1801605-04' }])
     permissionMock.mockReset().mockResolvedValue(true)
     authMock.mockReset().mockResolvedValue([{ attachmentId: adjuntos[0].attachmentId }])
+  })
+
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('stops authorization requests when photo uploads are disabled', async () => {
+    process.env.REPORTES_OFFLINE_FOTOS = 'false'
+    const response = await POST(request({ movimientoId, adjuntos }))
+
+    expect(response.status).toBe(503)
+    expect(authMock).not.toHaveBeenCalled()
   })
 
   it('returns the batch authorizations for an allowed movement', async () => {

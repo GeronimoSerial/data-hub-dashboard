@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { BorradoresPendientes } from './borradores-pendientes'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -16,10 +16,10 @@ const item = {
 
 describe('BorradoresPendientes', () => {
   it('shows server drafts apart from confirmed situations and displays allowed answers', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ items: [item], nextCursor: null }),
-    }))
+    const fetchMock = vi.fn(async (url: string) => url.includes('/config')
+      ? Response.json({ mapaBorradores: true })
+      : { ok: true, json: async () => ({ items: [item], nextCursor: null }) })
+    vi.stubGlobal('fetch', fetchMock)
 
     render(<BorradoresPendientes cue="1801605-60" count={2} />)
 
@@ -29,32 +29,46 @@ describe('BorradoresPendientes', () => {
     expect(screen.getByText('Última actividad').nextElementSibling).not.toBeEmptyDOMElement()
     expect(screen.getByText(/Corte prolongado/)).toBeInTheDocument()
     expect(screen.getByText('Respuestas permitidas')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching('/api/infraestructura/borradores/1801605-60\\?limit=20'))
   })
 
   it('requests the next page only after an explicit action', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ items: [item], nextCursor: { actividadEn: item.actividadEn, draftId: item.draftId } }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ items: [{ ...item, draftId: 'server-draft-2' }], nextCursor: null }) })
+    let page = 0
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/config')) return Response.json({ mapaBorradores: true })
+      page += 1
+      return page === 1
+        ? { ok: true, json: async () => ({ items: [item], nextCursor: { actividadEn: item.actividadEn, draftId: item.draftId } }) }
+        : { ok: true, json: async () => ({ items: [{ ...item, draftId: 'server-draft-2' }], nextCursor: null }) }
+    })
     vi.stubGlobal('fetch', fetchMock)
     render(<BorradoresPendientes cue="1801605-60" count={2} />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Cargar más borradores' }))
 
     expect(await screen.findAllByRole('heading', { name: 'Reporte inicial pendiente' })).toHaveLength(2)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(String(fetchMock.mock.calls[1][0])).toContain('cursor=')
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(String(fetchMock.mock.calls[3][0])).toContain('cursor=')
   })
 
   it('does not label local-only work as server-known', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ items: [], nextCursor: null }),
-    }))
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('/config')
+      ? Response.json({ mapaBorradores: true })
+      : { ok: true, json: async () => ({ items: [], nextCursor: null }) }))
     render(<BorradoresPendientes cue="1801605-60" count={0} />)
 
     expect(await screen.findByText('No hay borradores pendientes para esta escuela.')).toBeInTheDocument()
     expect(screen.queryByText(/guardado localmente/i)).not.toBeInTheDocument()
+  })
+
+  it('hides map drafts without requesting their page when the map flag is off', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ mapaBorradores: false }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<BorradoresPendientes cue="1801605-60" count={0} />)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('heading', { name: 'Borradores sin enviar' })).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

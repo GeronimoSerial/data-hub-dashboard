@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { listDraftsForMap } from '@/lib/infraestructura/borradores/mapa'
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
@@ -25,10 +25,14 @@ function request(query = '') {
 
 describe('GET /api/infraestructura/borradores/[cueAnexo]', () => {
   beforeEach(() => {
+    vi.stubEnv('REPORTES_OFFLINE_MAPA_BORRADORES', 'true')
+    process.env.REPORTES_OFFLINE_MAPA_BORRADORES = 'true'
     vi.mocked(verificarAccesoLectura).mockReset()
     vi.mocked(puedeVerNominal).mockReset()
     vi.mocked(listDraftsForMap).mockReset()
   })
+
+  afterEach(() => vi.unstubAllEnvs())
 
   it('requires map read access and validates pagination parameters', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 403 })

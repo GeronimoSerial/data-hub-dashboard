@@ -4,6 +4,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { infraAdjunto, infraMovimiento, infraParte } from '@/lib/db/schema'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { confirmarAdjunto } from '@/lib/infraestructura/adjuntos/confirmacion'
+import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,7 @@ const ETAG = /^(?:W\/)?"?[\da-f-]{1,128}"?$/i
 type RouteContext = { params: Promise<{ attachmentId: string }> }
 
 export async function POST(request: Request, context: RouteContext): Promise<Response> {
+  if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   const { attachmentId } = await context.params
   if (!/^[0-9a-f-]{36}$/i.test(attachmentId)) {
     return Response.json({ code: 'validacion', error: 'Invalid attachment identifier.' }, { status: 422, headers: NO_STORE })

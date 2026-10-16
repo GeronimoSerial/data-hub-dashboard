@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ChangeEvent, type JSX } from 'react'
 import { MAX_FOTOS_POR_ENVIO } from '@/lib/infraestructura/reportes-offline-contratos'
+import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
 import styles from './selector-fotos.module.css'
 
 interface FotoSeleccionada {
@@ -16,7 +17,7 @@ export interface SelectorFotosProps {
   disabled?: boolean
 }
 
-export function SelectorFotos({ onChange, disabled = false }: SelectorFotosProps): JSX.Element {
+export function SelectorFotos({ onChange, disabled = false }: SelectorFotosProps): JSX.Element | null {
   const inputId = useId()
   const helpId = useId()
   const fotosRef = useRef<FotoSeleccionada[]>([])
@@ -24,11 +25,20 @@ export function SelectorFotos({ onChange, disabled = false }: SelectorFotosProps
   const objectUrls = useRef(new Set<string>())
   const [fotos, setFotos] = useState<FotoSeleccionada[]>([])
   const [mensaje, setMensaje] = useState('')
+  const [enabled, setEnabled] = useState(false)
   const disponibles = MAX_FOTOS_POR_ENVIO - fotos.length
 
   useEffect(() => () => {
     for (const url of objectUrls.current) URL.revokeObjectURL(url)
     objectUrls.current.clear()
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    void fetchReportesOfflineFeatures().then((flags) => {
+      if (active) setEnabled(flags.fotos)
+    })
+    return () => { active = false }
   }, [])
 
   function manejarSeleccion(event: ChangeEvent<HTMLInputElement>) {
@@ -68,6 +78,8 @@ export function SelectorFotos({ onChange, disabled = false }: SelectorFotosProps
     onChange(siguientes.map(({ archivo }) => archivo))
     setMensaje('')
   }
+
+  if (!enabled) return null
 
   return (
     <section className={styles.picker} aria-label="Fotos del reporte">

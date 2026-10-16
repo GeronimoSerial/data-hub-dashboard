@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Images, X } from 'lucide-react'
 import Image from 'next/image'
 import styles from './galeria-evidencia.module.css'
+import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
 
 type FotoEvidencia = { attachmentId: string; thumbnailUrl: string }
 type MovimientoEvidencia = {
@@ -32,16 +33,21 @@ export function GaleriaEvidencia({ cue }: { cue: string }) {
   const [error, setError] = useState(false)
   const [selected, setSelected] = useState<{ id: string; url: string } | null>(null)
   const [loadingPhoto, setLoadingPhoto] = useState<string | null>(null)
+  const [enabled, setEnabled] = useState(false)
 
   useEffect(() => {
     let active = true
-    fetch(`/api/infraestructura/adjuntos?cue=${encodeURIComponent(cue)}`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Could not load evidence')
-        return response.json() as Promise<{ movements: MovimientoEvidencia[] }>
-      })
-      .then((result) => { if (active) setMovements(result.movements) })
-      .catch(() => { if (active) setError(true) })
+    void fetchReportesOfflineFeatures().then((flags) => {
+      if (!active || !flags.fotos) return
+      setEnabled(true)
+      return fetch(`/api/infraestructura/adjuntos?cue=${encodeURIComponent(cue)}`)
+        .then(async (response) => {
+          if (!response.ok) throw new Error('Could not load evidence')
+          return response.json() as Promise<{ movements: MovimientoEvidencia[] }>
+        })
+        .then((result) => { if (active) setMovements(result.movements) })
+        .catch(() => { if (active) setError(true) })
+    })
     return () => { active = false }
   }, [cue])
 
@@ -60,6 +66,8 @@ export function GaleriaEvidencia({ cue }: { cue: string }) {
   }
 
   const total = movements?.reduce((sum, movement) => sum + movement.photos.length, 0) ?? 0
+  if (!enabled) return null
+
   return (
     <section className={styles.gallery} aria-label="Evidencia fotográfica">
       <h3><Images aria-hidden="true" /> Evidencia fotográfica{movements && total > 0 ? ` (${total})` : ''}</h3>

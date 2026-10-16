@@ -9,6 +9,7 @@ import {
   validateAttachmentDeclarations,
   type AttachmentDeclaration,
 } from '@/lib/infraestructura/adjuntos/obs'
+import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,7 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' }
 const MAX_BODY_BYTES = 16 * 1024
 
 export async function POST(request: Request): Promise<Response> {
+  if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   const contentLength = Number(request.headers.get('content-length') ?? 0)
   if (contentLength > MAX_BODY_BYTES) {
     return Response.json({ code: 'limite', error: 'The request body exceeds 16 KB.' }, { status: 413, headers: NO_STORE })

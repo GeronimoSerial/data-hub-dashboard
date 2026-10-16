@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { fetchDraftCounts, type DraftCount } from '@/lib/infraestructura/borradores/mapa-client'
+import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
 
 type State = { counts: Map<string, number>; loading: boolean; error: boolean }
 let countsRequest: Promise<DraftCount[]> | null = null
@@ -18,10 +19,16 @@ export function useDraftCounts(): State {
 
   useEffect(() => {
     let active = true
-    loadCounts().then((items) => {
-      if (active) setState({ counts: new Map(items.map(({ cue, count }) => [cue, count])), loading: false, error: false })
-    }).catch(() => {
-      if (active) setState({ counts: new Map(), loading: false, error: true })
+    void fetchReportesOfflineFeatures().then((flags) => {
+      if (!flags.mapaBorradores) {
+        if (active) setState({ counts: new Map(), loading: false, error: false })
+        return
+      }
+      loadCounts().then((items) => {
+        if (active) setState({ counts: new Map(items.map(({ cue, count }) => [cue, count])), loading: false, error: false })
+      }).catch(() => {
+        if (active) setState({ counts: new Map(), loading: false, error: true })
+      })
     })
     return () => { active = false }
   }, [])

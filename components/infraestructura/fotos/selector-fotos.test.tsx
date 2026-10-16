@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SelectorFotos } from './selector-fotos'
 
 afterEach(() => {
@@ -9,11 +9,25 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ fotos: true })))
+})
+
 function crearFoto(nombre: string): File {
   return new File(['image bytes'], nombre, { type: 'image/jpeg' })
 }
 
 describe('SelectorFotos', () => {
+  it('keeps the picker hidden when photo capture is disabled', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ fotos: false }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<SelectorFotos onChange={vi.fn()} />)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(screen.queryByLabelText('Agregar fotos')).not.toBeInTheDocument()
+  })
+
   it('emits selected original blobs and previews each photo', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -22,7 +36,7 @@ describe('SelectorFotos', () => {
     const fotos = [crearFoto('patio.jpg'), crearFoto('aula.jpg')]
 
     render(<SelectorFotos onChange={onChange} />)
-    await user.upload(screen.getByLabelText('Agregar fotos'), fotos)
+    await user.upload(await screen.findByLabelText('Agregar fotos'), fotos)
 
     expect(onChange).toHaveBeenLastCalledWith(fotos)
     expect(screen.getByRole('img', { name: 'patio.jpg' })).toHaveAttribute('src', 'blob:preview-patio.jpg')
@@ -37,7 +51,7 @@ describe('SelectorFotos', () => {
     const fotos = [crearFoto('patio.jpg'), crearFoto('aula.jpg')]
 
     render(<SelectorFotos onChange={onChange} />)
-    await user.upload(screen.getByLabelText('Agregar fotos'), fotos)
+    await user.upload(await screen.findByLabelText('Agregar fotos'), fotos)
     await user.click(screen.getByRole('button', { name: 'Quitar patio.jpg' }))
 
     expect(onChange).toHaveBeenLastCalledWith([fotos[1]])
@@ -51,7 +65,7 @@ describe('SelectorFotos', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn((blob: Blob) => `blob:${(blob as File).name}`), revokeObjectURL: vi.fn() })
 
     render(<SelectorFotos onChange={onChange} />)
-    await user.upload(screen.getByLabelText('Agregar fotos'), [
+    await user.upload(await screen.findByLabelText('Agregar fotos'), [
       crearFoto('uno.jpg'),
       crearFoto('dos.jpg'),
       crearFoto('tres.jpg'),

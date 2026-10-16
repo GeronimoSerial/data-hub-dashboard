@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ensureSeeded } from '@/lib/db/seed'
 import { POST } from './route'
 
@@ -32,11 +32,26 @@ function createBody(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(async () => {
+  vi.stubEnv('REPORTES_OFFLINE_BORRADORES_SYNC', 'true')
+  process.env.REPORTES_OFFLINE_BORRADORES_SYNC = 'true'
   draftId = crypto.randomUUID()
   await ensureSeeded()
 })
 
+afterEach(() => vi.unstubAllEnvs())
+
 describe('POST /api/problematicas/parte/borradores', () => {
+  it('stops server writes when draft sync is disabled', async () => {
+    const previous = process.env.REPORTES_OFFLINE_BORRADORES_SYNC
+    delete process.env.REPORTES_OFFLINE_BORRADORES_SYNC
+    const response = await POST(request(createBody()))
+    if (previous === undefined) delete process.env.REPORTES_OFFLINE_BORRADORES_SYNC
+    else process.env.REPORTES_OFFLINE_BORRADORES_SYNC = previous
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ code: 'feature_disabled' })
+  })
+
   it('creates a partial draft at revision zero and replays identical create idempotently', async () => {
     const first = await POST(request(createBody()))
     const second = await POST(request(createBody()))
