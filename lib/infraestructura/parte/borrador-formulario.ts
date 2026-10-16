@@ -1,6 +1,7 @@
 import { CONTRATO_VERSION } from '../reportes-offline-contratos'
 import { abrirAlmacenParte, type RegistroBorradorLocal } from './almacen-indexeddb'
 import { crearColaTrabajosEnvio } from './cola-trabajos-envio'
+import { confirmarSubidasFotos } from '../fotos/subida-cola'
 
 export interface BorradorFormulario<T> {
   registro: RegistroBorradorLocal
@@ -15,12 +16,18 @@ export async function leerConfirmacionFormulario(draftId: string) {
   const cola = crearColaTrabajosEnvio(almacen)
   if (typeof contexto?.idempotencyKey === 'string' && contexto.idempotencyKey) {
     const confirmacion = await cola.obtenerConfirmacion(contexto.idempotencyKey)
-    if (confirmacion) return confirmacion
+    if (confirmacion) {
+      await confirmarSubidasFotos(draftId, confirmacion.movimientoId)
+      return confirmacion
+    }
   }
   for (const trabajo of trabajos) {
     if (trabajo.draftId !== draftId || trabajo.tipo !== 'reporte_final') continue
     const confirmacion = await cola.obtenerConfirmacion(trabajo.idempotencyKey)
-    if (confirmacion) return confirmacion
+    if (confirmacion) {
+      await confirmarSubidasFotos(draftId, confirmacion.movimientoId)
+      return confirmacion
+    }
   }
   return null
 }
@@ -57,6 +64,8 @@ export async function confirmarFormulario(
     rigeDesde: new Date().toISOString(),
     cierreDraft: 'enviado',
   })
+  // Kick the independent photo queue only after the movement confirmation is durable.
+  await confirmarSubidasFotos(draftId, movimientoId)
 }
 
 /** Clears only the answered form draft; queued attachment work stays durable. */

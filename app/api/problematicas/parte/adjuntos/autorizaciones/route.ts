@@ -59,7 +59,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const autorizaciones = await authorizeAttachments(requestBody.movimientoId, requestBody.adjuntos)
+    const autorizaciones = await authorizeAttachments(requestBody.movimientoId, movement.cueAnexo, requestBody.adjuntos)
     return Response.json({ movimientoId: requestBody.movimientoId, autorizaciones }, { status: 200, headers: NO_STORE })
   } catch (error) {
     if (error instanceof ObsConfigurationError) {
