@@ -237,6 +237,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const enviandoRef = useRef(false)
   const reintentarRef = useRef<(deliberado?: boolean) => void>(() => {})
+  const cancelarReintentoProgramadoRef = useRef<(() => void) | null>(null)
   const exitoRef = useRef<() => void>(() => {})
   const candidatasCausa = useMemo(() => [
     ...situaciones.filter((s) => recorrido.respuestas[s.id]?.tipo !== 'solucionada').map((s) => ({
@@ -454,6 +455,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 
   useEffect(() => {
     reintentarRef.current = (deliberado = false) => {
+      if (deliberado) {
+        cancelarReintentoProgramadoRef.current?.()
+        cancelarReintentoProgramadoRef.current = null
+      }
       const errorEnReintento = estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando')
       const sesionVencidaEnReintento = estadoAvisoEnvio === 'sesion-vencida' && (estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando')
       if (guardado || (!esEstadoReintentable(estadoEnvio) && !(deliberado && (errorEnReintento || sesionVencidaEnReintento)))) return
@@ -471,7 +476,15 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   useEffect(() => {
     if (guardado || enviando || !esEstadoReintentable(estadoEnvio)) return
     if (estadoEnvio === 'pendiente-envio' && typeof navigator !== 'undefined' && navigator.onLine === false) return
-    return programarReintento(intentosEnvio, () => reintentarRef.current())
+    const cancelar = programarReintento(intentosEnvio, () => {
+      cancelarReintentoProgramadoRef.current = null
+      reintentarRef.current()
+    })
+    cancelarReintentoProgramadoRef.current = cancelar
+    return () => {
+      cancelar()
+      if (cancelarReintentoProgramadoRef.current === cancelar) cancelarReintentoProgramadoRef.current = null
+    }
   }, [estadoEnvio, intentosEnvio, guardado, enviando])
 
   function retomarBorrador(): void {

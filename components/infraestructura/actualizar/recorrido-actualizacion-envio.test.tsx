@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from '@/components/infraestructura/verificacion-vinculo'
 import { claveBorrador, MENSAJES_ESTADO } from '@/lib/infraestructura/parte/envio-offline'
@@ -70,7 +70,8 @@ function elegirAsistencia(valor: 'Sí' | 'No') {
 }
 async function enviar() { await prepararResumen(); elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks(); syncMocks.callback = null })
+beforeEach(() => { localStorage.clear(); sessionStorage.clear(); globalThis.indexedDB = new IDBFactory(); vi.spyOn(Math, 'random').mockReturnValue(0.5) })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks(); vi.restoreAllMocks(); syncMocks.callback = null })
 
 describe('RecorridoActualizacion: envío', () => {
   it('guarda con POST, instante de envío y muestra confirmación', async () => {
