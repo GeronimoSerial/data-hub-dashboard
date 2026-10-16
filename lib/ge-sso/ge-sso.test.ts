@@ -344,3 +344,75 @@ describe('callback /auth/ge-callback', () => {
     expect(sin.headers.get('location')).toBe('/login?error=ge_sso')
   })
 })
+
+describe('formato legacy (asistencias) en el mismo endpoint', () => {
+  function pedidoLegacy(body: Record<string, unknown>, opts: { origin?: string | null } = {}): Request {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      'x-forwarded-for': ipNueva(),
+    }
+    if (opts.origin !== null) headers.origin = opts.origin ?? ORIGEN
+    return new Request(`${BASE}/api/auth/ge-login`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+  }
+
+  it('responde 200 con la URL de callback y el callback deja un operador con su CUE', async () => {
+    const res = await manejarGeLogin(pedidoLegacy({ CUE: '1800554-00', USUARIO: 1001, secret: API_KEY }))
+    expect(res.status).toBe(200)
+    const { url } = (await res.json()) as { url: string }
+    expect(url.startsWith(`${BASE}/auth/ge-callback?token=`)).toBe(true)
+
+    const token = new URL(url).searchParams.get('token') ?? ''
+    const callback = await manejarGeCallback(new Request(`${BASE}/auth/ge-callback?token=${token}`))
+    expect(callback.status).toBe(302)
+    expect(callback.headers.get('location')).toBe('/problematicas/parte/nuevo')
+
+    const usuario = await usuarioPorEmail('ge-1001@ge-sso.invalid')
+    expect(usuario.role).toBe('operador_establecimiento')
+    expect(usuario.name).toBe('Usuario GE 1001')
+    expect(usuario.geCueAnexo).toBe('1800554-00')
+
+    const filas = await getDb()
+      .select()
+      .from(geSsoEvento)
+      .where(eq(geSsoEvento.email, 'ge-1001@ge-sso.invalid'))
+    expect(filas.map((f) => f.resultado)).toContain('ok')
+    expect(JSON.stringify(filas)).not.toContain(API_KEY)
+  })
+
+  it('responde 401 con un secret incorrecto o ausente y no crea usuario', async () => {
+    const mala = await manejarGeLogin(pedidoLegacy({ CUE: '1800554-00', USUARIO: 1002, secret: 'otra' }))
+    expect(mala.status).toBe(401)
+    const ausente = await manejarGeLogin(pedidoLegacy({ CUE: '1800554-00', USUARIO: 1002 }))
+    expect(ausente.status).toBe(401)
+    expect(await usuarioPorEmail('ge-1002@ge-sso.invalid')).toBeUndefined()
+  })
+
+  it('responde 400 si falta USUARIO o el CUE no tiene formato válido', async () => {
+    const sinUsuario = await manejarGeLogin(pedidoLegacy({ CUE: '1800554-00', secret: API_KEY }))
+    expect(sinUsuario.status).toBe(400)
+    const cueMalo = await manejarGeLogin(pedidoLegacy({ CUE: 'abc', USUARIO: 1005, secret: API_KEY }))
+    expect(cueMalo.status).toBe(400)
+  })
+
+  it('acepta USUARIO como cadena numérica', async () => {
+    const res = await manejarGeLogin(pedidoLegacy({ CUE: '1800554-00', USUARIO: '1003', secret: API_KEY }))
+    expect(res.status).toBe(200)
+    const usuario = await usuarioPorEmail('ge-1003@ge-sso.invalid')
+    expect(usuario.name).toBe('Usuario GE 1003')
+  })
+
+  it('un segundo login con el mismo USUARIO actualiza el CUE sin duplicar el usuario', async () => {
+    await manejarGeLogin(pedidoLegacy({ CUE: '1800554-00', USUARIO: 1004, secret: API_KEY }))
+    const primero = await usuarioPorEmail('ge-1004@ge-sso.invalid')
+
+    const res = await manejarGeLogin(pedidoLegacy({ CUE: '1800554-01', USUARIO: 1004, secret: API_KEY }))
+    expect(res.status).toBe(200)
+    const segundo = await usuarioPorEmail('ge-1004@ge-sso.invalid')
+    expect(segundo.id).toBe(primero.id)
+    expect(segundo.geCueAnexo).toBe('1800554-01')
+  })
+})
