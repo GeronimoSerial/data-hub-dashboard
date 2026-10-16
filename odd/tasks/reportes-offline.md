@@ -28,7 +28,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B4-T1 (merged 80834f9; tsc+eslint ok, tests via CI) Generic offline page reusing forms and persisted context
   - [x] B4-T2 (merged 02aeffc; tsc+eslint ok, tests via CI) SW precache: verify completeness before announcing availability; versioned caches keep previous until new ready; no authenticated responses/credentials cached
   - [x] B4-T3 (merged 02aeffc; tsc+eslint ok, tests via CI) Failed-navigation fallback preserving flow and CUE
-  - [ ] B4-T4 [in progress: gpt-6-luna, reportes-b4-t4-reconnect] Reconnect: restore + sync, validate stale context without discarding answers
+  - [x] B4-T4 (merged 60fbcec; tsc+eslint ok, tests via CI) Reconnect: restore + sync, validate stale context without discarding answers
 - [ ] B5 Local selection and optimization
   - [x] B5-T1 (974f0b0) Photo picker: select, preview, remove (max 3 per submission)
   - [x] B5-T2 (84a3e95 + fix 7026aca) Worker pipeline: one at a time off main thread, optimized + thumbnail, orientation, strip metadata, no original fallback
@@ -36,13 +36,13 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [ ] B5-T4 Measure weights with real photos on modest devices
 - [ ] B6 Attachments and direct OBS upload (depends on B0-OBS)
   - [x] B6-T1 (merged 2980eee; tsc+eslint ok, tests via CI) Schema/API: attachments linked to movimientos; photo-only evidence update; server-side permission + 3-photo limit under concurrency
-  - [ ] B6-T2 [in progress: gpt-6-luna, reportes-b6-t2-presign] Batch authorization (presigned, controlled keys, verifiable constraints); reuse/renew without confusing OBS failure with app session expiry
+  - [x] B6-T2 (merged 60fbcec; tsc+eslint ok, tests via CI) Batch authorization (presigned, controlled keys, verifiable constraints); reuse/renew without confusing OBS failure with app session expiry
   - [ ] B6-T3 Client upload queue: one at a time after report confirmed; survives close/expired session
   - [ ] B6-T4 Idempotent confirm + reconcile uncertain uploads before retransmit
   - [ ] B6-T5 Local cleanup after confirm + safe orphan object cleanup
 - [ ] B7 Map, gallery and pending items
-  - [ ] B7-T1 [in progress: gpt-6-luna, reportes-b7-t1t2-map-drafts] Grouped draft/photo counts (no per-school queries)
-  - [ ] B7-T2 [in progress: gpt-6-luna, reportes-b7-t1t2-map-drafts] Paginated pending detail (progress, last activity, allowed answers), visually/statistically separate from confirmed
+  - [x] B7-T1 (merged 60fbcec; tsc+eslint ok, tests via CI) Grouped draft/photo counts (no per-school queries)
+  - [x] B7-T2 (merged 60fbcec; tsc+eslint ok, tests via CI) Paginated pending detail (progress, last activity, allowed answers), visually/statistically separate from confirmed
   - [ ] B7-T3 Photo indicator, thumbnails on sheet open, lightbox; on-demand temporary access, no proxy/mass signing
   - [ ] B7-T4 Historical evidence by movimiento and date, including solved situations
 - [ ] B8 Integrated validation and enablement
