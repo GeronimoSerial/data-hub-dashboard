@@ -36,7 +36,10 @@ export async function olvidarClaveEnvioFormulario(draftId: string): Promise<void
   const almacen = await abrirAlmacenParte()
   const contexto = await almacen.obtenerContexto<Record<string, unknown>>(draftId)
   if (contexto) {
-    const actualizado = { ...contexto, draftId }
+    const actualizado: Record<string, unknown> & { draftId: string; idempotencyKey?: string } = {
+      ...contexto,
+      draftId,
+    }
     delete actualizado.idempotencyKey
     await almacen.guardarContexto(actualizado)
   }

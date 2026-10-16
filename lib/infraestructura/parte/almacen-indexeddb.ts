@@ -64,6 +64,12 @@ export interface RegistroBorradorLocal {
   actualizadoEn: string
 }
 
+/** Stable local identity for a draft and its queued B2 submission. */
+export interface IdentidadBorradorLocal {
+  draftId: string
+  idempotencyKey?: string
+}
+
 export interface TrabajoEnvioLocal {
   idempotencyKey: string
   draftId?: string
@@ -261,7 +267,7 @@ function borrarRegistro(nombre: string, store: NombreStore, clave: string): Prom
 }
 
 export interface AlmacenParte {
-  guardarContexto(contexto: { draftId: string } & object): Promise<void>
+  guardarContexto(contexto: IdentidadBorradorLocal & object): Promise<void>
   obtenerContexto<T = unknown>(draftId: string): Promise<T | null>
   guardarBorrador(registro: RegistroBorradorLocal): Promise<void>
   obtenerBorrador(draftId: string): Promise<RegistroBorradorLocal | null>
