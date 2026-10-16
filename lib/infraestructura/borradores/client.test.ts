@@ -101,4 +101,26 @@ describe('createDraftSyncClient', () => {
     expect(fetcher).toHaveBeenCalledTimes(2)
     expect(await client.getConflict('draft-1')).toMatchObject({ serverRevision: 7 })
   })
+
+  it('flushes each persisted pending draft after reconnect and removes only accepted work from the index', async () => {
+    const store = createStore()
+    const offline = createDraftSyncClient({ store, fetch: async () => { throw new TypeError('offline') } })
+    await offline.completeStep(snapshot())
+    await offline.completeStep(snapshot({
+      draftId: 'draft-2',
+      context: { draftId: 'draft-2', cue: '9876543-21', escuela: { cue: '9876543-21' }, flujo: 'actualizacion' },
+    }))
+
+    const online = createDraftSyncClient({
+      store,
+      fetch: async () => Response.json({ revision: 0 }, { status: 201 }),
+    })
+    const result = await online.flushAllPending()
+
+    expect(result).toEqual([
+      { draftId: 'draft-1', result: { status: 'synced', revision: 0 } },
+      { draftId: 'draft-2', result: { status: 'synced', revision: 0 } },
+    ])
+    expect(await online.flushAllPending()).toEqual([])
+  })
 })

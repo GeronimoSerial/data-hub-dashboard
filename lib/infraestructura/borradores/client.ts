@@ -1,7 +1,16 @@
 import type { AlmacenClaveValor } from '../parte/envio-offline'
 
+declare module '../parte/almacen-indexeddb' {
+  interface AlmacenParte {
+    /** Form context records may also carry the durable submission idempotency key. */
+    guardarContexto(contexto: { draftId: string } & Record<string, unknown>): Promise<void>
+    obtenerContexto<T = unknown>(draftId: string): Promise<(T & { idempotencyKey?: unknown }) | null>
+  }
+}
+
 const VERSION = 1 as const
 const PREFIX = 'parte:borrador-sync:v1:'
+const INDEX_KEY = `${PREFIX}pending-drafts`
 const ENDPOINT = '/api/problematicas/parte/borradores'
 
 export interface LocalDraftSnapshot {
@@ -46,6 +55,25 @@ export interface DraftSyncClientOptions {
 
 function keyForDraft(draftId: string): string {
   return `${PREFIX}${encodeURIComponent(draftId)}`
+}
+
+async function pendingDraftIds(store: AlmacenClaveValor): Promise<string[]> {
+  try {
+    const parsed: unknown = JSON.parse((await store.obtener(INDEX_KEY)) ?? '[]')
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+async function rememberPendingDraft(store: AlmacenClaveValor, draftId: string): Promise<void> {
+  const ids = await pendingDraftIds(store)
+  if (!ids.includes(draftId)) await store.guardar(INDEX_KEY, JSON.stringify([...ids, draftId]))
+}
+
+async function forgetPendingDraft(store: AlmacenClaveValor, draftId: string): Promise<void> {
+  const ids = await pendingDraftIds(store)
+  await store.guardar(INDEX_KEY, JSON.stringify(ids.filter((id) => id !== draftId)))
 }
 
 function createState(draftId: string, generation: number): PersistedState {
@@ -128,10 +156,12 @@ export function createDraftSyncClient({ store, fetch: fetchImpl = fetch, now = (
     const stored = await store.obtener(keyForDraft(snapshot.draftId))
     const state = readState(stored, snapshot.draftId, snapshot.generation)
     state.pendingSnapshot = snapshot
+    await rememberPendingDraft(store, snapshot.draftId)
 
     if (state.conflict) {
       state.conflict = { ...state.conflict, localSnapshot: snapshot }
       await store.guardar(keyForDraft(snapshot.draftId), JSON.stringify(state))
+      await forgetPendingDraft(store, snapshot.draftId)
       return {
         status: 'conflict',
         serverRevision: state.conflict.serverRevision,
@@ -180,16 +210,19 @@ export function createDraftSyncClient({ store, fetch: fetchImpl = fetch, now = (
       const serverRevision = body.revisionServidor as number
       state.conflict = { serverRevision, localSnapshot: snapshot, detectedAt: now() }
       await store.guardar(keyForDraft(snapshot.draftId), JSON.stringify(state))
+      await forgetPendingDraft(store, snapshot.draftId)
       return { status: 'conflict', serverRevision, localAnswers: snapshot.answers }
     }
 
     if (response.status === 410) {
       state.pendingSnapshot = null
       await store.guardar(keyForDraft(snapshot.draftId), JSON.stringify(state))
+      await forgetPendingDraft(store, snapshot.draftId)
       return { status: 'closed', serverState: typeof body.estado === 'string' ? body.estado : null }
     }
 
     if (response.status === 422) {
+      await forgetPendingDraft(store, snapshot.draftId)
       return { status: 'validation', fields: Array.isArray(body.campos) ? body.campos.filter((field): field is string => typeof field === 'string') : [] }
     }
 
@@ -208,6 +241,7 @@ export function createDraftSyncClient({ store, fetch: fetchImpl = fetch, now = (
     }
     state.pendingSnapshot = null
     await store.guardar(keyForDraft(snapshot.draftId), JSON.stringify(state))
+    await forgetPendingDraft(store, snapshot.draftId)
     return { status: 'synced', revision: state.revision }
   }
 
@@ -239,6 +273,13 @@ export function createDraftSyncClient({ store, fetch: fetchImpl = fetch, now = (
     return synchronize(state.pendingSnapshot)
   }
 
+  async function flushAllPending(excludedDraftIds: string[] = []): Promise<Array<{ draftId: string; result: DraftSyncResult }>> {
+    const ids = await pendingDraftIds(store)
+    const excluded = new Set(excludedDraftIds)
+    return Promise.all(ids.filter((draftId) => !excluded.has(draftId))
+      .map(async (draftId) => ({ draftId, result: await flushPending(draftId) })))
+  }
+
   async function getConflict(draftId: string): Promise<DraftConflict | null> {
     const raw = await store.obtener(keyForDraft(draftId))
     if (!raw) return null
@@ -265,12 +306,14 @@ export function createDraftSyncClient({ store, fetch: fetchImpl = fetch, now = (
     state.conflict = null
     state.pendingSnapshot = resolvedSnapshot
     await store.guardar(keyForDraft(draftId), JSON.stringify(state))
+    await rememberPendingDraft(store, draftId)
   }
 
   return {
     completeStep: synchronize,
     abandonStep: synchronize,
     flushPending,
+    flushAllPending,
     getConflict,
     prepareConflictResolution,
   }
