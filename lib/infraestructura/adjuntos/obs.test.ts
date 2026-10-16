@@ -44,8 +44,12 @@ describe('OBS batch authorization', () => {
     clientMock.mockImplementation(function MockClient(this: object) {
       Object.assign(this, { destroy: vi.fn(), send: vi.fn(async () => ({ ETag: '"abc123"', ContentLength: 1024, ContentType: 'image/jpeg' })) })
     })
-    commandMock.mockImplementation((input: unknown) => input)
-    headCommandMock.mockImplementation((input: unknown) => input)
+    commandMock.mockImplementation(function MockPutObjectCommand(this: object, input: object) {
+      Object.assign(this, input)
+    })
+    headCommandMock.mockImplementation(function MockHeadObjectCommand(this: object, input: object) {
+      Object.assign(this, input)
+    })
     signMock.mockReset().mockImplementation(async (_client: unknown, command: { Key: string }) => `https://obs.test/${command.Key}?signed`)
   })
 
