@@ -42,6 +42,18 @@ function leerDatos(trabajo: TrabajoEnvioLocal): DatosTrabajoFoto {
   return trabajo.cuerpo as DatosTrabajoFoto
 }
 
+/** Points a job at another movement and drops state that belonged to the previous one. */
+function reasignarMovimiento(data: DatosTrabajoFoto, movimientoId: string): DatosTrabajoFoto {
+  return {
+    ...data,
+    movimientoId,
+    optimizadaAuthorization: undefined,
+    miniaturaAuthorization: undefined,
+    intentos: undefined,
+    reintentarDespues: undefined,
+  }
+}
+
 function idempotencyKey(attachmentId: string): string {
   return `foto:${attachmentId}`
 }
@@ -88,19 +100,25 @@ export async function encolarSubidasFotos(fotos: readonly NuevaSubidaFoto[]): Pr
   }
 }
 
-/** Links waiting photo jobs only after B2 stored the final movement confirmation. */
-export async function confirmarSubidasFotos(draftId: string, movimientoId: string): Promise<void> {
+/**
+ * Links photo jobs to the evidencia movement the server stored their attachments under. Jobs named
+ * in `attachmentIds` are rebound even if they already hold another movement (e.g. a stale parte id).
+ */
+export async function confirmarSubidasFotos(
+  draftId: string,
+  movimientoId: string,
+  attachmentIds?: readonly string[],
+): Promise<void> {
   const almacen = await abrirAlmacenParte()
   try {
     const jobs = await almacen.obtenerTrabajosEnvio()
     for (const job of jobs) {
       if (!esTrabajoFoto(job) || job.draftId !== draftId) continue
       const data = leerDatos(job)
-      if (data.movimientoId && data.movimientoId !== movimientoId) {
-        continue
-      }
       if (data.movimientoId === movimientoId) continue
-      await almacen.guardarTrabajoEnvio({ ...job, cuerpo: { ...data, movimientoId }, estado: 'pendiente' })
+      const declarada = attachmentIds?.includes(data.attachmentId) ?? false
+      if (data.movimientoId && !declarada) continue
+      await almacen.guardarTrabajoEnvio({ ...job, cuerpo: reasignarMovimiento(data, movimientoId), estado: 'pendiente' })
     }
   } finally {
     almacen.cerrar()
@@ -127,7 +145,12 @@ export async function descartarSubidaFotoNoDeclarada(attachmentId: string): Prom
 /** Installs event-driven recovery. No worker polling or report-queue lock is used. */
 export function iniciarSubidaFotos(): () => void {
   if (typeof window === 'undefined') return () => undefined
-  if (stopListeners) return stopListeners
+  // Every call drains: callers start the queue right after binding jobs to a movement, and an
+  // earlier drain (e.g. the parte confirmation) may already have finished without seeing them.
+  if (stopListeners) {
+    void drenarColaFotos()
+    return stopListeners
+  }
   const trigger = () => { void drenarColaFotos() }
   window.addEventListener('online', trigger)
   window.addEventListener('pageshow', trigger)
@@ -143,6 +166,7 @@ export function iniciarSubidaFotos(): () => void {
 }
 
 let running: Promise<void> | undefined
+let otraPasada: Promise<void> | undefined
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 let stopListeners: (() => void) | undefined
 
@@ -155,9 +179,14 @@ async function withPhotoLock<T>(task: () => Promise<T>): Promise<T> {
   return task()
 }
 
-async function drenarColaFotos(): Promise<void> {
+/** Drains ready photo jobs once; exported for deterministic tests. */
+export async function drenarColaFotos(): Promise<void> {
   if (!await fetchReportesOfflineFeatures().then((flags) => flags.fotos)) return
-  if (running) return running
+  // A drain requested mid-run may concern jobs the running pass already skipped: run once more.
+  if (running) {
+    otraPasada ??= running.catch(() => undefined).then(() => { otraPasada = undefined; return drenarColaFotos() })
+    return otraPasada
+  }
   running = withPhotoLock(async () => {
     const almacen = await abrirAlmacenParte()
     try {
@@ -233,6 +262,17 @@ async function procesarFoto(
     if (reconcile.status === 401 || reconcile.status === 403) {
       await pausarSesion(almacen, job)
       return false
+    }
+    if (reconcile.status === 404) {
+      // Self-heal: older clients bound the job to the parte movement. The server reports the
+      // movement that really holds the attachment; rebind and let the loop retry right away.
+      const real = (await reconcile.json().catch(() => null) as { movimientoId?: unknown } | null)?.movimientoId
+      if (typeof real === 'string' && real && real !== movimientoId) {
+        const latest = await getTrabajo(almacen, job.idempotencyKey)
+        if (!latest) return true
+        await almacen.guardarTrabajoEnvio({ ...latest, cuerpo: reasignarMovimiento(leerDatos(latest), real), estado: 'pendiente' })
+        return true
+      }
     }
     if (reconcile.status !== 409) throw new Error(`Reconciliation failed (${reconcile.status}).`)
     const reconcileBody = await reconcile.json() as { missingVariants?: Variante[] }

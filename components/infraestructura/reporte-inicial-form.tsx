@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CircleCheck } from 'lucide-react'
 import type { FormEvent, JSX } from 'react'
 import {
@@ -590,7 +590,10 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     alEnviarConExitoRef.current = alEnviarConExito
   })
 
-  useEffect(() => {
+  // Layout effect, not a passive one: the alert with "Reintentar ahora" is already on screen once
+  // this render commits, and a click can land before passive effects flush. Refreshing the ref at
+  // commit keeps the handler in sync with what the user sees, so that click is never dropped.
+  useLayoutEffect(() => {
     reintentarRef.current = (deliberado = false) => {
       if (guardado) return
       const errorEnReintento = estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando')
