@@ -41,8 +41,8 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [ ] B6-T4 Idempotent confirm + reconcile uncertain uploads before retransmit
   - [ ] B6-T5 Local cleanup after confirm + safe orphan object cleanup
 - [ ] B7 Map, gallery and pending items
-  - [ ] B7-T1 Grouped draft/photo counts (no per-school queries)
-  - [ ] B7-T2 Paginated pending detail (progress, last activity, allowed answers), visually/statistically separate from confirmed
+  - [ ] B7-T1 [in progress: gpt-6-luna, reportes-b7-t1t2-map-drafts] Grouped draft/photo counts (no per-school queries)
+  - [ ] B7-T2 [in progress: gpt-6-luna, reportes-b7-t1t2-map-drafts] Paginated pending detail (progress, last activity, allowed answers), visually/statistically separate from confirmed
   - [ ] B7-T3 Photo indicator, thumbnails on sheet open, lightbox; on-demand temporary access, no proxy/mass signing
   - [ ] B7-T4 Historical evidence by movimiento and date, including solved situations
 - [ ] B8 Integrated validation and enablement
