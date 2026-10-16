@@ -132,6 +132,8 @@ function migrar(db: IDBDatabase): void {
   crear(STORES_PARTE.descartes, 'draftId')
 }
 
+const TIEMPO_MAXIMO_APERTURA_MS = 5000
+
 function abrirDb(nombre: string, conexiones: Map<string, Promise<IDBDatabase>>): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
@@ -146,14 +148,22 @@ function abrirDb(nombre: string, conexiones: Map<string, Promise<IDBDatabase>>):
       reject(clasificarErrorIdb(error))
       return
     }
+    // Some browsers leave the open request pending forever; bound it so the
+    // save path fails visibly instead of hanging. A late success is closed.
+    const temporizador = setTimeout(() => {
+      rechazada = true
+      reject(new ErrorAlmacenParte('no_disponible', 'IndexedDB no respondió a tiempo'))
+    }, TIEMPO_MAXIMO_APERTURA_MS)
     req.onupgradeneeded = () => migrar(req.result)
     req.onblocked = () => {
+      clearTimeout(temporizador)
       // Otra pestaña mantiene una conexión antigua abierta. La apertura sigue
       // pendiente; si llega a completarse después, se cierra sin usarla.
       rechazada = true
       reject(new ErrorAlmacenParte('bloqueado', 'Otra pestaña impide actualizar el almacenamiento local'))
     }
     req.onsuccess = () => {
+      clearTimeout(temporizador)
       const db = req.result
       if (rechazada) {
         db.close()
@@ -172,6 +182,7 @@ function abrirDb(nombre: string, conexiones: Map<string, Promise<IDBDatabase>>):
       resolve(db)
     }
     req.onerror = () => {
+      clearTimeout(temporizador)
       rechazada = true
       reject(clasificarErrorIdb(req.error))
     }
@@ -234,8 +245,18 @@ async function operar<T>(
   modo: IDBTransactionMode,
   op: (tx: IDBTransaction) => () => T,
 ): Promise<T> {
-  const db = await conexion(nombre)
-  return ejecutar(db, stores, modo, op)
+  const promesa = conexion(nombre)
+  try {
+    return await ejecutar(await promesa, stores, modo, op)
+  } catch (error) {
+    // The browser can drop a cached connection without firing `close`
+    // (e.g. mobile Safari while the camera app backgrounds the page). Forget
+    // that dead handle and retry once on a fresh connection.
+    if (!(error instanceof ErrorAlmacenParte) || error.codigo !== 'no_disponible') throw error
+    const conexiones = conexionesDe()
+    if (conexiones.get(nombre) === promesa) conexiones.delete(nombre)
+    return ejecutar(await conexion(nombre), stores, modo, op)
+  }
 }
 
 function leerRegistro<T>(nombre: string, store: NombreStore, clave: string): Promise<T | null> {
@@ -370,12 +391,9 @@ export async function abrirAlmacenParte(nombre: string = NOMBRE_DB_PARTE): Promi
     eliminarArchivo: (attachmentId) => borrarRegistro(nombre, STORES_PARTE.archivos, attachmentId),
     marcarDescarte: (descarte) => escribirRegistro(nombre, STORES_PARTE.descartes, descarte),
     obtenerDescarte: (draftId) => leerRegistro<DescarteLocal>(nombre, STORES_PARTE.descartes, draftId),
-    cerrar: () => {
-      const conexiones = conexionesDe()
-      const abierta = conexiones.get(nombre)
-      conexiones.delete(nombre)
-      void abierta?.then((db) => db.close(), () => undefined)
-    },
+    // The connection is shared per DB name with the form store; closing it
+    // here would break saves in flight. It is released on `versionchange`.
+    cerrar: () => undefined,
   }
 }
 
