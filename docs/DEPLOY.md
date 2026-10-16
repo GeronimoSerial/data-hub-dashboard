@@ -46,6 +46,15 @@ Coolify debe montar un volumen en `/data`. Con `DATABASE_URL` configurada, el hu
 | `PROBLEMATICAS_ACCESO_PASSWORD` | Contraseña temporal del formulario público (`lib/infraestructura/acceso-publico.ts`). Provisoria, reemplaza a una autenticación por token futura. Sin ella, el formulario y sus rutas quedan cerrados. |
 | `PADRON_PG_URL` (o `ConnectionStrings`, alias heredado) | Conexión a Postgres de Gestión Educativa, formato `postgres://usuario:clave@host:5432/asistencias`. Solo la leen scripts de mantenimiento; el servidor nunca la lee. Si falta, el tablero conserva el último corte materializado en la base activa. |
 
+### Contrato del SSO con Gestión Educativa
+
+`POST /api/auth/ge-login` acepta dos formatos. La clave de `GE_SSO_API_KEY` es la misma en ambos y se compara en tiempo constante. El origen debe ser `GE_SSO_ALLOWED_ORIGIN`.
+
+- **Actual:** body `{ email, nombre, apellido, rol, cue?, nivelJurisdiccionalId?, api_key }`. Responde `201 { redirectUrl }`. Es el único que admite los roles `administrador`, `director_nivel` y `operador_establecimiento`.
+- **Legacy ("asistencias"):** body `{ CUE, USUARIO, secret }`. `CUE` admite el formato `1800554-00` o `1800554`, y `USUARIO` es el número de usuario de GE (entero positivo, o cadena numérica). Responde `200 { url }`. Crea o actualiza un operador de establecimiento con email sintético `ge-<USUARIO>@ge-sso.invalid` y el CUE recibido.
+
+Se usa el formato legacy si el body trae la clave `CUE` o `USUARIO` (en mayúsculas). Los errores son iguales en ambos: `400` body inválido, `401` clave inválida, `403` usuario bloqueado, `429` rate limit y `503` SSO no configurado. Cada intento queda en `ge_sso_evento`, nunca con la clave.
+
 ### Alertas de infraestructura: padrón y persistencia
 
 La base principal del hub es Postgres si `DATABASE_URL` está configurada; en caso contrario, es PGlite persistido bajo `DATA_DIR/pg`. El corte del padrón se escribe en el schema `ge` de esa misma base activa. No se utiliza una base `ge.sqlite` separada en este flujo.
