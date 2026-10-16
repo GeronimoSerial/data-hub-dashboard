@@ -1,6 +1,16 @@
 import { sql } from 'drizzle-orm'
 import { pgTable, text, integer, bigint, boolean, doublePrecision, jsonb, real, primaryKey, index, uniqueIndex, timestamp, check, foreignKey } from 'drizzle-orm/pg-core'
 
+export const infraDatasetEntrega = pgTable('infra_dataset_entrega', {
+  versionId: text('version_id').notNull().references(() => infraDatasetVersion.id),
+  destino: text('destino').notNull(),
+  intentos: integer('intentos').notNull().default(0),
+  proximoIntento: timestamp('proximo_intento', { withTimezone: true }).notNull().defaultNow(),
+  entregadaEn: timestamp('entregada_en', { withTimezone: true }),
+  ultimoError: text('ultimo_error'),
+  creadaEn: timestamp('creada_en', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.versionId, t.destino] }), index('infra_dataset_entrega_pendiente_idx').on(t.destino, t.proximoIntento)])
+
 export const niveles = pgTable('niveles', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),

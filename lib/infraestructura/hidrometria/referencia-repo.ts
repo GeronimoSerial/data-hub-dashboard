@@ -1,6 +1,6 @@
 // Persistencia de la referencia estadística de niveles por estación (mediana, p10, p90)
 // derivada del histórico de Prefectura. Clave: estacionId + ventanaDias.
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { getDb } from '@/lib/db'
 import { hidroReferencia } from '@/lib/db/schema'
 
@@ -36,6 +36,7 @@ export async function guardarReferencia(db: Db, fila: FilaReferencia): Promise<v
         fuente: fila.fuente,
         calculadoEn: fila.calculadoEn,
       },
+      setWhere: sql`${hidroReferencia.calculadoEn} <= ${fila.calculadoEn}`,
     })
 }
 

@@ -162,6 +162,13 @@
       "when": 1792166348931,
       "tag": "0022_infra_dataset_vacio",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792186700412,
+      "tag": "0023_prefectura_entregas",
+      "breakpoints": true
     }
   ]
 }

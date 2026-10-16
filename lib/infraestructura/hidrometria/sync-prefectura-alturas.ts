@@ -13,7 +13,8 @@ import {
   descargarAlturasPrefectura,
 } from './prefectura-cliente'
 import { EstructuraPrefecturaCambiadaError, type FilaAlturaPrefectura } from './prefectura-parser'
-import { type LecturaResuelta, guardarLecturasPrefectura } from './lecturas-repo'
+import { type LecturaResuelta } from './lecturas-repo'
+import { publicarCorridaPrefectura } from './publicacion'
 
 const TIPO_JOB = 'sync-prefectura-alturas'
 const DURACION_LEASE_MS = 10 * 60 * 1000
@@ -121,10 +122,12 @@ export async function syncPrefecturaAlturas(
     // report a failure instead of a success over nothing processed.
     if (resueltas.length === 0) throw new SinEstacionesCatalogoError()
 
-    const guardado = await guardarLecturasPrefectura(getDb(), resueltas, {
+    const publicacion = await publicarCorridaPrefectura({ tipo: 'alturas', filas: resueltas,
+      jobRunId: lease.jobRunId,
       capturadaEn: ahora.toISOString(),
       catalogoVersion: obtenerVersionCatalogoPrefectura(),
     })
+    const guardado = publicacion.resultado as { insertadas: number; duplicadas: number; sinFecha: number }
     const contadores = {
       filasPublicadas: filas.length,
       estacionesCatalogo: resueltas.length,

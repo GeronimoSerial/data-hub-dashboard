@@ -1,0 +1,65 @@
+name: Operar entregas de Prefectura
+on:
+  workflow_dispatch:
+    inputs:
+      operacion:
+        type: choice
+        options: [inspeccionar, configurar, ejecutar]
+        default: inspeccionar
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: prefectura-operacion
+  cancel-in-progress: false
+jobs:
+  operar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar o verificar la entrega en Coolify
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          STAGING_UUID: ${{ secrets.COOLIFY_STAGING_APP_UUID }}
+          PROD_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          SOURCE_URL: ${{ secrets.PREFECTURA_SOURCE_DATABASE_URL }}
+          OPERACION: ${{ inputs.operacion }}
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.parse
+          base='https://coolify.sistemas.mec.gob.ar/api/v1'
+          staging=os.environ['STAGING_UUID']; prod=os.environ['PROD_UUID']
+          assert staging=='j3zm0co4bi9iy0c70nv3vinf' and staging!=prod
+          def api(path,method='GET',data=None):
+            req=urllib.request.Request(base+path,method=method,
+              headers={'Authorization':'Bearer '+os.environ['COOLIFY_TOKEN'],'Content-Type':'application/json'},
+              data=json.dumps(data).encode() if data is not None else None)
+            with urllib.request.urlopen(req,timeout=30) as r: return json.load(r)
+          def tasks(uuid):
+            respuesta=api('/applications/'+uuid+'/scheduled-tasks')
+            return respuesta if isinstance(respuesta,list) else respuesta.get('data',[])
+          op=os.environ['OPERACION']
+          if op=='inspeccionar':
+            for nombre,uuid in [('staging',staging),('prod',prod)]:
+              t=tasks(uuid)
+              print(nombre,json.dumps([{k:x.get(k) for k in ['uuid','name','command','frequency','enabled']} for x in t if 'prefectura' in x.get('command','')]))
+              envs=api('/applications/'+uuid+'/envs')
+              for e in envs:
+                if e.get('key')=='DATABASE_URL': print(nombre,'database',urllib.parse.urlparse(e.get('value','')).path)
+          elif op=='configurar':
+            source=os.environ['SOURCE_URL']
+            assert urllib.parse.urlparse(source).path=='/hub_prod'
+            api('/applications/'+staging+'/envs/bulk','PATCH',{'data':[{'key':'PREFECTURA_SOURCE_DATABASE_URL','value':source,'is_runtime':True,'is_buildtime':False,'is_preview':False,'is_literal':True}]})
+            existentes=tasks(staging)
+            for t in existentes:
+              if any(job in t.get('command','') for job in ['sync-prefectura-alturas','sync-prefectura-historico']):
+                api('/applications/'+staging+'/scheduled-tasks/'+t['uuid'],'PATCH',{'enabled':False})
+            entrega=next((t for t in existentes if t.get('name')=='replicar-prefectura'),None)
+            datos={'name':'replicar-prefectura','command':'node scripts/replicar-prefectura.mjs','frequency':'*/5 * * * *','timeout':300,'enabled':True}
+            if entrega: api('/applications/'+staging+'/scheduled-tasks/'+entrega['uuid'],'PATCH',datos)
+            else: api('/applications/'+staging+'/scheduled-tasks','POST',datos)
+            print('Entrega staging configurada cada cinco minutos; requiere redespliegue para cargar la variable runtime')
+          elif op=='ejecutar':
+            t=next(t for t in tasks(staging) if t.get('name')=='replicar-prefectura')
+            api('/applications/'+staging+'/scheduled-tasks/'+t['uuid']+'/execute','POST')
+            print('Entrega staging solicitada')
+          PY

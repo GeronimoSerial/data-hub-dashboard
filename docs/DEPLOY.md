@@ -236,13 +236,14 @@ ausente. Si `climatologia-caudal` falla (p. ej. `cupo_agotado`), la tarea reinte
 
 ### Procedimientos operativos
 
-Después del primer despliegue y cada vez que se versionen nuevos resultados, importar las capas geo estáticas. El importador lee todos los archivos reconocidos de `GEO_STATIC_OUTPUT_DIR` (por defecto `services/geo-static/output`); admite además `--aislamiento PATH --susceptibilidad PATH --geometria PATH --exposicion-ruta PATH`:
-
-```bash
-docker exec <CONTENEDOR> node scripts/importar-geo-static.mjs
-```
-
-`<CONTENEDOR>` es el nombre o ID del contenedor de la aplicación en ejecución, visible en `docker ps`; reemplazarlo por el valor real al instalar los comandos en systemd. Tras la importación, ejecutar en este orden para completar la ficha territorial:
+Las referencias y capas geográficas de infraestructura se publican directamente
+en PostgreSQL con versiones; ya no se importan carpetas de resultados al
+desplegar. Ver [datasets](datasets-infraestructura.md) y
+[Prefectura versionada](prefectura-versionada.md). Los jobs de Prefectura consultan
+la fuente sólo en producción; staging consume sus entregas pendientes mediante
+`node scripts/replicar-prefectura.mjs` cada cinco minutos, con una conexión de
+origen restringida. Tras publicar nuevas capas, ejecutar en este orden para
+completar la ficha territorial:
 
 ```bash
 docker exec <CONTENEDOR> node scripts/jobs.mjs geo-perfiles
@@ -307,8 +308,10 @@ se reemplazan los archivos y el mapa muestra la fecha del registro.
 
 `staging` es el escalón previo a producción. Tiene su propio volumen `/data`, sus propios secretos
 (`BETTER_AUTH_SECRET`, `NOMINAL_ENCRYPTION_KEY`, `ADMIN_PASSWORD`, `PROBLEMATICAS_ACCESO_PASSWORD`)
-y **no** comparte datos con producción: arranca vacío, con las localizaciones sembradas solas. No
-tiene `PADRON_PG_URL`; si hace falta padrón en staging se importa por operador, igual que en prod.
+y mantiene usuarios y reportes independientes. Se reconstruyó con datos reales
+el 16 de octubre de 2026. Las referencias del mapa se replican por versión; los
+resultados de Prefectura se distribuyen mediante una cola de entregas, sin
+duplicar ingestas. No tiene `PADRON_PG_URL`; el padrón se importa por operador.
 
 Flujo de ramas: rama de trabajo → `main` → `staging` → `prod`. El CI (`.github/workflows/ci.yml`)
 corre solo en los PR hacia `main`; los PR de promoción llevan el mismo árbol ya probado y no lo repiten.

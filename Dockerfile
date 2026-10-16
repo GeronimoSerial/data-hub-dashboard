@@ -31,6 +31,8 @@ RUN npm init -y > /dev/null \
 
 FROM base AS runner
 WORKDIR /app
+ARG APP_REVISION=desconocida
+ENV APP_REVISION=$APP_REVISION
 
 ENV NODE_ENV=production
 ENV PORT=3000
