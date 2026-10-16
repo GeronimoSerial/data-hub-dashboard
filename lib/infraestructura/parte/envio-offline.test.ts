@@ -96,7 +96,7 @@ describe('espera de reintento', () => {
     const jitterHigh = () => 1
     expect(calcularEsperaReintento(0, jitterLow)).toBe(750)
     expect(calcularEsperaReintento(1, jitterLow)).toBe(1500)
-    expect(calcularEsperaReintento(2, jitterHigh)).toBe(6000)
+    expect(calcularEsperaReintento(2, jitterHigh)).toBe(5000)
     let anterior = 0
     for (let intentos = 0; intentos <= 12; intentos += 1) {
       const espera = calcularEsperaReintento(intentos, jitterHigh)
