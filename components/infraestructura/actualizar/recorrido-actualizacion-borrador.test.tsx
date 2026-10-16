@@ -49,7 +49,11 @@ async function irAlResumen() {
   }
   fireEvent.click(screen.getByRole('radio', { name: 'No' }))
 }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks() })
+// An unmounted recorrido may still have a draft save in flight; its `.then` mirrors the draft into
+// localStorage. Queue a read on the same store so that save (and its mirror) settles before the
+// storage reset, otherwise the stale draft leaks into the next test as a "parte sin enviar".
+async function esperarGuardadosPendientes() { await leerBorradorGuardado() }
+afterEach(async () => { cleanup(); await esperarGuardadosPendientes(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks() })
 
 function elegirAsistencia(valor: 'Sí' | 'No') {
   fireEvent.click(within(screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })).getByRole('radio', { name: valor }))
