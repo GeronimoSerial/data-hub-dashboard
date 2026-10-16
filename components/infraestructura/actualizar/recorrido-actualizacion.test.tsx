@@ -4,6 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { RecorridoActualizacion } from './recorrido-actualizacion'
 
+const { prepararFotosMock, declararFotosMock } = vi.hoisted(() => ({ prepararFotosMock: vi.fn(), declararFotosMock: vi.fn() }))
+vi.mock('@/lib/infraestructura/fotos/flujo-formulario', () => ({
+  prepararFotosFormulario: prepararFotosMock,
+  declararFotosFormulario: declararFotosMock,
+}))
+
 const CUE = '1801605-41'
 function estadoActual() {
   return {
@@ -32,13 +38,56 @@ function stub(respuestaPost: Record<string, unknown> = { ok: true, movimientoId:
   return fetchMock
 }
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear() })
 
 function elegirAsistencia(valor: 'Sí' | 'No') {
   fireEvent.click(within(screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })).getByRole('radio', { name: valor }))
 }
 
 describe('RecorridoActualizacion', () => {
+  it('offers the photo picker in the update flow when the photo flag is on', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/borradores/config')) {
+        return new Response(JSON.stringify({ borradoresSync: false, fotos: true, mapaBorradores: false }), { status: 200 })
+      }
+      const body = url.includes('/historial') ? { ok: true, movimientos: [] } : estadoActual()
+      return new Response(JSON.stringify(body), { status: 200 })
+    }))
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    expect(await screen.findByLabelText('Agregar fotos')).toBeInTheDocument()
+  })
+
+  it('submits a photo-only evidence update against the latest report movement', async () => {
+    prepararFotosMock.mockImplementation(async (_draftId: string, fotos: Array<{ attachmentId: string }>) => ({
+      preparadas: fotos.map(({ attachmentId }) => ({
+        attachmentId,
+        bytesOptimizado: 1000,
+        bytesMiniatura: 200,
+        optimizadaContentType: 'image/jpeg',
+        miniaturaContentType: 'image/jpeg',
+      })),
+      errores: [],
+    }))
+    declararFotosMock.mockResolvedValue(undefined)
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/borradores/config')) {
+        return new Response(JSON.stringify({ borradoresSync: false, fotos: true, mapaBorradores: false }), { status: 200 })
+      }
+      const body = url.includes('/historial')
+        ? { ok: true, movimientos: [{ id: 'movement-base', tipo: 'actualizacion' }] }
+        : estadoActual()
+      return new Response(JSON.stringify(body), { status: 200 })
+    }))
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    const input = await screen.findByLabelText('Agregar fotos')
+    fireEvent.change(input, { target: { files: [new File(['photo'], 'aula.jpg', { type: 'image/jpeg' })] } })
+    const guardar = await screen.findByRole('button', { name: 'Guardar solo fotos' })
+    await waitFor(() => expect(guardar).toBeEnabled())
+    fireEvent.click(guardar)
+    expect(await screen.findByRole('heading', { name: 'Parte actualizado' })).toBeInTheDocument()
+    expect(declararFotosMock).toHaveBeenCalledWith(expect.objectContaining({ movimientoBaseId: 'movement-base' }))
+  })
+
   it('deja un solo Volver en datos y vuelve a la pregunta conservando la selección', async () => {
     stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)

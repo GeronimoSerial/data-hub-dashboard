@@ -6,7 +6,7 @@ import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/featur
 import styles from './selector-fotos.module.css'
 
 interface FotoSeleccionada {
-  id: number
+  id: string
   archivo: File
   vistaPrevia: string
 }
@@ -14,14 +14,14 @@ interface FotoSeleccionada {
 export interface SelectorFotosProps {
   /** Selected original files are returned as Blob references; no bytes are copied or uploaded. */
   onChange: (fotos: readonly Blob[]) => void
+  onItemsChange?: (fotos: readonly { attachmentId: string; original: Blob }[]) => void
   disabled?: boolean
 }
 
-export function SelectorFotos({ onChange, disabled = false }: SelectorFotosProps): JSX.Element | null {
+export function SelectorFotos({ onChange, onItemsChange, disabled = false }: SelectorFotosProps): JSX.Element | null {
   const inputId = useId()
   const helpId = useId()
   const fotosRef = useRef<FotoSeleccionada[]>([])
-  const nextId = useRef(0)
   const objectUrls = useRef(new Set<string>())
   const [fotos, setFotos] = useState<FotoSeleccionada[]>([])
   const [mensaje, setMensaje] = useState('')
@@ -52,12 +52,13 @@ export function SelectorFotos({ onChange, disabled = false }: SelectorFotosProps
     const siguientes = [...fotos, ...agregables.map((archivo) => {
       const vistaPrevia = URL.createObjectURL(archivo)
       objectUrls.current.add(vistaPrevia)
-      return { id: nextId.current++, archivo, vistaPrevia }
+      return { id: crypto.randomUUID(), archivo, vistaPrevia }
     })]
 
     fotosRef.current = siguientes
     setFotos(siguientes)
     onChange(siguientes.map(({ archivo }) => archivo))
+    onItemsChange?.(siguientes.map(({ id, archivo }) => ({ attachmentId: id, original: archivo })))
 
     const avisos: string[] = []
     if (omitidos > rechazadosPorFormato) {
@@ -76,6 +77,7 @@ export function SelectorFotos({ onChange, disabled = false }: SelectorFotosProps
     fotosRef.current = siguientes
     setFotos(siguientes)
     onChange(siguientes.map(({ archivo }) => archivo))
+    onItemsChange?.(siguientes.map(({ id, archivo }) => ({ attachmentId: id, original: archivo })))
     setMensaje('')
   }
 
