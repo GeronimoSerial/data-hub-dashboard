@@ -39,7 +39,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B6-T2 (merged 60fbcec; tsc+eslint ok, tests via CI) Batch authorization (presigned, controlled keys, verifiable constraints); reuse/renew without confusing OBS failure with app session expiry
   - [x] B6-T3 (merged 5eb4e62; tsc+eslint ok, tests via CI) Client upload queue: one at a time after report confirmed; survives close/expired session
   - [x] B6-T4 (merged 5eb4e62; tsc+eslint ok, tests via CI) Idempotent confirm + reconcile uncertain uploads before retransmit
-  - [ ] B6-T5 [in progress: gpt-6-luna, reportes-b6-t5-cleanup] Local cleanup after confirm + safe orphan object cleanup
+  - [x] B6-T5 (merged 56153cc; tsc+eslint ok, tests via CI) Local cleanup after confirm + safe orphan object cleanup
 - [ ] B7 Map, gallery and pending items
   - [x] B7-T1 (merged 60fbcec; tsc+eslint ok, tests via CI) Grouped draft/photo counts (no per-school queries)
   - [x] B7-T2 (merged 60fbcec; tsc+eslint ok, tests via CI) Paginated pending detail (progress, last activity, allowed answers), visually/statistically separate from confirmed
