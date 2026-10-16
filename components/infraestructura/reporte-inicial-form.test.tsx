@@ -22,12 +22,14 @@ function sembrarBorradorWizard({
   sinCamposNuevos = false,
   categoria = 'alumnos',
   motivo = 'Anegamiento',
+  cue = props.cue,
 }: {
   paso?: 1 | 2 | 3 | 4 | 5
   version?: number
   sinCamposNuevos?: boolean
   categoria?: 'alumnos' | 'establecimiento'
   motivo?: string
+  cue?: string
 } = {}) {
   const borrador = {
     generacion: 'generacion-test',
@@ -47,7 +49,7 @@ function sembrarBorradorWizard({
     rigeDesde: '2026-10-04T10:00:00.000Z',
     ...(sinCamposNuevos ? {} : { asistenciaBrinda: 'no', modalidadesAsistencia: [], vigencia: { modo: 'ahora' } }),
   }
-  localStorage.setItem(`parte-nuevo:draft:${props.cue}`, JSON.stringify(borrador))
+  localStorage.setItem(`parte-nuevo:draft:${cue}`, JSON.stringify(borrador))
 }
 
 function renderFormulario(overrides: Partial<typeof props> = {}) {
@@ -112,6 +114,9 @@ function guardarReporte() {
 }
 
 beforeEach(() => {
+  cleanup()
+  localStorage.clear()
+  sessionStorage.clear()
   globalThis.indexedDB = new IDBFactory()
   if (typeof globalThis.crypto?.randomUUID !== 'function') {
     vi.stubGlobal('crypto', { ...globalThis.crypto, randomUUID: () => '00000000-0000-4000-8000-000000000000' })
@@ -1024,12 +1029,16 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
   })
 
   it('al volver con un borrador sin enviar ofrece continuar o descartar', async () => {
-    sembrarBorradorWizard({ paso: 2 })
-    renderFormulario()
+    const cue = '12345679'
+    sembrarBorradorWizard({ paso: 2, cue })
+    renderFormulario({ cue })
 
     expect(await screen.findByText(MENSAJE_BORRADOR_PENDIENTE)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
-    expect(await screen.findByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    })
+    expect(await screen.findByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
   })
 
   it('restaura un borrador de establecimiento sin motivo en el paso 1 y muestra el error', async () => {

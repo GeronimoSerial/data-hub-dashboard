@@ -18,7 +18,7 @@ vi.mock('@/lib/infraestructura/parte/registrar-sync', () => ({
 const CUE = '1801605-41'
 const CLAVE = `parte-actualizar:draft:${CUE}`
 const DRAFT_ID = `parte-actualizacion:${CUE}`
-async function leerBorradorGuardado() { return (await abrirAlmacenParte()).obtenerBorrador(DRAFT_ID) }
+async function leerBorradorGuardado(draftId = DRAFT_ID) { return (await abrirAlmacenParte()).obtenerBorrador(draftId) }
 beforeEach(() => { globalThis.indexedDB = new IDBFactory() })
 const base = {
   ok: true, periodo: { id: 'p', nombre: 'ENOS' },
@@ -36,7 +36,7 @@ function stub(ids = ['a', 'b']) {
     return new Response(JSON.stringify(url.includes('/historial') ? { ok: true, movimientos: [] } : datos), { status: 200 })
   }))
 }
-function montar() { return render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />) }
+function montar(cue = CUE) { return render(<RecorridoActualizacion cue={cue} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />) }
 async function empezarYResponderPrimera() {
   fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
   fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
@@ -122,15 +122,18 @@ describe('RecorridoActualizacion: borrador local', () => {
   })
 
   it('migra un borrador legacy conservando la generación y las referencias a fotos', async () => {
-    localStorage.setItem(CLAVE, JSON.stringify({
+    const cue = '1801605-42'
+    const clave = `parte-actualizar:draft:${cue}`
+    const draftId = `parte-actualizacion:${cue}`
+    localStorage.setItem(clave, JSON.stringify({
       generacion: 'g-photo', etapa: { revisar: 0 },
       recorrido: { respuestas: { b: { tipo: 'sigue' } }, nueva: null, clasesEdificio: null },
       asistenciaPedagogica: { brinda: '', modalidades: [] }, idsSituaciones: ['a', 'b'], referenciasFotos: ['foto-1'],
     }))
-    stub(); montar()
+    stub(); montar(cue)
     await screen.findByText('Tiene un parte sin enviar.')
-    await waitFor(async () => expect((await leerBorradorGuardado())?.datos).toMatchObject({ generacion: 'g-photo', referenciasFotos: ['foto-1'] }))
-    expect(localStorage.getItem(CLAVE)).toBeNull()
+    await waitFor(async () => expect((await leerBorradorGuardado(draftId))?.datos).toMatchObject({ generacion: 'g-photo', referenciasFotos: ['foto-1'] }))
+    expect(localStorage.getItem(clave)).toBeNull()
   })
 
   it('avisa y empieza limpio si la forma del borrador es inválida', async () => {

@@ -24,8 +24,8 @@ describe('GaleriaEvidencia', () => {
 
     render(<GaleriaEvidencia cue="180000123-00" />)
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/infraestructura/adjuntos?cue=180000123-00')
     expect(await screen.findByRole('heading', { name: /10 de octubre de 2026/ })).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/infraestructura/adjuntos?cue=180000123-00')
     const thumbnail = screen.getByRole('button', { name: /Ampliar foto del/ }).querySelector('img')
     expect(thumbnail).toHaveAttribute('src', 'https://obs.example/thumb')
   })

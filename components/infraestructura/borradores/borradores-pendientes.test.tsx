@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { BorradoresPendientes } from './borradores-pendientes'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 const item = {
   draftId: 'server-draft-1',
@@ -47,7 +50,7 @@ describe('BorradoresPendientes', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Cargar más borradores' }))
 
-    expect(await screen.findAllByRole('heading', { name: 'Reporte inicial pendiente' })).toHaveLength(2)
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Reporte inicial pendiente' })).toHaveLength(2))
     expect(fetchMock).toHaveBeenCalledTimes(4)
     expect(String(fetchMock.mock.calls[3][0])).toContain('cursor=')
   })
@@ -68,6 +71,7 @@ describe('BorradoresPendientes', () => {
     render(<BorradoresPendientes cue="1801605-60" count={0} />)
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Borradores sin enviar' })).not.toBeInTheDocument())
     expect(screen.queryByRole('heading', { name: 'Borradores sin enviar' })).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
