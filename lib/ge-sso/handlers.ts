@@ -1,7 +1,13 @@
 import { auth } from '@/lib/auth'
 import { provisionarUsuarioGe, nivelJurisdiccionalExiste } from './provision'
 import { registrarEventoGeSso, type EventoGeSso } from './evento'
-import { geLoginSchema, type GeLoginBody } from './roles'
+import {
+  esFormatoLegacyGe,
+  geLoginLegacySchema,
+  geLoginSchema,
+  type GeLoginBody,
+  type UsuarioGeInput,
+} from './roles'
 import { emitirTicket } from './ticket'
 import {
   apiKeyCoincide,
@@ -35,7 +41,11 @@ export function responderPreflightGe(request: Request): Response {
 /**
  * `POST /api/auth/ge-login`: GE informa el usuario (desde el navegador del
  * usuario) y recibe la URL de callback con un ticket de 60 segundos.
- * Orden: origen -> rate limit -> api_key -> body -> reglas de negocio.
+ * Dos formatos en el mismo endpoint:
+ * - actual: `{ email, nombre, apellido, rol, cue?, nivelJurisdiccionalId?, api_key }`
+ *   -> `201 { redirectUrl }`.
+ * - legacy ("asistencias"): `{ CUE, USUARIO, secret }` -> `200 { url }`.
+ * Orden: origen -> rate limit -> clave -> body -> reglas de negocio.
  */
 export async function manejarGeLogin(request: Request): Promise<Response> {
   const origin = request.headers.get('origin')
@@ -71,12 +81,17 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
     return rechazar(400, 'json_invalido', 'JSON inválido')
   }
 
-  const recibida =
-    typeof raw === 'object' && raw !== null && 'api_key' in raw && typeof raw.api_key === 'string'
-      ? raw.api_key
-      : ''
+  const legacy = esFormatoLegacyGe(raw)
+  const campoClave = legacy ? 'secret' : 'api_key'
+  const registro = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
+  const valorClave = registro[campoClave]
+  const recibida = typeof valorClave === 'string' ? valorClave : ''
   if (!recibida || !apiKeyCoincide(recibida, esperada)) {
     return rechazar(401, 'api_key_invalida', 'api_key inválida')
+  }
+
+  if (legacy) {
+    return manejarGeLoginLegacy(raw, { ip, cors, rechazar })
   }
 
   const parsed = geLoginSchema.safeParse(raw)
@@ -104,7 +119,13 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
     return json({ error: 'SSO de GE no configurado' }, 503, cors)
   }
 
-  const provision = await provisionarUsuarioGe(body)
+  const provision = await provisionarUsuarioGe({
+    email: body.email,
+    nombre: `${body.nombre} ${body.apellido}`,
+    rol: body.rol,
+    cue: body.cue,
+    nivelJurisdiccionalId: body.nivelJurisdiccionalId,
+  })
   if (!provision.ok) {
     return rechazar(403, 'bloqueado', 'Usuario bloqueado', evento)
   }
@@ -112,6 +133,42 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
   const ticket = await emitirTicket(provision.userId)
   await registrarEventoGeSso({ ...evento, ip, resultado: 'ok' })
   return json({ redirectUrl: `${base}/auth/ge-callback?token=${ticket}` }, 201, cors)
+}
+
+type ContextoRechazo = {
+  ip: string
+  cors: Record<string, string>
+  rechazar: (
+    status: number,
+    resultado: string,
+    mensaje: string,
+    parcial?: Omit<EventoGeSso, 'resultado' | 'ip'>,
+  ) => Promise<Response>
+}
+
+/** Formato legacy ya autenticado por `secret`. Responde `200 { url }`. */
+async function manejarGeLoginLegacy(raw: unknown, ctx: ContextoRechazo): Promise<Response> {
+  const parsed = geLoginLegacySchema.safeParse(raw)
+  if (!parsed.success) {
+    return ctx.rechazar(400, 'body_invalido', 'Body inválido')
+  }
+  const input: UsuarioGeInput = parsed.data
+  const evento = { email: input.email, rol: input.rol, cue: input.cue ?? null }
+
+  const base = process.env.BETTER_AUTH_URL?.trim().replace(/\/$/, '')
+  if (!base) {
+    console.error('[ge-sso] BETTER_AUTH_URL no configurada')
+    return json({ error: 'SSO de GE no configurado' }, 503, ctx.cors)
+  }
+
+  const provision = await provisionarUsuarioGe(input)
+  if (!provision.ok) {
+    return ctx.rechazar(403, 'bloqueado', 'Usuario bloqueado', evento)
+  }
+
+  const ticket = await emitirTicket(provision.userId)
+  await registrarEventoGeSso({ ...evento, ip: ctx.ip, resultado: 'ok' })
+  return json({ url: `${base}/auth/ge-callback?token=${ticket}` }, 200, ctx.cors)
 }
 
 function redireccion(location: string, cookies: string[] = []): Response {

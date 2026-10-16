@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { normalizeCue } from '@/lib/infraestructura/cue'
 
 // Sin imports de better-auth ni de la base: lo usan lib/auth.ts (vía el plugin)
 // y los route handlers, así que no puede arrastrar un ciclo de módulos.
@@ -54,3 +55,49 @@ export const geLoginSchema = z
   })
 
 export type GeLoginBody = z.infer<typeof geLoginSchema>
+
+/** Datos ya validados que consume `provisionarUsuarioGe`, comunes a ambos formatos. */
+export type UsuarioGeInput = {
+  email: string
+  nombre: string
+  rol: RolGe
+  cue?: string | null
+  nivelJurisdiccionalId?: number | null
+}
+
+/**
+ * Formato legacy de "asistencias" (mismo endpoint): `{ CUE, USUARIO, secret }`.
+ * Se detecta por la presencia de `CUE` o `USUARIO` en el body. La clave va en
+ * `secret`, no en `api_key`; el handler la valida antes de llegar acá.
+ */
+export const geLoginLegacySchema = z
+  .object({
+    CUE: z
+      .string()
+      .trim()
+      .min(1)
+      .max(20)
+      .refine((valor) => normalizeCue(valor) !== null, { message: 'CUE inválido' })
+      .transform((valor) => normalizeCue(valor)!.value),
+    USUARIO: z
+      .union([z.number(), z.string().trim().regex(/^\d+$/, { message: 'USUARIO inválido' })])
+      .transform((valor) => Number(valor))
+      .pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER)),
+  })
+  .transform(({ CUE, USUARIO }) => usuarioGeLegacy(USUARIO, CUE))
+
+/** Identidad sintética del formato legacy: GE no envía email ni nombre. */
+export function usuarioGeLegacy(usuario: number, cue: string): UsuarioGeInput {
+  return {
+    email: `ge-${usuario}@ge-sso.invalid`,
+    nombre: `Usuario GE ${usuario}`,
+    rol: 'operador_establecimiento',
+    cue,
+    nivelJurisdiccionalId: null,
+  }
+}
+
+/** Formato legacy si el body trae `CUE` o `USUARIO` (mayúsculas). */
+export function esFormatoLegacyGe(raw: unknown): boolean {
+  return typeof raw === 'object' && raw !== null && ('CUE' in raw || 'USUARIO' in raw)
+}
