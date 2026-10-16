@@ -327,3 +327,25 @@ describe('describirMovimiento — rediseño', () => {
     expect(lineas).toContain('Causado por "Inundación"')
   })
 })
+
+describe('movimientos de evidencia fotográfica', () => {
+  // infra_movimiento.resumen de evidencia_fotografica no es un DiffParte:
+  // guarda { documentaMovimientoId, attachmentIds } (adjuntos/evidencia-fotografica.ts).
+  const resumenEvidencia = { documentaMovimientoId: 'mov-1', attachmentIds: ['adj-1'] } as unknown as DiffParte
+
+  it('titula la evidencia sin romper', () => {
+    expect(tituloMovimiento(resumenEvidencia, 'evidencia_fotografica', '2026-09-18T10:35:00.000Z')).toBe(
+      'Se agregó evidencia fotográfica',
+    )
+  })
+
+  it('no describe cambios de estado para la evidencia', () => {
+    expect(describirMovimiento(resumenEvidencia, { tipo: 'evidencia_fotografica' })).toEqual([])
+  })
+
+  it('tolera un resumen malformado sin lanzar', () => {
+    const malformado = {} as unknown as DiffParte
+    expect(tituloMovimiento(malformado, 'actualizacion', '2026-09-18T10:35:00.000Z')).toBe('Se actualizó el parte')
+    expect(describirMovimiento(malformado, { tipo: 'actualizacion' })).toEqual([])
+  })
+})

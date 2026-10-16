@@ -12,10 +12,33 @@ import type {
   DiffServicioAlcanceRef,
   DiffServicioCambio,
 } from './movimiento-diff'
+import type { TipoMovimientoEvidencia } from './reportes-offline-contratos'
 import type { EstadoEstablecimiento, SeccionEstablecimiento, ServicioEstado, TipoMovimiento } from './trayectoria-tipos'
 
+// infra_movimiento.tipo también puede ser 'evidencia_fotografica', cuyo
+// resumen NO es un DiffParte ({ documentaMovimientoId, attachmentIds }).
+export type TipoMovimientoDescrito = TipoMovimiento | TipoMovimientoEvidencia
+
+// Completa con vacíos cualquier lista ausente: un resumen malformado o de
+// otro tipo de movimiento nunca debe tirar abajo una lectura de historial.
+export function normalizarDiff(resumen: unknown): DiffParte {
+  const datos = (resumen && typeof resumen === 'object' ? resumen : {}) as Partial<DiffParte>
+  const lista = <T,>(valor: T[] | undefined): T[] => (Array.isArray(valor) ? valor : [])
+  return {
+    afectacionesAgregadas: lista(datos.afectacionesAgregadas),
+    afectacionesRetiradas: lista(datos.afectacionesRetiradas),
+    severidadesCambiadas: lista(datos.severidadesCambiadas),
+    alcancesCambiados: lista(datos.alcancesCambiados),
+    datosCambiados: lista(datos.datosCambiados),
+    serviciosCambiados: lista(datos.serviciosCambiados),
+    establecimientoCambiado: datos.establecimientoCambiado ?? null,
+    asistenciaPedagogicaCambiada: datos.asistenciaPedagogicaCambiada ?? null,
+    afectacionesConfirmadas: lista(datos.afectacionesConfirmadas),
+  }
+}
+
 export interface DescribirMovimientoOpciones {
-  tipo?: TipoMovimiento
+  tipo?: TipoMovimientoDescrito
   secciones?: SeccionEstablecimiento[]
 }
 
@@ -98,7 +121,9 @@ const ESTADO_ESTABLECIMIENTO_TEXTO: Record<EstadoEstablecimiento, string> = {
 }
 
 /** Título compartido por el resumen de carga, la línea de tiempo y el historial. */
-export function tituloMovimiento(diff: DiffParte, tipo: TipoMovimiento, _rigeDesde: string): string {
+export function tituloMovimiento(resumen: DiffParte, tipo: TipoMovimientoDescrito, _rigeDesde: string): string {
+  if (tipo === 'evidencia_fotografica') return 'Se agregó evidencia fotográfica'
+  const diff = normalizarDiff(resumen)
   const ids = new Set([
     ...diff.afectacionesAgregadas.map((item) => item.afectacionId),
     ...diff.afectacionesRetiradas.map((item) => item.afectacionId),
@@ -155,9 +180,11 @@ function detalleCambioAlcance(cambio: DiffParte['alcancesCambiados'][number]): s
 }
 
 export function describirMovimiento(
-  diff: DiffParte,
+  resumen: DiffParte,
   opciones: DescribirMovimientoOpciones = {},
 ): string[] {
+  if (opciones.tipo === 'evidencia_fotografica') return []
+  const diff = normalizarDiff(resumen)
   const lineas: string[] = []
 
   for (const confirmada of diff.afectacionesConfirmadas ?? []) {
