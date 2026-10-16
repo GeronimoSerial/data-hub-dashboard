@@ -105,6 +105,7 @@ jobs:
             js='''
           import { S3Client, CreateBucketCommand, HeadBucketCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
           import { Client } from 'pg';
+          try {
           let input=''; for await (const b of process.stdin) input+=b;
           const {obs,bucket,db}=JSON.parse(input);
           const s3=new S3Client({region:obs.OBS_REGION,endpoint:obs.OBS_ENDPOINT,forcePathStyle:false,
@@ -121,10 +122,13 @@ jobs:
             copiadas++;
           }
           await pg.end();s3.destroy();console.log(JSON.stringify({bucket,objetosCopiados:copiadas}));
+          } catch(e) {console.error(JSON.stringify({name:e.name,status:e.$metadata?.httpStatusCode}));process.exitCode=1;}
           '''
             pathlib.Path('/tmp/dev-ops/obs.mjs').write_text(js)
             copia=subprocess.run(['node','/tmp/dev-ops/obs.mjs'],input=json.dumps({'obs':obs,'bucket':bucket,'db':db}),text=True,capture_output=True)
-            if copia.returncode: raise RuntimeError('No se pudo preparar el bucket aislado de dev')
+            if copia.returncode:
+              print('OBS error',copia.stderr.strip())
+              raise RuntimeError('No se pudo preparar el bucket aislado de dev')
             print(copia.stdout.strip())
             valores.update(obs);valores['OBS_BUCKET']=bucket
             api('/applications/'+dev['uuid']+'/envs/bulk','PATCH',{'data':[{
