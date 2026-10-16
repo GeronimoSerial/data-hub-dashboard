@@ -31,12 +31,12 @@ export default async function EstadoActualPartePage({
 
   // Con CUE en la query, una sesión de verificación canjeada desde el enlace
   // público "Hay afectación" habilita el formulario SÓLO para ese CUE, sin la
-  // contraseña compartida. Sin CUE no hay contra qué validar esa sesión, así
-  // que se cae a la guarda de siempre (contraseña o admin).
-  const bloqueo = await bloqueoDeAcceso(cue, TITULO)
+  // contraseña compartida. El operador de establecimiento usa el CUE de su
+  // sesión cuando no hay ?cue.
+  const { bloqueo, cue: cueParte } = await bloqueoDeAcceso(cue, TITULO)
   if (bloqueo) return bloqueo
 
-  const { resultado } = await cargarContextoParte(cue, false)
+  const { resultado } = await cargarContextoParte(cueParte, false)
 
   if (!resultado.ok) {
     return (

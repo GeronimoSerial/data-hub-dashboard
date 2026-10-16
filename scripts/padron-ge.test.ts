@@ -1,10 +1,72 @@
 import { describe, expect, it } from 'vitest'
 import {
+  agruparNivelesJurisdiccionales,
   conexionDesdeEntorno,
+  leerNivelesJurisdiccionalesDesdeGe,
   leerPadronDesdeGe,
   normalizarFilaGe,
   parsearConexion,
 } from './padron-ge.mjs'
+
+describe('agruparNivelesJurisdiccionales', () => {
+  const fila = (over: Record<string, unknown> = {}) => ({
+    cue_anexo: '1800001-00',
+    nivel_jurisdiccional_id: 1,
+    nivel_jurisdiccional: 'Secundario',
+    ...over,
+  })
+
+  it('arma catálogo y asignación sin duplicar secciones de un mismo CUE', () => {
+    const r = agruparNivelesJurisdiccionales([
+      fila(),
+      fila({ cue_anexo: '1800002-00', nivel_jurisdiccional_id: 9, nivel_jurisdiccional: 'Consejo General' }),
+      fila(),
+    ])
+    expect(r.niveles).toEqual([
+      { id: 1, nombre: 'Secundario' },
+      { id: 9, nombre: 'Consejo General' },
+    ])
+    expect(r.cues).toEqual([
+      { cueAnexo: '1800001-00', nivelJurisdiccionalId: 1 },
+      { cueAnexo: '1800002-00', nivelJurisdiccionalId: 9 },
+    ])
+  })
+
+  it('falla si un CUE aparece con dos niveles en el mismo ciclo', () => {
+    expect(() =>
+      agruparNivelesJurisdiccionales([fila(), fila({ nivel_jurisdiccional_id: 2, nivel_jurisdiccional: 'Privada' })]),
+    ).toThrow(/más de un nivel jurisdiccional/)
+  })
+
+  it('falla si un mismo id de nivel trae dos nombres', () => {
+    expect(() =>
+      agruparNivelesJurisdiccionales([fila(), fila({ cue_anexo: '1800002-00', nivel_jurisdiccional: 'Otro' })]),
+    ).toThrow(/nombres distintos/)
+  })
+})
+
+describe('leerNivelesJurisdiccionalesDesdeGe', () => {
+  it('consulta el ciclo pedido y devuelve catálogo y asignación', async () => {
+    const llamadas: unknown[][] = []
+    class Fake {
+      async connect() {}
+      async query(_sql: string, args: unknown[]) {
+        llamadas.push(args)
+        return {
+          rows: [
+            { cue_anexo: '1800001-00', nivel_jurisdiccional_id: 1, nivel_jurisdiccional: 'Secundario' },
+          ],
+        }
+      }
+      async end() {}
+    }
+    const r = await leerNivelesJurisdiccionalesDesdeGe({ conexion: {}, cicloLectivo: '2026', Client: Fake })
+    expect(llamadas[0]).toEqual(['2026'])
+    expect(r.cicloLectivo).toBe('2026')
+    expect(r.niveles).toEqual([{ id: 1, nombre: 'Secundario' }])
+    expect(r.cues).toEqual([{ cueAnexo: '1800001-00', nivelJurisdiccionalId: 1 }])
+  })
+})
 
 describe('parsearConexion', () => {
   it('parsea el formato clave/valor de .NET', () => {

@@ -96,7 +96,7 @@ export interface Recurso {
   mime?: string
   nombreOriginal?: string
   size?: number
-  audienciaNivelIds?: string[]
+  audienciaNivelJurIds?: number[]
   audienciaUserIds?: string[]
   /** Calculado por el servidor al armar el catálogo (ver lib/acl.ts
    *  marcarAcceso): no se persiste ni se administra. Ausente en los seeds
@@ -112,6 +112,23 @@ export const niveles: Nivel[] = [
   { id: 'secundario', nombre: 'Secundario', orden: 3 },
   { id: 'superior', nombre: 'Superior', orden: 4 },
   { id: 'transversal', nombre: 'Transversal', orden: 5 },
+]
+
+// Catálogo de niveles jurisdiccionales de GE (ids fijos de GE, ver
+// ge.ge_nivel_jurisdiccional). Se siembra en la migración y en seedHub.
+export interface NivelJurisdiccional {
+  id: number
+  nombre: string
+}
+
+export const nivelesJurisdiccionales: NivelJurisdiccional[] = [
+  { id: 1, nombre: 'Dirección de Nivel Secundario' },
+  { id: 2, nombre: 'Dirección de Enseñanza Privada' },
+  { id: 4, nombre: 'Dirección de Nivel Superior' },
+  { id: 5, nombre: 'Dirección de Educación Técnico Profesional' },
+  { id: 6, nombre: 'Dirección de Educación Física' },
+  { id: 7, nombre: 'Nivel Central' },
+  { id: 9, nombre: 'Consejo General de Educación' },
 ]
 
 export const tipos: Tipo[] = [

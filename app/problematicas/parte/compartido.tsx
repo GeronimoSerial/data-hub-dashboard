@@ -1,6 +1,6 @@
 import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { EncabezadoParte } from '@/components/infraestructura/encabezado-parte'
-import { tieneAccesoAlParteDesdeCookies, tieneAccesoAlParteParaCueDesdeCookies } from '@/lib/infraestructura/acceso-parte'
+import { resolverAccesoParteDesdeCookies } from '@/lib/infraestructura/acceso-parte'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { crearEjecutorSql, ensureGeSchema, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { getRawClient } from '@/lib/db'
@@ -14,16 +14,20 @@ const MENSAJES_ERROR: Record<ContextoErrorKind, string> = {
   sin_secciones: 'Esta escuela todavía no tiene secciones cargadas.',
 }
 
+/**
+ * Guarda de la página: devuelve el bloqueo (formulario de acceso) si no hay
+ * permiso, y el CUE efectivo de la pantalla. Sin ?cue, el operador de
+ * establecimiento recibe el CUE de su sesión; con un ?cue ajeno, queda bloqueado.
+ */
 export async function bloqueoDeAcceso(cue: string | undefined, titulo: string) {
-  const tieneAcceso = cue
-    ? await tieneAccesoAlParteParaCueDesdeCookies(cue)
-    : await tieneAccesoAlParteDesdeCookies()
-  return tieneAcceso ? null : (
+  const acceso = await resolverAccesoParteDesdeCookies(cue ?? null)
+  const bloqueo = acceso.permitido ? null : (
     <div className="publico-content">
       <EncabezadoParte pantalla={titulo} />
       <AccesoForm />
     </div>
   )
+  return { bloqueo, cue: acceso.cue ?? undefined }
 }
 
 export function ErrorContexto({ kind }: { kind: ContextoErrorKind }) {

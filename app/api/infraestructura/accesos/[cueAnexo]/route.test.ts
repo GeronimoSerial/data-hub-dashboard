@@ -22,11 +22,11 @@ const CUE_SIN_AISLAMIENTO = '1801605-05'
 const CUE_INEXISTENTE = '9999999-99'
 
 function admin(): SessionUser {
-  return { id: 'admin-1', role: 'admin', banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
+  return { id: 'admin-1', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
 }
 
 function consulta(): SessionUser {
-  return { id: 'user-1', role: 'consulta', banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
+  return { id: 'user-1', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
 }
 
 usarDbTemporal('accesos-route-')

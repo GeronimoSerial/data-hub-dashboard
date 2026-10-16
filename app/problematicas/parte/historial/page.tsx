@@ -27,10 +27,10 @@ export default async function HistorialPartePage({
 }) {
   const { cue } = await searchParams
 
-  const bloqueo = await bloqueoDeAcceso(cue, TITULO)
+  const { bloqueo, cue: cueParte } = await bloqueoDeAcceso(cue, TITULO)
   if (bloqueo) return bloqueo
 
-  const cueNormalizado = normalizeCue(cue ?? '')
+  const cueNormalizado = normalizeCue(cueParte ?? '')
   if (!cueNormalizado) {
     return (
       <div className="publico-content">

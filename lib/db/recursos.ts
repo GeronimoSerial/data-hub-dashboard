@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import {
-  recursoAudienciaNiveles,
+  recursoAudienciaNivelesJur,
   recursoAudienciaUsuarios,
   recursoTags,
   recursos,
@@ -34,8 +34,8 @@ function columns(r: Recurso) {
 async function replaceJoins(tx: HubDb, r: Recurso) {
   await tx.delete(recursoTags).where(eq(recursoTags.recursoId, r.id))
   await tx
-    .delete(recursoAudienciaNiveles)
-    .where(eq(recursoAudienciaNiveles.recursoId, r.id))
+    .delete(recursoAudienciaNivelesJur)
+    .where(eq(recursoAudienciaNivelesJur.recursoId, r.id))
   await tx
     .delete(recursoAudienciaUsuarios)
     .where(eq(recursoAudienciaUsuarios.recursoId, r.id))
@@ -46,10 +46,10 @@ async function replaceJoins(tx: HubDb, r: Recurso) {
       tagIds.map((tagId) => ({ recursoId: r.id, tagId })),
     )
   }
-  const nivelIds = r.audienciaNivelIds ?? []
-  if (nivelIds.length > 0) {
-    await tx.insert(recursoAudienciaNiveles).values(
-      nivelIds.map((nivelId) => ({ recursoId: r.id, nivelId })),
+  const nivelJurIds = r.audienciaNivelJurIds ?? []
+  if (nivelJurIds.length > 0) {
+    await tx.insert(recursoAudienciaNivelesJur).values(
+      nivelJurIds.map((nivelJurisdiccionalId) => ({ recursoId: r.id, nivelJurisdiccionalId })),
     )
   }
   const userIds = r.audienciaUserIds ?? []
@@ -101,8 +101,8 @@ export async function deleteRecurso(id: string) {
     db.transaction(async (tx) => {
       await tx.delete(recursoTags).where(eq(recursoTags.recursoId, id))
       await tx
-        .delete(recursoAudienciaNiveles)
-        .where(eq(recursoAudienciaNiveles.recursoId, id))
+        .delete(recursoAudienciaNivelesJur)
+        .where(eq(recursoAudienciaNivelesJur.recursoId, id))
       await tx
         .delete(recursoAudienciaUsuarios)
         .where(eq(recursoAudienciaUsuarios.recursoId, id))

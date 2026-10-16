@@ -14,7 +14,7 @@ import {
 import { getUploadsDir } from '@/lib/data-dir'
 import { getDb } from '@/lib/db'
 import {
-  recursoAudienciaNiveles,
+  recursoAudienciaNivelesJur,
   recursoAudienciaUsuarios,
   recursos,
 } from '@/lib/db/schema'
@@ -37,9 +37,9 @@ async function loadRecursoWithAccess(id: string) {
   if (!row) return null
   const [nivelRows, userRows] = await Promise.all([
     db
-      .select({ nivelId: recursoAudienciaNiveles.nivelId })
-      .from(recursoAudienciaNiveles)
-      .where(eq(recursoAudienciaNiveles.recursoId, id)),
+      .select({ nivelJurisdiccionalId: recursoAudienciaNivelesJur.nivelJurisdiccionalId })
+      .from(recursoAudienciaNivelesJur)
+      .where(eq(recursoAudienciaNivelesJur.recursoId, id)),
     db
       .select({ userId: recursoAudienciaUsuarios.userId })
       .from(recursoAudienciaUsuarios)
@@ -48,7 +48,7 @@ async function loadRecursoWithAccess(id: string) {
   const access: RecursoAccess = {
     id: row.id,
     estado: row.estado as RecursoAccess['estado'],
-    audienciaNivelIds: nivelRows.map((r) => r.nivelId),
+    audienciaNivelJurIds: nivelRows.map((r) => r.nivelJurisdiccionalId),
     audienciaUserIds: userRows.map((r) => r.userId),
   }
   return { row, access }
