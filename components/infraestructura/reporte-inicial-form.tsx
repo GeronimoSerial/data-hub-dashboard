@@ -328,18 +328,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           void limpiarFormularioConfirmado(`${DRAFT_ID_PREFIX}${cue}`, claveBorrador)
           return
         }
-        try {
-          const legado: unknown = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
-          if (esBorradorParteNuevo(legado)) {
-            if (legado.paso === 1 && !esAfectacionParcial(legado.afectacion) && !esAfectacionLista(legado.afectacion)) {
-              aplicarBorrador(legado)
-            } else {
-              setBorradorPendiente(legado)
-            }
-          }
-        } catch {
-          // The async reader reports invalid legacy data without blocking the form.
-        }
+        // Read and migrate the legacy copy through the shared store before
+        // exposing the resume prompt. Showing the prompt from localStorage
+        // first allowed a quick click to race the IndexedDB migration below.
         const guardado = await leerBorradorFormulario(
           `${DRAFT_ID_PREFIX}${cue}`,
           claveBorrador,
