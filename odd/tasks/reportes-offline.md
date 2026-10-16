@@ -33,7 +33,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B5-T1 (974f0b0) Photo picker: select, preview, remove (max 3 per submission)
   - [x] B5-T2 (84a3e95 + fix 7026aca) Worker pipeline: one at a time off main thread, optimized + thumbnail, orientation, strip metadata, no original fallback
   - [x] B5-T3 (merged a3dce81; tsc+eslint ok, tests via CI) Limits (input, memory, formats) + replace originals only after variants persisted; resumable after close
-  - [ ] B5-T4 [in progress: gpt-6-luna, reportes-b8-e2e] Measure weights with real photos on modest devices
+  - [x] B5-T4 (synthetic 4000x3000: 67.6 ms x CPU, 35 KB optimized, 4 KB thumb; docs/medicion-reportes-offline.md) Measure weights with real photos on modest devices
 - [ ] B6 Attachments and direct OBS upload (depends on B0-OBS)
   - [x] B6-T1 (merged 2980eee; tsc+eslint ok, tests via CI) Schema/API: attachments linked to movimientos; photo-only evidence update; server-side permission + 3-photo limit under concurrency
   - [x] B6-T2 (merged 60fbcec; tsc+eslint ok, tests via CI) Batch authorization (presigned, controlled keys, verifiable constraints); reuse/renew without confusing OBS failure with app session expiry
@@ -47,8 +47,8 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B7-T4 (merged c21d74c; tsc+eslint ok, tests via CI) Historical evidence by movimiento and date, including solved situations
 - [ ] B8 Integrated validation and enablement
   - [ ] B8-T1 Run focused + regression tests across batches
-  - [ ] B8-T2 [in progress: gpt-6-luna, reportes-b8-e2e] Real offline reopen on Chrome and Safari (prod build, HTTPS/localhost)
-  - [ ] B8-T3 [in progress: gpt-6-luna, reportes-b8-e2e] Measure bytes/requests per flow; with vs without photos on critical path; memory with large photos
+  - [ ] B8-T2 BLOCKED: service worker never registers (getRegistrations empty) → fix in reportes-fix-ci-3 Real offline reopen on Chrome and Safari (prod build, HTTPS/localhost)
+  - [x] B8-T3 (measured, see docs/medicion-reportes-offline.md) Measure bytes/requests per flow; with vs without photos on critical path; memory with large photos
   - [x] B8-T4 (merged 2831dbd; tsc+eslint ok, tests via CI) Gradual enablement flags + rollback preserving data and queues
 
 Acceptance criteria per batch: see the "Cierre" section of each batch in docs/plan-reportes-batches.md.
@@ -71,3 +71,4 @@ Feature-scoped vitest 571 passed / 18 skipped; new API route tests 4/4; tsc ok; 
 lint-typecheck-build pass; test shards 1,3,4 fail (~26 tests: obs, borradores client/mapa, fotos persistence, sw-parte queue, envio-offline backoff, forms draft restore). Fix in reportes-fix-ci-1.
 - CI fixes from reportes-fix-ci-1 merged at ed5b76e (11 commits; no tests removed or skipped); tsc+eslint ok; awaiting new CI run.
 - CI fixes round 2 (reportes-fix-ci-2) merged at 0f897b0; tsc+eslint ok; awaiting CI.
+- NEW B5-T5: photo picker is not wired into the report forms (E2E found no selector in the integrated flow); pending after reportes-fix-ci-3.
