@@ -145,7 +145,12 @@ export async function descartarSubidaFotoNoDeclarada(attachmentId: string): Prom
 /** Installs event-driven recovery. No worker polling or report-queue lock is used. */
 export function iniciarSubidaFotos(): () => void {
   if (typeof window === 'undefined') return () => undefined
-  if (stopListeners) return stopListeners
+  // Every call drains: callers start the queue right after binding jobs to a movement, and an
+  // earlier drain (e.g. the parte confirmation) may already have finished without seeing them.
+  if (stopListeners) {
+    void drenarColaFotos()
+    return stopListeners
+  }
   const trigger = () => { void drenarColaFotos() }
   window.addEventListener('online', trigger)
   window.addEventListener('pageshow', trigger)
@@ -161,6 +166,8 @@ export function iniciarSubidaFotos(): () => void {
 }
 
 let running: Promise<void> | undefined
+let drenarDeNuevo = false
+let otraPasada: Promise<void> | undefined
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 let stopListeners: (() => void) | undefined
 
@@ -176,7 +183,11 @@ async function withPhotoLock<T>(task: () => Promise<T>): Promise<T> {
 /** Drains ready photo jobs once; exported for deterministic tests. */
 export async function drenarColaFotos(): Promise<void> {
   if (!await fetchReportesOfflineFeatures().then((flags) => flags.fotos)) return
-  if (running) return running
+  // A drain requested mid-run may concern jobs the running pass already skipped: run once more.
+  if (running) {
+    otraPasada ??= running.catch(() => undefined).then(() => { otraPasada = undefined; return drenarColaFotos() })
+    return otraPasada
+  }
   running = withPhotoLock(async () => {
     const almacen = await abrirAlmacenParte()
     try {
@@ -198,7 +209,13 @@ export async function drenarColaFotos(): Promise<void> {
     } finally {
       almacen.cerrar()
     }
-  }).finally(() => { running = undefined })
+  }).finally(() => {
+    running = undefined
+    if (drenarDeNuevo) {
+      drenarDeNuevo = false
+      void drenarColaFotos()
+    }
+  })
   return running
 }
 

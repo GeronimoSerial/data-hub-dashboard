@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { abrirAlmacenParte } from '../parte/almacen-indexeddb'
 import { confirmarFormulario, guardarClaveEnvioFormulario } from '../parte/borrador-formulario'
 import { declararFotosFormulario } from './flujo-formulario'
-import { drenarColaFotos, encolarSubidasFotos } from './subida-cola'
+import { confirmarSubidasFotos, drenarColaFotos, encolarSubidasFotos, iniciarSubidaFotos } from './subida-cola'
 
 vi.mock('../parte/feature-flags-client', () => ({
   fetchReportesOfflineFeatures: vi.fn(async () => ({ fotos: true })),
@@ -94,5 +94,28 @@ describe('photo jobs bind to the evidencia movement', () => {
     expect(llamadas.filter((call) => call.url.endsWith('/confirmacion')).map((call) => call.movimientoId))
       .toEqual([PARTE_MOV, EVIDENCIA_MOV])
     expect(await trabajoFoto()).toBeUndefined()
+  })
+
+  it('starts uploading on submit even when the queue listeners were already installed on load', async () => {
+    vi.stubGlobal('window', new EventTarget())
+    vi.stubGlobal('document', new EventTarget())
+    const confirmaciones: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/confirmacion')) {
+        confirmaciones.push((JSON.parse(String(init?.body)) as { movimientoId: string }).movimientoId)
+        return Response.json({ estado: 'confirmed' }, { status: 200 })
+      }
+      return Response.json({}, { status: 500 })
+    }))
+    const detener = iniciarSubidaFotos()
+    try {
+      await drenarColaFotos()
+      await encolarFoto()
+      await confirmarSubidasFotos(DRAFT, EVIDENCIA_MOV, [ATTACHMENT])
+
+      await vi.waitFor(() => expect(confirmaciones).toEqual([EVIDENCIA_MOV]))
+    } finally {
+      detener()
+    }
   })
 })
