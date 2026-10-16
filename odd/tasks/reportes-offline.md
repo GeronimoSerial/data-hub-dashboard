@@ -22,11 +22,11 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B3-T1 (gpt-6-luna, f88e89c merged) Schema + migration 0018 (drafts, revisions, closure tombstones); mirror ALTERs in lib/db/seed.ts
   - [x] B3-T2 (ecb0421) API: create, sync (partial validation + revision control), read, discard; tombstones reject late syncs
   - [x] B3-T3 (merged a3dce81; tsc+eslint ok, tests via CI) Client batching: sync on step complete/abandon, consolidate offline edits, keep local changes on conflict
-  - [ ] B3-T4 [in progress: gpt-6-luna, reportes-b3-t4-close] Final submission links and closes its draft consistently
-  - [ ] B3-T5 [in progress: gpt-6-luna, reportes-b3-t5-map] Aggregated map queries + permission-filtered detail (no nominal data)
+  - [x] B3-T4 (merged 033158c; tsc+eslint ok, tests via CI) Final submission links and closes its draft consistently
+  - [x] B3-T5 (merged 033158c; tsc+eslint ok, tests via CI) Aggregated map queries + permission-filtered detail (no nominal data)
 - [ ] B4 Offline reopen
-  - [ ] B4-T1 Generic offline page reusing forms and persisted context
-  - [ ] B4-T2 SW precache: verify completeness before announcing availability; versioned caches keep previous until new ready; no authenticated responses/credentials cached
+  - [ ] B4-T1 [in progress: gpt-6-luna, reportes-b4-t1-offline-page] Generic offline page reusing forms and persisted context
+  - [ ] B4-T2 [in progress: gpt-6-luna, reportes-b4-t2-precache] SW precache: verify completeness before announcing availability; versioned caches keep previous until new ready; no authenticated responses/credentials cached
   - [ ] B4-T3 Failed-navigation fallback preserving flow and CUE
   - [ ] B4-T4 Reconnect: restore + sync, validate stale context without discarding answers
 - [ ] B5 Local selection and optimization
