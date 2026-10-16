@@ -70,5 +70,5 @@ export async function declararFotosFormulario({
   if (!response.ok) throw new Error('No se pudieron asociar las fotos; se conservaron en este dispositivo.')
   const result = await response.json() as { movimientoId?: string }
   if (!result.movimientoId) throw new Error('El servidor no confirmó la evidencia fotográfica.')
-  await confirmarSubidasFotos(draftId, result.movimientoId)
+  await confirmarSubidasFotos(draftId, result.movimientoId, fotos.map((foto) => foto.attachmentId))
 }

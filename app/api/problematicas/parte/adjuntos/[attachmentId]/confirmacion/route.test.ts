@@ -50,6 +50,15 @@ describe('POST /api/problematicas/parte/adjuntos/[attachmentId]/confirmacion', (
     expect(confirmMock).toHaveBeenCalledWith({ attachmentId, movimientoId, optimizadaEtag: 'a1', miniaturaEtag: 'b2' })
   })
 
+  it('reports the owning movement when the client holds a stale movement id', async () => {
+    const realMovement = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    limitMock.mockResolvedValue([{ cueAnexo: '1801605-04', movimientoId: realMovement }])
+    const response = await POST(request({ movimientoId }), context)
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ code: 'not_found', movimientoId: realMovement })
+    expect(confirmMock).not.toHaveBeenCalled()
+  })
+
   it('keeps the job when the application session has expired', async () => {
     permissionMock.mockResolvedValue(false)
     const response = await POST(request({ movimientoId }), context)
