@@ -19,6 +19,8 @@ import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-ac
 import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
+import { SelectorFotosFormulario } from '@/components/infraestructura/fotos/selector-fotos-formulario'
+import { declararFotosFormulario, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Button } from '@/components/ui/button'
 import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
@@ -255,6 +257,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
+  const fotosPreparadasRef = useRef<readonly FotoPreparada[]>([])
+  const movimientoFotosConfirmadoRef = useRef<string | null>(null)
+  const claveEvidenciaRef = useRef(crypto.randomUUID())
   const [borradorPendiente, setBorradorPendiente] = useState<BorradorParteNuevo | null>(null)
   const [restauracionCompleta, setRestauracionCompleta] = useState(false)
   const [avisoAlmacen, setAvisoAlmacen] = useState<string | null>(null)
@@ -530,7 +535,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   }
 
   function alEnviarConExito(movimientoId: string): void {
+    movimientoFotosConfirmadoRef.current = movimientoId
     void confirmarFormulario(`${DRAFT_ID_PREFIX}${cue}`, movimientoId).catch(() => {})
+    vincularFotosPreparadas(movimientoId)
     const borradorActual = borradorCompartidoRef.current
     if (borradorActual) {
       void eliminarBorradorFormulario(borradorActual).then(() => {
@@ -557,6 +564,19 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     setIntentosEnvio(0)
     setGuardado({ movimientoId })
     onGuardadoChange?.(true)
+  }
+
+  function vincularFotosPreparadas(movimientoId: string): void {
+    const fotos = fotosPreparadasRef.current
+    if (fotos.length === 0) return
+    void declararFotosFormulario({
+      draftId: `${DRAFT_ID_PREFIX}${cue}`,
+      movimientoBaseId: movimientoId,
+      idempotencyKey: claveEvidenciaRef.current,
+      fotos,
+    }).catch((error: unknown) => {
+      setAvisoAlmacen(error instanceof Error ? error.message : 'Las fotos quedaron guardadas en este dispositivo y se pueden reintentar.')
+    })
   }
 
   const alEnviarConExitoRef = useRef(alEnviarConExito)
@@ -949,6 +969,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         )}
 
         {paso === PASO_CONFIRMAR && (
+          <>
           <div className="asistente__resumen">
             <p className="asistente__resumen-intro">
               Esto es lo que va a quedar informado. Revíselo antes de guardar.
@@ -965,8 +986,18 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
               ))}
             </dl>
           </div>
+          </>
         )}
       </section>
+      <div hidden={paso !== PASO_CONFIRMAR}>
+        <SelectorFotosFormulario
+          draftId={`${DRAFT_ID_PREFIX}${cue}`}
+          onPreparadasChange={(fotos) => {
+            fotosPreparadasRef.current = fotos
+            if (movimientoFotosConfirmadoRef.current) vincularFotosPreparadas(movimientoFotosConfirmadoRef.current)
+          }}
+        />
+      </div>
 
       {error && (
         <p className="reporte-inicial__error" role="alert">

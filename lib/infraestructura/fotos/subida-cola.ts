@@ -97,14 +97,31 @@ export async function confirmarSubidasFotos(draftId: string, movimientoId: strin
       if (!esTrabajoFoto(job) || job.draftId !== draftId) continue
       const data = leerDatos(job)
       if (data.movimientoId && data.movimientoId !== movimientoId) {
-        throw new Error('A queued photo is already linked to a different movement.')
+        continue
       }
+      if (data.movimientoId === movimientoId) continue
       await almacen.guardarTrabajoEnvio({ ...job, cuerpo: { ...data, movimientoId }, estado: 'pendiente' })
     }
   } finally {
     almacen.cerrar()
   }
   iniciarSubidaFotos()
+}
+
+export async function descartarSubidaFotoNoDeclarada(attachmentId: string): Promise<void> {
+  const almacen = await abrirAlmacenParte()
+  try {
+    const job = (await almacen.obtenerTrabajosEnvio()).find((item) => item.idempotencyKey === idempotencyKey(attachmentId))
+    if (job && !leerDatos(job).movimientoId) await almacen.eliminarTrabajoEnvio(job.idempotencyKey)
+    await Promise.all([
+      almacen.eliminarArchivo(attachmentId),
+      almacen.eliminarArchivo(`${attachmentId}:optimizada`),
+      almacen.eliminarArchivo(`${attachmentId}:miniatura`),
+      almacen.eliminarArchivo(`${attachmentId}:thumbnail`),
+    ])
+  } finally {
+    almacen.cerrar()
+  }
 }
 
 /** Installs event-driven recovery. No worker polling or report-queue lock is used. */
@@ -352,6 +369,7 @@ async function completarFoto(almacen: Awaited<ReturnType<typeof abrirAlmacenPart
   const data = leerDatos(job)
   await almacen.eliminarArchivo(`${data.attachmentId}:optimizada`)
   await almacen.eliminarArchivo(`${data.attachmentId}:miniatura`)
+  await almacen.eliminarArchivo(data.attachmentId)
   await almacen.eliminarTrabajoEnvio(job.idempotencyKey)
 }
 

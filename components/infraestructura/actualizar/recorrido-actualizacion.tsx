@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+import { SelectorFotosFormulario } from '@/components/infraestructura/fotos/selector-fotos-formulario'
 import { EntradaActualizar } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { RevisarSituacion } from '@/components/infraestructura/actualizar/revisar-situacion'
 import { AlgoNuevo } from '@/components/infraestructura/actualizar/algo-nuevo'
@@ -22,6 +23,7 @@ import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionad
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import { declararFotosFormulario, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 
 export interface RecorridoActualizacionProps {
   cue: string
@@ -217,8 +219,14 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const generacionRef = useRef<string | null>(null)
   const generacionAlmacenRef = useRef(1)
   const borradorCompartidoRef = useRef<BorradorFormulario<BorradorActualizacionConFotos> | null>(null)
+  const fotosDraftId = `${DRAFT_ID_PREFIX}${cue}`
+  const [fotosPreparadas, setFotosPreparadas] = useState<readonly FotoPreparada[]>([])
+  const [claveEvidenciaFotos] = useState(() => crypto.randomUUID())
+  const movimientoFotosConfirmadoRef = useRef<string | null>(null)
+  const [cantidadFotosSeleccionadas, setCantidadFotosSeleccionadas] = useState(0)
   const persistenciaBloqueadaRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorFotos, setErrorFotos] = useState<string | null>(null)
   const [situacionConError, setSituacionConError] = useState<string | null>(null)
   const [colaCascada, setColaCascada] = useState<Array<{ situacion: SituacionRecorrido; solucionadaEn: string }>>([])
   const [guardado, setGuardado] = useState(false)
@@ -382,8 +390,24 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     }
   }, [cue])
 
+  const vincularFotosPreparadas = useCallback((movimientoId: string) => {
+    if (fotosPreparadas.length === 0) return
+    void declararFotosFormulario({
+      draftId: fotosDraftId,
+      movimientoBaseId: movimientoId,
+      idempotencyKey: claveEvidenciaFotos,
+      fotos: fotosPreparadas,
+    }).catch((error: unknown) => {
+      setErrorFotos(error instanceof Error ? error.message : 'Las fotos quedaron guardadas en este dispositivo para reintentar.')
+    })
+  }, [claveEvidenciaFotos, fotosDraftId, fotosPreparadas])
+
   const alEnviarConExito = useCallback((movimientoId?: string) => {
     if (movimientoId) void confirmarFormulario(`${DRAFT_ID_PREFIX}${cue}`, movimientoId).catch(() => {})
+    if (movimientoId) {
+      movimientoFotosConfirmadoRef.current = movimientoId
+      vincularFotosPreparadas(movimientoId)
+    }
     const actual = borradorCompartidoRef.current
     if (actual) {
       void eliminarBorradorFormulario(actual).then(() => {
@@ -398,7 +422,12 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     setGuardado(true)
     setEnviando(false)
     enviandoRef.current = false
-  }, [claveBorrador, cue])
+  }, [claveBorrador, cue, vincularFotosPreparadas])
+
+  useEffect(() => {
+    const movimientoId = movimientoFotosConfirmadoRef.current
+    if (movimientoId && fotosPreparadas.length) vincularFotosPreparadas(movimientoId)
+  }, [fotosPreparadas, vincularFotosPreparadas])
 
   useEffect(() => {
     let cancelado = false
@@ -493,6 +522,26 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     // El resumen ya anuncia el error persistido junto al estado del envío.
   }
 
+  async function enviarSoloFotos(): Promise<void> {
+    const base = historial.find((movimiento) => (movimiento.tipo as string) !== 'evidencia_fotografica')
+    if (!base || fotosPreparadas.length !== cantidadFotosSeleccionadas || cantidadFotosSeleccionadas === 0) return
+    setEnviando(true)
+    setErrorFotos(null)
+    try {
+      await declararFotosFormulario({
+        draftId: fotosDraftId,
+        movimientoBaseId: base.id,
+        idempotencyKey: claveEvidenciaFotos,
+        fotos: fotosPreparadas,
+      })
+      setGuardado(true)
+    } catch (error) {
+      setErrorFotos(error instanceof Error ? error.message : 'No se pudieron guardar las fotos. Puede continuar con una actualización normal.')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
   function siguiente(): void {
     const pasoActual = typeof etapa === 'object' ? etapa.revisar : -1
     const situacionActual = ordenadas[pasoActual]
@@ -585,6 +634,18 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             moverEtapa(ordenadas.length ? { revisar: 0 } : 'nuevo')
           }}
         />
+      ) : null}
+      {etapa === 'entrada' && cantidadFotosSeleccionadas > 0 ? (
+        <div className="asistente__acciones">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={enviando || fotosPreparadas.length !== cantidadFotosSeleccionadas}
+            onClick={() => void enviarSoloFotos()}
+          >
+            {enviando ? 'Guardando evidencia…' : 'Guardar solo fotos'}
+          </Button>
+        </div>
       ) : null}
 
       {etapa !== 'entrada' ? <ProgresoActualizacion paso={pasoProgreso} total={totalPasos} /> : null}
@@ -706,6 +767,12 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           onEnviar={() => void enviar()}
         />
       ) : null}
+      <SelectorFotosFormulario
+        draftId={fotosDraftId}
+        onPreparadasChange={setFotosPreparadas}
+        onCountChange={setCantidadFotosSeleccionadas}
+      />
+      {errorFotos ? <p role="status">{errorFotos}</p> : null}
       {error && etapa !== 'resumen' ? <p role="alert">{error}</p> : null}
       <CascadaPendiente
         pendiente={pendiente}

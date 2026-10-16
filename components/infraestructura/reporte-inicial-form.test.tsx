@@ -58,8 +58,15 @@ function renderFormulario(overrides: Partial<typeof props> = {}) {
 
 function stubFetch(respuesta: unknown = { ok: true, movimientoId: 'm1' }, status = 201) {
   const fetchMock = vi.fn(async () => jsonResponse(respuesta, status))
-  vi.stubGlobal('fetch', fetchMock)
+  stubFetchMock(fetchMock)
   return fetchMock
+}
+
+function stubFetchMock(fetchMock: ReturnType<typeof vi.fn>) {
+  vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
+    if (String(input).includes('/borradores/config')) return jsonResponse({ borradoresSync: false, fotos: false, mapaBorradores: false })
+    return (fetchMock as (input: string | URL | Request, init?: RequestInit) => Promise<Response>)(input, init)
+  })
 }
 
 const continuar = () => fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
@@ -826,7 +833,7 @@ describe('ReporteInicialForm', () => {
     const fetchMock = vi.fn(async () => {
       throw new Error('network')
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
 
@@ -848,7 +855,7 @@ describe('ReporteInicialForm', () => {
       init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
       })
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
     llegarAConfirmar()
@@ -875,7 +882,7 @@ describe('ReporteInicialForm', () => {
 
   it('muestra Guardando… sin texto duplicado y permite volver mientras se envía', async () => {
     let resolver!: (respuesta: Response) => void
-    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { resolver = resolve })))
+    stubFetchMock(vi.fn(() => new Promise<Response>((resolve) => { resolver = resolve })))
 
     renderFormulario()
 
@@ -894,7 +901,7 @@ describe('ReporteInicialForm', () => {
     fetchMock
       .mockImplementationOnce(async () => jsonResponse({ error: 'boom' }, 503))
       .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
     guardarReporte()
@@ -921,7 +928,7 @@ describe('ReporteInicialForm', () => {
     fetchMock
       .mockImplementationOnce(async () => jsonResponse({ error: 'boom' }, 503))
       .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
     guardarReporte()
@@ -940,7 +947,7 @@ describe('ReporteInicialForm', () => {
     fetchMock
       .mockImplementationOnce(async () => jsonResponse({ algo: 'inesperado' }, 200))
       .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
     guardarReporte()
@@ -981,7 +988,7 @@ describe('ReporteInicialForm', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({}, 401))
       .mockResolvedValueOnce(jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
     guardarReporte()
@@ -1222,7 +1229,7 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
       actualizadoEn: '2026-10-04T10:00:00.000Z',
     })
     const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
 
@@ -1245,7 +1252,7 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
       actualizadoEn: '2026-10-04T10:00:00.000Z',
     })
     const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
 
