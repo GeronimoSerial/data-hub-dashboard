@@ -74,3 +74,7 @@ lint-typecheck-build pass; test shards 1,3,4 fail (~26 tests: obs, borradores cl
 - NEW B5-T5: photo picker is not wired into the report forms (E2E found no selector in the integrated flow); pending after reportes-fix-ci-3.
 - CI fix round 3 merged at f57b626 (form/gallery/map flag tests stabilized; 94/94 targeted tests passed locally).
 - [x] B5-T5 (31b7488, merged 46a3cae; focused vitest 79/79, tsc+eslint ok) Wire photo picker + upload queue into report forms (behind REPORTES_OFFLINE_FOTOS).
+
+## Release 2026-10-15
+
+#143 merged to main (7171a6f), promoted via #148 (main->staging) and #149 (staging->prod). Prod verified: offline page 200, /sw-parte.js 200, flags config {borradoresSync,fotos,mapaBorradores}=true, draft and photo authorization APIs respond (422 on empty body). Open: #147 (test stabilization; flaky recorrido-actualizacion-envio.test.tsx).

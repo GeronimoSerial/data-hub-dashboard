@@ -146,10 +146,27 @@ function conMutexLocal<T>(almacen: AlmacenClaveValor, clave: string, tarea: () =
   return siguiente
 }
 
+export const TIEMPO_MAXIMO_BLOQUEO_MS = 10000
+
+// Bounds only the WAIT for the lock: a lock held by a hung tab must not leave
+// the save button stuck. If the lock arrives after giving up, the task is skipped.
 function conBloqueo<T>(almacen: AlmacenClaveValor, nombre: string, tarea: () => Promise<T>): Promise<T> {
   const gestor = obtenerGestorBloqueos()
-  if (gestor) return gestor.request(nombre, tarea)
-  return conMutexLocal(almacen, nombre, tarea)
+  let abandonado = false
+  let temporizador: ReturnType<typeof setTimeout> | undefined
+  const tareaAcotada = (): Promise<T> => {
+    clearTimeout(temporizador)
+    return abandonado ? Promise.reject(new Error('Bloqueo abandonado')) : tarea()
+  }
+  const turno = gestor ? gestor.request(nombre, tareaAcotada) : conMutexLocal(almacen, nombre, tareaAcotada)
+  const espera = new Promise<never>((_resolver, rechazar) => {
+    temporizador = setTimeout(() => {
+      abandonado = true
+      rechazar(new Error('El almacenamiento local está ocupado. Intente guardar de nuevo.'))
+    }, TIEMPO_MAXIMO_BLOQUEO_MS)
+  })
+  turno.catch(() => undefined)
+  return Promise.race([turno, espera])
 }
 
 // Envíos en curso, para COALESCER (no cachear) el POST cuando dos llamados

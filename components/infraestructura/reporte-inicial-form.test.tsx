@@ -880,6 +880,21 @@ describe('ReporteInicialForm', () => {
     expect(claves[1]).toBe(claves[0]); expect(claves[2]).toBe(claves[0])
   })
 
+  it('si el guardado local falla, sale de Guardando… y muestra un error', async () => {
+    stubFetch()
+    renderFormulario()
+    llegarAConfirmar()
+    // A rejecting lock stands in for any local-storage failure on the save path.
+    Object.defineProperty(navigator, 'locks', {
+      value: { request: (nombre: string, tarea: () => unknown) => nombre.startsWith('parte-offline:decidir') ? Promise.reject(new DOMException('closed', 'InvalidStateError')) : Promise.resolve().then(tarea) },
+      configurable: true,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar situación' }))
+    expect(await screen.findByRole('button', { name: 'Guardar situación', hidden: true })).toBeEnabled()
+    Reflect.deleteProperty(navigator, 'locks')
+    expect(textoAlertas()).toContain('No pudimos guardar')
+  })
+
   it('muestra Guardando… sin texto duplicado y permite volver mientras se envía', async () => {
     let resolver!: (respuesta: Response) => void
     stubFetchMock(vi.fn(() => new Promise<Response>((resolve) => { resolver = resolve })))

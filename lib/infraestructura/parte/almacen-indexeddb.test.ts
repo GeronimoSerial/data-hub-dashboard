@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
-import { beforeEach, describe, expect, it } from 'vitest'
-import { crearAlmacenIndexedDb, crearAlmacenParte } from './almacen-indexeddb'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { abrirAlmacenParte, crearAlmacenIndexedDb, crearAlmacenParte } from './almacen-indexeddb'
 import { crearAlmacenMemoria, intentarEnviar, leerBorrador } from './envio-offline'
 
 beforeEach(() => localStorage.clear())
@@ -13,6 +13,33 @@ describe('crearAlmacenIndexedDb', () => {
     expect(await a.obtener('k')).toBe('v')
     await a.eliminar('k')
     expect(await a.obtener('k')).toBeNull()
+  })
+})
+
+describe('conexión compartida entre el formulario y la cola de fotos', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('cerrar() de la cola de fotos no cierra la conexión que usa un guardado en curso', async () => {
+    const nombre = `t-${crypto.randomUUID()}`
+    const formulario = crearAlmacenIndexedDb(nombre)
+    await formulario.guardar('k', 'v0')
+    const cerrarDb = vi.spyOn(IDBDatabase.prototype, 'close')
+    const fotos = await abrirAlmacenParte(nombre)
+    fotos.cerrar()
+    await formulario.guardar('k', 'v1')
+    expect(await formulario.obtener('k')).toBe('v1')
+    expect(cerrarDb).not.toHaveBeenCalled()
+  })
+
+  it('reabre una vez si la conexión cacheada quedó muerta (InvalidStateError)', async () => {
+    const nombre = `t-${crypto.randomUUID()}`
+    const formulario = crearAlmacenIndexedDb(nombre)
+    await formulario.guardar('k', 'v0')
+    vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementationOnce(() => {
+      throw new DOMException('The database connection is closing.', 'InvalidStateError')
+    })
+    await formulario.guardar('k', 'v1')
+    expect(await formulario.obtener('k')).toBe('v1')
   })
 })
 
