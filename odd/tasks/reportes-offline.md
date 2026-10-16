@@ -73,4 +73,4 @@ lint-typecheck-build pass; test shards 1,3,4 fail (~26 tests: obs, borradores cl
 - CI fixes round 2 (reportes-fix-ci-2) merged at 0f897b0; tsc+eslint ok; awaiting CI.
 - NEW B5-T5: photo picker is not wired into the report forms (E2E found no selector in the integrated flow); pending after reportes-fix-ci-3.
 - CI fix round 3 merged at f57b626 (form/gallery/map flag tests stabilized; 94/94 targeted tests passed locally).
-- [ ] B5-T5 [in progress: gpt-6-luna, reportes-b5-t5-wire-photos] Wire photo picker + upload queue into report forms (behind REPORTES_OFFLINE_FOTOS).
+- [x] B5-T5 (31b7488, merged 46a3cae; focused vitest 79/79, tsc+eslint ok) Wire photo picker + upload queue into report forms (behind REPORTES_OFFLINE_FOTOS).
