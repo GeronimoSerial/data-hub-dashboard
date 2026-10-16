@@ -4,7 +4,7 @@ on:
     inputs:
       operacion:
         type: choice
-        options: [inspeccionar, crear, configurar, desplegar, estado]
+        options: [inspeccionar, crear, almacenamiento, configurar, desplegar, estado]
         default: inspeccionar
         required: true
 permissions:
@@ -23,10 +23,12 @@ jobs:
         env:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+          DEV_MEDIA_ACCESS_KEY: ${{ secrets.DEV_MEDIA_ACCESS_KEY }}
+          DEV_MEDIA_SECRET_KEY: ${{ secrets.DEV_MEDIA_SECRET_KEY }}
           OPERACION: ${{ inputs.operacion }}
         run: |
           python3 - <<'PY'
-          import os,json,urllib.request,urllib.parse,secrets,subprocess,pathlib
+          import os,json,urllib.request,urllib.parse,secrets,subprocess,pathlib,time
           base='https://coolify.sistemas.mec.gob.ar/api/v1'
           stage='j3zm0co4bi9iy0c70nv3vinf'
           def api(path,method='GET',data=None):
@@ -85,6 +87,35 @@ jobs:
               api('/applications/'+dev['uuid']+'/storages','POST',{
                 'type':'persistent','name':'data-hub-dashboard-dev-data','mount_path':'/data'})
             print('DEV_UUID',dev['uuid'])
+          elif op=='almacenamiento':
+            assert dev
+            almacen=next((a for a in apps if a.get('name')=='data-hub-dashboard-dev-media'),None)
+            if not almacen:
+              ambiente=api('/applications/'+dev['uuid'])['environment']['uuid']
+              almacen=api('/applications/dockerfile','POST',{
+                'project_uuid':'taioshhok165uu57cuq8q6u1','server_uuid':'nm2rc1csc3gzm0n3tkt95g5q',
+                'environment_name':'dev','environment_uuid':ambiente,
+                'destination_uuid':'bk2v4isipr6bettotifgforj','name':'data-hub-dashboard-dev-media',
+                'dockerfile':'FROM ghcr.io/coollabsio/minio@sha256:4f75fd76598afa23919555d1363e1fb13c632d9bcd4ce8edcf21d3cca2ed0579\nCMD ["server", "/data", "--address", ":9000"]\n',
+                'ports_exposes':'9000','domains':'https://obs-dev.analisis.sistemas.mec.gob.ar',
+                'limits_memory':'512m','limits_memory_swap':'512m','instant_deploy':False,
+                'health_check_enabled':True,'health_check_path':'/minio/health/live','health_check_port':'9000'})
+              api('/applications/'+almacen['uuid']+'/storages','POST',{
+                'type':'persistent','name':'data-hub-dashboard-dev-media-data','mount_path':'/data'})
+            assert os.environ['DEV_MEDIA_ACCESS_KEY'] and os.environ['DEV_MEDIA_SECRET_KEY']
+            valores={'MINIO_ROOT_USER':os.environ['DEV_MEDIA_ACCESS_KEY'],'MINIO_ROOT_PASSWORD':os.environ['DEV_MEDIA_SECRET_KEY'],
+              'MINIO_BROWSER':'off','MINIO_API_CORS_ALLOW_ORIGIN':'https://dev.analisis.sistemas.mec.gob.ar,http://localhost:3000,http://127.0.0.1:3000'}
+            api('/applications/'+almacen['uuid']+'/envs/bulk','PATCH',{'data':[{
+              'key':k,'value':v,'is_runtime':True,'is_buildtime':False,'is_preview':False,'is_literal':True} for k,v in valores.items()]})
+            despliegue=api('/deploy','POST',{'uuid':almacen['uuid'],'force':True})['deployments'][0]['deployment_uuid']
+            print('MEDIA_UUID',almacen['uuid'])
+            for intento in range(60):
+              estado=api('/deployments/'+despliegue)['status']
+              if estado=='finished': break
+              if estado in ['failed','cancelled-by-user']: raise RuntimeError('Falló el despliegue del almacenamiento de dev')
+              time.sleep(5)
+            else: raise RuntimeError('El almacenamiento sigue desplegándose')
+            print('Almacenamiento privado de dev desplegado')
           elif op=='configurar':
             assert dev
             db=os.environ['DEV_DATABASE_URL']
@@ -111,43 +142,47 @@ jobs:
             fotos=envs('pts681lz0kazhs1dph8wjaxt')
             obs={k:fotos.get(k) for k in ['OBS_BUCKET','OBS_REGION','OBS_ENDPOINT','OBS_ACCESS_KEY_ID','OBS_SECRET_ACCESS_KEY']}
             assert all(obs.values()),'Falta configuración OBS de origen'
-            bucket=obs['OBS_BUCKET'][:59]+'-dev'
+            bucket='dev-reportes'
+            target={'OBS_BUCKET':bucket,'OBS_REGION':'us-east-1','OBS_ENDPOINT':'https://obs-dev.analisis.sistemas.mec.gob.ar',
+              'OBS_ACCESS_KEY_ID':os.environ['DEV_MEDIA_ACCESS_KEY'],'OBS_SECRET_ACCESS_KEY':os.environ['DEV_MEDIA_SECRET_KEY']}
+            assert target['OBS_ACCESS_KEY_ID'] and target['OBS_SECRET_ACCESS_KEY']
             js='''
           import { S3Client, CreateBucketCommand, GetBucketAclCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
           import { Client } from 'pg';
           try {
           let input=''; for await (const b of process.stdin) input+=b;
-          const {obs,bucket,db}=JSON.parse(input);
-          const s3=new S3Client({region:obs.OBS_REGION,endpoint:obs.OBS_ENDPOINT,forcePathStyle:false,
+          const {obs,target,bucket,db}=JSON.parse(input);
+          const source=new S3Client({region:obs.OBS_REGION,endpoint:obs.OBS_ENDPOINT,forcePathStyle:false,
             credentials:{accessKeyId:obs.OBS_ACCESS_KEY_ID,secretAccessKey:obs.OBS_SECRET_ACCESS_KEY}});
-          try {await s3.send(new CreateBucketCommand({Bucket:bucket,CreateBucketConfiguration:{LocationConstraint:obs.OBS_REGION}}));}
+          const s3=new S3Client({region:target.OBS_REGION,endpoint:target.OBS_ENDPOINT,forcePathStyle:true,
+            credentials:{accessKeyId:target.OBS_ACCESS_KEY_ID,secretAccessKey:target.OBS_SECRET_ACCESS_KEY}});
+          try {await s3.send(new CreateBucketCommand({Bucket:bucket}));}
           catch(e) {
             if(!['BucketAlreadyOwnedByYou','BucketAlreadyExists'].includes(e.name)) throw e;
-            const [src,dst]=await Promise.all([s3.send(new GetBucketAclCommand({Bucket:obs.OBS_BUCKET})),s3.send(new GetBucketAclCommand({Bucket:bucket}))]);
-            if(!src.Owner?.ID||src.Owner.ID!==dst.Owner?.ID)throw new Error('El bucket existente no pertenece al origen autorizado');
+            await s3.send(new GetBucketAclCommand({Bucket:bucket}));
           }
           const pg=new Client({connectionString:db,ssl:{rejectUnauthorized:false},connectionTimeoutMillis:15000});
           await pg.connect();const {rows}=await pg.query("SELECT optimizada_obs_key,miniatura_obs_key FROM infra_adjunto WHERE estado='confirmed'");
           let copiadas=0;
           for(const key of new Set(rows.flatMap(r=>[r.optimizada_obs_key,r.miniatura_obs_key]))) {
             if(!key.startsWith('reportes/')||key.includes('..'))throw new Error('Clave de adjunto inválida');
-            const objeto=await s3.send(new GetObjectCommand({Bucket:obs.OBS_BUCKET,Key:key}));
+            const objeto=await source.send(new GetObjectCommand({Bucket:obs.OBS_BUCKET,Key:key}));
             await s3.send(new PutObjectCommand({Bucket:bucket,Key:key,Body:await objeto.Body.transformToByteArray(),ContentType:objeto.ContentType}));
             copiadas++;
           }
-          await pg.end();s3.destroy();console.log(JSON.stringify({bucket,objetosCopiados:copiadas}));
+          await pg.end();s3.destroy();source.destroy();console.log(JSON.stringify({bucket,objetosCopiados:copiadas}));
           } catch(e) {console.error(JSON.stringify({name:e.name,message:e.message,status:e.$metadata?.httpStatusCode}));process.exitCode=1;}
           '''
             pathlib.Path('/tmp/dev-ops/obs.mjs').write_text(js)
-            copia=subprocess.run(['node','/tmp/dev-ops/obs.mjs'],input=json.dumps({'obs':obs,'bucket':bucket,'db':db}),text=True,capture_output=True)
+            copia=subprocess.run(['node','/tmp/dev-ops/obs.mjs'],input=json.dumps({'obs':obs,'target':target,'bucket':bucket,'db':db}),text=True,capture_output=True)
             if copia.returncode:
               mensaje=copia.stderr.strip()
-              for secreto in [db,urllib.parse.unquote(urllib.parse.urlparse(db).password or ''),obs['OBS_ACCESS_KEY_ID'],obs['OBS_SECRET_ACCESS_KEY']]:
+              for secreto in [db,urllib.parse.unquote(urllib.parse.urlparse(db).password or ''),obs['OBS_ACCESS_KEY_ID'],obs['OBS_SECRET_ACCESS_KEY'],target['OBS_ACCESS_KEY_ID'],target['OBS_SECRET_ACCESS_KEY']]:
                 if secreto: mensaje=mensaje.replace(secreto,'[redacted]')
               print('OBS error',mensaje[-1000:])
               raise RuntimeError('No se pudo preparar el bucket aislado de dev')
             print(copia.stdout.strip())
-            valores.update(obs);valores['OBS_BUCKET']=bucket
+            valores.update(target);valores['OBS_FORCE_PATH_STYLE']='true'
             api('/applications/'+dev['uuid']+'/envs/bulk','PATCH',{'data':[{
               'key':k,'value':v,'is_runtime':True,'is_buildtime':False,'is_preview':False,'is_literal':True} for k,v in valores.items()]})
             print('Dev configurado: DB propia, sesiones y SSO separados, bucket propio, sin ingestas automáticas')
