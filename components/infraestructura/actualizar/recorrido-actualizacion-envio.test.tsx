@@ -214,7 +214,8 @@ describe('RecorridoActualizacion: envío', () => {
     const aviso = screen.getByRole('alert')
     expect(within(aviso).getByText('El servidor no respondió. Reintentamos solos; su parte queda guardado.')).toBeInTheDocument()
     expect(aviso.compareDocumentPosition(screen.getByRole('button', { name: 'Reintentando…' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    // The retry backoff for one failed attempt is 2s with up to 25% jitter.
+    await act(async () => { await vi.advanceTimersByTimeAsync(2600) })
     expect(posteos(fetchMock)).toHaveLength(2)
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reintentando…' })).toBeDisabled()
