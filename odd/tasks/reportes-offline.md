@@ -37,8 +37,8 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
 - [ ] B6 Attachments and direct OBS upload (depends on B0-OBS)
   - [x] B6-T1 (merged 2980eee; tsc+eslint ok, tests via CI) Schema/API: attachments linked to movimientos; photo-only evidence update; server-side permission + 3-photo limit under concurrency
   - [x] B6-T2 (merged 60fbcec; tsc+eslint ok, tests via CI) Batch authorization (presigned, controlled keys, verifiable constraints); reuse/renew without confusing OBS failure with app session expiry
-  - [ ] B6-T3 [in progress: gpt-6-luna, reportes-b6-t3t4-upload] Client upload queue: one at a time after report confirmed; survives close/expired session
-  - [ ] B6-T4 [in progress: gpt-6-luna, reportes-b6-t3t4-upload] Idempotent confirm + reconcile uncertain uploads before retransmit
+  - [x] B6-T3 (merged 5eb4e62; tsc+eslint ok, tests via CI) Client upload queue: one at a time after report confirmed; survives close/expired session
+  - [x] B6-T4 (merged 5eb4e62; tsc+eslint ok, tests via CI) Idempotent confirm + reconcile uncertain uploads before retransmit
   - [ ] B6-T5 Local cleanup after confirm + safe orphan object cleanup
 - [ ] B7 Map, gallery and pending items
   - [x] B7-T1 (merged 60fbcec; tsc+eslint ok, tests via CI) Grouped draft/photo counts (no per-school queries)
@@ -65,3 +65,7 @@ B1 Reliable local persistence.
 ## Wave 2 verification (34fe71b)
 
 Feature-scoped vitest 571 passed / 18 skipped; new API route tests 4/4; tsc ok; eslint ok. Full-repo vitest run in one process shows timeouts in unrelated PGlite suites that pass in isolation.
+
+## CI run 38829966069 (first test run)
+
+lint-typecheck-build pass; test shards 1,3,4 fail (~26 tests: obs, borradores client/mapa, fotos persistence, sw-parte queue, envio-offline backoff, forms draft restore). Fix in reportes-fix-ci-1.
