@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { signMock, commandMock, clientMock } = vi.hoisted(() => ({
+const { signMock, commandMock, headCommandMock, clientMock } = vi.hoisted(() => ({
   signMock: vi.fn(),
   commandMock: vi.fn(),
+  headCommandMock: vi.fn(),
   clientMock: vi.fn(),
 }))
 
 vi.mock('@aws-sdk/client-s3', () => ({
   S3Client: clientMock,
   PutObjectCommand: commandMock,
+  HeadObjectCommand: headCommandMock,
 }))
 vi.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: signMock }))
 
@@ -23,6 +25,7 @@ import {
 } from './obs'
 
 const movementId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const cueAnexo = '1801605-04'
 const attachmentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const declaration = { attachmentId, bytesOptimizado: 2048, bytesMiniatura: 512 }
 
@@ -38,8 +41,11 @@ describe('OBS batch authorization', () => {
   beforeEach(() => {
     clearAuthorizationCacheForTests()
     configureObs()
-    clientMock.mockImplementation(function MockClient(this: object) { Object.assign(this, { destroy: vi.fn() }) })
+    clientMock.mockImplementation(function MockClient(this: object) {
+      Object.assign(this, { destroy: vi.fn(), send: vi.fn(async () => ({ ETag: '"abc123"', ContentLength: 1024, ContentType: 'image/jpeg' })) })
+    })
     commandMock.mockImplementation((input: unknown) => input)
+    headCommandMock.mockImplementation((input: unknown) => input)
     signMock.mockReset().mockImplementation(async (_client: unknown, command: { Key: string }) => `https://obs.test/${command.Key}?signed`)
   })
 
@@ -63,18 +69,18 @@ describe('OBS batch authorization', () => {
   })
 
   it('signs exact keys, JPEG content type, exact lengths, and a short expiry', async () => {
-    const result = await authorizeAttachments(movementId, [declaration], 1_000)
+    const result = await authorizeAttachments(movementId, cueAnexo, [declaration], 1_000)
 
     expect(result[0]).toMatchObject({
       attachmentId,
       optimizada: {
-        key: `reportes/${movementId}/${attachmentId}/optimizada.jpg`,
+        key: `reportes/${cueAnexo}/${movementId}/${attachmentId}/optimizada.jpg`,
         contentType: 'image/jpeg',
         contentLength: declaration.bytesOptimizado,
         expiresAt: new Date(1_000 + AUTHORIZATION_TTL_SECONDS * 1000).toISOString(),
       },
       miniatura: {
-        key: `reportes/${movementId}/${attachmentId}/miniatura.jpg`,
+        key: `reportes/${cueAnexo}/${movementId}/${attachmentId}/miniatura.jpg`,
         contentType: 'image/jpeg',
         contentLength: declaration.bytesMiniatura,
       },
@@ -82,7 +88,7 @@ describe('OBS batch authorization', () => {
     expect(signMock).toHaveBeenCalledTimes(2)
     expect(commandMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
       Bucket: 'reportes-infraestructura',
-      Key: `reportes/${movementId}/${attachmentId}/optimizada.jpg`,
+      Key: `reportes/${cueAnexo}/${movementId}/${attachmentId}/optimizada.jpg`,
       ContentType: 'image/jpeg',
       ContentLength: declaration.bytesOptimizado,
     }))
@@ -90,18 +96,31 @@ describe('OBS batch authorization', () => {
   })
 
   it('reuses a still-valid pair and renews it after expiry', async () => {
-    const first = await authorizeAttachments(movementId, [declaration], 10_000)
-    const reused = await authorizeAttachments(movementId, [declaration], 20_000)
+    const first = await authorizeAttachments(movementId, cueAnexo, [declaration], 10_000)
+    const reused = await authorizeAttachments(movementId, cueAnexo, [declaration], 20_000)
     expect(reused).toEqual(first)
     expect(signMock).toHaveBeenCalledTimes(2)
 
-    await authorizeAttachments(movementId, [declaration], 10_000 + AUTHORIZATION_TTL_SECONDS * 1000)
+    await authorizeAttachments(movementId, cueAnexo, [declaration], 10_000 + AUTHORIZATION_TTL_SECONDS * 1000)
     expect(signMock).toHaveBeenCalledTimes(4)
   })
 
   it('does not cache an authorization for a different declared length', async () => {
-    await authorizeAttachments(movementId, [declaration])
-    await authorizeAttachments(movementId, [{ ...declaration, bytesOptimizado: declaration.bytesOptimizado + 1 }])
+    await authorizeAttachments(movementId, cueAnexo, [declaration])
+    await authorizeAttachments(movementId, cueAnexo, [{ ...declaration, bytesOptimizado: declaration.bytesOptimizado + 1 }])
     expect(signMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('reads ETag, size, and content type using metadata-only HEAD requests', async () => {
+    const { headAttachmentObjects } = await import('./obs')
+    const result = await headAttachmentObjects('reportes-infraestructura', {
+      optimizada: 'reportes/movement/attachment/optimizada.jpg',
+      miniatura: 'reportes/movement/attachment/miniatura.jpg',
+    })
+    expect(result).toEqual({
+      optimizada: { etag: 'abc123', size: 1024, contentType: 'image/jpeg' },
+      miniatura: { etag: 'abc123', size: 1024, contentType: 'image/jpeg' },
+    })
+    expect(headCommandMock).toHaveBeenCalledTimes(2)
   })
 })

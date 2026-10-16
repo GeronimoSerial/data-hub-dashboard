@@ -54,7 +54,7 @@ describe('POST /api/problematicas/parte/adjuntos/autorizaciones', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('private, no-store')
-    expect(authMock).toHaveBeenCalledWith(movimientoId, adjuntos)
+    expect(authMock).toHaveBeenCalledWith(movimientoId, '1801605-04', adjuntos)
   })
 
   it('returns an application session error before calling OBS when permission is absent', async () => {
