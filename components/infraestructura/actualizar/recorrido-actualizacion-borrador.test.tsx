@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { RecorridoActualizacion } from './recorrido-actualizacion'
 import { abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { crearColaTrabajosEnvio } from '@/lib/infraestructura/parte/cola-trabajos-envio'
 
 const syncMocks = vi.hoisted(() => ({ registrar: vi.fn(), pedir: vi.fn(), callback: null as ((clave: string) => void) | null }))
 vi.mock('@/lib/infraestructura/parte/registrar-sync', () => ({
@@ -54,6 +55,22 @@ function elegirAsistencia(valor: 'Sí' | 'No') {
 }
 
 describe('RecorridoActualizacion: borrador local', () => {
+  it('shows a B2 confirmation on reopen and leaves photo jobs queued', async () => {
+    const almacen = await abrirAlmacenParte()
+    await almacen.guardarContexto({ draftId: DRAFT_ID, idempotencyKey: 'sent-update' })
+    await almacen.guardarBorrador({ draftId: DRAFT_ID, generacion: 1, version: 1, datos: { idsSituaciones: ['a', 'b'] }, actualizadoEn: new Date().toISOString() })
+    const cola = crearColaTrabajosEnvio(almacen)
+    await cola.encolar({ tipo: 'foto', idempotencyKey: 'photo-update', draftId: DRAFT_ID, cuerpo: { attachmentId: 'photo-2' } })
+    await cola.confirmar('sent-update', { movimientoId: 'movement-update', rigeDesde: new Date().toISOString(), cierreDraft: 'enviado' })
+    stub()
+
+    montar()
+
+    expect(await screen.findByRole('heading', { name: 'Parte actualizado' })).toBeInTheDocument()
+    await waitFor(async () => expect(await almacen.obtenerBorrador(DRAFT_ID)).toBeNull())
+    expect(await almacen.obtenerTrabajosEnvio()).toMatchObject([{ idempotencyKey: 'photo-update', tipo: 'foto' }])
+  })
+
   it('guarda etapa y respuestas, y ofrece continuar al remontar', async () => {
     stub(); montar(); await empezarYResponderPrimera()
     await waitFor(async () => expect((await leerBorradorGuardado())?.datos).toMatchObject({ etapa: { revisar: 0 }, recorrido: { respuestas: { b: { tipo: 'sigue' } } }, idsSituaciones: ['a', 'b'] }))

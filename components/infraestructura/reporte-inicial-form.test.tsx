@@ -9,6 +9,7 @@ import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 import { MENSAJES_ESTADO, guardarBorrador as guardarBorradorEnvio } from '@/lib/infraestructura/parte/envio-offline'
 import { crearAlmacenParte, abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { crearColaTrabajosEnvio } from '@/lib/infraestructura/parte/cola-trabajos-envio'
 
 const props = { cue: '12345678', turnos, motivos }
 
@@ -129,6 +130,22 @@ afterEach(() => {
 })
 
 describe('ReporteInicialForm', () => {
+  it('shows a B2 confirmation on reopen without restoring the sent draft or removing photo work', async () => {
+    const id = `parte-inicial:${props.cue}`
+    const almacen = await abrirAlmacenParte()
+    await almacen.guardarContexto({ draftId: id, idempotencyKey: 'sent-initial' })
+    await almacen.guardarBorrador({ draftId: id, generacion: 1, version: 1, datos: { invalidForRestore: true }, actualizadoEn: new Date().toISOString() })
+    const cola = crearColaTrabajosEnvio(almacen)
+    await cola.encolar({ tipo: 'foto', idempotencyKey: 'photo-initial', draftId: id, cuerpo: { attachmentId: 'photo-1' } })
+    await cola.confirmar('sent-initial', { movimientoId: 'movement-initial', rigeDesde: new Date().toISOString(), cierreDraft: 'enviado' })
+
+    renderFormulario()
+
+    expect(await screen.findByRole('heading', { name: 'Situación guardada' })).toBeInTheDocument()
+    await waitFor(async () => expect(await almacen.obtenerBorrador(id)).toBeNull())
+    expect(await almacen.obtenerTrabajosEnvio()).toMatchObject([{ idempotencyKey: 'photo-initial', tipo: 'foto' }])
+  })
+
   it('migra el borrador legacy a IndexedDB antes de habilitar su guardado', async () => {
     sembrarBorradorWizard()
     renderFormulario()

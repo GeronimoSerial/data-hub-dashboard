@@ -59,7 +59,7 @@ import {
   type EstadoEnvio,
 } from '@/lib/infraestructura/parte/envio-offline'
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
-import { eliminarBorradorFormulario, guardarBorradorFormulario, leerBorradorFormulario, type BorradorFormulario } from '@/lib/infraestructura/parte/borrador-formulario'
+import { confirmarFormulario, eliminarBorradorFormulario, guardarBorradorFormulario, guardarClaveEnvioFormulario, leerBorradorFormulario, leerConfirmacionFormulario, limpiarFormularioConfirmado, olvidarClaveEnvioFormulario, type BorradorFormulario } from '@/lib/infraestructura/parte/borrador-formulario'
 import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
 
 export interface ReporteInicialFormProps {
@@ -317,23 +317,29 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   // restaurar y el asistente arranca limpio en el paso 1.
   useEffect(() => {
     let cancelado = false
-    try {
-      const legado: unknown = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
-      if (esBorradorParteNuevo(legado)) {
-        queueMicrotask(() => {
-          if (cancelado) return
-          if (legado.paso === 1 && !esAfectacionParcial(legado.afectacion) && !esAfectacionLista(legado.afectacion)) {
-            aplicarBorrador(legado)
-          } else {
-            setBorradorPendiente(legado)
-          }
-        })
-      }
-    } catch {
-      // The async reader reports invalid legacy data without blocking the form.
-    }
     ;(async () => {
       try {
+        const confirmacion = await leerConfirmacionFormulario(`${DRAFT_ID_PREFIX}${cue}`)
+        if (cancelado) return
+        if (confirmacion) {
+          setGuardado({ movimientoId: confirmacion.movimientoId })
+          onGuardadoChange?.(true)
+          setRestauracionCompleta(true)
+          void limpiarFormularioConfirmado(`${DRAFT_ID_PREFIX}${cue}`, claveBorrador)
+          return
+        }
+        try {
+          const legado: unknown = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
+          if (esBorradorParteNuevo(legado)) {
+            if (legado.paso === 1 && !esAfectacionParcial(legado.afectacion) && !esAfectacionLista(legado.afectacion)) {
+              aplicarBorrador(legado)
+            } else {
+              setBorradorPendiente(legado)
+            }
+          }
+        } catch {
+          // The async reader reports invalid legacy data without blocking the form.
+        }
         const guardado = await leerBorradorFormulario(
           `${DRAFT_ID_PREFIX}${cue}`,
           claveBorrador,
@@ -374,7 +380,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     return () => {
       cancelado = true
     }
-  }, [claveBorrador, cue])
+  }, [claveBorrador, cue, onGuardadoChange])
 
   // Restaura el estado del envío en cola SIEMPRE al montar, haya o no
   // borrador del asistente: sin esto, cerrar y reabrir la app con un envío
@@ -505,7 +511,11 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     return {
       tipo: 'nuevo',
       cue,
-      fetchImpl: (input, init) => fetch(input, init),
+      fetchImpl: async (input, init) => {
+        const idempotencyKey = new Headers(init?.headers).get('Idempotency-Key')
+        if (idempotencyKey) await guardarClaveEnvioFormulario(`${DRAFT_ID_PREFIX}${cue}`, idempotencyKey).catch(() => {})
+        return fetch(input, init)
+      },
       url: '/api/problematicas/parte',
       construirCuerpo: (datos, idempotencyKey) => {
         const vinculo = leerVinculoVerificacion()
@@ -529,6 +539,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   }
 
   function alEnviarConExito(movimientoId: string): void {
+    void confirmarFormulario(`${DRAFT_ID_PREFIX}${cue}`, movimientoId).catch(() => {})
     const borradorActual = borradorCompartidoRef.current
     if (borradorActual) {
       void eliminarBorradorFormulario(borradorActual).then(() => {
@@ -749,6 +760,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     borradorResueltoRef.current = true
     const anterior = borradorCompartidoRef.current
     if (anterior) void eliminarBorradorFormulario(anterior).catch(() => {})
+    void olvidarClaveEnvioFormulario(`${DRAFT_ID_PREFIX}${cue}`).catch(() => {})
     localStorage.removeItem(claveBorrador)
     generacionAlmacenRef.current += 1
     borradorCompartidoRef.current = null
