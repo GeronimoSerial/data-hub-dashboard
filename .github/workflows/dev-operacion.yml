@@ -103,6 +103,9 @@ jobs:
               'GE_SSO_API_KEY':previous.get('GE_SSO_API_KEY') or secrets.token_urlsafe(32),
               'GE_SSO_ALLOWED_ORIGIN':'https://dev.analisis.sistemas.mec.gob.ar',
               'PROBLEMATICAS_ACCESO_PASSWORD':previous.get('PROBLEMATICAS_ACCESO_PASSWORD') or secrets.token_urlsafe(24)})
+            api('/applications/'+dev['uuid']+'/envs/bulk','PATCH',{'data':[{
+              'key':k,'value':v,'is_runtime':True,'is_buildtime':False,'is_preview':False,'is_literal':True} for k,v in valores.items()]})
+            api('/applications/'+dev['uuid'],'PATCH',{'docker_registry_image_tag':'dev'})
             # El adjunto existente referencia OBS de producción. Copiar objetos,
             # no usar el bucket de origen como almacenamiento writable de dev.
             fotos=envs('pts681lz0kazhs1dph8wjaxt')
@@ -110,7 +113,7 @@ jobs:
             assert all(obs.values()),'Falta configuración OBS de origen'
             bucket=obs['OBS_BUCKET'][:59]+'-dev'
             js='''
-          import { S3Client, CreateBucketCommand, HeadBucketCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+          import { S3Client, CreateBucketCommand, GetBucketAclCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
           import { Client } from 'pg';
           try {
           let input=''; for await (const b of process.stdin) input+=b;
@@ -118,9 +121,13 @@ jobs:
           const s3=new S3Client({region:obs.OBS_REGION,endpoint:obs.OBS_ENDPOINT,forcePathStyle:false,
             credentials:{accessKeyId:obs.OBS_ACCESS_KEY_ID,secretAccessKey:obs.OBS_SECRET_ACCESS_KEY}});
           try {await s3.send(new CreateBucketCommand({Bucket:bucket,CreateBucketConfiguration:{LocationConstraint:obs.OBS_REGION}}));}
-          catch(e) {if(e.name!=='BucketAlreadyOwnedByYou') throw e; await s3.send(new HeadBucketCommand({Bucket:bucket}));}
+          catch(e) {
+            if(!['BucketAlreadyOwnedByYou','BucketAlreadyExists'].includes(e.name)) throw e;
+            const [src,dst]=await Promise.all([s3.send(new GetBucketAclCommand({Bucket:obs.OBS_BUCKET})),s3.send(new GetBucketAclCommand({Bucket:bucket}))]);
+            if(!src.Owner?.ID||src.Owner.ID!==dst.Owner?.ID)throw new Error('El bucket existente no pertenece al origen autorizado');
+          }
           const pg=new Client({connectionString:db,ssl:{rejectUnauthorized:false},connectionTimeoutMillis:15000});
-          await pg.connect();const {rows}=await pg.query('SELECT optimizada_obs_key,miniatura_obs_key FROM infra_adjunto');
+          await pg.connect();const {rows}=await pg.query("SELECT optimizada_obs_key,miniatura_obs_key FROM infra_adjunto WHERE estado='confirmed'");
           let copiadas=0;
           for(const key of new Set(rows.flatMap(r=>[r.optimizada_obs_key,r.miniatura_obs_key]))) {
             if(!key.startsWith('reportes/')||key.includes('..'))throw new Error('Clave de adjunto inválida');
