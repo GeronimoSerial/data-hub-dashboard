@@ -11,9 +11,12 @@
     "extract:natalidad": "node scripts/extract-natalidad.mjs",
     "build:sobreoferta": "node scripts/build-sobreoferta.mjs",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e:reportes": "node e2e/reportes-offline/run.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/s3-request-presigner": "^3.1152.0",
     "@base-ui/react": "^1.7.0",
     "@electric-sql/pglite": "^0.5.8",
     "@libsql/client": "^0.17.4",
@@ -37,6 +40,7 @@
   },
   "devDependencies": {
     "@maplibre/maplibre-gl-style-spec": "26.2.1",
+    "@playwright/test": "^1.64.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.6",
@@ -50,10 +54,12 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.3",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
+    "sharp": "^0.35.5",
     "typescript": "^5",
     "vitest": "^4.1.11"
   },

@@ -216,6 +216,10 @@ vi.mock('@/lib/infraestructura/use-escuelas-mapa', () => ({
   useEscuelasMapa: () => ({ data: FIXTURE_ESCUELAS_MAPA, loading: false, error: null }),
 }))
 
+vi.mock('@/components/infraestructura/borradores/use-draft-counts', () => ({
+  useDraftCounts: () => ({ counts: new Map([[CUE, 2]]), loading: false, error: false }),
+}))
+
 // M1: totales por departamento que alimentan el popup de hover. La clave
 // `departamento` va NORMALIZADA (`normalizarNombreDepartamento('Capital')` =
 // 'CAPITAL') porque así es como el componente indexa el Map de totales y

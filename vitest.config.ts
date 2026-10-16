@@ -9,7 +9,7 @@ process.env.TZ = 'America/Argentina/Buenos_Aires'
 export default defineConfig({
   test: {
     environment: 'node',
-    exclude: [...configDefaults.exclude, '.next/**'],
+    exclude: [...configDefaults.exclude, '.next/**', 'e2e/**'],
     setupFiles: ['./vitest.setup.ts'],
   },
   resolve: { alias: { '@': path.resolve(__dirname, '.') } },
