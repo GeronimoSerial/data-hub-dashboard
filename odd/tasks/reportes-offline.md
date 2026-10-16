@@ -47,7 +47,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B7-T4 (merged c21d74c; tsc+eslint ok, tests via CI) Historical evidence by movimiento and date, including solved situations
 - [ ] B8 Integrated validation and enablement
   - [ ] B8-T1 Run focused + regression tests across batches
-  - [ ] B8-T2 BLOCKED: service worker never registers (getRegistrations empty) → fix in reportes-fix-ci-3 Real offline reopen on Chrome and Safari (prod build, HTTPS/localhost)
+  - [x] B8-T2 offline reopen passes in Chromium and WebKit (E2E 7 passed; SW registration fixed 0a78eaf, merged f57b626)
   - [x] B8-T3 (measured, see docs/medicion-reportes-offline.md) Measure bytes/requests per flow; with vs without photos on critical path; memory with large photos
   - [x] B8-T4 (merged 2831dbd; tsc+eslint ok, tests via CI) Gradual enablement flags + rollback preserving data and queues
 
@@ -72,3 +72,5 @@ lint-typecheck-build pass; test shards 1,3,4 fail (~26 tests: obs, borradores cl
 - CI fixes from reportes-fix-ci-1 merged at ed5b76e (11 commits; no tests removed or skipped); tsc+eslint ok; awaiting new CI run.
 - CI fixes round 2 (reportes-fix-ci-2) merged at 0f897b0; tsc+eslint ok; awaiting CI.
 - NEW B5-T5: photo picker is not wired into the report forms (E2E found no selector in the integrated flow); pending after reportes-fix-ci-3.
+- CI fix round 3 merged at f57b626 (form/gallery/map flag tests stabilized; 94/94 targeted tests passed locally).
+- [ ] B5-T5 [in progress: gpt-6-luna, reportes-b5-t5-wire-photos] Wire photo picker + upload queue into report forms (behind REPORTES_OFFLINE_FOTOS).
