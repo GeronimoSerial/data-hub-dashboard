@@ -70,6 +70,7 @@ describe('createDraftSyncClient', () => {
 
   it('uses the last acknowledged revision and only sends the consolidated change set', async () => {
     const fetcher = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(Response.json({ version: 1, revision: 4 }, { status: 201 })))
+      .mockResolvedValueOnce(Response.json({ version: 1, revision: 4 }, { status: 201 }))
       .mockResolvedValueOnce(Response.json({ revision: 5, sincronizadoEn: '2026-10-15T12:01:00.000Z' }))
       .mockResolvedValueOnce(Response.json({ revision: 6, sincronizadoEn: '2026-10-15T12:02:00.000Z' }))
     const client = createDraftSyncClient({ store: createStore(), fetch: fetcher, now: () => '2026-10-15T12:00:00.000Z' })
@@ -88,6 +89,7 @@ describe('createDraftSyncClient', () => {
   it('keeps local answers and persists an explicit conflict after 409 without retrying over remote state', async () => {
     const store = createStore()
     const fetcher = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(Response.json({ version: 1, revision: 2 }, { status: 201 })))
+      .mockResolvedValueOnce(Response.json({ version: 1, revision: 2 }, { status: 201 }))
       .mockResolvedValueOnce(Response.json({ code: 'conflicto', revisionServidor: 7 }, { status: 409 }))
     const client = createDraftSyncClient({ store, fetch: fetcher, now: () => '2026-10-15T12:00:00.000Z' })
 

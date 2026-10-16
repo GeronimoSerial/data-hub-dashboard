@@ -276,8 +276,15 @@ export function createDraftSyncClient({ store, fetch: fetchImpl = fetch, now = (
   async function flushAllPending(excludedDraftIds: string[] = []): Promise<Array<{ draftId: string; result: DraftSyncResult }>> {
     const ids = await pendingDraftIds(store)
     const excluded = new Set(excludedDraftIds)
-    return Promise.all(ids.filter((draftId) => !excluded.has(draftId))
-      .map(async (draftId) => ({ draftId, result: await flushPending(draftId) })))
+    const results: Array<{ draftId: string; result: DraftSyncResult }> = []
+    // Each successful flush updates the shared pending ID index. Keep these
+    // read-modify-write operations ordered so concurrent removals cannot
+    // restore an already accepted draft in the index.
+    for (const draftId of ids) {
+      if (excluded.has(draftId)) continue
+      results.push({ draftId, result: await flushPending(draftId) })
+    }
+    return results
   }
 
   async function getConflict(draftId: string): Promise<DraftConflict | null> {
