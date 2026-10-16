@@ -49,7 +49,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [ ] B8-T1 Run focused + regression tests across batches
   - [ ] B8-T2 [in progress: gpt-6-luna, reportes-b8-e2e] Real offline reopen on Chrome and Safari (prod build, HTTPS/localhost)
   - [ ] B8-T3 [in progress: gpt-6-luna, reportes-b8-e2e] Measure bytes/requests per flow; with vs without photos on critical path; memory with large photos
-  - [ ] B8-T4 [in progress: gpt-6-luna, reportes-b8-t4-flags] Gradual enablement flags + rollback preserving data and queues
+  - [x] B8-T4 (merged 2831dbd; tsc+eslint ok, tests via CI) Gradual enablement flags + rollback preserving data and queues
 
 Acceptance criteria per batch: see the "Cierre" section of each batch in docs/plan-reportes-batches.md.
 
