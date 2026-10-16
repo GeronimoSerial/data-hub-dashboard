@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { nivelesJurisdiccionales, user } from '@/lib/db/schema'
 import { replaceUserNivelesJur } from '@/lib/usuarios'
-import { ROL_HUB_POR_GE, type GeLoginBody } from './roles'
+import { ROL_HUB_POR_GE, type UsuarioGeInput } from './roles'
 
 export async function nivelJurisdiccionalExiste(id: number): Promise<boolean> {
   const [fila] = await getDb()
@@ -25,17 +25,17 @@ export type ResultadoProvision =
  * y los niveles jurisdiccionales se sobrescriben en cada ingreso, nunca se
  * conservan del login anterior ni se editan a mano desde la app.
  */
-export async function provisionarUsuarioGe(body: GeLoginBody): Promise<ResultadoProvision> {
+export async function provisionarUsuarioGe(input: UsuarioGeInput): Promise<ResultadoProvision> {
   const ctx = await auth.$context
-  const nombre = `${body.nombre} ${body.apellido}`
-  const rolHub = ROL_HUB_POR_GE[body.rol]
-  const geCueAnexo = body.rol === 'operador_establecimiento' ? (body.cue ?? null) : null
+  const nombre = input.nombre
+  const rolHub = ROL_HUB_POR_GE[input.rol]
+  const geCueAnexo = input.rol === 'operador_establecimiento' ? (input.cue ?? null) : null
   const nivelesJur =
-    body.rol === 'director_nivel' && body.nivelJurisdiccionalId !== undefined
-      ? [body.nivelJurisdiccionalId]
+    input.rol === 'director_nivel' && input.nivelJurisdiccionalId != null
+      ? [input.nivelJurisdiccionalId]
       : []
 
-  const existente = await ctx.internalAdapter.findUserByEmail(body.email)
+  const existente = await ctx.internalAdapter.findUserByEmail(input.email)
   let userId: string
   if (existente) {
     // `banned` lo agrega el plugin admin y no figura en el tipo del adapter.
@@ -44,7 +44,7 @@ export async function provisionarUsuarioGe(body: GeLoginBody): Promise<Resultado
     userId = existente.user.id
   } else {
     const creado = await ctx.internalAdapter.createUser(
-      { email: body.email, name: nombre, role: rolHub, emailVerified: true },
+      { email: input.email, name: nombre, role: rolHub, emailVerified: true },
       { method: 'admin' },
     )
     userId = creado.id
