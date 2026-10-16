@@ -6,6 +6,9 @@ Cada ejecución exitosa guarda un dataset `prefectura-alturas` o
 identificador del job y revisión del código de la imagen. Las referencias
 conservan además las lecturas históricas descargadas y los errores parciales.
 No se reconstruyen resultados que ya se habían sobrescrito antes de este cambio.
+`scripts/archivar-prefectura-existente.mjs` preserva el punto inicial: todas las
+mediciones existentes y las referencias vigentes. Marca explícitamente que las
+descargas originales de esas corridas previas no están disponibles.
 
 Archivo, proyección operativa y fila de `infra_dataset_entrega` se confirman en
 una transacción local. Una falla de staging no participa de esa transacción.
@@ -28,6 +31,10 @@ Coolify ejecuta sólo el transporte en staging; sus ingestas de Prefectura se
 deshabilitan si estaban programadas allí. La acción manual `Operar entregas de
 Prefectura` inspecciona o configura esa tarea mediante la API, con secretos de
 GitHub. La conexión no se guarda en el repositorio ni en comandos de cron.
+El usuario de transporte tiene únicamente CONNECT, USAGE del esquema, SELECT
+sobre las cuatro tablas de versiones/cola y UPDATE de las columnas de entrega.
+No tiene permisos de lectura de datos personales ni de escritura de resultados
+en producción. La opción `estado` permite verificar las ejecuciones en Coolify.
 
 La entrega copia exclusivamente datasets de Prefectura y sus dependencias.
 No replica usuarios, sesiones ni reportes. El estado de la cola se consulta en

@@ -30,6 +30,29 @@ async function encolar(id: string) {
 }
 
 describe('Prefectura: histórico y entrega sin recalcular', () => {
+  it('encola automáticamente en producción y conserva varias fechas de una estación', async () => {
+    const source = getDb()
+    const previa = process.env.DATABASE_URL
+    process.env.DATABASE_URL = 'postgres://fixture@localhost/hub_prod'
+    try {
+      const fila = { estacionId: 'fixture', medidaEn: '2026-10-15T00:00:00Z', lecturaM: 1,
+        variacionM: null, periodoHoras: null, estadoPublicado: 'normal', lecturaAnteriorM: null,
+        medidaAnteriorEn: null, alertaM: null, evacuacionM: null, inconsistente: false, motivosInconsistencia: [] }
+      const entrada: CorridaPrefectura = { tipo: 'alturas', jobRunId: 'fixture-alturas',
+        capturadaEn: '2026-10-16T00:00:00Z', catalogoVersion: 'fixture',
+        filas: [fila, { ...fila, medidaEn: '2026-10-16T00:00:00Z', lecturaM: 2 }] }
+      const { versionId } = await publicarCorridaPrefectura(entrada, source)
+      await publicarCorridaPrefectura(entrada, source)
+      const cola = await source.select().from(schema.infraDatasetEntrega).where(eq(schema.infraDatasetEntrega.versionId, versionId))
+      expect(cola).toHaveLength(1)
+      expect((await leerVersion('prefectura-alturas', versionId, source))?.documento).toHaveLength(2)
+      // Este test verifica el publisher; no mezclar su entrega con las demás.
+      await source.update(schema.infraDatasetEntrega).set({ entregadaEn: new Date() }).where(eq(schema.infraDatasetEntrega.versionId, versionId))
+    } finally {
+      if (previa === undefined) delete process.env.DATABASE_URL
+      else process.env.DATABASE_URL = previa
+    }
+  })
   it('archiva cada cálculo y entrega el mismo SHA, datos originales y proyección', async () => {
     const { versionId } = await publicarCorridaPrefectura(corrida('2026-10-16T10:00:00Z'))
     await encolar(versionId)

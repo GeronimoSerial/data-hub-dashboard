@@ -4,7 +4,7 @@ on:
     inputs:
       operacion:
         type: choice
-        options: [inspeccionar, configurar, ejecutar]
+        options: [inspeccionar, configurar, ejecutar, estado]
         default: inspeccionar
         required: true
 permissions:
@@ -62,4 +62,9 @@ jobs:
             t=next(t for t in tasks(staging) if t.get('name')=='replicar-prefectura')
             api('/applications/'+staging+'/scheduled-tasks/'+t['uuid']+'/execute','POST')
             print('Entrega staging solicitada')
+          elif op=='estado':
+            t=next(t for t in tasks(staging) if t.get('name')=='replicar-prefectura')
+            r=api('/applications/'+staging+'/scheduled-tasks/'+t['uuid']+'/executions')
+            r=r if isinstance(r,list) else r.get('data',[])
+            print('Ejecuciones de entrega',json.dumps([{k:x.get(k) for k in ['uuid','status','started_at','finished_at']} for x in r[:5]]))
           PY

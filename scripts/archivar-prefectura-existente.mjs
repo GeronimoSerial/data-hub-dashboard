@@ -14,16 +14,15 @@ try {
   await getDb().transaction(async (tx) => {
     const catalogo = await leerVersion('estaciones-prefectura', undefined, tx)
     if (!catalogo) throw new Error('Falta catálogo versionado')
-    // Una captura por estación de lo actualmente disponible. Las demás lecturas
-    // operativas permanecen en hidro_lectura; no se borran ni modifican.
+    // Preservar también todas las mediciones previas, con clave estación/fecha.
     for (const tipo of ['alturas', 'referencias']) {
-      if (await leerVersion('prefectura-'+tipo, undefined, tx)) continue
-      let filas = await tx.select().from(tipo==='alturas' ? hidroLectura : hidroReferencia)
-      if (tipo==='alturas') filas = [...new Map(filas.sort((a,b)=>a.medidaEn.localeCompare(b.medidaEn)).map(f=>[f.estacionId,f])).values()]
+      const anterior = await leerVersion('prefectura-'+tipo, undefined, tx)
+      if (anterior && (tipo==='referencias' || anterior.version.metadatos.jobRunId !== 'archivo-inicial-disponible')) continue
+      const filas = await tx.select().from(tipo==='alturas' ? hidroLectura : hidroReferencia)
       if (!filas.length) continue
       const fecha = filas.map(f=>tipo==='alturas' ? f.capturadaEn : f.calculadoEn).sort().at(-1)
       await publicarCorridaPrefectura({ tipo, filas, capturadaEn: fecha,
-        jobRunId: 'archivo-inicial-disponible', catalogoVersion: catalogo.version.id,
+        jobRunId: 'archivo-inicial-completo', catalogoVersion: catalogo.version.id,
         originalesNoDisponibles: true }, tx)
       console.log(JSON.stringify({ tipo, filas: filas.length, fecha }))
     }
