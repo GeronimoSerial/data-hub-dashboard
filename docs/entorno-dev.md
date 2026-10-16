@@ -5,7 +5,7 @@ Dev usa `https://dev.analisis.sistemas.mec.gob.ar`, la aplicación Coolify
 `:dev` y despliega exclusivamente esa aplicación. Staging y producción conservan
 sus ramas y destinos separados.
 
-Se creó como copia de staging: usuarios y cuentas con sus contraseñas cifradas,
+Se creó como copia de staging: usuarios y cuentas con los hashes de sus contraseñas,
 reportes, padrón, referencias del mapa y versiones históricas. Las sesiones,
 verificaciones temporales y tokens OAuth no se transfieren. Las funciones
 administrativas internas de Huawei RDS se excluyen del restore; las funciones
@@ -14,8 +14,12 @@ y triggers de la aplicación se conservan.
 El rol `hub_dev` es dueño únicamente de su base y no tiene permisos de lectura
 de usuarios ni de escritura de reportes en staging o producción. Los secretos de
 sesión y SSO son propios. Se conserva la clave de cifrado nominal de staging
-para poder leer las identidades copiadas. Los adjuntos se copian a un bucket de
-dev, sin usar el de producción como almacenamiento de pruebas.
+para poder leer las identidades copiadas. Los adjuntos confirmados se copian al
+bucket privado `dev-reportes` de una instancia S3 de dev en Coolify, accesible en
+`https://obs-dev.analisis.sistemas.mec.gob.ar`. Su volumen y credenciales son
+propios; no usa el OBS de producción como almacenamiento de pruebas.
+`OBS_FORCE_PATH_STYLE=true` habilita ese endpoint compatible con S3. Huawei
+mantiene el modo virtual-host cuando esa opción está ausente.
 
 `ENOS_JOBS_ENABLED=false`: dev es un snapshot reproducible y no duplica consultas
 a proveedores ni consume las entregas de staging. Las pruebas y modificaciones
