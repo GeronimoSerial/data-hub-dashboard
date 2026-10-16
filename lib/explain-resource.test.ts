@@ -35,14 +35,14 @@ const labels = {
 const publicAccess = {
   id: 'r1',
   estado: 'publicado' as const,
-  audienciaNivelIds: [],
+  audienciaNivelJurIds: [],
   audienciaUserIds: [],
 }
 
 const restrictedAccess = {
   id: 'r1',
   estado: 'publicado' as const,
-  audienciaNivelIds: ['secundario'],
+  audienciaNivelJurIds: [2],
   audienciaUserIds: [],
 }
 
@@ -84,7 +84,7 @@ describe('resource explanations', () => {
         id: 'u1',
         role: 'editor',
         banned: false,
-        nivelIds: [],
+        nivelJurIds: [],
         accesoRecursos: 'todos',
         recursoIds: [],
       },
@@ -158,7 +158,7 @@ describe('resource explanations', () => {
         id: 'u1',
         role: 'consulta',
         banned: false,
-        nivelIds: [],
+        nivelJurIds: [],
         accesoRecursos: 'todos',
         recursoIds: [],
       },

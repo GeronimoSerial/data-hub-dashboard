@@ -21,7 +21,7 @@ beforeAll(async () => {
   // Además del catálogo público que siembra ensureSeeded, agrega un recurso
   // restringido a un nivel para ejercitar el filtro de audiencia acá mismo.
   const { getDb } = await import('@/lib/db')
-  const { recursos, recursoAudienciaNiveles } = await import('@/lib/db/schema')
+  const { recursos, recursoAudienciaNivelesJur } = await import('@/lib/db/schema')
   const db = getDb()
   await db.insert(recursos).values({
     id: 'hub-route-restringido',
@@ -35,9 +35,9 @@ beforeAll(async () => {
     actualizado: '2026-01-01',
     estado: 'publicado',
   })
-  await db.insert(recursoAudienciaNiveles).values({
+  await db.insert(recursoAudienciaNivelesJur).values({
     recursoId: 'hub-route-restringido',
-    nivelId: 'secundario',
+    nivelJurisdiccionalId: 2,
   })
   GET = (await import('./route')).GET
 })
@@ -51,7 +51,7 @@ function consulta(over: Partial<Awaited<ReturnType<typeof getSessionUser>>> = {}
     id: 'consulta-1',
     role: 'consulta' as const,
     banned: false,
-    nivelIds: [],
+    nivelJurIds: [],
     accesoRecursos: 'todos' as const,
     recursoIds: [],
     ...over,
@@ -84,7 +84,7 @@ describe('GET /api/hub', () => {
 
   it('consulta+todos: abrir cuando su nivel coincide', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(
-      consulta({ nivelIds: ['secundario'] }),
+      consulta({ nivelJurIds: [2] }),
     )
     const res = await GET()
     const data = await res.json()
@@ -99,7 +99,7 @@ describe('GET /api/hub', () => {
       consulta({
         accesoRecursos: 'seleccionados',
         recursoIds: ['hub-route-restringido'],
-        nivelIds: ['secundario'],
+        nivelJurIds: [2],
       }),
     )
     const res = await GET()

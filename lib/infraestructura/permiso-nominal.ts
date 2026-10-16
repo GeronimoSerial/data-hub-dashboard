@@ -30,6 +30,8 @@ export async function puedeVerNominal(
   ahora: Date,
 ): Promise<boolean> {
   if (!user || user.banned) return false
+  // operador_establecimiento nunca ve nombres de alumnos, ni con grant vigente.
+  if (user.role === 'operador_establecimiento') return false
   if (user.role === 'admin') return true
 
   const db = getDb()

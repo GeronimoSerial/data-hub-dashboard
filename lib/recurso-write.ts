@@ -45,6 +45,13 @@ function asStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === 'string')
 }
 
+// Ids de nivel jurisdiccional: enteros positivos. La existencia en el catálogo
+// no se valida acá (igual que tagIds/audienciaUserIds).
+function asIntArray(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is number => Number.isInteger(item) && item > 0)
+}
+
 export function parseRecursoBody(body: unknown): Recurso | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
@@ -99,7 +106,7 @@ export function parseRecursoBody(body: unknown): Recurso | null {
     nombreOriginal:
       typeof b.nombreOriginal === 'string' ? b.nombreOriginal : undefined,
     size,
-    audienciaNivelIds: asStringArray(b.audienciaNivelIds),
+    audienciaNivelJurIds: asIntArray(b.audienciaNivelJurIds),
     audienciaUserIds: asStringArray(b.audienciaUserIds),
   }
 }

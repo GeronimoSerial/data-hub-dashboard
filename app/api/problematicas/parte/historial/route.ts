@@ -4,7 +4,7 @@
 // de período vigente no es un error acá tampoco, es un historial vacío.
 import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
-import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
+import { codigoSinAccesoParte, tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   // admin entra exactamente igual que antes porque tieneAccesoAlParteParaCue
   // prueba esa vía primero.
   if (!(await tieneAccesoAlParteParaCue(request, cue.value))) {
-    return Response.json({ error: 'No autorizado' }, { status: 401 })
+    return Response.json({ error: 'No autorizado' }, { status: await codigoSinAccesoParte() })
   }
 
   await ensureSeeded()

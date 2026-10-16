@@ -3,7 +3,7 @@ import { getDb } from '@/lib/db'
 import {
   categorias,
   niveles,
-  recursoAudienciaNiveles,
+  recursoAudienciaNivelesJur,
   recursoAudienciaUsuarios,
   recursoTags,
   recursos,
@@ -33,7 +33,7 @@ export async function loadHubCatalog(opts: { publishedOnly: boolean }) {
     db.select().from(categorias),
     db.select().from(tags),
     db.select().from(recursoTags),
-    db.select().from(recursoAudienciaNiveles),
+    db.select().from(recursoAudienciaNivelesJur),
     db.select().from(recursoAudienciaUsuarios),
   ])
 
@@ -45,7 +45,7 @@ export async function loadHubCatalog(opts: { publishedOnly: boolean }) {
   const audNivelesByRecurso = groupIds(
     audNivelRows,
     (row) => row.recursoId,
-    (row) => row.nivelId,
+    (row) => row.nivelJurisdiccionalId,
   )
   const audUsersByRecurso = groupIds(
     audUserRows,
@@ -70,7 +70,7 @@ export async function loadHubCatalog(opts: { publishedOnly: boolean }) {
     mime: row.mime ?? undefined,
     nombreOriginal: row.nombreOriginal ?? undefined,
     size: row.size ?? undefined,
-    audienciaNivelIds: audNivelesByRecurso.get(row.id) ?? [],
+    audienciaNivelJurIds: audNivelesByRecurso.get(row.id) ?? [],
     audienciaUserIds: audUsersByRecurso.get(row.id) ?? [],
   }))
 
@@ -85,12 +85,12 @@ export async function loadHubCatalog(opts: { publishedOnly: boolean }) {
   }
 }
 
-function groupIds<T>(
+function groupIds<T, V = string>(
   rows: T[],
   key: (row: T) => string,
-  value: (row: T) => string,
+  value: (row: T) => V,
 ) {
-  const map = new Map<string, string[]>()
+  const map = new Map<string, V[]>()
   for (const row of rows) {
     const id = key(row)
     const list = map.get(id)

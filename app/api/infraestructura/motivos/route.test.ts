@@ -28,7 +28,7 @@ function admin() {
     id: 'admin-1',
     role: 'admin' as const,
     banned: false,
-    nivelIds: [],
+    nivelJurIds: [],
     accesoRecursos: 'todos' as const,
     recursoIds: [],
   }
@@ -38,7 +38,7 @@ function editor() {
     id: 'editor-1',
     role: 'editor' as const,
     banned: false,
-    nivelIds: [],
+    nivelJurIds: [],
     accesoRecursos: 'todos' as const,
     recursoIds: [],
   }
@@ -48,7 +48,7 @@ function consulta() {
     id: 'consulta-1',
     role: 'consulta' as const,
     banned: false,
-    nivelIds: [],
+    nivelJurIds: [],
     accesoRecursos: 'todos' as const,
     recursoIds: [],
   }

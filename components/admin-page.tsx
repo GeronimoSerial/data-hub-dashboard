@@ -18,6 +18,7 @@ import {
 } from '@/lib/model'
 import { useHubData } from '@/components/hub-data'
 import type { Role } from '@/lib/acl'
+import { nivelesJurisdiccionales } from '@/lib/model'
 import { isAllowedUpload } from '@/lib/upload'
 import { Button } from '@/components/ui/button'
 import { ConfirmDelete } from '@/components/confirm-delete'
@@ -55,17 +56,41 @@ type HubUserRow = {
   email: string
   role: Role
   banned: boolean
-  nivelIds: string[]
+  nivelJurIds: number[]
   accesoRecursos: AccesoRecursos
   recursoIds: string[]
 }
 
-const ROLES: Role[] = ['admin', 'editor', 'consulta']
+const ROLES: Role[] = ['admin', 'editor', 'consulta', 'director_nivel', 'operador_establecimiento']
 
 function rolLabel(role: Role) {
   if (role === 'admin') return 'Administrador'
   if (role === 'editor') return 'Editor'
+  if (role === 'director_nivel') return 'Director de nivel'
+  if (role === 'operador_establecimiento') return 'Operador del establecimiento'
   return 'Consulta'
+}
+
+// Direcciones (nivel jurisdiccional de GE): MultiSelect trabaja con strings;
+// los ids numéricos se convierten solo aquí.
+const OPCIONES_DIRECCION = nivelesJurisdiccionales.map((n) => ({
+  value: String(n.id),
+  label: n.nombre,
+}))
+
+function idsADirecciones(ids: number[] | undefined): string[] {
+  return (ids ?? []).map(String)
+}
+
+function direccionesAIds(values: string[]): number[] {
+  return values.map(Number)
+}
+
+function nombresDirecciones(ids: number[]): string {
+  return ids
+    .map((id) => nivelesJurisdiccionales.find((n) => n.id === id)?.nombre)
+    .filter(Boolean)
+    .join(', ')
 }
 
 function formatBytes(n: number) {
@@ -281,14 +306,14 @@ function RecursoForm({
     area: '',
     actualizado: new Date().toISOString().slice(0, 10),
     estado: 'borrador',
-    audienciaNivelIds: [],
+    audienciaNivelJurIds: [],
     audienciaUserIds: [],
   }
   const [draft, setDraft] = React.useState<Recurso>(() =>
     editing
       ? {
           ...editing,
-          audienciaNivelIds: editing.audienciaNivelIds ?? [],
+          audienciaNivelJurIds: editing.audienciaNivelJurIds ?? [],
           audienciaUserIds: editing.audienciaUserIds ?? [],
         }
       : empty,
@@ -340,7 +365,7 @@ function RecursoForm({
       id,
       tipoId: tipoOk ? draft.tipoId : (tiposValidos[0]?.id ?? ''),
       actualizado: new Date().toISOString().slice(0, 10),
-      audienciaNivelIds: draft.audienciaNivelIds ?? [],
+      audienciaNivelJurIds: draft.audienciaNivelJurIds ?? [],
       audienciaUserIds: draft.audienciaUserIds ?? [],
     }
     if (destino === 'ruta') {
@@ -535,16 +560,14 @@ function RecursoForm({
           )}
 
           <AdminField
-            label="Audiencia — niveles"
-            hint="Si no se selecciona ninguna persona ni nivel, puede abrirlo cualquier usuario con sesión iniciada."
+            label="Audiencia por dirección"
+            hint="Si no se selecciona ninguna persona ni dirección, puede abrirlo cualquier usuario con sesión iniciada."
           >
             <MultiSelect<string>
-              value={draft.audienciaNivelIds ?? []}
-              onChange={(next) => set('audienciaNivelIds', next)}
-              options={[...niveles]
-                .sort((a, b) => a.orden - b.orden)
-                .map((n) => ({ value: n.id as string, label: n.nombre }))}
-              placeholder="Seleccione niveles"
+              value={idsADirecciones(draft.audienciaNivelJurIds)}
+              onChange={(next) => set('audienciaNivelJurIds', direccionesAIds(next))}
+              options={OPCIONES_DIRECCION}
+              placeholder="Seleccione direcciones"
             />
           </AdminField>
 
@@ -878,6 +901,36 @@ function TaxonomyAdmin<T extends { id: string }>({
   )
 }
 
+// ── Direcciones GE (solo lectura) ──────────────────────────────────────────
+
+function DireccionesGeCatalogo() {
+  return (
+    <div>
+      <div className="ui-toolbar">
+        <span className="ui-hint">Se sincroniza desde Gestión Educativa</span>
+      </div>
+      <div className="ui-table-wrap">
+        <table className="ui-table" aria-label="Direcciones de Gestión Educativa">
+          <thead>
+            <tr>
+              <th>Dirección</th>
+              <th>Código GE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nivelesJurisdiccionales.map((n) => (
+              <tr key={n.id}>
+                <td>{n.nombre}</td>
+                <td>{n.id}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ── Users (admin only) ─────────────────────────────────────────────────────
 
 function UserDialog({
@@ -928,7 +981,7 @@ function UserForm({
     password: '',
     role: 'consulta' as Role,
     banned: false,
-    nivelIds: [] as string[],
+    nivelJurIds: [] as string[],
     accesoRecursos: 'todos' as AccesoRecursos,
     recursoIds: [] as string[],
   }
@@ -940,7 +993,7 @@ function UserForm({
           password: '',
           role: editing.role,
           banned: editing.banned,
-          nivelIds: editing.nivelIds,
+          nivelJurIds: idsADirecciones(editing.nivelJurIds),
           accesoRecursos: editing.accesoRecursos,
           recursoIds: editing.recursoIds,
         }
@@ -970,7 +1023,7 @@ function UserForm({
               role: draft.role,
               banned: draft.banned,
               password: draft.password,
-              nivelIds: draft.nivelIds,
+              nivelJurIds: direccionesAIds(draft.nivelJurIds),
               accesoRecursos: draft.accesoRecursos,
               recursoIds: draft.recursoIds,
             }),
@@ -983,7 +1036,7 @@ function UserForm({
               email: draft.email,
               password: draft.password,
               role: draft.role,
-              nivelIds: draft.nivelIds,
+              nivelJurIds: direccionesAIds(draft.nivelJurIds),
               accesoRecursos: draft.accesoRecursos,
               recursoIds: draft.recursoIds,
             }),
@@ -1050,14 +1103,12 @@ function UserForm({
             options={ROLES.map((r) => ({ value: r, label: rolLabel(r) }))}
             onChange={(value) => setDraft((prev) => ({ ...prev, role: value as Role }))}
           />
-          <AdminField label="Niveles">
+          <AdminField label="Direcciones (nivel jurisdiccional)">
             <MultiSelect<string>
-              value={draft.nivelIds}
-              onChange={(next) => setDraft((prev) => ({ ...prev, nivelIds: next }))}
-              options={[...niveles]
-                .sort((a, b) => a.orden - b.orden)
-                .map((n) => ({ value: n.id, label: n.nombre }))}
-              placeholder="Seleccione niveles"
+              value={draft.nivelJurIds}
+              onChange={(next) => setDraft((prev) => ({ ...prev, nivelJurIds: next }))}
+              options={OPCIONES_DIRECCION}
+              placeholder="Seleccione direcciones"
             />
           </AdminField>
           <AdminField
@@ -1146,7 +1197,7 @@ function UsersAdmin() {
               <th>Nombre</th>
               <th>Correo</th>
               <th>Rol</th>
-              <th>Niveles</th>
+              <th>Direcciones</th>
               <th>Estado</th>
               <th>Acciones</th>
             </tr>
@@ -1158,10 +1209,7 @@ function UsersAdmin() {
                 <td>{u.email}</td>
                 <td>{rolLabel(u.role)}</td>
                 <td>
-                  {u.nivelIds
-                    .map((id) => niveles.find((n) => n.id === id)?.nombre)
-                    .filter(Boolean)
-                    .join(', ') || '—'}
+                  {nombresDirecciones(u.nivelJurIds) || '—'}
                   {u.accesoRecursos === 'seleccionados' ? (
                     <>
                       {' '}
@@ -1494,6 +1542,7 @@ export function AdminPage({ role }: { role: Role }) {
                 <TabsTab value="tags">Etiquetas</TabsTab>
                 <TabsTab value="niveles">Niveles</TabsTab>
                 <TabsTab value="tipos">Tipos</TabsTab>
+                <TabsTab value="direcciones">Direcciones (GE)</TabsTab>
                 <TabsTab value="usuarios">Usuarios</TabsTab>
                 <TabsTab value="motivos">Motivos</TabsTab>
                 <TabsTab value="nominal">Acceso nominal</TabsTab>
@@ -1588,6 +1637,8 @@ export function AdminPage({ role }: { role: Role }) {
             onDelete={removeNivel}
           />
         )}
+
+        {isAdmin && tab === 'direcciones' && <DireccionesGeCatalogo />}
 
         {isAdmin && tab === 'tipos' && (
           <TaxonomyAdmin<Tipo>

@@ -2,7 +2,7 @@ import { headers } from 'next/headers'
 import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
-import { user as userTable, userNiveles, userRecursos } from '@/lib/db/schema'
+import { user as userTable, userNivelesJur, userRecursos } from '@/lib/db/schema'
 import { isStaff, type Role, type SessionUser } from '@/lib/acl'
 
 export function staffGuard(user: SessionUser | null) {
@@ -23,15 +23,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   // pertenencia (niveles y recursos seleccionados).
   const [nivelRows, recursoRows, [userRow]] = await Promise.all([
     db
-      .select({ nivelId: userNiveles.nivelId })
-      .from(userNiveles)
-      .where(eq(userNiveles.userId, session.user.id)),
+      .select({ nivelJurisdiccionalId: userNivelesJur.nivelJurisdiccionalId })
+      .from(userNivelesJur)
+      .where(eq(userNivelesJur.userId, session.user.id)),
     db
       .select({ recursoId: userRecursos.recursoId })
       .from(userRecursos)
       .where(eq(userRecursos.userId, session.user.id)),
     db
-      .select({ accesoRecursos: userTable.accesoRecursos })
+      .select({ accesoRecursos: userTable.accesoRecursos, geCueAnexo: userTable.geCueAnexo })
       .from(userTable)
       .where(eq(userTable.id, session.user.id)),
   ])
@@ -41,9 +41,10 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     id: session.user.id,
     role,
     banned,
-    nivelIds: nivelRows.map((r) => r.nivelId),
+    nivelJurIds: nivelRows.map((r) => r.nivelJurisdiccionalId),
     accesoRecursos,
     recursoIds: recursoRows.map((r) => r.recursoId),
+    cueAnexo: userRow?.geCueAnexo ?? null,
   }
 }
 

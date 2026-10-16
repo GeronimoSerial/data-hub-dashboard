@@ -35,7 +35,9 @@ describe('ensureGeSchema', () => {
       'ge_alumno_identidad',
       'ge_alumno_seccion',
       'ge_corte',
+      'ge_escuela_nivel_jur',
       'ge_localizacion',
+      'ge_nivel_jurisdiccional',
       'ge_seccion',
     ])
   })

@@ -20,7 +20,7 @@ beforeEach(() => {
 })
 
 function editor() {
-  return { id: 'editor-1', role: 'editor' as const, banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
+  return { id: 'editor-1', role: 'editor' as const, banned: false, nivelJurIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
 }
 
 function url(qs: string): Request {
