@@ -1,6 +1,6 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { readObsConfig } from './obs'
+import { opcionesClienteObs, readObsConfig } from './obs'
 
 export const READ_URL_TTL_SECONDS = 5 * 60
 
@@ -14,12 +14,7 @@ function getReadClient() {
     clientCache = {
       fingerprint,
       bucket: config.bucket,
-      client: new S3Client({
-        region: config.region,
-        endpoint: config.endpoint,
-        forcePathStyle: true,
-        credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-      }),
+      client: new S3Client(opcionesClienteObs(config)),
     }
   }
   return clientCache
