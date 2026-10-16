@@ -34,12 +34,16 @@ jobs:
           op=os.environ['OPERACION']
           apps=api('/applications')
           dev=next((a for a in apps if a.get('name')=='data-hub-dashboard-dev'),None)
+          def identificacion(obj):
+            return {k:obj.get(k) for k in ['id','uuid','name','server_id','project_id']} if isinstance(obj,dict) else None
           if op=='inspeccionar':
             a=api('/applications/'+stage)
-            print('STAGING',json.dumps({k:a.get(k) for k in ['uuid','name','environment_id','destination_id','destination_type','destination','environment','docker_registry_image_name','docker_registry_image_tag','ports_exposes','limits_memory']}))
+            print('STAGING',json.dumps({k:a.get(k) for k in ['uuid','name','environment_id','destination_id','destination_type','docker_registry_image_name','docker_registry_image_tag','ports_exposes','limits_memory']}))
+            print('RELATIONS',json.dumps({k:identificacion(a.get(k)) for k in ['destination','environment']}))
             projects=api('/projects')
             for p in projects:
-              print('PROJECT',json.dumps({k:p.get(k) for k in ['id','uuid','name','environments']}))
+              print('PROJECT',json.dumps({k:p.get(k) for k in ['id','uuid','name']}))
+              print('ENVIRONMENTS',json.dumps([identificacion(e) for e in p.get('environments',[])]))
             for s in api('/servers'): print('SERVER',json.dumps({k:s.get(k) for k in ['id','uuid','name','ip']}))
             envs=api('/applications/'+stage+'/envs')
             print('ENV_KEYS',json.dumps([e.get('key') for e in envs if not e.get('is_preview')]))
