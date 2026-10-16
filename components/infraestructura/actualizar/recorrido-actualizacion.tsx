@@ -14,7 +14,7 @@ import { formatearMomento, resumirAlcance } from '@/components/infraestructura/e
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from '@/components/infraestructura/verificacion-vinculo'
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
-import { eliminarBorradorFormulario, guardarBorradorFormulario, leerBorradorFormulario, type BorradorFormulario } from '@/lib/infraestructura/parte/borrador-formulario'
+import { confirmarFormulario, eliminarBorradorFormulario, guardarBorradorFormulario, guardarClaveEnvioFormulario, leerBorradorFormulario, leerConfirmacionFormulario, limpiarFormularioConfirmado, olvidarClaveEnvioFormulario, type BorradorFormulario } from '@/lib/infraestructura/parte/borrador-formulario'
 import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
 import { claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
@@ -258,6 +258,13 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     let cancelado = false
     void (async () => {
       try {
+        const confirmacion = await leerConfirmacionFormulario(`${DRAFT_ID_PREFIX}${cue}`)
+        if (cancelado) return
+        if (confirmacion) {
+          setGuardado(true)
+          void limpiarFormularioConfirmado(`${DRAFT_ID_PREFIX}${cue}`, claveBorrador)
+          return
+        }
         const guardado = await leerBorradorFormulario(
           `${DRAFT_ID_PREFIX}${cue}`,
           claveBorrador,
@@ -350,7 +357,11 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     return {
       tipo: 'actualizacion',
       cue,
-      fetchImpl: (input, init) => fetch(input, init),
+      fetchImpl: async (input, init) => {
+        const idempotencyKey = new Headers(init?.headers).get('Idempotency-Key')
+        if (idempotencyKey) await guardarClaveEnvioFormulario(`${DRAFT_ID_PREFIX}${cue}`, idempotencyKey).catch(() => {})
+        return fetch(input, init)
+      },
       url: '/api/problematicas/parte',
       construirCuerpo: (datosEnvio, idempotencyKey) => {
         const vinculo = leerVinculoVerificacion()
@@ -371,7 +382,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     }
   }, [cue])
 
-  const alEnviarConExito = useCallback(() => {
+  const alEnviarConExito = useCallback((movimientoId?: string) => {
+    if (movimientoId) void confirmarFormulario(`${DRAFT_ID_PREFIX}${cue}`, movimientoId).catch(() => {})
     const actual = borradorCompartidoRef.current
     if (actual) {
       void eliminarBorradorFormulario(actual).then(() => {
@@ -386,7 +398,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     setGuardado(true)
     setEnviando(false)
     enviandoRef.current = false
-  }, [claveBorrador])
+  }, [claveBorrador, cue])
 
   useEffect(() => {
     let cancelado = false
@@ -399,7 +411,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         setIntentosEnvio(cola.intentos)
         if (esEstadoReintentable(cola.estado) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
           const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
-          if (!cancelado && resultado?.ok) alEnviarConExito()
+          if (!cancelado && resultado?.ok) {
+            const cuerpo = resultado.respuesta as { movimientoId?: string } | null
+            alEnviarConExito(cuerpo?.movimientoId)
+          }
         }
       }
     })()
@@ -415,7 +430,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       if (guardado || (!esEstadoReintentable(estadoEnvio) && !(deliberado && (errorEnReintento || sesionVencidaEnReintento)))) return
       void (async () => {
         const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() }, { deliberado })
-        if (resultado?.ok) alEnviarConExito()
+        if (resultado?.ok) {
+          const cuerpo = resultado.respuesta as { movimientoId?: string } | null
+          alEnviarConExito(cuerpo?.movimientoId)
+        }
       })()
     }
   })
@@ -464,7 +482,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     const resultado = await intentarEnviar(payload, { ...opcionesEnvio(), almacen: await almacen() })
     if (resultado.ok) {
       const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string } | null
-      if (cuerpo?.ok && typeof cuerpo.movimientoId === 'string') { alEnviarConExito(); return }
+      if (cuerpo?.ok && typeof cuerpo.movimientoId === 'string') { alEnviarConExito(cuerpo.movimientoId); return }
       enviandoRef.current = false
       setEnviando(false)
       setError(MENSAJE_ERROR_GUARDADO)
@@ -515,13 +533,17 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 
   if (guardado || etapa === 'enviado') {
     return <ConfirmacionEnviado cue={cue} onRecargar={() => {
-      const actual = borradorCompartidoRef.current
-      if (actual) void eliminarBorradorFormulario(actual).then(() => {
-        borradorCompartidoRef.current = null
-        localStorage.removeItem(claveBorrador)
-      }).catch(() => {})
-      setBorradorPendiente(null)
-      onRecargar()
+      void (async () => {
+        await olvidarClaveEnvioFormulario(`${DRAFT_ID_PREFIX}${cue}`)
+        const actual = borradorCompartidoRef.current
+        if (actual) {
+          await eliminarBorradorFormulario(actual)
+          borradorCompartidoRef.current = null
+          localStorage.removeItem(claveBorrador)
+        }
+        setBorradorPendiente(null)
+        onRecargar()
+      })().catch(() => {})
     }} />
   }
 

@@ -1,9 +1,67 @@
 import { CONTRATO_VERSION } from '../reportes-offline-contratos'
 import { abrirAlmacenParte, type RegistroBorradorLocal } from './almacen-indexeddb'
+import { crearColaTrabajosEnvio } from './cola-trabajos-envio'
 
 export interface BorradorFormulario<T> {
   registro: RegistroBorradorLocal
   datos: T
+}
+
+/** Finds a durable B2 submission confirmation for one form draft. */
+export async function leerConfirmacionFormulario(draftId: string) {
+  const almacen = await abrirAlmacenParte()
+  const contexto = await almacen.obtenerContexto<{ idempotencyKey?: unknown }>(draftId)
+  const trabajos = await almacen.obtenerTrabajosEnvio()
+  const cola = crearColaTrabajosEnvio(almacen)
+  if (typeof contexto?.idempotencyKey === 'string' && contexto.idempotencyKey) {
+    const confirmacion = await cola.obtenerConfirmacion(contexto.idempotencyKey)
+    if (confirmacion) return confirmacion
+  }
+  for (const trabajo of trabajos) {
+    if (trabajo.draftId !== draftId || trabajo.tipo !== 'reporte_final') continue
+    const confirmacion = await cola.obtenerConfirmacion(trabajo.idempotencyKey)
+    if (confirmacion) return confirmacion
+  }
+  return null
+}
+
+/** Persists the draft-to-key link before the form starts its network request. */
+export async function guardarClaveEnvioFormulario(draftId: string, idempotencyKey: string): Promise<void> {
+  const almacen = await abrirAlmacenParte()
+  const contexto = await almacen.obtenerContexto<Record<string, unknown>>(draftId)
+  await almacen.guardarContexto({ ...contexto, draftId, idempotencyKey })
+}
+
+export async function olvidarClaveEnvioFormulario(draftId: string): Promise<void> {
+  const almacen = await abrirAlmacenParte()
+  const contexto = await almacen.obtenerContexto<Record<string, unknown>>(draftId)
+  if (contexto) {
+    const actualizado = { ...contexto, draftId }
+    delete actualizado.idempotencyKey
+    await almacen.guardarContexto(actualizado)
+  }
+}
+
+export async function confirmarFormulario(
+  draftId: string,
+  movimientoId: string,
+): Promise<void> {
+  const almacen = await abrirAlmacenParte()
+  const contexto = await almacen.obtenerContexto<{ idempotencyKey?: unknown }>(draftId)
+  if (typeof contexto?.idempotencyKey !== 'string' || !contexto.idempotencyKey) return
+  await crearColaTrabajosEnvio(almacen).confirmar(contexto.idempotencyKey, {
+    movimientoId,
+    rigeDesde: new Date().toISOString(),
+    cierreDraft: 'enviado',
+  })
+}
+
+/** Clears only the answered form draft; queued attachment work stays durable. */
+export async function limpiarFormularioConfirmado(draftId: string, claveLegacy: string): Promise<void> {
+  const almacen = await abrirAlmacenParte()
+  const borrador = await almacen.obtenerBorrador(draftId)
+  if (borrador) await almacen.eliminarBorradorSiGeneracion(draftId, borrador.generacion)
+  if (typeof localStorage !== 'undefined') localStorage.removeItem(claveLegacy)
 }
 
 export async function leerBorradorFormulario<T>(
