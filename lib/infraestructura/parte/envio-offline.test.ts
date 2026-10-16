@@ -17,6 +17,7 @@ import {
   programarReintento,
   registrarAutoReintento,
   reenviarCola,
+  TIEMPO_MAXIMO_BLOQUEO_MS,
   type BorradorParte,
   type EnviarOpciones,
 } from './envio-offline'
@@ -719,5 +720,35 @@ describe('programarReintento', () => {
     programarReintento(50, callback)
     vi.advanceTimersByTime(30_000)
     expect(callback).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('bloqueo acotado del guardado', () => {
+  afterEach(() => { vi.useRealTimers(); Reflect.deleteProperty(navigator, 'locks') })
+
+  it('rechaza con un error claro si el bloqueo no llega a tiempo y no ejecuta la tarea tarde', async () => {
+    vi.useFakeTimers()
+    let otorgar!: () => void
+    Object.defineProperty(navigator, 'locks', {
+      value: { request: (_nombre: string, tarea: () => unknown) => new Promise<void>((r) => { otorgar = r }).then(tarea) },
+      configurable: true,
+    })
+    const almacen = crearAlmacenMemoria()
+    const fetchImpl = vi.fn()
+    const envio = intentarEnviar({ observacion: 'x' }, {
+      almacen,
+      tipo: 'problematica',
+      cue: 'cue-1',
+      fetchImpl,
+      url: '/api/problematicas/parte',
+      construirCuerpo: (datos, idempotencyKey) => ({ idempotencyKey, ...datos }),
+    })
+    const verificacion = expect(envio).rejects.toThrow('ocupado')
+    await vi.advanceTimersByTimeAsync(TIEMPO_MAXIMO_BLOQUEO_MS)
+    await verificacion
+    otorgar()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toBeNull()
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 })

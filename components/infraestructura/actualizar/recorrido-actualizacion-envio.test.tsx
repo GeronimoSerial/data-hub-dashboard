@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from '@/components/infraestructura/verificacion-vinculo'
 import { claveBorrador, MENSAJES_ESTADO } from '@/lib/infraestructura/parte/envio-offline'
@@ -36,7 +36,8 @@ vi.mock('@/lib/infraestructura/parte/almacen-indexeddb', async (importOriginal) 
   }
 })
 
-const CUE = '1801605-41'
+let CUE = '1801605-41'
+let cueSecuencia = 0
 const guardado = 'Parte actualizado'
 const base = {
   ok: true, periodo: { id: 'p', nombre: 'ENOS' },
@@ -51,7 +52,7 @@ const respuesta = (body: Record<string, unknown> = { ok: true, movimientoId: 'm1
 function stub(fetcher?: (url: string, init?: RequestInit) => Promise<Response>) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') return fetcher ? fetcher(url, init) : respuesta()
-    return new Response(JSON.stringify(url.includes('/historial') ? { ok: true, movimientos: [] } : base), { status: 200 })
+    return new Response(JSON.stringify(url.includes('/historial') ? { ok: true, movimientos: [] } : { ...base, parte: { ...base.parte, cueAnexo: CUE } }), { status: 200 })
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
@@ -70,7 +71,8 @@ function elegirAsistencia(valor: 'Sí' | 'No') {
 }
 async function enviar() { await prepararResumen(); elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks(); syncMocks.callback = null })
+beforeEach(() => { CUE = `1801605-${++cueSecuencia}`; localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); vi.clearAllTimers(); globalThis.indexedDB = new IDBFactory(); vi.spyOn(Math, 'random').mockReturnValue(0.5) })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); vi.clearAllTimers(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks(); vi.restoreAllMocks(); syncMocks.callback = null })
 
 describe('RecorridoActualizacion: envío', () => {
   it('guarda con POST, instante de envío y muestra confirmación', async () => {
@@ -119,6 +121,19 @@ describe('RecorridoActualizacion: envío', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Indique si se brinda asistencia pedagógica.')
     expect(posteos(fetchMock)).toHaveLength(0)
+  })
+
+  it('si el guardado local falla, sale de Guardando… y muestra un error', async () => {
+    stub(); montar(); await prepararResumen(); elegirAsistencia('No')
+    // A rejecting lock stands in for any local-storage failure on the save path.
+    Object.defineProperty(navigator, 'locks', {
+      value: { request: (nombre: string, tarea: () => unknown) => nombre.startsWith('parte-offline:decidir') ? Promise.reject(new DOMException('closed', 'InvalidStateError')) : Promise.resolve().then(tarea) },
+      configurable: true,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    expect(await screen.findByRole('button', { name: 'Guardar actualización', hidden: true })).toBeEnabled()
+    Reflect.deleteProperty(navigator, 'locks')
+    expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos guardar el parte.')
   })
 
   it('no incluye asistencia pedagógica en el envío si coincide con la vigente', async () => {
@@ -214,7 +229,8 @@ describe('RecorridoActualizacion: envío', () => {
     const aviso = screen.getByRole('alert')
     expect(within(aviso).getByText('El servidor no respondió. Reintentamos solos; su parte queda guardado.')).toBeInTheDocument()
     expect(aviso.compareDocumentPosition(screen.getByRole('button', { name: 'Reintentando…' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    // The retry backoff for one failed attempt is 2s with up to 25% jitter.
+    await act(async () => { await vi.advanceTimersByTimeAsync(2600) })
     expect(posteos(fetchMock)).toHaveLength(2)
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reintentando…' })).toBeDisabled()
