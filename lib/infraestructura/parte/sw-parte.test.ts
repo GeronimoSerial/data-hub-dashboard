@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NOMBRE_DB_PARTE, STORES_PARTE, VERSION_DB_PARTE, crearAlmacenIndexedDb } from './almacen-indexeddb'
+import { NOMBRE_DB_PARTE, STORES_PARTE, VERSION_DB_PARTE, abrirAlmacenParte, crearAlmacenIndexedDb } from './almacen-indexeddb'
 
 type Escucha = (e: unknown) => void
 
 interface SwParte {
   procesarColaSync: (
+    abrirDb: () => Promise<IDBDatabase>,
+    fetchImpl: typeof fetch,
+  ) => Promise<{ enviados: string[]; pendientes: string[] }>
+  procesarColaEnvio: (
     abrirDb: () => Promise<IDBDatabase>,
     fetchImpl: typeof fetch,
   ) => Promise<{ enviados: string[]; pendientes: string[] }>
@@ -86,6 +90,43 @@ describe('sw-parte procesarColaSync', () => {
     expect(await almacen.obtener('parte:nuevo:1')).toBeNull()
     expect(await almacen.obtener('parte:nuevo:2')).not.toBeNull()
     expect(JSON.parse((await almacen.obtener('parte:nuevo:4'))!)).toMatchObject({ estado: 'error' })
+  })
+})
+
+describe('sw-parte submission queue', () => {
+  it('shares the queue contract, recovers interrupted reports, and never waits on lower priorities', async () => {
+    const nombre = `sw-jobs-${crypto.randomUUID()}`
+    const almacen = await abrirAlmacenParte(nombre)
+    await almacen.guardarTrabajoEnvio({
+      idempotencyKey: 'photo', cuerpo: { photo: 1 }, cuerpoHash: '', estado: 'pendiente', version: 1, tipo: 'foto',
+    })
+    await almacen.guardarTrabajoEnvio({
+      idempotencyKey: 'draft', cuerpo: { revision: 1 }, cuerpoHash: '', estado: 'pendiente', version: 1, tipo: 'sincronizacion_borrador',
+    })
+    await almacen.guardarTrabajoEnvio({
+      idempotencyKey: 'final', draftId: 'draft-1', cuerpo: { idempotencyKey: 'final', respuesta: 'ok' },
+      cuerpoHash: 'hash', estado: 'enviando', version: 1, tipo: 'reporte_final',
+    })
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(JSON.stringify({ movimientoId: 'movement-1' }), { status: 201 }))
+    const { sw } = await cargarSw()
+    const abrir = () => new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(nombre, VERSION_DB_PARTE)
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+
+    await expect(sw.procesarColaEnvio(abrir, fetchImpl)).resolves.toEqual({
+      enviados: ['final'], pendientes: [],
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(fetchImpl.mock.calls[0]![1]!.body as string)).toMatchObject({ idempotencyKey: 'final' })
+    expect(await almacen.obtenerConfirmacion('final')).toMatchObject({ movimientoId: 'movement-1' })
+    expect(await almacen.obtenerTrabajosEnvio()).toMatchObject([
+      { idempotencyKey: 'photo', tipo: 'foto' },
+      { idempotencyKey: 'draft', tipo: 'sincronizacion_borrador' },
+    ])
+    almacen.cerrar()
   })
 })
 

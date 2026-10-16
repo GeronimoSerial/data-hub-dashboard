@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { EnvioInmutable } from '../reportes-offline-contratos'
 import { abrirAlmacenParte, type TrabajoEnvioLocal } from './almacen-indexeddb'
 import { crearColaTrabajosEnvio } from './cola-trabajos-envio'
@@ -85,6 +85,65 @@ describe('submission job queue', () => {
     expect(await cola.recuperar()).toMatchObject([
       { idempotencyKey: 'envio-1', cuerpo: { respuesta: 'ok' }, estado: 'pendiente' },
     ])
+    almacen.cerrar()
+  })
+
+  it('recovers interrupted work as soon as the queue opens', async () => {
+    const almacen = await almacenNuevo()
+    await almacen.guardarTrabajoEnvio({
+      idempotencyKey: 'interrupted-at-open',
+      cuerpo: { respuesta: 'ok' },
+      cuerpoHash: 'hash',
+      estado: 'enviando',
+      version: 1,
+      tipo: 'reporte_final',
+    })
+
+    const cola = crearColaTrabajosEnvio(almacen)
+    await cola.lista
+
+    expect(await almacen.obtenerTrabajosEnvio()).toMatchObject([
+      { idempotencyKey: 'interrupted-at-open', estado: 'pendiente' },
+    ])
+    almacen.cerrar()
+  })
+
+  it('serializes page queue users through a shared fallback lock', async () => {
+    const almacen = await almacenNuevo()
+    const primera = crearColaTrabajosEnvio(almacen)
+    const segunda = crearColaTrabajosEnvio(almacen)
+    const orden: string[] = []
+    let liberarPrimera!: () => void
+    let inicioPrimera!: () => void
+    const bloqueoPrimera = new Promise<void>((resolve) => { liberarPrimera = resolve })
+    const primeraIniciada = new Promise<void>((resolve) => { inicioPrimera = resolve })
+    const tareaPrimera = primera.conBloqueo(async () => {
+      orden.push('first-start')
+      inicioPrimera()
+      await bloqueoPrimera
+      orden.push('first-end')
+    })
+    await primeraIniciada
+    const tareaSegunda = segunda.conBloqueo(async () => { orden.push('second') })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(orden).toEqual(['first-start'])
+    liberarPrimera()
+    await Promise.all([tareaPrimera, tareaSegunda])
+    expect(orden).toEqual(['first-start', 'first-end', 'second'])
+    almacen.cerrar()
+  })
+
+  it('uses Web Locks when available', async () => {
+    const almacen = await almacenNuevo()
+    const request = vi.fn(async (_name: string, tarea: () => Promise<string>) => tarea())
+    Object.defineProperty(navigator, 'locks', { value: { request }, configurable: true })
+    const cola = crearColaTrabajosEnvio(almacen)
+
+    await expect(cola.conBloqueo(async () => 'locked')).resolves.toBe('locked')
+
+    expect(request).toHaveBeenCalledWith('parte:submission-final', expect.any(Function))
+    Reflect.deleteProperty(navigator, 'locks')
     almacen.cerrar()
   })
 

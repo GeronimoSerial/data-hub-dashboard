@@ -25,6 +25,8 @@ const PRIORIDAD: Record<TipoTrabajoEnvio, number> = {
   sincronizacion_borrador: 1,
   foto: 2,
 }
+const NOMBRE_BLOQUEO_COLA = 'parte:submission-final'
+const DURACION_BLOQUEO_MS = 15000
 
 function clonarCuerpo(cuerpo: Record<string, unknown>): Record<string, unknown> {
   const serializado = JSON.stringify(cuerpo)
@@ -77,7 +79,37 @@ function validarTrabajoExistente(
 
 /** Durable queue for immutable submissions and lower-priority offline work. */
 export function crearColaTrabajosEnvio(almacen: AlmacenParte) {
-  let recuperacionInicialHecha = false
+  let bloqueoLocalActivo = false
+
+  async function conBloqueoInterno<T>(tarea: () => Promise<T> | T): Promise<T> {
+    const locks = typeof navigator === 'undefined'
+      ? undefined
+      : (navigator as Navigator & { locks?: { request<R>(name: string, callback: () => Promise<R>): Promise<R> } }).locks
+    if (locks?.request) return locks.request(NOMBRE_BLOQUEO_COLA, () => Promise.resolve(tarea()))
+
+    const token = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`
+    const adquirir = async () => {
+      while (!await almacen.adquirirBloqueoCola(token, Date.now(), Date.now() + DURACION_BLOQUEO_MS)) {
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+    }
+    await adquirir()
+    let activo = true
+    let renovacion: Promise<unknown> = Promise.resolve()
+    const renovar = setInterval(() => {
+      renovacion = renovacion.then(() => activo ? adquirir() : undefined)
+    }, DURACION_BLOQUEO_MS / 3)
+    try {
+      return await tarea()
+    } finally {
+      clearInterval(renovar)
+      activo = false
+      await renovacion
+      await almacen.liberarBloqueoCola(token)
+    }
+  }
 
   async function encolarTrabajo(trabajo: TrabajoEnvioLocal): Promise<void> {
     const insertado = await almacen.guardarTrabajoEnvioSiAusente(trabajo)
@@ -88,7 +120,7 @@ export function crearColaTrabajosEnvio(almacen: AlmacenParte) {
     )
   }
 
-  async function recuperar(): Promise<TrabajoColaEnvio[]> {
+  async function recuperarInterno(): Promise<TrabajoColaEnvio[]> {
     const trabajos = await almacen.obtenerTrabajosEnvio()
     const disponibles: TrabajoEnvioLocal[] = []
     for (const trabajo of trabajos) {
@@ -105,8 +137,14 @@ export function crearColaTrabajosEnvio(almacen: AlmacenParte) {
         disponibles.push(trabajo)
       }
     }
-    recuperacionInicialHecha = true
     return ordenar(disponibles)
+  }
+
+  const lista = conBloqueoInterno(async () => { await recuperarInterno() })
+
+  async function recuperar(): Promise<TrabajoColaEnvio[]> {
+    await lista
+    return conBloqueoInterno(recuperarInterno)
   }
 
   return {
@@ -145,22 +183,41 @@ export function crearColaTrabajosEnvio(almacen: AlmacenParte) {
 
     recuperar,
 
+    /** Resolves after interrupted jobs have been reconciled on queue open. */
+    lista,
+
+    /** Holds the shared page/worker lock for a complete final-report submission. */
+    async conBloqueo<T>(tarea: () => Promise<T> | T): Promise<T> {
+      await lista
+      return conBloqueoInterno(async () => {
+        bloqueoLocalActivo = true
+        try {
+          return await tarea()
+        } finally {
+          bloqueoLocalActivo = false
+        }
+      })
+    },
+
     /** Reconciles confirmations and marks one pending job as in flight. */
     async reclamarSiguiente(): Promise<TrabajoColaEnvio | null> {
-      if (!recuperacionInicialHecha) await recuperar()
-      const trabajos = ordenar(await almacen.obtenerTrabajosEnvio())
-      let siguiente: TrabajoColaEnvio | undefined
-      for (const trabajo of trabajos) {
-        if (await almacen.obtenerConfirmacion(trabajo.idempotencyKey)) {
-          await almacen.eliminarTrabajoEnvio(trabajo.idempotencyKey)
-        } else if (!siguiente && trabajo.estado === 'pendiente') {
-          siguiente = trabajo
+      await lista
+      const reclamar = async () => {
+        const trabajos = ordenar(await almacen.obtenerTrabajosEnvio())
+        let siguiente: TrabajoColaEnvio | undefined
+        for (const trabajo of trabajos) {
+          if (await almacen.obtenerConfirmacion(trabajo.idempotencyKey)) {
+            await almacen.eliminarTrabajoEnvio(trabajo.idempotencyKey)
+          } else if (!siguiente && trabajo.estado === 'pendiente') {
+            siguiente = trabajo
+          }
         }
+        if (!siguiente) return null
+        const enviando: TrabajoColaEnvio = { ...siguiente, estado: 'enviando' }
+        await almacen.guardarTrabajoEnvio(enviando)
+        return congelar(enviando)
       }
-      if (!siguiente) return null
-      const enviando: TrabajoColaEnvio = { ...siguiente, estado: 'enviando' }
-      await almacen.guardarTrabajoEnvio(enviando)
-      return congelar(enviando)
+      return bloqueoLocalActivo ? reclamar() : conBloqueoInterno(reclamar)
     },
 
     /** A confirmation is durable before the corresponding queue entry is deleted. */
@@ -183,4 +240,5 @@ export function crearColaTrabajosEnvio(almacen: AlmacenParte) {
       return almacen.obtenerConfirmacion(idempotencyKey)
     },
   }
+
 }

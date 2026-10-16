@@ -18,6 +18,7 @@ type NombreStore = (typeof STORES_PARTE)[keyof typeof STORES_PARTE]
 
 const PREFIJO_COLA = 'parte:'
 const MARCA_MIGRACION = 'parte-offline:migrado'
+const CLAVE_BLOQUEO_COLA = 'parte:lock:submission-final'
 
 export type CodigoErrorAlmacen =
   | 'no_disponible'
@@ -267,6 +268,8 @@ export interface AlmacenParte {
   guardarTrabajoEnvio(trabajo: TrabajoEnvioLocal): Promise<void>
   /** Inserts a job only if its idempotency key does not already exist. */
   guardarTrabajoEnvioSiAusente(trabajo: TrabajoEnvioLocal): Promise<boolean>
+  adquirirBloqueoCola(token: string, ahora: number, vence: number): Promise<boolean>
+  liberarBloqueoCola(token: string): Promise<void>
   obtenerTrabajosEnvio(): Promise<TrabajoEnvioLocal[]>
   eliminarTrabajoEnvio(idempotencyKey: string): Promise<void>
   guardarConfirmacion(confirmacion: ConfirmacionLocal): Promise<void>
@@ -315,6 +318,30 @@ export async function abrirAlmacenParte(nombre: string = NOMBRE_DB_PARTE): Promi
           }
         }
         return () => insertado
+      }),
+    adquirirBloqueoCola: (token, ahora, vence) =>
+      operar(nombre, [STORES_PARTE.kv], 'readwrite', (tx) => {
+        const store = tx.objectStore(STORES_PARTE.kv)
+        let adquirido = false
+        const req = store.get(CLAVE_BLOQUEO_COLA)
+        req.onsuccess = () => {
+          const actual = req.result as { token?: string; vence?: number } | undefined
+          if (!actual || actual.vence === undefined || actual.vence <= ahora || actual.token === token) {
+            store.put({ token, vence }, CLAVE_BLOQUEO_COLA)
+            adquirido = true
+          }
+        }
+        return () => adquirido
+      }),
+    liberarBloqueoCola: (token) =>
+      operar(nombre, [STORES_PARTE.kv], 'readwrite', (tx) => {
+        const store = tx.objectStore(STORES_PARTE.kv)
+        const req = store.get(CLAVE_BLOQUEO_COLA)
+        req.onsuccess = () => {
+          const actual = req.result as { token?: string } | undefined
+          if (actual?.token === token) store.delete(CLAVE_BLOQUEO_COLA)
+        }
+        return () => undefined
       }),
     obtenerTrabajosEnvio: () => leerTodos<TrabajoEnvioLocal>(nombre, STORES_PARTE.trabajosEnvio),
     eliminarTrabajoEnvio: (key) => borrarRegistro(nombre, STORES_PARTE.trabajosEnvio, key),

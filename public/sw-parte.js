@@ -17,6 +17,9 @@ const STORES_CONTRATO = [
 ]
 const PREFIJO = 'parte:'
 const REINTENTABLES = ['pendiente-envio', 'error-servidor']
+const BLOQUEO_COLA = 'parte:submission-final'
+const CLAVE_BLOQUEO_COLA = 'parte:lock:submission-final'
+const DURACION_BLOQUEO_MS = 15000
 
 function migrar(db) {
   // Nunca se borra ningún almacén existente: los datos de versiones anteriores se conservan.
@@ -42,13 +45,151 @@ function abrirDb() {
   })
 }
 
-function op(db, modo, fn) {
+function operar(db, stores, modo, fn) {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, modo)
-    const req = fn(tx.objectStore(STORE))
-    tx.oncomplete = () => resolve(req.result)
+    const tx = db.transaction(stores, modo)
+    const resultado = fn(tx)
+    tx.oncomplete = () => resolve(resultado?.result)
     tx.onabort = () => reject(tx.error ?? new Error('Transacción abortada'))
-    tx.onerror = () => reject(req.error ?? tx.error)
+    tx.onerror = () => reject(tx.error ?? new Error('Transacción fallida'))
+  })
+}
+
+function op(db, modo, fn) {
+  return operar(db, STORE, modo, (tx) => fn(tx.objectStore(STORE)))
+}
+
+async function adquirirBloqueo(db, token) {
+  return operar(db, STORE, 'readwrite', (tx) => {
+    const store = tx.objectStore(STORE)
+    let adquirido = false
+    const req = store.get(CLAVE_BLOQUEO_COLA)
+    req.onsuccess = () => {
+      const actual = req.result
+      if (!actual || actual.vence <= Date.now() || actual.token === token) {
+        store.put({ token, vence: Date.now() + DURACION_BLOQUEO_MS }, CLAVE_BLOQUEO_COLA)
+        adquirido = true
+      }
+    }
+    return { get result() { return adquirido } }
+  })
+}
+
+async function liberarBloqueo(db, token) {
+  await operar(db, STORE, 'readwrite', (tx) => {
+    const store = tx.objectStore(STORE)
+    const req = store.get(CLAVE_BLOQUEO_COLA)
+    req.onsuccess = () => { if (req.result?.token === token) store.delete(CLAVE_BLOQUEO_COLA) }
+    return null
+  })
+}
+
+async function conBloqueoCola(db, tarea) {
+  const locks = self.navigator && self.navigator.locks
+  if (locks && typeof locks.request === 'function') return locks.request(BLOQUEO_COLA, tarea)
+  const token = self.crypto && self.crypto.randomUUID
+    ? self.crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`
+  while (!await adquirirBloqueo(db, token)) await new Promise((resolve) => setTimeout(resolve, 25))
+  let activo = true
+  let renovacion = Promise.resolve()
+  const renovar = setInterval(() => {
+    renovacion = renovacion.then(() => activo ? adquirirBloqueo(db, token) : undefined)
+  }, DURACION_BLOQUEO_MS / 3)
+  try {
+    return await tarea()
+  } finally {
+    clearInterval(renovar)
+    activo = false
+    await renovacion
+    await liberarBloqueo(db, token)
+  }
+}
+
+function prioridad(tipo) {
+  return tipo === 'reporte_final' ? 0 : tipo === 'sincronizacion_borrador' ? 1 : 2
+}
+
+async function recuperarTrabajosEnvio(db) {
+  const store = 'trabajos_envio'
+  const confirmations = 'confirmaciones'
+  await operar(db, [store, confirmations], 'readwrite', (tx) => {
+    const jobs = tx.objectStore(store)
+    const confirmed = tx.objectStore(confirmations)
+    const req = jobs.getAll()
+    req.onsuccess = () => {
+      for (const job of req.result) {
+        const check = confirmed.get(job.idempotencyKey)
+        check.onsuccess = () => {
+          if (check.result) jobs.delete(job.idempotencyKey)
+          else if (job.estado === 'enviando') jobs.put({ ...job, estado: 'pendiente' })
+        }
+      }
+    }
+    return null
+  })
+}
+
+async function confirmarTrabajoEnvio(db, job, confirmacion) {
+  await operar(db, ['trabajos_envio', 'confirmaciones'], 'readwrite', (tx) => {
+    tx.objectStore('confirmaciones').put({
+      idempotencyKey: job.idempotencyKey,
+      movimientoId: confirmacion.movimientoId,
+      rigeDesde: confirmacion.rigeDesde || new Date().toISOString().slice(0, 10),
+      cierreDraft: 'enviado',
+      version: 1,
+    })
+    tx.objectStore('trabajos_envio').delete(job.idempotencyKey)
+    return null
+  })
+}
+
+async function procesarColaEnvio(abrir, fetchImpl) {
+  const db = await abrir()
+  return conBloqueoCola(db, async () => {
+    await recuperarTrabajosEnvio(db)
+    const jobs = await operar(db, 'trabajos_envio', 'readonly', (tx) => tx.objectStore('trabajos_envio').getAll())
+    jobs.sort((a, b) => prioridad(a.tipo) - prioridad(b.tipo)
+      || (a.creadoEn || '').localeCompare(b.creadoEn || '')
+      || a.idempotencyKey.localeCompare(b.idempotencyKey))
+    const enviados = []
+    const pendientes = []
+    for (const job of jobs) {
+      // Draft and photo handlers arrive with their respective API contracts. They
+      // stay queued here and can never run ahead of a final report.
+      if (job.tipo !== 'reporte_final' && job.tipo !== undefined) continue
+      if (job.estado !== 'pendiente') continue
+      await operar(db, 'trabajos_envio', 'readwrite', (tx) => {
+        tx.objectStore('trabajos_envio').put({ ...job, estado: 'enviando' })
+        return null
+      })
+      try {
+        const response = await fetchImpl('/api/problematicas/parte', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Idempotency-Key': job.idempotencyKey },
+          body: JSON.stringify(job.cuerpo),
+          credentials: 'same-origin',
+        })
+        const data = response.ok ? await response.json().catch(() => null) : null
+        if (data && typeof data.movimientoId === 'string') {
+          await confirmarTrabajoEnvio(db, job, data)
+          enviados.push(job.idempotencyKey)
+        } else {
+          await operar(db, 'trabajos_envio', 'readwrite', (tx) => {
+            tx.objectStore('trabajos_envio').put({ ...job, estado: 'pendiente' })
+            return null
+          })
+          pendientes.push(job.idempotencyKey)
+        }
+      } catch {
+        await operar(db, 'trabajos_envio', 'readwrite', (tx) => {
+          tx.objectStore('trabajos_envio').put({ ...job, estado: 'pendiente' })
+          return null
+        })
+        pendientes.push(job.idempotencyKey)
+      }
+    }
+    return { enviados, pendientes }
   })
 }
 
@@ -95,14 +236,21 @@ async function procesarColaSync(abrir, fetchImpl) {
 self.addEventListener('sync', (evento) => {
   if (evento.tag !== 'parte-envio') return
   evento.waitUntil(
-    procesarColaSync(abrirDb, fetch).then(async ({ enviados, pendientes }) => {
+    (async () => {
       const clientes = await self.clients.matchAll({ includeUncontrolled: true })
+      const trabajos = await procesarColaEnvio(abrirDb, fetch)
       for (const cliente of clientes) {
-        for (const clave of enviados) cliente.postMessage({ tipo: 'parte-enviado', clave })
+        for (const clave of trabajos.enviados) cliente.postMessage({ tipo: 'parte-enviado', clave })
       }
-      if (pendientes.length > 0) throw new Error('Quedan envíos pendientes.')
-    }),
+      if (trabajos.pendientes.length > 0) throw new Error('Quedan reportes definitivos pendientes.')
+      const antiguos = await procesarColaSync(abrirDb, fetch)
+      for (const cliente of clientes) {
+        for (const clave of antiguos.enviados) cliente.postMessage({ tipo: 'parte-enviado', clave })
+      }
+      if (antiguos.pendientes.length > 0) throw new Error('Quedan envíos pendientes.')
+    })(),
   )
 })
 
 globalThis.__swParte = { procesarColaSync }
+globalThis.__swParte.procesarColaEnvio = procesarColaEnvio
