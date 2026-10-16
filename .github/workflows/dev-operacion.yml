@@ -1,0 +1,53 @@
+name: Operar entorno dev
+on:
+  workflow_dispatch:
+    inputs:
+      operacion:
+        type: choice
+        options: [inspeccionar, crear, configurar, desplegar, estado]
+        default: inspeccionar
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: dev-operacion
+  cancel-in-progress: false
+jobs:
+  operar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Operar dev en Coolify
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+          OPERACION: ${{ inputs.operacion }}
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request
+          base='https://coolify.sistemas.mec.gob.ar/api/v1'
+          stage='j3zm0co4bi9iy0c70nv3vinf'
+          def api(path,method='GET',data=None):
+            req=urllib.request.Request(base+path,method=method,
+              headers={'Authorization':'Bearer '+os.environ['COOLIFY_TOKEN'],'Content-Type':'application/json'},
+              data=json.dumps(data).encode() if data is not None else None)
+            with urllib.request.urlopen(req,timeout=45) as r: return json.load(r)
+          op=os.environ['OPERACION']
+          apps=api('/applications')
+          dev=next((a for a in apps if a.get('name')=='data-hub-dashboard-dev'),None)
+          if op=='inspeccionar':
+            a=api('/applications/'+stage)
+            print('STAGING',json.dumps({k:a.get(k) for k in ['uuid','name','environment_id','destination_id','destination_type','destination','environment','docker_registry_image_name','docker_registry_image_tag','ports_exposes','limits_memory']}))
+            projects=api('/projects')
+            for p in projects:
+              print('PROJECT',json.dumps({k:p.get(k) for k in ['id','uuid','name','environments']}))
+            for s in api('/servers'): print('SERVER',json.dumps({k:s.get(k) for k in ['id','uuid','name','ip']}))
+            envs=api('/applications/'+stage+'/envs')
+            print('ENV_KEYS',json.dumps([e.get('key') for e in envs if not e.get('is_preview')]))
+            print('DEV_EXISTS',dev.get('uuid') if dev else None)
+          elif op=='estado':
+            assert dev
+            a=api('/applications/'+dev['uuid'])
+            print(json.dumps({k:a.get(k) for k in ['uuid','name','status','fqdn','docker_registry_image_tag']}))
+          else:
+            raise RuntimeError('Operación aún no implementada')
+          PY
