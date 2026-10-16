@@ -13,7 +13,7 @@ interface SwParte {
   procesarColaEnvio: (
     abrirDb: () => Promise<IDBDatabase>,
     fetchImpl: typeof fetch,
-  ) => Promise<{ enviados: string[]; pendientes: string[] }>
+  ) => Promise<{ enviados: string[]; pendientes: string[]; sesionesVencidas: string[] }>
 }
 
 async function cargarSw(): Promise<{ listeners: Record<string, Escucha>; sw: SwParte }> {
@@ -117,7 +117,7 @@ describe('sw-parte submission queue', () => {
     })
 
     await expect(sw.procesarColaEnvio(abrir, fetchImpl)).resolves.toEqual({
-      enviados: ['final'], pendientes: [],
+      enviados: ['final'], pendientes: [], sesionesVencidas: [],
     })
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     expect(JSON.parse(fetchImpl.mock.calls[0]![1]!.body as string)).toMatchObject({ idempotencyKey: 'final' })
@@ -126,6 +126,58 @@ describe('sw-parte submission queue', () => {
       { idempotencyKey: 'photo', tipo: 'foto' },
       { idempotencyKey: 'draft', tipo: 'sincronizacion_borrador' },
     ])
+    almacen.cerrar()
+  })
+
+  it('stores server retry limits and pauses expired sessions without retrying validation errors', async () => {
+    const nombre = `sw-retry-${crypto.randomUUID()}`
+    const almacen = await abrirAlmacenParte(nombre)
+    for (const idempotencyKey of ['limit-429', 'invalid-422', 'expired-401']) {
+      await almacen.guardarTrabajoEnvio({
+        idempotencyKey, cuerpo: { idempotencyKey }, cuerpoHash: '', estado: 'pendiente', version: 1, tipo: 'reporte_final',
+      })
+    }
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as { idempotencyKey: string }
+      if (body.idempotencyKey === 'limit-429') return new Response('{}', { status: 429, headers: { 'Retry-After': '120' } })
+      if (body.idempotencyKey === 'expired-401') return new Response('{}', { status: 401 })
+      return new Response('{}', { status: 422 })
+    })
+    const { sw } = await cargarSw()
+    const abrir = () => new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(nombre, VERSION_DB_PARTE)
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+
+    const result = await sw.procesarColaEnvio(abrir, fetchImpl)
+    expect(result).toMatchObject({ enviados: [], pendientes: ['limit-429'], sesionesVencidas: ['expired-401'] })
+    expect(await almacen.obtenerTrabajosEnvio()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ idempotencyKey: 'limit-429', estado: 'pendiente', reintentarDespues: expect.any(Number) }),
+      expect.objectContaining({ idempotencyKey: 'invalid-422', estado: 'error', cuerpo: { idempotencyKey: 'invalid-422' } }),
+      expect.objectContaining({ idempotencyKey: 'expired-401', estado: 'sesion-vencida' }),
+    ]))
+    const limit = (await almacen.obtenerTrabajosEnvio()).find((job) => job.idempotencyKey === 'limit-429')
+    expect(limit?.reintentarDespues).toBeGreaterThan(Date.now() + 100_000)
+    almacen.cerrar()
+  })
+
+  it('notifies open clients when a submission session expires', async () => {
+    const almacen = await abrirAlmacenParte(`sw-session-${crypto.randomUUID()}`)
+    await almacen.guardarTrabajoEnvio({
+      idempotencyKey: 'session-key', cuerpo: { idempotencyKey: 'session-key' }, cuerpoHash: '',
+      estado: 'pendiente', version: 1, tipo: 'reporte_final',
+    })
+    const messages: unknown[] = []
+    const { listeners } = await cargarSw()
+    const selfMock = (globalThis as unknown as { self: { clients: { matchAll: () => Promise<unknown[]> } } }).self
+    selfMock.clients.matchAll = async () => [{ postMessage: (message: unknown) => messages.push(message) }]
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
+
+    await dispararSync(listeners)
+
+    expect(messages).toContainEqual({ tipo: 'parte-sesion-vencida', clave: 'session-key' })
+    vi.unstubAllGlobals()
     almacen.cerrar()
   })
 })

@@ -27,6 +27,7 @@ export interface BorradorParte<T> {
   cuerpo?: unknown
   estado: EstadoEnvio
   motivoError?: string
+  reintentarDespues?: number
   intentos: number
   actualizadoEn: string
 }
@@ -77,6 +78,7 @@ export const MENSAJE_TIEMPO_AGOTADO = 'El servidor no respondió. Reintentamos s
 const MENSAJE_SESION_VENCIDA = MENSAJES_ESTADO['sesion-vencida']
 
 const MENSAJE_RESPUESTA_INESPERADA = 'respuesta inesperada del servidor'
+let esperaServidorMs = 0
 
 // --- Coordinación entre pestañas (revisión de gate N1, hallazgo #1) -------
 //
@@ -298,7 +300,11 @@ export async function leerBorrador<T>(
   const crudo = await almacen.obtener(claveBorrador(tipo, cue))
   if (crudo === null) return null
   try {
-    return JSON.parse(crudo) as BorradorParte<T>
+    const borrador = JSON.parse(crudo) as BorradorParte<T>
+    if (borrador.reintentarDespues && borrador.reintentarDespues > Date.now()) {
+      esperaServidorMs = Math.max(esperaServidorMs, borrador.reintentarDespues - Date.now())
+    }
+    return borrador
   } catch {
     return null
   }
@@ -314,14 +320,22 @@ export async function borrarBorrador(
 
 export function clasificarRespuesta(status: number | 'red'): ResultadoClasificacion {
   if (status === 'red') return 'reintentable'
-  if (status >= 500 && status <= 599) return 'reintentable'
-  if (status === 401 || status === 403 || status === 410) return 'sesion-vencida'
+  if ((status >= 500 && status <= 599) || status === 408 || status === 413 || status === 429) return 'reintentable'
+  if (status === 401) return 'sesion-vencida'
   return 'no-reintentable'
 }
 
-export function calcularEsperaReintento(intentos: number): number {
-  const espera = 1000 * 2 ** intentos
-  return Math.min(espera, 30000)
+export function calcularEsperaReintento(intentos: number, aleatorio: () => number = Math.random): number {
+  const base = Math.min(1000 * 2 ** Math.max(0, intentos), 30000)
+  return Math.min(30000, Math.round(base * (0.75 + Math.max(0, Math.min(1, aleatorio())) * 0.5)))
+}
+
+function leerRetryAfter(respuesta: Response, ahora = Date.now()): number | undefined {
+  const valor = respuesta.headers?.get('Retry-After')
+  if (!valor) return undefined
+  const segundos = Number(valor)
+  const fecha = Number.isFinite(segundos) ? ahora + Math.max(0, segundos) * 1000 : Date.parse(valor)
+  return Number.isFinite(fecha) ? Math.max(ahora, fecha) : undefined
 }
 
 export async function intentarEnviar<T>(
@@ -474,7 +488,11 @@ async function completarEnvio<T>(
   const clasificacion = clasificarRespuesta(respuesta.status)
 
   if (clasificacion === 'reintentable') {
-    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'error-servidor', cuerpo)
+    const reintentarDespues = (respuesta.status === 413 || respuesta.status === 429)
+      ? leerRetryAfter(respuesta)
+      : undefined
+    if (reintentarDespues !== undefined) esperaServidorMs = Math.max(esperaServidorMs, reintentarDespues - Date.now())
+    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'error-servidor', cuerpo, undefined, reintentarDespues)
     return { ok: false, estado: pendiente.estado }
   }
 
@@ -511,6 +529,7 @@ async function registrarPendiente<T>(
   estado: 'pendiente-envio' | 'error-servidor',
   cuerpo: unknown,
   motivoError?: string,
+  reintentarDespues?: number,
 ): Promise<BorradorParte<T>> {
   const pendiente: BorradorParte<T> = {
     ...borrador,
@@ -518,6 +537,7 @@ async function registrarPendiente<T>(
     cuerpo,
     estado,
     ...(motivoError ? { motivoError } : {}),
+    ...(reintentarDespues !== undefined ? { reintentarDespues } : {}),
     intentos: intentos + 1,
     actualizadoEn: new Date().toISOString(),
   }
@@ -526,16 +546,9 @@ async function registrarPendiente<T>(
   return pendiente
 }
 
-// Hallazgo #4 de la revisión de gate N1: `calcularEsperaReintento` (backoff
-// exponencial acotado) quedaba declarada sin ningún call site. Acá se cablea
-// para amortiguar "flapping" de conectividad: si la conexión sube y baja
-// varias veces seguidas (típico de una red mala, no de un corte limpio),
-// cada evento 'online'/'visibilitychange' ya NO dispara un reintento
-// inmediato — el primero de una ráfaga sí (no hay motivo para demorar un
-// reintento aislado), pero los siguientes, mientras dure la ráfaga, se
-// amortiguan con la misma espera acotada, para no martillar al servidor con
-// un POST por cada online/offline. El reintento amortiguado nunca se
-// pierde: siempre queda programado para cuando termine la espera.
+// Try once when the page opens, then retry on reconnect and when the page
+// becomes visible. Bursts are coalesced with the same jittered backoff used
+// by scheduled retries.
 export function registrarAutoReintento(callback: () => void): () => void {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return () => {}
@@ -544,6 +557,9 @@ export function registrarAutoReintento(callback: () => void): () => void {
   let intentosSeguidos = 0
   let ultimoDisparoEn = 0
   let temporizador: ReturnType<typeof setTimeout> | null = null
+
+  callback()
+  ultimoDisparoEn = Date.now()
 
   function dispararAhora(): void {
     ultimoDisparoEn = Date.now()
@@ -600,10 +616,16 @@ export async function reenviarCola<T>(
 ): Promise<ResultadoEnvio | null> {
   const cola = await leerBorrador<T>(opciones.almacen, opciones.tipo, opciones.cue)
   if (!cola || (!esEstadoReintentable(cola.estado) && !(deliberado && (cola.estado === 'enviando' || cola.estado === 'sesion-vencida')))) return null
+  if (!deliberado && cola.reintentarDespues && cola.reintentarDespues > Date.now()) {
+    esperaServidorMs = Math.max(esperaServidorMs, cola.reintentarDespues - Date.now())
+    return null
+  }
   return intentarEnviar(cola.datos, { ...opciones, reintentoDeliberado: deliberado })
 }
 
 export function programarReintento(intentos: number, callback: () => void): () => void {
-  const temporizador = setTimeout(callback, calcularEsperaReintento(intentos))
+  const demora = Math.max(calcularEsperaReintento(intentos), esperaServidorMs)
+  esperaServidorMs = 0
+  const temporizador = setTimeout(callback, demora)
   return () => clearTimeout(temporizador)
 }

@@ -69,11 +69,13 @@ export interface TrabajoEnvioLocal {
   draftId?: string
   cuerpo: unknown
   cuerpoHash: string
-  estado: 'pendiente' | 'enviando' | 'error'
+  estado: 'pendiente' | 'enviando' | 'error' | 'sesion-vencida'
   version: typeof CONTRATO_VERSION
   /** Queue category; missing on records written by earlier clients. */
   tipo?: 'reporte_final' | 'sincronizacion_borrador' | 'foto'
   creadoEn?: string
+  intentos?: number
+  reintentarDespues?: number
 }
 
 export interface ConfirmacionLocal {
