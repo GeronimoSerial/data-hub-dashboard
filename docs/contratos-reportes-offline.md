@@ -271,7 +271,7 @@ Values for photo size (`max 1600 px`, target 200-400 KB, max 600 KB; thumbnail u
 
 ## 14. Migration plan and next free number
 
-- Next free migration: **`0018`** (proposed file `drizzle/0018_reportes_offline_borradores.sql`). Batch 3 owns it; batch 0 does not add migrations.
+- Next free migration: **`0019`** (file `drizzle/0019_reportes_offline_borradores.sql`). Batch 3 owns it; batch 0 does not add migrations.
 - Tables proposed: `infra_borrador`, `infra_borrador_cierre`, `infra_adjunto`. Plus `tipo` value `evidencia_fotografica` (no DDL).
 - Columns added to existing tables (if any) must also be added to the ALTER path in `lib/db/seed.ts`.
 

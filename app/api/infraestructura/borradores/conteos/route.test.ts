@@ -11,6 +11,7 @@ const user = {
   role: 'consulta' as const,
   banned: false,
   nivelIds: [],
+  nivelJurIds: [],
   accesoRecursos: 'todos' as const,
   recursoIds: [],
 }
