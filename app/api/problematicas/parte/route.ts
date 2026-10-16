@@ -14,6 +14,8 @@ import {
   infraAfectacion,
   infraAfectacionAlumno,
   infraAfectacionSeccion,
+  infraBorrador,
+  infraBorradorCierre,
   infraMovimiento,
   infraParte,
   infraServicioAlcance,
@@ -62,6 +64,16 @@ export const dynamic = 'force-dynamic'
 
 const MENSAJE_SIN_SITUACION =
   'No hay una situación hidrometeorológica en seguimiento para este establecimiento.'
+
+class ErrorCierreBorrador extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ErrorCierreBorrador'
+    this.status = status
+  }
+}
 
 // Marca interna para distinguir, dentro del catch de la transacción de
 // POST, un rollback deliberado (diff vacío, spec §17) de un error real de
@@ -365,6 +377,15 @@ export async function POST(request: Request) {
   const verificacionParsed = verificacionVinculoSchema.safeParse(verificacionRaw)
   const verificacionVinculo = verificacionParsed.success ? verificacionParsed.data : undefined
 
+  const draftIdRaw = body && typeof body === 'object' && 'draftId' in body
+    ? (body as { draftId?: unknown }).draftId
+    : undefined
+  const draftIdParsed = z.string().uuid().safeParse(draftIdRaw)
+  if (draftIdRaw !== undefined && !draftIdParsed.success) {
+    return Response.json({ error: 'draftId inválido' }, { status: 400 })
+  }
+  const draftId = draftIdParsed.success ? draftIdParsed.data : undefined
+
   const parsed = parseParteActualizacionInput(body)
   if (!parsed.ok) {
     return Response.json({ error: parsed.error }, { status: 400 })
@@ -629,6 +650,19 @@ export async function POST(request: Request) {
   try {
     resultado = await conReintentoPorBloqueo(async () => {
       return await db.transaction(async (tx) => {
+      if (draftId) {
+        const [closure] = await tx.select().from(infraBorradorCierre)
+          .where(eq(infraBorradorCierre.draftId, draftId)).limit(1)
+        if (closure) throw new ErrorCierreBorrador(410, 'El borrador ya está cerrado')
+
+        const [draft] = await tx.select().from(infraBorrador)
+          .where(eq(infraBorrador.id, draftId)).limit(1)
+        if (!draft) throw new ErrorCierreBorrador(404, 'No se encontró el borrador')
+        if (draft.cueAnexo !== cue.value) {
+          throw new ErrorCierreBorrador(409, 'El borrador no corresponde al CUE del reporte')
+        }
+        if (draft.estado !== 'open') throw new ErrorCierreBorrador(410, 'El borrador ya está cerrado')
+      }
       // Ejecutor de GE ligado a la MISMA conexión que sostiene esta
       // transacción. Nunca se usa `client` (el pool/raw separado) dentro del
       // callback: bajo PGlite, emitir una query por el cliente raw mientras la
@@ -892,6 +926,36 @@ export async function POST(request: Request) {
         idempotencyKey: input.idempotencyKey,
       })
 
+      if (draftId) {
+        const [draft] = await tx.select().from(infraBorrador)
+          .where(eq(infraBorrador.id, draftId)).limit(1)
+        if (!draft || draft.cueAnexo !== cue.value || draft.estado !== 'open') {
+          throw new ErrorCierreBorrador(409, 'El borrador cambió durante el envío')
+        }
+        const revision = draft.revision + 1
+        const [updated] = await tx.update(infraBorrador).set({
+          estado: 'submitted',
+          movimientoId,
+          revision,
+          actividadEn: ahora,
+          sincronizadoEn: ahora,
+        }).where(and(
+          eq(infraBorrador.id, draftId),
+          eq(infraBorrador.revision, draft.revision),
+          eq(infraBorrador.estado, 'open'),
+        )).returning({ revision: infraBorrador.revision })
+        if (!updated) throw new ErrorCierreBorrador(409, 'El borrador cambió durante el envío')
+
+        await tx.insert(infraBorradorCierre).values({
+          draftId,
+          cueAnexo: draft.cueAnexo,
+          estadoCierre: 'submitted',
+          revisionCierre: revision,
+          movimientoId,
+          cerradoEn: ahora,
+        })
+      }
+
       const estadoGeneral = calcularEstadoServicioGeneral(despues.servicioAlcance, secciones)
       return {
         status: 201,
@@ -907,6 +971,9 @@ export async function POST(request: Request) {
       })
     })
   } catch (err) {
+    if (err instanceof ErrorCierreBorrador) {
+      return Response.json({ error: err.message }, { status: err.status })
+    }
     if (err instanceof RollbackDiffVacio) {
       return jsonError('Todavía no realizó cambios en el parte actual', 409)
     }
