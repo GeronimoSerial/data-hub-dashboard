@@ -47,17 +47,17 @@ describe('EvolucionPanel — consumo del endpoint de evolución', () => {
     expect(fetchEvolucion).toHaveBeenCalledWith('/api/mapas/infraestructura/evolucion')
   })
 
-  it('envía departamentos y niveles como parámetros repetidos en el orden recibido', async () => {
+  it('envía departamentos y niveles jurisdiccionales como parámetros repetidos en el orden recibido', async () => {
     const filtros: FiltrosMapa = {
       ...FILTROS_MAPA_VACIOS,
       departamentos: ['GOYA', 'ESQUINA'],
-      niveles: ['PRIMARIA'],
+      direcciones: [3, 1],
     }
     render(<EvolucionPanel filtros={filtros} />)
 
     await screen.findByRole('tab', { name: 'Servicio caído' })
     expect(fetchEvolucion).toHaveBeenCalledWith(
-      '/api/mapas/infraestructura/evolucion?departamento=GOYA&departamento=ESQUINA&nivel=PRIMARIA',
+      '/api/mapas/infraestructura/evolucion?departamento=GOYA&departamento=ESQUINA&direccion=3&direccion=1',
     )
   })
 

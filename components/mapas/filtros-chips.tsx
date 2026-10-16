@@ -10,10 +10,10 @@ import { etiquetaDepartamento, ETIQUETA_APOYO, ETIQUETA_ESTADO_CLASES, ETIQUETA_
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type EstadoClases, type FiltrosMapa, type GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import { cantidadFiltrosEnLinea } from '@/lib/infraestructura/mapa/filtros-en-linea'
 
-type ClaveFiltro = 'departamentos' | 'niveles' | 'gravedades' | 'clases' | 'apoyo' | 'direcciones'
+type ClaveFiltro = 'departamentos' | 'gravedades' | 'clases' | 'apoyo' | 'direcciones'
 type Opcion = { valor: string; etiqueta: string }
 
-const CLAVES_DESPLEGABLES: readonly ClaveFiltro[] = ['departamentos', 'niveles', 'gravedades', 'clases', 'apoyo', 'direcciones']
+const CLAVES_DESPLEGABLES: readonly ClaveFiltro[] = ['departamentos', 'direcciones', 'gravedades', 'clases', 'apoyo']
 const CLAVES_INTERRUPTOR = ['sinActualizar', 'solucionadasRecientes'] as const
 const CLAVES_FILTROS_EN_ORDEN = [...CLAVES_DESPLEGABLES, ...CLAVES_INTERRUPTOR]
 
@@ -34,11 +34,10 @@ const OPCIONES_APOYO: Opcion[] = (['brinda', 'no', 'sin_dato'] as const).map((va
 
 const ETIQUETAS_FILTRO: Record<ClaveFiltro, string> = {
   departamentos: 'Departamento',
-  niveles: 'Nivel',
+  direcciones: 'Nivel',
   gravedades: 'Gravedad',
   clases: 'Clases',
   apoyo: 'Asistencia pedagógica',
-  direcciones: 'Dirección',
 }
 
 function valoresSeleccionados(filtros: FiltrosMapa, clave: ClaveFiltro): string[] {
@@ -58,10 +57,7 @@ function esApoyo(valor: string): valor is FiltrosMapa['apoyo'][number] {
 }
 
 function opcionesPorFiltro(escuelas: EscuelaMapaEnriquecida[], clave: ClaveFiltro): Opcion[] {
-  if (clave === 'departamentos' || clave === 'niveles') {
-    const disponibles = opcionesDisponibles(escuelas)[clave]
-    return disponibles.map((valor) => ({ valor, etiqueta: clave === 'departamentos' ? etiquetaDepartamento(valor) : valor }))
-  }
+  if (clave === 'departamentos') return opcionesDisponibles(escuelas).departamentos.map((valor) => ({ valor, etiqueta: etiquetaDepartamento(valor) }))
   if (clave === 'direcciones') return opcionesDireccion(escuelas).map((direccion) => ({ valor: String(direccion.id), etiqueta: direccion.nombre }))
   if (clave === 'gravedades') return OPCIONES_GRAVEDAD
   if (clave === 'clases') return OPCIONES_CLASES
@@ -74,7 +70,6 @@ function alternarValor(filtros: FiltrosMapa, clave: ClaveFiltro, valor: string):
 
   switch (clave) {
     case 'departamentos': return { ...filtros, departamentos: siguiente }
-    case 'niveles': return { ...filtros, niveles: siguiente }
     case 'gravedades': return { ...filtros, gravedades: siguiente.map(Number).filter(esGravedadMapa) }
     case 'clases': return { ...filtros, clases: siguiente.filter(esClase) }
     case 'apoyo': return { ...filtros, apoyo: siguiente.filter(esApoyo) }
@@ -101,7 +96,7 @@ function OpcionesFiltro({
 
   return opciones.length === 0 ? (
     <div className="filtros-opcion-vacio" role="status">
-      {clave === 'niveles' ? 'No hay niveles cargados en el padrón.' : 'No hay opciones disponibles.'}
+      {clave === 'direcciones' ? 'No hay niveles cargados en el padrón.' : 'No hay opciones disponibles.'}
     </div>
   ) : opciones.map((opcion, indice) => (
     <Checkbox
@@ -225,18 +220,17 @@ export function FiltrosChips({
   }, [busquedaAbierta])
 
   const interruptoresActivos = Number(filtros.sinActualizar) + Number(filtros.solucionadasRecientes)
-  const cantidadFiltrosActivos = filtros.departamentos.length + filtros.niveles.length
+  const cantidadFiltrosActivos = filtros.departamentos.length
     + filtros.gravedades.length + filtros.clases.length + filtros.apoyo.length + filtros.direcciones.length + interruptoresActivos
   const cantidadFuera = CLAVES_FILTROS_EN_ORDEN.length - cantidadEnLinea
   const sinFiltrosEnLinea = cantidadEnLinea === 0
   const etiquetaBotonMas = sinFiltrosEnLinea ? 'Filtros' : 'Más filtros'
   const conteosActivosEnOrden = [
     filtros.departamentos.length,
-    filtros.niveles.length,
+    filtros.direcciones.length,
     filtros.gravedades.length,
     filtros.clases.length,
     filtros.apoyo.length,
-    filtros.direcciones.length,
     Number(filtros.sinActualizar),
     Number(filtros.solucionadasRecientes),
   ]

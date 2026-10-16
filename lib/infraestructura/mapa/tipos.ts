@@ -14,7 +14,7 @@ export interface EscuelaMapaEnriquecida {
   lat: number | null
   lon: number | null
   niveles: string[]
-  // Dirección (nivel jurisdiccional de GE); null si el CUE no tiene nivel cargado.
+  // Nivel jurisdiccional de GE (filtro "Nivel"); null si el CUE no tiene nivel cargado.
   nivelJurisdiccionalId?: number | null
   nivelJurisdiccionalNombre?: string | null
   alumnos: number
@@ -35,7 +35,6 @@ export interface EscuelaMapaEnriquecida {
 export interface FiltrosMapa {
   q: string
   departamentos: string[]
-  niveles: string[]
   direcciones: number[]
   gravedades: GravedadMapa[]
   clases: EstadoClases[]
@@ -45,5 +44,5 @@ export interface FiltrosMapa {
 }
 
 export const FILTROS_MAPA_VACIOS: FiltrosMapa = {
-  q: '', departamentos: [], niveles: [], direcciones: [], gravedades: [], clases: [], apoyo: [], sinActualizar: false, solucionadasRecientes: false,
+  q: '', departamentos: [], direcciones: [], gravedades: [], clases: [], apoyo: [], sinActualizar: false, solucionadasRecientes: false,
 }
