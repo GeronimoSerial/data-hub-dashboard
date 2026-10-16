@@ -15,15 +15,15 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B1-T3 (haiku, 80b3477; vitest parte 72 ok, tsc ok) sw-parte.js adapter on shared contract (haiku)
 - [ ] B2 Coordinated queue and confirmations
   - [x] B2-T1 (27af474) Job store: immutable body + idempotency key persisted before first attempt; confirmation (movimientoId) persisted before removing pending
-  - [ ] B2-T2 [in progress: gpt-6-luna, reportes-b2-t2-coord] Page/worker coordination: locks, interrupted-job recovery, priorities (final report > draft sync > photos)
-  - [ ] B2-T3 Retry policy: backoff + open/online/visibility triggers; error classes (recoverable, validation, server limit, expired session)
+  - [x] B2-T2 (merged a3dce81; tsc+eslint ok, tests via CI) Page/worker coordination: locks, interrupted-job recovery, priorities (final report > draft sync > photos)
+  - [ ] B2-T3 [in progress: gpt-6-luna, reportes-b2-t3-retry] Retry policy: backoff + open/online/visibility triggers; error classes (recoverable, validation, server limit, expired session)
   - [ ] B2-T4 Forms consume confirmations on reopen without restoring sent drafts; keep attachments on form clear
 - [ ] B3 Server-synced drafts
   - [x] B3-T1 (gpt-6-luna, f88e89c merged) Schema + migration 0018 (drafts, revisions, closure tombstones); mirror ALTERs in lib/db/seed.ts
   - [x] B3-T2 (ecb0421) API: create, sync (partial validation + revision control), read, discard; tombstones reject late syncs
-  - [ ] B3-T3 [in progress: gpt-6-luna, reportes-b3-t3-client] Client batching: sync on step complete/abandon, consolidate offline edits, keep local changes on conflict
-  - [ ] B3-T4 Final submission links and closes its draft consistently
-  - [ ] B3-T5 Aggregated map queries + permission-filtered detail (no nominal data)
+  - [x] B3-T3 (merged a3dce81; tsc+eslint ok, tests via CI) Client batching: sync on step complete/abandon, consolidate offline edits, keep local changes on conflict
+  - [ ] B3-T4 [in progress: gpt-6-luna, reportes-b3-t4-close] Final submission links and closes its draft consistently
+  - [ ] B3-T5 [in progress: gpt-6-luna, reportes-b3-t5-map] Aggregated map queries + permission-filtered detail (no nominal data)
 - [ ] B4 Offline reopen
   - [ ] B4-T1 Generic offline page reusing forms and persisted context
   - [ ] B4-T2 SW precache: verify completeness before announcing availability; versioned caches keep previous until new ready; no authenticated responses/credentials cached
@@ -32,7 +32,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
 - [ ] B5 Local selection and optimization
   - [x] B5-T1 (974f0b0) Photo picker: select, preview, remove (max 3 per submission)
   - [x] B5-T2 (84a3e95 + fix 7026aca) Worker pipeline: one at a time off main thread, optimized + thumbnail, orientation, strip metadata, no original fallback
-  - [ ] B5-T3 [in progress: gpt-6-luna, reportes-b5-t3-limits] Limits (input, memory, formats) + replace originals only after variants persisted; resumable after close
+  - [x] B5-T3 (merged a3dce81; tsc+eslint ok, tests via CI) Limits (input, memory, formats) + replace originals only after variants persisted; resumable after close
   - [ ] B5-T4 Measure weights with real photos on modest devices
 - [ ] B6 Attachments and direct OBS upload (depends on B0-OBS)
   - [ ] B6-T1 Schema/API: attachments linked to movimientos; photo-only evidence update; server-side permission + 3-photo limit under concurrency
