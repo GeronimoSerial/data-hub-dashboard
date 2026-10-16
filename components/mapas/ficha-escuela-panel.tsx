@@ -20,6 +20,7 @@ import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { BorradoresPendientes } from '@/components/infraestructura/borradores/borradores-pendientes'
+import { GaleriaEvidencia } from '@/components/infraestructura/fotos/galeria-evidencia'
 
 interface FichaEscuelaPanelProps {
   escuela: EscuelaMapaEnriquecida
@@ -157,6 +158,8 @@ export function FichaEscuelaPanel({
       )}
 
       <FilaEstado escuela={escuela} />
+
+      <GaleriaEvidencia cue={escuela.cueAnexo} />
 
       <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={horizonteRiesgo} planificacion={planificacion} />
 

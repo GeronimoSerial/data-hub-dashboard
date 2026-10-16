@@ -48,7 +48,9 @@ const movimientos: MovimientoHistorial[] = [
 function instalarFetch({ error = false, situaciones = afectaciones, recientes, estadoEstablecimiento = 'habitual' }: { error?: boolean; situaciones?: AfectacionFicha[]; recientes?: SolucionadaFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' | 'evacuado' } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: !error,
-    json: async () => url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones, ...(recientes === undefined ? {} : { recientes }) },
+    json: async () => url.includes('/api/infraestructura/adjuntos')
+      ? { movements: [] }
+      : url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones, ...(recientes === undefined ? {} : { recientes }) },
   })))
 }
 
