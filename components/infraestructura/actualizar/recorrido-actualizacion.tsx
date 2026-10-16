@@ -542,6 +542,16 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           localStorage.removeItem(claveBorrador)
         }
         setBorradorPendiente(null)
+        setGuardado(false)
+        setEtapa('entrada')
+        setRecorrido(RECORRIDO_INICIAL)
+        setAsistenciaPedagogica({ brinda: '', modalidades: [] })
+        setEstadoEnvio(null)
+        setEstadoAvisoEnvio(null)
+        setMotivoEnvio(null)
+        setIntentosEnvio(0)
+        setInteraccionIniciada(false)
+        persistenciaBloqueadaRef.current = false
         onRecargar()
       })().catch(() => {})
     }} />

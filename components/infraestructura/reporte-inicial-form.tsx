@@ -834,7 +834,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         }}
         onCancelar={() => setConfirmarDescarte(true)}
         onCerrar={() => {
-          if (!borradorPendiente) return
+          if (!borradorPendiente || confirmarDescarte) return
           borradorResueltoRef.current = true
           aplicarBorrador(borradorPendiente)
           setBorradorPendiente(null)

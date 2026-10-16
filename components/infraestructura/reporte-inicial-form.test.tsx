@@ -112,6 +112,7 @@ function guardarReporte() {
 }
 
 beforeEach(() => {
+  globalThis.indexedDB = new IDBFactory()
   if (typeof globalThis.crypto?.randomUUID !== 'function') {
     vi.stubGlobal('crypto', { ...globalThis.crypto, randomUUID: () => '00000000-0000-4000-8000-000000000000' })
   }
@@ -1028,7 +1029,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
 
     expect(await screen.findByText(MENSAJE_BORRADOR_PENDIENTE)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
-    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
   })
 
   it('restaura un borrador de establecimiento sin motivo en el paso 1 y muestra el error', async () => {
@@ -1049,7 +1050,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sí, descartar' }))
 
     await waitFor(() => expect(screen.queryByText(MENSAJE_BORRADOR_PENDIENTE)).not.toBeInTheDocument())
-    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
     expect(localStorage.getItem(`parte-nuevo:draft:${props.cue}`)).toBeNull()
   })
 
@@ -1058,7 +1059,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     renderFormulario()
     fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
 
-    expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
+    expect(await screen.findByRole('radio', { name: 'Ahora' })).toBeChecked()
   })
 
   it('guarda el borrador con la versión de numeración vigente', async () => {

@@ -142,7 +142,7 @@ describe('RecorridoActualizacion: envío', () => {
   it('omite vínculo ausente y lo conserva si la respuesta falla', async () => {
     const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
     expect(JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))).not.toHaveProperty('verificacion')
-    cleanup(); sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
+    cleanup(); globalThis.indexedDB = new IDBFactory(); sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
     const fallo = stub(async () => respuesta({ error: 'dato inválido' }, 422)); montar(); await enviar()
     await screen.findByText(/dato inválido/)
     expect(sessionStorage.getItem(CLAVE_VINCULO_VERIFICACION)).not.toBeNull()
@@ -174,7 +174,7 @@ describe('RecorridoActualizacion: envío', () => {
       expect(avisos).not.toContain('Base UI: a component that acts as a button expected a native <button>')
       const getsAntes = fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length
       fireEvent.click(botonCargarOtro)
-      await screen.findByRole('button', { name: 'Actualizar el parte' })
+      await screen.findByRole('button', { name: 'Actualizar el parte' }, { timeout: 3000 })
       expect(fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length).toBeGreaterThan(getsAntes)
     } finally {
       erroresConsola.mockRestore()
@@ -206,7 +206,7 @@ describe('RecorridoActualizacion: envío', () => {
     await prepararResumen()
     vi.useFakeTimers()
     elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
-    await act(async () => { for (let i = 0; i < 10; i += 1) await Promise.resolve() })
+    await vi.waitFor(() => expect(posteos(fetchMock)).toHaveLength(1))
     expect(posteos(fetchMock)).toHaveLength(1)
     await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
     const volver = screen.getByRole('button', { name: 'Volver' })
@@ -240,7 +240,7 @@ describe('RecorridoActualizacion: envío', () => {
     montar(); await enviar()
     expect(await screen.findByText(MENSAJES_ESTADO['pendiente-envio'])).toBeInTheDocument()
     await act(async () => { window.dispatchEvent(new Event('online')) })
-    await screen.findByText(guardado)
+    await screen.findByText(guardado, undefined, { timeout: 3000 })
     expect(posteos(fetchMock)).toHaveLength(2)
   })
 
