@@ -62,7 +62,16 @@ export function readObsConfig(env: NodeJS.ProcessEnv = process.env): ObsConfig {
     accessKeyId: env.OBS_ACCESS_KEY_ID,
     secretAccessKey: env.OBS_SECRET_ACCESS_KEY,
   }
-  const missing = Object.entries(config).filter(([, value]) => !value?.trim()).map(([key]) => key)
+  const environmentNames: Record<keyof ObsConfig, string> = {
+    bucket: 'OBS_BUCKET',
+    region: 'OBS_REGION',
+    endpoint: 'OBS_ENDPOINT',
+    accessKeyId: 'OBS_ACCESS_KEY_ID',
+    secretAccessKey: 'OBS_SECRET_ACCESS_KEY',
+  }
+  const missing = Object.entries(config)
+    .filter(([, value]) => !value?.trim())
+    .map(([key]) => environmentNames[key as keyof ObsConfig])
   if (missing.length > 0) throw new ObsConfigurationError(`Missing OBS configuration: ${missing.join(', ')}`)
 
   let endpointUrl: URL

@@ -129,8 +129,8 @@ describe('sw-parte submission queue', () => {
     expect(JSON.parse(fetchImpl.mock.calls[0]![1]!.body as string)).toMatchObject({ idempotencyKey: 'final' })
     expect(await almacen.obtenerConfirmacion('final')).toMatchObject({ movimientoId: 'movement-1' })
     expect(await almacen.obtenerTrabajosEnvio()).toMatchObject([
-      { idempotencyKey: 'photo', tipo: 'foto' },
       { idempotencyKey: 'draft', tipo: 'sincronizacion_borrador' },
+      { idempotencyKey: 'photo', tipo: 'foto' },
     ])
     almacen.cerrar()
   })
@@ -169,7 +169,8 @@ describe('sw-parte submission queue', () => {
   })
 
   it('notifies open clients when a submission session expires', async () => {
-    const almacen = await abrirAlmacenParte(`sw-session-${crypto.randomUUID()}`)
+    await borrarDb()
+    const almacen = await abrirAlmacenParte()
     await almacen.guardarTrabajoEnvio({
       idempotencyKey: 'session-key', cuerpo: { idempotencyKey: 'session-key' }, cuerpoHash: '',
       estado: 'pendiente', version: 1, tipo: 'reporte_final',

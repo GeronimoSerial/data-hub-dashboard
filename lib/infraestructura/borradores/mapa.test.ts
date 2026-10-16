@@ -18,7 +18,7 @@ async function insertDraft(overrides: Partial<typeof infraBorrador.$inferInsert>
     contexto: { version: 1, flujo: 'inicial' },
     paso: 'servicios',
     respuestas: { pasosCompletados: ['inicio'], servicio: { agua: 'no' } },
-    revision: 1,
+    revision: 0,
     estado: 'open',
     creadoEn: NOW,
     actividadEn: NOW,

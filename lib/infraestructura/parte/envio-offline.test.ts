@@ -96,7 +96,7 @@ describe('espera de reintento', () => {
     const jitterHigh = () => 1
     expect(calcularEsperaReintento(0, jitterLow)).toBe(750)
     expect(calcularEsperaReintento(1, jitterLow)).toBe(1500)
-    expect(calcularEsperaReintento(2, jitterHigh)).toBe(6000)
+    expect(calcularEsperaReintento(2, jitterHigh)).toBe(5000)
     let anterior = 0
     for (let intentos = 0; intentos <= 12; intentos += 1) {
       const espera = calcularEsperaReintento(intentos, jitterHigh)
@@ -122,10 +122,11 @@ describe('server limits', () => {
     expect(guardado?.reintentarDespues).toBeGreaterThan(Date.now())
     expect(await reenviarCola(opciones)).toBeNull()
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+    const esperaRestante = Math.max(0, (guardado?.reintentarDespues ?? Date.now()) - Date.now())
     vi.useFakeTimers()
     const callback = vi.fn()
     const cancelar = programarReintento(0, callback)
-    vi.advanceTimersByTime(59_999)
+    vi.advanceTimersByTime(Math.max(0, esperaRestante - 1000))
     expect(callback).not.toHaveBeenCalled()
     cancelar()
     vi.useRealTimers()

@@ -24,7 +24,8 @@ describe('GaleriaEvidencia', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/infraestructura/adjuntos?cue=180000123-00')
     expect(await screen.findByRole('heading', { name: /10 de octubre de 2026/ })).toBeInTheDocument()
-    expect(screen.getByRole('img', { hidden: true })).toHaveAttribute('src', 'https://obs.example/thumb')
+    const thumbnail = screen.getByRole('button', { name: /Ampliar foto del/ }).querySelector('img')
+    expect(thumbnail).toHaveAttribute('src', 'https://obs.example/thumb')
   })
 
   it('requests the optimized image only after selection', async () => {

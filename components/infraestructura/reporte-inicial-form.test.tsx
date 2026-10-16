@@ -732,7 +732,7 @@ describe('ReporteInicialForm', () => {
 
   it('omite el vínculo cuando no existe y lo conserva ante una respuesta fallida', async () => {
     const fetchMock = stubFetch()
-    renderFormulario()
+    renderFormulario({ cue: '12345679' })
     guardarReporte()
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]

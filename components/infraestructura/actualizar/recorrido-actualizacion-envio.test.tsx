@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
@@ -68,7 +70,7 @@ function elegirAsistencia(valor: 'Sí' | 'No') {
 }
 async function enviar() { await prepararResumen(); elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); vi.clearAllMocks(); syncMocks.callback = null })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks(); syncMocks.callback = null })
 
 describe('RecorridoActualizacion: envío', () => {
   it('guarda con POST, instante de envío y muestra confirmación', async () => {
@@ -151,7 +153,20 @@ describe('RecorridoActualizacion: envío', () => {
     const erroresConsola = vi.spyOn(console, 'error').mockImplementation(() => {})
     const avisosConsola = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
-      const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
+      let enviado = false
+      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          enviado = true
+          return respuesta()
+        }
+        if (url.includes('/historial')) return new Response(JSON.stringify({ ok: true, movimientos: [] }), { status: 200 })
+        const datos = enviado
+          ? { ...base, parte: { ...base.parte, asistenciaPedagogica: { brinda: false, modalidades: [] } } }
+          : base
+        return new Response(JSON.stringify(datos), { status: 200 })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      montar(); await enviar(); await screen.findByText(guardado)
       expect(screen.getByRole('link', { name: 'Ver estado actual' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
       const botonCargarOtro = screen.getByRole('button', { name: 'Actualizar de nuevo' })
       expect(botonCargarOtro.tagName).toBe('BUTTON')
