@@ -7,7 +7,7 @@ import {
 } from '@aws-sdk/client-s3'
 import { getDb } from '@/lib/db'
 import { infraAdjunto } from '@/lib/db/schema'
-import { readObsConfig } from './obs'
+import { opcionesClienteObs, readObsConfig } from './obs'
 
 export const BUCKET_REPORTES = 'reportes-infraestructura'
 export const GRACIA_HUERFANOS_MS = 24 * 60 * 60 * 1000
@@ -80,12 +80,7 @@ function crearDependencias(): DependenciasLimpieza {
   if (config.bucket !== BUCKET_REPORTES) {
     throw new Error(`OBS_BUCKET must be ${BUCKET_REPORTES} for orphan cleanup.`)
   }
-  const client = new S3Client({
-    region: config.region,
-    endpoint: config.endpoint,
-    forcePathStyle: true,
-    credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-  })
+  const client = new S3Client(opcionesClienteObs(config))
 
   return {
     async listar() {

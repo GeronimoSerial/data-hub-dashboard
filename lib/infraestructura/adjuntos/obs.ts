@@ -108,12 +108,7 @@ function getClient(config: ObsConfig): S3Client {
   if (!clientCache || clientCache.fingerprint !== fingerprint) {
     clientCache = {
       fingerprint,
-      client: new S3Client({
-        region: config.region,
-        endpoint: config.endpoint,
-        forcePathStyle: true,
-        credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-      }),
+      client: new S3Client(opcionesClienteObs(config)),
     }
   }
   return clientCache.client
@@ -209,6 +204,19 @@ export async function headAttachmentObject(bucket: string, key: string): Promise
     throw new Error('OBS returned incomplete object metadata.')
   }
   return { etag: result.ETag.replaceAll('"', ''), size: result.ContentLength, contentType: result.ContentType }
+}
+
+/**
+ * Huawei OBS rejects path-style requests ("VirtualHostDomainRequired"), so every client addresses the
+ * bucket as a virtual host (`<bucket>.<endpoint host>`), both for server calls and presigned URLs.
+ */
+export function opcionesClienteObs(config: ReturnType<typeof readObsConfig>) {
+  return {
+    region: config.region,
+    endpoint: config.endpoint,
+    forcePathStyle: false,
+    credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
+  }
 }
 
 export function getObsBucket(): string {
