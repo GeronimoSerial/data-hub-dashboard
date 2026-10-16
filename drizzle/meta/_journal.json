@@ -134,6 +134,13 @@
       "when": 1792103624000,
       "tag": "0018_reportes_offline_borradores",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792110000000,
+      "tag": "0019_infra_adjuntos_fotograficos",
+      "breakpoints": true
     }
   ]
 }
