@@ -16,6 +16,9 @@ jobs:
   operar:
     runs-on: ubuntu-latest
     steps:
+      - name: Dependencias para copiar adjuntos al bucket de dev
+        if: inputs.operacion == 'configurar'
+        run: npm install --prefix /tmp/dev-ops --no-audit --no-fund @aws-sdk/client-s3 pg > /dev/null
       - name: Operar dev en Coolify
         env:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
@@ -23,7 +26,7 @@ jobs:
           OPERACION: ${{ inputs.operacion }}
         run: |
           python3 - <<'PY'
-          import os,json,urllib.request
+          import os,json,urllib.request,urllib.parse,secrets,subprocess,pathlib
           base='https://coolify.sistemas.mec.gob.ar/api/v1'
           stage='j3zm0co4bi9iy0c70nv3vinf'
           def api(path,method='GET',data=None):
@@ -36,6 +39,8 @@ jobs:
           dev=next((a for a in apps if a.get('name')=='data-hub-dashboard-dev'),None)
           def identificacion(obj):
             return {k:obj.get(k) for k in ['id','uuid','name','server_id','project_id']} if isinstance(obj,dict) else None
+          def envs(uuid):
+            return {e['key']:e.get('real_value') or e.get('value','') for e in api('/applications/'+uuid+'/envs') if not e.get('is_preview')}
           if op=='inspeccionar':
             a=api('/applications/'+stage)
             print('STAGING',json.dumps({k:a.get(k) for k in ['uuid','name','environment_id','destination_id','destination_type','docker_registry_image_name','docker_registry_image_tag','ports_exposes','limits_memory']}))
@@ -52,6 +57,82 @@ jobs:
             assert dev
             a=api('/applications/'+dev['uuid'])
             print(json.dumps({k:a.get(k) for k in ['uuid','name','status','fqdn','docker_registry_image_tag']}))
+          elif op=='crear':
+            project='taioshhok165uu57cuq8q6u1'
+            a=api('/applications/'+stage)
+            assert a['environment']['project_id']==4 and a['destination']['server_id']==0
+            if not dev:
+              environments=api('/projects/'+project+'/environments')
+              environments=environments if isinstance(environments,list) else environments.get('data',[])
+              ambiente=next((e for e in environments if e.get('name')=='dev'),None)
+              if not ambiente: ambiente=api('/projects/'+project+'/environments','POST',{'name':'dev'})
+              dev=api('/applications/dockerimage','POST',{
+                'project_uuid':project,'server_uuid':'nm2rc1csc3gzm0n3tkt95g5q',
+                'environment_name':'dev','environment_uuid':ambiente['uuid'],
+                'destination_uuid':a['destination']['uuid'],'name':'data-hub-dashboard-dev',
+                'docker_registry_image_name':a['docker_registry_image_name'],'docker_registry_image_tag':'d95c653',
+                'ports_exposes':'3000','domains':'https://dev.analisis.sistemas.mec.gob.ar',
+                'noindex_domains':['https://dev.analisis.sistemas.mec.gob.ar'],
+                'limits_memory':'1024m','limits_memory_swap':'1024m','instant_deploy':False,
+                'health_check_enabled':True,'health_check_path':'/','health_check_port':'3000'})
+              api('/applications/'+dev['uuid']+'/storages','POST',{
+                'type':'persistent','name':'data-hub-dashboard-dev-data','mount_path':'/data'})
+            print('DEV_UUID',dev['uuid'])
+          elif op=='configurar':
+            assert dev
+            db=os.environ['DEV_DATABASE_URL']
+            assert urllib.parse.urlparse(db).path=='/hub_dev'
+            source=envs(stage); previous=envs(dev['uuid'])
+            assert source.get('NOMINAL_ENCRYPTION_KEY')
+            permitidas=['ADMIN_EMAIL','ADMIN_PASSWORD','NOMINAL_ENCRYPTION_KEY','DATABASE_SSL',
+              'RISK_ENGINE_ENABLED','RISK_RADAR_ENABLED','HAZARD_CONTEXT_ENABLED','SEASONAL_ENABLED',
+              'REPLAY_ENABLED','SITUACION_ENABLED','EPISODIOS_DERIVADOS_ENABLED','RISK_MODE',
+              'REPORTES_OFFLINE_BORRADORES_SYNC','REPORTES_OFFLINE_FOTOS','REPORTES_OFFLINE_MAPA_BORRADORES']
+            valores={k:source[k] for k in permitidas if k in source}
+            valores.update({'PORT':'3000','NODE_ENV':'production','DATA_DIR':'/data','APP_ENV':'dev',
+              'BETTER_AUTH_URL':'https://dev.analisis.sistemas.mec.gob.ar','DATABASE_URL':db,
+              'DATABASE_SSL':'require','ENOS_JOBS_ENABLED':'false','AI_BRIEFING_ENABLED':'false',
+              'BETTER_AUTH_SECRET':previous.get('BETTER_AUTH_SECRET') or secrets.token_urlsafe(48),
+              'GE_SSO_API_KEY':previous.get('GE_SSO_API_KEY') or secrets.token_urlsafe(32),
+              'GE_SSO_ALLOWED_ORIGIN':'https://dev.analisis.sistemas.mec.gob.ar',
+              'PROBLEMATICAS_ACCESO_PASSWORD':previous.get('PROBLEMATICAS_ACCESO_PASSWORD') or secrets.token_urlsafe(24)})
+            # El adjunto existente referencia OBS de producción. Copiar objetos,
+            # no usar el bucket de origen como almacenamiento writable de dev.
+            fotos=envs('pts681lz0kazhs1dph8wjaxt')
+            obs={k:fotos.get(k) for k in ['OBS_BUCKET','OBS_REGION','OBS_ENDPOINT','OBS_ACCESS_KEY_ID','OBS_SECRET_ACCESS_KEY']}
+            assert all(obs.values()),'Falta configuración OBS de origen'
+            bucket=obs['OBS_BUCKET'][:59]+'-dev'
+            js='''
+          import { S3Client, CreateBucketCommand, HeadBucketCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+          import { Client } from 'pg';
+          let input=''; for await (const b of process.stdin) input+=b;
+          const {obs,bucket,db}=JSON.parse(input);
+          const s3=new S3Client({region:obs.OBS_REGION,endpoint:obs.OBS_ENDPOINT,forcePathStyle:false,
+            credentials:{accessKeyId:obs.OBS_ACCESS_KEY_ID,secretAccessKey:obs.OBS_SECRET_ACCESS_KEY}});
+          try {await s3.send(new CreateBucketCommand({Bucket:bucket,CreateBucketConfiguration:{LocationConstraint:obs.OBS_REGION}}));}
+          catch(e) {if(e.name!=='BucketAlreadyOwnedByYou') throw e; await s3.send(new HeadBucketCommand({Bucket:bucket}));}
+          const pg=new Client({connectionString:db,ssl:{rejectUnauthorized:false},connectionTimeoutMillis:15000});
+          await pg.connect();const {rows}=await pg.query('SELECT optimizada_obs_key,miniatura_obs_key FROM infra_adjunto');
+          let copiadas=0;
+          for(const key of new Set(rows.flatMap(r=>[r.optimizada_obs_key,r.miniatura_obs_key]))) {
+            if(!key.startsWith('reportes/')||key.includes('..'))throw new Error('Clave de adjunto inválida');
+            const objeto=await s3.send(new GetObjectCommand({Bucket:obs.OBS_BUCKET,Key:key}));
+            await s3.send(new PutObjectCommand({Bucket:bucket,Key:key,Body:await objeto.Body.transformToByteArray(),ContentType:objeto.ContentType}));
+            copiadas++;
+          }
+          await pg.end();s3.destroy();console.log(JSON.stringify({bucket,objetosCopiados:copiadas}));
+          '''
+            pathlib.Path('/tmp/dev-ops/obs.mjs').write_text(js)
+            copia=subprocess.run(['node','/tmp/dev-ops/obs.mjs'],input=json.dumps({'obs':obs,'bucket':bucket,'db':db}),text=True,capture_output=True)
+            if copia.returncode: raise RuntimeError('No se pudo preparar el bucket aislado de dev')
+            print(copia.stdout.strip())
+            valores.update(obs);valores['OBS_BUCKET']=bucket
+            api('/applications/'+dev['uuid']+'/envs/bulk','PATCH',{'data':[{
+              'key':k,'value':v,'is_runtime':True,'is_buildtime':False,'is_preview':False,'is_literal':True} for k,v in valores.items()]})
+            print('Dev configurado: DB propia, sesiones y SSO separados, bucket propio, sin ingestas automáticas')
+          elif op=='desplegar':
+            assert dev
+            print('DEPLOY',json.dumps(api('/deploy','POST',{'uuid':dev['uuid'],'force':True})))
           else:
             raise RuntimeError('Operación aún no implementada')
           PY
