@@ -19,6 +19,8 @@ import { RiesgoEscuela } from '@/components/infraestructura/riesgo-escuela'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
+import { BorradoresPendientes } from '@/components/infraestructura/borradores/borradores-pendientes'
+import { GaleriaEvidencia } from '@/components/infraestructura/fotos/galeria-evidencia'
 
 interface FichaEscuelaPanelProps {
   escuela: EscuelaMapaEnriquecida
@@ -31,6 +33,7 @@ interface FichaEscuelaPanelProps {
   horizonteRiesgo?: HorizonteMotor
   /** Mismo nivel que la lista de Planificación para la vista activa. */
   planificacion?: { etiquetaVista: string; etiquetaNivel: string }[] | null
+  borradoresServerCount?: number | null
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -97,6 +100,7 @@ export function FichaEscuelaPanel({
   onVerHistorialCompleto,
   horizonteRiesgo = 72,
   planificacion = null,
+  borradoresServerCount = null,
 }: FichaEscuelaPanelProps) {
   const { estado, historial } = useFichaParte(escuela.cueAnexo)
   const tituloRef = useRef<HTMLHeadingElement>(null)
@@ -155,6 +159,8 @@ export function FichaEscuelaPanel({
 
       <FilaEstado escuela={escuela} />
 
+      <GaleriaEvidencia cue={escuela.cueAnexo} />
+
       <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={horizonteRiesgo} planificacion={planificacion} />
 
       <div>
@@ -209,6 +215,10 @@ export function FichaEscuelaPanel({
           {datos?.parte && novedad && <p><strong>Última novedad:</strong> {novedad}</p>}
           <button type="button" className="map-ficha-escuela__link" onClick={onVerHistorialCompleto}>Ver historial</button>
         </Desplegable>
+
+        {borradoresServerCount !== null && borradoresServerCount > 0 && (
+          <BorradoresPendientes key={escuela.cueAnexo} cue={escuela.cueAnexo} count={borradoresServerCount} />
+        )}
 
         {recientes.length > 0 && (
           <Desplegable titulo={`Solucionadas recientemente (${recientes.length})`} abierto={afectaciones.length === 0}>

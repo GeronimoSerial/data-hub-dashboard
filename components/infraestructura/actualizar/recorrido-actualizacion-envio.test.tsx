@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
@@ -68,7 +70,7 @@ function elegirAsistencia(valor: 'Sí' | 'No') {
 }
 async function enviar() { await prepararResumen(); elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); vi.clearAllMocks(); syncMocks.callback = null })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks(); syncMocks.callback = null })
 
 describe('RecorridoActualizacion: envío', () => {
   it('guarda con POST, instante de envío y muestra confirmación', async () => {
@@ -140,7 +142,7 @@ describe('RecorridoActualizacion: envío', () => {
   it('omite vínculo ausente y lo conserva si la respuesta falla', async () => {
     const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
     expect(JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))).not.toHaveProperty('verificacion')
-    cleanup(); sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
+    cleanup(); globalThis.indexedDB = new IDBFactory(); sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
     const fallo = stub(async () => respuesta({ error: 'dato inválido' }, 422)); montar(); await enviar()
     await screen.findByText(/dato inválido/)
     expect(sessionStorage.getItem(CLAVE_VINCULO_VERIFICACION)).not.toBeNull()
@@ -151,7 +153,20 @@ describe('RecorridoActualizacion: envío', () => {
     const erroresConsola = vi.spyOn(console, 'error').mockImplementation(() => {})
     const avisosConsola = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
-      const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
+      let enviado = false
+      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          enviado = true
+          return respuesta()
+        }
+        if (url.includes('/historial')) return new Response(JSON.stringify({ ok: true, movimientos: [] }), { status: 200 })
+        const datos = enviado
+          ? { ...base, parte: { ...base.parte, asistenciaPedagogica: { brinda: false, modalidades: [] } } }
+          : base
+        return new Response(JSON.stringify(datos), { status: 200 })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      montar(); await enviar(); await screen.findByText(guardado)
       expect(screen.getByRole('link', { name: 'Ver estado actual' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
       const botonCargarOtro = screen.getByRole('button', { name: 'Actualizar de nuevo' })
       expect(botonCargarOtro.tagName).toBe('BUTTON')
@@ -159,7 +174,7 @@ describe('RecorridoActualizacion: envío', () => {
       expect(avisos).not.toContain('Base UI: a component that acts as a button expected a native <button>')
       const getsAntes = fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length
       fireEvent.click(botonCargarOtro)
-      await screen.findByRole('button', { name: 'Actualizar el parte' })
+      await screen.findByRole('button', { name: 'Actualizar el parte' }, { timeout: 3000 })
       expect(fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length).toBeGreaterThan(getsAntes)
     } finally {
       erroresConsola.mockRestore()
@@ -191,7 +206,7 @@ describe('RecorridoActualizacion: envío', () => {
     await prepararResumen()
     vi.useFakeTimers()
     elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
-    await act(async () => { for (let i = 0; i < 10; i += 1) await Promise.resolve() })
+    await vi.waitFor(() => expect(posteos(fetchMock)).toHaveLength(1))
     expect(posteos(fetchMock)).toHaveLength(1)
     await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
     const volver = screen.getByRole('button', { name: 'Volver' })
@@ -225,7 +240,7 @@ describe('RecorridoActualizacion: envío', () => {
     montar(); await enviar()
     expect(await screen.findByText(MENSAJES_ESTADO['pendiente-envio'])).toBeInTheDocument()
     await act(async () => { window.dispatchEvent(new Event('online')) })
-    await screen.findByText(guardado)
+    await screen.findByText(guardado, undefined, { timeout: 3000 })
     expect(posteos(fetchMock)).toHaveLength(2)
   })
 

@@ -134,6 +134,20 @@
       "when": 1792108185808,
       "tag": "0018_ge_sso_nivel_jurisdiccional",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792110489475,
+      "tag": "0019_reportes_offline_borradores",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792110490103,
+      "tag": "0020_infra_adjuntos_fotograficos",
+      "breakpoints": true
     }
   ]
 }

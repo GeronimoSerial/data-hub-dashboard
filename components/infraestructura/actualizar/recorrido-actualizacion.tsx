@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+import { SelectorFotosFormulario } from '@/components/infraestructura/fotos/selector-fotos-formulario'
 import { EntradaActualizar } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { RevisarSituacion } from '@/components/infraestructura/actualizar/revisar-situacion'
 import { AlgoNuevo } from '@/components/infraestructura/actualizar/algo-nuevo'
@@ -14,14 +15,15 @@ import { formatearMomento, resumirAlcance } from '@/components/infraestructura/e
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from '@/components/infraestructura/verificacion-vinculo'
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
-import { crearBorradorStore } from '@/lib/infraestructura/parte/borrador-historial'
+import { confirmarFormulario, eliminarBorradorFormulario, guardarBorradorFormulario, guardarClaveEnvioFormulario, leerBorradorFormulario, leerConfirmacionFormulario, limpiarFormularioConfirmado, olvidarClaveEnvioFormulario, type BorradorFormulario } from '@/lib/infraestructura/parte/borrador-formulario'
 import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
-import { crearAlmacenLocalStorage, claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
+import { claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import { declararFotosFormulario, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 
 export interface RecorridoActualizacionProps {
   cue: string
@@ -38,8 +40,14 @@ type Etapa = EtapaActualizacion | 'enviado'
 type PayloadActualizacion = ReturnType<typeof construirEnvio> & { cue: string; rigeDesde: string; asistenciaPedagogica?: { brinda: boolean; modalidades: Array<'Clase virtual' | 'Cuadernillo'> } }
 type SituacionConAlcance = SituacionRecorrido & { secciones: number[]; alumnos: number[] }
 
-const almacenBorradores = crearAlmacenLocalStorage()
-const borradorStore = crearBorradorStore(esBorradorRecorridoActualizacion)
+const DRAFT_ID_PREFIX = 'parte-actualizacion:'
+type BorradorActualizacionConFotos = BorradorRecorridoActualizacion & { referenciasFotos?: string[] }
+
+function esBorradorActualizacionConFotos(valor: unknown): valor is BorradorActualizacionConFotos {
+  if (!esBorradorRecorridoActualizacion(valor)) return false
+  const referencias = (valor as { referenciasFotos?: unknown }).referenciasFotos
+  return referencias === undefined || (Array.isArray(referencias) && referencias.every((id) => typeof id === 'string'))
+}
 
 async function obtenerCarga(cue: string): Promise<Carga> {
   try {
@@ -205,10 +213,20 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [borradorPendiente, setBorradorPendiente] = useState<BorradorRecorridoActualizacion | null>(null)
   const [confirmarDescarte, setConfirmarDescarte] = useState(false)
   const [avisoBorrador, setAvisoBorrador] = useState<string | null>(null)
+  const [avisoAlmacen, setAvisoAlmacen] = useState<string | null>(null)
   const [borradorLeido, setBorradorLeido] = useState(false)
   const [interaccionIniciada, setInteraccionIniciada] = useState(false)
   const generacionRef = useRef<string | null>(null)
+  const generacionAlmacenRef = useRef(1)
+  const borradorCompartidoRef = useRef<BorradorFormulario<BorradorActualizacionConFotos> | null>(null)
+  const fotosDraftId = `${DRAFT_ID_PREFIX}${cue}`
+  const [fotosPreparadas, setFotosPreparadas] = useState<readonly FotoPreparada[]>([])
+  const [claveEvidenciaFotos] = useState(() => crypto.randomUUID())
+  const movimientoFotosConfirmadoRef = useRef<string | null>(null)
+  const [cantidadFotosSeleccionadas, setCantidadFotosSeleccionadas] = useState(0)
+  const persistenciaBloqueadaRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorFotos, setErrorFotos] = useState<string | null>(null)
   const [situacionConError, setSituacionConError] = useState<string | null>(null)
   const [colaCascada, setColaCascada] = useState<Array<{ situacion: SituacionRecorrido; solucionadaEn: string }>>([])
   const [guardado, setGuardado] = useState(false)
@@ -247,38 +265,90 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   useEffect(() => {
     let cancelado = false
     void (async () => {
-      const crudo = await almacenBorradores.obtener(claveBorrador)
-      if (cancelado) return
-      if (crudo) {
-        let dato: unknown
-        try { dato = JSON.parse(crudo) } catch { dato = null }
-        if (!esBorradorRecorridoActualizacion(dato)) {
-          await borradorStore.limpiar(almacenBorradores, claveBorrador)
-          setAvisoBorrador(MENSAJE_BORRADOR_INVALIDO)
-        } else if (!coincidenIdsSituaciones(dato.idsSituaciones, situaciones.map((situacion) => situacion.id))) {
-          await borradorStore.limpiar(almacenBorradores, claveBorrador)
-          setAvisoBorrador('La situación cambió desde que empezó; vuelva a revisarla.')
-        } else {
-          const borrador = await borradorStore.leer(almacenBorradores, claveBorrador)
-          if (!cancelado && borrador) setBorradorPendiente(borrador)
+      try {
+        const confirmacion = await leerConfirmacionFormulario(`${DRAFT_ID_PREFIX}${cue}`)
+        if (cancelado) return
+        if (confirmacion) {
+          setGuardado(true)
+          void limpiarFormularioConfirmado(`${DRAFT_ID_PREFIX}${cue}`, claveBorrador)
+          return
         }
+        const guardado = await leerBorradorFormulario(
+          `${DRAFT_ID_PREFIX}${cue}`,
+          claveBorrador,
+          esBorradorActualizacionConFotos,
+        )
+        if (cancelado) return
+        if (guardado) {
+          borradorCompartidoRef.current = guardado
+          generacionAlmacenRef.current = guardado.registro.generacion
+          const dato = guardado.datos
+          if (!coincidenIdsSituaciones(dato.idsSituaciones, situaciones.map((situacion) => situacion.id))) {
+            persistenciaBloqueadaRef.current = true
+            setAvisoBorrador('La situación cambió desde que empezó. El borrador anterior se conservó en este dispositivo y no se aplicó a esta actualización.')
+          } else {
+            setBorradorPendiente(dato)
+          }
+        }
+      } catch (error) {
+        if (!cancelado) {
+          persistenciaBloqueadaRef.current = true
+          const mensaje = error instanceof Error ? error.message : 'No se pudo acceder al almacenamiento local.'
+          if (mensaje.includes('IndexedDB')) {
+            setAvisoAlmacen(`${mensaje} Puede enviar las respuestas.`)
+          } else {
+            setAvisoBorrador(`${MENSAJE_BORRADOR_INVALIDO} ${mensaje} Puede enviar las respuestas.`)
+          }
+          try {
+            const anterior: unknown = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
+            if (esBorradorActualizacionConFotos(anterior)) {
+              const borrador: BorradorFormulario<BorradorActualizacionConFotos> = {
+                registro: { draftId: `${DRAFT_ID_PREFIX}${cue}`, generacion: 1, version: 1, datos: anterior, actualizadoEn: new Date().toISOString() },
+                datos: anterior,
+              }
+              borradorCompartidoRef.current = borrador
+              if (coincidenIdsSituaciones(anterior.idsSituaciones, situaciones.map((situacion) => situacion.id))) setBorradorPendiente(anterior)
+            }
+          } catch {
+            // Keep the legacy value untouched and continue with an explicit notice.
+          }
+        }
+      } finally {
+        if (!cancelado) setBorradorLeido(true)
       }
-      if (!cancelado) setBorradorLeido(true)
     })()
     return () => { cancelado = true }
-  }, [claveBorrador, situaciones])
+  }, [claveBorrador, cue, situaciones])
 
   useEffect(() => {
-    if (!borradorLeido || !interaccionIniciada) return
+    if (!borradorLeido || !interaccionIniciada || borradorPendiente || persistenciaBloqueadaRef.current) return
     const generacion = generacionRef.current ??= crypto.randomUUID()
-    void borradorStore.guardar(almacenBorradores, claveBorrador, {
+    const datos: BorradorActualizacionConFotos = {
       generacion,
+      referenciasFotos: borradorCompartidoRef.current?.datos.referenciasFotos ?? [],
       etapa: etapa === 'enviado' ? 'resumen' : etapa,
       recorrido,
       asistenciaPedagogica,
       idsSituaciones: situaciones.map((situacion) => situacion.id),
+    }
+    const actual = borradorCompartidoRef.current ?? {
+      registro: {
+        draftId: `${DRAFT_ID_PREFIX}${cue}`,
+        generacion: generacionAlmacenRef.current,
+        version: 1 as const,
+        datos,
+        actualizadoEn: new Date().toISOString(),
+      },
+      datos,
+    }
+    void guardarBorradorFormulario(actual, datos).then((guardado) => {
+      borradorCompartidoRef.current = guardado
+      setAvisoBorrador(null)
+      try { localStorage.setItem(claveBorrador, JSON.stringify(datos)) } catch { /* IndexedDB sigue siendo el almacenamiento principal. */ }
+    }).catch((error: unknown) => {
+      setAvisoAlmacen(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo guardar el borrador local. Puede enviar las respuestas.')
     })
-  }, [borradorLeido, interaccionIniciada, claveBorrador, etapa, recorrido, asistenciaPedagogica, situaciones])
+  }, [borradorLeido, interaccionIniciada, borradorPendiente, claveBorrador, cue, etapa, recorrido, asistenciaPedagogica, situaciones])
 
   useEffect(() => {
     function alVolverAtras(): void {
@@ -295,7 +365,11 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     return {
       tipo: 'actualizacion',
       cue,
-      fetchImpl: (input, init) => fetch(input, init),
+      fetchImpl: async (input, init) => {
+        const idempotencyKey = new Headers(init?.headers).get('Idempotency-Key')
+        if (idempotencyKey) await guardarClaveEnvioFormulario(`${DRAFT_ID_PREFIX}${cue}`, idempotencyKey).catch(() => {})
+        return fetch(input, init)
+      },
       url: '/api/problematicas/parte',
       construirCuerpo: (datosEnvio, idempotencyKey) => {
         const vinculo = leerVinculoVerificacion()
@@ -316,14 +390,44 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     }
   }, [cue])
 
-  const alEnviarConExito = useCallback(() => {
-    void borradorStore.limpiar(almacenBorradores, claveBorrador)
+  const vincularFotosPreparadas = useCallback((movimientoId: string) => {
+    if (fotosPreparadas.length === 0) return
+    void declararFotosFormulario({
+      draftId: fotosDraftId,
+      movimientoBaseId: movimientoId,
+      idempotencyKey: claveEvidenciaFotos,
+      fotos: fotosPreparadas,
+    }).catch((error: unknown) => {
+      setErrorFotos(error instanceof Error ? error.message : 'Las fotos quedaron guardadas en este dispositivo para reintentar.')
+    })
+  }, [claveEvidenciaFotos, fotosDraftId, fotosPreparadas])
+
+  const alEnviarConExito = useCallback((movimientoId?: string) => {
+    if (movimientoId) void confirmarFormulario(`${DRAFT_ID_PREFIX}${cue}`, movimientoId).catch(() => {})
+    if (movimientoId) {
+      movimientoFotosConfirmadoRef.current = movimientoId
+      vincularFotosPreparadas(movimientoId)
+    }
+    const actual = borradorCompartidoRef.current
+    if (actual) {
+      void eliminarBorradorFormulario(actual).then(() => {
+        borradorCompartidoRef.current = null
+        localStorage.removeItem(claveBorrador)
+      }).catch((error: unknown) => {
+        setAvisoBorrador(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo limpiar el borrador local.')
+      })
+    }
     limpiarVinculoVerificacion()
     setBorradorPendiente(null)
     setGuardado(true)
     setEnviando(false)
     enviandoRef.current = false
-  }, [claveBorrador])
+  }, [claveBorrador, cue, vincularFotosPreparadas])
+
+  useEffect(() => {
+    const movimientoId = movimientoFotosConfirmadoRef.current
+    if (movimientoId && fotosPreparadas.length) vincularFotosPreparadas(movimientoId)
+  }, [fotosPreparadas, vincularFotosPreparadas])
 
   useEffect(() => {
     let cancelado = false
@@ -336,7 +440,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         setIntentosEnvio(cola.intentos)
         if (esEstadoReintentable(cola.estado) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
           const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
-          if (!cancelado && resultado?.ok) alEnviarConExito()
+          if (!cancelado && resultado?.ok) {
+            const cuerpo = resultado.respuesta as { movimientoId?: string } | null
+            alEnviarConExito(cuerpo?.movimientoId)
+          }
         }
       }
     })()
@@ -352,7 +459,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       if (guardado || (!esEstadoReintentable(estadoEnvio) && !(deliberado && (errorEnReintento || sesionVencidaEnReintento)))) return
       void (async () => {
         const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() }, { deliberado })
-        if (resultado?.ok) alEnviarConExito()
+        if (resultado?.ok) {
+          const cuerpo = resultado.respuesta as { movimientoId?: string } | null
+          alEnviarConExito(cuerpo?.movimientoId)
+        }
       })()
     }
   })
@@ -401,7 +511,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     const resultado = await intentarEnviar(payload, { ...opcionesEnvio(), almacen: await almacen() })
     if (resultado.ok) {
       const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string } | null
-      if (cuerpo?.ok && typeof cuerpo.movimientoId === 'string') { alEnviarConExito(); return }
+      if (cuerpo?.ok && typeof cuerpo.movimientoId === 'string') { alEnviarConExito(cuerpo.movimientoId); return }
       enviandoRef.current = false
       setEnviando(false)
       setError(MENSAJE_ERROR_GUARDADO)
@@ -410,6 +520,26 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     enviandoRef.current = false
     setEnviando(false)
     // El resumen ya anuncia el error persistido junto al estado del envío.
+  }
+
+  async function enviarSoloFotos(): Promise<void> {
+    const base = historial.find((movimiento) => (movimiento.tipo as string) !== 'evidencia_fotografica')
+    if (!base || fotosPreparadas.length !== cantidadFotosSeleccionadas || cantidadFotosSeleccionadas === 0) return
+    setEnviando(true)
+    setErrorFotos(null)
+    try {
+      await declararFotosFormulario({
+        draftId: fotosDraftId,
+        movimientoBaseId: base.id,
+        idempotencyKey: claveEvidenciaFotos,
+        fotos: fotosPreparadas,
+      })
+      setGuardado(true)
+    } catch (error) {
+      setErrorFotos(error instanceof Error ? error.message : 'No se pudieron guardar las fotos. Puede continuar con una actualización normal.')
+    } finally {
+      setEnviando(false)
+    }
   }
 
   function siguiente(): void {
@@ -452,9 +582,27 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 
   if (guardado || etapa === 'enviado') {
     return <ConfirmacionEnviado cue={cue} onRecargar={() => {
-      void borradorStore.limpiar(almacenBorradores, claveBorrador)
-      setBorradorPendiente(null)
-      onRecargar()
+      void (async () => {
+        await olvidarClaveEnvioFormulario(`${DRAFT_ID_PREFIX}${cue}`)
+        const actual = borradorCompartidoRef.current
+        if (actual) {
+          await eliminarBorradorFormulario(actual)
+          borradorCompartidoRef.current = null
+          localStorage.removeItem(claveBorrador)
+        }
+        setBorradorPendiente(null)
+        setGuardado(false)
+        setEtapa('entrada')
+        setRecorrido(RECORRIDO_INICIAL)
+        setAsistenciaPedagogica({ brinda: '', modalidades: [] })
+        setEstadoEnvio(null)
+        setEstadoAvisoEnvio(null)
+        setMotivoEnvio(null)
+        setIntentosEnvio(0)
+        setInteraccionIniciada(false)
+        persistenciaBloqueadaRef.current = false
+        onRecargar()
+      })().catch(() => {})
     }} />
   }
 
@@ -473,6 +621,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         <p>Puede seguir donde lo dejó o descartarlo y empezar de nuevo.</p>
       </ConfirmSheet>
       {avisoBorrador ? <p className="recorrido-actualizacion__aviso" role="alert">{avisoBorrador}</p> : null}
+      {avisoAlmacen && !estadoAvisoEnvio ? <p className="recorrido-actualizacion__aviso" role="status">{avisoAlmacen}</p> : null}
       {etapa === 'entrada' ? (
         <EntradaActualizar
           situaciones={situaciones}
@@ -485,6 +634,18 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             moverEtapa(ordenadas.length ? { revisar: 0 } : 'nuevo')
           }}
         />
+      ) : null}
+      {etapa === 'entrada' && cantidadFotosSeleccionadas > 0 ? (
+        <div className="asistente__acciones">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={enviando || fotosPreparadas.length !== cantidadFotosSeleccionadas}
+            onClick={() => void enviarSoloFotos()}
+          >
+            {enviando ? 'Guardando evidencia…' : 'Guardar solo fotos'}
+          </Button>
+        </div>
       ) : null}
 
       {etapa !== 'entrada' ? <ProgresoActualizacion paso={pasoProgreso} total={totalPasos} /> : null}
@@ -606,6 +767,12 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           onEnviar={() => void enviar()}
         />
       ) : null}
+      <SelectorFotosFormulario
+        draftId={fotosDraftId}
+        onPreparadasChange={setFotosPreparadas}
+        onCountChange={setCantidadFotosSeleccionadas}
+      />
+      {errorFotos ? <p role="status">{errorFotos}</p> : null}
       {error && etapa !== 'resumen' ? <p role="alert">{error}</p> : null}
       <CascadaPendiente
         pendiente={pendiente}
@@ -627,14 +794,30 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         cancelarLabel="Cancelar"
         onCancelar={() => setConfirmarDescarte(false)}
         onConfirmar={() => {
-          void borradorStore.limpiar(almacenBorradores, claveBorrador)
-          setBorradorPendiente(null)
-          setRecorrido(RECORRIDO_INICIAL)
-          setEtapa('entrada')
-          setInteraccionIniciada(false)
-          setError(null)
-          setAvisoBorrador(null)
-          setConfirmarDescarte(false)
+          const actual = borradorCompartidoRef.current
+          void (async () => {
+            try {
+              if (actual && !(await eliminarBorradorFormulario(actual))) {
+                setAvisoBorrador('El borrador cambió en otra pestaña y se conservó. Puede enviar las respuestas.')
+                setConfirmarDescarte(false)
+                return
+              }
+              localStorage.removeItem(claveBorrador)
+              borradorCompartidoRef.current = null
+              generacionAlmacenRef.current += 1
+              generacionRef.current = crypto.randomUUID()
+              persistenciaBloqueadaRef.current = false
+              setBorradorPendiente(null)
+              setRecorrido(RECORRIDO_INICIAL)
+              setEtapa('entrada')
+              setInteraccionIniciada(false)
+              setError(null)
+              setAvisoBorrador(null)
+              setConfirmarDescarte(false)
+            } catch (error) {
+              setAvisoBorrador(error instanceof Error ? `${error.message} El borrador se conservó; puede enviar las respuestas.` : 'No se pudo descartar el borrador local. Puede enviar las respuestas.')
+            }
+          })()
         }}
       >
         <p>Se pierde lo que cargó y no se envía nada.</p>

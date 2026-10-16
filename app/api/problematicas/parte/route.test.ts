@@ -5,11 +5,12 @@ import { and, count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, getRawClient } from '@/lib/db'
 import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
-import { infraAfectacion, infraMovimiento, infraParte, infraVerificacionEvento } from '@/lib/db/schema'
+import { infraAfectacion, infraBorrador, infraBorradorCierre, infraMovimiento, infraParte, infraVerificacionEvento } from '@/lib/db/schema'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
+import { BorradorError, syncDraft } from '@/lib/infraestructura/borradores/service'
 import {
   NOMBRE_COOKIE_SESION_VERIFICACION,
   crearSesionVerificacion,
@@ -132,6 +133,7 @@ const CUE_R = '1801605-62'
 const CUE_R2 = '1801605-63'
 const CUE_S = CUE_R2
 const CUE_R3 = '1801605-64'
+const CUE_T = '1801605-65'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -151,7 +153,7 @@ beforeAll(async () => {
   )
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
-    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3,
+    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -914,6 +916,71 @@ describe('POST /api/problematicas/parte — causa', () => {
       .where(and(eq(infraAfectacion.parteId, parte!.id), eq(infraAfectacion.motivo, entrada.motivo)))
     expect(vinculadas).toHaveLength(2)
     expect(vinculadas.filter((fila) => fila.causadaPorId === causa)).toHaveLength(1)
+  })
+})
+
+describe('POST /api/problematicas/parte — cierre de borrador', () => {
+  async function crearBorrador(cue: string) {
+    const draftId = crypto.randomUUID()
+    const now = new Date().toISOString()
+    await getDb().insert(infraBorrador).values({
+      id: draftId,
+      generacion: 1,
+      cueAnexo: cue,
+      contexto: { version: 1, draftId, cue, flujo: 'inicial' },
+      paso: 'situacion',
+      respuestas: {},
+      revision: 0,
+      estado: 'open',
+      creadoEn: now,
+      actividadEn: now,
+      sincronizadoEn: now,
+    })
+    return draftId
+  }
+
+  it('links and closes the draft atomically, and keeps the closure on an idempotent retry', async () => {
+    const draftId = await crearBorrador(CUE_T)
+    const idempotencyKey = crypto.randomUUID()
+    const body = {
+      cue: CUE_T,
+      draftId,
+      idempotencyKey,
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [seccionId(CUE_T, '10')] }],
+    }
+
+    const first = await POST(postReq(body))
+    expect(first.status).toBe(201)
+    const firstBody = await first.json()
+    const [submitted] = await getDb().select().from(infraBorrador).where(eq(infraBorrador.id, draftId))
+    const [closure] = await getDb().select().from(infraBorradorCierre).where(eq(infraBorradorCierre.draftId, draftId))
+    expect(submitted).toMatchObject({ estado: 'submitted', revision: 1, movimientoId: firstBody.movimientoId })
+    expect(closure).toMatchObject({ estadoCierre: 'submitted', revisionCierre: 1, movimientoId: firstBody.movimientoId })
+
+    const retry = await POST(postReq(body))
+    expect(retry.status).toBe(200)
+    expect(await retry.json()).toMatchObject({ movimientoId: firstBody.movimientoId })
+    expect(await getDb().select().from(infraBorradorCierre).where(eq(infraBorradorCierre.draftId, draftId))).toHaveLength(1)
+    await expect(syncDraft(draftId, { version: 1, baseRevision: 0, actividadEn: new Date().toISOString() }))
+      .rejects.toBeInstanceOf(BorradorError)
+  })
+
+  it('rejects a draft from another CUE without persisting a movement', async () => {
+    const draftId = await crearBorrador(CUE_T)
+    const idempotencyKey = crypto.randomUUID()
+    const response = await POST(postReq({
+      cue: CUE_R3,
+      draftId,
+      idempotencyKey,
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [seccionId(CUE_R3, '10')] }],
+    }))
+
+    expect(response.status).toBe(409)
+    expect(await getDb().select().from(infraMovimiento).where(eq(infraMovimiento.idempotencyKey, idempotencyKey))).toHaveLength(0)
+    const [draft] = await getDb().select().from(infraBorrador).where(eq(infraBorrador.id, draftId))
+    expect(draft).toMatchObject({ estado: 'open', revision: 0, movimientoId: null })
   })
 })
 

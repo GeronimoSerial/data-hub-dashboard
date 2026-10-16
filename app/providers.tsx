@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import { usePathname } from 'next/navigation'
+import { registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
 
 type ThemeMode = 'light' | 'dark'
 
@@ -14,6 +16,7 @@ export function useThemeMode() {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const [mode, setMode] = React.useState<ThemeMode>('light')
 
   React.useEffect(() => {
@@ -39,6 +42,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
       style.remove()
     }
   }, [mode])
+
+  React.useEffect(() => {
+    if (pathname.startsWith('/problematicas/parte')) {
+      void registrarServiceWorkerParte()
+    }
+  }, [pathname])
 
   return (
     <ThemeModeContext.Provider value={{ mode, setMode }}>

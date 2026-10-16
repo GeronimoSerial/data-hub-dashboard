@@ -8,7 +8,8 @@ import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 import { MENSAJES_ESTADO, guardarBorrador as guardarBorradorEnvio } from '@/lib/infraestructura/parte/envio-offline'
-import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { crearAlmacenParte, abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { crearColaTrabajosEnvio } from '@/lib/infraestructura/parte/cola-trabajos-envio'
 
 const props = { cue: '12345678', turnos, motivos }
 
@@ -21,12 +22,14 @@ function sembrarBorradorWizard({
   sinCamposNuevos = false,
   categoria = 'alumnos',
   motivo = 'Anegamiento',
+  cue = props.cue,
 }: {
   paso?: 1 | 2 | 3 | 4 | 5
   version?: number
   sinCamposNuevos?: boolean
   categoria?: 'alumnos' | 'establecimiento'
   motivo?: string
+  cue?: string
 } = {}) {
   const borrador = {
     generacion: 'generacion-test',
@@ -46,7 +49,7 @@ function sembrarBorradorWizard({
     rigeDesde: '2026-10-04T10:00:00.000Z',
     ...(sinCamposNuevos ? {} : { asistenciaBrinda: 'no', modalidadesAsistencia: [], vigencia: { modo: 'ahora' } }),
   }
-  localStorage.setItem(`parte-nuevo:draft:${props.cue}`, JSON.stringify(borrador))
+  localStorage.setItem(`parte-nuevo:draft:${cue}`, JSON.stringify(borrador))
 }
 
 function renderFormulario(overrides: Partial<typeof props> = {}) {
@@ -55,8 +58,15 @@ function renderFormulario(overrides: Partial<typeof props> = {}) {
 
 function stubFetch(respuesta: unknown = { ok: true, movimientoId: 'm1' }, status = 201) {
   const fetchMock = vi.fn(async () => jsonResponse(respuesta, status))
-  vi.stubGlobal('fetch', fetchMock)
+  stubFetchMock(fetchMock)
   return fetchMock
+}
+
+function stubFetchMock(fetchMock: ReturnType<typeof vi.fn>) {
+  vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
+    if (String(input).includes('/borradores/config')) return jsonResponse({ borradoresSync: false, fotos: false, mapaBorradores: false })
+    return (fetchMock as (input: string | URL | Request, init?: RequestInit) => Promise<Response>)(input, init)
+  })
 }
 
 const continuar = () => fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
@@ -111,6 +121,10 @@ function guardarReporte() {
 }
 
 beforeEach(() => {
+  cleanup()
+  localStorage.clear()
+  sessionStorage.clear()
+  globalThis.indexedDB = new IDBFactory()
   if (typeof globalThis.crypto?.randomUUID !== 'function') {
     vi.stubGlobal('crypto', { ...globalThis.crypto, randomUUID: () => '00000000-0000-4000-8000-000000000000' })
   }
@@ -129,6 +143,52 @@ afterEach(() => {
 })
 
 describe('ReporteInicialForm', () => {
+  it('shows a B2 confirmation on reopen without restoring the sent draft or removing photo work', async () => {
+    const id = `parte-inicial:${props.cue}`
+    const almacen = await abrirAlmacenParte()
+    await almacen.guardarContexto({ draftId: id, idempotencyKey: 'sent-initial' })
+    expect(await almacen.obtenerContexto<{ draftId: string; idempotencyKey?: string }>(id)).toMatchObject({
+      draftId: id,
+      idempotencyKey: 'sent-initial',
+    })
+    await almacen.guardarBorrador({ draftId: id, generacion: 1, version: 1, datos: { invalidForRestore: true }, actualizadoEn: new Date().toISOString() })
+    const cola = crearColaTrabajosEnvio(almacen)
+    await cola.encolar({ tipo: 'foto', idempotencyKey: 'photo-initial', draftId: id, cuerpo: { attachmentId: 'photo-1' } })
+    await cola.confirmar('sent-initial', { movimientoId: 'movement-initial', rigeDesde: new Date().toISOString(), cierreDraft: 'enviado' })
+
+    renderFormulario()
+
+    expect(await screen.findByRole('heading', { name: 'Situación guardada' })).toBeInTheDocument()
+    await waitFor(async () => expect(await almacen.obtenerBorrador(id)).toBeNull())
+    expect(await almacen.obtenerTrabajosEnvio()).toMatchObject([{ idempotencyKey: 'photo-initial', tipo: 'foto' }])
+  })
+
+  it('migra el borrador legacy a IndexedDB antes de habilitar su guardado', async () => {
+    sembrarBorradorWizard()
+    renderFormulario()
+    await waitFor(async () => {
+      const store = await abrirAlmacenParte()
+      const borrador = await store.obtenerBorrador(`parte-inicial:${props.cue}`)
+      expect(borrador?.datos).toMatchObject({ paso: 2, generacion: 'generacion-test' })
+    })
+    expect(localStorage.getItem(`parte-nuevo:draft:${props.cue}`)).toBeNull()
+  })
+
+  it('conserva las referencias a fotos del borrador al guardar respuestas', async () => {
+    const key = `parte-nuevo:draft:${props.cue}`
+    sembrarBorradorWizard({ paso: 2 })
+    const datos = JSON.parse(localStorage.getItem(key) ?? '{}')
+    datos.referenciasFotos = ['foto-1']
+    localStorage.setItem(key, JSON.stringify(datos))
+    renderFormulario()
+    await screen.findByRole('dialog', { name: MENSAJE_BORRADOR_PENDIENTE })
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    await waitFor(async () => {
+      const store = await abrirAlmacenParte()
+      expect((await store.obtenerBorrador(`parte-inicial:${props.cue}`))?.datos).toMatchObject({ referenciasFotos: ['foto-1'] })
+    })
+  })
+
   it('después de guardar, "Cargar otra situación" deja el botón de guardar habilitado (#73)', async () => {
     const fetchMock = stubFetch()
     renderFormulario()
@@ -685,7 +745,7 @@ describe('ReporteInicialForm', () => {
 
   it('omite el vínculo cuando no existe y lo conserva ante una respuesta fallida', async () => {
     const fetchMock = stubFetch()
-    renderFormulario()
+    renderFormulario({ cue: '12345679' })
     guardarReporte()
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
@@ -773,7 +833,7 @@ describe('ReporteInicialForm', () => {
     const fetchMock = vi.fn(async () => {
       throw new Error('network')
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
 
@@ -795,7 +855,7 @@ describe('ReporteInicialForm', () => {
       init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
       })
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
     llegarAConfirmar()
@@ -822,7 +882,7 @@ describe('ReporteInicialForm', () => {
 
   it('muestra Guardando… sin texto duplicado y permite volver mientras se envía', async () => {
     let resolver!: (respuesta: Response) => void
-    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { resolver = resolve })))
+    stubFetchMock(vi.fn(() => new Promise<Response>((resolve) => { resolver = resolve })))
 
     renderFormulario()
 
@@ -841,7 +901,7 @@ describe('ReporteInicialForm', () => {
     fetchMock
       .mockImplementationOnce(async () => jsonResponse({ error: 'boom' }, 503))
       .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
     guardarReporte()
@@ -868,7 +928,7 @@ describe('ReporteInicialForm', () => {
     fetchMock
       .mockImplementationOnce(async () => jsonResponse({ error: 'boom' }, 503))
       .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
     guardarReporte()
@@ -887,7 +947,7 @@ describe('ReporteInicialForm', () => {
     fetchMock
       .mockImplementationOnce(async () => jsonResponse({ algo: 'inesperado' }, 200))
       .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
     guardarReporte()
@@ -928,7 +988,7 @@ describe('ReporteInicialForm', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({}, 401))
       .mockResolvedValueOnce(jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
     guardarReporte()
@@ -976,11 +1036,15 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
   })
 
   it('al volver con un borrador sin enviar ofrece continuar o descartar', async () => {
-    sembrarBorradorWizard({ paso: 2 })
-    renderFormulario()
+    const cue = '12345679'
+    sembrarBorradorWizard({ paso: 2, cue })
+    renderFormulario({ cue })
 
     expect(await screen.findByText(MENSAJE_BORRADOR_PENDIENTE)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    })
+    expect(await screen.findByText('Paso 2 de 4')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
   })
 
@@ -1002,7 +1066,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sí, descartar' }))
 
     await waitFor(() => expect(screen.queryByText(MENSAJE_BORRADOR_PENDIENTE)).not.toBeInTheDocument())
-    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
     expect(localStorage.getItem(`parte-nuevo:draft:${props.cue}`)).toBeNull()
   })
 
@@ -1011,7 +1075,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     renderFormulario()
     fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
 
-    expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
+    expect(await screen.findByRole('radio', { name: 'Ahora' })).toBeChecked()
   })
 
   it('guarda el borrador con la versión de numeración vigente', async () => {
@@ -1165,7 +1229,7 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
       actualizadoEn: '2026-10-04T10:00:00.000Z',
     })
     const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
 
@@ -1188,7 +1252,7 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
       actualizadoEn: '2026-10-04T10:00:00.000Z',
     })
     const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchMock(fetchMock)
 
     renderFormulario()
 
