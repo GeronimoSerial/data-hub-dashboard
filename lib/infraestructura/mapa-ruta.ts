@@ -1,8 +1,12 @@
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
+import { alcanceMapa, filtrosDeAlcance } from '@/lib/infraestructura/alcance-mapa'
+import type { FiltrosMapa } from '@/lib/infraestructura/parte-mapa'
 
-export function crearGetMapaInfraestructura<T>(listar: () => Promise<T>) {
+// `listar` recibe el alcance del usuario (nivel jurisdiccional) ya resuelto:
+// el filtro se aplica en la consulta, no en la UI.
+export function crearGetMapaInfraestructura<T>(listar: (filtros: FiltrosMapa) => Promise<T>) {
   return async (request: Request) => {
     // Mantener el seed antes del ACL: las rutas existentes dependen de ese orden.
     await ensureSeeded()
@@ -13,7 +17,12 @@ export function crearGetMapaInfraestructura<T>(listar: () => Promise<T>) {
       return Response.json({ error }, { status: acceso.status })
     }
 
-    const resultado = await listar()
+    const alcance = alcanceMapa(acceso.user)
+    if (alcance.tipo === 'ninguno') {
+      return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403 })
+    }
+
+    const resultado = await listar(filtrosDeAlcance(alcance))
     return jsonComprimido(request, resultado, {
       headers: { 'Cache-Control': 'private, no-cache' },
     })

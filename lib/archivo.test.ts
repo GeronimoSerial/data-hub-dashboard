@@ -11,7 +11,7 @@ import {
 const pub: RecursoAccess = {
   id: 'r1',
   estado: 'publicado',
-  audienciaNivelIds: [],
+  audienciaNivelJurIds: [],
   audienciaUserIds: [],
 }
 
@@ -19,7 +19,7 @@ const consulta = (over: Partial<SessionUser> = {}): SessionUser => ({
   id: 'u1',
   role: 'consulta',
   banned: false,
-  nivelIds: [],
+  nivelJurIds: [],
   accesoRecursos: 'todos',
   recursoIds: [],
   ...over,

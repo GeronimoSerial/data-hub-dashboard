@@ -2,6 +2,7 @@ import { count, eq } from 'drizzle-orm'
 import {
   categorias as seedCategorias,
   niveles as seedNiveles,
+  nivelesJurisdiccionales as seedNivelesJur,
   recursos as seedRecursos,
   tags as seedTags,
   tipos as seedTipos,
@@ -18,6 +19,7 @@ import {
   categorias,
   infraPeriodo,
   niveles,
+  nivelesJurisdiccionales,
   recursoTags,
   recursos,
   tags,
@@ -161,7 +163,7 @@ async function seedHub() {
         await tx.insert(tags).values(seedTags)
         await tx.insert(recursos).values(
           seeded.map(
-            ({ tagIds: _tagIds, audienciaNivelIds: _n, audienciaUserIds: _u, ...row }) =>
+            ({ tagIds: _tagIds, audienciaNivelJurIds: _n, audienciaUserIds: _u, ...row }) =>
               row,
           ),
         )
@@ -192,6 +194,13 @@ async function seedHub() {
   // Modelo de parte (ver docs/especificacion-funcional-trayectoria-evento-hidrometeorologico.md):
   // siembra el período provincial. Idempotente, corre siempre.
   await sembrarPeriodoEnos()
+
+  // Catálogo de niveles jurisdiccionales de GE (ids fijos). Idempotente; la
+  // migración 0013 ya lo siembra, esto cubre bases que no lo tengan.
+  await getDb()
+    .insert(nivelesJurisdiccionales)
+    .values(seedNivelesJur)
+    .onConflictDoNothing()
 
   // Siembra ge_localizacion desde el JSON versionado si esta vacia: ge.sqlite
   // vive en el volumen y una instalacion nueva arrancaria sin escuelas.

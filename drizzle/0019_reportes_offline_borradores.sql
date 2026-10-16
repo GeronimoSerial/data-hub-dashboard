@@ -27,13 +27,10 @@ CREATE TABLE "infra_borrador_cierre" (
 	CONSTRAINT "infra_borrador_cierre_revision_check" CHECK ("infra_borrador_cierre"."revision_cierre" >= 0)
 );
 --> statement-breakpoint
-ALTER TABLE "infra_borrador" ADD CONSTRAINT "infra_borrador_movimiento_id_infra_movimiento_id_fk" FOREIGN KEY ("movimiento_id") REFERENCES "public"."infra_movimiento"("id") ON DELETE no action ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "infra_borrador_cierre" ADD CONSTRAINT "infra_borrador_cierre_movimiento_id_infra_movimiento_id_fk" FOREIGN KEY ("movimiento_id") REFERENCES "public"."infra_movimiento"("id") ON DELETE no action ON UPDATE no action;
---> statement-breakpoint
-CREATE INDEX "infra_borrador_cue_estado_idx" ON "infra_borrador" USING btree ("cue_anexo", "estado");
---> statement-breakpoint
-CREATE INDEX "infra_borrador_cue_estado_actividad_id_idx" ON "infra_borrador" USING btree ("cue_anexo", "estado", "actividad_en", "id");
+ALTER TABLE "infra_borrador" ADD CONSTRAINT "infra_borrador_movimiento_id_infra_movimiento_id_fk" FOREIGN KEY ("movimiento_id") REFERENCES "public"."infra_movimiento"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "infra_borrador_cierre" ADD CONSTRAINT "infra_borrador_cierre_movimiento_id_infra_movimiento_id_fk" FOREIGN KEY ("movimiento_id") REFERENCES "public"."infra_movimiento"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "infra_borrador_cue_estado_idx" ON "infra_borrador" USING btree ("cue_anexo","estado");--> statement-breakpoint
+CREATE INDEX "infra_borrador_cue_estado_actividad_id_idx" ON "infra_borrador" USING btree ("cue_anexo","estado","actividad_en","id");
 --> statement-breakpoint
 CREATE FUNCTION infra_borrador_rechazar_cerrado() RETURNS trigger AS $$
 BEGIN

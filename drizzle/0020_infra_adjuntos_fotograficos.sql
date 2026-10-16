@@ -11,13 +11,12 @@ CREATE TABLE "infra_adjunto" (
 	"miniatura_etag" text,
 	"estado" text DEFAULT 'pending' NOT NULL,
 	"creada_por" text NOT NULL,
-	CONSTRAINT "infra_adjunto_optimizada_size_check" CHECK ("optimizada_size" > 0),
-	CONSTRAINT "infra_adjunto_miniatura_size_check" CHECK ("miniatura_size" > 0),
-	CONSTRAINT "infra_adjunto_estado_check" CHECK ("estado" IN ('pending', 'confirmed'))
+	CONSTRAINT "infra_adjunto_optimizada_size_check" CHECK ("infra_adjunto"."optimizada_size" > 0),
+	CONSTRAINT "infra_adjunto_miniatura_size_check" CHECK ("infra_adjunto"."miniatura_size" > 0),
+	CONSTRAINT "infra_adjunto_estado_check" CHECK ("infra_adjunto"."estado" IN ('pending', 'confirmed'))
 );
 --> statement-breakpoint
-ALTER TABLE "infra_adjunto" ADD CONSTRAINT "infra_adjunto_movimiento_id_infra_movimiento_id_fk" FOREIGN KEY ("movimiento_id") REFERENCES "public"."infra_movimiento"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
+ALTER TABLE "infra_adjunto" ADD CONSTRAINT "infra_adjunto_movimiento_id_infra_movimiento_id_fk" FOREIGN KEY ("movimiento_id") REFERENCES "public"."infra_movimiento"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "infra_adjunto_movimiento_id_idx" ON "infra_adjunto" USING btree ("movimiento_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "infra_adjunto_optimizada_obs_key_uidx" ON "infra_adjunto" USING btree ("optimizada_obs_key");

@@ -1,5 +1,5 @@
 {
-  "id": "ca6a938d-9f57-4125-91be-ec34a994aff7",
+  "id": "107bd5b4-383b-48a4-9720-e75c2587d68b",
   "prevId": "05945360-010c-46e2-9f7d-4196c453779b",
   "version": "7",
   "dialect": "postgresql",
@@ -171,6 +171,79 @@
         },
         "color": {
           "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ge_sso_evento": {
+      "name": "ge_sso_evento",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "ge_sso_evento_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "at": {
+          "name": "at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rol": {
+          "name": "rol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cue": {
+          "name": "cue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nivel_jurisdiccional_id": {
+          "name": "nivel_jurisdiccional_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip": {
+          "name": "ip",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resultado": {
+          "name": "resultado",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -1816,247 +1889,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.infra_borrador": {
-      "name": "infra_borrador",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "generacion": {
-          "name": "generacion",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cue_anexo": {
-          "name": "cue_anexo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "contexto": {
-          "name": "contexto",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "paso": {
-          "name": "paso",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "respuestas": {
-          "name": "respuestas",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "estado": {
-          "name": "estado",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'open'"
-        },
-        "movimiento_id": {
-          "name": "movimiento_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "actividad_en": {
-          "name": "actividad_en",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "creado_en": {
-          "name": "creado_en",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sincronizado_en": {
-          "name": "sincronizado_en",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "infra_borrador_cue_estado_idx": {
-          "name": "infra_borrador_cue_estado_idx",
-          "columns": [
-            {
-              "expression": "cue_anexo",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "estado",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "infra_borrador_cue_estado_actividad_id_idx": {
-          "name": "infra_borrador_cue_estado_actividad_id_idx",
-          "columns": [
-            {
-              "expression": "cue_anexo",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "estado",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "actividad_en",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "infra_borrador_movimiento_id_infra_movimiento_id_fk": {
-          "name": "infra_borrador_movimiento_id_infra_movimiento_id_fk",
-          "tableFrom": "infra_borrador",
-          "tableTo": "infra_movimiento",
-          "columnsFrom": [
-            "movimiento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "infra_borrador_generacion_check": {
-          "name": "infra_borrador_generacion_check",
-          "value": "\"infra_borrador\".\"generacion\" > 0"
-        },
-        "infra_borrador_revision_check": {
-          "name": "infra_borrador_revision_check",
-          "value": "\"infra_borrador\".\"revision\" >= 0"
-        },
-        "infra_borrador_estado_check": {
-          "name": "infra_borrador_estado_check",
-          "value": "\"infra_borrador\".\"estado\" IN ('open', 'submitted', 'discarded')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.infra_borrador_cierre": {
-      "name": "infra_borrador_cierre",
-      "schema": "",
-      "columns": {
-        "draft_id": {
-          "name": "draft_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "cue_anexo": {
-          "name": "cue_anexo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "estado_cierre": {
-          "name": "estado_cierre",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision_cierre": {
-          "name": "revision_cierre",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "movimiento_id": {
-          "name": "movimiento_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cerrado_en": {
-          "name": "cerrado_en",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "infra_borrador_cierre_movimiento_id_infra_movimiento_id_fk": {
-          "name": "infra_borrador_cierre_movimiento_id_infra_movimiento_id_fk",
-          "tableFrom": "infra_borrador_cierre",
-          "tableTo": "infra_movimiento",
-          "columnsFrom": [
-            "movimiento_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "infra_borrador_cierre_estado_check": {
-          "name": "infra_borrador_cierre_estado_check",
-          "value": "\"infra_borrador_cierre\".\"estado_cierre\" IN ('submitted', 'discarded')"
-        },
-        "infra_borrador_cierre_revision_check": {
-          "name": "infra_borrador_cierre_revision_check",
-          "value": "\"infra_borrador_cierre\".\"revision_cierre\" >= 0"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.infra_briefing": {
@@ -4953,6 +4785,31 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.niveles_jurisdiccionales": {
+      "name": "niveles_jurisdiccionales",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.om_cupo_contador": {
       "name": "om_cupo_contador",
       "schema": "",
@@ -5441,6 +5298,66 @@
           "columns": [
             "recurso_id",
             "nivel_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.recurso_audiencia_niveles_jur": {
+      "name": "recurso_audiencia_niveles_jur",
+      "schema": "",
+      "columns": {
+        "recurso_id": {
+          "name": "recurso_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nivel_jurisdiccional_id": {
+          "name": "nivel_jurisdiccional_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "recurso_audiencia_niveles_jur_recurso_id_recursos_id_fk": {
+          "name": "recurso_audiencia_niveles_jur_recurso_id_recursos_id_fk",
+          "tableFrom": "recurso_audiencia_niveles_jur",
+          "tableTo": "recursos",
+          "columnsFrom": [
+            "recurso_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "recurso_audiencia_niveles_jur_nivel_jurisdiccional_id_niveles_jurisdiccionales_id_fk": {
+          "name": "recurso_audiencia_niveles_jur_nivel_jurisdiccional_id_niveles_jurisdiccionales_id_fk",
+          "tableFrom": "recurso_audiencia_niveles_jur",
+          "tableTo": "niveles_jurisdiccionales",
+          "columnsFrom": [
+            "nivel_jurisdiccional_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "recurso_audiencia_niveles_jur_recurso_id_nivel_jurisdiccional_id_pk": {
+          "name": "recurso_audiencia_niveles_jur_recurso_id_nivel_jurisdiccional_id_pk",
+          "columns": [
+            "recurso_id",
+            "nivel_jurisdiccional_id"
           ]
         }
       },
@@ -6094,6 +6011,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'todos'"
+        },
+        "ge_cue_anexo": {
+          "name": "ge_cue_anexo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -6151,6 +6074,66 @@
           "columns": [
             "user_id",
             "nivel_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_niveles_jur": {
+      "name": "user_niveles_jur",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nivel_jurisdiccional_id": {
+          "name": "nivel_jurisdiccional_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_niveles_jur_user_id_user_id_fk": {
+          "name": "user_niveles_jur_user_id_user_id_fk",
+          "tableFrom": "user_niveles_jur",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_niveles_jur_nivel_jurisdiccional_id_niveles_jurisdiccionales_id_fk": {
+          "name": "user_niveles_jur_nivel_jurisdiccional_id_niveles_jurisdiccionales_id_fk",
+          "tableFrom": "user_niveles_jur",
+          "tableTo": "niveles_jurisdiccionales",
+          "columnsFrom": [
+            "nivel_jurisdiccional_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_niveles_jur_user_id_nivel_jurisdiccional_id_pk": {
+          "name": "user_niveles_jur_user_id_nivel_jurisdiccional_id_pk",
+          "columns": [
+            "user_id",
+            "nivel_jurisdiccional_id"
           ]
         }
       },

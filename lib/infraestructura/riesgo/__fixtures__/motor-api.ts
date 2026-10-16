@@ -13,7 +13,7 @@ export const USER: SessionUser = {
   id: 'u1',
   role: 'consulta',
   banned: false,
-  nivelIds: [],
+  nivelJurIds: [],
   accesoRecursos: 'todos' as const,
   recursoIds: [],
 }

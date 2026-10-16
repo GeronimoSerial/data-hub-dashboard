@@ -75,16 +75,16 @@ describe('upsertRecursoInfraestructura', () => {
     await restart()
 
     const { getDb } = await import('@/lib/db')
-    const { recursoAudienciaNiveles } = await import('@/lib/db/schema')
+    const { recursoAudienciaNivelesJur } = await import('@/lib/db/schema')
     await getDb()
-      .insert(recursoAudienciaNiveles)
-      .values({ recursoId: 'recurso-infraestructura', nivelId: 'secundario' })
+      .insert(recursoAudienciaNivelesJur)
+      .values({ recursoId: 'recurso-infraestructura', nivelJurisdiccionalId: 2 })
 
     await restart()
     await restart()
 
     const { getDb: getDbAfter } = await import('@/lib/db')
-    const { recursoAudienciaNiveles: audienciaAfter } = await import(
+    const { recursoAudienciaNivelesJur: audienciaAfter } = await import(
       '@/lib/db/schema'
     )
     const rows = await getDbAfter()
@@ -93,7 +93,7 @@ describe('upsertRecursoInfraestructura', () => {
       .where(eq(audienciaAfter.recursoId, 'recurso-infraestructura'))
 
     expect(rows).toHaveLength(1)
-    expect(rows[0]?.nivelId).toBe('secundario')
+    expect(rows[0]?.nivelJurisdiccionalId).toBe(2)
   })
 
   it('un recurso restringido no pasa a abierto en un reinicio', async () => {

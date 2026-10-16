@@ -20,7 +20,7 @@ import {
   infraParte,
   infraServicioAlcance,
 } from '@/lib/db/schema'
-import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
+import { codigoSinAccesoParte, tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from '@/lib/infraestructura/ge-db'
@@ -193,7 +193,7 @@ export async function GET(request: Request) {
   // admin entra exactamente igual que antes porque tieneAccesoAlParteParaCue
   // prueba esa vía primero.
   if (!(await tieneAccesoAlParteParaCue(request, cue.value))) {
-    return Response.json({ error: 'No autorizado' }, { status: 401 })
+    return Response.json({ error: 'No autorizado' }, { status: await codigoSinAccesoParte() })
   }
 
   await ensureSeeded()
@@ -410,7 +410,7 @@ export async function POST(request: Request) {
   // última puerta antes de cualquier escritura—, sólo cambia qué mensaje de
   // error ve primero un llamador no autenticado.
   if (!(await tieneAccesoAlParteParaCue(request, cue.value))) {
-    return Response.json({ error: 'No autorizado' }, { status: 401 })
+    return Response.json({ error: 'No autorizado' }, { status: await codigoSinAccesoParte() })
   }
 
   const db = getDb()

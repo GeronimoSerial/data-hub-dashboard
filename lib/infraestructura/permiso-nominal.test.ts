@@ -9,7 +9,7 @@ function user(overrides: Partial<SessionUser>): SessionUser {
     id: 'sin-uso',
     role: 'consulta',
     banned: false,
-    nivelIds: [],
+    nivelJurIds: [],
     accesoRecursos: 'todos',
     recursoIds: [],
     ...overrides,
@@ -39,6 +39,27 @@ describe('puedeVerNominal', () => {
     const id = idUnico('admin-baneado')
     expect(
       await puedeVerNominal(user({ id, role: 'admin', banned: true }), new Date()),
+    ).toBe(false)
+  })
+
+  it('un operador de establecimiento nunca ve nominal, ni con grant vigente', async () => {
+    const { puedeVerNominal, otorgarPermisoNominal } = await import('./permiso-nominal')
+    const id = idUnico('operador')
+    await otorgarPermisoNominal({
+      userId: id,
+      otorgadoPor: 'admin-x',
+      venceEn: new Date(Date.now() + 60_000),
+    })
+    expect(
+      await puedeVerNominal(user({ id, role: 'operador_establecimiento', nivelJurIds: [1] }), new Date()),
+    ).toBe(false)
+  })
+
+  it('un director de nivel sin grant no ve nominal: el alcance por dirección no reemplaza al grant', async () => {
+    const { puedeVerNominal } = await import('./permiso-nominal')
+    const id = idUnico('director')
+    expect(
+      await puedeVerNominal(user({ id, role: 'director_nivel', nivelJurIds: [1] }), new Date()),
     ).toBe(false)
   })
 

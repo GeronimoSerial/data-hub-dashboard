@@ -74,6 +74,44 @@ export const recursoAudienciaNiveles = pgTable(
   (t) => [primaryKey({ columns: [t.recursoId, t.nivelId] })],
 )
 
+// Catálogo de niveles jurisdiccionales de GE (ge.ge_nivel_jurisdiccional). El id
+// es el mismo que usa GE (1 Secundario, 2 Privada, 4 Superior, ...), por eso no
+// es autoincremental. Reemplaza progresivamente a `niveles` (ver T3/T4).
+export const nivelesJurisdiccionales = pgTable('niveles_jurisdiccionales', {
+  id: integer('id').primaryKey(),
+  nombre: text('nombre').notNull(),
+})
+
+// Niveles jurisdiccionales de un usuario. Mismo patrón que userNiveles (sin
+// fila = sin restricción por este eje; ver lib/acl.ts).
+export const userNivelesJur = pgTable(
+  'user_niveles_jur',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    nivelJurisdiccionalId: integer('nivel_jurisdiccional_id')
+      .notNull()
+      .references(() => nivelesJurisdiccionales.id),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.nivelJurisdiccionalId] })],
+)
+
+// Audiencia de un recurso expresada en niveles jurisdiccionales. Mismo patrón
+// que recursoAudienciaNiveles.
+export const recursoAudienciaNivelesJur = pgTable(
+  'recurso_audiencia_niveles_jur',
+  {
+    recursoId: text('recurso_id')
+      .notNull()
+      .references(() => recursos.id, { onDelete: 'cascade' }),
+    nivelJurisdiccionalId: integer('nivel_jurisdiccional_id')
+      .notNull()
+      .references(() => nivelesJurisdiccionales.id),
+  },
+  (t) => [primaryKey({ columns: [t.recursoId, t.nivelJurisdiccionalId] })],
+)
+
 export const recursoAudienciaUsuarios = pgTable(
   'recurso_audiencia_usuarios',
   {
@@ -108,6 +146,8 @@ export const user = pgTable('user', {
   // consulta se restringe a los recursos listados en user_recursos (además
   // de la audiencia propia del recurso, ver lib/acl.ts puedeAbrir).
   accesoRecursos: text('acceso_recursos').notNull().default('todos'),
+  // CUE-anexo del establecimiento asignado al operador_establecimiento (T6).
+  geCueAnexo: text('ge_cue_anexo'),
 })
 
 export const session = pgTable(
@@ -179,6 +219,21 @@ export const verification = pgTable(
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)],
 )
+
+// Auditoría del SSO desde Gestión Educativa (GE, T6): cada login aceptado o
+// rechazado y cada consumo de ticket. Nunca guarda la api_key.
+export const geSsoEvento = pgTable('ge_sso_evento', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+  at: timestamp('at', { withTimezone: true })
+    .default(sql`now()`)
+    .notNull(),
+  email: text('email'),
+  rol: text('rol'),
+  cue: text('cue'),
+  nivelJurisdiccionalId: integer('nivel_jurisdiccional_id'),
+  ip: text('ip'),
+  resultado: text('resultado').notNull(),
+})
 
 export const userNiveles = pgTable(
   'user_niveles',

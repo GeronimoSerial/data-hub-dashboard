@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import {
   recursos,
-  recursoAudienciaNiveles,
+  recursoAudienciaNivelesJur,
   recursoAudienciaUsuarios,
 } from '@/lib/db/schema'
 import type { RecursoAccess } from '@/lib/acl'
@@ -15,8 +15,8 @@ export async function loadRecursoAccess(
   if (!row) return null
   const niveles = await db
     .select()
-    .from(recursoAudienciaNiveles)
-    .where(eq(recursoAudienciaNiveles.recursoId, id))
+    .from(recursoAudienciaNivelesJur)
+    .where(eq(recursoAudienciaNivelesJur.recursoId, id))
   const users = await db
     .select()
     .from(recursoAudienciaUsuarios)
@@ -24,7 +24,7 @@ export async function loadRecursoAccess(
   return {
     id: row.id,
     estado: row.estado as RecursoAccess['estado'],
-    audienciaNivelIds: niveles.map((n) => n.nivelId),
+    audienciaNivelJurIds: niveles.map((n) => n.nivelJurisdiccionalId),
     audienciaUserIds: users.map((u) => u.userId),
   }
 }
