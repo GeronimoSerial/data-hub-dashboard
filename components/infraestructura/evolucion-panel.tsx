@@ -26,7 +26,7 @@ const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 function claveConsulta(filtros: FiltrosMapa): string {
   const parametros = new URLSearchParams()
   filtros.departamentos.forEach((departamento) => parametros.append('departamento', departamento))
-  filtros.niveles.forEach((nivel) => parametros.append('nivel', nivel))
+  filtros.direcciones.forEach((direccion) => parametros.append('direccion', String(direccion)))
   return parametros.toString()
 }
 
@@ -57,7 +57,7 @@ export function EvolucionPanel({ filtros }: { filtros: FiltrosMapa }): JSX.Eleme
   const [error, setError] = useState<string | null>(null)
   const consulta = claveConsulta(filtros)
 
-  // El endpoint admite solamente departamento y nivel. La query serializada
+  // El endpoint admite departamento y nivel jurisdiccional (direccion). La query serializada
   // mantiene estable el efecto aunque el padre cree un objeto de filtros nuevo.
   useEffect(() => {
     let cancelado = false

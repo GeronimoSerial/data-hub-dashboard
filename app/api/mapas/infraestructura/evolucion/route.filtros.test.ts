@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   acceso: { ok: true } as { ok: boolean; status?: number },
-  obtenerEvolucionMapa: vi.fn(async (filtros?: { departamentos?: string[]; niveles?: string[] }) => ({
+  obtenerEvolucionMapa: vi.fn(async (filtros?: { departamentos?: string[]; niveles?: string[]; direcciones?: number[] }) => ({
     serieEscuelasServicioCaido: [], rankingDepartamentos: [], distribucionMotivo: [], alumnosAcumulados: [], filtros,
   })),
 }))
@@ -29,6 +29,11 @@ describe('GET /api/mapas/infraestructura/evolucion — filtros', () => {
   it('pasa departamento y nivel validados', async () => {
     await GET(req('?departamento=Goya&nivel=Primario'))
     expect(mocks.obtenerEvolucionMapa).toHaveBeenCalledExactlyOnceWith({ departamentos: ['Goya'], niveles: ['Primario'] })
+  })
+
+  it('pasa nivel jurisdiccional como direcciones numéricas', async () => {
+    await GET(req('?direccion=3&direccion=1'))
+    expect(mocks.obtenerEvolucionMapa).toHaveBeenCalledExactlyOnceWith({ direcciones: [3, 1] })
   })
 
   it('conserva los valores repetidos', async () => {

@@ -36,6 +36,8 @@ import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departament
 export interface FiltrosEvolucion {
   departamentos?: string[]
   niveles?: string[]
+  // Nivel jurisdiccional (filtro "Nivel" del mapa): ids de ge_nivel_jurisdiccional.
+  direcciones?: number[]
 }
 
 export interface PuntoEscuelasServicioCaido {
@@ -207,6 +209,20 @@ export async function obtenerEvolucionMapa(filtros: FiltrosEvolucion = {}): Prom
 
   const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
+
+  const direcciones = [...new Set(filtros.direcciones ?? [])]
+  if (direcciones.length > 0) {
+    // Mismo criterio que clausulaNivelesJur (parte-mapa.ts): sin fila en
+    // ge_escuela_nivel_jur la escuela queda fuera del nivel jurisdiccional.
+    const marcas = direcciones.map(() => '?').join(', ')
+    const res = await client.execute({
+      sql: `SELECT DISTINCT cue_anexo FROM ge.ge_escuela_nivel_jur WHERE nivel_jurisdiccional_id IN (${marcas})`,
+      args: direcciones,
+    })
+    const cuesDelNivel = new Set(res.rows.map((r) => String(r.cue_anexo)))
+    partes = partes.filter((parte) => cuesDelNivel.has(parte.cueAnexo))
+    if (partes.length === 0) return vacio()
+  }
 
   const corte = await getCorteVigente(client)
   if (!corte) {

@@ -179,7 +179,7 @@ describe('FiltrosChips', () => {
     const regla = readFileSync('app/globals.css', 'utf8').match(/\.map-filtros-medicion\s*\{[^}]*\}/)?.[0]
     expect(regla).toMatch(/visibility:\s*hidden/)
     expect(regla).toMatch(/position:\s*absolute/)
-    expect(fila?.querySelectorAll('[data-medicion-filtro]')).toHaveLength(9)
+    expect(fila?.querySelectorAll('[data-medicion-filtro]')).toHaveLength(8)
     expect(screen.getAllByRole('button', { name: 'Departamento' })).toHaveLength(1)
     expect(css).toMatch(/\.mapa-pestanas-barra \.filtros-chips-principales\s*\{[^}]*flex-wrap:\s*nowrap/)
   })
@@ -188,7 +188,7 @@ describe('FiltrosChips', () => {
     anchoContenedor = 1200
     renderFiltros()
     dispararResize()
-    expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip-grupo')).toHaveLength(6)
+    expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip-grupo')).toHaveLength(5)
     expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip--interruptor')).toHaveLength(2)
     expect(screen.queryByRole('button', { name: /Más filtros/ })).not.toBeInTheDocument()
   })

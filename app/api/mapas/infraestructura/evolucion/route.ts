@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic'
 const parametrosSchema = z.object({
   departamentos: z.array(z.string().trim().min(1).max(120)).max(100).optional(),
   niveles: z.array(z.string().trim().min(1).max(120)).max(100).optional(),
+  direcciones: z.array(z.coerce.number().int().positive()).max(100).optional(),
 })
 
 export async function GET(request: Request) {
@@ -23,17 +24,20 @@ export async function GET(request: Request) {
   const validacion = parametrosSchema.safeParse({
     departamentos: url.searchParams.getAll('departamento'),
     niveles: url.searchParams.getAll('nivel'),
+    direcciones: url.searchParams.getAll('direccion'),
   })
   if (!validacion.success) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400 })
   }
 
-  const { departamentos, niveles } = validacion.data
-  const hayFiltros = (departamentos?.length ?? 0) > 0 || (niveles?.length ?? 0) > 0
+  const { departamentos, niveles, direcciones } = validacion.data
+  const hayFiltros =
+    (departamentos?.length ?? 0) > 0 || (niveles?.length ?? 0) > 0 || (direcciones?.length ?? 0) > 0
   const resultado = hayFiltros
     ? await obtenerEvolucionMapa({
         ...(departamentos?.length ? { departamentos } : {}),
         ...(niveles?.length ? { niveles } : {}),
+        ...(direcciones?.length ? { direcciones } : {}),
       })
     : await obtenerEvolucionMapa()
 
