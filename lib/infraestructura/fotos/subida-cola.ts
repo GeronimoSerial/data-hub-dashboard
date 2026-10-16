@@ -166,7 +166,6 @@ export function iniciarSubidaFotos(): () => void {
 }
 
 let running: Promise<void> | undefined
-let drenarDeNuevo = false
 let otraPasada: Promise<void> | undefined
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 let stopListeners: (() => void) | undefined
@@ -209,13 +208,7 @@ export async function drenarColaFotos(): Promise<void> {
     } finally {
       almacen.cerrar()
     }
-  }).finally(() => {
-    running = undefined
-    if (drenarDeNuevo) {
-      drenarDeNuevo = false
-      void drenarColaFotos()
-    }
-  })
+  }).finally(() => { running = undefined })
   return running
 }
 
