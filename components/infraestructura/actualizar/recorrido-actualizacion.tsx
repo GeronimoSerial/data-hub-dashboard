@@ -619,6 +619,13 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     }} />
   }
 
+  // Keep the wizard unavailable until its persisted state has been checked.
+  // Otherwise a slow IndexedDB read can restore a draft after the user has
+  // already started a new recorrido and move them to a different step.
+  if (!borradorLeido) {
+    return <p className="estado-actual-aviso" role="status">Restaurando el borrador guardado…</p>
+  }
+
   return (
     <div className="reporte-inicial reporte-inicial--con-panel recorrido-actualizacion">
       <p className="asistente__titulo asistente__titulo--paso" aria-hidden="true">Actualizar</p>

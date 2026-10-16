@@ -36,7 +36,8 @@ vi.mock('@/lib/infraestructura/parte/almacen-indexeddb', async (importOriginal) 
   }
 })
 
-const CUE = '1801605-41'
+let CUE = '1801605-41'
+let cueSecuencia = 0
 const guardado = 'Parte actualizado'
 const base = {
   ok: true, periodo: { id: 'p', nombre: 'ENOS' },
@@ -51,7 +52,7 @@ const respuesta = (body: Record<string, unknown> = { ok: true, movimientoId: 'm1
 function stub(fetcher?: (url: string, init?: RequestInit) => Promise<Response>) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') return fetcher ? fetcher(url, init) : respuesta()
-    return new Response(JSON.stringify(url.includes('/historial') ? { ok: true, movimientos: [] } : base), { status: 200 })
+    return new Response(JSON.stringify(url.includes('/historial') ? { ok: true, movimientos: [] } : { ...base, parte: { ...base.parte, cueAnexo: CUE } }), { status: 200 })
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
@@ -70,8 +71,8 @@ function elegirAsistencia(valor: 'Sí' | 'No') {
 }
 async function enviar() { await prepararResumen(); elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); globalThis.indexedDB = new IDBFactory(); vi.spyOn(Math, 'random').mockReturnValue(0.5) })
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks(); vi.restoreAllMocks(); syncMocks.callback = null })
+beforeEach(() => { CUE = `1801605-${++cueSecuencia}`; localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); vi.clearAllTimers(); globalThis.indexedDB = new IDBFactory(); vi.spyOn(Math, 'random').mockReturnValue(0.5) })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); vi.clearAllTimers(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks(); vi.restoreAllMocks(); syncMocks.callback = null })
 
 describe('RecorridoActualizacion: envío', () => {
   it('guarda con POST, instante de envío y muestra confirmación', async () => {
