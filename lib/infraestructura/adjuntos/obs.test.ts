@@ -66,6 +66,12 @@ describe('OBS batch authorization', () => {
     expect(validateAttachmentDeclarations([{ ...declaration, attachmentId: '../other-key' }])).toBe(false)
   })
 
+  it('addresses the bucket by virtual host, which Huawei OBS requires (path style is rejected)', async () => {
+    await authorizeAttachments(movementId, cueAnexo, [declaration], 1_000)
+
+    expect(clientMock).toHaveBeenCalledWith(expect.objectContaining({ forcePathStyle: false }))
+  })
+
   it('requires all OBS settings and an HTTPS endpoint', () => {
     expect(readObsConfig()).toMatchObject({ bucket: 'reportes-infraestructura', region: 'la-south-2' })
     expect(() => readObsConfig({ ...process.env, OBS_ENDPOINT: 'http://obs.example.test' })).toThrow('HTTPS')
