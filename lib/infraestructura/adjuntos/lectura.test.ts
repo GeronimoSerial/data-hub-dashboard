@@ -14,7 +14,8 @@ vi.mock('@aws-sdk/client-s3', () => ({
   },
 }))
 vi.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: signedUrl }))
-vi.mock('./obs', () => ({
+vi.mock('./obs', async (importOriginal) => ({
+  opcionesClienteObs: (await importOriginal<typeof import('./obs')>()).opcionesClienteObs,
   readObsConfig: () => ({
     bucket: 'private-evidence',
     region: 'la-south-2',
