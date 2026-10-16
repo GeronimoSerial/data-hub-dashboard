@@ -237,6 +237,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const enviandoRef = useRef(false)
   const reintentarRef = useRef<(deliberado?: boolean) => void>(() => {})
+  const cancelarReintentoProgramadoRef = useRef<(() => void) | null>(null)
   const exitoRef = useRef<() => void>(() => {})
   const candidatasCausa = useMemo(() => [
     ...situaciones.filter((s) => recorrido.respuestas[s.id]?.tipo !== 'solucionada').map((s) => ({
@@ -454,6 +455,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 
   useEffect(() => {
     reintentarRef.current = (deliberado = false) => {
+      if (deliberado) {
+        cancelarReintentoProgramadoRef.current?.()
+        cancelarReintentoProgramadoRef.current = null
+      }
       const errorEnReintento = estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando')
       const sesionVencidaEnReintento = estadoAvisoEnvio === 'sesion-vencida' && (estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando')
       if (guardado || (!esEstadoReintentable(estadoEnvio) && !(deliberado && (errorEnReintento || sesionVencidaEnReintento)))) return
@@ -471,7 +476,15 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   useEffect(() => {
     if (guardado || enviando || !esEstadoReintentable(estadoEnvio)) return
     if (estadoEnvio === 'pendiente-envio' && typeof navigator !== 'undefined' && navigator.onLine === false) return
-    return programarReintento(intentosEnvio, () => reintentarRef.current())
+    const cancelar = programarReintento(intentosEnvio, () => {
+      cancelarReintentoProgramadoRef.current = null
+      reintentarRef.current()
+    })
+    cancelarReintentoProgramadoRef.current = cancelar
+    return () => {
+      cancelar()
+      if (cancelarReintentoProgramadoRef.current === cancelar) cancelarReintentoProgramadoRef.current = null
+    }
   }, [estadoEnvio, intentosEnvio, guardado, enviando])
 
   function retomarBorrador(): void {
@@ -508,18 +521,25 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       ...construirEnvio(situaciones, recorrido),
       ...(asistenciaCambiada && asistenciaSeleccionada ? { asistenciaPedagogica: asistenciaSeleccionada } : {}),
     }
-    const resultado = await intentarEnviar(payload, { ...opcionesEnvio(), almacen: await almacen() })
-    if (resultado.ok) {
-      const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string } | null
-      if (cuerpo?.ok && typeof cuerpo.movimientoId === 'string') { alEnviarConExito(cuerpo.movimientoId); return }
-      enviandoRef.current = false
-      setEnviando(false)
+    let exito = false
+    try {
+      const resultado = await intentarEnviar(payload, { ...opcionesEnvio(), almacen: await almacen() })
+      if (resultado.ok) {
+        const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string } | null
+        if (cuerpo?.ok && typeof cuerpo.movimientoId === 'string') { exito = true; alEnviarConExito(cuerpo.movimientoId); return }
+        setError(MENSAJE_ERROR_GUARDADO)
+      }
+      // El resumen ya anuncia el error persistido junto al estado del envío.
+    } catch {
+      // Local storage or lock failure: never leave the button on "Guardando…".
+      setEstadoEnvio((actual) => (actual === 'enviando' ? null : actual))
       setError(MENSAJE_ERROR_GUARDADO)
-      return
+    } finally {
+      if (!exito) {
+        enviandoRef.current = false
+        setEnviando(false)
+      }
     }
-    enviandoRef.current = false
-    setEnviando(false)
-    // El resumen ya anuncia el error persistido junto al estado del envío.
   }
 
   async function enviarSoloFotos(): Promise<void> {
@@ -604,6 +624,13 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         onRecargar()
       })().catch(() => {})
     }} />
+  }
+
+  // Keep the wizard unavailable until its persisted state has been checked.
+  // Otherwise a slow IndexedDB read can restore a draft after the user has
+  // already started a new recorrido and move them to a different step.
+  if (!borradorLeido) {
+    return <p className="estado-actual-aviso" role="status">Restaurando el borrador guardado…</p>
   }
 
   return (

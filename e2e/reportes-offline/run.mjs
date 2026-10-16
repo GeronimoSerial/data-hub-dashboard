@@ -9,14 +9,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const runtimeDir = await mkdtemp(path.join(tmpdir(), 'reportes-offline-e2e-'))
 const outputDir = path.join(root, 'e2e/reportes-offline/.results')
 const binDir = path.dirname(process.execPath)
-const password = `e2e-only-${crypto.randomUUID()}-never-used-for-production`
+const e2eSessionSecret = `e2e-only-${crypto.randomUUID()}-never-used-for-production`
 const env = {
   ...process.env,
   PATH: `${binDir}:${process.env.PATH ?? ''}`,
   DATA_DIR: runtimeDir,
   DATABASE_URL: '',
   NODE_ENV: 'production',
-  PROBLEMATICAS_ACCESO_PASSWORD: password,
+  PROBLEMATICAS_ACCESO_PASSWORD: e2eSessionSecret,
   BETTER_AUTH_SECRET: `e2e-only-secret-${crypto.randomUUID()}`,
   BETTER_AUTH_URL: 'http://127.0.0.1:3000',
   OBS_BUCKET: '',

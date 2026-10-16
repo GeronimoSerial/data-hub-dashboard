@@ -482,25 +482,31 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     }
 
-    const resultado = await intentarEnviar(datosEnvio, { ...opcionesEnvio(), almacen: await almacen() })
-
-    if (resultado.ok) {
-      const datos = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
-      if (datos && datos.ok === true && typeof datos.movimientoId === 'string') {
-        alEnviarConExito(datos.movimientoId)
-        return
+    let exito = false
+    try {
+      const resultado = await intentarEnviar(datosEnvio, { ...opcionesEnvio(), almacen: await almacen() })
+      if (resultado.ok) {
+        const datos = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
+        if (datos && datos.ok === true && typeof datos.movimientoId === 'string') {
+          exito = true
+          alEnviarConExito(datos.movimientoId)
+          return
+        }
+        setError(datos && typeof datos.error === 'string' ? datos.error : MENSAJE_ERROR_GUARDADO)
       }
-      enviandoRef.current = false
-      setEnviando(false)
-      setError(datos && typeof datos.error === 'string' ? datos.error : MENSAJE_ERROR_GUARDADO)
-      return
+      // 'pendiente-envio' no es un error: queda en cola y se reintenta solo al
+      // volver la conexión, sin acción del director. El texto de estado ya lo
+      // muestra onCambioEstado; acá no hay nada más que hacer.
+    } catch {
+      // Local storage or lock failure: never leave the button on "Guardando…".
+      setEstadoEnvio((actual) => (actual === 'enviando' ? null : actual))
+      setError(MENSAJE_ERROR_GUARDADO)
+    } finally {
+      if (!exito) {
+        enviandoRef.current = false
+        setEnviando(false)
+      }
     }
-
-    enviandoRef.current = false
-    setEnviando(false)
-    // 'pendiente-envio' no es un error: queda en cola y se reintenta solo al
-    // volver la conexión, sin acción del director. El texto de estado ya lo
-    // muestra onCambioEstado; acá no hay nada más que hacer.
   }
 
   function opcionesEnvio(): Omit<EnviarOpciones<Record<string, unknown>>, 'almacen'> {
