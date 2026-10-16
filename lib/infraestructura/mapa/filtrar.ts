@@ -21,7 +21,6 @@ export function filtrarEscuelas<T extends EscuelaMapaEnriquecida>(escuelas: T[],
 
   return escuelas.filter((escuela) => {
     if (f.departamentos.length > 0 && !f.departamentos.includes(escuela.departamento)) return false
-    if (f.niveles.length > 0 && !escuela.niveles.some((nivel) => f.niveles.includes(nivel))) return false
     if (f.direcciones.length > 0 && (typeof escuela.nivelJurisdiccionalId !== 'number' || !f.direcciones.includes(escuela.nivelJurisdiccionalId))) return false
     if (f.gravedades.length > 0 && !f.gravedades.includes(escuela.gravedad)) return false
     if (f.clases.length > 0 && !f.clases.includes(escuela.clases)) return false
@@ -51,9 +50,6 @@ export function contarOpciones(
       case 'departamentos':
         sumar(escuela.departamento)
         break
-      case 'niveles':
-        for (const nivel of new Set(escuela.niveles)) sumar(nivel)
-        break
       case 'direcciones':
         if (typeof escuela.nivelJurisdiccionalId === 'number') sumar(String(escuela.nivelJurisdiccionalId))
         break
@@ -74,23 +70,17 @@ export function contarOpciones(
   return conteos
 }
 
-export function opcionesDisponibles(escuelas: EscuelaMapaEnriquecida[]): { departamentos: string[]; niveles: string[] } {
+export function opcionesDisponibles(escuelas: EscuelaMapaEnriquecida[]): { departamentos: string[] } {
   const departamentos = new Set<string>()
-  const niveles = new Set<string>()
 
-  for (const escuela of escuelas) {
-    departamentos.add(escuela.departamento)
-    for (const nivel of escuela.niveles) niveles.add(nivel)
-  }
+  for (const escuela of escuelas) departamentos.add(escuela.departamento)
 
-  const ordenar = (a: string, b: string) => a.localeCompare(b, 'es')
   return {
-    departamentos: [...departamentos].sort(ordenar),
-    niveles: [...niveles].sort(ordenar),
+    departamentos: [...departamentos].sort((a, b) => a.localeCompare(b, 'es')),
   }
 }
 
-// Opciones del filtro "Dirección": los niveles jurisdiccionales presentes en las
+// Opciones del filtro "Nivel": los niveles jurisdiccionales presentes en las
 // escuelas recibidas. El servidor ya limita esas escuelas al alcance del rol
 // (director_nivel sólo recibe las de sus niveles), así que las opciones también.
 export function opcionesDireccion(

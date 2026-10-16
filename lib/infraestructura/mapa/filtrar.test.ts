@@ -36,9 +36,9 @@ function esc(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquec
 }
 
 describe('filtrarEscuelas', () => {
-  it('una escuela con Inicial y Primario aparece filtrando por cualquiera y una sola vez', () => {
-    const r = filtrarEscuelas([esc({ niveles: ['Inicial', 'Primario'] })], { ...FILTROS_MAPA_VACIOS, niveles: ['Inicial', 'Primario'] })
-    expect(r).toHaveLength(1)
+  it('el nivel de enseñanza no filtra: sólo cuenta el nivel jurisdiccional', () => {
+    const lista = [esc({ niveles: ['Inicial', 'Primario'] }), esc({ niveles: ['Secundario'] })]
+    expect(filtrarEscuelas(lista, FILTROS_MAPA_VACIOS)).toHaveLength(2)
   })
 
   it('las opciones de un mismo chip se combinan con O y los chips entre sí con Y', () => {
@@ -90,11 +90,6 @@ describe('contarOpciones', () => {
     expect(conteos.size).toBe(1)
   })
 
-  it('cuenta una escuela con dos niveles una vez por nivel', () => {
-    const conteos = contarOpciones([esc({ niveles: ['Inicial', 'Primario'] })], 'niveles')
-    expect(conteos).toEqual(new Map([['Inicial', 1], ['Primario', 1]]))
-  })
-
   it('cuenta las tres opciones con la misma semántica que el filtro', () => {
     const conteos = contarOpciones([
       esc({ apoyo: 'virtual' }),
@@ -115,19 +110,18 @@ describe('contarOpciones', () => {
 })
 
 describe('opcionesDisponibles', () => {
-  it('devuelve departamentos y niveles distintos ordenados en español', () => {
+  it('devuelve departamentos distintos ordenados en español', () => {
     expect(opcionesDisponibles([
-      esc({ departamento: 'Goya', niveles: ['Primario', 'Inicial'] }),
-      esc({ departamento: 'Ángel de la Guarda', niveles: ['Primario', 'Secundario'] }),
-      esc({ departamento: 'Goya', niveles: ['Inicial'] }),
+      esc({ departamento: 'Goya' }),
+      esc({ departamento: 'Ángel de la Guarda' }),
+      esc({ departamento: 'Goya' }),
     ])).toEqual({
       departamentos: ['Ángel de la Guarda', 'Goya'],
-      niveles: ['Inicial', 'Primario', 'Secundario'],
     })
   })
 })
 
-describe('filtro Dirección (nivel jurisdiccional)', () => {
+describe('filtro Nivel (nivel jurisdiccional)', () => {
   const lista = [
     esc({ nombre: 'A', nivelJurisdiccionalId: 1, nivelJurisdiccionalNombre: 'Capital' }),
     esc({ nombre: 'B', nivelJurisdiccionalId: 2, nivelJurisdiccionalNombre: 'Esquina' }),
