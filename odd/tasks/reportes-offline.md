@@ -70,3 +70,4 @@ Feature-scoped vitest 571 passed / 18 skipped; new API route tests 4/4; tsc ok; 
 
 lint-typecheck-build pass; test shards 1,3,4 fail (~26 tests: obs, borradores client/mapa, fotos persistence, sw-parte queue, envio-offline backoff, forms draft restore). Fix in reportes-fix-ci-1.
 - CI fixes from reportes-fix-ci-1 merged at ed5b76e (11 commits; no tests removed or skipped); tsc+eslint ok; awaiting new CI run.
+- CI fixes round 2 (reportes-fix-ci-2) merged at 0f897b0; tsc+eslint ok; awaiting CI.
