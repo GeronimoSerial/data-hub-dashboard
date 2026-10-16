@@ -336,4 +336,36 @@ describe('listarMovimientosDescritos', () => {
       expect(movimiento.cambios.length).toBeGreaterThan(0)
     }
   })
+  it('incluye la evidencia fotográfica con su propio título sin romper el historial', async () => {
+    const db = getDb()
+    const cue = '1801605-41'
+    const parteId = crypto.randomUUID()
+    const baseId = crypto.randomUUID()
+    const ahora = new Date().toISOString()
+    await db.insert(infraParte).values({
+      id: parteId,
+      periodoId: PERIODO_ENOS_2026_2027_ID,
+      cueAnexo: cue,
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: ahora,
+      corteId: 1,
+      creadaEn: ahora,
+      actualizadaEn: ahora,
+    })
+    await db.insert(infraMovimiento).values({
+      id: crypto.randomUUID(),
+      parteId,
+      tipo: 'evidencia_fotografica',
+      rol: 'director',
+      resumen: { documentaMovimientoId: baseId, attachmentIds: [crypto.randomUUID()] },
+      rigeDesde: ahora,
+      creadaEn: ahora,
+    })
+
+    const movimientos = await listarMovimientosDescritos(cue, 1)
+    expect(movimientos).toHaveLength(1)
+    expect(movimientos[0].titulo).toBe('Se agregó evidencia fotográfica')
+    expect(movimientos[0].cambios).toEqual([])
+    expect(movimientos[0].severidad).toBeNull()
+  })
 })

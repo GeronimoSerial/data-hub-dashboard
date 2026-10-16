@@ -204,6 +204,9 @@ export async function obtenerCambiosDesde(opts: {
       .where(and(...condicionesBase))
 
     for (const fila of filasMovimiento) {
+      // La evidencia fotográfica documenta otro movimiento: no es un cambio de
+      // situación y su resumen no es un DiffParte.
+      if (fila.tipo === 'evidencia_fotografica') continue
       const tipo = fila.tipo as TipoMovimiento
       const descripcion =
         describirMovimiento(fila.resumen as unknown as DiffParte, { tipo }).join('; ') ||
