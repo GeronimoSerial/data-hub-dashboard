@@ -14,6 +14,11 @@ interface SwParte {
     abrirDb: () => Promise<IDBDatabase>,
     fetchImpl: typeof fetch,
   ) => Promise<{ enviados: string[]; pendientes: string[]; sesionesVencidas: string[] }>
+  prepararOffline: (
+    cacheStorage?: CacheStorage,
+    fetchImpl?: typeof fetch,
+    origin?: string,
+  ) => Promise<{ cacheName: string; resources: string[] }>
 }
 
 async function cargarSw(): Promise<{ listeners: Record<string, Escucha>; sw: SwParte }> {
@@ -22,6 +27,7 @@ async function cargarSw(): Promise<{ listeners: Record<string, Escucha>; sw: SwP
   ;(globalThis as Record<string, unknown>).self = {
     addEventListener: (t: string, f: Escucha) => { listeners[t] = f },
     clients: { matchAll: async () => [] },
+    location: { origin: 'https://example.test' },
   }
   // @ts-expect-error El worker es un script clásico sin exportaciones.
   await import('../../../public/sw-parte.js')
@@ -230,3 +236,147 @@ describe('sw-parte contrato compartido de IndexedDB', () => {
     expect((await nombresStores()).sort()).toEqual(Object.values(STORES_PARTE).sort())
   })
 })
+
+describe('sw-parte offline shell cache', () => {
+  function crearCacheStorage() {
+    const datos = new Map<string, Response>()
+    const cache = {
+      put: vi.fn(async (request: RequestInfo | URL, response: Response) => {
+        datos.set(String(request), response.clone())
+      }),
+      match: vi.fn(async (request: RequestInfo | URL) => datos.get(String(request))?.clone()),
+    }
+    const storage = {
+      open: vi.fn(async () => cache),
+      delete: vi.fn(async () => { datos.clear(); return true }),
+      keys: vi.fn(async () => []),
+    }
+    return { storage: storage as unknown as CacheStorage, cache, datos }
+  }
+
+  it('caches and verifies the public offline shell and every referenced static resource without credentials', async () => {
+    const { storage, cache, datos } = crearCacheStorage()
+    const shellUrl = 'https://example.test/problematicas/parte/offline'
+    const jsUrl = 'https://example.test/_next/static/chunks/offline.js'
+    const cssUrl = 'https://example.test/_next/static/css/offline.css'
+    const fontUrl = 'https://example.test/_next/static/media/offline.woff2'
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input)
+      if (url === shellUrl) return new Response(`<html><script src="${jsUrl}"></script><link href="${cssUrl}" rel="stylesheet"></html>`, { status: 200, headers: { 'Content-Type': 'text/html' } })
+      if (url === cssUrl) return new Response(`@font-face { src: url("${fontUrl}") }`, { status: 200, headers: { 'Content-Type': 'text/css' } })
+      return new Response('static asset', { status: 200 })
+    })
+    const { sw } = await cargarSw()
+
+    const result = await sw.prepararOffline(storage, fetchImpl, 'https://example.test')
+
+    expect(result.resources).toEqual(expect.arrayContaining([shellUrl, jsUrl, cssUrl, fontUrl]))
+    expect(datos.size).toBe(4)
+    expect(cache.match).toHaveBeenCalledWith(shellUrl)
+    expect(fetchImpl).toHaveBeenCalledTimes(4)
+    expect(fetchImpl.mock.calls.every(([, init]) => init?.credentials === 'omit')).toBe(true)
+    expect(result.resources).toHaveLength(fetchImpl.mock.calls.length)
+  })
+
+  it('discards only the incomplete new version when a static resource is missing', async () => {
+    const { storage } = crearCacheStorage()
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === 'https://example.test/problematicas/parte/offline') {
+        return new Response('<script src="https://example.test/_next/static/chunks/missing.js"></script>', {
+          status: 200, headers: { 'Content-Type': 'text/html' },
+        })
+      }
+      return new Response('missing', { status: 404 })
+    })
+    const { sw } = await cargarSw()
+
+    await expect(sw.prepararOffline(storage, fetchImpl, 'https://example.test')).rejects.toThrow()
+
+    const deleteCache = (storage as unknown as { delete: ReturnType<typeof vi.fn> }).delete
+    expect(deleteCache).toHaveBeenCalledTimes(1)
+    expect(deleteCache).toHaveBeenCalledWith('parte-offline-shell-v1')
+  })
+
+  it('rejects a resource response that varies by authentication state', async () => {
+    const { storage } = crearCacheStorage()
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === 'https://example.test/problematicas/parte/offline') {
+        return new Response('<script src="https://example.test/_next/static/chunks/private.js"></script>', {
+          status: 200, headers: { 'Content-Type': 'text/html' },
+        })
+      }
+      return new Response('private', { status: 200, headers: { 'Vary': 'Cookie' } })
+    })
+    const { sw } = await cargarSw()
+
+    await expect(sw.prepararOffline(storage, fetchImpl, 'https://example.test')).rejects.toThrow()
+
+    const cache = await storage.open('parte-offline-shell-v1')
+    expect(await cache.match('https://example.test/_next/static/chunks/private.js')).toBeUndefined()
+  })
+
+  it('announces preparation only after verified cache completion', async () => {
+    const { storage } = crearCacheStorage()
+    const messages: unknown[] = []
+    const { listeners } = await cargarSw()
+    const selfMock = (globalThis as unknown as { self: { clients: { matchAll: () => Promise<unknown[]> } } }).self
+    selfMock.clients.matchAll = async () => [{ postMessage: (message: unknown) => messages.push(message) }]
+    vi.stubGlobal('caches', storage)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<html></html>', {
+      status: 200, headers: { 'Content-Type': 'text/html' },
+    })))
+
+    await dispararEvento(listeners, 'install')
+
+    expect(messages).toContainEqual({ tipo: 'parte-offline-disponible', version: 'v1' })
+    vi.unstubAllGlobals()
+  })
+
+  it('removes the previous version only during activation after the new worker installed', async () => {
+    const { listeners } = await cargarSw()
+    const cacheNames = ['parte-offline-shell-old', 'parte-offline-shell-v1', 'unrelated-cache']
+    const deleted: string[] = []
+    const selfMock = (globalThis as unknown as { self: { clients: { claim: () => Promise<void> } } }).self
+    selfMock.clients.claim = async () => {}
+    vi.stubGlobal('caches', {
+      keys: async () => cacheNames,
+      delete: async (name: string) => { deleted.push(name); return true },
+    })
+
+    await dispararEvento(listeners, 'activate')
+
+    expect(deleted).toEqual(['parte-offline-shell-old'])
+    vi.unstubAllGlobals()
+  })
+
+  it('redirects a failed update navigation to the offline shell with original query, flow and CUE', async () => {
+    const { listeners } = await cargarSw()
+    let response: Promise<Response> | undefined
+    listeners.fetch({
+      request: {
+        url: 'https://example.test/problematicas/parte/actualizar?cue=1801605-04&paso=afectaciones',
+        method: 'GET',
+        mode: 'navigate',
+      },
+      respondWith: (promise: Promise<Response>) => { response = promise },
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
+
+    const result = await response!
+
+    expect(result.status).toBe(302)
+    const location = new URL(result.headers.get('Location')!)
+    expect(location.pathname).toBe('/problematicas/parte/offline')
+    expect(location.searchParams.get('cue')).toBe('1801605-04')
+    expect(location.searchParams.get('paso')).toBe('afectaciones')
+    expect(location.searchParams.get('flujo')).toBe('actualizacion')
+    vi.unstubAllGlobals()
+  })
+})
+
+async function dispararEvento(listeners: Record<string, Escucha>, tipo: string): Promise<void> {
+  let trabajo: Promise<unknown> | undefined
+  listeners[tipo]({ waitUntil: (promise: Promise<unknown>) => { trabajo = promise } })
+  await trabajo
+}

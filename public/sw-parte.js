@@ -21,6 +21,131 @@ const BLOQUEO_COLA = 'parte:submission-final'
 const CLAVE_BLOQUEO_COLA = 'parte:lock:submission-final'
 const DURACION_BLOQUEO_MS = 15000
 const ESPERA_MAXIMA_MS = 30000
+const CACHE_PREPARACION_PREFIX = 'parte-offline-shell-'
+// Increment when the offline shell or its static resource graph changes.
+const CACHE_PREPARACION_VERSION = 'v1'
+const CACHE_PREPARACION = `${CACHE_PREPARACION_PREFIX}${CACHE_PREPARACION_VERSION}`
+const RUTA_OFFLINE = '/problematicas/parte/offline'
+const RUTAS_PARTE = ['/problematicas/parte/nuevo', '/problematicas/parte/actualizar']
+
+function esRecursoEstatico(url, origin) {
+  if (url.origin !== origin) return false
+  return url.pathname.startsWith('/_next/static/')
+    || /\.(?:css|woff2?|ttf|otf|svg|png|jpe?g|webp|ico)$/i.test(url.pathname)
+}
+
+function recursosReferenciados(text, baseUrl, origin) {
+  const encontrados = new Set()
+  const patrones = [
+    /(?:src|href)=["']([^"']+)["']/gi,
+    /url\(["']?([^)'"\s]+)["']?\)/gi,
+    /(\/_next\/static\/[^"'`\s)]+)/gi,
+  ]
+  for (const patron of patrones) {
+    for (const match of text.matchAll(patron)) {
+      try {
+        const reference = match[1].replace(/[),;]+$/, '')
+        const url = new URL(reference, baseUrl)
+        if (esRecursoEstatico(url, origin)) encontrados.add(url.href)
+      } catch { /* Ignore malformed or non-URL references. */ }
+    }
+  }
+  return [...encontrados]
+}
+
+async function respuestaPublica(response, expectedUrl, html = false) {
+  if (!response || !response.ok || response.type === 'opaque' || response.redirected) return false
+  if (response.url && new URL(response.url).href !== expectedUrl) return false
+  if (response.headers.has('set-cookie') || /(?:^|,)\s*(?:cookie|authorization)(?:\s|,|$)/i.test(response.headers.get('vary') || '')) return false
+  if (html && !(response.headers.get('content-type') || '').toLowerCase().includes('text/html')) return false
+  if (!html && (response.headers.get('content-type') || '').toLowerCase().includes('text/html')) return false
+  return true
+}
+
+async function prepararOffline(cacheStorage = caches, fetchImpl = fetch, origin = self.location.origin) {
+  const cache = await cacheStorage.open(CACHE_PREPARACION)
+  const htmlUrl = new URL(RUTA_OFFLINE, origin).href
+  try {
+    const htmlResponse = await fetchImpl(htmlUrl, { credentials: 'omit', cache: 'no-store', redirect: 'error' })
+    if (!await respuestaPublica(htmlResponse, htmlUrl, true)) throw new Error('Offline page is not a public static response.')
+    const html = await htmlResponse.clone().text()
+    const pendientes = recursosReferenciados(html, htmlUrl, origin)
+    const preparados = new Set()
+    while (pendientes.length) {
+      const resourceUrl = pendientes.shift()
+      if (preparados.has(resourceUrl)) continue
+      const response = await fetchImpl(resourceUrl, { credentials: 'omit', cache: 'no-store', redirect: 'error' })
+      if (!await respuestaPublica(response, resourceUrl)) throw new Error(`Offline resource failed: ${resourceUrl}`)
+      const contentType = response.headers.get('content-type') || ''
+      const body = await response.clone().text().catch(() => '')
+      if (contentType.toLowerCase().includes('text/css') || contentType.toLowerCase().includes('javascript')) {
+        for (const dependency of recursosReferenciados(body, resourceUrl, origin)) {
+          if (!preparados.has(dependency) && !pendientes.includes(dependency)) pendientes.push(dependency)
+        }
+      }
+      await cache.put(resourceUrl, response)
+      preparados.add(resourceUrl)
+    }
+    await cache.put(htmlUrl, htmlResponse)
+    const verificacion = await Promise.all([htmlUrl, ...preparados].map((url) => cache.match(url)))
+    const verified = verificacion.every(Boolean)
+    if (!verified) throw new Error('Offline cache verification failed.')
+    return { cacheName: CACHE_PREPARACION, resources: [htmlUrl, ...preparados] }
+  } catch (error) {
+    await cacheStorage.delete(CACHE_PREPARACION)
+    throw error
+  }
+}
+
+function esNavegacionParte(request) {
+  if (request.method !== 'GET' || request.mode !== 'navigate') return false
+  const url = new URL(request.url)
+  return url.origin === self.location.origin && (RUTAS_PARTE.includes(url.pathname) || url.pathname === RUTA_OFFLINE)
+}
+
+async function fallbackOffline(request) {
+  const requested = new URL(request.url)
+  const cached = await caches.open(CACHE_PREPARACION)
+  return await cached.match(new URL(RUTA_OFFLINE, requested.origin).href, { ignoreSearch: true })
+}
+
+self.addEventListener('install', (event) => {
+  event.waitUntil((async () => {
+    const result = await prepararOffline()
+    const clients = await self.clients.matchAll({ includeUncontrolled: true })
+    for (const client of clients) client.postMessage({ tipo: 'parte-offline-disponible', version: CACHE_PREPARACION_VERSION })
+    return result
+  })())
+})
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    const names = await caches.keys()
+    await Promise.all(names
+      .filter((name) => name.startsWith(CACHE_PREPARACION_PREFIX) && name !== CACHE_PREPARACION)
+      .map((name) => caches.delete(name)))
+    await self.clients.claim()
+  })())
+})
+
+self.addEventListener('fetch', (event) => {
+  if (!esNavegacionParte(event.request)) return
+  const isOfflineRoute = new URL(event.request.url).pathname === RUTA_OFFLINE
+  const redirectToOffline = () => {
+    const requested = new URL(event.request.url)
+    const fallback = new URL(RUTA_OFFLINE, requested.origin)
+    for (const [key, value] of requested.searchParams) fallback.searchParams.append(key, value)
+    fallback.searchParams.set('flujo', requested.pathname.endsWith('/actualizar') ? 'actualizacion' : 'inicial')
+    return Response.redirect(fallback.href, 302)
+  }
+  event.respondWith(fetch(event.request).then((response) => {
+    if (response.ok) return response
+    return isOfflineRoute ? fallbackOffline(event.request) : redirectToOffline()
+  }).catch(async () => {
+    if (isOfflineRoute) return fallbackOffline(event.request)
+    return redirectToOffline()
+  }))
+})
 
 function esperaReintento(intentos) {
   const base = Math.min(1000 * 2 ** Math.max(0, intentos), ESPERA_MAXIMA_MS)
@@ -334,3 +459,4 @@ self.addEventListener('sync', (evento) => {
 
 globalThis.__swParte = { procesarColaSync }
 globalThis.__swParte.procesarColaEnvio = procesarColaEnvio
+globalThis.__swParte.prepararOffline = prepararOffline
