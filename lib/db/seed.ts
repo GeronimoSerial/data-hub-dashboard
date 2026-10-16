@@ -124,6 +124,7 @@ async function seedHub() {
   await migrarDb()
 
   const ejecutor = crearEjecutorSql(getRawClient())
+  await ensureInfraAdjuntoColumns(ejecutor)
   // F4.6: las tres tablas del modelo deprecado (más infra_episodio, retirado
   // en el batch E1) ya no viven en el schema. En una base que las haya tenido
   // se limpian solas al arrancar; en una base Postgres creada por las
@@ -197,6 +198,31 @@ async function seedHub() {
   await ensureLocalizacionesSeeded()
 
   await seedFirstAdmin()
+}
+
+/**
+ * Keep the seed-time repair path aligned with migration 0019. Normally these
+ * ALTERs are no-ops because migrarDb() has already applied that migration;
+ * they also repair an attachment table created by an interrupted rollout.
+ */
+async function ensureInfraAdjuntoColumns(ejecutor: ReturnType<typeof crearEjecutorSql>) {
+  const columns = [
+    'id text',
+    'movimiento_id text',
+    'optimizada_obs_key text',
+    'optimizada_size integer',
+    'optimizada_content_type text',
+    'optimizada_etag text',
+    'miniatura_obs_key text',
+    'miniatura_size integer',
+    'miniatura_content_type text',
+    'miniatura_etag text',
+    "estado text NOT NULL DEFAULT 'pending'",
+    'creada_por text',
+  ]
+  for (const column of columns) {
+    await ejecutor.execute(`ALTER TABLE infra_adjunto ADD COLUMN IF NOT EXISTS ${column}`)
+  }
 }
 
 async function seedFirstAdmin() {

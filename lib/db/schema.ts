@@ -501,6 +501,35 @@ export const infraBorradorCierre = pgTable(
   ],
 )
 
+// Photo evidence linked to a movement. Object bytes stay in OBS; this row
+// stores only the two server-controlled object keys and their verification
+// metadata. One row represents one photo and its optimized/thumbnail variants.
+export const infraAdjunto = pgTable(
+  'infra_adjunto',
+  {
+    id: text('id').primaryKey(),
+    movimientoId: text('movimiento_id')
+      .notNull()
+      .references(() => infraMovimiento.id, { onDelete: 'cascade' }),
+    optimizadaObsKey: text('optimizada_obs_key').notNull(),
+    optimizadaSize: integer('optimizada_size').notNull(),
+    optimizadaContentType: text('optimizada_content_type').notNull(),
+    optimizadaEtag: text('optimizada_etag'),
+    miniaturaObsKey: text('miniatura_obs_key').notNull(),
+    miniaturaSize: integer('miniatura_size').notNull(),
+    miniaturaContentType: text('miniatura_content_type').notNull(),
+    miniaturaEtag: text('miniatura_etag'),
+    estado: text('estado').notNull().default('pending'),
+    creadaPor: text('creada_por').notNull(),
+  },
+  (t) => [
+    check('infra_adjunto_optimizada_size_check', sql`${t.optimizadaSize} > 0`),
+    check('infra_adjunto_miniatura_size_check', sql`${t.miniaturaSize} > 0`),
+    check('infra_adjunto_estado_check', sql`${t.estado} IN ('pending', 'confirmed')`),
+    index('infra_adjunto_movimiento_id_idx').on(t.movimientoId),
+  ],
+)
+
 // Pedido de verificación a un establecimiento (batch E1): confirma si sigue
 // habiendo afectación. `estado` es el estado persistido ('pendiente' |
 // 'respondida' | 'cancelada'); 'vencida' NO se persiste nunca: se deriva en
