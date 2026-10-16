@@ -8,7 +8,8 @@ import * as schema from '@/lib/db/schema'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { publicarCorridaPrefectura, type CorridaPrefectura } from './publicacion'
 import { entregarPrefectura } from './replicacion'
-import { leerVersion, listarVersiones } from '../datasets/repositorio'
+import { guardarVersion, leerVersion, listarVersiones } from '../datasets/repositorio'
+import estaciones from '../datasets/__fixtures__/estaciones.json'
 
 usarDbTemporal('prefectura-replica', { seed: false })
 let target: ReturnType<typeof getDb>
@@ -90,5 +91,14 @@ describe('Prefectura: histórico y entrega sin recalcular', () => {
     const anteriores = (await listarVersiones('prefectura-referencias')).length
     await expect(publicarCorridaPrefectura(mala)).rejects.toThrow()
     expect(await listarVersiones('prefectura-referencias')).toHaveLength(anteriores)
+  })
+  it('conserva el catálogo usado aunque se haya publicado uno nuevo durante el cálculo', async () => {
+    const entrada = { datasetId: 'estaciones-prefectura', nombre: 'Fixture', revision: 'a', fuente: 'fixture',
+      formato: 'array' as const, clave: 'estacionId', datos: estaciones.prefectura }
+    const anterior = await guardarVersion(entrada)
+    await guardarVersion({ ...entrada, revision: 'b' })
+    const nueva = await publicarCorridaPrefectura({ ...corrida('2026-10-16T15:00:00Z'), catalogoVersion: anterior })
+    const deps = await getDb().select().from(schema.infraDatasetDependencia).where(eq(schema.infraDatasetDependencia.versionId, nueva.versionId))
+    expect(deps.map((d) => d.entradaId)).toEqual([anterior])
   })
 })

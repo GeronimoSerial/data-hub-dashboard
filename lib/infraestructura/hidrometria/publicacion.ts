@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/db'
-import { infraDatasetEntrega } from '@/lib/db/schema'
-import { guardarVersion, versionesPublicadas, type TxDataset } from '../datasets/repositorio'
+import { and, eq } from 'drizzle-orm'
+import { infraDatasetEntrega, infraDatasetVersion } from '@/lib/db/schema'
+import { guardarVersion, type TxDataset } from '../datasets/repositorio'
 import type { Datos } from '../datasets/codec'
 import { guardarLecturasPrefectura, type LecturaResuelta } from './lecturas-repo'
 import { guardarReferencia, type FilaReferencia } from './referencia-repo'
@@ -35,7 +36,18 @@ export async function proyectarPrefectura(tx: TxDataset, corrida: CorridaPrefect
 /** Archivo, proyección y entrega pendiente se confirman juntos. No usa la red. */
 export async function publicarCorridaPrefectura(corrida: CorridaPrefectura, db = getDb()) {
   return db.transaction(async (tx) => {
-    const entradas = (await versionesPublicadas(['estaciones-prefectura'], tx as typeof db)).map((v) => v.versionId)
+    // Usar el catálogo fijado al comenzar el job, aunque mientras descarga
+    // el histórico otro proceso publique uno nuevo.
+    const entradas: string[] = []
+    if (process.env.NODE_ENV === 'production' && !/^[a-f0-9]{64}$/.test(corrida.catalogoVersion)) {
+      throw new Error('Se requiere un catálogo versionado para publicar')
+    }
+    if (/^[a-f0-9]{64}$/.test(corrida.catalogoVersion)) {
+      const [catalogo] = await tx.select({ id: infraDatasetVersion.id }).from(infraDatasetVersion).where(and(
+        eq(infraDatasetVersion.id, corrida.catalogoVersion), eq(infraDatasetVersion.datasetId, 'estaciones-prefectura')))
+      if (!catalogo) throw new Error('Catálogo de entrada inexistente')
+      entradas.push(catalogo.id)
+    }
     let resultado: Awaited<ReturnType<typeof proyectarPrefectura>> | undefined
     const versionId = await guardarVersion({
       datasetId: `prefectura-${corrida.tipo}`, nombre: `Prefectura ${corrida.tipo}`,
