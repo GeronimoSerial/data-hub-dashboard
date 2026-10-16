@@ -20,6 +20,37 @@ const REINTENTABLES = ['pendiente-envio', 'error-servidor']
 const BLOQUEO_COLA = 'parte:submission-final'
 const CLAVE_BLOQUEO_COLA = 'parte:lock:submission-final'
 const DURACION_BLOQUEO_MS = 15000
+const ESPERA_MAXIMA_MS = 30000
+
+function esperaReintento(intentos) {
+  const base = Math.min(1000 * 2 ** Math.max(0, intentos), ESPERA_MAXIMA_MS)
+  return Math.min(ESPERA_MAXIMA_MS, Math.round(base * (0.75 + Math.random() * 0.5)))
+}
+
+function leerRetryAfter(response, now = Date.now()) {
+  const value = response.headers && response.headers.get('Retry-After')
+  if (!value) return undefined
+  const seconds = Number(value)
+  const date = Number.isFinite(seconds) ? now + Math.max(0, seconds) * 1000 : Date.parse(value)
+  return Number.isFinite(date) ? Math.max(now, date) : undefined
+}
+
+function clasificarEstado(status) {
+  if (status === 401) return 'sesion-vencida'
+  if (status === 413 || status === 429 || status === 408 || status >= 500) return 'reintentable'
+  if (status >= 400 && status < 500) return 'error'
+  return 'reintentable'
+}
+
+async function fetchWithTimeout(fetchImpl, input, init = {}) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15000)
+  try {
+    return await fetchImpl(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 function migrar(db) {
   // Nunca se borra ningún almacén existente: los datos de versiones anteriores se conservan.
@@ -154,17 +185,22 @@ async function procesarColaEnvio(abrir, fetchImpl) {
       || a.idempotencyKey.localeCompare(b.idempotencyKey))
     const enviados = []
     const pendientes = []
+    const sesionesVencidas = []
     for (const job of jobs) {
       // Draft and photo handlers arrive with their respective API contracts. They
       // stay queued here and can never run ahead of a final report.
       if (job.tipo !== 'reporte_final' && job.tipo !== undefined) continue
       if (job.estado !== 'pendiente') continue
+      if (job.reintentarDespues && job.reintentarDespues > Date.now()) {
+        pendientes.push(job.idempotencyKey)
+        continue
+      }
       await operar(db, 'trabajos_envio', 'readwrite', (tx) => {
         tx.objectStore('trabajos_envio').put({ ...job, estado: 'enviando' })
         return null
       })
       try {
-        const response = await fetchImpl('/api/problematicas/parte', {
+        const response = await fetchWithTimeout(fetchImpl, '/api/problematicas/parte', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Idempotency-Key': job.idempotencyKey },
           body: JSON.stringify(job.cuerpo),
@@ -175,21 +211,36 @@ async function procesarColaEnvio(abrir, fetchImpl) {
           await confirmarTrabajoEnvio(db, job, data)
           enviados.push(job.idempotencyKey)
         } else {
+          const clase = clasificarEstado(response.status)
+          const intentos = (job.intentos || 0) + 1
+          const retryAfter = (response.status === 413 || response.status === 429) ? leerRetryAfter(response) : undefined
           await operar(db, 'trabajos_envio', 'readwrite', (tx) => {
-            tx.objectStore('trabajos_envio').put({ ...job, estado: 'pendiente' })
+            tx.objectStore('trabajos_envio').put({
+              ...job,
+              estado: clase === 'reintentable' ? 'pendiente' : clase,
+              intentos,
+              ...(clase === 'reintentable' ? { reintentarDespues: retryAfter ?? Date.now() + esperaReintento(job.intentos || 0) } : {}),
+            })
             return null
           })
-          pendientes.push(job.idempotencyKey)
+          if (clase === 'reintentable') pendientes.push(job.idempotencyKey)
+          if (clase === 'sesion-vencida') sesionesVencidas.push(job.idempotencyKey)
         }
       } catch {
+        const intentos = (job.intentos || 0) + 1
         await operar(db, 'trabajos_envio', 'readwrite', (tx) => {
-          tx.objectStore('trabajos_envio').put({ ...job, estado: 'pendiente' })
+          tx.objectStore('trabajos_envio').put({
+            ...job,
+            estado: 'pendiente',
+            intentos,
+            reintentarDespues: Date.now() + esperaReintento(job.intentos || 0),
+          })
           return null
         })
         pendientes.push(job.idempotencyKey)
       }
     }
-    return { enviados, pendientes }
+    return { enviados, pendientes, sesionesVencidas }
   })
 }
 
@@ -208,9 +259,13 @@ async function procesarColaSync(abrir, fetchImpl) {
       continue
     }
     if (!entrada || !REINTENTABLES.includes(entrada.estado) || !entrada.url || entrada.cuerpo === undefined) continue
+    if (entrada.reintentarDespues && entrada.reintentarDespues > Date.now()) {
+      pendientes.push(clave)
+      continue
+    }
 
     try {
-      const res = await fetchImpl(entrada.url, {
+      const res = await fetchWithTimeout(fetchImpl, entrada.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(entrada.cuerpo),
@@ -220,12 +275,33 @@ async function procesarColaSync(abrir, fetchImpl) {
       if (res.ok && json && json.ok === true && typeof json.movimientoId === 'string') {
         await op(db, 'readwrite', (s) => s.delete(clave))
         enviados.push(clave)
-      } else if (res.status >= 400 && res.status < 500 && ![401, 403, 410].includes(res.status)) {
-        await op(db, 'readwrite', (s) => s.put(JSON.stringify({ ...entrada, estado: 'error' }), clave))
       } else {
-        pendientes.push(clave)
+        const clase = clasificarEstado(res.status)
+        if (clase === 'error') {
+          await op(db, 'readwrite', (s) => s.put(JSON.stringify({ ...entrada, estado: 'error' }), clave))
+        } else if (clase === 'sesion-vencida') {
+          await op(db, 'readwrite', (s) => s.put(JSON.stringify({ ...entrada, estado: 'sesion-vencida' }), clave))
+          pendientes.push(`${clave}:sesion-vencida`)
+        } else {
+          const intentos = (entrada.intentos || 0) + 1
+          const retryAfter = (res.status === 413 || res.status === 429) ? leerRetryAfter(res) : undefined
+          await op(db, 'readwrite', (s) => s.put(JSON.stringify({
+            ...entrada,
+            estado: 'error-servidor',
+            intentos,
+            reintentarDespues: retryAfter ?? Date.now() + esperaReintento(entrada.intentos || 0),
+          }), clave))
+          pendientes.push(clave)
+        }
       }
     } catch {
+      const intentos = (entrada.intentos || 0) + 1
+      await op(db, 'readwrite', (s) => s.put(JSON.stringify({
+        ...entrada,
+        estado: 'error-servidor',
+        intentos,
+        reintentarDespues: Date.now() + esperaReintento(entrada.intentos || 0),
+      }), clave))
       pendientes.push(clave)
     }
   }
@@ -241,13 +317,17 @@ self.addEventListener('sync', (evento) => {
       const trabajos = await procesarColaEnvio(abrirDb, fetch)
       for (const cliente of clientes) {
         for (const clave of trabajos.enviados) cliente.postMessage({ tipo: 'parte-enviado', clave })
+        for (const clave of trabajos.sesionesVencidas) cliente.postMessage({ tipo: 'parte-sesion-vencida', clave })
       }
       if (trabajos.pendientes.length > 0) throw new Error('Quedan reportes definitivos pendientes.')
       const antiguos = await procesarColaSync(abrirDb, fetch)
       for (const cliente of clientes) {
         for (const clave of antiguos.enviados) cliente.postMessage({ tipo: 'parte-enviado', clave })
+        for (const clave of antiguos.pendientes.filter((item) => item.endsWith(':sesion-vencida'))) {
+          cliente.postMessage({ tipo: 'parte-sesion-vencida', clave: clave.slice(0, -':sesion-vencida'.length) })
+        }
       }
-      if (antiguos.pendientes.length > 0) throw new Error('Quedan envíos pendientes.')
+      if (antiguos.pendientes.some((clave) => !clave.endsWith(':sesion-vencida'))) throw new Error('Quedan envíos pendientes.')
     })(),
   )
 })
