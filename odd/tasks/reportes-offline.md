@@ -37,14 +37,14 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
 - [ ] B6 Attachments and direct OBS upload (depends on B0-OBS)
   - [x] B6-T1 (merged 2980eee; tsc+eslint ok, tests via CI) Schema/API: attachments linked to movimientos; photo-only evidence update; server-side permission + 3-photo limit under concurrency
   - [x] B6-T2 (merged 60fbcec; tsc+eslint ok, tests via CI) Batch authorization (presigned, controlled keys, verifiable constraints); reuse/renew without confusing OBS failure with app session expiry
-  - [ ] B6-T3 Client upload queue: one at a time after report confirmed; survives close/expired session
-  - [ ] B6-T4 Idempotent confirm + reconcile uncertain uploads before retransmit
+  - [ ] B6-T3 [in progress: gpt-6-luna, reportes-b6-t3t4-upload] Client upload queue: one at a time after report confirmed; survives close/expired session
+  - [ ] B6-T4 [in progress: gpt-6-luna, reportes-b6-t3t4-upload] Idempotent confirm + reconcile uncertain uploads before retransmit
   - [ ] B6-T5 Local cleanup after confirm + safe orphan object cleanup
 - [ ] B7 Map, gallery and pending items
   - [x] B7-T1 (merged 60fbcec; tsc+eslint ok, tests via CI) Grouped draft/photo counts (no per-school queries)
   - [x] B7-T2 (merged 60fbcec; tsc+eslint ok, tests via CI) Paginated pending detail (progress, last activity, allowed answers), visually/statistically separate from confirmed
-  - [ ] B7-T3 Photo indicator, thumbnails on sheet open, lightbox; on-demand temporary access, no proxy/mass signing
-  - [ ] B7-T4 Historical evidence by movimiento and date, including solved situations
+  - [ ] B7-T3 [in progress: gpt-6-luna, reportes-b7-t3t4-gallery] Photo indicator, thumbnails on sheet open, lightbox; on-demand temporary access, no proxy/mass signing
+  - [ ] B7-T4 [in progress: gpt-6-luna, reportes-b7-t3t4-gallery] Historical evidence by movimiento and date, including solved situations
 - [ ] B8 Integrated validation and enablement
   - [ ] B8-T1 Run focused + regression tests across batches
   - [ ] B8-T2 Real offline reopen on Chrome and Safari (prod build, HTTPS/localhost)
