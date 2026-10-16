@@ -160,9 +160,20 @@ describe('RecorridoActualizacion: borrador local', () => {
   })
 
   it('limpia la clave tras guardar con éxito y al cargar otra situación', async () => {
-    stub(); montar(); await irAlResumen()
+    let enviado = false
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        enviado = true
+        return new Response(JSON.stringify({ ok: true, movimientoId: 'm1' }), { status: 201 })
+      }
+      const datos = { ...base, parte: { ...base.parte, asistenciaPedagogica: enviado ? { brinda: true, modalidades: ['Cuadernillo'] } : null } }
+      return new Response(JSON.stringify(url.includes('/historial') ? { ok: true, movimientos: [] } : datos), { status: 200 })
+    }))
+    montar(); await irAlResumen()
     await waitFor(async () => expect(await leerBorradorGuardado()).not.toBeNull())
-    elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    elegirAsistencia('Sí')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Cuadernillo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await screen.findByText('Parte actualizado')
     await waitFor(async () => expect(await leerBorradorGuardado()).toBeNull())
     fireEvent.click(screen.getByRole('button', { name: 'Actualizar de nuevo' }))

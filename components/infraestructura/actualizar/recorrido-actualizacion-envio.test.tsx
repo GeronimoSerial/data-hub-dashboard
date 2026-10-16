@@ -153,7 +153,20 @@ describe('RecorridoActualizacion: envío', () => {
     const erroresConsola = vi.spyOn(console, 'error').mockImplementation(() => {})
     const avisosConsola = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
-      const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
+      let enviado = false
+      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          enviado = true
+          return respuesta()
+        }
+        if (url.includes('/historial')) return new Response(JSON.stringify({ ok: true, movimientos: [] }), { status: 200 })
+        const datos = enviado
+          ? { ...base, parte: { ...base.parte, asistenciaPedagogica: { brinda: false, modalidades: [] } } }
+          : base
+        return new Response(JSON.stringify(datos), { status: 200 })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      montar(); await enviar(); await screen.findByText(guardado)
       expect(screen.getByRole('link', { name: 'Ver estado actual' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
       const botonCargarOtro = screen.getByRole('button', { name: 'Actualizar de nuevo' })
       expect(botonCargarOtro.tagName).toBe('BUTTON')
