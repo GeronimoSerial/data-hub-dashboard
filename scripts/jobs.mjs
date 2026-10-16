@@ -52,6 +52,7 @@ const NOMBRES_VALIDOS = [
   'sync-synop-lluvia',
   'sync-prefectura-historico',
   'importar-exposicion-rio-dem',
+  'limpiar-adjuntos-huerfanos',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -431,6 +432,12 @@ export async function correrJob(nombre, opts) {
   await ensureSeeded()
 
   switch (nombre) {
+    case 'limpiar-adjuntos-huerfanos': {
+      const { limpiarObjetosHuerfanos } = await import(
+        '../lib/infraestructura/adjuntos/limpieza-huerfanos.ts'
+      )
+      return limpiarObjetosHuerfanos({ dryRun: !opts?.apply })
+    }
     case 'geo-perfiles':
       return correrGeoPerfiles(opts)
     case 'asociacion-rio':
@@ -518,7 +525,9 @@ export function codigoSalida(nombreJob, resultado) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const nombre = process.argv[2]
   const desdeIndex = process.argv.indexOf('--desde')
-  const opts = desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : undefined
+  const opts = process.argv.includes('--apply')
+    ? { ...(desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : {}), apply: true }
+    : desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : undefined
   try {
     const resultado = await correrJob(nombre, opts)
     console.log(JSON.stringify(resultado))
