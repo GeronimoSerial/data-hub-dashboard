@@ -521,18 +521,25 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       ...construirEnvio(situaciones, recorrido),
       ...(asistenciaCambiada && asistenciaSeleccionada ? { asistenciaPedagogica: asistenciaSeleccionada } : {}),
     }
-    const resultado = await intentarEnviar(payload, { ...opcionesEnvio(), almacen: await almacen() })
-    if (resultado.ok) {
-      const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string } | null
-      if (cuerpo?.ok && typeof cuerpo.movimientoId === 'string') { alEnviarConExito(cuerpo.movimientoId); return }
-      enviandoRef.current = false
-      setEnviando(false)
+    let exito = false
+    try {
+      const resultado = await intentarEnviar(payload, { ...opcionesEnvio(), almacen: await almacen() })
+      if (resultado.ok) {
+        const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string } | null
+        if (cuerpo?.ok && typeof cuerpo.movimientoId === 'string') { exito = true; alEnviarConExito(cuerpo.movimientoId); return }
+        setError(MENSAJE_ERROR_GUARDADO)
+      }
+      // El resumen ya anuncia el error persistido junto al estado del envío.
+    } catch {
+      // Local storage or lock failure: never leave the button on "Guardando…".
+      setEstadoEnvio((actual) => (actual === 'enviando' ? null : actual))
       setError(MENSAJE_ERROR_GUARDADO)
-      return
+    } finally {
+      if (!exito) {
+        enviandoRef.current = false
+        setEnviando(false)
+      }
     }
-    enviandoRef.current = false
-    setEnviando(false)
-    // El resumen ya anuncia el error persistido junto al estado del envío.
   }
 
   async function enviarSoloFotos(): Promise<void> {

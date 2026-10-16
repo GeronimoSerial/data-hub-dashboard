@@ -123,6 +123,19 @@ describe('RecorridoActualizacion: envío', () => {
     expect(posteos(fetchMock)).toHaveLength(0)
   })
 
+  it('si el guardado local falla, sale de Guardando… y muestra un error', async () => {
+    stub(); montar(); await prepararResumen(); elegirAsistencia('No')
+    // A rejecting lock stands in for any local-storage failure on the save path.
+    Object.defineProperty(navigator, 'locks', {
+      value: { request: (nombre: string, tarea: () => unknown) => nombre.startsWith('parte-offline:decidir') ? Promise.reject(new DOMException('closed', 'InvalidStateError')) : Promise.resolve().then(tarea) },
+      configurable: true,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    expect(await screen.findByRole('button', { name: 'Guardar actualización', hidden: true })).toBeEnabled()
+    Reflect.deleteProperty(navigator, 'locks')
+    expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos guardar el parte.')
+  })
+
   it('no incluye asistencia pedagógica en el envío si coincide con la vigente', async () => {
     const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
     expect(JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))).not.toHaveProperty('asistenciaPedagogica')
