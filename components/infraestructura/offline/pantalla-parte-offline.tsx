@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useState, type JSX } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
 import { ReporteInicialForm } from '@/components/infraestructura/reporte-inicial-form'
 import { RecorridoActualizacion } from '@/components/infraestructura/actualizar/recorrido-actualizacion'
 import type { EscuelaEncabezado } from '@/components/infraestructura/encabezado-parte'
@@ -10,6 +10,7 @@ import { abrirAlmacenParte, NOMBRE_DB_PARTE, STORES_PARTE, VERSION_DB_PARTE } fr
 import type { ContextoReporte } from '@/lib/infraestructura/reportes-offline-contratos'
 import type { EstadoActualRespuesta } from '@/components/infraestructura/estado-actual-textos'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
+import { reconectarParte, type ConflictoContexto } from '@/lib/infraestructura/parte/reconexion'
 
 type ContextoLocal = ContextoReporte & {
   /** Form-ready values are captured when the online flow starts. */
@@ -97,6 +98,8 @@ function useLocalUpdateReads(contexto: ContextoLocal | null): void {
 export function PantallaParteOffline(): JSX.Element {
   const [carga, setCarga] = useState<EstadoCarga>({ tipo: 'cargando' })
   const [seleccion, setSeleccion] = useState<string | null>(null)
+  const [conflictosContexto, setConflictosContexto] = useState<ConflictoContexto[]>([])
+  const reconexionEnCurso = useRef(false)
 
   useEffect(() => {
     let vigente = true
@@ -108,6 +111,23 @@ export function PantallaParteOffline(): JSX.Element {
     })
     return () => { vigente = false }
   }, [])
+
+  useEffect(() => {
+    if (carga.tipo === 'cargando') return
+    const reconectar = () => {
+      if (reconexionEnCurso.current) return
+      reconexionEnCurso.current = true
+      const contextos = carga.tipo === 'listo' ? carga.flujos.map(({ contexto }) => contexto) : []
+      void reconectarParte(contextos).then((resultado) => {
+        if (resultado.contextConflicts.length) setConflictosContexto(resultado.contextConflicts)
+      }).catch(() => undefined).finally(() => {
+        reconexionEnCurso.current = false
+      })
+    }
+    if (typeof navigator === 'undefined' || navigator.onLine) reconectar()
+    window.addEventListener('online', reconectar)
+    return () => window.removeEventListener('online', reconectar)
+  }, [carga])
 
   const flujoSeleccionado = carga.tipo === 'listo'
     ? carga.flujos.find(({ contexto }) => contexto.draftId === seleccion) ?? null
@@ -125,6 +145,16 @@ export function PantallaParteOffline(): JSX.Element {
       <main className="publico-content">
         <h1>Continuar sin conexión</h1>
         <p>Seleccione un reporte guardado en este dispositivo.</p>
+        {conflictosContexto.length > 0 && (
+          <ul aria-label="Conflictos de contexto">
+            {conflictosContexto.map((conflicto) => (
+              <li key={conflicto.draftId} role="alert">
+                Los datos de la escuela {conflicto.localSchool || `CUE ${conflicto.cue}`} cambiaron o ya no están disponibles.
+                Las respuestas del borrador se conservaron para su revisión.
+              </li>
+            ))}
+          </ul>
+        )}
         <ul>
           {carga.flujos.map(({ contexto }) => (
             <li key={contexto.draftId}>
@@ -151,6 +181,12 @@ export function PantallaParteOffline(): JSX.Element {
   return (
     <main className="publico-content publico-content--parte">
       <button type="button" onClick={() => setSeleccion(null)}>← Reportes guardados</button>
+      {conflictosContexto.some((conflicto) => conflicto.draftId === contexto.draftId) && (
+        <p role="alert">
+          La escuela o el CUE guardados ya no coinciden con los datos actuales del servidor.
+          Sus respuestas se conservaron en este dispositivo y requieren revisión antes de enviarse.
+        </p>
+      )}
       {contexto.flujo === 'inicial' ? (
         <>
           <h1>Reporte inicial · {formulario.escuela.nombre}</h1>
