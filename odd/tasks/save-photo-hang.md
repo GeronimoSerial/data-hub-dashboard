@@ -27,3 +27,10 @@ Delegated writer (single bounded worker), inline per task.
 - Lock-timeout test in `envio-offline.test.ts` was written alongside the fix (no separate RED run).
 - Note: fake-indexeddb did not reproduce a close-under-transaction race (close() waits for pending transactions); the dead-connection path is simulated by a one-shot InvalidStateError from `IDBDatabase.transaction`.
 - Typecheck `npx tsc --noEmit`: exit 0. Lint (changed areas): 0 errors.
+- `npx vitest run lib/infraestructura/parte lib/infraestructura/fotos components/infraestructura`: 59 files, 611 passed, 18 skipped.
+- Full `pnpm test`: not completed; DB-backed suites (scripts/, ge_localizacion seeding, migrations) fail or hang without a local database, which is environmental and unrelated to this change.
+- Commits: 1bab76c (store), 6f552da (lock bound), 3d3d957 (UI handlers).
+- Engram mirror: pending.
+
+## Next step
+Manual check on a phone: take a photo, press Guardar, confirm it completes.
