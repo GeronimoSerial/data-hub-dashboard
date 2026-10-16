@@ -182,7 +182,12 @@ class WorkerStartupError extends Error {
 }
 
 function validateResult(result: ResultadoPipelineFoto): ResultadoFoto {
-  if (!(result.optimized instanceof Blob) || !(result.thumbnail instanceof Blob)
+  const isBlob = (value: unknown): value is Blob => Boolean(value && typeof value === 'object'
+    && typeof (value as Blob).size === 'number'
+    && typeof (value as Blob).type === 'string'
+    && typeof (value as Blob).slice === 'function'
+    && typeof (value as Blob).arrayBuffer === 'function')
+  if (!isBlob(result.optimized) || !isBlob(result.thumbnail)
     || result.optimized.type !== 'image/jpeg' || result.thumbnail.type !== 'image/jpeg'
     || !Number.isFinite(result.width) || !Number.isFinite(result.height)
     || result.width < 1 || result.height < 1) {
