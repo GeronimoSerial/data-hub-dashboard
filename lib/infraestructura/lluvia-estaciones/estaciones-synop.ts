@@ -1,3 +1,4 @@
+import { referencia } from '@/lib/infraestructura/datasets/memoria'
 // Catálogo de estaciones SYNOP (SMN) de la provincia de Corrientes y su entorno,
 // verificadas en Ogimet. Goya y Santo Tomé no publican SYNOP en Ogimet
 // (comprobado el 2026-10-14), así que no figuran aquí.
@@ -9,17 +10,7 @@ export type EstacionSynop = {
   lon: number
 }
 
-export const ESTACIONES_SYNOP: readonly EstacionSynop[] = [
-  { wmo: '87155', nombre: 'Resistencia Aero', lat: -27.4386, lon: -59.0458 },
-  { wmo: '87166', nombre: 'Corrientes Aero', lat: -27.4497, lon: -58.7597 },
-  { wmo: '87173', nombre: 'Ituzaingó', lat: -27.5856, lon: -56.6772 },
-  { wmo: '87178', nombre: 'Posadas Aero', lat: -27.3908, lon: -55.9669 },
-  { wmo: '87187', nombre: 'Oberá', lat: -27.4836, lon: -55.1314 },
-  { wmo: '87270', nombre: 'Reconquista', lat: -29.205, lon: -59.6933 },
-  { wmo: '87281', nombre: 'Mercedes', lat: -29.2261, lon: -58.0856 },
-  { wmo: '87289', nombre: 'Paso de los Libres', lat: -29.6892, lon: -57.1483 },
-  { wmo: '87393', nombre: 'Monte Caseros', lat: -30.2617, lon: -57.6389 },
-]
+export function obtenerEstacionesSynop(): readonly EstacionSynop[] { return referencia('estaciones-synop') }
 
 const RADIO_TIERRA_KM = 6371
 
@@ -42,7 +33,7 @@ export function estacionSynopMasCercana(
   radioKm = 25,
 ): { estacion: EstacionSynop; distanciaKm: number } | null {
   let mejor: { estacion: EstacionSynop; distanciaKm: number } | null = null
-  for (const estacion of ESTACIONES_SYNOP) {
+  for (const estacion of obtenerEstacionesSynop()) {
     const d = distanciaKm(lat, lon, estacion.lat, estacion.lon)
     if (d <= radioKm && (mejor === null || d < mejor.distanciaKm)) {
       mejor = { estacion, distanciaKm: d }

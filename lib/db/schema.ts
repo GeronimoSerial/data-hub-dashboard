@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, text, integer, bigint, boolean, doublePrecision, jsonb, real, primaryKey, index, uniqueIndex, timestamp, check } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, bigint, boolean, doublePrecision, jsonb, real, primaryKey, index, uniqueIndex, timestamp, check, foreignKey } from 'drizzle-orm/pg-core'
 
 export const niveles = pgTable('niveles', {
   id: text('id').primaryKey(),
@@ -1611,3 +1611,55 @@ export const radarMeteoEnsembleRun = pgTable('radar_meteo_ensemble_run', {
 // Booleanos nativos: user.emailVerified, user.banned,
 // infra_verificacion.discrepancia, infra_risk_snapshot.evidenciaValida,
 // infra_aislamiento_osm.tieneAlternativaSinCruce. Sin TODO(DB1-F2) por duda.
+
+
+// Fuentes de infraestructura: identidad → versiones → registros → publicación.
+// Las tablas de dominio existentes son proyecciones operativas de estos datos.
+export const infraDataset = pgTable('infra_dataset', {
+  id: text('id').primaryKey(),
+  nombre: text('nombre').notNull(),
+})
+
+export const infraDatasetVersion = pgTable('infra_dataset_version', {
+  id: text('id').primaryKey(),
+  datasetId: text('dataset_id').notNull().references(() => infraDataset.id),
+  revision: text('revision').notNull(),
+  checksum: text('checksum').notNull(),
+  fuente: text('fuente').notNull(),
+  licencia: text('licencia'),
+  fechaFuente: timestamp('fecha_fuente', { withTimezone: true }),
+  creadaEn: timestamp('creada_en', { withTimezone: true }).notNull().defaultNow(),
+  formato: text('formato').notNull(),
+  estructura: jsonb('estructura').$type<Record<string, unknown>>().notNull(),
+  metadatos: jsonb('metadatos').$type<Record<string, unknown>>().notNull(),
+  filas: integer('filas').notNull(),
+}, (t) => [
+  uniqueIndex('infra_dataset_version_dataset_id_uidx').on(t.datasetId, t.id),
+  index('infra_dataset_version_dataset_fecha_idx').on(t.datasetId, t.creadaEn),
+  check('infra_dataset_version_filas_check', sql`${t.filas} >= 0`),
+])
+
+export const infraDatasetRegistro = pgTable('infra_dataset_registro', {
+  versionId: text('version_id').notNull().references(() => infraDatasetVersion.id),
+  clave: text('clave').notNull(),
+  orden: integer('orden').notNull(),
+  datos: jsonb('datos').$type<Record<string, unknown>>().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.versionId, t.clave] }),
+  uniqueIndex('infra_dataset_registro_orden_uidx').on(t.versionId, t.orden),
+])
+
+export const infraDatasetDependencia = pgTable('infra_dataset_dependencia', {
+  versionId: text('version_id').notNull().references(() => infraDatasetVersion.id),
+  entradaId: text('entrada_id').notNull().references(() => infraDatasetVersion.id),
+}, (t) => [primaryKey({ columns: [t.versionId, t.entradaId] })])
+
+export const infraDatasetPublicacion = pgTable('infra_dataset_publicacion', {
+  datasetId: text('dataset_id').primaryKey().references(() => infraDataset.id),
+  versionId: text('version_id').notNull(),
+  publicadaEn: timestamp('publicada_en', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [foreignKey({
+  columns: [t.datasetId, t.versionId],
+  foreignColumns: [infraDatasetVersion.datasetId, infraDatasetVersion.id],
+  name: 'infra_dataset_publicacion_version_fk',
+})])

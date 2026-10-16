@@ -67,7 +67,7 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
     descripcion: 'Climatología de precipitación (diario, avanza por cursor resumable de cupo)',
   },
   // Mismo esquema que climatologia-precipitacion, otra fuente (Flood
-  // API/GloFAS, 8 PUNTOS_RIO fijos — termina bastante antes que la de
+  // API/GloFAS, 8 obtenerPuntosRio() fijos — termina bastante antes que la de
   // precipitación por tener muchas menos celdas).
   'climatologia-caudal': {
     minutos: 1440,

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { hazardForecast, hazardSourceHealth, infraJobRun } from '@/lib/db/schema'
-import { PUNTOS_RIO } from '../puntos-rio'
+import { obtenerPuntosRio } from '../puntos-rio'
 import { borrarPerfilesGeo, insertarPerfilesGeo } from './__fixtures__/perfiles-geo'
 import type { HazardForecastPunto } from '../tipos-hazard'
 import type {
@@ -99,12 +99,12 @@ describe('ejecutarSyncPronosticoCaudal', () => {
       floodProvider: floodFake(),
     })
 
-    const esperadas = CELDAS.length + PUNTOS_RIO.length
+    const esperadas = CELDAS.length + obtenerPuntosRio().length
     expect(resultado).toEqual({
       ok: true,
       resultado: {
         celdasConsultadas: CELDAS.length,
-        puntosRioConsultados: PUNTOS_RIO.length,
+        puntosRioConsultados: obtenerPuntosRio().length,
         llamadasRealizadas: esperadas,
         filasInsertadas: esperadas,
         proveedoresConError: [],
@@ -164,7 +164,7 @@ describe('ejecutarSyncPronosticoCaudal', () => {
     if (!resultado.ok) throw new Error('unreachable')
     expect(resultado.resultado.proveedoresConError).toEqual(['open-meteo-ecmwf'])
     // celdas caídas no emiten puntos: 2 de ECMWF + todos los de flood
-    expect(resultado.resultado.filasInsertadas).toBe(CELDAS.length - 1 + PUNTOS_RIO.length)
+    expect(resultado.resultado.filasInsertadas).toBe(CELDAS.length - 1 + obtenerPuntosRio().length)
 
     const db = getDb()
     const salud = await db.select().from(hazardSourceHealth)
@@ -282,7 +282,7 @@ describe('ejecutarSyncPronosticoCaudal — conteo real de llamadas (regresión h
     if (!resultado.ok) throw new Error('unreachable')
     // 2 tandas en total (todas las celdas caben en 1 tanda de 25, todos los
     // puntos de río en otra), cada una reportando 1 sola llamada real: el
-    // total real es 2, MUY por debajo de CELDAS.length + PUNTOS_RIO.length.
+    // total real es 2, MUY por debajo de CELDAS.length + obtenerPuntosRio().length.
     expect(resultado.resultado.llamadasRealizadas).toBe(2)
   })
 })
@@ -377,7 +377,7 @@ describe('ejecutarSyncPronosticoCaudal — volumen realista (regresión RangeErr
     )
     const esperadas =
       resultado.resultado.celdasConsultadas * PASOS_HORARIOS_VOLUMEN_REAL * VARIABLES_VOLUMEN_REAL +
-      PUNTOS_RIO.length
+      obtenerPuntosRio().length
     expect(resultado.resultado.filasInsertadas).toBe(esperadas)
   }, 120_000)
 })

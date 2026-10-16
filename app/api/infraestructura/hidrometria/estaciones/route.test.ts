@@ -4,7 +4,7 @@ import { getDb, migrarDb } from '@/lib/db'
 import { hidroLectura } from '@/lib/db/schema'
 import type { AccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
-import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { USER } from '@/lib/infraestructura/riesgo/__fixtures__/motor-api'
 
 // Factory puro (sin importOriginal) para no arrastrar @/lib/session -> @/lib/db
@@ -87,7 +87,7 @@ describe('GET /api/infraestructura/hidrometria/estaciones', () => {
     const { estaciones } = await res.json()
     const estacion = estaciones.find((e: { estacionId: string }) => e.estacionId === ESTACION)
 
-    const catalogo = CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.estacionId === ESTACION)
+    const catalogo = obtenerEstacionesPrefectura().find((e) => e.estacionId === ESTACION)
     expect(estacion).toEqual({
       estacionId: ESTACION,
       nombre: catalogo?.nombrePna,

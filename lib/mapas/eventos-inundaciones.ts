@@ -1,9 +1,9 @@
 import { normalizarNombreDepartamento } from './normalizar-departamento'
 
 export const EVENTOS_INUNDACIONES_URLS = {
-  eventos: '/data/eventos-inundaciones/eventos.geojson',
-  evidencias: '/data/eventos-inundaciones/evidencias.csv',
-  gazetteer: '/data/eventos-inundaciones/gazetteer-osm.json',
+  eventos: '/api/mapas/infraestructura/datasets/eventos-inundaciones',
+  evidencias: '/api/mapas/infraestructura/datasets/evidencias-inundaciones?formato=csv',
+  gazetteer: '/api/mapas/infraestructura/datasets/gazetteer-osm',
 } as const
 
 export type PrecisionMostrada = 'estación' | 'localidad' | 'lugar' | 'departamento' | string
@@ -138,7 +138,7 @@ export type EscuelaLocalizada = {
   geoCalidad: string | null
 }
 
-export const LOCALIZACIONES_ESCUELAS_URL = '/data/localizaciones.json'
+export const LOCALIZACIONES_ESCUELAS_URL = '/api/mapas/infraestructura/datasets/localizaciones'
 
 function mediana(valores: number[]): number {
   const ordenados = [...valores].sort((a, b) => a - b)

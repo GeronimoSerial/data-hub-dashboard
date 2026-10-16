@@ -116,7 +116,7 @@ const payloadCaudalElementoSchema = z
   })
 
 // 50 coordenadas por request: misma decisión que ERA5, URLs acotadas. Con los
-// 8 puntos actuales de `PUNTOS_RIO` todo entra en un único lote.
+// 8 puntos actuales de `obtenerPuntosRio()` todo entra en un único lote.
 export const TAMANO_LOTE_COORDENADAS_CAUDAL = CONFIG_FUENTES.climatologiaCaudal.tamanoLote
 
 export type ResultadoSeriesHistoricasCaudal = {

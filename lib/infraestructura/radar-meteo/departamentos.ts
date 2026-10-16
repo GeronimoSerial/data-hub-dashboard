@@ -1,8 +1,7 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { referencia, versionReferencia } from '@/lib/infraestructura/datasets/memoria'
 import { GRID_VERSION } from './grilla'
 
-export const VERSION_GEOGRAFIA = 'ign-corrientes-2026-09-27'
+export function obtenerVersionGeografia(): string { return versionReferencia('departamentos') }
 type Punto = [number, number]
 type Anillo = Punto[]
 type Poligono = Anillo[]
@@ -10,6 +9,7 @@ type Geometria = Poligono[]
 type Feature = { properties: { id?: string | number; nombre?: string }; geometry: { type: string; coordinates: unknown } }
 export type Departamento = { id: string; nombre: string; geometria: Geometria; centro: Punto }
 export type AsignacionCelda = { celdaId: string; departamentoId: string; peso: number; fallback: boolean; gridVersion: string; geoVersion: string }
+let cacheVersion = ''
 let departamentosCache: Departamento[] | undefined
 let asignacionCache: Map<string, AsignacionCelda> | undefined
 
@@ -46,9 +46,11 @@ function dentroDepartamento(lon: number, lat: number, depto: Departamento): bool
   return depto.geometria.some((poligono) => contiene(lon, lat, poligono[0]) && !poligono.slice(1).some((h) => contiene(lon, lat, h)))
 }
 function cargarDepartamentos(): Departamento[] {
-  if (departamentosCache) return departamentosCache
-  const archivo = join(process.cwd(), 'public/data/departamentos-corrientes-georef-2026-09-27.geojson')
-  const geo = JSON.parse(readFileSync(archivo, 'utf8')) as { features: Feature[] }
+  const version = versionReferencia('departamentos')
+  if (departamentosCache && cacheVersion === version) return departamentosCache
+  cacheVersion = version
+  asignacionCache = undefined
+  const geo = referencia('departamentos') as { features: Feature[] }
   departamentosCache = geo.features.map((f, i) => {
     const geometria = geometriaPoligonos(f.geometry.type, f.geometry.coordinates)
     const centroDato = (f.properties as Feature['properties'] & { centroide?: { lon: number; lat: number } }).centroide
@@ -78,14 +80,14 @@ export function departamentoQueContienePunto(lat: number, lon: number): Departam
   return cargarDepartamentos().find((departamento) => dentroDepartamento(lon, lat, departamento)) ?? null
 }
 export function asignarCeldasADepartamentos(celdas: Array<{ id: string; latModelo?: number; lonModelo?: number; lat: number; lon: number }>): AsignacionCelda[] {
-  if (!asignacionCache) asignacionCache = new Map()
   const deptos = cargarDepartamentos()
+  if (!asignacionCache) asignacionCache = new Map()
   const nuevas = celdas.filter((c) => !asignacionCache!.has(c.id))
   const asignadas = nuevas.map((celda) => {
     const lon = celda.lonModelo ?? celda.lon, lat = celda.latModelo ?? celda.lat
     const candidatas = deptos.filter((d) => dentroDepartamento(lon, lat, d))
     const departamento = candidatas[0] ?? deptos.reduce((mejor, d) => distanciaGeometriaKm(lon, lat, d) < distanciaGeometriaKm(lon, lat, mejor) ? d : mejor)
-    return { celdaId: celda.id, departamentoId: departamento.id, peso: 1, fallback: candidatas.length === 0, gridVersion: GRID_VERSION, geoVersion: VERSION_GEOGRAFIA }
+    return { celdaId: celda.id, departamentoId: departamento.id, peso: 1, fallback: candidatas.length === 0, gridVersion: GRID_VERSION, geoVersion: obtenerVersionGeografia() }
   })
   for (const fila of asignadas) asignacionCache.set(fila.celdaId, fila)
   const filas = celdas.map((c) => asignacionCache!.get(c.id)!)

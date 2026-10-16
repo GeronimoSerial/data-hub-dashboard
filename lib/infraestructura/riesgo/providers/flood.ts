@@ -1,6 +1,7 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Adapter de caudal (GloFAS vía Open-Meteo Flood API) para el batch de riesgo
 // ENOS. A diferencia del adapter de celda, NO consulta por grilla arbitraria:
-// cada geometryRef debe ser un id de PUNTOS_RIO (ver ../puntos-rio.ts), porque
+// cada geometryRef debe ser un id de obtenerPuntosRio() (ver ../puntos-rio.ts), porque
 // una coordenada urbana puede caer fuera de la celda del cauce y devolver un
 // caudal irrelevante. La curación geográfica vive en puntos-rio.ts; acá sólo
 // se resuelve id -> lat/lon y se emite el pronóstico diario.
@@ -8,7 +9,7 @@ import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
 import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
-import { PUNTOS_RIO, puntoRioPorId, type PuntoRio } from '../puntos-rio'
+import { obtenerPuntosRio, puntoRioPorId, type PuntoRio } from '../puntos-rio'
 import type { HazardForecastPunto, HazardProvider } from '../tipos-hazard'
 
 const NOMBRE_PROVEEDOR = 'open-meteo-flood'
@@ -102,12 +103,13 @@ export type DiagnosticoFlood = {
 
 /**
  * Igual que otros adapters de la carpeta: expone fallos por punto de consulta.
- * Un geometryRef que no matchea PUNTOS_RIO no rompe el resto del lote: se
+ * Un geometryRef que no matchea obtenerPuntosRio() no rompe el resto del lote: se
  * ignora para la emisión y se registra con motivo 'punto_no_configurado'.
  */
 export async function obtenerPronosticoConDiagnostico(
   params: ParametrosPronosticoFlood,
 ): Promise<DiagnosticoFlood> {
+  await cargarReferencias()
   const erroresPorCelda: Record<string, string> = {}
   const puntos: HazardForecastPunto[] = []
 
@@ -172,4 +174,4 @@ export function crearProviderFlood(opts?: {
 
 // Reexport de conveniencia para tests/consumidores que quieran enumerar los
 // puntos configurados sin importar puntos-rio.ts por separado.
-export { PUNTOS_RIO }
+export { obtenerPuntosRio }

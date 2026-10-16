@@ -1,3 +1,4 @@
+import { referencia, versionReferencia } from '@/lib/infraestructura/datasets/memoria'
 // Asignación de celdas 0.1° (ver lib/infraestructura/riesgo/celda.ts) a
 // departamentos de Corrientes. La clave de celda es `lat_lon` con 1 decimal, así
 // que la clave ya es el centro de la celda: ese punto es el que se testea
@@ -7,14 +8,8 @@
 // dependencias. Con el criterio par/impar sumado a TODOS los anillos de un
 // polígono (exterior y huecos), un punto dentro de un hueco queda fuera.
 
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
 
-export const RUTA_GEOJSON_DEPARTAMENTOS = path.join(
-  process.cwd(),
-  'public/data/departamentos-corrientes-georef-2026-09-27.geojson',
-)
 
 type Posicion = [number, number] // [lon, lat]
 type Anillo = Posicion[]
@@ -33,6 +28,7 @@ export type FeatureCollectionDepartamentos = {
 
 type DepartamentoGeo = { id: string; poligonos: Poligono[] }
 
+let cacheVersion = ''
 let cacheDepartamentos: DepartamentoGeo[] | null = null
 
 function cruzaRayo(lon: number, lat: number, anillo: Anillo): boolean {
@@ -87,10 +83,10 @@ function coordenadasDeCelda(geometryRef: string): { lat: number; lon: number } |
 }
 
 function cargarDepartamentos(): DepartamentoGeo[] {
-  if (cacheDepartamentos === null) {
-    const coleccion = JSON.parse(
-      readFileSync(RUTA_GEOJSON_DEPARTAMENTOS, 'utf8'),
-    ) as FeatureCollectionDepartamentos
+  const version = versionReferencia('departamentos')
+  if (cacheDepartamentos === null || version !== cacheVersion) {
+    const coleccion = referencia<FeatureCollectionDepartamentos>('departamentos')
+    cacheVersion = version
     cacheDepartamentos = indexarDepartamentos(coleccion)
   }
   return cacheDepartamentos
@@ -115,17 +111,17 @@ export function departamentoDeCeldaEn(
   return departamentoDeCoordenadaEn(coleccion, punto.lat, punto.lon)
 }
 
-/** Ids normalizados de todos los departamentos del GeoJSON de `public/data`, únicos y ordenados. */
+/** Ids normalizados de todos los departamentos del dataset departamental publicado, únicos y ordenados. */
 export function listarDepartamentos(): string[] {
   return [...new Set(cargarDepartamentos().map((departamento) => departamento.id))].sort()
 }
 
-/** Departamento (id normalizado) que contiene el punto, usando el GeoJSON de `public/data`. */
+/** Departamento (id normalizado) que contiene el punto, usando el dataset departamental publicado. */
 export function departamentoDeCoordenada(lat: number, lon: number): string | null {
   return departamentoEnIndice(cargarDepartamentos(), lat, lon)
 }
 
-/** Departamento de una celda `geometryRef` (`lat_lon`, 0.1°), usando el GeoJSON de `public/data`. */
+/** Departamento de una celda `geometryRef` (`lat_lon`, 0.1°), usando el dataset departamental publicado. */
 export function departamentoDeCelda(geometryRef: string): string | null {
   const punto = coordenadasDeCelda(geometryRef)
   if (punto === null) return null

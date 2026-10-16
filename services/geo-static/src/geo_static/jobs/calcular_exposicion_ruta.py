@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from geo_static.datasets import leer_dataset, exportar_archivos, guardar_resultados, finalizar_corrida
 import gzip
 import json
 import sys
@@ -24,25 +25,27 @@ from geo_static.physrisk_susceptibilidad import (
 )
 
 VERSION_JOB = "1"
-GEOMETRIA_DEFAULT = Path(__file__).resolve().parents[3] / "output" / "accesos_osm_geometria-v3-2026-09-26.ndjson.gz"
 OUTPUT_DIR = Path(__file__).resolve().parents[3] / "output"
 CHECKPOINT_DEFAULT = Path(__file__).resolve().parents[3] / ".data" / "exposicion_ruta_celdas.ndjson"
 ESCENARIO = "historico WRI Aqueduct v2, WATCH 1980"
 LICENCIA = "Apache-2.0, OS-Climate physrisk; WRI Aqueduct"
 
 
-def leer_rutas(geometria: Path, limite_escuelas: int | None = None, cues=None) -> list[dict]:
+def leer_rutas(geometria: Path | None = None, limite_escuelas: int | None = None, cues=None) -> list[dict]:
     """Lee geometria NDJSON gzip respetando orden, filtro y limite solicitados."""
     cues = set(cues or [])
     filas = []
-    with gzip.open(geometria, "rt", encoding="utf-8") as archivo:
-        for linea in archivo:
-            registro = json.loads(linea)
-            if cues and registro.get("cue_anexo") not in cues:
-                continue
-            filas.append(registro)
-            if limite_escuelas and len(filas) >= limite_escuelas:
-                break
+    if geometria is None:
+        registros = leer_dataset("geo-geometria")
+    else:
+        with gzip.open(geometria, "rt", encoding="utf-8") as archivo:
+            registros = [json.loads(linea) for linea in archivo if linea.strip()]
+    for registro in registros:
+        if cues and registro.get("cue_anexo") not in cues:
+            continue
+        filas.append(registro)
+        if limite_escuelas and len(filas) >= limite_escuelas:
+            break
     return filas
 
 
@@ -155,6 +158,8 @@ def construir_filas(escuelas: list[dict], valores: dict, fecha_corrida: str) -> 
 
 
 def escribir_salida(filas: list[dict], salida_dir: Path, fecha_corrida: str) -> Path:
+    if not exportar_archivos():
+        return guardar_resultados("exposicion-ruta", filas, "physrisk", f"v{VERSION_JOB}-{fecha_corrida}")
     salida_dir.mkdir(parents=True, exist_ok=True)
     destino = salida_dir / f"exposicion_ruta_inundacion-v{VERSION_JOB}-{fecha_corrida}.ndjson.gz"
     temporal = destino.with_suffix(destino.suffix + ".tmp")
@@ -176,7 +181,7 @@ def main(argv=None) -> int:
     parser.add_argument("--pausa-segundos", type=float, default=0.2)
     parser.add_argument("--limite-escuelas", type=int)
     parser.add_argument("--cues")
-    parser.add_argument("--geometria", type=Path, default=GEOMETRIA_DEFAULT)
+    parser.add_argument("--geometria", type=Path, default=None)
     parser.add_argument("--salida-dir", type=Path, default=OUTPUT_DIR)
     parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT_DEFAULT)
     args = parser.parse_args(argv)
@@ -202,6 +207,7 @@ def main(argv=None) -> int:
     con_profundidad = sum(f["celdas_con_profundidad"] > 0 for f in filas)
     sin_ruta = sum(f["estado"] == "sin_ruta" for f in filas)
     print(f"[calcular_exposicion_ruta] escuelas {len(filas)}, sin_ruta {sin_ruta}, con datos {con_dato}, con_profundidad {con_profundidad}, celdas unicas {len(unicas)}, {time.monotonic()-inicio:.1f}s; salida {destino}", flush=True)
+    finalizar_corrida()
     return 0
 
 

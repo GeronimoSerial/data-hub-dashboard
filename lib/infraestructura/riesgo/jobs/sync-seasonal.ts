@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Job de sync de la tendencia ENOS a 30-90 días (Open-Meteo Seasonal,
 // SEASONAL): consulta el centroide de cada uno de los 25 departamentos de
 // Corrientes (NUNCA una escuela — ver providers/seasonal.ts) y persiste las
@@ -20,7 +21,7 @@ import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { hazardSeasonalTrend } from '@/lib/db/schema'
-import { CENTROIDES_DEPARTAMENTOS_CORRIENTES } from '@/lib/mapas/departamento-centroides'
+import { obtenerCentroidesDepartamentos } from '@/lib/mapas/departamento-centroides'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
 import {
   FORECAST_DAYS_SOLICITADOS,
@@ -190,6 +191,7 @@ export async function ejecutarSyncSeasonal(params?: {
   // Seam de test: permite inyectar un `renovarLease` fake.
   renovarLease?: typeof renovarLeaseReal
 }): Promise<ResultadoEjecucionSyncSeasonal> {
+  await cargarReferencias()
   const db = getDb()
   const ahora = params?.ahora ?? new Date()
   const ahoraIso = ahora.toISOString()
@@ -246,7 +248,7 @@ async function ejecutarCuerpoDelJobSeasonal(ctx: {
     params?.puerto ?? crearAdaptadorSeasonal({ obtenerTendencia: params?.obtenerTendenciaEstacional })
 
   const emisionEn = inicioDeDiaUtc(ahora)
-  const centroides = CENTROIDES_DEPARTAMENTOS_CORRIENTES
+  const centroides = obtenerCentroidesDepartamentos()
 
   const erroresPorDepartamento: Record<string, string> = {}
   let departamentosConsultados = 0

@@ -1,8 +1,9 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 import { and, desc, eq, gte, lt, ne } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { getDb } from '@/lib/db'
 import { radarMeteoEnsembleRun } from '@/lib/db/schema'
-import { listarDepartamentos, VERSION_GEOGRAFIA } from './departamentos'
+import { listarDepartamentos, obtenerVersionGeografia } from './departamentos'
 import {
   agregarApiKey,
   apiKeyDesdeEntorno,
@@ -139,6 +140,7 @@ function inicioDiaUtc(ahora: Date): { inicio: string; fin: string } {
 }
 
 export async function obtenerUltimoRunEnsemble(db = getDb()) {
+  await cargarReferencias()
   const [run] = await db
     .select()
     .from(radarMeteoEnsembleRun)
@@ -153,6 +155,7 @@ export async function purgarEnsembleAntiguo(
   ahora = new Date(),
   preservarId?: string,
 ): Promise<void> {
+  await cargarReferencias()
   const limite = new Date(ahora.getTime() - RETENCION_MS).toISOString()
   const vencido = lt(radarMeteoEnsembleRun.fetchedAt, limite)
   const condicion = preservarId
@@ -193,7 +196,7 @@ async function contarUsoDiario(ahora: Date) {
 }
 
 function crearClaveIdempotente(claveSlot: string): string {
-  return `open-meteo-ensemble:${MODELO_ENSEMBLE}:${VERSION_GEOGRAFIA}:${claveSlot}`
+  return `open-meteo-ensemble:${MODELO_ENSEMBLE}:${obtenerVersionGeografia()}:${claveSlot}`
 }
 
 function parsearFilasProveedor(respuesta: unknown, cantidadEsperada: number): FilaProveedorEnsemble[] {
@@ -303,7 +306,7 @@ async function guardarEstadoRun(
     runAt: inicio.toISOString(),
     fetchedAt: ahora.toISOString(),
     timezone: ZONA,
-    departmentGeoVersion: VERSION_GEOGRAFIA,
+    departmentGeoVersion: obtenerVersionGeografia(),
     forecastStart: forecast?.inicio ?? '',
     forecastEnd: forecast?.fin ?? '',
     status: estado,
@@ -349,6 +352,7 @@ async function guardarOmitidoPorTope(
 export async function ejecutarSyncRadarEnsemble(
   opciones: { ahora?: Date; fetchImpl?: typeof fetch } = {},
 ) {
+  await cargarReferencias()
   const ahora = opciones.ahora ?? new Date()
   const fetchImpl = opciones.fetchImpl ?? fetch
   const { inicio, clave: claveSlot } = slotSeisHoras(ahora)
@@ -458,6 +462,7 @@ export async function ejecutarSyncRadarEnsemble(
 }
 
 export async function alertasAndEnsemble() {
+  await cargarReferencias()
   const run = await obtenerUltimoRunEnsemble()
   if (!run) return null
   return {

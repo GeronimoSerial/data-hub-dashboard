@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 import { count, eq } from 'drizzle-orm'
 import {
   categorias as seedCategorias,
@@ -26,7 +27,7 @@ import {
   tipos,
   user,
 } from './schema'
-import { upsertRecursoInfraestructura } from '@/lib/infraestructura/recurso-seed'
+import { RECURSO_INFRAESTRUCTURA_ID, upsertRecursoInfraestructura } from '@/lib/infraestructura/recurso-seed'
 import { upsertRecursoNatalidad } from '@/lib/mapas/recurso-seed-natalidad'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
 import {
@@ -44,7 +45,7 @@ export function ensureSeeded() {
       throw err
     })
   }
-  return seedPromise
+  return seedPromise.then(() => cargarReferencias())
 }
 
 function withSeedFile(r: Recurso): Recurso {
@@ -179,7 +180,13 @@ async function seedHub() {
   // Fuera del if: corre siempre, también sobre una base ya poblada, y nunca
   // toca la audiencia configurada del recurso (ver recurso-seed.ts).
   await upsertRecursoInfraestructura()
-  await upsertRecursoNatalidad()
+  // Una base reconstruida sólo para infraestructura conserva ese alcance.
+  // El catálogo completo de instalaciones nuevas y bases existentes sigue
+  // recibiendo natalidad; no se agregan otros módulos a un catálogo exclusivo.
+  const catalogo = await db.select({ id: recursos.id }).from(recursos)
+  if (catalogo.some((recurso) => recurso.id !== RECURSO_INFRAESTRUCTURA_ID)) {
+    await upsertRecursoNatalidad()
+  }
 
   // Motivos de infraestructura: siembra idempotente (onConflictDoNothing,
   // ver sembrarMotivos). Corre siempre, no sólo en la siembra inicial, para

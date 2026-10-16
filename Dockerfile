@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:22-alpine AS base
+FROM node:24-alpine AS base
 RUN apk add --no-cache libc6-compat \
   && corepack enable
 
@@ -53,9 +53,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
 COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
-# Sólo se incluyen los resultados versionados consumidos por el importador;
-# no se copia el código ni las dependencias de geo-static.
-COPY --from=builder --chown=nextjs:nodejs /app/services/geo-static/output ./services/geo-static/output
+# Las referencias y resultados geográficos se leen de PostgreSQL; no se
+# empaquetan archivos de resultados ni las dependencias Python de geo-static.
 # pg ya viaja en .next/standalone: el servidor lo importa (lib/db/driver.ts) y el
 # trace de Next lo deja como symlink de pnpm con sus dependencias. Los scripts de
 # mantenimiento lo resuelven desde ahí; copiar otro pg encima rompe el build

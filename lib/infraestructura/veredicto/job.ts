@@ -1,9 +1,8 @@
+import { leerVersion } from '../datasets/repositorio'
 // Wrappers de lease sobre la generación y el cierre de veredictos diarios.
 // El lease en infra_job_run evita corridas superpuestas y da idempotencia,
 // igual que briefing-ia/job.ts. El gating por AI_VEREDICTO_ENABLED vive en
 // scripts/jobs.mjs, no acá.
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
 import { getDb } from '@/lib/db'
 import { adquirirLease, publicarResultado } from '@/lib/infraestructura/riesgo/job-run'
 import { actualizarSaludFuente, type EstadoSaludFuente } from '@/lib/infraestructura/riesgo/jobs/salud-fuente'
@@ -20,7 +19,6 @@ const PROVEEDOR_SALUD_VEREDICTO = 'veredicto-diario'
 const TTL_SALUD_VEREDICTO_MINUTOS = 360
 const PROVEEDOR_SALUD_REGISTRO = 'registro-eventos-inundaciones'
 const TTL_SALUD_REGISTRO_MINUTOS = 7 * 24 * 60
-const RUTA_REGISTRO_EVENTOS = path.join('public', 'data', 'eventos-inundaciones', 'eventos.csv')
 // Motivos de la IA que dejan el veredicto en plantilla y lo marcan degradado.
 const MOTIVOS_IA_DEGRADADOS = ['timeout', 'http_error', 'json_invalido', 'sin_api_key', 'presupuesto_agotado']
 
@@ -68,14 +66,11 @@ function fechaDmaDe(instante: Date): string {
 /** Salud del registro manual de eventos: falta, o no se actualiza hace más de 7 días. */
 export async function evaluarRegistroEventos(
   ahora: Date,
-  ruta: string = RUTA_REGISTRO_EVENTOS,
+  leer: () => Promise<{ fechaFuente: Date | null; creadaEn: Date } | null> = async () => (await leerVersion('registro-eventos'))?.version ?? null,
 ): Promise<SaludRegistrada> {
-  let mtime: Date
-  try {
-    mtime = (await fs.stat(ruta)).mtime
-  } catch {
-    return { estado: 'no_disponible', ultimoErrorSaneado: 'registro de eventos no publicado' }
-  }
+  const registro = await leer()
+  if (!registro) return { estado: 'no_disponible', ultimoErrorSaneado: 'registro de eventos no publicado' }
+  const mtime = registro.fechaFuente ?? registro.creadaEn
   if (ahora.getTime() - mtime.getTime() > TTL_SALUD_REGISTRO_MINUTOS * 60_000) {
     return {
       estado: 'degradado',
@@ -101,7 +96,7 @@ function slotUtc(ahora: Date): string {
 export async function correrJobVeredicto(params?: {
   ahora?: Date
   generar?: typeof generarVeredictos
-  rutaRegistroEventos?: string
+  leerRegistroEventos?: () => Promise<{ fechaFuente: Date | null; creadaEn: Date } | null>
 }): Promise<ResultadoJobVeredicto> {
   const ahora = params?.ahora
   const generar = params?.generar ?? generarVeredictos
@@ -129,7 +124,7 @@ export async function correrJobVeredicto(params?: {
       provider: PROVEEDOR_SALUD_REGISTRO,
       ttlMinutos: TTL_SALUD_REGISTRO_MINUTOS,
       licencia: 'registro manual',
-      salud: await evaluarRegistroEventos(instanteSalud, params?.rutaRegistroEventos),
+      salud: await evaluarRegistroEventos(instanteSalud, params?.leerRegistroEventos),
       ahora: instanteSalud,
     })
 

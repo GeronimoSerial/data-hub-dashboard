@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db'
 import { hazardClimatology, infraJobRun } from '@/lib/db/schema'
 import type { ejecutarCalculoClimatologiaCaudal as EjecutarCalculoClimatologiaCaudal } from './calcular-climatologia-caudal'
 import type { obtenerSeriesHistoricasCaudal as ObtenerSeriesHistoricasCaudal } from '../providers/climatologia-caudal'
-import { PUNTOS_RIO } from '../puntos-rio'
+import { obtenerPuntosRio } from '../puntos-rio'
 
 usarDbTemporal('calcular-climatologia-caudal-')
 
@@ -19,7 +19,7 @@ let ejecutarCalculoClimatologiaCaudal: typeof EjecutarCalculoClimatologiaCaudal
 // climatologia-caudal.test.ts).
 const SERIE_SINTETICA = [3, 0, 100, 5, 0, 1, 0, 8, 2, 0, 9, 0, 4, 0, 6, 0, 7, 0, 0, 0]
 
-const PUNTO_CAIDO = PUNTOS_RIO[0].id
+const PUNTO_CAIDO = obtenerPuntosRio()[0].id
 
 function seriesOkFake(): typeof ObtenerSeriesHistoricasCaudal {
   return async ({ puntos }) => {
@@ -47,23 +47,23 @@ function seriesConPuntoCaidoFake(): typeof ObtenerSeriesHistoricasCaudal {
 }
 
 describe('ejecutarCalculoClimatologiaCaudal', () => {
-  it('primera corrida inserta 3 filas por punto para los 8 puntos de PUNTOS_RIO', async () => {
+  it('primera corrida inserta 3 filas por punto para los 8 puntos de obtenerPuntosRio()', async () => {
     const resultado = await ejecutarCalculoClimatologiaCaudal({ obtenerSeries: seriesOkFake() })
 
     expect(resultado).toEqual({
       ok: true,
       resultado: {
-        puntosProcesados: PUNTOS_RIO.length,
-        filasInsertadas: PUNTOS_RIO.length * 3,
+        puntosProcesados: obtenerPuntosRio().length,
+        filasInsertadas: obtenerPuntosRio().length * 3,
         puntosConError: [],
       },
     })
 
     const filas = await getDb().select().from(hazardClimatology)
-    expect(filas).toHaveLength(PUNTOS_RIO.length * 3)
+    expect(filas).toHaveLength(obtenerPuntosRio().length * 3)
 
     const refs = new Set(filas.map((fila) => fila.geometryRef))
-    for (const punto of PUNTOS_RIO) {
+    for (const punto of obtenerPuntosRio()) {
       expect(refs.has(punto.id)).toBe(true)
     }
     expect(filas.every((fila) => fila.variable === 'caudal_diario')).toBe(true)
@@ -74,13 +74,13 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
     const db = getDb()
 
     const antes = await db.select().from(hazardClimatology)
-    expect(antes).toHaveLength(PUNTOS_RIO.length * 3)
+    expect(antes).toHaveLength(obtenerPuntosRio().length * 3)
 
     const resultado = await ejecutarCalculoClimatologiaCaudal({ obtenerSeries: seriesOkFake() })
     expect(resultado).toEqual({ ok: false, motivo: 'lease_no_disponible' })
 
     const despues = await db.select().from(hazardClimatology)
-    expect(despues).toHaveLength(PUNTOS_RIO.length * 3)
+    expect(despues).toHaveLength(obtenerPuntosRio().length * 3)
   })
 
   it('un punto con error no bloquea a los demás ni tumba el job', async () => {
@@ -94,15 +94,15 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
     expect(resultado).toEqual({
       ok: true,
       resultado: {
-        puntosProcesados: PUNTOS_RIO.length - 1,
-        filasInsertadas: (PUNTOS_RIO.length - 1) * 3,
+        puntosProcesados: obtenerPuntosRio().length - 1,
+        filasInsertadas: (obtenerPuntosRio().length - 1) * 3,
         puntosConError: [PUNTO_CAIDO],
       },
     })
 
     const filas = await getDb().select().from(hazardClimatology)
     // 24 de la versión v0.1 + 21 de la v0.2 (sólo los puntos que respondieron ok)
-    expect(filas).toHaveLength(PUNTOS_RIO.length * 3 + (PUNTOS_RIO.length - 1) * 3)
+    expect(filas).toHaveLength(obtenerPuntosRio().length * 3 + (obtenerPuntosRio().length - 1) * 3)
   })
 
   // Regresión P-1: antes del fix, una corrida donde ningún punto se procesó
@@ -131,7 +131,7 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
       resultado: {
         puntosProcesados: 0,
         filasInsertadas: 0,
-        puntosConError: PUNTOS_RIO.map((punto) => punto.id),
+        puntosConError: obtenerPuntosRio().map((punto) => punto.id),
       },
     })
 
@@ -145,7 +145,7 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
     expect(fila?.estado).toBe('fallido')
     expect(fila?.leaseOwner).toBeNull()
     expect(fila?.errorSaneado).toBeTruthy()
-    for (const punto of PUNTOS_RIO) {
+    for (const punto of obtenerPuntosRio()) {
       expect(fila?.errorSaneado).toContain(punto.id)
     }
 
@@ -159,8 +159,8 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
     expect(reintento).toEqual({
       ok: true,
       resultado: {
-        puntosProcesados: PUNTOS_RIO.length,
-        filasInsertadas: PUNTOS_RIO.length * 3,
+        puntosProcesados: obtenerPuntosRio().length,
+        filasInsertadas: obtenerPuntosRio().length * 3,
         puntosConError: [],
       },
     })
@@ -189,8 +189,8 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
 
     expect(fila?.estado).toBe('completado')
     expect(fila?.contadores).toEqual({
-      puntos: PUNTOS_RIO.length - 1,
-      filas: (PUNTOS_RIO.length - 1) * 3,
+      puntos: obtenerPuntosRio().length - 1,
+      filas: (obtenerPuntosRio().length - 1) * 3,
       puntosConError: 1,
     })
     expect(fila?.errorSaneado).toContain(PUNTO_CAIDO)

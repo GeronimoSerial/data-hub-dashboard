@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Job de sync de pronóstico hidrometeorológico (E2): junta las celdas únicas
 // con perfil geográfico válido (ECMWF) y los puntos de río curados (caudal
 // GloFAS/Flood) y persiste ambos en `hazard_forecast`, actualizando además la
@@ -21,7 +22,7 @@ import { isNotNull, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { hazardForecast, infraGeoProfile } from '@/lib/db/schema'
-import { PUNTOS_RIO } from '../puntos-rio'
+import { obtenerPuntosRio } from '../puntos-rio'
 import { crearProviderEcmwf } from '../providers/ecmwf'
 import {
   crearProviderFlood,
@@ -249,6 +250,7 @@ export async function ejecutarSyncPronosticoCaudal(params?: {
   // módulo job-run (que además aporta adquirirLease/publicarResultado).
   renovarLease?: typeof renovarLeaseReal
 }): Promise<ResultadoEjecucionSyncPronosticoCaudal> {
+  await cargarReferencias()
   const db = getDb()
   const ahora = params?.ahora ?? new Date()
   const ahoraIso = ahora.toISOString()
@@ -321,7 +323,7 @@ async function ejecutarCuerpoDelJob(ctx: {
     .map((fila) => fila.geometryRef)
     .filter((ref): ref is string => ref !== null)
 
-  const puntosRio = PUNTOS_RIO.map((punto) => punto.id)
+  const puntosRio = obtenerPuntosRio().map((punto) => punto.id)
 
   const apiKey = apiKeyDesdeEntorno()
   const ecmwfProvider =

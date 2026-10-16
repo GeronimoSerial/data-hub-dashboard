@@ -13,6 +13,7 @@ Este modulo es puro (sin red, sin importar osmnx). Reune dos insumos que el job
 from __future__ import annotations
 
 import json
+from geo_static.datasets import leer_dataset
 import unicodedata
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
@@ -34,17 +35,10 @@ R_TIERRA_KM = 6371.0088
 # services/geo-static/src/geo_static/padron_geo.py, por lo que parents[4] es
 # la raiz del repositorio.
 REPO_ROOT = Path(__file__).resolve().parents[4]
-PADRON_PATH = REPO_ROOT / "public" / "data" / "localizaciones.json"
-
-CABECERAS_PATH = REPO_ROOT / "services" / "geo-static" / "data" / "cabeceras_departamentales.json"
-DEPARTAMENTOS_GEOJSON_PATH = (
-    REPO_ROOT / "public" / "data" / "departamentos-corrientes-georef-2026-09-27.geojson"
-)
 
 
 def cargar_padron() -> list[dict]:
-    with open(PADRON_PATH, encoding="utf-8") as f:
-        escuelas = json.load(f)
+    escuelas = leer_dataset("localizaciones")
     return [escuela for escuela in escuelas if escuela.get("lat") and escuela.get("lon")]
 
 
@@ -58,11 +52,14 @@ def normalizar_nombre(s: str) -> str:
 
 def cargar_cabeceras_oficiales(path: str | Path | None = None) -> dict[str, tuple[float, float]]:
     """Cabeceras oficiales normalizadas -> (lat, lon). `{}` si falta el archivo."""
-    ruta = Path(path) if path is not None else CABECERAS_PATH
-    if not ruta.exists():
-        return {}
-    with open(ruta, encoding="utf-8") as f:
-        datos = json.load(f)
+    if path is None:
+        datos = leer_dataset("cabeceras-departamentales")
+    else:
+        ruta = Path(path)
+        if not ruta.exists():
+            return {}
+        with open(ruta, encoding="utf-8") as f:
+            datos = json.load(f)
     cabeceras: dict[str, tuple[float, float]] = {}
     for cabecera in datos.get("cabeceras", []):
         cabeceras[normalizar_nombre(cabecera["departamento"])] = (
@@ -97,11 +94,14 @@ def resolver_cabeceras(
 def cargar_poligonos_departamentos(path: str | Path | None = None) -> dict[str, object]:
     """Poligonos de departamento normalizados -> geometria shapely.
     `{}` si falta el archivo."""
-    ruta = Path(path) if path is not None else DEPARTAMENTOS_GEOJSON_PATH
-    if not ruta.exists():
-        return {}
-    with open(ruta, encoding="utf-8") as f:
-        datos = json.load(f)
+    if path is None:
+        datos = leer_dataset("departamentos")
+    else:
+        ruta = Path(path)
+        if not ruta.exists():
+            return {}
+        with open(ruta, encoding="utf-8") as f:
+            datos = json.load(f)
     poligonos: dict[str, object] = {}
     for feature in datos.get("features", []):
         nombre = feature["properties"]["nombre"]

@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 import { randomUUID } from 'node:crypto'
 import { and, desc, eq, inArray, lt, ne, or } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
@@ -19,6 +20,7 @@ const ERROR_SANEADO = 'fallo al sincronizar radar meteorológico'
 type Db = ReturnType<typeof getDb>
 
 export async function obtenerUltimoRunRadarMeteo(db: Db = getDb()) {
+  await cargarReferencias()
   const [fila] = await db.select().from(radarMeteoRun).where(eq(radarMeteoRun.status, 'completo')).orderBy(desc(radarMeteoRun.fetchedAt)).limit(1)
   return fila ?? null
 }
@@ -67,6 +69,7 @@ function combinar(lotes: LoteRadar[]): LoteRadar {
 }
 
 export async function ejecutarSyncRadarMeteo(params: { ahora?: Date; celdas?: ReturnType<typeof generarGrilla>; obtener?: typeof obtenerPronosticoRadar } = {}) {
+  await cargarReferencias()
   const db = getDb(), ahora = params.ahora ?? new Date(), { inicio, clave } = slotTresHoras(ahora)
   const idempotencyKey = `open-meteo:best_match:${GRID_VERSION}:${clave}`
   const [existente] = await db.select().from(radarMeteoRun).where(eq(radarMeteoRun.idempotencyKey, idempotencyKey)).limit(1)

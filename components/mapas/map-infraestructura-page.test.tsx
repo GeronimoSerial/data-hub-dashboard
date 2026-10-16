@@ -700,6 +700,7 @@ async function renderMapa(props: OpcionesRenderMapa) {
   const vista = render(<MapInfraestructuraPage {...propsActuales} />)
   const { unmount } = vista
   desmontarMapa = unmount
+  await act(async () => { await Promise.resolve() })
   return {
     rerender: (cambios: Partial<OpcionesRenderMapa>) => {
       propsActuales = { ...propsActuales, ...cambios }
@@ -848,7 +849,7 @@ beforeEach(() => {
     'fetch',
     vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ type: 'FeatureCollection', features: [] }),
+      json: async () => JSON.parse(readFileSync(resolve(process.cwd(), 'public/data/departamentos-corrientes-georef-2026-09-27.geojson'), 'utf8')),
     }),
   )
 })

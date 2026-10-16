@@ -1,0 +1,2 @@
+ALTER TABLE "infra_dataset_version" DROP CONSTRAINT "infra_dataset_version_filas_check";--> statement-breakpoint
+ALTER TABLE "infra_dataset_version" ADD CONSTRAINT "infra_dataset_version_filas_check" CHECK ("infra_dataset_version"."filas" >= 0);

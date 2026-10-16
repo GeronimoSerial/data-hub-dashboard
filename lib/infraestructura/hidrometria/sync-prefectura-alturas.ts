@@ -1,9 +1,10 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Hourly sync of the Prefectura Naval Argentina heights table. Keeps only the
 // rows that resolve to the Corrientes catalogue and stores them idempotently.
 import { getDb } from '@/lib/db'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
 import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
-import { CATALOGO_ESTACIONES_PREFECTURA_VERSION, buscarEstacionPrefectura } from './estaciones-prefectura'
+import { obtenerVersionCatalogoPrefectura, buscarEstacionPrefectura } from './estaciones-prefectura'
 import {
   ErrorRedPrefectura,
   HttpPrefecturaError,
@@ -99,11 +100,12 @@ export async function syncPrefecturaAlturas(
     esperar?: (ms: number) => Promise<void>
   } = {},
 ): Promise<ResultadoSyncPrefectura> {
+  await cargarReferencias()
   const ahora = opts.ahora ?? new Date()
   const lease = await adquirirLease({
     tipo: TIPO_JOB,
     claveIdempotente: claveIdempotenteDeHora(ahora),
-    version: CATALOGO_ESTACIONES_PREFECTURA_VERSION,
+    version: obtenerVersionCatalogoPrefectura(),
     duracionLeaseMs: DURACION_LEASE_MS,
     ahora,
   })
@@ -121,7 +123,7 @@ export async function syncPrefecturaAlturas(
 
     const guardado = await guardarLecturasPrefectura(getDb(), resueltas, {
       capturadaEn: ahora.toISOString(),
-      catalogoVersion: CATALOGO_ESTACIONES_PREFECTURA_VERSION,
+      catalogoVersion: obtenerVersionCatalogoPrefectura(),
     })
     const contadores = {
       filasPublicadas: filas.length,

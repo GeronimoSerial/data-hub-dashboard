@@ -518,6 +518,7 @@ function crearDbFalsaUpdate(existentes: Set<string>) {
   const actualizaciones: Array<{ set: Record<string, unknown>; cue: unknown }> = []
   const dialecto = new PgDialect()
   const db = {
+    select() { return { from: async () => [...existentes].map((cue) => ({ cue, version: '1', fecha: '2026-10-01T00:00:00Z' })) } },
     update(_tabla: unknown) {
       return {
         set(valores: Record<string, unknown>) {
@@ -602,7 +603,7 @@ describe('importarInundacionV2', () => {
     const resultado = await importarInundacionV2(path, { db: db as never, tabla: infraSusceptibilidadEstatica })
 
     expect(resultado).toEqual({ procesadas: 1, ok: 0, sinFilaBase: 1, fallidas: 0 })
-    expect(actualizaciones).toHaveLength(1)
+    expect(actualizaciones).toHaveLength(0)
   })
 })
 

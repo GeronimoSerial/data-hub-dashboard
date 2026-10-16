@@ -10,7 +10,7 @@ import {
 } from './traza-texto'
 
 const METRICAS_RIO = [
-  { id: 'rio.pna-paso-de-los-libres.altura_max_m', valor: 9.33, unidad: 'm', etiqueta: 'Altura máxima PASO DE LOS LIBRES' },
+  { id: 'rio.pna-paso-de-los-libres.altura_max_m', valor: 9.33, unidad: 'm', etiqueta: 'Altura máxima PASO DE LOS LIBRES', estacion: { nombre: 'PASO DE LOS LIBRES', rio: 'uruguay' } },
   { id: 'rio.pna-paso-de-los-libres.evacuacion_m', valor: 8.5, unidad: 'm', etiqueta: 'Nivel de evacuación PASO DE LOS LIBRES' },
   { id: 'rio.pna-paso-de-los-libres.alerta_m', valor: 7.1, unidad: 'm', etiqueta: 'Nivel de alerta PASO DE LOS LIBRES' },
 ]

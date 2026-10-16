@@ -123,9 +123,8 @@ import { BASEMAPS, type BasemapId } from '@/lib/map-types'
 import {
   agregarEscuelasCaidasPorDepartamento,
   COLORES_DEPARTAMENTO,
-  DEPARTAMENTOS_URL,
-  LIMITES_CORRIENTES,
-  MASCARA_URL,
+  DEPARTAMENTOS_INFRA_URL,
+  MASCARA_INFRA_URL,
   fillPaintMascara,
   linePaintDepartamentoHover,
   linePaintDepartamentos,
@@ -759,10 +758,6 @@ export default function MapInfraestructuraPage(props: {
     }
   }, [props.visible])
 
-  useEffect(() => {
-    const contenedor = mapRef.current?.getMap().getContainer()
-    if (contenedor) colapsarAtribucion(contenedor)
-  }, [radarActivo, versionEstilo])
   const [vistaPlanificacion, setVistaPlanificacion] = useState<VistaPlanificacion>('aisladas')
   const pestanaPrevia = useRef(props.pestana)
   useEffect(() => {
@@ -989,25 +984,41 @@ export default function MapInfraestructuraPage(props: {
     { nombre: string; id?: string; centroide?: { lon: number; lat: number } }
   > | null>(null)
 
+  const [errorGeografia, setErrorGeografia] = useState(false)
+  const [intentoGeografia, setIntentoGeografia] = useState(0)
+  const limitesCorrientes = useMemo<[[number, number], [number, number]] | null>(() => {
+    if (!departamentosRaw) return null
+    const puntos = departamentosRaw.features.flatMap((f) => f.geometry.type === 'Polygon'
+      ? f.geometry.coordinates.flat() : f.geometry.coordinates.flat(2))
+    if (!puntos.length) return null
+    return [[Math.min(...puntos.map((p) => p[0])), Math.min(...puntos.map((p) => p[1]))],
+      [Math.max(...puntos.map((p) => p[0])), Math.max(...puntos.map((p) => p[1]))]]
+  }, [departamentosRaw])
+
+  useEffect(() => {
+    const contenedor = mapRef.current?.getMap().getContainer()
+    if (contenedor) colapsarAtribucion(contenedor)
+  }, [radarActivo, versionEstilo, departamentosRaw])
+
   useEffect(() => {
     let cancelado = false
-    fetch(DEPARTAMENTOS_URL)
-      .then((respuesta) => respuesta.json())
+    fetch(DEPARTAMENTOS_INFRA_URL)
+      .then((respuesta) => {
+        if (!respuesta.ok) throw new Error('Geografía no disponible')
+        return respuesta.json()
+      })
       .then((geojson: FeatureCollection<
         Polygon | MultiPolygon,
         { nombre: string; id?: string; centroide?: { lon: number; lat: number } }
       >) => {
+        if (geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features) || !geojson.features.length) throw new Error('Geografía inválida')
         if (!cancelado) setDepartamentosRaw(geojson)
       })
-      .catch(() => {
-        // Si falla, <Source> igual pinta el GeoJSON por URL con el relleno
-        // en su piso de opacidad (ver coalesce en fillPaintDepartamentos):
-        // se pierde el coroplético, no el contexto geográfico de base.
-      })
+      .catch(() => { if (!cancelado) setErrorGeografia(true) })
     return () => {
       cancelado = true
     }
-  }, [])
+  }, [intentoGeografia])
 
   const departamentoRadarNombre = useMemo(
     () => radarActivo
@@ -1068,7 +1079,7 @@ export default function MapInfraestructuraPage(props: {
   }, [departamentosRaw, data])
 
   // Coropleta de peligro: copia del MISMO `departamentosRaw` ya cargado (no se
-  // duplica el fetch de DEPARTAMENTOS_URL). El radar entrega una fila por
+  // duplica el fetch de DEPARTAMENTOS_INFRA_URL). El radar entrega una fila por
   // (departamento, horizonte); se filtra al horizonte que está en uso en el
   // panel.
   const peligroGeojson = useMemo(() => {
@@ -1343,7 +1354,7 @@ export default function MapInfraestructuraPage(props: {
       setPuntosVisibles(false)
       setDepartamentoSeleccionado(siguiente)
       if (siguiente === null) {
-        mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
+        mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: 24 })
       }
     }
   }, [
@@ -1352,6 +1363,7 @@ export default function MapInfraestructuraPage(props: {
     dataEscuelasMapaVisible,
     handleSeleccionarEscuelaBuscada,
     departamentoSeleccionado,
+    limitesCorrientes,
     setClusterInfoClic,
     setCruceInfoClic,
     setSeleccionCue,
@@ -1488,13 +1500,13 @@ export default function MapInfraestructuraPage(props: {
           departamentales, que no dependen de `data`, arrancan a cargarse de
           inmediato. `loading && !data` y `data && partes.length === 0` son
           mutuamente excluyentes: nunca se muestran a la vez. */}
-      {loading && !data && (
+      {((loading && !data) || !limitesCorrientes) && (
         <div className={`${styles.panel} ${styles.titlePanel}`}>
-          Cargando datos del mapa…
+          {errorGeografia ? <>No se pudieron cargar los límites del mapa. <Button onClick={() => { setErrorGeografia(false); setIntentoGeografia((n) => n + 1) }}>Reintentar</Button></> : 'Cargando datos del mapa…'}
         </div>
       )}
       <div className={styles.mapRoot}>
-        <MapGL
+        {limitesCorrientes && <MapGL
           ref={mapRef}
           attributionControl={false}
           mapStyle={mapStyle}
@@ -1505,7 +1517,7 @@ export default function MapInfraestructuraPage(props: {
           // los del mapa de matrícula y dejaban a Corrientes descentrada y
           // demasiado cerca; acá el encuadre sale del bbox real del GeoJSON.
           initialViewState={{
-            bounds: LIMITES_CORRIENTES,
+            bounds: limitesCorrientes,
             fitBoundsOptions: { padding: 24 },
           }}
           style={{ width: '100%', height: '100%' }}
@@ -1534,7 +1546,7 @@ export default function MapInfraestructuraPage(props: {
           {/* La atribución compacta deja libre la esquina inferior derecha del mapa. */}
           <AttributionControl key={radarActivo ? 'radar-attribution' : 'map-attribution'} position={radarActivo ? 'top-right' : 'bottom-right'} compact />
 
-          <Source id="infra-mascara-src" type="geojson" data={MASCARA_URL}>
+          <Source id="infra-mascara-src" type="geojson" data={MASCARA_INFRA_URL}>
             <Layer id={CAPA_MASCARA_ID} type="fill" paint={radarActivo ? { 'fill-color': '#020811', 'fill-opacity': 0.62 } : fillPaintMascara()} />
           </Source>
 
@@ -1548,7 +1560,7 @@ export default function MapInfraestructuraPage(props: {
           <Source
             id="infra-departamentos-src"
             type="geojson"
-            data={departamentosGeojson ?? DEPARTAMENTOS_URL}
+            data={departamentosGeojson ?? DEPARTAMENTOS_INFRA_URL}
           >
             <Layer
               id={CAPA_DEPARTAMENTOS_RELLENO_ID}
@@ -1991,7 +2003,7 @@ export default function MapInfraestructuraPage(props: {
             onSeleccion={setEventoSeleccionado}
           />
           <CapaEstacionesRio visible={capasVisibles.estacionesRio} />
-        </MapGL>
+        </MapGL>}
       </div>
 
       {radarActivo ? (
@@ -2053,7 +2065,7 @@ export default function MapInfraestructuraPage(props: {
                       entradaPuntosPendiente.current = true
                       setPuntosVisibles(false)
                       setDepartamentoSeleccionado(null)
-                      mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
+                      mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: 24 })
                     }}
                   />
                 )}

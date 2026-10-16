@@ -62,7 +62,7 @@ const paintRaster: RasterLayerSpecification['paint'] = {
 
 const tiemposVacios: string[] = []
 const bboxMundial: number[][] = [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]
-const URL_DEPARTAMENTOS = '/data/departamentos-corrientes-georef-2026-09-27.geojson'
+const URL_DEPARTAMENTOS = '/api/mapas/infraestructura/datasets/departamentos'
 
 interface RasterFrame {
   image: string

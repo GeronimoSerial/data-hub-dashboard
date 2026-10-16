@@ -1,10 +1,11 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Sincronización diaria del histórico de 365 días de Prefectura Naval Argentina para
 // las estaciones de corrientes del catálogo. Calcula mediana, p10 y p90 por estación
 // y los guarda en hidro_referencia.
 import { getDb } from '@/lib/db'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
 import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
-import { CATALOGO_ESTACIONES_PREFECTURA } from './estaciones-prefectura'
+import { obtenerEstacionesPrefectura } from './estaciones-prefectura'
 import { type FilaReferencia, guardarReferencia } from './referencia-repo'
 import { USER_AGENT_PREFECTURA } from './prefectura-cliente'
 import { estadisticasNivel, parsearHistoricoPrefectura } from './historico-parser'
@@ -61,6 +62,7 @@ async function descargarHistorico(
 export async function syncPrefecturaHistorico(
   opts: OpcionesSyncHistorico = {},
 ): Promise<ResultadoSyncPrefectura> {
+  await cargarReferencias()
   const ahora = opts.ahora ?? new Date()
   const fetchImpl = opts.fetchImpl ?? fetch
   const esperar = opts.esperar ?? esperarReal
@@ -75,7 +77,7 @@ export async function syncPrefecturaHistorico(
   })
   if (!lease.adquirido) return { ejecutado: false, estado: 'omitido' }
 
-  const estaciones = CATALOGO_ESTACIONES_PREFECTURA.filter(
+  const estaciones = obtenerEstacionesPrefectura().filter(
     (estacion) => estacion.rol === 'corrientes' && estacion.idHistorico != null,
   )
   const contadores = {

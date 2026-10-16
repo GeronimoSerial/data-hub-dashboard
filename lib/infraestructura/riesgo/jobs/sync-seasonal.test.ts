@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { hazardSeasonalTrend, hazardSourceHealth } from '@/lib/db/schema'
-import { CENTROIDES_DEPARTAMENTOS_CORRIENTES } from '@/lib/mapas/departamento-centroides'
+import { obtenerCentroidesDepartamentos } from '@/lib/mapas/departamento-centroides'
 import type { EstadisticaEstacionalDepartamento } from '../providers/seasonal'
 import type { obtenerTendenciaEstacional as ObtenerTendenciaEstacionalReal } from '../providers/seasonal'
 import type { ejecutarSyncSeasonal as EjecutarSyncSeasonal } from './sync-seasonal'
@@ -74,15 +74,15 @@ describe('ejecutarSyncSeasonal', () => {
     expect(resultado.ok).toBe(true)
     if (!resultado.ok) throw new Error('unreachable')
     expect(resultado.resultado.departamentosConsultados).toBe(
-      CENTROIDES_DEPARTAMENTOS_CORRIENTES.length,
+      obtenerCentroidesDepartamentos().length,
     )
-    expect(resultado.resultado.filasInsertadas).toBe(CENTROIDES_DEPARTAMENTOS_CORRIENTES.length)
+    expect(resultado.resultado.filasInsertadas).toBe(obtenerCentroidesDepartamentos().length)
     expect(llamadas).toBeGreaterThan(0)
 
     const db = getDb()
 
     const filas = await db.select().from(hazardSeasonalTrend)
-    expect(filas).toHaveLength(CENTROIDES_DEPARTAMENTOS_CORRIENTES.length)
+    expect(filas).toHaveLength(obtenerCentroidesDepartamentos().length)
     expect(filas.every((f) => f.emisionEn === '2026-09-27')).toBe(true)
     expect(filas.every((f) => f.variable === 'precipitacion_acumulada')).toBe(true)
     expect(filas.every((f) => f.provider === 'open-meteo-seasonal')).toBe(true)
@@ -163,12 +163,12 @@ describe('ejecutarSyncSeasonal', () => {
     const db = getDb()
     const filas = await db.select().from(hazardSeasonalTrend)
     // Dos emisiones distintas (2026-09-27 y 2026-09-28) por departamento.
-    expect(filas).toHaveLength(CENTROIDES_DEPARTAMENTOS_CORRIENTES.length * 2)
+    expect(filas).toHaveLength(obtenerCentroidesDepartamentos().length * 2)
   })
 
   it('un departamento con error del provider no rompe el resto y queda en degradado', async () => {
     const ahora = new Date('2026-09-29T09:00:00.000Z')
-    const primerDepartamento = CENTROIDES_DEPARTAMENTOS_CORRIENTES[0].departamento
+    const primerDepartamento = obtenerCentroidesDepartamentos()[0].departamento
 
     const resultado = await ejecutarSyncSeasonal({
       ahora,
@@ -180,7 +180,7 @@ describe('ejecutarSyncSeasonal', () => {
     expect(resultado.ok).toBe(true)
     if (!resultado.ok) throw new Error('unreachable')
     expect(resultado.resultado.filasInsertadas).toBe(
-      CENTROIDES_DEPARTAMENTOS_CORRIENTES.length - 1,
+      obtenerCentroidesDepartamentos().length - 1,
     )
 
     const salud = await getDb().select().from(hazardSourceHealth)
@@ -225,7 +225,7 @@ describe('ejecutarSyncSeasonal', () => {
 
     expect(resultado.ok).toBe(true)
     if (!resultado.ok) throw new Error('unreachable')
-    expect(resultado.resultado.filasInsertadas).toBe(CENTROIDES_DEPARTAMENTOS_CORRIENTES.length)
+    expect(resultado.resultado.filasInsertadas).toBe(obtenerCentroidesDepartamentos().length)
     // El job sigue pasando los defaults 30/90 explícitos al puerto (ver
     // sync-seasonal.ts): mismo horizonte que usaba el provider por default.
     expect(llamadas.every((l) => l.horizonteDesdeDias === 30 && l.horizonteHastaDias === 90)).toBe(
@@ -239,7 +239,7 @@ describe('ejecutarSyncSeasonal', () => {
       .where(
         (await import('drizzle-orm')).inArray(hazardSeasonalTrend.emisionEn, emisionesVistas),
       )
-    expect(filas.length).toBe(CENTROIDES_DEPARTAMENTOS_CORRIENTES.length)
+    expect(filas.length).toBe(obtenerCentroidesDepartamentos().length)
     expect(filas.every((fila) => fila.mediaMm === 33.3)).toBe(true)
   })
 })

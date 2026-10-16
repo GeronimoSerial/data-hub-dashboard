@@ -1,6 +1,5 @@
 // Textos legibles para la traza y el contexto aguas arriba del veredicto.
 // Sin React: lo usan la plantilla, el modal, la vista pública y el PDF.
-import { CATALOGO_ESTACIONES_PREFECTURA } from '../hidrometria/estaciones-prefectura'
 
 export type TrazaLegible = {
   regla: string
@@ -11,6 +10,7 @@ export type TrazaLegible = {
 }
 
 export type MetricaLegible = {
+  estacion?: { nombre: string; rio: string }
   id: string
   valor: unknown
   unidad?: string | null
@@ -104,10 +104,10 @@ function estacionDeRef(ref: string): string {
 
 function identidadRio(ref: string, metricas: MetricaLegible[]): string {
   const estacionId = estacionDeRef(ref)
-  const estacion = CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.estacionId === estacionId)
   const altura = metrica(metricas, `rio.${estacionId}.altura_max_m`)
+  const estacion = altura?.estacion ?? metricas.find((m) => m.id.startsWith(`rio.${estacionId}.`) && m.estacion)?.estacion
   const nombre = estacion
-    ? nombrePropio(estacion.nombrePna)
+    ? nombrePropio(estacion.nombre)
     : altura
       ? nombrePropio(altura.etiqueta.replace(/^Altura máxima /, ''))
       : 'estación'

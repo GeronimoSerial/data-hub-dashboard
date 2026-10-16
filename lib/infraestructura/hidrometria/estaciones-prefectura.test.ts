@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buscarEstacionPrefectura,
-  CATALOGO_ESTACIONES_PREFECTURA,
-  CATALOGO_ESTACIONES_PREFECTURA_VERSION,
+  obtenerEstacionesPrefectura,
+  obtenerVersionCatalogoPrefectura,
 } from './estaciones-prefectura'
 import { parsearAlturasPrefectura } from './prefectura-parser'
 
@@ -13,23 +13,23 @@ const fixture = readFileSync(
   'utf8',
 )
 
-describe('CATALOGO_ESTACIONES_PREFECTURA', () => {
+describe('obtenerEstacionesPrefectura()', () => {
   it('declara la versión del catálogo', () => {
-    expect(CATALOGO_ESTACIONES_PREFECTURA_VERSION).toBe('estaciones-prefectura-v2')
+    expect(obtenerVersionCatalogoPrefectura()).toBe('estaciones-prefectura-v2')
   })
 
   it('tiene estacionId e idHistorico únicos', () => {
-    const ids = CATALOGO_ESTACIONES_PREFECTURA.map((e) => e.estacionId)
-    const historicos = CATALOGO_ESTACIONES_PREFECTURA.map((e) => e.idHistorico)
+    const ids = obtenerEstacionesPrefectura().map((e) => e.estacionId)
+    const historicos = obtenerEstacionesPrefectura().map((e) => e.idHistorico)
     expect(new Set(ids).size).toBe(ids.length)
     expect(new Set(historicos).size).toBe(historicos.length)
   })
 
   it('usa slugs ASCII con prefijo pna- y sin acentos', () => {
-    for (const entrada of CATALOGO_ESTACIONES_PREFECTURA) {
+    for (const entrada of obtenerEstacionesPrefectura()) {
       expect(entrada.estacionId).toMatch(/^pna-[a-z0-9]+(-[a-z0-9]+)*$/)
     }
-    const libres = CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.idHistorico === 610)
+    const libres = obtenerEstacionesPrefectura().find((e) => e.idHistorico === 610)
     expect(libres).toMatchObject({
       estacionId: 'pna-paso-de-los-libres',
       nombrePna: 'PASO DE LOS LIBRES',
@@ -39,13 +39,13 @@ describe('CATALOGO_ESTACIONES_PREFECTURA', () => {
   })
 
   it('incluye las estaciones de Corrientes y el contexto aguas arriba con su río y rol', () => {
-    const paranaCorrientes = CATALOGO_ESTACIONES_PREFECTURA.filter(
+    const paranaCorrientes = obtenerEstacionesPrefectura().filter(
       (e) => e.rio === 'parana' && e.rol === 'corrientes',
     ).map((e) => e.idHistorico)
-    const uruguayCorrientes = CATALOGO_ESTACIONES_PREFECTURA.filter(
+    const uruguayCorrientes = obtenerEstacionesPrefectura().filter(
       (e) => e.rio === 'uruguay' && e.rol === 'corrientes',
     ).map((e) => e.idHistorico)
-    const contexto = CATALOGO_ESTACIONES_PREFECTURA.filter(
+    const contexto = obtenerEstacionesPrefectura().filter(
       (e) => e.rol === 'contexto-aguas-arriba',
     ).map((e) => ({ id: e.idHistorico, rio: e.rio }))
 
@@ -59,9 +59,9 @@ describe('CATALOGO_ESTACIONES_PREFECTURA', () => {
   })
 
   it('no guarda umbrales en el catálogo', () => {
-    for (const entrada of CATALOGO_ESTACIONES_PREFECTURA) {
+    for (const entrada of obtenerEstacionesPrefectura()) {
       expect(Object.keys(entrada).sort()).toEqual(
-        ['coordenadas', 'estacionId', 'idHistorico', 'nombrePna', 'rio', 'rol'],
+        ['coordenadas', 'estacionId', 'idHistorico', 'nombrePna', 'represaAguasArriba', 'rio', 'rol'],
       )
     }
   })
@@ -69,10 +69,10 @@ describe('CATALOGO_ESTACIONES_PREFECTURA', () => {
 
 describe('coordenadas declaradas por PNA (v2, no verificadas)', () => {
   const BBOX = { latMin: -31, latMax: -25, lonMin: -60, lonMax: -53 }
-  const conCoordenadas = CATALOGO_ESTACIONES_PREFECTURA.filter((e) => e.coordenadas !== null)
+  const conCoordenadas = obtenerEstacionesPrefectura().filter((e) => e.coordenadas !== null)
 
   it('cada estación tiene coordenadas declaradas o null, nunca un valor ausente', () => {
-    for (const entrada of CATALOGO_ESTACIONES_PREFECTURA) {
+    for (const entrada of obtenerEstacionesPrefectura()) {
       expect(entrada.coordenadas === null || typeof entrada.coordenadas === 'object').toBe(true)
     }
   })
@@ -107,9 +107,9 @@ describe('coordenadas declaradas por PNA (v2, no verificadas)', () => {
   })
 
   it('conserva los valores publicados de muestra', () => {
-    const libres = CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.idHistorico === 610)
+    const libres = obtenerEstacionesPrefectura().find((e) => e.idHistorico === 610)
     expect(libres?.coordenadas).toMatchObject({ lat: -29.721111, lon: -57.082222, verificada: false })
-    const itati = CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.idHistorico === 110)
+    const itati = obtenerEstacionesPrefectura().find((e) => e.idHistorico === 110)
     expect(itati?.coordenadas).toMatchObject({ lat: -27.27, lon: -58.24, verificada: false })
   })
 })

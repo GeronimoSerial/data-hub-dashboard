@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { crearProviderFlood, obtenerPronosticoConDiagnostico } from './flood'
-import { PUNTOS_RIO } from '../puntos-rio'
+import { obtenerPuntosRio } from '../puntos-rio'
 
 const FIXTURE = new URL(
   '../__fixtures__/hazard/flood-parana-corrientes-2026-09-26.json',
@@ -28,7 +28,7 @@ describe('crearProviderFlood', () => {
     expect(crearProviderFlood().nombreProveedor).toBe('open-meteo-flood')
   })
 
-  it('emite puntos de caudal para un id de PUNTOS_RIO con valores razonables', async () => {
+  it('emite puntos de caudal para un id de obtenerPuntosRio() con valores razonables', async () => {
     const fetchImpl = fetchFixture()
     const provider = crearProviderFlood({ fetchImpl: fetchImpl as unknown as typeof fetch })
     const puntos = await provider.obtenerPronostico({
@@ -66,9 +66,9 @@ describe('crearProviderFlood', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
-  it('todos los ids de PUNTOS_RIO son resolubles por el provider', async () => {
+  it('todos los ids de obtenerPuntosRio() son resolubles por el provider', async () => {
     const fetchImpl = fetchFixture()
-    const ids = PUNTOS_RIO.map((p) => p.id)
+    const ids = obtenerPuntosRio().map((p) => p.id)
     const { puntos, erroresPorCelda } = await obtenerPronosticoConDiagnostico({
       geometryRefs: ids,
       ahora: AHORA,

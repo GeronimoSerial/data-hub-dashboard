@@ -1,12 +1,13 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Job de cálculo de climatología de caudal (E3a): recorre los puntos fijos de
-// río (`PUNTOS_RIO`), pide a Open-Meteo Flood API (GloFAS) la serie histórica
+// río (`obtenerPuntosRio()`), pide a Open-Meteo Flood API (GloFAS) la serie histórica
 // diaria de cada uno y persiste los percentiles p90/p95/p99 calculados en
 // `hazard_climatology`. No es un sync periódico: es un cálculo offline y bajo
 // demanda sobre una ventana histórica fija.
 //
 // Es la contraparte de caudal de `calcular-climatologia.ts` (precipitación),
 // deliberadamente en un archivo separado: distinta variable, distinto endpoint
-// y distinta fuente de puntos (ids de `PUNTOS_RIO`, no celdas de
+// y distinta fuente de puntos (ids de `obtenerPuntosRio()`, no celdas de
 // `infra_geo_profile`).
 //
 // Período histórico elegido para GloFAS: 2015-01-01 a 2024-12-31. GloFAS
@@ -42,7 +43,7 @@ import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { hazardClimatology } from '@/lib/db/schema'
 import { adquirirLease, publicarResultado } from '../job-run'
-import { PUNTOS_RIO } from '../puntos-rio'
+import { obtenerPuntosRio } from '../puntos-rio'
 import {
   calcularPercentilesCaudal,
   obtenerSeriesHistoricasCaudal,
@@ -72,6 +73,7 @@ export async function ejecutarCalculoClimatologiaCaudal(params?: {
   | { ok: true; resultado: ResultadoCalcularClimatologiaCaudal }
   | { ok: false; motivo: 'lease_no_disponible' }
 > {
+  await cargarReferencias()
   const db = getDb()
   const ahora = params?.ahora ?? new Date()
   const ahoraIso = ahora.toISOString()
@@ -139,7 +141,7 @@ async function ejecutarCuerpoDelJobClimatologiaCaudal(ctx: {
   // `erroresPorPunto` sin bloquear a los demás.
   const apiKey = apiKeyDesdeEntorno()
   const { seriesPorPunto, erroresPorPunto } = await obtenerSeries({
-    puntos: PUNTOS_RIO,
+    puntos: obtenerPuntosRio(),
     periodoDesde,
     periodoHasta,
     apiKey,
@@ -152,7 +154,7 @@ async function ejecutarCuerpoDelJobClimatologiaCaudal(ctx: {
   let puntosProcesados = 0
   let filasInsertadas = 0
 
-  for (const punto of PUNTOS_RIO) {
+  for (const punto of obtenerPuntosRio()) {
     const serie = seriesPorPunto[punto.id]
     const fallo = erroresPorPunto[punto.id]
     if (fallo || serie === undefined) {
@@ -223,7 +225,7 @@ async function ejecutarCuerpoDelJobClimatologiaCaudal(ctx: {
   // Ningún punto procesado = la corrida no produjo nada: queda 'fallido' para
   // que la misma clave siga siendo reintentable. Con fallas parciales queda
   // 'completado' pero con `contadores.puntosConError` y `errorSaneado`.
-  const sinPuntosProcesados = PUNTOS_RIO.length > 0 && puntosProcesados === 0
+  const sinPuntosProcesados = obtenerPuntosRio().length > 0 && puntosProcesados === 0
   await publicarResultado({
     jobRunId: lease.jobRunId,
     leaseOwner: lease.leaseOwner,

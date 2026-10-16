@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { auditarUbicaciones,
   centroidesLocalidadesEscuelas,
   puntosDeLocalidades,
@@ -129,7 +129,7 @@ function ubicar(
 }
 
 function leerGazetteer() {
-  return JSON.parse(readFileSync(resolve(process.cwd(), 'public', 'data/eventos-inundaciones/gazetteer-osm.json'), 'utf8'))
+  return JSON.parse(readFileSync(resolve(process.cwd(), 'lib/infraestructura/datasets/__fixtures__/eventos/gazetteer-osm.json'), 'utf8'))
 }
 
 describe('parsearCsv', () => {
@@ -359,7 +359,7 @@ describe('ubicarEventos', () => {
 
 describe('eventos-inundaciones real data', () => {
   it('places or lists every event id from public/data', () => {
-    const leer = (ruta: string) => readFileSync(resolve(process.cwd(), 'public', ruta), 'utf8')
+    const leer = (ruta: string) => readFileSync(ruta.startsWith('data/eventos-inundaciones/') ? resolve(process.cwd(), 'lib/infraestructura/datasets/__fixtures__/eventos', ruta.split('/').at(-1)!) : resolve(process.cwd(), 'public', ruta), 'utf8')
     const eventos = JSON.parse(leer('data/eventos-inundaciones/eventos.geojson'))
     const locs = JSON.parse(leer('data/localities.geojson'))
     const deps = JSON.parse(leer('data/departamentos-corrientes-georef-2026-09-27.geojson'))
@@ -377,7 +377,7 @@ describe('eventos-inundaciones real data', () => {
         lon: f.properties.centroide.lon,
         lat: f.properties.centroide.lat,
       })),
-      estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+      estaciones: obtenerEstacionesPrefectura(),
       gazetteer: leerGazetteer(),
     })
 
@@ -394,18 +394,18 @@ describe('eventos-inundaciones real data', () => {
         idsSalida.has(id) || idsSinUbicar.has(id) || idsDescartados.has(id) || idsResumen.has(id) || idsPrecision.has(id),
       ).toBe(true)
     }
-    expect(EVENTOS_INUNDACIONES_URLS.eventos).toBe('/data/eventos-inundaciones/eventos.geojson')
+    expect(EVENTOS_INUNDACIONES_URLS.eventos).toBe('/api/mapas/infraestructura/datasets/eventos-inundaciones')
   })
 
   it('reports the real events without a URL source in descartados', () => {
-    const leer = (ruta: string) => readFileSync(resolve(process.cwd(), 'public', ruta), 'utf8')
+    const leer = (ruta: string) => readFileSync(ruta.startsWith('data/eventos-inundaciones/') ? resolve(process.cwd(), 'lib/infraestructura/datasets/__fixtures__/eventos', ruta.split('/').at(-1)!) : resolve(process.cwd(), 'public', ruta), 'utf8')
     const eventos = JSON.parse(leer('data/eventos-inundaciones/eventos.geojson'))
     const resultado = ubicarEventos({
       eventos,
       evidenciasCsv: leer('data/eventos-inundaciones/evidencias.csv'),
       localidades: [],
       departamentos: [],
-      estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+      estaciones: obtenerEstacionesPrefectura(),
       gazetteer: leerGazetteer(),
     })
     const descartados = new Map(resultado.descartados.map((d) => [d.id, d.motivo]))
@@ -414,7 +414,7 @@ describe('eventos-inundaciones real data', () => {
   })
 
   it('exposes human-readable labels without snake_case or evidence ids for every real feature', () => {
-    const leer = (ruta: string) => readFileSync(resolve(process.cwd(), 'public', ruta), 'utf8')
+    const leer = (ruta: string) => readFileSync(ruta.startsWith('data/eventos-inundaciones/') ? resolve(process.cwd(), 'lib/infraestructura/datasets/__fixtures__/eventos', ruta.split('/').at(-1)!) : resolve(process.cwd(), 'public', ruta), 'utf8')
     const eventos = JSON.parse(leer('data/eventos-inundaciones/eventos.geojson'))
     const locs = JSON.parse(leer('data/localities.geojson'))
     const deps = JSON.parse(leer('data/departamentos-corrientes-georef-2026-09-27.geojson'))
@@ -431,7 +431,7 @@ describe('eventos-inundaciones real data', () => {
         lon: f.properties.centroide.lon,
         lat: f.properties.centroide.lat,
       })),
-      estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+      estaciones: obtenerEstacionesPrefectura(),
       gazetteer: leerGazetteer(),
     })
     expect(resultado.geojson.features.length).toBeGreaterThan(0)
@@ -495,7 +495,7 @@ describe('eventos-inundaciones real data', () => {
 })
 
 function ubicarDatosReales() {
-  const leer = (ruta: string) => readFileSync(resolve(process.cwd(), 'public', ruta), 'utf8')
+  const leer = (ruta: string) => readFileSync(ruta.startsWith('data/eventos-inundaciones/') ? resolve(process.cwd(), 'lib/infraestructura/datasets/__fixtures__/eventos', ruta.split('/').at(-1)!) : resolve(process.cwd(), 'public', ruta), 'utf8')
   const eventos = JSON.parse(leer('data/eventos-inundaciones/eventos.geojson'))
   const locs = JSON.parse(leer('data/localities.geojson'))
   const deps = JSON.parse(leer('data/departamentos-corrientes-georef-2026-09-27.geojson'))
@@ -512,7 +512,7 @@ function ubicarDatosReales() {
       lon: f.properties.centroide.lon,
       lat: f.properties.centroide.lat,
     })),
-    estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+    estaciones: obtenerEstacionesPrefectura(),
     gazetteer: leerGazetteer(),
   })
 }

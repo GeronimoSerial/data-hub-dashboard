@@ -1,10 +1,11 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Hourly sync of SYNOP precipitation from Ogimet for the Corrientes stations.
 // One request per station, sequential and spaced, decoded and stored idempotently.
 import { getDb } from '@/lib/db'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
 import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
 import { ErrorOgimet, descargarSynopOgimet } from './ogimet-cliente'
-import { ESTACIONES_SYNOP } from './estaciones-synop'
+import { obtenerEstacionesSynop } from './estaciones-synop'
 import { guardarLluviaSynop } from './lluvia-repo'
 import { parsearRespuestaOgimet } from './synop-parser'
 
@@ -77,6 +78,7 @@ export async function syncSynopLluvia(
     esperar?: (ms: number) => Promise<void>
   } = {},
 ): Promise<ResultadoSyncSynop> {
+  await cargarReferencias()
   const ahora = opts.ahora ?? new Date()
   const lease = await adquirirLease({
     tipo: TIPO_JOB,
@@ -102,7 +104,7 @@ export async function syncSynopLluvia(
   let ultimoError: unknown = null
 
   try {
-    for (const [indice, estacion] of ESTACIONES_SYNOP.entries()) {
+    for (const [indice, estacion] of obtenerEstacionesSynop().entries()) {
       if (indice > 0) await esperar(PAUSA_ENTRE_ESTACIONES_MS)
       try {
         let cuerpo: string | null = null
@@ -129,12 +131,12 @@ export async function syncSynopLluvia(
       }
     }
 
-    if (estacionesConError === ESTACIONES_SYNOP.length) {
+    if (estacionesConError === obtenerEstacionesSynop().length) {
       throw ultimoError
     }
 
     const contadores = {
-      estaciones: ESTACIONES_SYNOP.length,
+      estaciones: obtenerEstacionesSynop().length,
       estacionesConError,
       registros,
     }
@@ -149,7 +151,7 @@ export async function syncSynopLluvia(
     if (estacionesConError > 0) {
       await registrarSaludSynop(
         'degradado',
-        `${estacionesConError} de ${ESTACIONES_SYNOP.length} estaciones sin datos de Ogimet`,
+        `${estacionesConError} de ${obtenerEstacionesSynop().length} estaciones sin datos de Ogimet`,
         ahora,
       )
     } else {

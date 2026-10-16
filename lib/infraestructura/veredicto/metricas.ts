@@ -8,7 +8,7 @@ import type { AmbitoLluvia, LluviaObservadaAmbito } from './lluvia-observada'
 import type { AvisoSmnDia, CaudalDia, EnsambleDia, LluviaPronosticadaDia } from './pronostico'
 import type { RioDia } from './rios'
 
-export type MetricaVeredicto = MetricaAutorizada & { unidad: string; fuenteUrl: string }
+export type MetricaVeredicto = MetricaAutorizada & { unidad: string; fuenteUrl: string; estacion?: { nombre: string; rio: string } }
 
 export const FUENTES_URL = {
   imerg: 'https://gpm.nasa.gov/data/imerg',
@@ -92,7 +92,7 @@ function metricasRio(rio: RioDia): MetricaVeredicto[] {
   if (rio.tendenciaM24h !== null) {
     metricas.push({ id: `${prefijo}.tendencia_m_24h`, valor: redondear(rio.tendenciaM24h, 2), unidad: 'm', etiqueta: `Variación en 24 h ${rio.nombre}`, fuenteUrl: FUENTES_URL.prefectura })
   }
-  return metricas
+  return metricas.map((m) => ({ ...m, estacion: { nombre: rio.nombre, rio: rio.rio } }))
 }
 
 function metricasCaudal(caudal: CaudalDia): MetricaVeredicto {

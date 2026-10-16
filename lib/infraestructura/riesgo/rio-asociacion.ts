@@ -1,9 +1,10 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraGeoProfile, infraGeoRio } from '@/lib/db/schema'
-import { PUNTOS_RIO, type PuntoRio } from './puntos-rio'
+import { obtenerPuntosRio, type PuntoRio } from './puntos-rio'
 
-// Asociación establecimiento → punto de río fijo (PUNTOS_RIO). Corre como job
+// Asociación establecimiento → punto de río fijo (obtenerPuntosRio()). Corre como job
 // (no en request path) e idempotente: upsert por cueAnexo en infraGeoRio, nunca
 // dos filas para el mismo establecimiento. El producto es "esta escuela tiene
 // conectividad hidrológica razonable con este curso de agua fijo", insumo de las
@@ -75,6 +76,7 @@ export type ResultadoCalculoAsociacionesRio = {
 export async function calcularAsociacionesRio(
   params?: { radioMaximoKm?: number; ahora?: Date },
 ): Promise<ResultadoCalculoAsociacionesRio> {
+  await cargarReferencias()
   const db = getDb()
   const radioMaximoKm = params?.radioMaximoKm ?? RADIO_MAXIMO_KM_DEFAULT
   const calculadoEn = (params?.ahora ?? new Date()).toISOString()
@@ -102,7 +104,7 @@ export async function calcularAsociacionesRio(
           fila.lat,
           fila.lon,
           radioMaximoKm,
-          PUNTOS_RIO,
+          obtenerPuntosRio(),
         )
         if (seleccion !== null) {
           puntoRioId = seleccion.puntoRioId

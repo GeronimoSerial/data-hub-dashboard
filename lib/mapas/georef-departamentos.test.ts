@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
-  GEOREF_DEPARTAMENTOS_CORRIENTES,
+  obtenerDepartamentosGeoref,
   compararDepartamentosConGeoref,
   normalizarNombreDepartamento,
 } from './georef-departamentos'
 
-describe('GEOREF_DEPARTAMENTOS_CORRIENTES', () => {
+describe('obtenerDepartamentosGeoref()', () => {
   it('tiene exactamente los 25 departamentos de Corrientes', () => {
-    expect(GEOREF_DEPARTAMENTOS_CORRIENTES).toHaveLength(25)
+    expect(obtenerDepartamentosGeoref()).toHaveLength(25)
   })
 })
 
@@ -28,7 +28,7 @@ describe('normalizarNombreDepartamento', () => {
 
 describe('compararDepartamentosConGeoref', () => {
   it('con los 25 nombres reales normalizados coincide con todo Georef', () => {
-    const padron = GEOREF_DEPARTAMENTOS_CORRIENTES.map((departamento) =>
+    const padron = obtenerDepartamentosGeoref().map((departamento) =>
       normalizarNombreDepartamento(departamento.nombre),
     )
 
@@ -46,7 +46,7 @@ describe('compararDepartamentosConGeoref', () => {
   })
 
   it('reporta en soloEnGeoref un departamento oficial ausente en el padrón', () => {
-    const padron = GEOREF_DEPARTAMENTOS_CORRIENTES.filter(
+    const padron = obtenerDepartamentosGeoref().filter(
       (departamento) => departamento.nombre !== 'Sauce',
     ).map((departamento) => normalizarNombreDepartamento(departamento.nombre))
 

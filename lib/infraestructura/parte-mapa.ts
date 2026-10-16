@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Proyección de los partes vigentes para el mapa de infraestructura (Fase 1
 // de odd/tasks/mapa-parte-operativo.md). Es la proyección, sobre el modelo de
 // parte/trayectoria (infra_parte / infra_afectacion / infra_servicio_alcance),
@@ -263,6 +264,7 @@ export async function cargarAfectacionesDeVariosPartes(
   corteId: number,
   parteIds: string[],
 ): Promise<Afectacion[]> {
+  await cargarReferencias()
   if (parteIds.length === 0) return []
 
   const placeholders = parteIds.map(() => '?').join(',')
@@ -343,6 +345,7 @@ export async function cargarServicioAlcanceDeVariosPartes(
   client: EjecutorSql,
   parteIds: string[],
 ): Promise<ServicioAlcance[]> {
+  await cargarReferencias()
   if (parteIds.length === 0) return []
 
   const placeholders = parteIds.map(() => '?').join(',')
@@ -374,6 +377,7 @@ function coincideFiltrosAfectacion(afectacion: Afectacion, filtros: FiltrosMapa)
 export async function listarPartesVigentes(
   filtros: FiltrosMapa = {},
 ): Promise<{ partes: ParteMapa[]; indicadores: IndicadoresMapa }> {
+  await cargarReferencias()
   const periodo = await obtenerPeriodoVigente()
   if (!periodo) return resultadoVacio
 
@@ -641,6 +645,9 @@ async function cargarPadronEscuelas(
     args.push(corteId, filtros.nivel!)
   }
 
+  clausulas.push(`(NOT EXISTS (SELECT 1 FROM infra_dataset_publicacion WHERE dataset_id='localizaciones')
+    OR EXISTS (SELECT 1 FROM infra_dataset_publicacion p JOIN infra_dataset_registro r ON r.version_id=p.version_id
+      WHERE p.dataset_id='localizaciones' AND r.clave=l.cue_anexo))`)
   const where = clausulas.length > 0 ? `WHERE ${clausulas.join('\n  AND ')}` : ''
   const res = await client.execute({
     sql: `SELECT l.cue_anexo, l.cui, l.nombre, l.departamento, l.localidad, l.lat, l.lon,
@@ -669,6 +676,7 @@ async function cargarPadronEscuelas(
 export async function listarEscuelasMapa(
   filtros: FiltrosMapa = {},
 ): Promise<EscuelasMapaResultado> {
+  await cargarReferencias()
   const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
 
@@ -739,6 +747,7 @@ function parsearAsistenciaPedagogica(valor: unknown): AsistenciaPedagogica | nul
 export async function listarEscuelasMapaEnriquecidas(
   filtros: FiltrosMapa = {},
 ): Promise<EscuelasMapaPadronResultado> {
+  await cargarReferencias()
   const resultado = await listarEscuelasMapa(filtros)
   const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)

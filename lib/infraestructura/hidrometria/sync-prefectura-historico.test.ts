@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, migrarDb } from '@/lib/db'
 import { hazardSourceHealth, hidroReferencia, infraJobRun } from '@/lib/db/schema'
-import { CATALOGO_ESTACIONES_PREFECTURA } from './estaciones-prefectura'
+import { obtenerEstacionesPrefectura } from './estaciones-prefectura'
 import { syncPrefecturaHistorico } from './sync-prefectura-historico'
 
 // seed: false; migrations are applied explicitly in beforeAll.
@@ -18,7 +18,7 @@ const AHORA = new Date('2026-10-13T12:30:00.000Z')
 const sinEsperar = async () => {}
 const MIN_PRUEBA = 10
 
-const estacionesCorrientes = CATALOGO_ESTACIONES_PREFECTURA.filter(
+const estacionesCorrientes = obtenerEstacionesPrefectura().filter(
   (estacion) => estacion.rol === 'corrientes' && estacion.idHistorico != null,
 )
 

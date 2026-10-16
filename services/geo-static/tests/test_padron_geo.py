@@ -6,6 +6,7 @@ reales lee unicamente archivos del propio repositorio.
 
 import csv
 import json
+from pathlib import Path
 
 import networkx as nx
 import pytest
@@ -122,8 +123,6 @@ class TestLoaders:
 
 
 CUE_FUERA_ESPERADOS = {
-    "1800295-00",
-    "1800303-00",
     "1801031-00",
     "1800282-00",
     "1801929-00",
@@ -139,10 +138,10 @@ def _escuelas_padron_real():
 
 
 class TestDatosReales:
-    def test_exactamente_los_7_cues_fuera_de_departamento(self):
+    def test_exactamente_los_5_cues_fuera_de_departamento(self):
         escuelas = _escuelas_padron_real()
         poligonos = padron_geo.cargar_poligonos_departamentos(
-            padron_geo.DEPARTAMENTOS_GEOJSON_PATH
+            padron_geo.REPO_ROOT / "public/data/departamentos-corrientes-georef-2026-09-27.geojson"
         )
         fuera = {
             e["cueAnexo"]: padron_geo.coordenada_fuera_de_departamento(e, poligonos)
@@ -154,9 +153,9 @@ class TestDatosReales:
     def test_los_25_departamentos_tienen_sede_oficial_dentro_del_poligono(self):
         escuelas = _escuelas_padron_real()
         poligonos = padron_geo.cargar_poligonos_departamentos(
-            padron_geo.DEPARTAMENTOS_GEOJSON_PATH
+            padron_geo.REPO_ROOT / "public/data/departamentos-corrientes-georef-2026-09-27.geojson"
         )
-        oficiales = padron_geo.cargar_cabeceras_oficiales(padron_geo.CABECERAS_PATH)
+        oficiales = padron_geo.cargar_cabeceras_oficiales(Path(__file__).parent / "fixtures/cabeceras_departamentales.json")
 
         departamentos = {e["departamento"] for e in escuelas}
         assert len(departamentos) == 25

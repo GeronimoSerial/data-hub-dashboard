@@ -1,10 +1,11 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Estado de los ríos por estación y día para el veredicto diario. Las lecturas
 // vienen de hidro_lectura (sincronizada desde la Prefectura Naval Argentina) y
 // el catálogo aporta nombre, río y coordenadas para ubicar el departamento.
 import { and, gte, lt } from 'drizzle-orm'
 import type { Db } from './repositorio'
 import { hidroLectura } from '@/lib/db/schema'
-import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { departamentoDeCoordenada } from './celda-departamento'
 import { rangoUtcDeDiaArt } from './dia'
 
@@ -101,6 +102,7 @@ export function agregarRioDia({
  * La última lectura previa sólo cuenta si está dentro de las 36 h anteriores al día.
  */
 export async function leerRiosDia(db: Db, fecha: string): Promise<RioDia[]> {
+  await cargarReferencias()
   const { desde, hasta } = rangoUtcDeDiaArt(fecha)
   const desdeVentana = new Date(Date.parse(desde) - VENTANA_PREVIA_MS).toISOString()
 
@@ -128,7 +130,7 @@ export async function leerRiosDia(db: Db, fecha: string): Promise<RioDia[]> {
   }
 
   const resultado: RioDia[] = []
-  for (const estacion of CATALOGO_ESTACIONES_PREFECTURA) {
+  for (const estacion of obtenerEstacionesPrefectura()) {
     const entrada = porEstacion.get(estacion.estacionId)
     if (!entrada) continue
     const agregado = agregarRioDia({

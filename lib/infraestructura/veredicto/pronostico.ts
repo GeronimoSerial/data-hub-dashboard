@@ -1,10 +1,11 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Señales de pronóstico por día ART: caudal de ríos (GloFAS), probabilidades de
 // ensamble por celda y avisos SMN. Cada lector filtra `valido_en` dentro del
 // rango UTC del día y usa sólo la corrida más reciente por clave de geometría.
 import { and, desc, eq, gte, inArray, lt } from 'drizzle-orm'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
 import { hazardClimatology, hazardEnsembleProb, hazardForecast, smnAlerta } from '@/lib/db/schema'
-import { PUNTOS_RIO, puntoRioPorId } from '@/lib/infraestructura/riesgo/puntos-rio'
+import { obtenerPuntosRio, puntoRioPorId } from '@/lib/infraestructura/riesgo/puntos-rio'
 import { departamentoDeCelda, departamentoDeCoordenada } from './celda-departamento'
 import { rangoUtcDeDiaArt, sumarDias } from './dia'
 import {
@@ -95,11 +96,12 @@ async function leerUmbralesCaudal(db: Db, geometryRefs: string[]): Promise<Map<s
 }
 
 /**
- * Pico diario de caudal por punto de río (`PUNTOS_RIO`) para el día ART `fecha`,
+ * Pico diario de caudal por punto de río (`obtenerPuntosRio()`) para el día ART `fecha`,
  * usando la corrida más reciente que cubre ese día. `percentil` compara el pico
  * con la climatología `caudal_diario` (muestra `todos_los_dias`).
  */
 export async function leerCaudalDia(db: Db, fecha: string): Promise<CaudalDia[]> {
+  await cargarReferencias()
   // GloFAS publica caudal DIARIO anclado a `${fecha}T00:00:00Z`: se filtra por
   // día calendario UTC (no por el rango ART, que tomaría el valor de D+1).
   const desde = `${fecha}T00:00:00`
@@ -112,7 +114,7 @@ export async function leerCaudalDia(db: Db, fecha: string): Promise<CaudalDia[]>
         eq(hazardForecast.variable, VARIABLE_CAUDAL),
         gte(hazardForecast.validoEn, desde),
         lt(hazardForecast.validoEn, hasta),
-        inArray(hazardForecast.geometryRef, PUNTOS_RIO.map((p) => p.id)),
+        inArray(hazardForecast.geometryRef, obtenerPuntosRio().map((p) => p.id)),
       ),
     )
 
@@ -152,6 +154,7 @@ export async function leerCaudalDia(db: Db, fecha: string): Promise<CaudalDia[]>
  * las celdas sin departamento se descartan.
  */
 export async function leerEnsambleDia(db: Db, fecha: string): Promise<EnsambleDia[]> {
+  await cargarReferencias()
   const { desde, hasta } = rangoUtcDeDiaArt(fecha)
   const filas = await db
     .select()
@@ -220,6 +223,7 @@ function acumularMaximo(
  * celdas con departamento) y el máximo por departamento.
  */
 export async function leerLluviaPronosticadaDia(db: Db, fecha: string): Promise<LluviaPronosticadaDia[]> {
+  await cargarReferencias()
   const { desde, hasta } = rangoUtcDeDiaArt(fecha)
   const filas = await db
     .select()
@@ -267,6 +271,7 @@ export async function leerLluviaPronosticadaDia(db: Db, fecha: string): Promise<
  * NIVEL_SAT_A_COLOR; valores desconocidos se ignoran.
  */
 export async function leerAvisosSmnDia(db: Db, fecha: string): Promise<AvisoSmnDia[]> {
+  await cargarReferencias()
   const { desde, hasta } = rangoUtcDeDiaArt(fecha)
   const desdeMs = Date.parse(desde)
   const hastaMs = Date.parse(hasta)

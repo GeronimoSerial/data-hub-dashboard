@@ -45,7 +45,7 @@ def test_archivo_inexistente_falla_con_mensaje_claro(tmp_path: Path) -> None:
 
 
 def test_json_versionado_tiene_localidades_validas_de_corrientes() -> None:
-    ruta = Path(__file__).parents[1] / "data" / "localidades_urbanas.json"
+    ruta = Path(__file__).parents[1] / "tests" / "fixtures" / "localidades_urbanas.json"
     localidades = cargar_localidades_urbanas(ruta)
 
     assert len(localidades) == 51

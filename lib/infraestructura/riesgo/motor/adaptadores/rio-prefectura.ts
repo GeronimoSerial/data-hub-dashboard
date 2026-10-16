@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Adapter real de PuertoRioPrefectura. Combina la localidad de la escuela
 // (ge_localizacion), el tramo aprobado de su localidad (tramos-prefectura),
 // la exposición física al río (susceptibilidad G1, distancia a punto de río
@@ -21,7 +22,7 @@ import {
   infraGeoRio,
   infraSusceptibilidadEstatica,
 } from '@/lib/db/schema'
-import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { estacionParaLocalidad } from '@/lib/infraestructura/hidrometria/tramos-prefectura'
 import {
   estadoDeLectura,
@@ -91,7 +92,7 @@ function distanciaKm(a: { lat: number; lon: number }, b: { lat: number; lon: num
 
 function distanciaAEstacionKm(datos: DatosRio, cueAnexo: string, estacionId: string): number | null {
   const escuela = datos.coordenadasPorCue?.get(cueAnexo)
-  const estacion = CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.estacionId === estacionId)?.coordenadas
+  const estacion = obtenerEstacionesPrefectura().find((e) => e.estacionId === estacionId)?.coordenadas
   if (!escuela || !estacion || estacion.precisionDecimales < PRECISION_MINIMA_ESTACION) return null
   return distanciaKm(escuela, estacion)
 }
@@ -114,7 +115,9 @@ function num(valor: Numerico | undefined): number | null {
 // Ventana del nivel de referencia (sync-prefectura-historico).
 const VENTANA_REFERENCIA_DIAS = 365
 
-export const ESTACIONES_CON_REPRESA_AGUAS_ARRIBA: ReadonlySet<string> = new Set(['pna-ituzaingo'])
+export function obtenerEstacionesConRepresa(): ReadonlySet<string> {
+  return new Set(obtenerEstacionesPrefectura().filter((e) => e.represaAguasArriba).map((e) => e.estacionId))
+}
 
 // Última lectura publicada de una estación válida para asOf (ignora futuras,
 // inconsistentes y no numéricas); null si no hay ninguna.
@@ -171,7 +174,7 @@ function anomaliaInterpoladaEscuela(
 ): number | null {
   const coordenadas = datos.coordenadasPorCue?.get(cueAnexo)
   if (!coordenadas) return null
-  const estaciones: EstacionAnomalia[] = CATALOGO_ESTACIONES_PREFECTURA.filter(
+  const estaciones: EstacionAnomalia[] = obtenerEstacionesPrefectura().filter(
     (e) => e.rol === 'corrientes' && e.rio === rio && e.coordenadas !== null,
   ).map((e) => ({
     estacionId: e.estacionId,
@@ -216,7 +219,7 @@ export function resolverEvidenciaRio(
     dem,
     nivelRioDelTramo(datos, tramo.estacionId),
     anomaliaInterpoladaEscuela(datos, cueAnexo, tramo.rio, asOf, asOfMs),
-    ESTACIONES_CON_REPRESA_AGUAS_ARRIBA.has(tramo.estacionId),
+    obtenerEstacionesConRepresa().has(tramo.estacionId),
   )
   if (dinamica.tipo === 'no_aplica_embalse') {
     return { ...base, disponibilidad: 'no_aplica', motivo: `embalse aguas arriba de la represa: ${dinamica.detalle}` }
@@ -276,6 +279,7 @@ export function resolverEvidenciaRio(
 
 // Carga única de todas las fuentes necesarias. Cada tabla se lee en batch.
 export async function cargarDatosRioDesdeDb(): Promise<DatosRio> {
+  await cargarReferencias()
   const db = getDb()
   const [
     resLocalidad,

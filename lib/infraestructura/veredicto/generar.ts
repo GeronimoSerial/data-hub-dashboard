@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Generación del veredicto diario: compone los insumos de la ventana, detecta
 // qué (fecha, ámbito) cambiaron, pide UNA sola respuesta a la IA para todos
 // ellos y cae a la plantilla determinística por ítem cuando algo no sirve.
@@ -75,6 +76,7 @@ export async function generarVeredictos(
   db: Db,
   opciones: OpcionesGenerar = {},
 ): Promise<ResultadoGenerar> {
+  await cargarReferencias()
   const ahora = opciones.ahora ?? new Date()
   const generarIa = opciones.generarConIA ?? generarConOpenRouter
   const reservar = opciones.reservarPresupuesto ?? reservarPresupuestoMes
@@ -235,5 +237,6 @@ export async function generarVeredictos(
 
 // Marca cerrado el día ART anterior a `ahora`: sus versiones vigentes ya no cambian.
 export async function cerrarDiaAnterior(db: Db, ahora: Date): Promise<void> {
+  await cargarReferencias()
   await marcarCerrado(db, sumarDias(fechaArt(ahora), -1))
 }

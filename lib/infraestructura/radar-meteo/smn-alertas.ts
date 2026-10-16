@@ -1,7 +1,8 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 import { desc, eq, lt } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { smnAlerta } from '@/lib/db/schema'
-import { listarDepartamentos, VERSION_GEOGRAFIA } from './departamentos'
+import { listarDepartamentos, obtenerVersionGeografia } from './departamentos'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
 import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
 
@@ -484,13 +485,14 @@ async function registrarSaludSmn(
 }
 
 export async function syncSmnAlertas(opts: { ahora?: Date; fetchImpl?: typeof fetch } = {}) {
+  await cargarReferencias()
   const ahora = opts.ahora ?? new Date()
   const fetchImpl = opts.fetchImpl ?? fetch
   const clave = claveCuartoHora(ahora)
   const lease = await adquirirLease({
     tipo: TIPO_JOB,
     claveIdempotente: clave,
-    version: VERSION_GEOGRAFIA,
+    version: obtenerVersionGeografia(),
     duracionLeaseMs: DURACION_LEASE_MS,
     ahora,
   })
@@ -540,6 +542,7 @@ export async function syncSmnAlertas(opts: { ahora?: Date; fetchImpl?: typeof fe
 }
 
 export async function alertasSmnActivas(ahora = new Date()) {
+  await cargarReferencias()
   const filas = await getDb()
     .select()
     .from(smnAlerta)

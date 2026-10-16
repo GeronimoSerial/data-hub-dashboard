@@ -6,8 +6,6 @@ import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
 import {
   puntosDeLocalidades,
-  EVENTOS_INUNDACIONES_URLS,
-  LOCALIZACIONES_ESCUELAS_URL,
   type EscuelaLocalizada,
   type EventoUbicado,
   type FuenteEvento,
@@ -16,10 +14,7 @@ import {
   ubicarEventos,
   type EntradaUbicacion,
 } from '@/lib/mapas/eventos-inundaciones'
-import { DEPARTAMENTOS_URL } from '@/lib/mapas/departamentos'
-import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 
-const LOCALIDADES_URL = '/data/localities.geojson'
 const RADIO_DESPLAZAMIENTO = 1.1
 const MAX_HECHOS = 3
 export const CAPA_EVENTOS_REPORTADOS_ID = 'eventos-reportados-simbolos'
@@ -99,20 +94,17 @@ async function cargarJson(url: string): Promise<unknown> {
 type ResultadoCarga = Pick<ResumenEventosReportados, 'resumenProvincial' | 'sinUbicacionPrecisa' | 'actualizadoAl'> & { features: EventoUbicado[] }
 
 async function cargarEventos(): Promise<ResultadoCarga> {
-  const [eventos, evidenciasRespuesta, localidades, localizaciones, departamentos, gazetteer] = await Promise.all([
-    cargarJson(EVENTOS_INUNDACIONES_URLS.eventos),
-    fetch(EVENTOS_INUNDACIONES_URLS.evidencias).then((r) => (r.ok ? r.text() : Promise.reject(new Error('evidencias')))),
-    cargarJson(LOCALIDADES_URL),
-    cargarJson(LOCALIZACIONES_ESCUELAS_URL),
-    cargarJson(DEPARTAMENTOS_URL),
-    cargarJson(EVENTOS_INUNDACIONES_URLS.gazetteer),
-  ])
+  const { eventos, evidenciasCsv, localidades, localizaciones, departamentos, gazetteer, estaciones } = await cargarJson('/api/mapas/infraestructura/referencias/eventos') as {
+    eventos: EntradaUbicacion['eventos']; evidenciasCsv: string; localidades: unknown
+    localizaciones: EscuelaLocalizada[]; departamentos: unknown
+    gazetteer: EntradaUbicacion['gazetteer']; estaciones: EntradaUbicacion['estaciones']
+  }
   const resultado = ubicarEventos({
     eventos: eventos as EntradaUbicacion['eventos'],
-    evidenciasCsv: evidenciasRespuesta,
+    evidenciasCsv,
     localidades: puntosDeLocalidades(puntosDeGeojson(localidades), localizaciones as EscuelaLocalizada[]),
     departamentos: centroidesDepartamentos(departamentos),
-    estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+    estaciones,
     gazetteer: gazetteer as EntradaUbicacion['gazetteer'],
   })
   return {

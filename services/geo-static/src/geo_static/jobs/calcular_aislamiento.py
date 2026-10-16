@@ -5,7 +5,7 @@ porque el paquete no se instala editable, ver pyproject.toml [tool.uv]
 package = false):
     PYTHONPATH=src uv run python -m geo_static.jobs.calcular_aislamiento
 
-Lee el padron desde public/data/localizaciones.json (repo raiz), construye
+Lee el padrón publicado desde la DB del entorno, construye
 UNA red vial 'drive' de OpenStreetMap para el bbox de la provincia de
 Corrientes (desde G1-fix1: leyendo el extracto local .data/osm/
 argentina-latest.osm.pbf con pyrosm; si el extracto falta, cae al fallback
@@ -49,6 +49,7 @@ from pathlib import Path
 
 from geo_static import padron_geo
 from geo_static.csv_utils import escribir_csv
+from geo_static.datasets import exportar_archivos, guardar_resultados, finalizar_corrida
 from geo_static.localidades import cargar_localidades_urbanas
 
 # v1 = snap a nodo, red 'drive' sin track/service, proxy de centroide como sede
@@ -63,17 +64,14 @@ LICENCIA_OSM = "© OpenStreetMap contributors, ODbL"
 BBOX_CORRIENTES = (-27.15, -30.80, -55.60, -60.35)
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
-PADRON_PATH = padron_geo.PADRON_PATH
 OUTPUT_DIR = Path(__file__).resolve().parents[3] / "output"
 
 # Insumos del gate geografico y de las sedes oficiales (N3-A). Se exponen como
 # constantes de modulo para que los tests puedan apuntarlas a fixtures
 # temporales; `correr` las consume siempre via estos nombres globales.
-DEPARTAMENTOS_GEOJSON_PATH = padron_geo.DEPARTAMENTOS_GEOJSON_PATH
-CABECERAS_PATH = padron_geo.CABECERAS_PATH
-LOCALIDADES_URBANAS_PATH = (
-    REPO_ROOT / "services" / "geo-static" / "data" / "localidades_urbanas.json"
-)
+DEPARTAMENTOS_GEOJSON_PATH = None
+CABECERAS_PATH = None
+LOCALIDADES_URBANAS_PATH = None
 
 # Extracto Geofabrik de Argentina descargado localmente (gitignorado). Si existe,
 # la corrida de produccion construye la red con pyrosm (construir_red_local);
@@ -215,6 +213,8 @@ def _escribir_geometria_ndjson(registros: list[dict], fecha_corrida: str) -> Pat
     para que una misma entrada produzca un archivo byte-a-byte identico. Se
     escribe a un `.tmp` y recien despues se renombra al path final.
     """
+    if not exportar_archivos():
+        return guardar_resultados("geometria", registros, "OpenStreetMap", f"v{VERSION_JOB}-{fecha_corrida}")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUTPUT_DIR / f"accesos_osm_geometria-v{VERSION_JOB}-{fecha_corrida}.ndjson.gz"
     tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
@@ -290,7 +290,7 @@ def _escribir_csv_sin_ruta(
     rows.sort(key=lambda row: row["cue_anexo"])
 
     out_path = OUTPUT_DIR / f"aislamiento_osm_sin_ruta-v{VERSION_JOB}-{fecha_corrida or fecha_extracto}.csv"
-    escribir_csv(out_path, COLUMNAS_SIN_RUTA, rows)
+    out_path = escribir_csv(out_path, COLUMNAS_SIN_RUTA, rows)
     return out_path, rows
 
 
@@ -704,7 +704,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
             elif isinstance(v, bool):
                 fila_final[k] = int(v)
         filas_finales.append(fila_final)
-    escribir_csv(out_path, CONTRATO_COLUMNAS, filas_finales)
+    out_path = escribir_csv(out_path, CONTRATO_COLUMNAS, filas_finales)
 
     t1 = time.monotonic()
     con_indice = sum(1 for f in filas if f["indice_aislamiento"] is not None)
@@ -715,6 +715,8 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         f"sin datos de red: {sin_datos}, tiempo total: {t1 - t0:.1f}s",
         flush=True,
     )
+
+    finalizar_corrida()
 
 
 if __name__ == "__main__":

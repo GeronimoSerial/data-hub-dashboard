@@ -1,7 +1,7 @@
 import { eq, isNull } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraGeoProfile } from '@/lib/db/schema'
-import { PUNTOS_RIO } from '../../puntos-rio'
+import { obtenerPuntosRio } from '../../puntos-rio'
 import { elegirPuntoRioMasCercano, RADIO_MAXIMO_KM_DEFAULT } from '../../rio-asociacion'
 import type { PerfilTerritorio, PuertoTerritorio } from '../puertos'
 
@@ -12,14 +12,14 @@ import type { PerfilTerritorio, PuertoTerritorio } from '../puertos'
 // inventa un vínculo.
 //
 // DECISIÓN LOCAL (documentada): el punto de río se resuelve por proximidad
-// contra las coordenadas de PUNTOS_RIO, SIN polígono de cuenca
+// contra las coordenadas de obtenerPuntosRio(), SIN polígono de cuenca
 // real. El puerto (ver puertos.ts, PerfilTerritorio.puntoRioId) deja explícito
 // que es una decisión local del adapter y que la curación geográfica fina es
 // un follow-up. Consecuencia: una escuela costera a un río puede asociarse al
 // punto de OTRO curso si ambos están dentro del radio; se acepta en v0
 // porque la integración mínima exigida es Paraná + Uruguay.
 function puntoRioMasCercano(lat: number, lon: number): string | null {
-  const seleccion = elegirPuntoRioMasCercano(lat, lon, RADIO_MAXIMO_KM_DEFAULT, PUNTOS_RIO)
+  const seleccion = elegirPuntoRioMasCercano(lat, lon, RADIO_MAXIMO_KM_DEFAULT, obtenerPuntosRio())
   return seleccion?.puntoRioId ?? null
 }
 

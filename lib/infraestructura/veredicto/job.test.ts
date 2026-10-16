@@ -1,6 +1,3 @@
-import { mkdtempSync, utimesSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { correrJobCierreVeredicto, correrJobVeredicto } from './job'
 
@@ -12,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getDb: vi.fn(),
   actualizarSaludFuente: vi.fn(),
 }))
+
+vi.mock('../datasets/repositorio', () => ({ leerVersion: vi.fn(async () => null) }))
 
 const DB_FAKE = { fake: true }
 
@@ -45,7 +44,6 @@ const resultadoGenerar = {
 }
 
 // Registro de eventos inexistente por defecto: no debe afectar a las corridas sin foco en salud.
-const RUTA_REGISTRO_INEXISTENTE = path.join(tmpdir(), 'no-existe-eventos.csv')
 
 function saludEscrita(provider: string) {
   return mocks.actualizarSaludFuente.mock.calls
@@ -180,7 +178,7 @@ describe('salud del veredicto y del registro de eventos', () => {
       ...resultadoGenerar,
       fuentesNoDisponibles: ['glofas', 'ensamble'],
     })
-    await correrJobVeredicto({ ahora, rutaRegistroEventos: RUTA_REGISTRO_INEXISTENTE })
+    await correrJobVeredicto({ ahora, leerRegistroEventos: async () => null })
 
     expect(saludEscrita('veredicto-diario')).toEqual(
       expect.objectContaining({
@@ -195,7 +193,7 @@ describe('salud del veredicto y del registro de eventos', () => {
 
   it('degradado cuando la IA cae a plantilla por un motivo de la lista', async () => {
     mocks.generarVeredictos.mockResolvedValue({ ...resultadoGenerar, motivoFallback: 'sin_api_key' })
-    await correrJobVeredicto({ ahora, rutaRegistroEventos: RUTA_REGISTRO_INEXISTENTE })
+    await correrJobVeredicto({ ahora, leerRegistroEventos: async () => null })
 
     expect(saludEscrita('veredicto-diario')).toEqual(
       expect.objectContaining({ estado: 'degradado', ultimoErrorSaneado: 'IA: sin_api_key' }),
@@ -203,7 +201,7 @@ describe('salud del veredicto y del registro de eventos', () => {
   })
 
   it('ok sin fuentes caídas ni fallback de IA', async () => {
-    await correrJobVeredicto({ ahora, rutaRegistroEventos: RUTA_REGISTRO_INEXISTENTE })
+    await correrJobVeredicto({ ahora, leerRegistroEventos: async () => null })
 
     expect(saludEscrita('veredicto-diario')).toEqual(
       expect.objectContaining({ estado: 'ok', ultimoErrorSaneado: null }),
@@ -213,7 +211,7 @@ describe('salud del veredicto y del registro de eventos', () => {
   it('no_disponible si la generación falla, sin el mensaje crudo, y relanza el error', async () => {
     mocks.generarVeredictos.mockRejectedValue(new Error('secreto interno'))
     await expect(
-      correrJobVeredicto({ ahora, rutaRegistroEventos: RUTA_REGISTRO_INEXISTENTE }),
+      correrJobVeredicto({ ahora, leerRegistroEventos: async () => null }),
     ).rejects.toThrow('secreto interno')
 
     expect(saludEscrita('veredicto-diario')).toEqual(
@@ -226,12 +224,12 @@ describe('salud del veredicto y del registro de eventos', () => {
 
   it('un fallo al escribir la salud no hace fallar el job', async () => {
     mocks.actualizarSaludFuente.mockRejectedValue(new Error('db caída'))
-    const resultado = await correrJobVeredicto({ ahora, rutaRegistroEventos: RUTA_REGISTRO_INEXISTENTE })
+    const resultado = await correrJobVeredicto({ ahora, leerRegistroEventos: async () => null })
     expect(resultado.ejecutado).toBe(true)
   })
 
   it('registro de eventos ausente se reporta como no_disponible', async () => {
-    await correrJobVeredicto({ ahora, rutaRegistroEventos: RUTA_REGISTRO_INEXISTENTE })
+    await correrJobVeredicto({ ahora, leerRegistroEventos: async () => null })
 
     expect(saludEscrita('registro-eventos-inundaciones')).toEqual(
       expect.objectContaining({
@@ -244,10 +242,7 @@ describe('salud del veredicto y del registro de eventos', () => {
   })
 
   it('registro de eventos reciente se reporta como ok', async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'veredicto-registro-'))
-    const ruta = path.join(dir, 'eventos.csv')
-    writeFileSync(ruta, 'fecha\n')
-    await correrJobVeredicto({ ahora, rutaRegistroEventos: ruta })
+    await correrJobVeredicto({ ahora, leerRegistroEventos: async () => ({ fechaFuente: ahora, creadaEn: ahora }) })
 
     expect(saludEscrita('registro-eventos-inundaciones')).toEqual(
       expect.objectContaining({ estado: 'ok', ultimoErrorSaneado: null }),
@@ -255,12 +250,8 @@ describe('salud del veredicto y del registro de eventos', () => {
   })
 
   it('registro de eventos con más de 7 días se reporta como degradado con su fecha', async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'veredicto-registro-'))
-    const ruta = path.join(dir, 'eventos.csv')
-    writeFileSync(ruta, 'fecha\n')
     const viejo = new Date('2026-10-01T12:00:00.000Z')
-    utimesSync(ruta, viejo, viejo)
-    await correrJobVeredicto({ ahora, rutaRegistroEventos: ruta })
+    await correrJobVeredicto({ ahora, leerRegistroEventos: async () => ({ fechaFuente: viejo, creadaEn: ahora }) })
 
     expect(saludEscrita('registro-eventos-inundaciones')).toEqual(
       expect.objectContaining({
