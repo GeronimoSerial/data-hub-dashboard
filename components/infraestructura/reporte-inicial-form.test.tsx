@@ -134,6 +134,10 @@ describe('ReporteInicialForm', () => {
     const id = `parte-inicial:${props.cue}`
     const almacen = await abrirAlmacenParte()
     await almacen.guardarContexto({ draftId: id, idempotencyKey: 'sent-initial' })
+    expect(await almacen.obtenerContexto<{ draftId: string; idempotencyKey?: string }>(id)).toMatchObject({
+      draftId: id,
+      idempotencyKey: 'sent-initial',
+    })
     await almacen.guardarBorrador({ draftId: id, generacion: 1, version: 1, datos: { invalidForRestore: true }, actualizadoEn: new Date().toISOString() })
     const cola = crearColaTrabajosEnvio(almacen)
     await cola.encolar({ tipo: 'foto', idempotencyKey: 'photo-initial', draftId: id, cuerpo: { attachmentId: 'photo-1' } })
