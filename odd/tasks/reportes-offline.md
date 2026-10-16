@@ -27,7 +27,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
 - [ ] B4 Offline reopen
   - [x] B4-T1 (merged 80834f9; tsc+eslint ok, tests via CI) Generic offline page reusing forms and persisted context
   - [ ] B4-T2 [in progress: gpt-6-luna, reportes-b4-t2-precache] SW precache: verify completeness before announcing availability; versioned caches keep previous until new ready; no authenticated responses/credentials cached
-  - [ ] B4-T3 Failed-navigation fallback preserving flow and CUE
+  - [ ] B4-T3 [in progress: bundled with B4-T2, reportes-b4-t2-precache] Failed-navigation fallback preserving flow and CUE
   - [ ] B4-T4 Reconnect: restore + sync, validate stale context without discarding answers
 - [ ] B5 Local selection and optimization
   - [x] B5-T1 (974f0b0) Photo picker: select, preview, remove (max 3 per submission)
