@@ -43,8 +43,8 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
 - [ ] B7 Map, gallery and pending items
   - [x] B7-T1 (merged 60fbcec; tsc+eslint ok, tests via CI) Grouped draft/photo counts (no per-school queries)
   - [x] B7-T2 (merged 60fbcec; tsc+eslint ok, tests via CI) Paginated pending detail (progress, last activity, allowed answers), visually/statistically separate from confirmed
-  - [ ] B7-T3 [in progress: gpt-6-luna, reportes-b7-t3t4-gallery] Photo indicator, thumbnails on sheet open, lightbox; on-demand temporary access, no proxy/mass signing
-  - [ ] B7-T4 [in progress: gpt-6-luna, reportes-b7-t3t4-gallery] Historical evidence by movimiento and date, including solved situations
+  - [x] B7-T3 (merged c21d74c; tsc+eslint ok, tests via CI) Photo indicator, thumbnails on sheet open, lightbox; on-demand temporary access, no proxy/mass signing
+  - [x] B7-T4 (merged c21d74c; tsc+eslint ok, tests via CI) Historical evidence by movimiento and date, including solved situations
 - [ ] B8 Integrated validation and enablement
   - [ ] B8-T1 Run focused + regression tests across batches
   - [ ] B8-T2 Real offline reopen on Chrome and Safari (prod build, HTTPS/localhost)
