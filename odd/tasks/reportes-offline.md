@@ -17,7 +17,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B2-T1 (27af474) Job store: immutable body + idempotency key persisted before first attempt; confirmation (movimientoId) persisted before removing pending
   - [x] B2-T2 (merged a3dce81; tsc+eslint ok, tests via CI) Page/worker coordination: locks, interrupted-job recovery, priorities (final report > draft sync > photos)
   - [x] B2-T3 (merged 80834f9; tsc+eslint ok, tests via CI) Retry policy: backoff + open/online/visibility triggers; error classes (recoverable, validation, server limit, expired session)
-  - [ ] B2-T4 [in progress: gpt-6-luna, reportes-b2-t4-confirm] Forms consume confirmations on reopen without restoring sent drafts; keep attachments on form clear
+  - [x] B2-T4 (merged 02aeffc; tsc+eslint ok, tests via CI) Forms consume confirmations on reopen without restoring sent drafts; keep attachments on form clear
 - [ ] B3 Server-synced drafts
   - [x] B3-T1 (gpt-6-luna, f88e89c merged) Schema + migration 0018 (drafts, revisions, closure tombstones); mirror ALTERs in lib/db/seed.ts
   - [x] B3-T2 (ecb0421) API: create, sync (partial validation + revision control), read, discard; tombstones reject late syncs
@@ -26,17 +26,17 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B3-T5 (merged 033158c; tsc+eslint ok, tests via CI) Aggregated map queries + permission-filtered detail (no nominal data)
 - [ ] B4 Offline reopen
   - [x] B4-T1 (merged 80834f9; tsc+eslint ok, tests via CI) Generic offline page reusing forms and persisted context
-  - [ ] B4-T2 [in progress: gpt-6-luna, reportes-b4-t2-precache] SW precache: verify completeness before announcing availability; versioned caches keep previous until new ready; no authenticated responses/credentials cached
-  - [ ] B4-T3 [in progress: bundled with B4-T2, reportes-b4-t2-precache] Failed-navigation fallback preserving flow and CUE
-  - [ ] B4-T4 Reconnect: restore + sync, validate stale context without discarding answers
+  - [x] B4-T2 (merged 02aeffc; tsc+eslint ok, tests via CI) SW precache: verify completeness before announcing availability; versioned caches keep previous until new ready; no authenticated responses/credentials cached
+  - [x] B4-T3 (merged 02aeffc; tsc+eslint ok, tests via CI) Failed-navigation fallback preserving flow and CUE
+  - [ ] B4-T4 [in progress: gpt-6-luna, reportes-b4-t4-reconnect] Reconnect: restore + sync, validate stale context without discarding answers
 - [ ] B5 Local selection and optimization
   - [x] B5-T1 (974f0b0) Photo picker: select, preview, remove (max 3 per submission)
   - [x] B5-T2 (84a3e95 + fix 7026aca) Worker pipeline: one at a time off main thread, optimized + thumbnail, orientation, strip metadata, no original fallback
   - [x] B5-T3 (merged a3dce81; tsc+eslint ok, tests via CI) Limits (input, memory, formats) + replace originals only after variants persisted; resumable after close
   - [ ] B5-T4 Measure weights with real photos on modest devices
 - [ ] B6 Attachments and direct OBS upload (depends on B0-OBS)
-  - [ ] B6-T1 Schema/API: attachments linked to movimientos; photo-only evidence update; server-side permission + 3-photo limit under concurrency
-  - [ ] B6-T2 Batch authorization (presigned, controlled keys, verifiable constraints); reuse/renew without confusing OBS failure with app session expiry
+  - [ ] B6-T1 [in progress: gpt-6-luna, reportes-b6-t1-attachments] Schema/API: attachments linked to movimientos; photo-only evidence update; server-side permission + 3-photo limit under concurrency
+  - [ ] B6-T2 [in progress: gpt-6-luna, reportes-b6-t2-presign] Batch authorization (presigned, controlled keys, verifiable constraints); reuse/renew without confusing OBS failure with app session expiry
   - [ ] B6-T3 Client upload queue: one at a time after report confirmed; survives close/expired session
   - [ ] B6-T4 Idempotent confirm + reconcile uncertain uploads before retransmit
   - [ ] B6-T5 Local cleanup after confirm + safe orphan object cleanup
