@@ -17,7 +17,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B2-T1 (27af474) Job store: immutable body + idempotency key persisted before first attempt; confirmation (movimientoId) persisted before removing pending
   - [x] B2-T2 (merged a3dce81; tsc+eslint ok, tests via CI) Page/worker coordination: locks, interrupted-job recovery, priorities (final report > draft sync > photos)
   - [x] B2-T3 (merged 80834f9; tsc+eslint ok, tests via CI) Retry policy: backoff + open/online/visibility triggers; error classes (recoverable, validation, server limit, expired session)
-  - [~] B2-T4 (merged 9bcd036; tsc FAILS: idempotencyKey type mismatch → fix in reportes-fix-b2t4-types) Forms consume confirmations on reopen without restoring sent drafts; keep attachments on form clear
+  - [x] B2-T4 (merged; type fix edc16b6; tsc+eslint ok at 2980eee, tests via CI) Forms consume confirmations on reopen without restoring sent drafts; keep attachments on form clear
 - [ ] B3 Server-synced drafts
   - [x] B3-T1 (gpt-6-luna, f88e89c merged) Schema + migration 0018 (drafts, revisions, closure tombstones); mirror ALTERs in lib/db/seed.ts
   - [x] B3-T2 (ecb0421) API: create, sync (partial validation + revision control), read, discard; tombstones reject late syncs
@@ -35,7 +35,7 @@ Delivery strategy: ask-on-risk (forecast > 400 authored lines).
   - [x] B5-T3 (merged a3dce81; tsc+eslint ok, tests via CI) Limits (input, memory, formats) + replace originals only after variants persisted; resumable after close
   - [ ] B5-T4 Measure weights with real photos on modest devices
 - [ ] B6 Attachments and direct OBS upload (depends on B0-OBS)
-  - [ ] B6-T1 [in progress: gpt-6-luna, reportes-b6-t1-attachments] Schema/API: attachments linked to movimientos; photo-only evidence update; server-side permission + 3-photo limit under concurrency
+  - [x] B6-T1 (merged 2980eee; tsc+eslint ok, tests via CI) Schema/API: attachments linked to movimientos; photo-only evidence update; server-side permission + 3-photo limit under concurrency
   - [ ] B6-T2 [in progress: gpt-6-luna, reportes-b6-t2-presign] Batch authorization (presigned, controlled keys, verifiable constraints); reuse/renew without confusing OBS failure with app session expiry
   - [ ] B6-T3 Client upload queue: one at a time after report confirmed; survives close/expired session
   - [ ] B6-T4 Idempotent confirm + reconcile uncertain uploads before retransmit
