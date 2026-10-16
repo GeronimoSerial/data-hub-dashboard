@@ -28,14 +28,19 @@ jobs:
           OPERACION: ${{ inputs.operacion }}
         run: |
           python3 - <<'PY'
-          import os,json,urllib.request,urllib.parse,secrets,subprocess,pathlib,time
+          import os,json,urllib.request,urllib.parse,urllib.error,secrets,subprocess,pathlib,time
           base='https://coolify.sistemas.mec.gob.ar/api/v1'
           stage='j3zm0co4bi9iy0c70nv3vinf'
           def api(path,method='GET',data=None):
             req=urllib.request.Request(base+path,method=method,
               headers={'Authorization':'Bearer '+os.environ['COOLIFY_TOKEN'],'Content-Type':'application/json'},
               data=json.dumps(data).encode() if data is not None else None)
-            with urllib.request.urlopen(req,timeout=45) as r: return json.load(r)
+            try:
+              with urllib.request.urlopen(req,timeout=45) as r: return json.load(r)
+            except urllib.error.HTTPError as error:
+              if path=='/applications/dockerfile':
+                print('Dockerfile validation',error.read().decode()[:1000])
+              raise
           op=os.environ['OPERACION']
           apps=api('/applications')
           dev=next((a for a in apps if a.get('name')=='data-hub-dashboard-dev'),None)
