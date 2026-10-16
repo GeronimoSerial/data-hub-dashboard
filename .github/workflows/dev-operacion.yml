@@ -122,12 +122,15 @@ jobs:
             copiadas++;
           }
           await pg.end();s3.destroy();console.log(JSON.stringify({bucket,objetosCopiados:copiadas}));
-          } catch(e) {console.error(JSON.stringify({name:e.name,status:e.$metadata?.httpStatusCode}));process.exitCode=1;}
+          } catch(e) {console.error(JSON.stringify({name:e.name,message:e.message,status:e.$metadata?.httpStatusCode}));process.exitCode=1;}
           '''
             pathlib.Path('/tmp/dev-ops/obs.mjs').write_text(js)
             copia=subprocess.run(['node','/tmp/dev-ops/obs.mjs'],input=json.dumps({'obs':obs,'bucket':bucket,'db':db}),text=True,capture_output=True)
             if copia.returncode:
-              print('OBS error',copia.stderr.strip())
+              mensaje=copia.stderr.strip()
+              for secreto in [db,urllib.parse.unquote(urllib.parse.urlparse(db).password or ''),obs['OBS_ACCESS_KEY_ID'],obs['OBS_SECRET_ACCESS_KEY']]:
+                if secreto: mensaje=mensaje.replace(secreto,'[redacted]')
+              print('OBS error',mensaje[-1000:])
               raise RuntimeError('No se pudo preparar el bucket aislado de dev')
             print(copia.stdout.strip())
             valores.update(obs);valores['OBS_BUCKET']=bucket
