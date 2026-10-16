@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { CircleCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
@@ -453,7 +453,9 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 
   useEffect(() => { exitoRef.current = alEnviarConExito })
 
-  useEffect(() => {
+  // Layout effect so a "Reintentar ahora" click that lands right after the alert commits never runs
+  // a stale handler (passive effects may not have flushed yet).
+  useLayoutEffect(() => {
     reintentarRef.current = (deliberado = false) => {
       if (deliberado) {
         cancelarReintentoProgramadoRef.current?.()
