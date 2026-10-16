@@ -40,7 +40,14 @@ jobs:
           def identificacion(obj):
             return {k:obj.get(k) for k in ['id','uuid','name','server_id','project_id']} if isinstance(obj,dict) else None
           def envs(uuid):
-            return {e['key']:e.get('real_value') or e.get('value','') for e in api('/applications/'+uuid+'/envs') if not e.get('is_preview')}
+            valores={}
+            for e in api('/applications/'+uuid+'/envs'):
+              if e.get('is_preview'): continue
+              v=e.get('real_value') or e.get('value','')
+              if isinstance(v,str) and len(v)>=2 and v[0]==v[-1] and v[0] in ['"',"'"]:
+                v=v[1:-1]
+              valores[e['key']]=v
+            return valores
           if op=='inspeccionar':
             a=api('/applications/'+stage)
             print('STAGING',json.dumps({k:a.get(k) for k in ['uuid','name','environment_id','destination_id','destination_type','docker_registry_image_name','docker_registry_image_tag','ports_exposes','limits_memory']}))
