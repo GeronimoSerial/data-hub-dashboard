@@ -1,6 +1,7 @@
 import { ensureSeeded } from '@/lib/db/seed'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { BorradorError, discardDraft, getDraftCue, readJsonBody } from '@/lib/infraestructura/borradores/service'
+import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -9,6 +10,7 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' }
 type Context = { params: Promise<{ draftId: string }> }
 
 export async function POST(request: Request, context: Context) {
+  if (!getReportesOfflineFeatures().borradoresSync) return reportesOfflineFlagDisabledResponse()
   try {
     await ensureSeeded()
     const { draftId } = await context.params

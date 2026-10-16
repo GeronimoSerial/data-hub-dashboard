@@ -1,4 +1,5 @@
 import type { AlmacenClaveValor } from '../parte/envio-offline'
+import { fetchReportesOfflineFeatures } from '../parte/feature-flags-client'
 
 declare module '../parte/almacen-indexeddb' {
   interface AlmacenParte {
@@ -50,6 +51,7 @@ export type DraftSyncResult =
 export interface DraftSyncClientOptions {
   store: AlmacenClaveValor
   fetch?: (input: string, init?: RequestInit) => Promise<Response>
+  isSyncEnabled?: () => Promise<boolean>
   now?: () => string
 }
 
@@ -148,7 +150,12 @@ function validateSnapshot(value: LocalDraftSnapshot): void {
   }
 }
 
-export function createDraftSyncClient({ store, fetch: fetchImpl = fetch, now = () => new Date().toISOString() }: DraftSyncClientOptions) {
+export function createDraftSyncClient({
+  store,
+  fetch: fetchImpl = fetch,
+  isSyncEnabled = async () => (await fetchReportesOfflineFeatures(fetchImpl)).borradoresSync,
+  now = () => new Date().toISOString(),
+}: DraftSyncClientOptions) {
   const queues = new Map<string, Promise<DraftSyncResult>>()
 
   async function saveAtStepBoundary(snapshot: LocalDraftSnapshot): Promise<DraftSyncResult> {
@@ -170,6 +177,8 @@ export function createDraftSyncClient({ store, fetch: fetchImpl = fetch, now = (
     }
 
     await store.guardar(keyForDraft(snapshot.draftId), JSON.stringify(state))
+
+    if (!await isSyncEnabled()) return { status: 'pending' }
 
     let response: Response
     try {

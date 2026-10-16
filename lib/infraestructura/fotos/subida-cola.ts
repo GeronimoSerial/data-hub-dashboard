@@ -1,4 +1,5 @@
 import { abrirAlmacenParte, type TrabajoEnvioLocal } from '../parte/almacen-indexeddb'
+import { fetchReportesOfflineFeatures } from '../parte/feature-flags-client'
 
 const AUTHORIZATIONS_URL = '/api/problematicas/parte/adjuntos/autorizaciones'
 const UPLOAD_BASE_URL = '/api/problematicas/parte/adjuntos'
@@ -138,6 +139,7 @@ async function withPhotoLock<T>(task: () => Promise<T>): Promise<T> {
 }
 
 async function drenarColaFotos(): Promise<void> {
+  if (!await fetchReportesOfflineFeatures().then((flags) => flags.fotos)) return
   if (running) return running
   running = withPhotoLock(async () => {
     const almacen = await abrirAlmacenParte()

@@ -6,6 +6,7 @@ import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { firmarLecturaAdjunto } from '@/lib/infraestructura/adjuntos/lectura'
+import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,7 @@ const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
 const ID_SEGURO = /^[a-zA-Z0-9_-]{1,128}$/
 
 export async function GET(request: Request) {
+  if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 

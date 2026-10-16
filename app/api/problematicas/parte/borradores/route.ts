@@ -1,6 +1,7 @@
 import { ensureSeeded } from '@/lib/db/seed'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { BorradorError, createDraft, readJsonBody } from '@/lib/infraestructura/borradores/service'
+import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,6 +19,7 @@ function errorResponse(error: unknown): Response {
 }
 
 export async function POST(request: Request) {
+  if (!getReportesOfflineFeatures().borradoresSync) return reportesOfflineFlagDisabledResponse()
   let body: unknown
   try {
     body = await readJsonBody(request)

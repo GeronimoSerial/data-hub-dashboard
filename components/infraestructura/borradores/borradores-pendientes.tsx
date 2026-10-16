@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { fetchDraftPage, type DraftCursor, type DraftMapItem } from '@/lib/infraestructura/borradores/mapa-client'
+import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
 
 type State = 'loading' | 'ready' | 'error'
 
@@ -51,16 +52,24 @@ export function BorradoresPendientes({ cue, count }: { cue: string; count: numbe
   const [state, setState] = useState<State>('loading')
   const [loadingMore, setLoadingMore] = useState(false)
   const [pageError, setPageError] = useState(false)
+  const [enabled, setEnabled] = useState(false)
 
   useEffect(() => {
     let active = true
-    fetchDraftPage(cue).then((page) => {
-      if (!active) return
-      setItems(page.items)
-      setCursor(page.nextCursor)
-      setState('ready')
-    }).catch(() => {
-      if (active) setState('error')
+    void fetchReportesOfflineFeatures().then((flags) => {
+      if (!active || !flags.mapaBorradores) {
+        if (active) setState('ready')
+        return
+      }
+      setEnabled(true)
+      fetchDraftPage(cue).then((page) => {
+        if (!active) return
+        setItems(page.items)
+        setCursor(page.nextCursor)
+        setState('ready')
+      }).catch(() => {
+        if (active) setState('error')
+      })
     })
     return () => { active = false }
   }, [cue])
@@ -70,6 +79,7 @@ export function BorradoresPendientes({ cue, count }: { cue: string; count: numbe
     setLoadingMore(true)
     setPageError(false)
     try {
+      if (!await fetchReportesOfflineFeatures().then((flags) => flags.mapaBorradores)) return
       const page = await fetchDraftPage(cue, cursor)
       setItems((current) => [...current, ...page.items])
       setCursor(page.nextCursor)
@@ -79,6 +89,8 @@ export function BorradoresPendientes({ cue, count }: { cue: string; count: numbe
       setLoadingMore(false)
     }
   }
+
+  if (!enabled) return null
 
   return (
     <section className="map-ficha-escuela__borradores" aria-label="Borradores sin enviar" style={{ border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: 'var(--s-3)', background: 'var(--fill)' }}>

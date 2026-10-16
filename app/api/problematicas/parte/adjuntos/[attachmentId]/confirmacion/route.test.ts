@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { POST } from './route'
 
 const { limitMock, permissionMock, confirmMock } = vi.hoisted(() => ({
@@ -34,10 +34,14 @@ function request(body: unknown) {
 
 describe('POST /api/problematicas/parte/adjuntos/[attachmentId]/confirmacion', () => {
   beforeEach(() => {
+    vi.stubEnv('REPORTES_OFFLINE_FOTOS', 'true')
+    process.env.REPORTES_OFFLINE_FOTOS = 'true'
     limitMock.mockReset().mockResolvedValue([{ cueAnexo: '1801605-04' }])
     permissionMock.mockReset().mockResolvedValue(true)
     confirmMock.mockReset().mockResolvedValue({ ok: true, repetido: false, optimizadaEtag: 'a1', miniaturaEtag: 'b2' })
   })
+
+  afterEach(() => vi.unstubAllEnvs())
 
   it('returns an idempotent confirmation after permission and object verification', async () => {
     const response = await POST(request({ movimientoId, optimizadaEtag: 'a1', miniaturaEtag: 'b2' }), context)

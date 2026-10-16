@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { getDraftCounts } from '@/lib/infraestructura/borradores/mapa'
 
@@ -22,8 +22,22 @@ function request(query = '') {
 
 describe('GET /api/infraestructura/borradores/conteos', () => {
   beforeEach(() => {
+    vi.stubEnv('REPORTES_OFFLINE_MAPA_BORRADORES', 'true')
+    process.env.REPORTES_OFFLINE_MAPA_BORRADORES = 'true'
     vi.mocked(verificarAccesoLectura).mockReset()
     vi.mocked(getDraftCounts).mockReset()
+  })
+
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('returns no draft counts when map draft counts are disabled', async () => {
+    process.env.REPORTES_OFFLINE_MAPA_BORRADORES = 'false'
+    const { GET } = await import('./route')
+    const response = await GET(request())
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ items: [] })
+    expect(verificarAccesoLectura).not.toHaveBeenCalled()
   })
 
   it('requires map read access', async () => {

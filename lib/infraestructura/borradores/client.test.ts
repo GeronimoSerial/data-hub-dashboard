@@ -26,7 +26,7 @@ function snapshot(overrides: Partial<LocalDraftSnapshot> = {}): LocalDraftSnapsh
 describe('createDraftSyncClient', () => {
   it('creates the server draft at a step boundary with the current local snapshot', async () => {
     const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => Response.json({ version: 1, revision: 0 }, { status: 201 }))
-    const client = createDraftSyncClient({ store: createStore(), fetch: fetcher, now: () => '2026-10-15T12:00:00.000Z' })
+    const client = createDraftSyncClient({ store: createStore(), fetch: fetcher, isSyncEnabled: async () => true, now: () => '2026-10-15T12:00:00.000Z' })
 
     const result = await client.completeStep(snapshot())
 
@@ -45,7 +45,7 @@ describe('createDraftSyncClient', () => {
   it('consolidates offline step edits into one latest snapshot on reconnect boundary', async () => {
     const store = createStore()
     const offline = vi.fn(async (_url: string, _init?: RequestInit) => { throw new TypeError('offline') })
-    const clientOffline = createDraftSyncClient({ store, fetch: offline, now: () => '2026-10-15T12:00:00.000Z' })
+    const clientOffline = createDraftSyncClient({ store, fetch: offline, isSyncEnabled: async () => true, now: () => '2026-10-15T12:00:00.000Z' })
 
     await clientOffline.completeStep(snapshot())
     await clientOffline.abandonStep(snapshot({
@@ -58,7 +58,7 @@ describe('createDraftSyncClient', () => {
       if (init?.method === 'POST') return Response.json({ version: 1, revision: 0 }, { status: 201 })
       return Response.json({ revision: 1, sincronizadoEn: '2026-10-15T12:01:00.000Z' })
     })
-    const clientOnline = createDraftSyncClient({ store, fetch: online, now: () => '2026-10-15T12:02:00.000Z' })
+    const clientOnline = createDraftSyncClient({ store, fetch: online, isSyncEnabled: async () => true, now: () => '2026-10-15T12:02:00.000Z' })
     await clientOnline.flushPending('draft-1')
 
     expect(online).toHaveBeenCalledTimes(1)
@@ -73,7 +73,7 @@ describe('createDraftSyncClient', () => {
       .mockResolvedValueOnce(Response.json({ version: 1, revision: 4 }, { status: 201 }))
       .mockResolvedValueOnce(Response.json({ revision: 5, sincronizadoEn: '2026-10-15T12:01:00.000Z' }))
       .mockResolvedValueOnce(Response.json({ revision: 6, sincronizadoEn: '2026-10-15T12:02:00.000Z' }))
-    const client = createDraftSyncClient({ store: createStore(), fetch: fetcher, now: () => '2026-10-15T12:00:00.000Z' })
+    const client = createDraftSyncClient({ store: createStore(), fetch: fetcher, isSyncEnabled: async () => true, now: () => '2026-10-15T12:00:00.000Z' })
 
     await client.completeStep(snapshot())
     await client.completeStep(snapshot({ currentStep: 'afectaciones', answers: { cantidad: 2 } }))
@@ -91,7 +91,7 @@ describe('createDraftSyncClient', () => {
     const fetcher = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(Response.json({ version: 1, revision: 2 }, { status: 201 })))
       .mockResolvedValueOnce(Response.json({ version: 1, revision: 2 }, { status: 201 }))
       .mockResolvedValueOnce(Response.json({ code: 'conflicto', revisionServidor: 7 }, { status: 409 }))
-    const client = createDraftSyncClient({ store, fetch: fetcher, now: () => '2026-10-15T12:00:00.000Z' })
+    const client = createDraftSyncClient({ store, fetch: fetcher, isSyncEnabled: async () => true, now: () => '2026-10-15T12:00:00.000Z' })
 
     await client.completeStep(snapshot())
     const local = snapshot({ currentStep: 'afectaciones', answers: { respuestaLocal: 'conservar' } })
@@ -106,7 +106,7 @@ describe('createDraftSyncClient', () => {
 
   it('flushes each persisted pending draft after reconnect and removes only accepted work from the index', async () => {
     const store = createStore()
-    const offline = createDraftSyncClient({ store, fetch: async () => { throw new TypeError('offline') } })
+    const offline = createDraftSyncClient({ store, fetch: async () => { throw new TypeError('offline') }, isSyncEnabled: async () => true })
     await offline.completeStep(snapshot())
     await offline.completeStep(snapshot({
       draftId: 'draft-2',
@@ -116,6 +116,7 @@ describe('createDraftSyncClient', () => {
     const online = createDraftSyncClient({
       store,
       fetch: async () => Response.json({ revision: 0 }, { status: 201 }),
+      isSyncEnabled: async () => true,
     })
     const result = await online.flushAllPending()
 
@@ -124,5 +125,21 @@ describe('createDraftSyncClient', () => {
       { draftId: 'draft-2', result: { status: 'synced', revision: 0 } },
     ])
     expect(await online.flushAllPending()).toEqual([])
+  })
+
+  it('preserves a pending snapshot while disabled and resumes it after re-enablement', async () => {
+    const store = createStore()
+    const disabledFetch = vi.fn(async () => Response.json({ revision: 0 }, { status: 201 }))
+    const disabled = createDraftSyncClient({ store, fetch: disabledFetch, isSyncEnabled: async () => false })
+
+    expect(await disabled.completeStep(snapshot())).toEqual({ status: 'pending' })
+    expect(disabledFetch).not.toHaveBeenCalled()
+
+    const enabledFetch = vi.fn(async () => Response.json({ revision: 0 }, { status: 201 }))
+    const enabled = createDraftSyncClient({ store, fetch: enabledFetch, isSyncEnabled: async () => true })
+    expect(await enabled.flushAllPending()).toEqual([
+      { draftId: 'draft-1', result: { status: 'synced', revision: 0 } },
+    ])
+    expect(enabledFetch).toHaveBeenCalledTimes(1)
   })
 })

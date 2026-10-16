@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraBorrador } from '@/lib/db/schema'
@@ -36,9 +36,13 @@ async function create() {
 }
 
 beforeEach(async () => {
+  vi.stubEnv('REPORTES_OFFLINE_BORRADORES_SYNC', 'true')
+  process.env.REPORTES_OFFLINE_BORRADORES_SYNC = 'true'
   draftId = crypto.randomUUID()
   await ensureSeeded()
 })
+
+afterEach(() => vi.unstubAllEnvs())
 
 describe('draft detail and revisioned sync', () => {
   it('accepts only the current revision and returns the remote revision on conflict', async () => {
