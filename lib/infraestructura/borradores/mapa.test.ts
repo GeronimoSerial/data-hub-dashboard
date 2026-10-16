@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraAccesoNominalLog, infraBorrador } from '@/lib/db/schema'
@@ -6,6 +6,11 @@ import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDraftCounts, listDraftsForMap } from './mapa'
 
 usarDbTemporal('borradores-mapa')
+
+beforeEach(async () => {
+  await getDb().delete(infraAccesoNominalLog)
+  await getDb().delete(infraBorrador)
+})
 
 const CUE = '1801605-60'
 const NOW = '2026-10-15T10:00:00.000Z'
@@ -40,14 +45,14 @@ describe('draft map queries', () => {
 
   it('paginates by activity and draft id and removes nominal answers without permission', async () => {
     await insertDraft({
-      id: 'draft-a',
+      id: 'draft-page-a',
       respuestas: {
         pasosCompletados: ['inicio'],
         servicio: { agua: 'no' },
         afectaciones: [{ motivo: 'Corte', alumnos: [101], ge_person_id: 102, descripcion: 'Sin clase' }],
       },
     })
-    await insertDraft({ id: 'draft-b' })
+    await insertDraft({ id: 'draft-page-b' })
     const first = await listDraftsForMap({
       cue: CUE,
       limit: 1,
@@ -56,12 +61,12 @@ describe('draft map queries', () => {
       ahora: new Date(NOW),
     })
     expect(first.items[0]).toMatchObject({
-      draftId: 'draft-b',
+      draftId: 'draft-page-b',
       progreso: { pasoActual: 'servicios', pasosCompletados: ['inicio'] },
       actividadEn: NOW,
       respuestas: { servicio: { agua: 'no' } },
     })
-    expect(first.nextCursor).toEqual({ actividadEn: NOW, draftId: 'draft-b' })
+    expect(first.nextCursor).toEqual({ actividadEn: NOW, draftId: 'draft-page-b' })
 
     const second = await listDraftsForMap({
       cue: CUE,
@@ -71,7 +76,7 @@ describe('draft map queries', () => {
       userId: 'reader',
       ahora: new Date(NOW),
     })
-    expect(second.items[0].draftId).toBe('draft-a')
+    expect(second.items[0].draftId).toBe('draft-page-a')
     expect(JSON.stringify(second.items[0])).not.toMatch(/alumnos|person_id|\b101\b|\b102\b/)
     expect(second.nextCursor).toBeNull()
   })

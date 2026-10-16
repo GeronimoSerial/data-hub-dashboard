@@ -125,9 +125,6 @@ function sameJson(left: unknown, right: unknown): boolean {
 
 function diff(base: Record<string, unknown>, actual: Record<string, unknown>): Record<string, unknown> {
   const changes: Record<string, unknown> = {}
-  for (const key of Object.keys(base)) {
-    if (!(key in actual)) changes[key] = null
-  }
   for (const [key, value] of Object.entries(actual)) {
     if (!(key in base)) {
       changes[key] = value

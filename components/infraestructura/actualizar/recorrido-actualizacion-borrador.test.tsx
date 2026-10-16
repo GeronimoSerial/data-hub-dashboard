@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { RecorridoActualizacion } from './recorrido-actualizacion'
 import { abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
@@ -19,6 +19,7 @@ const CUE = '1801605-41'
 const CLAVE = `parte-actualizar:draft:${CUE}`
 const DRAFT_ID = `parte-actualizacion:${CUE}`
 async function leerBorradorGuardado() { return (await abrirAlmacenParte()).obtenerBorrador(DRAFT_ID) }
+beforeEach(() => { globalThis.indexedDB = new IDBFactory() })
 const base = {
   ok: true, periodo: { id: 'p', nombre: 'ENOS' },
   parte: { id: 'parte', cueAnexo: CUE, estadoEstablecimiento: 'habitual', estadoEstablecimientoRigeDesde: '2026-10-02T10:00:00.000Z', actualizadaEn: '2026-10-03T10:00:00.000Z', asistenciaPedagogica: null },
