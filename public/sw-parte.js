@@ -30,21 +30,22 @@ const RUTAS_PARTE = ['/problematicas/parte/nuevo', '/problematicas/parte/actuali
 
 function esRecursoEstatico(url, origin) {
   if (url.origin !== origin) return false
-  return url.pathname.startsWith('/_next/static/')
+  return (url.pathname.startsWith('/_next/static/')
+    && /\.(?:js|css|woff2?|ttf|otf|svg|png|jpe?g|webp|ico)$/i.test(url.pathname))
     || /\.(?:css|woff2?|ttf|otf|svg|png|jpe?g|webp|ico)$/i.test(url.pathname)
 }
 
-function recursosReferenciados(text, baseUrl, origin) {
+function recursosReferenciados(text, baseUrl, origin, contentType = 'text/html') {
   const encontrados = new Set()
   const patrones = [
-    /(?:src|href)=["']([^"']+)["']/gi,
-    /url\(["']?([^)'"\s]+)["']?\)/gi,
-    /(\/_next\/static\/[^"'`\s)]+)/gi,
+    ...(contentType.toLowerCase().includes('html') ? [/(?:src|href)=["']([^"']+)["']/gi] : []),
+    ...(contentType.toLowerCase().includes('html') || contentType.toLowerCase().includes('css') ? [/url\(["']?([^)'"\s]+)["']?\)/g] : []),
+    ...(contentType.toLowerCase().includes('javascript') ? [/['"`]((?:\\\/|\/)\_next\/static\/[^'"`\s]+)['"`]/g] : []),
   ]
   for (const patron of patrones) {
     for (const match of text.matchAll(patron)) {
       try {
-        const reference = match[1].replace(/[),;]+$/, '')
+        const reference = match[1].replace(/\\\//g, '/').replace(/[),;]+$/, '').replace(/\\+$/, '')
         const url = new URL(reference, baseUrl)
         if (esRecursoEstatico(url, origin)) encontrados.add(url.href)
       } catch { /* Ignore malformed or non-URL references. */ }
@@ -79,7 +80,7 @@ async function prepararOffline(cacheStorage = caches, fetchImpl = fetch, origin 
       const contentType = response.headers.get('content-type') || ''
       const body = await response.clone().text().catch(() => '')
       if (contentType.toLowerCase().includes('text/css') || contentType.toLowerCase().includes('javascript')) {
-        for (const dependency of recursosReferenciados(body, resourceUrl, origin)) {
+        for (const dependency of recursosReferenciados(body, resourceUrl, origin, contentType)) {
           if (!preparados.has(dependency) && !pendientes.includes(dependency)) pendientes.push(dependency)
         }
       }
@@ -109,6 +110,11 @@ async function fallbackOffline(request) {
   return await cached.match(new URL(RUTA_OFFLINE, requested.origin).href, { ignoreSearch: true })
 }
 
+async function servirRecursoEstatico(request, cacheStorage = caches, fetchImpl = fetch) {
+  const cache = await cacheStorage.open(CACHE_PREPARACION)
+  return await cache.match(request) || fetchImpl(request)
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const result = await prepararOffline()
@@ -129,6 +135,13 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.method === 'GET' && event.request.mode !== 'navigate') {
+    const url = new URL(event.request.url)
+    if (esRecursoEstatico(url, self.location.origin)) {
+      event.respondWith(servirRecursoEstatico(event.request))
+    }
+    return
+  }
   if (!esNavegacionParte(event.request)) return
   const isOfflineRoute = new URL(event.request.url).pathname === RUTA_OFFLINE
   const redirectToOffline = () => {
@@ -460,3 +473,4 @@ self.addEventListener('sync', (evento) => {
 globalThis.__swParte = { procesarColaSync }
 globalThis.__swParte.procesarColaEnvio = procesarColaEnvio
 globalThis.__swParte.prepararOffline = prepararOffline
+globalThis.__swParte.servirRecursoEstatico = servirRecursoEstatico

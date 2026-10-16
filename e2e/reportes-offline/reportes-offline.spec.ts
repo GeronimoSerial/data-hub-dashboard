@@ -120,7 +120,10 @@ test('offline reopen restores local draft and retries one idempotent report', as
   await page.getByRole('button', { name: /continuar|siguiente/i }).last().click()
   await expect(page.getByText('Paso 2 de 5')).toBeVisible()
 
-  await page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 350)))
+  await page.waitForFunction(async () => {
+    const registrations = await navigator.serviceWorker.getRegistrations()
+    return registrations.some(({ active }) => active?.state === 'activated')
+  }, undefined, { timeout: 20_000 }).catch(() => {})
   const serviceWorkerStatus = await page.evaluate(async () => {
     const registrations = await navigator.serviceWorker.getRegistrations()
     const workerAsset = await fetch('/sw-parte.js', { cache: 'no-store' }).then(async (response) => ({
@@ -141,20 +144,48 @@ test('offline reopen restores local draft and retries one idempotent report', as
   })
   testInfo.annotations.push({ type: 'service-worker', description: JSON.stringify(serviceWorkerStatus) })
   if (!serviceWorkerStatus.registrations.some(({ active }) => active === 'activated')) {
-    await page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 100)))
     await record('offline reopen', testInfo.project.name, rows, { serviceWorkerStatus, offlineReopen: 'blocked before page close' })
     throw new Error(`The app did not activate its service worker: ${JSON.stringify(serviceWorkerStatus)}`)
   }
   await page.reload()
   await expect(page.getByText('Tiene un parte sin enviar.')).toBeVisible()
+  const offlineRecords = await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('parte-offline', 2)
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+    try {
+      const read = (store: string) => new Promise<unknown[]>((resolve, reject) => {
+        const request = db.transaction(store, 'readonly').objectStore(store).getAll()
+        request.onsuccess = () => resolve(request.result)
+        request.onerror = () => reject(request.error)
+      })
+      const [contextos, borradores] = await Promise.all([read('contextos'), read('borradores')])
+      return { contextos, borradores }
+    } finally { db.close() }
+  })
+  expect(offlineRecords.contextos).toEqual(expect.arrayContaining([expect.objectContaining({ draftId: `parte-inicial:${cue}`, flujo: 'inicial', cue })]))
+  expect(offlineRecords.borradores).toEqual(expect.arrayContaining([expect.objectContaining({ draftId: `parte-inicial:${cue}` })]))
   await page.getByRole('button', { name: 'Continuar donde lo dejé' }).click()
   await context.setOffline(true)
   await page.close()
   const reopened = await context.newPage()
   const reopenedRows = startMeter(reopened)
+  const offlineRuntimeErrors: string[] = []
+  reopened.on('console', (message) => { if (message.type() === 'error') offlineRuntimeErrors.push(`console: ${message.text()}`) })
+  reopened.on('pageerror', (error) => offlineRuntimeErrors.push(`pageerror: ${error.message}`))
+  reopened.on('requestfailed', (request) => offlineRuntimeErrors.push(`requestfailed: ${request.url()} (${request.failure()?.errorText ?? 'unknown'})`))
   await reopened.goto(`/problematicas/parte/nuevo?cue=${cue}`, { waitUntil: 'domcontentloaded' })
   await expect(reopened).toHaveURL(/\/problematicas\/parte\/offline/)
-  await reopened.getByRole('button', { name: `Reporte inicial · CUE ${cue}` }).click()
+  const offlinePageState = await reopened.evaluate(async () => ({
+    text: document.body.innerText,
+    controller: navigator.serviceWorker.controller?.scriptURL ?? null,
+    dbNames: 'databases' in indexedDB ? await indexedDB.databases() : [],
+  }))
+  const savedReport = reopened.getByRole('button', { name: `Reporte inicial · CUE ${cue}` })
+  await expect(savedReport, JSON.stringify({ ...offlinePageState, offlineRuntimeErrors })).toBeVisible({ timeout: 5_000 })
+  await savedReport.click()
   await expect(reopened.getByText('Tiene un parte sin enviar.')).toBeVisible()
   await reopened.getByRole('button', { name: 'Continuar donde lo dejé' }).click()
   await expect(reopened.getByText('Paso 2 de 5')).toBeVisible()

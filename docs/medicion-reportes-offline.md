@@ -37,9 +37,11 @@ La lectura de heap es la diferencia entre dos snapshots de `performance.memory`;
 
 ## Reapertura offline y fallos
 
-La parte inicial del recorrido sí guardó la selección del paso 2 y restauró el aviso de borrador al recargar online. La comprobación de reapertura offline falló en Chromium y WebKit: la página admite service workers y `/sw-parte.js` responde, pero `navigator.serviceWorker.getRegistrations()` devuelve una lista vacía (`controller=false`). La suite no pudo llegar al cierre offline, restaurar el flujo desde la pantalla offline ni comprobar que la cola sobreviviera al cierre. El test conserva este fallo como bloqueo de aceptación B8-T2.
+La primera ejecución de diagnóstico encontró que el worker se instalaba sin fallar, pero el formulario y la ruta offline no lo registraban en una compilación de producción. Después de registrar `/sw-parte.js` desde el proveedor de la aplicación en las rutas `/problematicas/parte`, Chromium y WebKit activaron el worker y guardaron el borrador local.
 
-La suite terminó con **5 pasados, 2 fallidos y 1 omitido** (el benchmark CDP se omite en WebKit). Los dos fallos son la reapertura offline, uno por motor. Las pruebas de envío/replay, pantalla de actualización, presign simulada, mapa y procesamiento pasaron. No se ejecutó Vitest.
+La reapertura aún fallaba porque el handler del worker sólo aplicaba la caché a las navegaciones. Aunque la instalación guardaba los bundles, hojas de estilo y logos del shell offline, las solicitudes de esos recursos seguían yendo a la red. Ahora el worker responde primero desde su caché del shell para recursos estáticos del mismo origen. El flujo inicial también persiste el contexto de escuela y recorrido que la pantalla offline necesita para listar el borrador.
+
+La última ejecución de `pnpm test:e2e:reportes` completó el build de producción y terminó con **7 pasados, 0 fallidos y 1 omitido**. La reapertura offline pasó en Chromium y WebKit; el benchmark CDP existente se omite en WebKit. Se verificó también que el contexto y el borrador local existen antes de cerrar la página.
 
 ## WebKit y iOS real
 

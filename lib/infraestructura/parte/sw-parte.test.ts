@@ -19,6 +19,11 @@ interface SwParte {
     fetchImpl?: typeof fetch,
     origin?: string,
   ) => Promise<{ cacheName: string; resources: string[] }>
+  servirRecursoEstatico: (
+    request: Request,
+    cacheStorage: CacheStorage,
+    fetchImpl: typeof fetch,
+  ) => Promise<Response>
 }
 
 async function cargarSw(): Promise<{ listeners: Record<string, Escucha>; sw: SwParte }> {
@@ -96,6 +101,23 @@ describe('sw-parte procesarColaSync', () => {
     expect(await almacen.obtener('parte:nuevo:1')).toBeNull()
     expect(await almacen.obtener('parte:nuevo:2')).not.toBeNull()
     expect(JSON.parse((await almacen.obtener('parte:nuevo:4'))!)).toMatchObject({ estado: 'error' })
+  })
+})
+
+describe('sw-parte offline shell assets', () => {
+  it('serves cached static resources when the browser is offline', async () => {
+    const { sw } = await cargarSw()
+    const request = new Request('https://example.test/_next/static/chunks/offline.js')
+    const cached = new Response('cached bundle', { status: 200 })
+    const match = vi.fn(async () => cached)
+    const open = vi.fn(async () => ({ match } as unknown as Cache))
+    const cacheStorage = { open } as unknown as CacheStorage
+    const fetchImpl = vi.fn(async () => { throw new Error('The network should not be used.') })
+
+    await expect(sw.servirRecursoEstatico(request, cacheStorage, fetchImpl)).resolves.toBe(cached)
+    expect(open).toHaveBeenCalledWith('parte-offline-shell-v1')
+    expect(match).toHaveBeenCalledWith(request)
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 })
 
@@ -277,6 +299,26 @@ describe('sw-parte offline shell cache', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(4)
     expect(fetchImpl.mock.calls.every(([, init]) => init?.credentials === 'omit')).toBe(true)
     expect(result.resources).toHaveLength(fetchImpl.mock.calls.length)
+  })
+
+  it('does not mistake JavaScript URL constructors for CSS url() resource references', async () => {
+    const { storage } = crearCacheStorage()
+    const shellUrl = 'https://example.test/problematicas/parte/offline'
+    const jsUrl = 'https://example.test/_next/static/chunks/offline.js'
+    const nestedUrl = '/_next/static/chunks/nested.js'
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === shellUrl) return new Response(`<script src="${jsUrl}"></script>`, { status: 200, headers: { 'Content-Type': 'text/html' } })
+      if (url === jsUrl) return new Response(`const offline = new URL('/problematicas/parte/offline', location.href); const chunk = '${nestedUrl}';`, { status: 200, headers: { 'Content-Type': 'text/javascript' } })
+      return new Response('nested static asset', { status: 200, headers: { 'Content-Type': 'text/javascript' } })
+    })
+    const { sw } = await cargarSw()
+
+    const result = await sw.prepararOffline(storage, fetchImpl, 'https://example.test')
+
+    expect(result.resources).toEqual(expect.arrayContaining([shellUrl, jsUrl, new URL(nestedUrl, jsUrl).href]))
+    expect(result.resources).toHaveLength(3)
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
   })
 
   it('discards only the incomplete new version when a static resource is missing', async () => {
