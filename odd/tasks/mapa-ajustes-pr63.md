@@ -82,17 +82,17 @@ tsc limpio; `pnpm lint` 0 errores (13 warnings preexistentes); suite completa 31
 
 ## Correcciones de la revisión visual (N1)
 Revisión de N1 sobre A1–A14 a 1456×835. Un commit `fix(mapa): …` por punto, un N3 nuevo por task, test primero cuando aplica. Ruta: delegada (N3 escribe; N2 verifica con tsc + vitest focalizado y commitea). Regla de layout: cada punto de layout anota la regla CSS/estructura que lo garantiza.
-- [ ] F1 (bloqueante) Sidebar sin scroll horizontal: ancho único 24rem, `overflow-x: hidden`, hijos `min-width: 0`, test por pestaña
-- [ ] F2 (bloqueante) Mismo sidebar en las 5 pestañas: acoplado, alto completo, mismo fondo/borde/padding/encabezado, scroll vertical interno
-- [ ] F3 (bloqueante) Estadísticas entra: grilla 2 col, "Agrupar por" sin cortes, tabla grupo|Escuelas|Con situaciones|%, gráficos al ancho
-- [ ] F4 (importante) Sin botones flotantes "Ver ficha"/"Quitar selección": van al sidebar
-- [ ] F5 (importante) Leyenda colapsada en una fila + botón "Símbolos"
-- [ ] F6 (importante) Chips largos y fecha relativa sin desborde en lista y ficha
-- [ ] F7 (importante) Situación actual: grilla 2×2 + tarjeta de ancho completo secundaria
-- [ ] F8 (menor) Ficha: "Asistencia pedagógica" sin valor redundante
-- [ ] F9 (menor) Foco programático al título de la ficha
-- [ ] F10 (importante) Filtros en línea desde ~1200 px de la fila
-- [ ] F11 (importante) Capas: Mapa base / Referencias / Riesgo
+- [x] F1 (bloqueante) Sidebar sin scroll horizontal: ancho único 24rem, `overflow-x: hidden`, hijos `min-width: 0`, test por pestaña
+- [x] F2 (bloqueante) Mismo sidebar en las 5 pestañas: acoplado, alto completo, mismo fondo/borde/padding/encabezado, scroll vertical interno
+- [x] F3 (bloqueante) Estadísticas entra: grilla 2 col, "Agrupar por" sin cortes, tabla grupo|Escuelas|Con situaciones|%, gráficos al ancho
+- [x] F4 (importante) Sin botones flotantes "Ver ficha"/"Quitar selección": van al sidebar
+- [x] F5 (importante) Leyenda colapsada en una fila + botón "Símbolos"
+- [x] F6 (importante) Chips largos y fecha relativa sin desborde en lista y ficha
+- [x] F7 (importante) Situación actual: grilla 2×2 + tarjeta de ancho completo secundaria
+- [x] F8 (menor) Ficha: "Asistencia pedagógica" sin valor redundante
+- [x] F9 (menor) Foco programático al título de la ficha
+- [x] F10 (importante) Filtros en línea desde ~1200 px de la fila
+- [x] F11 (importante) Capas: Mapa base / Referencias / Riesgo
 
 ### Evidencia por punto (F)
 - **F1** — Reglas que lo garantizan: `.map-left-stack` `width: min(24rem, calc(100vw - 80px))` (móvil `calc(100vw - 24px)`) + `overflow-x: hidden`; `.map-panel-lateral` y `.map-panel-lateral > *`/`:where(*)` con `min-width: 0; max-width: 100%; overflow-wrap: anywhere`; `.map-seg` con `flex-wrap: wrap`; tabla de Estadísticas `table-layout: fixed`. Test estático `sidebar-sin-scroll-horizontal.test.ts` (CSS + render de las 5 pestañas). Evidencia: vitest components/mapas 269/269, tsc limpio.
@@ -109,8 +109,8 @@ Revisión de N1 sobre A1–A14 a 1456×835. Un commit `fix(mapa): …` por punto
 - **F11b (Riesgo)** — Grupo "Riesgo" en Capas con switches "Escuelas aisladas" y "Riesgo de corte por inundación" (exclusión mutua, apagados por defecto, deshabilitados con "Los datos territoriales no están disponibles." si no hay contexto territorial; con una activa se muestra la escala Alto/Medio/Bajo). El mapa dibuja `CapaRiesgoSituacion` (círculos translúcidos, sólo escuelas con nivel ≥ 1, `puntosRiesgoSobreSituacion`) en Situación actual, DEBAJO de los marcadores de situaciones (`beforeId={CAPA_PARTES_ID}`, montada después del Source de partes para que la referencia exista también tras recargar el estilo; test estático) y no interactiva. En Radar y Planificación nada cambia. Capas dejadas afuera: el relleno de departamentos por escuelas caídas (no pedido) y las capas del Radar (dependen de su modo). Evidencia: vitest 654/654, tsc limpio, eslint 0 errores.
 
 ### Nuevas correcciones del usuario (vía N1)
-- [ ] F13 (PRIORIDAD) Estadísticas vuelve a su sección independiente a pantalla completa (sin mapa, sin sidebar); **D5 excluye Estadísticas por decisión del usuario** (el sidebar único vale para Situación actual, Radar, Planificación y Capas). Reemplaza a F3.
-- [ ] F12 Logos del header compacto de /mapas/* más grandes (~44 px de alto, textos ≥ 11 px, barra ≤ 72 px, recurso inverso del header completo)
+- [x] F13 (PRIORIDAD) Estadísticas vuelve a su sección independiente a pantalla completa (sin mapa, sin sidebar); **D5 excluye Estadísticas por decisión del usuario** (el sidebar único vale para Situación actual, Radar, Planificación y Capas). Reemplaza a F3.
+- [x] F12 Logos del header compacto de /mapas/* más grandes (~44 px de alto, textos ≥ 11 px, barra ≤ 72 px, recurso inverso del header completo)
 - **F13a (estructura)** — Estadísticas deja el sidebar: `map-client.tsx` recupera la estructura previa a 2aa2a78 sin revertirla a ciegas: el mapa sigue montado (`hidden` con Estadísticas, `ultimaPestanaMapa`, `visible`), Estadísticas se monta/desmonta en `.mapa-pestana-panel--scroll` (`data-testid="pestana-estadisticas"`), sin mapa ni sidebar; seleccionar una escuela desde Estadísticas vuelve a la última pestaña con mapa; la selección/ficha sobrevive a ir y volver (mapa montado una sola vez; test). `pestanaDeMapa` (capas → actual) se conserva para el mapa; `PanelLateral` queda con 4 pestañas. **D5 excluye Estadísticas por decisión del usuario**; F3 queda reemplazada por F13b (layout de página completa). Evidencia: vitest 646/646, tsc limpio.
 - **F13b (layout de página completa)** — `.map-est` `width: min(100%, 72rem); margin: 0 auto`, encabezado "Estadísticas" + "Según los filtros activos"; 6 tarjetas iguales en `repeat(auto-fit, minmax(10.5rem, 1fr))` (una fila a 72rem; en <720 px una columna): conReporte, sin clases, alumnos sin clases, sin actualizar, sin clases con asistencia pedagógica (con "Sin dato: N" como línea secundaria; antes era una tarjeta aparte) y Solucionadas en los últimos 15 días; "Agrupar por" vuelve al `Segmentado` completo; tabla con grupo | Escuelas | Con situaciones abiertas | % (con barra) | Alumnos sin clases, números a la derecha `tabular-nums`; evolución a `width: 100%` en una columna (`EvolucionPanel` muestra una vista gráfica a la vez, no hay segundo gráfico que repartir; no se editó el flujo del parte). Reemplaza el diseño de F3 (pensado para 24rem). Evidencia: vitest 646+ verdes, tsc limpio.
 - **F12 (logos del header compacto)** — `.app-header__logo` pasa de 28 a 44 px de alto (SVG inverso vectorial `/marca/logo-educacion-h-inv.svg`, 1051×208, ancho ≈ 222 px): escudo y textos ≈ 1,6× más grandes (textos ≈ 11 px). `--header-h` de `/mapas/*` sigue en 68 px (logo de 44 px en la banda de 60 px bajo la cinta de 8 px). Por cálculo, el header necesita ≈ 846 px útiles con el logo; por debajo de 920 px el logo se oculta (`@media (max-width: 920px) .app-header--mapa .app-header__logo { display: none }`; antes era ≤ 760 px). El comentario de `MarcaBanda` aclara la excepción compacta de 44 px aceptada por el usuario (< 60 px del manual). Tests: `app-shell.test.tsx`, `app-shell-logo.test.ts` (CSS). Evidencia: vitest 332 verdes, tsc limpio.
