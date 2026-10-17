@@ -1504,6 +1504,19 @@ time {
 }
 /* Opciones de selección múltiple: blanco táctil mínimo de 44px. */
 .ui-select-item { min-height: 44px; }
+.ui-select-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--line);
+  border-radius: 4px;
+  background: var(--page);
+  color: var(--white);
+}
+.ui-select-item[data-selected] .ui-select-check { border-color: var(--accent); background: var(--accent); }
 
 .ui-tooltip-positioner { z-index: var(--z-tooltip); }
 .ui-tooltip-popup {
