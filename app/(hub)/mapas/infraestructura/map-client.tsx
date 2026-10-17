@@ -2,6 +2,14 @@
 
 import * as React from 'react'
 import dynamic from 'next/dynamic'
+import {
+  Activity,
+  BarChart3,
+  BookOpen,
+  ClipboardList,
+  Layers,
+  Radar,
+} from 'lucide-react'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { pestanaDeMapa, resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
 import { filtrarEscuelas } from '@/lib/infraestructura/mapa/filtrar'
@@ -12,6 +20,8 @@ import { PanelEstadisticas } from '@/components/mapas/panel-estadisticas'
 import { MetodologiaMapa } from '@/components/mapas/metodologia/metodologia-mapa'
 import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
 import type { EscuelaMapaPadron } from '@/lib/infraestructura/parte-mapa'
+import { cn } from '@/lib/utils'
+import styles from './map-header.module.css'
 
 const cargarMapa = () => import('@/components/mapas/map-infraestructura-page')
 
@@ -36,6 +46,12 @@ export function InfraestructuraMapClient(props: {
   const [tab, setTab] = React.useState<PestanaMapa>('actual')
   // Fullscreen target: tabs, filters and map share this element, so all stay visible.
   const contenedorPantallaCompleta = React.useRef<HTMLDivElement>(null)
+  const tabsListRef = React.useRef<HTMLDivElement>(null)
+  const [tabsOverflow, setTabsOverflow] = React.useState({
+    has: false,
+    left: false,
+    right: false,
+  })
   const seleccionarEscuelaRef = React.useRef<((escuela: EscuelaMapaPadron) => void) | null>(null)
   const registrarSeleccion = React.useCallback((fn: ((escuela: EscuelaMapaPadron) => void) | null) => {
     seleccionarEscuelaRef.current = fn
@@ -95,6 +111,63 @@ export function InfraestructuraMapClient(props: {
     return () => window.removeEventListener('hashchange', syncHash)
   }, [props.riskRadarEnabled])
 
+  const revealTab = React.useCallback((target: HTMLElement | null) => {
+    const el = tabsListRef.current
+    if (!el || !target || typeof el.scrollTo !== 'function') return
+    const pad = 20
+    const left = target.offsetLeft
+    const right = left + target.offsetWidth
+    const viewLeft = el.scrollLeft
+    const viewRight = viewLeft + el.clientWidth
+    let next: number | null = null
+    if (left - pad < viewLeft) next = Math.max(0, left - pad)
+    else if (right + pad > viewRight) next = right - el.clientWidth + pad
+    if (next !== null) {
+      const reduceMotion =
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      el.scrollTo({ left: next, behavior: reduceMotion ? 'auto' : 'smooth' })
+    }
+  }, [])
+
+  React.useEffect(() => {
+    const el = tabsListRef.current
+    if (!el) return
+    const updateOverflow = () => {
+      const max = el.scrollWidth - el.clientWidth
+      const has = max > 2
+      setTabsOverflow((prev) => {
+        const left = has && el.scrollLeft > 2
+        const right = has && el.scrollLeft < max - 2
+        if (prev.has === has && prev.left === left && prev.right === right) {
+          return prev
+        }
+        return { has, left, right }
+      })
+    }
+    updateOverflow()
+    el.addEventListener('scroll', updateOverflow, { passive: true })
+    window.addEventListener('resize', updateOverflow)
+    const ro =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(updateOverflow)
+        : null
+    ro?.observe(el)
+    return () => {
+      el.removeEventListener('scroll', updateOverflow)
+      window.removeEventListener('resize', updateOverflow)
+      ro?.disconnect()
+    }
+  }, [props.riskRadarEnabled, cantidadConReporte])
+
+  React.useEffect(() => {
+    const el = tabsListRef.current
+    if (!el) return
+    const active = el.querySelector<HTMLElement>('[aria-selected="true"], [data-active]')
+    revealTab(active)
+  }, [tab, revealTab])
+
   const mapaVisible = tab !== 'estadisticas' && tab !== 'metodologia'
   if (mapaVisible && tab !== ultimaPestanaMapa) {
     setUltimaPestanaMapa(tab)
@@ -102,28 +175,76 @@ export function InfraestructuraMapClient(props: {
 
   return (
     <div className="mapa-pestanas" ref={contenedorPantallaCompleta}>
-      <div className="mapa-pestanas-barra">
-        <Tabs value={tab} onValueChange={onTab}>
-          <TabsList>
-            <TabsTab
-              value="actual"
-              aria-label={cantidadConReporte > 0
-                ? `Situación actual, ${cantidadConReporte} ${cantidadConReporte === 1 ? 'escuela' : 'escuelas'} con situaciones abiertas`
-                : undefined}
+      <div className={cn('mapa-pestanas-barra', styles.headerBar)}>
+        <Tabs className={styles.tabsRoot} value={tab} onValueChange={onTab}>
+          <div
+            className={styles.tabsShell}
+            data-overflow={tabsOverflow.has}
+            data-left={tabsOverflow.left}
+            data-right={tabsOverflow.right}
+          >
+            <TabsList
+              ref={tabsListRef}
+              className={styles.tabsList}
+              aria-label="Modos y vistas del mapa de infraestructura"
+              onFocusCapture={(event) => {
+                const target = (event.target as HTMLElement | null)?.closest<HTMLElement>('[role="tab"]')
+                if (target) revealTab(target)
+              }}
             >
-              Situación actual
-              {cantidadConReporte > 0 && (
-                <span className="map-sitact__pill map-sitact__pill--neutro ui-tabs-tab__contador" aria-hidden="true">
-                  {cantidadConReporte}
-                </span>
+              <TabsTab
+                value="actual"
+                className={styles.tabTrigger}
+                aria-label={cantidadConReporte > 0
+                  ? `Situación actual, ${cantidadConReporte} ${cantidadConReporte === 1 ? 'escuela' : 'escuelas'} con situaciones abiertas`
+                  : undefined}
+              >
+                <Activity className={styles.tabIcon} aria-hidden="true" />
+                Situación actual
+                {cantidadConReporte > 0 && (
+                  <span
+                    className={cn(
+                      'map-sitact__pill map-sitact__pill--neutro ui-tabs-tab__contador',
+                      styles.counterBadge,
+                    )}
+                    aria-hidden="true"
+                  >
+                    {cantidadConReporte}
+                  </span>
+                )}
+              </TabsTab>
+              {props.riskRadarEnabled && (
+                <TabsTab value="radar" className={styles.tabTrigger}>
+                  <Radar className={styles.tabIcon} aria-hidden="true" />
+                  Radar
+                </TabsTab>
               )}
-            </TabsTab>
-            {props.riskRadarEnabled && <TabsTab value="radar">Radar</TabsTab>}
-            <TabsTab value="planificacion">Planificación</TabsTab>
-            <TabsTab value="capas">Capas</TabsTab>
-            <TabsTab value="estadisticas">Estadísticas</TabsTab>
-            <TabsTab value="metodologia">Metodología</TabsTab>
-          </TabsList>
+              <TabsTab value="planificacion" className={styles.tabTrigger}>
+                <ClipboardList className={styles.tabIcon} aria-hidden="true" />
+                Planificación
+              </TabsTab>
+              <TabsTab
+                value="capas"
+                className={styles.tabTrigger}
+                data-cluster-start="true"
+              >
+                <Layers className={styles.tabIcon} aria-hidden="true" />
+                Capas
+              </TabsTab>
+              <TabsTab
+                value="estadisticas"
+                className={styles.tabTrigger}
+                data-cluster-start="true"
+              >
+                <BarChart3 className={styles.tabIcon} aria-hidden="true" />
+                Estadísticas
+              </TabsTab>
+              <TabsTab value="metodologia" className={styles.tabTrigger}>
+                <BookOpen className={styles.tabIcon} aria-hidden="true" />
+                Metodología
+              </TabsTab>
+            </TabsList>
+          </div>
         </Tabs>
         <FiltrosChips
           escuelas={padron?.escuelas ?? []}

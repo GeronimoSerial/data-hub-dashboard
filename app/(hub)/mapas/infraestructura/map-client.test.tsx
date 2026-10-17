@@ -392,4 +392,68 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
       'true',
     )
   })
+
+  it('agrupa visualmente modos operativos, capas y vistas de referencia dentro del contenedor de pestañas', () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
+
+    const tablist = screen.getByRole('tablist', {
+      name: 'Modos y vistas del mapa de infraestructura',
+    })
+    expect(tablist).toBeInTheDocument()
+    expect(tablist.parentElement).toHaveAttribute('data-overflow')
+    expect(screen.getByRole('tab', { name: 'Capas' })).toHaveAttribute('data-cluster-start', 'true')
+    expect(screen.getByRole('tab', { name: 'Estadísticas' })).toHaveAttribute(
+      'data-cluster-start',
+      'true',
+    )
+    expect(screen.getByRole('tab', { name: 'Planificación' })).not.toHaveAttribute(
+      'data-cluster-start',
+    )
+  })
+
+  it('revealTab usa scrollTo smooth en modo normal y auto cuando prefers-reduced-motion: reduce está activo', async () => {
+    let reduceMotion = false
+    const matchMediaOriginal = window.matchMedia
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('prefers-reduced-motion: reduce') ? reduceMotion : false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+
+    try {
+      render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+      const tablist = screen.getByRole('tablist', {
+        name: 'Modos y vistas del mapa de infraestructura',
+      })
+      const scrollToSpy = vi.fn()
+      tablist.scrollTo = scrollToSpy
+      Object.defineProperty(tablist, 'clientWidth', { value: 180, configurable: true })
+      Object.defineProperty(tablist, 'scrollLeft', { value: 0, configurable: true })
+
+      const tabMetodologia = screen.getByRole('tab', { name: 'Metodología' })
+      Object.defineProperty(tabMetodologia, 'offsetLeft', { value: 320, configurable: true })
+      Object.defineProperty(tabMetodologia, 'offsetWidth', { value: 110, configurable: true })
+
+      // Modo normal: behavior 'smooth'
+      reduceMotion = false
+      await userEvent.click(tabMetodologia)
+      expect(scrollToSpy).toHaveBeenLastCalledWith({ left: 270, behavior: 'smooth' })
+
+      // Modo movimiento reducido: behavior 'auto'
+      scrollToSpy.mockClear()
+      reduceMotion = true
+      const tabEstadisticas = screen.getByRole('tab', { name: 'Estadísticas' })
+      Object.defineProperty(tabEstadisticas, 'offsetLeft', { value: 220, configurable: true })
+      Object.defineProperty(tabEstadisticas, 'offsetWidth', { value: 100, configurable: true })
+      await userEvent.click(tabEstadisticas)
+      expect(scrollToSpy).toHaveBeenLastCalledWith({ left: 160, behavior: 'auto' })
+    } finally {
+      window.matchMedia = matchMediaOriginal
+    }
+  })
 })
