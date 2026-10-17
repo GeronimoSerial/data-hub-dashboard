@@ -802,7 +802,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             habitual={habitual}
             bloqueosHabitualPorAfectacion={bloqueosHabitualPorAfectacion}
           />
-          <div className="asistente__acciones">
+          <div className="asistente__acciones asistente__acciones--pegada">
             <Button
               type="button"
               variant="secondary"
@@ -865,7 +865,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
               encolarCascada(id, solucionadaEn)
             }}
           />
-          {etapaAlgoNuevo === 'pregunta' ? <div className="asistente__acciones">
+          {etapaAlgoNuevo === 'pregunta' ? <div className="asistente__acciones asistente__acciones--pegada">
             <Button
               type="button"
               variant="secondary"
@@ -1090,7 +1090,7 @@ function ResumenEnvio({
         </ul>
       ) : null}
       {error ? <p className="reporte-inicial__error" role="alert">{error}</p> : null}
-      <div className="asistente__acciones">
+      <div className="asistente__acciones asistente__acciones--pegada">
         <Button type="button" variant="secondary" onClick={onVolver}>
           Volver
         </Button>

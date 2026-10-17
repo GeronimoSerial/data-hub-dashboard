@@ -297,6 +297,21 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
   })
 
+  it('la barra de acciones queda pegada en todos los pasos y Volver aparece desde el segundo', () => {
+    renderFormulario()
+    const barra = () => screen.getByRole('button', { name: 'Continuar' }).closest('.asistente__acciones')
+
+    expect(barra()).toHaveClass('asistente__acciones--pegada')
+    expect(screen.queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument()
+
+    completarQuePaso()
+    continuar()
+
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+    expect(barra()).toHaveClass('asistente__acciones--pegada')
+    expect(within(barra() as HTMLElement).getByRole('button', { name: 'Volver' })).toBeInTheDocument()
+  })
+
   it('envía rigeDesde resuelto al momento de enviar cuando se deja "Ahora"', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))

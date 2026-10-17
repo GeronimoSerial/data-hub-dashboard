@@ -1106,7 +1106,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             </p>
       )}
 
-      <div className="asistente__acciones">
+      <div className="asistente__acciones asistente__acciones--pegada">
         {indicePaso > 0 && (
           <Button type="button" variant="secondary" onClick={retroceder}>
             Volver

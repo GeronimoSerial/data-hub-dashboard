@@ -88,6 +88,19 @@ describe('RecorridoActualizacion', () => {
     expect(declararFotosMock).toHaveBeenCalledWith(expect.objectContaining({ movimientoBaseId: 'movement-base' }))
   })
 
+  it('la barra de acciones de datos queda pegada y muestra Volver', async () => {
+    stub()
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    for (let i = 0; i < 2; i++) {
+      fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    }
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+    const volver = screen.getByRole('button', { name: 'Volver' })
+    expect(volver.closest('.asistente__acciones')).toHaveClass('asistente__acciones--pegada')
+  })
+
   it('deja un solo Volver en datos y vuelve a la pregunta conservando la selección', async () => {
     stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
