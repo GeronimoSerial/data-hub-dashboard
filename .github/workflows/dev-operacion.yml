@@ -117,7 +117,12 @@ jobs:
             for intento in range(60):
               estado=api('/deployments/'+despliegue)['status']
               if estado=='finished': break
-              if estado in ['failed','cancelled-by-user']: raise RuntimeError('Falló el despliegue del almacenamiento de dev')
+              if estado in ['failed','cancelled-by-user']:
+                detalle=json.dumps(api('/deployments/'+despliegue))
+                for secreto in list(valores.values())+[os.environ.get('COOLIFY_TOKEN',''),os.environ.get('DEV_DATABASE_URL','')]:
+                  if secreto: detalle=detalle.replace(secreto,'[REDACTED]')
+                print(detalle[-18000:])
+                raise RuntimeError('Falló el despliegue del almacenamiento de dev')
               time.sleep(5)
             else: raise RuntimeError('El almacenamiento sigue desplegándose')
             print('Almacenamiento privado de dev desplegado')
