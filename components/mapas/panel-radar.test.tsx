@@ -202,8 +202,10 @@ describe('PanelRadar', () => {
   })
 
   it('muestra los estados de carga, error, ausencia de pronóstico y ausencia de escuelas en riesgo', () => {
-    const cargando = render(<PanelRadar {...props({ cargando: true })} />)
-    expect(screen.getByRole('status')).toHaveTextContent('Cargando pronóstico…')
+    const cargando = render(<PanelRadar {...props({ cargando: true, disponibles: [] })} />)
+    // Mientras carga el motor se reserva su lugar: el bloque no aparece tarde.
+    const reservado = screen.getByRole('region', { name: 'Riesgo calculado (probabilístico)' })
+    expect(within(reservado).getByRole('status')).toHaveTextContent('Calculando riesgo…')
     expect(screen.queryByText('Riesgo alto o muy alto')).not.toBeInTheDocument()
     cargando.unmount()
 
@@ -257,7 +259,7 @@ describe('PanelRadar', () => {
   it('muestra motor y pronóstico juntos, y pasa la selección del departamento', () => {
     const onDepartamento = vi.fn()
     render(<PanelRadar {...props({ pronostico: { ...pronosticoVacio, resumen: resumenMeteo(), onDepartamento } })} />)
-    expect(screen.getByText('Riesgo actual (hoy)')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Riesgo calculado (probabilístico)' })).toBeInTheDocument()
     expect(screen.getByText('Pronóstico por departamento')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Bella Vista, 70 mm' }))
     expect(onDepartamento).toHaveBeenCalledWith('bella-vista')
@@ -272,5 +274,22 @@ describe('PanelRadar', () => {
     sinDatos.unmount()
     render(<PanelRadar {...props({ disponibles: [], error: 'falló', pronostico: { ...pronosticoVacio, error: true } })} />)
     expect(screen.getByRole('status')).toHaveTextContent('No se pudo cargar el pronóstico. Intente de nuevo más tarde.')
+  })
+
+  it('ubica el riesgo calculado en el mismo lugar al cargar y al terminar, antes de las alertas', () => {
+    const { rerender } = render(<PanelRadar {...props({ cargando: true, disponibles: [], puntos: null })} />)
+    const secciones = () => Array.from(screen.getByTestId('panel-radar').querySelectorAll(':scope > section')).map((s) => s.getAttribute('aria-labelledby'))
+    const antes = secciones()
+    rerender(<PanelRadar {...props()} />)
+    expect(secciones()).toEqual(antes)
+    expect(antes.indexOf('map-radar-riesgo-titulo')).toBeLessThan(antes.indexOf('radar-alertas-smn-titulo'))
+    const riesgo = screen.getByRole('region', { name: 'Riesgo calculado (probabilístico)' })
+    expect(within(riesgo).getByText('Riesgo alto o muy alto')).toBeInTheDocument()
+  })
+
+  it('encabeza el pronóstico con su título antes de los indicadores', () => {
+    render(<PanelRadar {...props({ pronostico: { ...pronosticoVacio, resumen: resumenMeteo() } })} />)
+    const seccion = screen.getByRole('region', { name: /Pronóstico por departamento/ })
+    expect(seccion.firstElementChild?.tagName).toBe('H3')
   })
 })

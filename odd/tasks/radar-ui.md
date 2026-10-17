@@ -16,8 +16,8 @@ Make the radar tab of `/mapas/infraestructura` readable on desktop: one overlay 
 - No data/API changes; no mobile work.
 
 ## Tasks
-- [x] T1 Labels: rename variable labels in `selector.tsx` / `leyenda.tsx` and tests.
-- [ ] T2 Sidebar: stable layout, no late block jump; single heading hierarchy; fix lone granizo card.
+- [x] T1 Labels: rename variable labels in `selector.tsx` / `leyenda.tsx` and tests. (9fc2ab0)
+- [x] T2 Sidebar: stable layout, no late block jump; single heading hierarchy; fix lone granizo card.
 - [ ] T3 Overlays: one overlay open at a time (IMERG popup vs point forecast vs school card); point forecast never covers the sidebar or legends; z-index via tokens.
 - [ ] T4 Legends + timeline: separate legends from timeline; one-line axis labels with day only at midnight, ticks at 00/12 local, no clipping.
 - [ ] T5 Visual check with Playwright screenshots (desktop) after each task.

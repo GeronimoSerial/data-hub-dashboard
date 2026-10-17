@@ -331,6 +331,17 @@
 .map-radar-alertas__detalle p { min-width: 0; margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
 .map-sitact__mas { justify-self: start; max-width: 100%; padding: var(--s-2) 0; border: 0; background: transparent; color: var(--ink-soft); font: inherit; font-size: var(--t-small); text-align: left; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; overflow-wrap: anywhere; }
 .map-radar-pronostico { display: grid; min-width: 0; gap: var(--s-3); }
+/* Riesgo calculado: misma estructura que el pronóstico (título, KPIs, lista). */
+.map-radar-riesgo { display: grid; min-width: 0; gap: var(--s-3); }
+.map-radar-riesgo .map-sitact__titulo-seccion,
+.map-radar-pronostico .map-sitact__titulo-seccion,
+.map-radar-alertas .map-sitact__titulo-seccion { margin: 0; }
+/* Alto reservado ≈ KPIs + primeras filas, para que la carga no desplace el panel. */
+.map-radar-riesgo__reserva { display: grid; place-items: center; min-height: 12rem; border-radius: var(--r-md); background: var(--fill); }
+/* Tres KPIs en grilla de dos: el último ocupa la fila completa, sin huecos. */
+.map-sitact__kpis--3 > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+/* Estado vacío compacto en una línea. */
+.map-sitact__vacio--linea { padding: 0; text-align: left; }
 .map-radar-pronostico__seccion { display: grid; min-width: 0; gap: var(--s-2); }
 .map-radar-pronostico__seccion > p { margin: 0; }
 .map-radar-pronostico__fila { grid-template-columns: 4px minmax(0, 1fr) auto; }
