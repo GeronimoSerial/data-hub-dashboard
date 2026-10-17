@@ -63,7 +63,7 @@ export async function publicarCorridaPrefectura(corrida: CorridaPrefectura, db =
         lecturasOriginales: corrida.lecturasOriginales ?? [] },
     }, tx as typeof db, true, async (proyeccion) => { resultado = await proyectarPrefectura(proyeccion, corrida) })
     if (process.env.DATABASE_URL && new URL(process.env.DATABASE_URL).pathname === '/hub_prod') {
-      await tx.insert(infraDatasetEntrega).values({ versionId, destino: 'staging' }).onConflictDoNothing()
+      await tx.insert(infraDatasetEntrega).values([{ versionId, destino: 'staging' }, { versionId, destino: 'dev' }]).onConflictDoNothing()
     }
     return { versionId, resultado: resultado! }
   })
