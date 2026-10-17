@@ -48,6 +48,18 @@ export function haceCuanto(medidaEn: string, ahora: Date): string {
   return `hace ${Math.floor(horas / 24)} días`
 }
 
+/** State of the current value from the numbers alone (staleness ignored). */
+export function nivelActual(
+  lecturaM: number | null,
+  alertaM: number | null,
+  evacuacionM: number | null,
+): { estado: EstadoNivelRio; nota: string | null } {
+  if (lecturaM === null) return { estado: 'sin_dato', nota: null }
+  if (evacuacionM !== null && lecturaM >= evacuacionM) return { estado: 'evacuacion', nota: `▲ ${metros(lecturaM - evacuacionM)} sobre evacuación` }
+  if (alertaM !== null && lecturaM >= alertaM) return { estado: 'alerta', nota: `▲ ${metros(lecturaM - alertaM)} sobre alerta` }
+  return { estado: 'normal', nota: null }
+}
+
 function cifra(v: number | null) {
   if (v === null) return <span aria-label="Sin dato">—</span>
   return (
@@ -114,6 +126,7 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
   const umbrales = [lectura?.alertaM ?? null, lectura?.evacuacionM ?? null]
   const trazo = trazoSparkline(puntos, { ancho: ANCHO, alto: ALTO, margen: 4, umbrales })
   const ahora = new Date()
+  const nivel = nivelActual(lectura?.lecturaM ?? null, lectura?.alertaM ?? null, lectura?.evacuacionM ?? null)
 
   return (
     <div
@@ -134,9 +147,10 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
       </div>
 
       <dl className="tarjeta-estacion__cifras">
-        <div className="tarjeta-estacion__cifra">
+        <div className={`tarjeta-estacion__cifra tarjeta-estacion__cifra--actual-${nivel.estado}`}>
           <dt>Actual</dt>
           <dd>{cifra(lectura?.lecturaM ?? null)}</dd>
+          {nivel.nota && <dd className="tarjeta-estacion__exceso">{nivel.nota}</dd>}
         </div>
         <div className="tarjeta-estacion__cifra tarjeta-estacion__cifra--alerta">
           <dt>Alerta</dt>

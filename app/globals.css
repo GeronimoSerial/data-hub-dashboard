@@ -6921,6 +6921,13 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .tarjeta-estacion__cifra--alerta dt { color: var(--warn); }
 .tarjeta-estacion__cifra--evacuacion dt { color: var(--danger-ink); }
 .tarjeta-estacion__cifra dd { margin: 2px 0 0; font-size: 1.375rem; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tarjeta-estacion__cifra--actual-normal { background: var(--ok-tint); }
+.tarjeta-estacion__cifra--actual-alerta { background: var(--warn-tint); box-shadow: inset 0 0 0 1.5px var(--warn); }
+.tarjeta-estacion__cifra--actual-evacuacion { background: var(--danger-tint); box-shadow: inset 0 0 0 1.5px var(--danger-mark); }
+.tarjeta-estacion__cifra--actual-normal dd { color: var(--ok); }
+.tarjeta-estacion__cifra--actual-alerta dd { color: var(--warn); }
+.tarjeta-estacion__cifra--actual-evacuacion dd { color: var(--danger-ink); }
+.tarjeta-estacion__cifra dd.tarjeta-estacion__exceso { margin-top: 2px; font-size: 0.6875rem; line-height: 1.2; white-space: normal; }
 .tarjeta-estacion__unidad { font-size: 0.8125rem; color: var(--ink-soft); }
 .tarjeta-estacion__hora { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
 .tarjeta-estacion__aviso { color: var(--warn); }

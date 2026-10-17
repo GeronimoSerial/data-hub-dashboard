@@ -258,7 +258,10 @@ describe('CapaEstacionesRio', () => {
     const tarjeta = await screen.findByRole('dialog', { name: 'Rosario' }, { timeout: 5000 })
     expect(tarjeta.querySelector('.tarjeta-estacion__estado')?.textContent).toBe('Evacuación')
     // Actual, alerta and evacuación share the top row.
-    expect([...tarjeta.querySelectorAll('.tarjeta-estacion__cifra dd')].map((n) => n.textContent)).toEqual(['4,12 m', '3,50 m', '4,00 m'])
+    expect([...tarjeta.querySelectorAll('.tarjeta-estacion__cifra dd:not(.tarjeta-estacion__exceso)')].map((n) => n.textContent)).toEqual(['4,12 m', '3,50 m', '4,00 m'])
+    // Actual is coloured by the band its value falls into, with the excess below.
+    expect(tarjeta.querySelector('.tarjeta-estacion__cifra--actual-evacuacion')).not.toBeNull()
+    expect(within(tarjeta).getByText('▲ 0,12 m sobre evacuación')).toBeTruthy()
     expect(within(tarjeta).getByText('Superada por 0,62 m')).toBeTruthy()
     expect(await within(tarjeta).findByRole('img', { name: /últimos 7 días/i }, { timeout: 5000 })).toBeTruthy()
     expect(within(tarjeta).getByText('+0,12 m (+3,0 %)')).toBeTruthy()
