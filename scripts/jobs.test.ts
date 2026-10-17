@@ -387,3 +387,25 @@ describe('situacion-corte — lease externo', () => {
     expect(codigoSalida('situacion-corte', resultado)).toBe(0)
   })
 })
+
+describe('RADAR_SYNC_ENABLED', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it.each(['sync-radar-meteo', 'verificar-radar-meteo', 'sync-radar-ensemble'])(
+    'bloquea %s antes de migrar o cargar el productor', async nombre => {
+      vi.stubEnv('RADAR_SYNC_ENABLED', 'false')
+      const { correrJob } = await import('./jobs.mjs')
+      await expect(correrJob(nombre)).resolves.toEqual({ ejecutado: false, motivo: 'radar_sync_deshabilitado' })
+      expect(mocks.ensureSeeded).not.toHaveBeenCalled()
+      expect(mocks.ejecutarSyncRadarMeteo).not.toHaveBeenCalled()
+      expect(mocks.ejecutarVerificacionRadarMeteo).not.toHaveBeenCalled()
+    },
+  )
+  it('mantiene habilitados los otros jobs', async () => {
+    vi.stubEnv('RADAR_SYNC_ENABLED', 'false')
+    mocks.ejecutarSyncImerg.mockResolvedValue({ estado: 'completo' })
+    const { correrJob } = await import('./jobs.mjs')
+    await expect(correrJob('sync-imerg')).resolves.toEqual({ estado: 'completo' })
+    expect(mocks.ejecutarSyncImerg).toHaveBeenCalledOnce()
+  })
+})
