@@ -22,7 +22,7 @@ import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
 import { AvisosRedSeguridad } from '@/components/infraestructura/aviso-red-seguridad'
 import { evaluarRedesSeguridad } from '@/lib/infraestructura/red-seguridad'
-import { severidadSugeridaPorAlcance, type CampoConsistencia, type Regla } from '@/lib/infraestructura/consistencia-parte'
+import { severidadSugeridaPorAlcance, type CampoConsistencia, type Regla, type Sugerencia } from '@/lib/infraestructura/consistencia-parte'
 
 export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
   establecimiento:
@@ -119,17 +119,44 @@ export interface CamposQuePasoProps extends CamposComunes {
   avisos?: Regla[]
 }
 
-/** Advertencias de consistencia del parte, no bloqueantes, bajo el campo que las origina. */
-export function AvisosConsistencia({ reglas, campos }: { reglas: Regla[]; campos: CampoConsistencia[] }): JSX.Element | null {
-  const visibles = reglas.filter((regla) => campos.includes(regla.campo))
+/*
+  Advertencias de consistencia: no bloquean. "Cambiar a" aplica el valor que
+  resuelve la advertencia; "Está bien así" la descarta sólo para las respuestas
+  actuales (si cambian, vuelve).
+*/
+export function AvisosConsistencia({
+  reglas,
+  campos,
+  onAplicar,
+}: {
+  reglas: Regla[]
+  campos: CampoConsistencia[]
+  onAplicar?: (sugerencia: Sugerencia) => void
+}): JSX.Element | null {
+  const [descartadas, setDescartadas] = useState<Record<string, string>>({})
+  const visibles = reglas.filter((regla) => campos.includes(regla.campo) && descartadas[regla.codigo] !== (regla.firma ?? ''))
   if (visibles.length === 0) return null
   return (
     <>
       {visibles.map((regla) => (
-        <p key={regla.codigo} className="aviso-badge" role="note">
+        <div key={regla.codigo} className="aviso-badge" role="note">
           <span className="aviso-badge__sello">Revisar</span>
           <span className="aviso-badge__texto">{regla.mensaje}</span>
-        </p>
+          <span className="aviso-badge__acciones">
+            {regla.sugerencia && onAplicar ? (
+              <button type="button" className="aviso-badge__accion" onClick={() => onAplicar(regla.sugerencia!)}>
+                {regla.sugerencia.etiqueta}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="aviso-badge__accion aviso-badge__accion--secundaria"
+              onClick={() => setDescartadas((actual) => ({ ...actual, [regla.codigo]: regla.firma ?? '' }))}
+            >
+              Está bien así
+            </button>
+          </span>
+        </div>
       ))}
     </>
   )

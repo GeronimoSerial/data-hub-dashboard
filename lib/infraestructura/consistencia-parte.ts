@@ -37,10 +37,23 @@ export type CampoConsistencia =
 
 export type CampoOpcion = 'motivo' | 'edificio' | 'clases'
 
+/** Cambio de una opción que resuelve la advertencia, cuando hay uno claro. */
+export interface Sugerencia {
+  campo: CampoOpcion
+  valor: string
+  etiqueta: string
+}
+
 export interface Regla {
   codigo: string
   campo: CampoConsistencia
   mensaje: string
+  sugerencia?: Sugerencia
+  /**
+   * Respuestas con las que se evaluó la regla. Si cambian, una advertencia que
+   * se descartó vuelve a mostrarse.
+   */
+  firma?: string
 }
 
 export interface ResultadoConsistencia {
@@ -77,8 +90,12 @@ interface DefinicionRegla {
   codigo: string
   campo: CampoConsistencia
   mensaje: string
+  sugerencia?: Sugerencia
   cuando: (r: RespuestasConsistencia, ahora: Date) => boolean
 }
+
+const CAMBIAR_A_PARCIAL: Sugerencia = { campo: 'edificio', valor: 'parcial', etiqueta: 'Cambiar a Uso parcial' }
+const CLASES_SUSPENDIDAS: Sugerencia = { campo: 'clases', valor: 'suspendido', etiqueta: 'Cambiar a Clases suspendidas' }
 
 const BLOQUEOS: DefinicionRegla[] = [
   {
@@ -124,24 +141,28 @@ const ADVERTENCIAS: DefinicionRegla[] = [
     codigo: 'inundacion-habitual',
     campo: 'edificio',
     mensaje: 'Una inundación suele afectar al edificio. Verifique que siga figurando como habitual.',
+    sugerencia: CAMBIAR_A_PARCIAL,
     cuando: (r) => r.motivoId === MOTIVO.inundacion && r.edificio === 'habitual',
   },
   {
     codigo: 'tormenta-centro-evacuados',
     campo: 'edificio',
     mensaje: 'Una tormenta severa pocas veces obliga a un centro de evacuados. Verifique el estado del edificio.',
+    sugerencia: CAMBIAR_A_PARCIAL,
     cuando: (r) => r.motivoId === MOTIVO.tormenta && r.edificio === 'centro_evacuados',
   },
   {
     codigo: 'sin-energia-evacuado',
     campo: 'edificio',
     mensaje: 'Sin energía o agua el edificio rara vez queda evacuado. Verifique el estado del edificio.',
+    sugerencia: CAMBIAR_A_PARCIAL,
     cuando: (r) => r.motivoId === MOTIVO.sinEnergia && r.edificio === 'evacuado',
   },
   {
     codigo: 'sin-energia-centro-evacuados',
     campo: 'edificio',
     mensaje: 'Sin energía o agua el edificio rara vez se convierte en centro de evacuados. Verifique el estado del edificio.',
+    sugerencia: CAMBIAR_A_PARCIAL,
     cuando: (r) => r.motivoId === MOTIVO.sinEnergia && r.edificio === 'centro_evacuados',
   },
   {
@@ -154,18 +175,21 @@ const ADVERTENCIAS: DefinicionRegla[] = [
     codigo: 'inaccesibilidad-docentes-centro-evacuados',
     campo: 'edificio',
     mensaje: 'Si los docentes no pueden acceder, pocas veces el edificio es un centro de evacuados. Verifique el estado del edificio.',
+    sugerencia: CAMBIAR_A_PARCIAL,
     cuando: (r) => r.motivoId === MOTIVO.inaccesibilidad && r.edificio === 'centro_evacuados',
   },
   {
     codigo: 'habitual-clases-suspendidas',
     campo: 'clases',
     mensaje: 'El edificio figura habitual pero las clases están suspendidas. Verifique ambas respuestas.',
+    sugerencia: { campo: 'clases', valor: 'normal', etiqueta: 'Cambiar a Clases normales' },
     cuando: (r) => r.edificio === 'habitual' && r.clases === 'suspendido',
   },
   {
     codigo: 'centro-clases-normales',
     campo: 'clases',
     mensaje: 'Con el edificio en centro de evacuados es poco probable que las clases sean normales. Verifique la respuesta.',
+    sugerencia: CLASES_SUSPENDIDAS,
     cuando: (r) => r.edificio === 'centro_evacuados' && r.clases === 'normal',
   },
   {
@@ -184,6 +208,7 @@ const ADVERTENCIAS: DefinicionRegla[] = [
     codigo: 'inundacion-parcial-clases-normales',
     campo: 'clases',
     mensaje: 'Con una inundación y el edificio parcial, las clases difícilmente sean normales. Verifique la respuesta.',
+    sugerencia: CLASES_SUSPENDIDAS,
     cuando: (r) => r.motivoId === MOTIVO.inundacion && r.edificio === 'parcial' && r.clases === 'normal',
   },
   {
@@ -223,17 +248,24 @@ function vigenciaAntigua(vigencia: EleccionVigencia | null, ahora: Date): boolea
   return ahora.getTime() - new Date(inicio).getTime() > DIAS_VIGENCIA_ANTIGUA * MS_POR_DIA
 }
 
-function aRegla(definicion: DefinicionRegla): Regla {
-  return { codigo: definicion.codigo, campo: definicion.campo, mensaje: definicion.mensaje }
+function aRegla(definicion: DefinicionRegla, firma: string): Regla {
+  return {
+    codigo: definicion.codigo,
+    campo: definicion.campo,
+    mensaje: definicion.mensaje,
+    ...(definicion.sugerencia ? { sugerencia: definicion.sugerencia } : {}),
+    firma,
+  }
 }
 
 export function evaluarConsistenciaParte(
   respuestas: RespuestasConsistencia,
   ahora: Date = new Date(),
 ): ResultadoConsistencia {
+  const firma = JSON.stringify(respuestas)
   return {
-    bloqueos: BLOQUEOS.filter((d) => d.cuando(respuestas, ahora)).map(aRegla),
-    advertencias: ADVERTENCIAS.filter((d) => d.cuando(respuestas, ahora)).map(aRegla),
+    bloqueos: BLOQUEOS.filter((d) => d.cuando(respuestas, ahora)).map((d) => aRegla(d, firma)),
+    advertencias: ADVERTENCIAS.filter((d) => d.cuando(respuestas, ahora)).map((d) => aRegla(d, firma)),
   }
 }
 

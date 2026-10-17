@@ -190,3 +190,32 @@ describe('severidadSugeridaPorAlcance', () => {
     }
   })
 })
+
+describe('advertencias accionables (T10)', () => {
+  it('cada advertencia con un cambio claro ofrece el valor que la resuelve', () => {
+    const inundacion = evaluar({ motivoId: 'inundacion', edificio: 'habitual', clases: 'normal' }).advertencias
+    expect(inundacion.find((a) => a.codigo === 'inundacion-habitual')?.sugerencia).toEqual({
+      campo: 'edificio',
+      valor: 'parcial',
+      etiqueta: 'Cambiar a Uso parcial',
+    })
+    const suspendidas = evaluar({ edificio: 'habitual', clases: 'suspendido', motivoId: 'sin-energia-o-agua' }).advertencias
+    expect(suspendidas.find((a) => a.codigo === 'habitual-clases-suspendidas')?.sugerencia).toEqual({
+      campo: 'clases',
+      valor: 'normal',
+      etiqueta: 'Cambiar a Clases normales',
+    })
+  })
+
+  it('una advertencia sin cambio claro no ofrece sugerencia', () => {
+    const critica = evaluar({ severidad: 'Crítica', alcance: { tipo: 'algunas', secciones: 1 } }).advertencias
+    expect(critica.find((a) => a.codigo === 'critica-seccion-unica')?.sugerencia).toBeUndefined()
+  })
+
+  it('cada advertencia lleva la firma de las respuestas que la produjeron', () => {
+    const a = evaluar({ motivoId: 'inundacion', edificio: 'habitual' }).advertencias.find((r) => r.codigo === 'inundacion-habitual')
+    const b = evaluar({ motivoId: 'inundacion', edificio: 'habitual', clases: 'suspendido' }).advertencias.find((r) => r.codigo === 'inundacion-habitual')
+    expect(a?.firma).toBeTruthy()
+    expect(a?.firma).not.toBe(b?.firma)
+  })
+})

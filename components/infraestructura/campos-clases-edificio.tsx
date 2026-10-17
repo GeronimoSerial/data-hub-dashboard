@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, type JSX } from 'react'
+import { Fragment, useState, type JSX, type ReactNode } from 'react'
+import { Lock } from 'lucide-react'
 import { ETIQUETA_CLASES, ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { Opcion } from '@/components/ui/opcion'
@@ -11,6 +12,7 @@ import {
   bloqueoOpcion,
   type Regla,
   type RespuestasConsistencia,
+  type Sugerencia,
 } from '@/lib/infraestructura/consistencia-parte'
 
 export interface ValorClasesEdificio {
@@ -19,6 +21,7 @@ export interface ValorClasesEdificio {
 }
 
 const INTERRUMPE_TODO: EstadoEstablecimiento[] = ['evacuado', 'centro_evacuados']
+const ESTADOS_EDIFICIO = Object.keys(ETIQUETA_ESTABLECIMIENTO) as EstadoEstablecimiento[]
 
 // Elegir "evacuado" suspende las clases (ver aplicarEdificio): el bloqueo se
 // evalúa con esa consecuencia, no con la respuesta de clases vigente.
@@ -32,10 +35,29 @@ function bloqueoClases(respuestas: RespuestasConsistencia | undefined, estado: s
   return respuestas ? bloqueoOpcion(respuestas, 'clases', estado) : null
 }
 
-// Motivos de bloqueo distintos (sin repetir mensaje) de las opciones de un grupo.
-function motivosDeBloqueo(valores: string[], bloqueo: (valor: string) => Regla | null): string[] {
-  const reglas = valores.map(bloqueo).filter((regla): regla is Regla => regla !== null)
-  return [...new Set(reglas.map((regla) => regla.mensaje))]
+// El motivo del bloqueo vive dentro de la opción deshabilitada, con candado.
+// Va como descripción (aria-describedby) y no como parte del nombre: el nombre
+// de la opción sigue siendo su etiqueta.
+function MotivoBloqueo({ id, mensaje }: { id: string; mensaje: string }): JSX.Element {
+  return (
+    <span id={id} className="opcion__bloqueo">
+      <Lock className="opcion__candado" size={14} aria-hidden="true" />
+      {mensaje}
+    </span>
+  )
+}
+
+// Bloqueos del cambio a habitual (update) que no deshabilitan la opción pero sí frenan el envío.
+function mensajesPrevios(reglas: Regla[]): ReactNode {
+  if (reglas.length === 0) return undefined
+  return reglas.map((regla) => <span key={regla.codigo} className="opcion__bloqueo">{regla.mensaje}</span>)
+}
+
+// Advertencias de un campo que no tienen opción a la cual asociarse (p. ej.
+// sin respuesta todavía) se muestran al final del grupo.
+function avisosSinOpcion(reglas: Regla[], campo: 'edificio' | 'clases', actual: string | null | undefined, opciones: string[]): Regla[] {
+  const delCampo = reglas.filter((regla) => regla.campo === campo)
+  return actual && opciones.includes(actual) ? [] : delCampo
 }
 
 export function CamposClasesEdificio({
@@ -67,7 +89,7 @@ export function CamposClasesEdificio({
   /** Al pasar de evacuado o centro de evacuados a habitual, cada una necesita una decisión. */
   afectacionesActivas?: Array<{ id: string; motivo: string }>
   onConfirmarHabitual?: (decisiones: Record<string, 'solucionada' | 'sigue'>) => void
-  /** Bloqueos del cambio a habitual; cada uno se muestra bajo su grupo. */
+  /** Bloqueos del cambio a habitual; cada uno se muestra en la opción que bloquean. */
   bloqueos?: Regla[]
   /**
    * Por afectación activa, el motivo por el que no puede figurar como habitual
@@ -84,8 +106,6 @@ export function CamposClasesEdificio({
   // lo decide la hoja: cada afectación se marca solucionada o sigue activa.
   const habitualDecididoEnLaHoja = (estado: string) => estado === 'habitual' && saleDeEvacuacion && afectacionesActivas.length > 0
   const bloqueoEdificioVigente = (estado: string) => (habitualDecididoEnLaHoja(estado) ? null : bloqueoEdificio(respuestas, estado))
-  const motivosClases = evacuado ? [] : motivosDeBloqueo(['normal', 'suspendido'], (e) => bloqueoClases(respuestas, e))
-  const motivosEdificio = motivosDeBloqueo(Object.keys(ETIQUETA_ESTABLECIMIENTO), bloqueoEdificioVigente)
   const decididas = afectacionesActivas.filter((afectacion) => decisiones[afectacion.id] !== undefined).length
   const seguiraSinHabitual = afectacionesActivas.some((afectacion) => decisiones[afectacion.id] === 'sigue' && bloqueosHabitualPorAfectacion[afectacion.id])
   // Sólo se usan las advertencias: no dependen del servicio, que aquí no interesa.
@@ -98,6 +118,11 @@ export function CamposClasesEdificio({
     solucionadas: afectacionesActivas.filter((a) => decisiones[a.id] === 'solucionada').map((a) => a.id),
     sigueActiva: afectacionesActivas.filter((a) => decisiones[a.id] === 'sigue').map((a) => a.id),
   }).advertencias
+
+  const bloqueosEdificioPrevios = bloqueos.filter((regla) => regla.campo === 'edificio')
+  const bloqueosClasesPrevios = bloqueos.filter((regla) => regla.campo === 'clases')
+  const avisosEdificioSueltos = avisosSinOpcion(advertencias, 'edificio', respuestas?.edificio, ESTADOS_EDIFICIO)
+  const avisosClasesSueltos = avisosSinOpcion(advertencias, 'clases', respuestas?.clases, ['normal', 'suspendido'])
 
   function aplicarEdificio(estado: EstadoEstablecimiento) {
     // Evacuado ⇒ sin clases: la combinación contraria es imposible.
@@ -118,64 +143,94 @@ export function CamposClasesEdificio({
     aplicarEdificio(estado)
   }
 
+  // "Cambiar a": aplica el valor que resuelve la advertencia, si la opción está habilitada.
+  function aplicarSugerencia(sugerencia: Sugerencia) {
+    if (sugerencia.campo === 'edificio') {
+      const estado = sugerencia.valor as EstadoEstablecimiento
+      if (bloqueoEdificioVigente(estado) === null) aplicarEdificio(estado)
+      return
+    }
+    if (sugerencia.campo === 'clases' && bloqueoClases(respuestas, sugerencia.valor) === null) {
+      onCambiar({ ...valor, servicioEstado: sugerencia.valor as 'normal' | 'suspendido' })
+    }
+  }
+
+  function ayudaEdificio(estado: EstadoEstablecimiento): ReactNode {
+    const bloqueo = bloqueoEdificioVigente(estado)
+    if (bloqueo) return <MotivoBloqueo id={`bloqueo-edificio-${estado}`} mensaje={bloqueo.mensaje} />
+    return estado === 'habitual' ? mensajesPrevios(bloqueosEdificioPrevios) : undefined
+  }
+
+  function ayudaClases(estado: 'normal' | 'suspendido'): ReactNode {
+    const bloqueo = bloqueoClases(respuestas, estado)
+    if (bloqueo) return <MotivoBloqueo id={`bloqueo-clases-${estado}`} mensaje={bloqueo.mensaje} />
+    return estado === 'normal' ? mensajesPrevios(bloqueosClasesPrevios) : undefined
+  }
+
   return (
     <>
       <fieldset className="afectacion-campos__grupo" disabled={disabled} aria-label="¿Hay clases?">
         <p className="afectacion-campos__legend">¿Hay clases?</p>
         <div className="afectacion-campos__opciones">
           {(['normal', 'suspendido'] as const).map((estado) => (
-            <Opcion
-                key={estado}
-                tipo="radio"
-                name="servicio-educativo"
-                value={estado}
-                checked={valor.servicioEstado === estado}
-                onChange={() => {
-                  if (bloqueoClases(respuestas, estado) === null) onCambiar({ ...valor, servicioEstado: estado })
-                }}
-                disabled={disabled || evacuado || bloqueoClases(respuestas, estado) !== null}
-                label={ETIQUETA_CLASES[estado]}
-                compacta
+            <Fragment key={estado}>
+              <Opcion
+                  tipo="radio"
+                  name="servicio-educativo"
+                  value={estado}
+                  checked={valor.servicioEstado === estado}
+                  onChange={() => {
+                    if (bloqueoClases(respuestas, estado) === null) onCambiar({ ...valor, servicioEstado: estado })
+                  }}
+                  disabled={disabled || evacuado || bloqueoClases(respuestas, estado) !== null}
+                  aria-labelledby={`etiqueta-clases-${estado}`}
+                  aria-describedby={bloqueoClases(respuestas, estado) ? `bloqueo-clases-${estado}` : undefined}
+                  label={<span id={`etiqueta-clases-${estado}`}>{ETIQUETA_CLASES[estado]}</span>}
+                  ayuda={ayudaClases(estado)}
+                  compacta
+                />
+              <AvisosConsistencia
+                reglas={advertencias.filter((regla) => regla.campo === 'clases' && respuestas?.clases === estado)}
+                campos={['clases']}
+                onAplicar={aplicarSugerencia}
               />
+            </Fragment>
           ))}
+          <AvisosConsistencia reglas={avisosClasesSueltos} campos={['clases']} onAplicar={aplicarSugerencia} />
         </div>
         {evacuado ? <p className="afectacion-campos__espera">El edificio está evacuado</p> : null}
-        {motivosClases.map((mensaje) => (
-          <p key={mensaje} className="afectacion-campos__espera">{mensaje}</p>
-        ))}
         {alcanceAlgunas && valor.servicioEstado === 'suspendido' ? (
           <p className="afectacion-campos__espera">Se suspenden las clases solo en las secciones seleccionadas</p>
         ) : null}
-        {bloqueos.filter((regla) => regla.campo === 'clases').map((regla) => (
-          <p key={regla.codigo} className="afectacion-campos__espera">{regla.mensaje}</p>
-        ))}
-        <AvisosConsistencia reglas={advertencias} campos={['clases']} />
       </fieldset>
 
       <fieldset className="afectacion-campos__grupo" disabled={disabled} aria-label="¿Cómo está el edificio?">
         <p className="afectacion-campos__legend">¿Cómo está el edificio?</p>
         <div className="afectacion-campos__opciones">
-          {(Object.keys(ETIQUETA_ESTABLECIMIENTO) as EstadoEstablecimiento[]).map((estado) => (
-            <Opcion
-                key={estado}
-                tipo="radio"
-                name="estado-establecimiento"
-                value={estado}
-                checked={valor.estadoEstablecimiento === estado}
-                onChange={() => elegirEdificio(estado)}
-                disabled={disabled || bloqueoEdificioVigente(estado) !== null}
-                label={ETIQUETA_ESTABLECIMIENTO[estado]}
-                compacta
+          {ESTADOS_EDIFICIO.map((estado) => (
+            <Fragment key={estado}>
+              <Opcion
+                  tipo="radio"
+                  name="estado-establecimiento"
+                  value={estado}
+                  checked={valor.estadoEstablecimiento === estado}
+                  onChange={() => elegirEdificio(estado)}
+                  disabled={disabled || bloqueoEdificioVigente(estado) !== null}
+                  aria-labelledby={`etiqueta-edificio-${estado}`}
+                  aria-describedby={bloqueoEdificioVigente(estado) ? `bloqueo-edificio-${estado}` : undefined}
+                  label={<span id={`etiqueta-edificio-${estado}`}>{ETIQUETA_ESTABLECIMIENTO[estado]}</span>}
+                  ayuda={ayudaEdificio(estado)}
+                  compacta
+                />
+              <AvisosConsistencia
+                reglas={advertencias.filter((regla) => regla.campo === 'edificio' && respuestas?.edificio === estado)}
+                campos={['edificio']}
+                onAplicar={aplicarSugerencia}
               />
+            </Fragment>
           ))}
+          <AvisosConsistencia reglas={avisosEdificioSueltos} campos={['edificio']} onAplicar={aplicarSugerencia} />
         </div>
-        {motivosEdificio.map((mensaje) => (
-          <p key={mensaje} className="afectacion-campos__espera">{mensaje}</p>
-        ))}
-        {bloqueos.filter((regla) => regla.campo === 'edificio').map((regla) => (
-          <p key={regla.codigo} className="afectacion-campos__espera">{regla.mensaje}</p>
-        ))}
-        <AvisosConsistencia reglas={advertencias} campos={['edificio']} />
       </fieldset>
 
       <ConfirmSheet
