@@ -2,8 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, Clock, MapPinOff, X } from 'lucide-react'
-import { TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
+import { Clock, MapPinOff, X } from 'lucide-react'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
@@ -127,97 +126,88 @@ export function VistaPreviaEscuela({
       </div>
 
       {sinUbicacion && (
-        <div className={styles.badgeSinUbicacion} data-testid="badge-sin-ubicacion">
+        <p className={styles.sinUbicacion} data-testid="badge-sin-ubicacion">
           <MapPinOff size={14} aria-hidden="true" />
           <span>Ubicación no disponible en el mapa</span>
-        </div>
+        </p>
       )}
 
-      <div className={styles.section} data-testid="preview-bloque-situacion">
-        <div className={styles.sectionHeader}>
-          <p className={styles.sectionLabel}>Situación reportada (parte operativo)</p>
-        </div>
-
+      <div className={styles.situacion} data-testid="preview-bloque-situacion">
         {severidad && (principal || escuela.gravedad > 0) ? (
-          <div className={styles.situacionActiva}>
-            <div className={styles.situacionHead}>
-              <span className={styles.motivoPrincipal}>
-                {principal ? principal.motivo : (categoriaLabel ?? 'Situación activa')}
-              </span>
-              <span
-                className={styles.severidadBadge}
-                style={{
-                  backgroundColor: colorSeveridad(severidad),
-                  color: TINTA_POR_SEVERIDAD[severidad],
-                }}
-              >
+          <>
+            <span
+              className={styles.franja}
+              style={{ backgroundColor: colorSeveridad(severidad) }}
+              aria-hidden="true"
+            />
+            <div className={styles.situacionCuerpo}>
+              <p className={styles.gravedad}>
                 Gravedad {severidad}
-              </span>
+              </p>
+              <p className={styles.motivo}>
+                {principal ? principal.motivo : (categoriaLabel ?? 'Situación activa')}
+              </p>
+              <p className={styles.situacionMeta}>
+                {afectaciones.length > 0
+                  ? `${afectaciones.length} ${afectaciones.length === 1 ? 'situación abierta' : 'situaciones abiertas'}`
+                  : 'Situación reportada'}
+                {categoriaLabel ? ` · ${categoriaLabel}` : ''}
+                {principal ? ` · desde ${desde(principal.rigeDesde)}` : ''}
+              </p>
             </div>
-            <p className={styles.situacionMeta}>
-              {afectaciones.length > 0
-                ? `${afectaciones.length} ${afectaciones.length === 1 ? 'situación abierta' : 'situaciones abiertas'}`
-                : 'Situación reportada'}
-              {categoriaLabel ? ` · ${categoriaLabel}` : ''}
-              {principal ? ` · desde ${desde(principal.rigeDesde)}` : ''}
-              {escuela.parte
-                ? ` · Edificio: ${ETIQUETA_ESTABLECIMIENTO[escuela.parte.estadoEstablecimiento]}`
-                : ''}
-            </p>
-          </div>
+          </>
         ) : escuela.parte ? (
-          <p className={styles.sinReporteNotice} data-testid="preview-sin-situaciones">
+          <p className={styles.sinReporte} data-testid="preview-sin-situaciones">
             Sin situaciones abiertas reportadas
           </p>
         ) : (
-          <p className={styles.sinReporteNotice} data-testid="preview-sin-reporte">
+          <p className={styles.sinReporte} data-testid="preview-sin-reporte">
             Sin reporte activo (la ausencia de reporte no confirma normalidad)
           </p>
         )}
       </div>
 
-      <div className={styles.section} data-testid="preview-bloque-clases">
-        <p className={styles.sectionLabel}>Clases y vigencia</p>
-        <div className={styles.chipsRow}>
-          <span
-            className={`${styles.chip} ${
-              escuela.clases === 'normal'
-                ? styles.chipOk
-                : escuela.clases === 'parcial'
-                  ? styles.chipAviso
-                  : styles.chipAlerta
-            }`}
-          >
+      <dl className={styles.datos} data-testid="preview-bloque-clases">
+        <div>
+          <dt>Clases</dt>
+          <dd className={escuela.clases === 'normal' ? undefined : escuela.clases === 'parcial' ? styles.aviso : styles.alerta}>
             {ETIQUETA_ESTADO_CLASES[escuela.clases]}
-          </span>
-
-          {etiquetaApoyo && <span className={styles.chip}>{etiquetaApoyo}</span>}
-
-          {escuela.sinActualizar ? (
-            <span
-              className={`${styles.chip} ${styles.chipAviso}`}
-              data-testid="chip-sin-actualizar"
-            >
-              <Clock size={12} aria-hidden="true" />
-              Sin actualizar (&gt;72 h)
-            </span>
-          ) : (escuela.parte || escuela.ultimaNovedad) ? (
-            <span className={`${styles.chip} ${styles.chipOk}`} data-testid="chip-vigente">
-              Vigente
-            </span>
-          ) : null}
-
-          {fechaActualizacion && (
-            <span className={styles.chip}>Actualizado: {fechaActualizacion}</span>
-          )}
+          </dd>
         </div>
-      </div>
+        {etiquetaApoyo && (
+          <div>
+            <dt>Asistencia</dt>
+            <dd>{etiquetaApoyo}</dd>
+          </div>
+        )}
+        {escuela.parte && (
+          <div>
+            <dt>Edificio</dt>
+            <dd>{ETIQUETA_ESTABLECIMIENTO[escuela.parte.estadoEstablecimiento]}</dd>
+          </div>
+        )}
+        {(escuela.sinActualizar || escuela.parte || escuela.ultimaNovedad || fechaActualizacion) && (
+          <div>
+            <dt>Último parte</dt>
+            <dd>
+              {fechaActualizacion}
+              {escuela.sinActualizar ? (
+                <span className={styles.aviso} data-testid="chip-sin-actualizar">
+                  <Clock size={12} aria-hidden="true" />
+                  Sin actualizar (&gt;72 h)
+                </span>
+              ) : (escuela.parte || escuela.ultimaNovedad) ? (
+                <span className={styles.atenuado} data-testid="chip-vigente">Vigente</span>
+              ) : null}
+            </dd>
+          </div>
+        )}
+      </dl>
 
-      <div className={styles.section} data-testid="preview-bloque-riesgo">
-        <p className={styles.sectionLabel}>Exposición y riesgo estimado</p>
-        <div className={styles.riesgoBox}>
-          <p className={styles.riesgoItem}>
-            Antecedentes registrados:{' '}
+      <dl className={styles.datos} data-testid="preview-bloque-riesgo">
+        <div>
+          <dt>Antecedentes</dt>
+          <dd>
             {escuela.situacionesHistoricas === 0
               ? 'Sin situaciones históricas'
               : `${FORMATO_NUMERO.format(escuela.situacionesHistoricas)} ${
@@ -226,14 +216,15 @@ export function VistaPreviaEscuela({
             {escuela.solucionadasRecientes > 0
               ? ` · ${FORMATO_NUMERO.format(escuela.solucionadasRecientes)} solucionada(s) recientemente`
               : ''}
-          </p>
-          {planificacion && planificacion.length > 0 && (
-            <p className={styles.riesgoItem}>
-              {planificacion.map((item) => `${item.etiquetaVista}: ${item.etiquetaNivel}`).join(' · ')}
-            </p>
-          )}
+          </dd>
         </div>
-      </div>
+        {planificacion?.map((item) => (
+          <div key={item.etiquetaVista}>
+            <dt>{item.etiquetaVista}</dt>
+            <dd>{item.etiquetaNivel}</dd>
+          </div>
+        ))}
+      </dl>
 
       <div className={styles.actions}>
         <Link
@@ -242,28 +233,16 @@ export function VistaPreviaEscuela({
           className={styles.primaryCta}
           data-testid="abrir-ficha-completa"
         >
-          <span>Abrir ficha completa</span>
-          <ArrowUpRight size={15} aria-hidden="true" />
+          Abrir ficha completa
         </Link>
-
-        <div className={styles.secondaryActions}>
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            data-testid="cerrar-vista-previa-btn"
-            onClick={onCerrarVistaPrevia}
-          >
-            Cerrar vista previa
-          </button>
-          <button
-            type="button"
-            className={styles.ghostBtn}
-            data-testid="preview-quitar-seleccion"
-            onClick={onQuitarSeleccion}
-          >
-            Quitar selección
-          </button>
-        </div>
+        <button
+          type="button"
+          className={styles.ghostBtn}
+          data-testid="preview-quitar-seleccion"
+          onClick={onQuitarSeleccion}
+        >
+          Quitar selección
+        </button>
       </div>
     </section>
   )

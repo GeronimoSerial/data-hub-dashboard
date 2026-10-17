@@ -101,7 +101,7 @@ describe('VistaPreviaEscuela', () => {
     fireEvent.click(link)
     expect(onAbrir).toHaveBeenCalledTimes(1)
 
-    fireEvent.click(screen.getByTestId('cerrar-vista-previa-btn'))
+    fireEvent.click(screen.getByTestId('cerrar-preview'))
     expect(onCerrar).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByTestId('preview-quitar-seleccion'))
