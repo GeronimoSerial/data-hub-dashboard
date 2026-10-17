@@ -249,7 +249,7 @@ describe('ICONOS_ACCESOS_MAPA', () => {
 })
 
 describe('íconos de cruces de agua', () => {
-  it('usa fondo blanco y trazo y borde semánticos, con paths de Lucide', () => {
+  it('usa relleno semántico, halo y glifo blanco de Lucide', () => {
     const iconos = [
       { svg: SVG_ICONO_CRUCE_PUENTE, color: '#356f23' },
       { svg: SVG_ICONO_CRUCE_VADO, color: '#b45f04' },
@@ -257,19 +257,13 @@ describe('íconos de cruces de agua', () => {
     ]
 
     for (const { svg, color } of iconos) {
-      expect(svg).toContain(`stroke="${color}"`)
-      expect(svg).toContain(`<circle cx="12" cy="12" r="11" fill="#ffffff" stroke="${color}" stroke-width="1" />`)
+      expect(svg).toContain(`fill="${color}"`)
+      expect(svg).toContain('stroke="#ffffff"')
       expect(svg).not.toMatch(/#(?:9ca3af|6b7280|fde68a)/)
     }
 
-    expect(SVG_ICONO_CRUCE_VADO).toContain('<path d="M2 12q2.5 2 5 0t5 0 5 0 5 0" />')
-    expect(SVG_ICONO_CRUCE_VADO).toContain('<path d="M2 19q2.5 2 5 0t5 0 5 0 5 0" />')
-    expect(SVG_ICONO_CRUCE_VADO).toContain('<path d="M2 5q2.5 2 5 0t5 0 5 0 5 0" />')
-    expect(SVG_ICONO_CRUCE_SIN_EVIDENCIA).toContain(
-      '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />',
-    )
-    expect(SVG_ICONO_CRUCE_SIN_EVIDENCIA).toContain('<path d="M12 17h.01" />')
-    expect(SVG_ICONO_CRUCE_SIN_EVIDENCIA).not.toContain('<circle cx="12" cy="12" r="10" />')
+    expect(SVG_ICONO_CRUCE_VADO).toContain('lucide-waves-horizontal')
+    expect(SVG_ICONO_CRUCE_SIN_EVIDENCIA).toContain('lucide-circle-question-mark')
   })
 })
 

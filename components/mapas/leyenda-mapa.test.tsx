@@ -146,7 +146,8 @@ describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
     expect(Array.from(container.querySelectorAll('.map-leyenda__simbolos li')).map((item) => item.textContent)).toEqual([
       'Funcionamiento interrumpido', 'Funcionamiento parcialmente interrumpido', 'Evacuado', 'Usado como centro de evacuados', 'Sin actualizar', 'Solucionada recientemente',
     ])
-    expect(container.querySelector('.map-leyenda__simbolos li:last-child svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelector('.map-leyenda__simbolos li:last-child .map-insignia')).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelector('.map-leyenda__simbolos li:last-child .map-insignia svg')).not.toBeNull()
     expect(container.querySelector('p')).toBeNull()
   })
 

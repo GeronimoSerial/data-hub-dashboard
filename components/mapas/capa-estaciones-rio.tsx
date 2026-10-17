@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
+import { PALETA_ESTADO_ALTURA } from '@/lib/mapas/paleta-tonal'
 import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
 import { textoActualizado, textoAlturaRio } from '@/lib/infraestructura/presentacion/textos-dato'
 
@@ -50,12 +51,7 @@ const INSIGNIAS_ESTACIONES = [
   'estacion-sin-dato',
 ] as const
 
-export const COLOR_ESTADO_ALTURA: Record<EstadoAltura, string> = {
-  evacuacion: '#b91c1c',
-  alerta: '#f59e0b',
-  normal: '#15803d',
-  sin_dato: '#9ca3af',
-}
+export const COLOR_ESTADO_ALTURA: Record<EstadoAltura, string> = PALETA_ESTADO_ALTURA
 
 const ETIQUETA_ESTADO: Record<EstadoAltura, string> = {
   evacuacion: 'Evacuación',

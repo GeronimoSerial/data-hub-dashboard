@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type RefObject,
 } from 'react'
 import MapGL, {
@@ -29,8 +28,8 @@ import type {
   MapGeoJSONFeature,
   SymbolLayerSpecification,
 } from 'maplibre-gl'
-import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson'
-import type { Map as MapLibreMap, PaddingOptions } from 'maplibre-gl'
+import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
+import type { PaddingOptions } from 'maplibre-gl'
 import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 // V8: MapLibre trae sus cadenas de UI (tooltips de controles, aria-labels) en
 // inglés por defecto. `locale` acepta la tabla `{ clave: texto }` de
@@ -47,13 +46,7 @@ const LOCALE_MAPLIBRE_ES: Record<string, string> = {
   'Popup.Close': 'Cerrar',
 }
 import {
-  BookMinus,
-  BookX,
-  Clock,
-  DoorOpen,
-  House,
   MapPin,
-  type LucideIcon,
 } from 'lucide-react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
@@ -120,7 +113,7 @@ import {
   construirRutaAcceso,
   ETIQUETAS_CRUCE,
   DESCRIPCIONES_CRUCE,
-  ICONOS_ACCESOS_MAPA,
+  iconosAccesosMapa,
   claseInundacion,
   type ClasificacionCruce,
 } from '@/lib/mapas/accesos-capas'
@@ -147,8 +140,6 @@ import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import {
   circlePaintEscuelasSinReporte,
-  colorBordeSinReporte,
-  colorEscuelaSinReporte,
   iconoPunto,
   radioEscuelaSinReporte,
   radioPunto,
@@ -170,6 +161,8 @@ import { mantenerPopupsVisibles } from '@/components/mapas/popups-visibles'
 import { puntosRiesgoSobreSituacion, soloConDatoOJuntoLaguna } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   iconosClusterMapa,
+  idImagenBadgeEstado,
+  OFFSET_BADGE_ESQUINA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
   ID_IMAGEN_CLUSTER_EVACUADO,
   ID_IMAGEN_ESCUELA_ALTA,
@@ -178,7 +171,8 @@ import {
   ID_IMAGEN_ESCUELA_MEDIA,
   ID_IMAGEN_ESCUELA_SOLUCIONADA,
 } from '@/lib/mapas/iconos-mapa'
-import { COLORES_MAPA_CLARO, PIXEL_RATIO_ICONOS, coloresMapa } from '@/lib/mapas/colores-mapa'
+import { COLORES_MAPA_CLARO, coloresMapa } from '@/lib/mapas/colores-mapa'
+import { registrarImagenesSvg } from '@/lib/mapas/insignias-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
@@ -207,15 +201,16 @@ const CAPA_PARTES_CLUSTER_MAX_ZOOM = 11
 // V2: badge de estado por escuela individual. Un único ícono Lucide
 // superpuesto al punto de color reemplaza a los anillos/halos apilados que
 // codificaban servicio (grosor/opacidad) y "sin actualizar" (halo gris), y a
-// las formas CSS de evacuación. Se resuelve con <Marker> DOM (no capa
-// MapLibre) y sólo se dibuja sobre escuelas NO agrupadas (`cuesNoAgrupados`),
+// las formas CSS de evacuación. Es una capa `symbol` con el mismo rasterizado
+// y offset que el badge del cluster, y sólo se dibuja sobre escuelas NO
+// agrupadas (`cuesNoAgrupados`),
 // igual que antes hacían los marcadores de evacuación. El ícono comunica QUÉ
 // pasa; el color del punto sigue comunicando CUÁN grave es (nunca una
 // segunda escala de color). Prioridad (una sola por escuela) en
 // `iconoEstadoEscuela` (lib/mapas/severidad-visual.ts).
 const CAPA_BADGE_ESTADO_ID = 'infra-badge-estado'
+const FUENTE_BADGE_ESTADO_ID = 'infra-badge-estado-src'
 const TAMANO_BADGE_ESTADO = 18
-const ICONO_BADGE_ESTADO_TAMANO = 12
 
 // V2: íconos a nivel cluster. A zoom bajo no hay espacio para un badge por
 // escuela, así que el agregado `esCentroEvacuados`/`esEvacuado` de
@@ -351,7 +346,7 @@ function layoutIconoCluster(icono: string): SymbolLayerSpecification['layout'] {
     'icon-image': icono,
     'icon-size': 1,
     'icon-anchor': 'center',
-    'icon-offset': [13, -13],
+    'icon-offset': OFFSET_BADGE_ESQUINA,
     'icon-allow-overlap': true,
     'icon-ignore-placement': true,
   }
@@ -379,8 +374,6 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
 // borde es un trazo mínimo que separa el punto del fondo: tinta oscura en el
 // tema claro y clara en el oscuro, donde `#1c1c1c` se perdía sobre el basemap.
 const anilloColor = (oscuro = false) => coloresMapa(oscuro).tinta
-// El glifo del badge DOM va sobre fondo blanco en ambos temas.
-const COLOR_GLIFO_BADGE = COLORES_MAPA_CLARO.tinta
 
 // Los clusters afectados usan la gravedad más alta presente. Un cluster que
 // contiene sólo escuelas sin reporte usa el fondo y el borde neutros del tema.
@@ -479,15 +472,6 @@ export function filtroIconoEscuelaSolucionada(): FilterSpecification {
   return ['all', ['!', ['has', 'point_count']], ['==', ['get', 'solucionadaReciente'], true]]
 }
 
-// Componente Lucide por nombre lógico devuelto por la función pura `iconoPunto`.
-const ICONOS_BADGE_ESTADO: Record<IconoPunto, LucideIcon> = {
-  sin: BookX,
-  parcial: BookMinus,
-  evacuado: DoorOpen,
-  centro: House,
-  reloj: Clock,
-}
-
 // Texto accesible de cada badge, sin depender de una segunda escala de color.
 const ETIQUETA_ICONO_ESTADO: Record<IconoPunto, string> = {
   sin: ETIQUETA_ESTADO_CLASES.sin,
@@ -508,50 +492,6 @@ const PROPS_POPUP_INFO = {
   closeOnClick: false,
   offset: OFFSET_POPUP_DEPARTAMENTO,
   className: 'mapa-tooltip mapa-tooltip-departamento',
-}
-
-// Badge: círculo claro detrás del ícono para que se lea sobre cualquier color
-// de severidad (incluida Crítica, rojo oscuro). Sólo decorativo: el evento
-// apunta al punto del mapa, no al badge.
-function estiloBadgeEstado(oscuro = false): CSSProperties {
-  return {
-    width: TAMANO_BADGE_ESTADO,
-    height: TAMANO_BADGE_ESTADO,
-    borderRadius: '50%',
-    background: 'rgba(255, 255, 255, 0.95)',
-    border: `1px solid ${anilloColor(oscuro)}`,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    pointerEvents: 'none',
-    boxShadow: `0 1px 3px ${coloresMapa(oscuro).sombra}`,
-  }
-}
-
-// Carga un SVG standalone como imagen de MapLibre. `map.addImage` necesita un
-// HTMLImageElement ya decodificado, así que se espera a `onload` antes de
-// registrarlo. Silencioso ante error: el peor caso es que no aparezca el
-// ícono del cluster, nunca que se rompa el mapa. Los SVG vienen al doble de
-// su tamaño CSS (`pixelRatio`). `reemplazar` actualiza una imagen ya
-// registrada, p. ej. al cambiar de tema sin recargar el estilo (radar).
-function cargarIconoEnMapa(mapa: MapLibreMap, id: string, svg: string, reemplazar = false): Promise<void> {
-  return new Promise((resolve) => {
-    const imagen = new Image()
-    imagen.onload = () => {
-      try {
-        if (!mapa.hasImage(id)) mapa.addImage(id, imagen, { pixelRatio: PIXEL_RATIO_ICONOS })
-        else if (reemplazar) {
-          mapa.removeImage(id)
-          mapa.addImage(id, imagen, { pixelRatio: PIXEL_RATIO_ICONOS })
-        }
-      } catch {
-        // Ícono ya registrado o estilo no listo: se ignora.
-      }
-      resolve()
-    }
-    imagen.onerror = () => resolve()
-    imagen.src = `data:image/svg+xml;base64,${btoa(svg)}`
-  })
 }
 
 // Las capas territoriales adicionales arrancan apagadas. La ruta de acceso
@@ -988,6 +928,14 @@ export default function MapInfraestructuraPage(props: {
     cuesNoAgrupados,
     dataEscuelasMapaVisible,
   ])
+  const fuenteBadgesEstado = useMemo<FeatureCollection<Point, { imagen: string }>>(() => ({
+    type: 'FeatureCollection',
+    features: badgesEstado.map((badge) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [badge.lng, badge.lat] },
+      properties: { imagen: idImagenBadgeEstado(badge.icono) },
+    })),
+  }), [badgesEstado])
 
   const badgesBorradores = useMemo(() => {
     if (cuesNoAgrupados === null || ocultarPartes) return []
@@ -1556,14 +1504,12 @@ export default function MapInfraestructuraPage(props: {
     if (!mapa || typeof mapa.hasImage !== 'function' || typeof mapa.addImage !== 'function') {
       return
     }
-    const pendientes = [...iconosClusterMapa(oscuroRef.current), ...ICONOS_ACCESOS_MAPA]
-      .filter(({ id }) => reemplazar || !mapa.hasImage(id))
-      .map(({ id, svg }) => cargarIconoEnMapa(mapa, id, svg, reemplazar))
-    if (pendientes.length === 0) {
+    const iconos = [...iconosClusterMapa(oscuroRef.current), ...iconosAccesosMapa(oscuroRef.current)]
+    if (!reemplazar && iconos.every(({ id }) => mapa.hasImage(id))) {
       setIconosClusterListos(true)
       return
     }
-    void Promise.all(pendientes).then(() => setIconosClusterListos(true))
+    void registrarImagenesSvg(mapa, iconos, reemplazar).then(() => setIconosClusterListos(true))
   }
 
   const handleMapLoad = useCallback(() => {
@@ -1598,7 +1544,6 @@ export default function MapInfraestructuraPage(props: {
     if (oscuroRef.current === oscuro) return
     oscuroRef.current = oscuro
     registrarIconosCluster(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
   // Encuadre de la ruta seleccionada: sólo si la geometría dibujada tiene un
@@ -1984,33 +1929,30 @@ export default function MapInfraestructuraPage(props: {
             anillos/halos/formas apiladas. Sólo se renderizan las escuelas con
             badge (las normales no agregan ruido).
           */}
-          {!ocultarPartes && badgesEstado.map((badge) => {
-            const Icono = ICONOS_BADGE_ESTADO[badge.icono]
-            const etiqueta = ETIQUETA_ICONO_ESTADO[badge.icono]
-            return (
-              <Marker
-                key={badge.cueAnexo}
-                longitude={badge.lng}
-                latitude={badge.lat}
-                anchor="center"
-                offset={[11, -11]}
-              >
-                <div
-                  data-capa={CAPA_BADGE_ESTADO_ID}
-                  style={estiloBadgeEstado(mode === 'dark')}
-                  role="img"
-                  aria-label={`${etiqueta}: ${badge.nombre}`}
-                  title={`${etiqueta}: ${badge.nombre}`}
-                >
-                  <Icono
-                    size={ICONO_BADGE_ESTADO_TAMANO}
-                    strokeWidth={2}
-                    color={COLOR_GLIFO_BADGE}
-                  />
-                </div>
-              </Marker>
-            )
-          })}
+          {!ocultarPartes && iconosClusterListos && (
+            <Source id={FUENTE_BADGE_ESTADO_ID} type="geojson" data={fuenteBadgesEstado}>
+              <Layer
+                id={CAPA_BADGE_ESTADO_ID}
+                type="symbol"
+                layout={{
+                  'icon-image': ['get', 'imagen'],
+                  'icon-size': 1,
+                  'icon-anchor': 'center',
+                  'icon-offset': OFFSET_BADGE_ESQUINA,
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
+                }}
+              />
+            </Source>
+          )}
+          {/* El canvas no es accesible: el mismo resumen queda como texto para lectores de pantalla. */}
+          {!ocultarPartes && badgesEstado.length > 0 && (
+            <ul className="sr-only" data-capa={CAPA_BADGE_ESTADO_ID}>
+              {badgesEstado.map((badge) => (
+                <li key={badge.cueAnexo}>{`${ETIQUETA_ICONO_ESTADO[badge.icono]}: ${badge.nombre}`}</li>
+              ))}
+            </ul>
+          )}
 
           {badgesBorradores.map((badge) => (
             <Marker

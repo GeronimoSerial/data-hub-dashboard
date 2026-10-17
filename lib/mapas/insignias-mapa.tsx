@@ -3,7 +3,90 @@ import type { LucideIcon } from 'lucide-react';
 import { TriangleAlert, Waves } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { PALETA_ESTADO_ALTURA, RELLENO_ESTACION_SIN_DATO } from './paleta-tonal';
+import { GROSOR_TRAZO_ICONO, PIXEL_RATIO_ICONOS } from './colores-mapa';
+
+// Rasterizador único de íconos del mapa: lo usan las capas `symbol` de
+// MapLibre (estaciones, eventos, escuelas, clusters, accesos) y la leyenda,
+// así ambos muestran exactamente el mismo dibujo. Un solo estilo: forma
+// rellena + halo de 2 px + glifo Lucide real (blanco o tinta), trazo 2.
+
 export type FormaInsignia = 'circulo' | 'cuadrado' | 'triangulo';
+
+/** Glifo: componente de `lucide-react` o, para dibujos propios, trazos SVG en viewBox 24. */
+export type GlifoIcono = LucideIcon | string;
+
+export type OpcionesSvgIconoMapa = {
+  forma: FormaInsignia;
+  relleno: string;
+  icono: GlifoIcono;
+  /** Color del glifo. */
+  colorGlifo?: string;
+  /** Halo que separa la forma del basemap. */
+  halo?: string;
+  /** Contorno interior opcional (p. ej. relleno claro con borde del mismo tono). */
+  anillo?: string;
+  /** Tamaño CSS en px. */
+  tamano?: number;
+  /** Multiplicador de densidad del SVG emitido (2 para `pixelRatio: 2`). */
+  escala?: number;
+};
+
+const VIEWBOX = 32;
+const TAMANO_ICONO = 18;
+const HALO_PX = 2;
+
+function marcaForma(forma: FormaInsignia, extra: string): string {
+  switch (forma) {
+    case 'circulo':
+      return `<circle cx="16" cy="16" r="12" ${extra}/>`;
+    case 'cuadrado':
+      return `<rect x="5" y="5" width="22" height="22" rx="2" ${extra}/>`;
+    case 'triangulo':
+      return `<polygon points="16,4 28,27 4,27" ${extra}/>`;
+  }
+}
+
+function markupGlifo(icono: GlifoIcono, color: string): string {
+  if (typeof icono === 'string') {
+    return (
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${TAMANO_ICONO}" height="${TAMANO_ICONO}" viewBox="0 0 24 24" fill="none" ` +
+      `stroke="${color}" stroke-width="${GROSOR_TRAZO_ICONO}" stroke-linecap="round" stroke-linejoin="round">${icono}</svg>`
+    );
+  }
+  return renderToStaticMarkup(
+    createElement(icono, { size: TAMANO_ICONO, color, strokeWidth: GROSOR_TRAZO_ICONO }),
+  );
+}
+
+/** Standalone SVG string shared by MapLibre images and inline legend markers. */
+export function svgIconoMapa({
+  forma,
+  relleno,
+  icono,
+  colorGlifo = '#ffffff',
+  halo = '#ffffff',
+  anillo,
+  tamano = 32,
+  escala = 1,
+}: OpcionesSvgIconoMapa): string {
+  // El trazo va centrado sobre el borde: el doble del halo deseado, en
+  // unidades del viewBox, deja HALO_PX px CSS por fuera de la forma.
+  const grosorHalo = ((HALO_PX * 2 * VIEWBOX) / tamano).toFixed(2);
+  // Triangle has a wider base at the bottom, so its icon sits slightly lower.
+  const iconoY = (VIEWBOX - TAMANO_ICONO) / 2 + (forma === 'triangulo' ? 2 : 0);
+  const iconoX = (VIEWBOX - TAMANO_ICONO) / 2;
+  const px = tamano * escala;
+  const borde = anillo && anillo !== relleno ? ` stroke="${anillo}" stroke-width="2"` : '';
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 ${VIEWBOX} ${VIEWBOX}">`,
+    marcaForma(forma, `fill="${halo}" stroke="${halo}" stroke-width="${grosorHalo}" stroke-linejoin="round"`),
+    marcaForma(forma, `fill="${relleno}"${borde} stroke-linejoin="round"`),
+    `<svg x="${iconoX}" y="${iconoY}" width="${TAMANO_ICONO}" height="${TAMANO_ICONO}" viewBox="0 0 24 24">${markupGlifo(icono, colorGlifo)}</svg>`,
+    '</svg>',
+  ].join('');
+}
 
 export type OpcionesSvgInsignia = {
   forma: FormaInsignia;
@@ -13,42 +96,8 @@ export type OpcionesSvgInsignia = {
   tamano?: number;
 };
 
-const VIEWBOX = 32;
-const TAMANO_ICONO = 18;
-
-function marcaForma(forma: FormaInsignia, extra: string): string {
-  switch (forma) {
-    case 'circulo':
-      return `<circle cx="16" cy="16" r="12" ${extra}/>`;
-    case 'cuadrado':
-      return `<rect x="5" y="5" width="22" height="22" ${extra}/>`;
-    case 'triangulo':
-      return `<polygon points="16,4 28,27 4,27" ${extra}/>`;
-  }
-}
-
-/** Standalone SVG string shared by MapLibre images and inline legend markers. */
-export function svgInsignia({
-  forma,
-  relleno,
-  anillo,
-  icono,
-  tamano = 32,
-}: OpcionesSvgInsignia): string {
-  const iconoMarkup = renderToStaticMarkup(
-    createElement(icono, { size: TAMANO_ICONO, color: '#ffffff', strokeWidth: 2.5 }),
-  );
-  // Triangle has a wider base at the bottom, so its icon sits slightly lower.
-  const iconoY = (VIEWBOX - TAMANO_ICONO) / 2 + (forma === 'triangulo' ? 2 : 0);
-  const iconoX = (VIEWBOX - TAMANO_ICONO) / 2;
-
-  return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${tamano}" height="${tamano}" viewBox="0 0 ${VIEWBOX} ${VIEWBOX}">`,
-    marcaForma(forma, `fill="${relleno}" stroke="#ffffff" stroke-width="3"`),
-    marcaForma(forma, `fill="none" stroke="${anillo}" stroke-width="3"`),
-    `<svg x="${iconoX}" y="${iconoY}" width="${TAMANO_ICONO}" height="${TAMANO_ICONO}" viewBox="0 0 24 24">${iconoMarkup}</svg>`,
-    '</svg>',
-  ].join('');
+export function svgInsignia({ forma, relleno, anillo, icono, tamano = 32 }: OpcionesSvgInsignia): string {
+  return svgIconoMapa({ forma, relleno, anillo, icono, tamano });
 }
 
 export type DefinicionInsignia = Omit<OpcionesSvgInsignia, 'tamano'> & {
@@ -58,29 +107,29 @@ export type DefinicionInsignia = Omit<OpcionesSvgInsignia, 'tamano'> & {
 export const INSIGNIAS = {
   'estacion-evacuacion': {
     forma: 'cuadrado',
-    relleno: '#b91c1c',
-    anillo: '#b91c1c',
+    relleno: PALETA_ESTADO_ALTURA.evacuacion,
+    anillo: PALETA_ESTADO_ALTURA.evacuacion,
     icono: Waves,
     etiqueta: 'Estación: evacuación',
   },
   'estacion-alerta': {
     forma: 'cuadrado',
-    relleno: '#f59e0b',
-    anillo: '#f59e0b',
+    relleno: PALETA_ESTADO_ALTURA.alerta,
+    anillo: PALETA_ESTADO_ALTURA.alerta,
     icono: Waves,
     etiqueta: 'Estación: alerta',
   },
   'estacion-normal': {
     forma: 'cuadrado',
-    relleno: '#15803d',
-    anillo: '#15803d',
+    relleno: PALETA_ESTADO_ALTURA.normal,
+    anillo: PALETA_ESTADO_ALTURA.normal,
     icono: Waves,
     etiqueta: 'Estación: normal',
   },
   'estacion-sin-dato': {
     forma: 'cuadrado',
-    relleno: '#6b7280',
-    anillo: '#9ca3af',
+    relleno: RELLENO_ESTACION_SIN_DATO,
+    anillo: PALETA_ESTADO_ALTURA.sin_dato,
     icono: Waves,
     etiqueta: 'Estación: sin dato',
   },
@@ -109,49 +158,70 @@ export const INSIGNIAS = {
 
 export type IdInsignia = keyof typeof INSIGNIAS;
 
-type MapaImagenes = {
+export type MapaImagenes = {
   hasImage(id: string): boolean;
   addImage(id: string, img: HTMLImageElement, opts: { pixelRatio: number }): void;
+  removeImage?(id: string): void;
 };
 
 function cargarImagen(svg: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('No se pudo cargar la insignia'));
+    img.onerror = () => reject(new Error('No se pudo cargar el ícono'));
     img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   });
 }
 
-/** Registers every missing marker as a MapLibre image. Never throws; failures are skipped. */
-export async function registrarInsignias(
+/**
+ * Registers SVG images (emitted at `PIXEL_RATIO_ICONOS`x) on the map. Never
+ * throws; failures are skipped. `reemplazar` swaps already registered images,
+ * e.g. after a theme change that keeps the style.
+ */
+export async function registrarImagenesSvg(
   map: MapaImagenes,
-  ids: readonly string[] = Object.keys(INSIGNIAS),
+  imagenes: ReadonlyArray<{ id: string; svg: string }>,
+  reemplazar = false,
 ): Promise<void> {
   await Promise.all(
-    ids.map(async (id) => {
+    imagenes.map(async ({ id, svg }) => {
       try {
-        const definicion = INSIGNIAS[id as IdInsignia];
-        if (!definicion || map.hasImage(id)) return;
-        const img = await cargarImagen(svgInsignia({ ...definicion, tamano: 64 }));
-        // A concurrent call may have registered it while the image loaded.
-        if (map.hasImage(id)) return;
-        map.addImage(id, img, { pixelRatio: 2 });
+        if (map.hasImage(id) && !reemplazar) return;
+        const img = await cargarImagen(svg);
+        if (map.hasImage(id)) {
+          // A concurrent call may have registered it while the image loaded.
+          if (!reemplazar || !map.removeImage) return;
+          map.removeImage(id);
+        }
+        map.addImage(id, img, { pixelRatio: PIXEL_RATIO_ICONOS });
       } catch {
-        // Skip the marker; the map keeps working without it.
+        // Skip the image; the map keeps working without it.
       }
     }),
   );
 }
 
+/** Registers every missing marker as a MapLibre image. Never throws; failures are skipped. */
+export function registrarInsignias(
+  map: MapaImagenes,
+  ids: readonly string[] = Object.keys(INSIGNIAS),
+): Promise<void> {
+  const imagenes = ids.flatMap((id) => {
+    const definicion = INSIGNIAS[id as IdInsignia];
+    if (!definicion) return [];
+    const { etiqueta: _etiqueta, ...opciones } = definicion;
+    return [{ id, svg: svgIconoMapa({ ...opciones, tamano: 32, escala: PIXEL_RATIO_ICONOS }) }];
+  });
+  return registrarImagenesSvg(map, imagenes);
+}
+
+/** Inline marker for the legend, rendered from the same SVG as the map image. */
+export function IconoMapaLeyenda({ svg }: { svg: string }) {
+  return <span className="map-insignia" aria-hidden="true" dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
 /** Inline legend marker rendered from the same SVG used on the map. */
 export function InsigniaLeyenda({ id, tamano = 24 }: { id: IdInsignia; tamano?: number }) {
   const { etiqueta: _etiqueta, ...opciones } = INSIGNIAS[id];
-  return (
-    <span
-      className="map-insignia"
-      aria-hidden="true"
-      dangerouslySetInnerHTML={{ __html: svgInsignia({ ...opciones, tamano }) }}
-    />
-  );
+  return <IconoMapaLeyenda svg={svgInsignia({ ...opciones, tamano })} />;
 }

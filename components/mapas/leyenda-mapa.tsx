@@ -3,7 +3,6 @@
 
 import { useSyncExternalStore } from 'react'
 import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
-import { BookMinus, BookX, Check, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIVEL_PLAN, nivelesLeyendaPlanificacion, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
@@ -11,7 +10,8 @@ import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import type { ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
-import { InsigniaLeyenda, type IdInsignia } from '@/lib/mapas/insignias-mapa'
+import { IconoMapaLeyenda, InsigniaLeyenda, type IdInsignia } from '@/lib/mapas/insignias-mapa'
+import { GLIFO_BADGE_ESTADO, SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, svgBadgeEstado } from '@/lib/mapas/iconos-mapa'
 
 type RegistroEventosLeyenda = Pick<ResumenEventosReportados, 'actualizadoAl'>
 
@@ -21,13 +21,16 @@ type PropsLeyendaMapa =
   | { pestana: 'planificacion'; vista: VistaPlanificacion }
   | { pestana: 'estadisticas' }
 
+// Mismo SVG que rasteriza el mapa, a tamaño de leyenda (16 px, escala 1).
+const svgEstadoLeyenda = (icono: keyof typeof GLIFO_BADGE_ESTADO) => svgBadgeEstado(GLIFO_BADGE_ESTADO[icono], false, 16, 1)
+
 const ESTADOS_LEYENDA = [
-  { Icono: BookX, etiqueta: ETIQUETA_ESTADO_CLASES.sin },
-  { Icono: BookMinus, etiqueta: ETIQUETA_ESTADO_CLASES.parcial },
-  { Icono: DoorOpen, etiqueta: ETIQUETA_ESTADO_CLASES.evacuado },
-  { Icono: House, etiqueta: ETIQUETA_ESTADO_CLASES.centro },
-  { Icono: Clock, etiqueta: 'Sin actualizar' },
-  { Icono: Check, etiqueta: 'Solucionada recientemente' },
+  { svg: svgEstadoLeyenda('sin'), etiqueta: ETIQUETA_ESTADO_CLASES.sin },
+  { svg: svgEstadoLeyenda('parcial'), etiqueta: ETIQUETA_ESTADO_CLASES.parcial },
+  { svg: svgEstadoLeyenda('evacuado'), etiqueta: ETIQUETA_ESTADO_CLASES.evacuado },
+  { svg: svgEstadoLeyenda('centro'), etiqueta: ETIQUETA_ESTADO_CLASES.centro },
+  { svg: svgEstadoLeyenda('reloj'), etiqueta: 'Sin actualizar' },
+  { svg: SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, etiqueta: 'Solucionada recientemente' },
 ] as const
 
 const ESTADOS_ALTURA_RIO: ReadonlyArray<{ id: IdInsignia; etiqueta: string }> = [
@@ -278,9 +281,9 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
           <summary className="map-leyenda__seccion-titulo">Símbolos</summary>
           <div className="map-leyenda__seccion-cuerpo">
             <ul className="map-leyenda__simbolos">
-              {ESTADOS_LEYENDA.map(({ Icono, etiqueta }) => (
+              {ESTADOS_LEYENDA.map(({ svg, etiqueta }) => (
                 <li className="map-leyenda__elemento" key={etiqueta}>
-                  <Icono aria-hidden="true" className="map-leyenda__icono" size={14} />
+                  <IconoMapaLeyenda svg={svg} />
                   <span>{etiqueta}</span>
                 </li>
               ))}
