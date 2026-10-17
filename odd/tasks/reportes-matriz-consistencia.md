@@ -58,7 +58,8 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 - [x] T7 Apply consistency to the /actualizar flow (revisar-situacion): T1 blocks/warnings + "Solucionada / Sigue activa" sheet when moving to habitual.
 
 - [x] T8 Update flow fixes from E2E (2026-10-17, CUE 1800831-00): (a) afectaciones being closed (solucionada/retirada) must not feed consistency rules (client + server); (b) closing the last active afectación while building is evacuado/centro_evacuados or service suspended must offer restoring building to habitual and classes to normal (no dead end).
-- [ ] T9 Mobile: user cannot go back between wizard steps on mobile (new report wizard and update flow).
+- [ ] T9 Sticky bottom action bar (Volver + Continuar always visible) in new wizard and update flow; Volver present from step 2. (Browser back already works: each step is a history entry.)
+- [ ] T10 Actionable recommendations (UX review 2026-10-17, user approved all 5): (1) warnings next to the chosen option with action buttons ("Cambiar a X" / "Está bien así", dismissible); (2) blocked option shows reason inside the option with lock icon, clearer disabled style; (3) severity drawer only when scope actually raises the suggestion above the motive suggestion, copy states before/after; (4) photo recommendation only when photos are enabled; (5) suggested+selected severity option visually distinguishable.
 
 ## Checks
 `npx vitest run <focused files>`, `npx tsc --noEmit`, `npx eslint <changed files>`.
@@ -87,4 +88,4 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
   - (b) Acceso a /actualizar (desbloqueado): `destinoParaParte` (`lib/infraestructura/destino-carga.ts`) devuelve `actualizar` sin afectaciones vigentes cuando el edificio no está en `habitual` o el servicio general no es `normal` (mismo criterio que el panel "Restablecer"); `nuevo` sólo si todo está en la normalidad. Ambas páginas (`actualizar/page.tsx`, `nuevo/page.tsx`) usan el mismo helper; sin cambios de firma (ya reciben el `ParteActual` completo). RED: 5 casos nuevos en `destino-carga.test.ts` fallaban (edificio evacuado/centro_evacuados/parcial, servicio suspendido por establecimiento y por turno). GREEN: `npx vitest run lib/infraestructura/destino-carga.test.ts components/infraestructura/actualizar --maxWorkers=2` 7 archivos, 90 pasan; `app/problematicas/parte/actualizar app/problematicas/parte/nuevo` 15 pasan; `npx tsc --noEmit -p .` sin errores; `npx eslint` sobre los 3 archivos limpio. El caso "sin afectaciones con edificio evacuado muestra Restablecer" en `recorrido-actualizacion.test.tsx` ya pasaba con el componente (cobertura nueva, no RED). Decisión: "parcial" del edificio también rutea a actualizar, porque el panel lo ofrece restablecer.
 
 ## Next step
-T9 (mobile: navegación entre pasos del asistente).
+T10, then T9.
