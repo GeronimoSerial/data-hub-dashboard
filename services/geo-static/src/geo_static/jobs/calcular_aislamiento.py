@@ -412,12 +412,15 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         )
 
         t_agua0 = time.monotonic()
+        nombres_agua: list = []
         geometrias_agua, puntos_ford = construir_geometrias_agua_y_fords_local(
-            str(PBF_LOCAL_DEFAULT), norte, sur, este, oeste
+            str(PBF_LOCAL_DEFAULT), norte, sur, este, oeste,
+            nombres_agua_out=nombres_agua,
         )
         arbol_agua = construir_arbol_agua(geometrias_agua)
         cruces_por_arista = construir_cruces_por_arista(
-            grafo, arbol_agua, geometrias_agua, puntos_ford
+            grafo, arbol_agua, geometrias_agua, puntos_ford,
+            nombres_agua=nombres_agua,
         )
         grafo_seguro = construir_grafo_seguro(grafo, cruces_por_arista)
         print(

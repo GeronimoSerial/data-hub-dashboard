@@ -1127,7 +1127,7 @@ class TestConstruirRedLocal:
         assert llamadas["bounding_box"] == [4.0, 2.0, 3.0, 1.0]
         assert llamadas["network_type"] == "driving"
         assert llamadas["nodes"] is True
-        assert llamadas["extra_attributes"] == ["surface", "bridge", "tunnel", "ford"]
+        assert llamadas["extra_attributes"] == ["surface", "bridge", "tunnel", "ford", "bridge:name"]
         graph_type, osmnx_compatible, _highways = llamadas["to_graph"]
         assert graph_type == "networkx"
         assert osmnx_compatible is True
@@ -1399,7 +1399,7 @@ class TestCorrerSeleccionDeRed:
 
         llamadas_agua = {"n": 0}
 
-        def fake_construir_geometrias_agua_local(pbf_path, norte, sur, este, oeste):
+        def fake_construir_geometrias_agua_local(pbf_path, norte, sur, este, oeste, **kwargs):
             llamadas_agua["n"] += 1
             assert pbf_path == str(pbf_falso)
             return ([], [])
@@ -1597,6 +1597,46 @@ class TestExportarGeometria:
             == CLASIFICACION_SIN_EVIDENCIA
         )
 
+    def test_cruces_exportan_nombre_del_curso_y_del_puente(self, monkeypatch):
+        g, agua = _grafo_multi_departamento_con_cabecera_compartida()
+        for _, _, datos in g.edges(data=True):
+            if datos.get("bridge") not in (None, "no"):
+                datos["bridge:name"] = "Puente Santa Lucia"
+        nombres = [f"Arroyo {i}" for i in range(len(agua))]
+        nombres[-1] = None
+        cruces = construir_cruces_por_arista(
+            g, construir_arbol_agua(agua), agua, nombres_agua=nombres
+        )
+        _patch_nearest_nodes_departamento(monkeypatch, _mapeo_export_departamento())
+        geometrias = []
+        calcular_metricas_departamento(
+            g, g.reverse(copy=False), _escuelas_export_departamento(), "cabecera",
+            cruces_por_arista=cruces, geometrias_out=geometrias,
+        )
+        exportados = [c for geometria in geometrias for c in geometria["cruces"]]
+        assert exportados
+        for cruce in exportados:
+            assert "nombreCurso" in cruce and "nombrePuente" in cruce
+            assert cruce["nombreCurso"] in nombres
+            if cruce["clasificacion"] == CLASIFICACION_PUENTE:
+                assert cruce["nombrePuente"] == "Puente Santa Lucia"
+            else:
+                assert cruce["nombrePuente"] is None
+        assert any(c["nombrePuente"] for c in exportados)
+
+    def test_cruces_sin_nombres_exportan_null(self, monkeypatch):
+        g, grafo_seguro, cruces = self._preparar_departamento(monkeypatch)
+        geometrias = []
+        calcular_metricas_departamento(
+            g, g.reverse(copy=False), _escuelas_export_departamento(), "cabecera",
+            cruces_por_arista=cruces, geometrias_out=geometrias,
+        )
+        for geometria in geometrias:
+            for cruce in geometria["cruces"]:
+                assert cruce["nombreCurso"] is None
+                if cruce["clasificacion"] != CLASIFICACION_PUENTE:
+                    assert cruce["nombrePuente"] is None
+
     def test_con_puente_gana_sobre_ford(self):
         assert clasificar_cruce({"con_puente": True, "es_ford": True}) == CLASIFICACION_PUENTE
 
@@ -1758,3 +1798,20 @@ def test_distancia_via_pavimentada_es_distancia_de_red_a_arista_pavimentada(monk
 
     assert metricas["distancia_cabecera_departamental_m"] == 6500
     assert metricas["distancia_via_pavimentada_m"] == 1500
+
+
+class TestNombresOsm:
+    def test_nombre_puente_prefiere_bridge_name(self):
+        from geo_static.osm_aislamiento import _nombre_puente
+
+        assert _nombre_puente({"bridge:name": "Puente A", "name": "Ruta 12"}) == "Puente A"
+        assert _nombre_puente({"name": "Ruta 12"}) == "Ruta 12"
+        assert _nombre_puente({"name": float("nan")}) is None
+        assert _nombre_puente({}) is None
+
+    def test_nombre_desde_fila_lee_columna_o_tags(self):
+        from geo_static.osm_aislamiento import _nombre_desde_fila
+
+        assert _nombre_desde_fila(pd.Series({"name": "Rio Santa Lucia"})) == "Rio Santa Lucia"
+        assert _nombre_desde_fila(pd.Series({"name": None, "tags": '{"name": "Arroyo X"}'})) == "Arroyo X"
+        assert _nombre_desde_fila(pd.Series({"name": float("nan"), "tags": None})) is None

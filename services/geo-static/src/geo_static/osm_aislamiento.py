@@ -463,6 +463,55 @@ def clasificar_cruce(cruce: dict) -> str:
     return CLASIFICACION_SIN_EVIDENCIA
 
 
+def _cruce_export(cruce: dict, punto_x: float, punto_y: float) -> dict:
+    """Registro de un cruce para el export de geometria. `nombreCurso` es el
+    `name` OSM del curso de agua cruzado y `nombrePuente` el `bridge:name` o
+    `name` de la via cuando el cruce es un puente; ambos null si faltan."""
+    return {
+        "lon": round(punto_x, 6),
+        "lat": round(punto_y, 6),
+        "clasificacion": clasificar_cruce(cruce),
+        "nombreCurso": cruce.get("nombre_curso"),
+        "nombrePuente": cruce.get("nombre_puente"),
+    }
+
+
+def _nombre_puente(datos_arista: dict):
+    """Nombre del puente de una arista: `bridge:name` y despues `name`."""
+    for clave in ("bridge:name", "name"):
+        valor = _primer_valor(datos_arista.get(clave))
+        if isinstance(valor, str) and valor.strip():
+            return valor.strip()
+    return None
+
+
+def _nombre_osm(valor):
+    """Normaliza un `name` OSM a str no vacio o None."""
+    valor = _primer_valor(valor)
+    if isinstance(valor, str) and valor.strip():
+        return valor.strip()
+    return None
+
+
+def _nombre_desde_fila(fila):
+    """`name` de una fila pyrosm: columna propia o, si pyrosm lo dejo dentro
+    de la columna `tags` (dict o JSON), desde ahi."""
+    nombre = _nombre_osm(fila.get("name"))
+    if nombre is not None:
+        return nombre
+    tags = fila.get("tags")
+    if isinstance(tags, str):
+        import json
+
+        try:
+            tags = json.loads(tags)
+        except ValueError:
+            return None
+    if isinstance(tags, dict):
+        return _nombre_osm(tags.get("name"))
+    return None
+
+
 def _coordenadas_ruta(grafo, ruta_nodos) -> list[list[float]]:
     """Coordenadas [lon, lat] de la geometria REALMENTE usada por la ruta.
 
@@ -660,7 +709,7 @@ def construir_red_local(
         custom_filter=filtro,
         filter_type="exclude",
         nodes=True,
-        extra_attributes=["surface", "bridge", "tunnel", "ford"],
+        extra_attributes=["surface", "bridge", "tunnel", "ford", "bridge:name"],
     )
     edges = edges[edges["highway"].isin(HIGHWAYS_CONDUCIBLES)]
     grafo = osm.to_graph(nodes, edges, graph_type="networkx", osmnx_compatible=True)
@@ -759,6 +808,7 @@ def construir_geometrias_agua_y_fords_local(
     bbox_sur: float,
     bbox_este: float,
     bbox_oeste: float,
+    nombres_agua_out: Optional[list] = None,
 ) -> tuple[list, list]:
     """Extrae del extracto local .osm.pbf los cursos de agua (`WATERWAYS_CRUCE`,
     como entidades separadas de la red vial; ver nota de modulo G1-fix2) y los
@@ -771,6 +821,9 @@ def construir_geometrias_agua_y_fords_local(
     - `fords`: geometrias shapely Point/LineString (lon/lat) de las entidades
       cuyo `ford` es "yes". Los ways se incluyen aunque no formen parte de la
       red drive, para no perder evidencia explícita.
+
+    `nombres_agua_out`: lista opcional que recibe, en paralelo a `agua`, el
+    `name` OSM de cada curso de agua (None si falta).
 
     ## N3-G — DOS lecturas, no una
 
@@ -824,6 +877,8 @@ def construir_geometrias_agua_y_fords_local(
             if geometria.geom_type in ("LineString", "MultiLineString"):
                 if _primer_valor(fila.get("waterway")) in WATERWAYS_CRUCE:
                     agua.append(geometria)
+                    if nombres_agua_out is not None:
+                        nombres_agua_out.append(_nombre_desde_fila(fila))
 
     datos_ford = osm.get_data_by_custom_criteria(
         custom_filter={"ford": ["yes"]},
@@ -1006,6 +1061,7 @@ def construir_cruces_por_arista(
     geometrias_agua,
     puntos_ford=None,
     tolerancia_ford_m: float = TOLERANCIA_FORD_M,
+    nombres_agua=None,
 ) -> dict:
     """Clasifica, UNA sola vez para todo el grafo (no por escuela), que
     aristas viales cruzan un curso de agua y con que tipo de cruce.
@@ -1022,6 +1078,10 @@ def construir_cruces_por_arista(
     (los nodos `ford=yes` no llegan a los tags de la arista ni a los atributos
     del nodo del grafo, ver nota de modulo N3-D). Con `None`/vacio el
     comportamiento es EXACTAMENTE el anterior.
+
+    `nombres_agua`: lista opcional paralela a `geometrias_agua` con el `name`
+    de cada curso; alimenta `nombre_curso`. `nombre_puente` sale de la arista
+    (`bridge:name`/`name`) solo cuando el cruce es un puente.
     """
     cruces: dict = {}
     if not geometrias_agua:
@@ -1060,8 +1120,15 @@ def construir_cruces_por_arista(
 
     for (u, v, k, datos, idx_agua, punto), cerca in zip(entradas, es_ford_cerca):
         explicito = _tiene_ford(datos, grafo, u, v) or cerca
+        con_puente = _tiene_puente(datos)
         cruces.setdefault((u, v, k), []).append(
             {
+                "nombre_curso": (
+                    nombres_agua[idx_agua]
+                    if nombres_agua is not None and idx_agua < len(nombres_agua)
+                    else None
+                ),
+                "nombre_puente": _nombre_puente(datos) if con_puente else None,
                 "agua_idx": idx_agua,
                 "punto": (punto.x, punto.y),
                 "con_puente": _tiene_puente(datos),
@@ -1453,11 +1520,7 @@ def _evaluar_escuela_arista(
             cruces_sin_evidencia += 1
         punto_x, punto_y = cruce["punto"]
         cruces_export.append(
-            {
-                "lon": round(punto_x, 6),
-                "lat": round(punto_y, 6),
-                "clasificacion": clasificar_cruce(cruce),
-            }
+            _cruce_export(cruce, punto_x, punto_y)
         )
 
     for a, b in zip(ruta_desde_exit[:-1], ruta_desde_exit[1:]):
@@ -1482,11 +1545,7 @@ def _evaluar_escuela_arista(
                     cruces_sin_evidencia += 1
                 punto_x, punto_y = cruce["punto"]
                 cruces_export.append(
-                    {
-                        "lon": round(punto_x, 6),
-                        "lat": round(punto_y, 6),
-                        "clasificacion": clasificar_cruce(cruce),
-                    }
+                    _cruce_export(cruce, punto_x, punto_y)
                 )
 
     cruces_count = cruces_con_puente + cruces_con_vado + cruces_sin_evidencia
@@ -1964,11 +2023,7 @@ def calcular_metricas_departamento(
                     if geometrias_out is not None:
                         punto_x, punto_y = cruce["punto"]
                         cruces_export.append(
-                            {
-                                "lon": round(punto_x, 6),
-                                "lat": round(punto_y, 6),
-                                "clasificacion": clasificar_cruce(cruce),
-                            }
+                            _cruce_export(cruce, punto_x, punto_y)
                         )
 
         cruces_count = cruces_con_puente + cruces_con_vado + cruces_sin_evidencia
