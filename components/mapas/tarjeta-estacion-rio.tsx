@@ -76,6 +76,10 @@ function textoVariacion(v: Variacion | null): string {
   return `${metros(v.deltaM, true)}${pct}`
 }
 
+/** Threshold label at the right end of its dashed line, e.g. "Alerta 7,90". */
+const etiquetaUmbral = (valor: number, tipo: 'alerta' | 'evacuacion') =>
+  `${tipo === 'alerta' ? 'Alerta' : 'Evac.'} ${valor.toFixed(2).replace('.', ',')}`
+
 function textoDistancia(d: number | null): string {
   if (d === null) return 'Sin umbral'
   return d > 0 ? `Faltan ${metros(d)}` : `Superada por ${metros(-d)}`
@@ -181,24 +185,26 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
         {serie.tipo === 'lista' && !trazo && <p className="tarjeta-estacion__sub">Pocas lecturas para graficar.</p>}
         {trazo && (
           <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} width="100%" height={ALTO} role="img" aria-label={`Altura del río en los últimos ${DIAS_SERIE} días`}>
-            {trazo.lineas.map((linea) => (
-              <line
-                key={linea.valor}
-                className={linea.valor === lectura?.evacuacionM ? 'tarjeta-estacion__umbral--evacuacion' : 'tarjeta-estacion__umbral--alerta'}
-                x1={0}
-                x2={ANCHO}
-                y1={linea.y}
-                y2={linea.y}
-              />
-            ))}
+            {trazo.lineas.map((linea) => {
+              const tipo = linea.valor === lectura?.evacuacionM ? 'evacuacion' : 'alerta'
+              // Two close thresholds: the alert label goes under its line so both read.
+              const pegadas = trazo.lineas.length === 2 && Math.abs(trazo.lineas[0].y - trazo.lineas[1].y) < 12
+              const yTexto = tipo === 'alerta' && pegadas ? linea.y + 10 : linea.y - 3
+              return (
+                <g key={linea.valor}>
+                  <line className={`tarjeta-estacion__umbral--${tipo}`} x1={0} x2={ANCHO} y1={linea.y} y2={linea.y} />
+                  <text className={`tarjeta-estacion__umbral-texto tarjeta-estacion__umbral-texto--${tipo}`} x={ANCHO} y={yTexto} textAnchor="end">
+                    {etiquetaUmbral(linea.valor, tipo)}
+                  </text>
+                </g>
+              )
+            })}
             <path className="tarjeta-estacion__linea" d={trazo.path} />
             <circle className="tarjeta-estacion__punto" cx={trazo.ultimo.x} cy={trazo.ultimo.y} r={3} />
           </svg>
         )}
         <figcaption className="tarjeta-estacion__sub">
           Últimos {DIAS_SERIE} días
-          {lectura?.alertaM != null && <span className="tarjeta-estacion__clave tarjeta-estacion__clave--alerta">Alerta</span>}
-          {lectura?.evacuacionM != null && <span className="tarjeta-estacion__clave tarjeta-estacion__clave--evacuacion">Evacuación</span>}
         </figcaption>
       </figure>
 

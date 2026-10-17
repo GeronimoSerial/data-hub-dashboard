@@ -40,7 +40,7 @@ type EstacionRio = {
 type PuntoEstacion = {
   type: 'Feature'
   geometry: { type: 'Point'; coordinates: [number, number] }
-  properties: { estacionId: string; nombre: string; estado: EstadoAltura; vencida: boolean; insignia: string; marcador: string; texto: string; nivel: string; edad: string; lado: LadoPastilla }
+  properties: { estacionId: string; nombre: string; estado: EstadoAltura; vencida: boolean; insignia: string; marcador: string; texto: string; nivel: string; lado: LadoPastilla }
 }
 
 export const CAPA_ESTACIONES_RIO_ID = 'estaciones-rio-simbolos'
@@ -125,13 +125,11 @@ export function estadoEnMapa(estacion: EstacionRio): { estado: EstadoAltura; ven
   return { estado: vencida ? (estacion.estadoUltimaLectura ?? estacion.estado) : estacion.estado, vencida }
 }
 
-// Stale chips stay fully opaque in their state colour; only a smaller age suffix
-// ("· hace 26 h") marks them.
-function textoPastilla(estacion: EstacionRio, vencida: boolean): { nivel: string; edad: string } {
-  if (!estacion.lectura) return { nivel: 's/d', edad: '' }
-  const nivel = `${FLECHA_TENDENCIA[estacion.tendencia]}${formatoMetros(estacion.lectura.lecturaM)}`
-  const horas = estacion.horasDesdeLectura
-  return { nivel, edad: vencida && horas != null ? ` · hace ${horas} h` : '' }
+// Chips show only the level; a stale reading keeps its last level and the click
+// card carries its age.
+function textoPastilla(estacion: EstacionRio): string {
+  if (!estacion.lectura) return 's/d'
+  return `${FLECHA_TENDENCIA[estacion.tendencia]}${formatoMetros(estacion.lectura.lecturaM)}`
 }
 
 function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; features: PuntoEstacion[] } {
@@ -140,7 +138,7 @@ function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; featu
     type: 'FeatureCollection',
     features: estaciones.map((estacion) => {
       const { estado, vencida } = estadoEnMapa(estacion)
-      const { nivel, edad } = textoPastilla(estacion, vencida)
+      const nivel = textoPastilla(estacion)
       return {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [estacion.lon, estacion.lat] },
@@ -153,8 +151,7 @@ function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; featu
         marcador: idMarcadorEstacion(estado),
         lado: lados.get(estacion.estacionId) ?? 'derecha',
         nivel,
-        edad,
-        texto: `${nivel}${edad}`,
+        texto: nivel,
       },
     }}),
   }
@@ -293,7 +290,7 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
               // Every level is always shown: overlaps between neighbours are solved by
               // placement (see ladosPastilla), never by collision hiding.
               'icon-allow-overlap': true,
-              'text-field': ['format', ['get', 'nivel'], {}, ['get', 'edad'], { 'font-scale': 0.82 }],
+              'text-field': ['get', 'nivel'],
               'text-size': ['interpolate', ['linear'], ['zoom'], 6, 10, 9, 11],
               // MapLibre defaults to Open Sans, which the OpenFreeMap glyph server does not serve.
               'text-font': ['Noto Sans Bold'],

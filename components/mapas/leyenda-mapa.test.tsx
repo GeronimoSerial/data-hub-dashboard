@@ -82,14 +82,13 @@ describe('LeyendaMapa · altura de ríos', () => {
     expect(leyenda.getByText('Alerta')).toBeTruthy()
     expect(leyenda.getByText('Normal')).toBeTruthy()
     expect(leyenda.getByText('Sin dato')).toBeTruthy()
-    // Four states plus the stale-reading sample.
-    expect(container.querySelectorAll('.map-pastilla-estacion')).toHaveLength(5)
-    expect(container.querySelectorAll('.map-estacion-leyenda .map-insignia')).toHaveLength(5)
-    expect(leyenda.getByText('Lectura de más de 18 h')).toBeTruthy()
-    expect(leyenda.getByText('3,00 m · hace 26 h')).toBeTruthy()
-    expect(leyenda.getAllByText('3,00 m')).toHaveLength(3)
-    expect(leyenda.getByText('s/d')).toBeTruthy()
-    expect(leyenda.getAllByRole('note').some((nota) => nota.getAttribute('title') === 'Una lectura de más de 18 h conserva su color y muestra su antigüedad.')).toBe(true)
+    // One pin per state, label only: no level chips and no stale-reading sample.
+    expect(container.querySelectorAll('.map-leyenda__situacion > li')).toHaveLength(4)
+    expect(container.querySelectorAll('.map-pastilla-estacion')).toHaveLength(0)
+    expect(leyenda.queryByText('Lectura de más de 18 h')).toBeNull()
+    expect(leyenda.queryByText('3,00 m')).toBeNull()
+    expect(leyenda.queryByText('s/d')).toBeNull()
+    expect(leyenda.getAllByRole('note').some((nota) => nota.getAttribute('title') === 'Una lectura de más de 18 h conserva su último nivel; su antigüedad está en la ficha de la estación.')).toBe(true)
   })
 
   it('no muestra la escala de altura de ríos cuando la capa está apagada', () => {

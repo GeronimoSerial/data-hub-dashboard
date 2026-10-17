@@ -313,16 +313,3 @@ export async function registrarSimbolosEstacion(map: MapaImagenesEstirables): Pr
     }),
   );
 }
-
-/** Legend sample: the station pin plus a level chip with the map colours. */
-export function PastillaEstacionLeyenda({ estado, texto }: { estado: EstadoEstacion; texto: string }) {
-  const { fondo, borde, texto: color } = ESTILO_PASTILLA_ESTACION[estado];
-  return (
-    <span className="map-estacion-leyenda" aria-hidden="true">
-      <IconoMapaLeyenda svg={svgMarcadorEstacion(estado, 0.6)} />
-      <span className="map-pastilla-estacion" style={{ background: fondo, borderColor: borde, color }}>
-        {texto}
-      </span>
-    </span>
-  );
-}

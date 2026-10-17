@@ -550,9 +550,16 @@ export function paddingEncuadre(): PaddingOptions {
   let left = PADDING_ENCUADRE_BASE + (ancho > 720 ? ANCHO_COLUMNA_IZQUIERDA : 0)
   let right = PADDING_ENCUADRE_BASE + (ancho > 720 ? 296 : 0)
 
-  // Recorte proporcional: si el padding se come más del 80% de la ventana no
-  // queda caja para el bbox y MapLibre tira. Se achica el par culpable (el
-  // horizontal o el vertical) en la misma proporción, no a pelo.
+  return recortarPadding({ top, bottom, left, right }, ancho, alto)
+}
+
+/**
+ * Recorte proporcional: si el padding se come más del 80% de la ventana no
+ * queda caja para el bbox y MapLibre tira. Se achica el par culpable (el
+ * horizontal o el vertical) en la misma proporción, no a pelo.
+ */
+function recortarPadding(padding: { top: number; bottom: number; left: number; right: number }, ancho: number, alto: number): PaddingOptions {
+  let { top, bottom, left, right } = padding
   const topeAncho = ancho * MAX_PADDING_ANCHO
   if (left + right > topeAncho) {
     const factor = topeAncho / (left + right)
@@ -565,8 +572,35 @@ export function paddingEncuadre(): PaddingOptions {
     top = Math.round(top * factor)
     bottom = Math.round(bottom * factor)
   }
-
   return { top, bottom, left, right }
+}
+
+// Encuadre de la provincia (inicial, "Ver provincia" y salida de un departamento).
+// En escritorio (>720 px) la columna "Situación actual" ocupa hasta x≈440, la
+// leyenda (desde 1280 px, abierta) hasta 360 px del borde derecho y la barra de
+// filtros cubre ~60 px arriba. Sin ese margen las estaciones de los bordes
+// quedaban tapadas.
+const PADDING_PROVINCIA_BASE = 24
+const PADDING_PROVINCIA_TOP = 80
+const PADDING_PROVINCIA_IZQUIERDA = 456
+const PADDING_PROVINCIA_DERECHA = 360
+
+/** Padding de `fitBounds` para la provincia completa, esquivando los paneles flotantes. */
+export function paddingProvincia(): PaddingOptions {
+  if (typeof window === 'undefined') return { top: PADDING_PROVINCIA_BASE, bottom: PADDING_PROVINCIA_BASE, left: PADDING_PROVINCIA_BASE, right: PADDING_PROVINCIA_BASE }
+  const ancho = window.innerWidth
+  const alto = window.innerHeight
+  if (ancho <= 720) return { top: PADDING_PROVINCIA_BASE, bottom: PADDING_PROVINCIA_BASE, left: PADDING_PROVINCIA_BASE, right: PADDING_PROVINCIA_BASE }
+  return recortarPadding(
+    {
+      top: PADDING_PROVINCIA_TOP,
+      bottom: PADDING_PROVINCIA_BASE,
+      left: PADDING_PROVINCIA_IZQUIERDA,
+      right: ancho >= 1280 ? PADDING_PROVINCIA_DERECHA : PADDING_PROVINCIA_BASE,
+    },
+    ancho,
+    alto,
+  )
 }
 
 function extraerEscuelasConCoordenadas(escuelas: EscuelaMapaPadron[]) {
@@ -1451,7 +1485,7 @@ export default function MapInfraestructuraPage(props: {
       if (limites) {
         mapRef.current?.getMap()?.fitBounds(limites, { padding: paddingEncuadre(), duration: 600 })
       } else {
-        mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
+        mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: paddingProvincia() })
       }
     }
   }, [
@@ -1620,7 +1654,7 @@ export default function MapInfraestructuraPage(props: {
           // demasiado cerca; acá el encuadre sale del bbox real del GeoJSON.
           initialViewState={{
             bounds: LIMITES_CORRIENTES,
-            fitBoundsOptions: { padding: 24 },
+            fitBoundsOptions: { padding: paddingProvincia() },
           }}
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
@@ -1651,7 +1685,7 @@ export default function MapInfraestructuraPage(props: {
           <Fragment key={versionEstilo}>
           <ControlesZoom
             mapRef={mapRef}
-            onVerProvincia={() => mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: paddingEncuadre(), duration: 600 })}
+            onVerProvincia={() => mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: paddingProvincia(), duration: 600 })}
           />
           {/* La atribución compacta deja libre la esquina inferior derecha del mapa. */}
           <AttributionControl key={radarActivo ? 'radar-attribution' : 'map-attribution'} position={radarActivo ? 'top-right' : 'bottom-right'} compact />
@@ -2156,7 +2190,7 @@ export default function MapInfraestructuraPage(props: {
                       entradaPuntosPendiente.current = true
                       setPuntosVisibles(false)
                       setDepartamentoSeleccionado(null)
-                      mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
+                      mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: paddingProvincia() })
                     }}
                   />
                 )}

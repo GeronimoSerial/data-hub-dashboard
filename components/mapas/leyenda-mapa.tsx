@@ -10,7 +10,7 @@ import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import type { ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
-import { IconoMapaLeyenda, InsigniaLeyenda, PastillaEstacionLeyenda, type EstadoEstacion, type IdInsignia } from '@/lib/mapas/insignias-mapa'
+import { IconoMapaLeyenda, InsigniaLeyenda, svgMarcadorEstacion, type EstadoEstacion, type IdInsignia } from '@/lib/mapas/insignias-mapa'
 import { GLIFO_BADGE_ESTADO, SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, svgBadgeEstado } from '@/lib/mapas/iconos-mapa'
 
 type RegistroEventosLeyenda = Pick<ResumenEventosReportados, 'actualizadoAl'>
@@ -119,18 +119,14 @@ function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObs
       <div className="map-leyenda__seccion-cuerpo">
         {estacionesRio && (
           <div className="map-leyenda__bloque">
-            <b className="map-leyenda__subtitulo">Estaciones de Prefectura<NotaInfo texto="Una lectura de más de 18 h conserva su color y muestra su antigüedad." /></b>
+            <b className="map-leyenda__subtitulo">Estaciones de Prefectura<NotaInfo texto="Una lectura de más de 18 h conserva su último nivel; su antigüedad está en la ficha de la estación." /></b>
             <ul className="map-leyenda__situacion">
               {ESTADOS_ALTURA_RIO.map(({ estado, etiqueta }) => (
                 <li className="map-leyenda__elemento" key={estado}>
-                  <PastillaEstacionLeyenda estado={estado} texto={estado === 'sin_dato' ? 's/d' : '3,00 m'} />
+                  <IconoMapaLeyenda svg={svgMarcadorEstacion(estado, 0.6)} />
                   <span>{etiqueta}</span>
                 </li>
               ))}
-              <li className="map-leyenda__elemento map-leyenda__elemento--vencida">
-                <PastillaEstacionLeyenda estado="normal" texto="3,00 m · hace 26 h" />
-                <span>Lectura de más de 18 h</span>
-              </li>
             </ul>
           </div>
         )}

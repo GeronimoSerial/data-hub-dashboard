@@ -134,7 +134,7 @@ describe('CapaEstacionesRio', () => {
     expect(registrarSimbolosEstacion).toHaveBeenCalledWith(expect.anything())
   })
 
-  it('con lectura vencida pinta el último estado conocido, opaco y con su antigüedad', async () => {
+  it('con lectura vencida pinta el último estado conocido, opaco y sólo el nivel en el chip', async () => {
     const vencida = {
       ...ESTACIONES[0],
       estacionId: 'goya',
@@ -156,12 +156,11 @@ describe('CapaEstacionesRio', () => {
       vencida: true,
       insignia: 'estacion-pastilla-alerta',
       marcador: 'estacion-marcador-alerta',
-      texto: '3,70 m · hace 26 h',
-      edad: ' · hace 26 h',
+      texto: '3,70 m',
     })
     // Sin lectura de verdad: sigue s/d y sin marca de vencida.
     expect(data.features[1].properties).toMatchObject({ estado: 'sin_dato', vencida: false, texto: 's/d' })
-    // Never translucent: staleness is only the age suffix.
+    // Never translucent: staleness is shown only in the click card.
     expect(capaPorId('estaciones-rio-simbolos').paint?.['icon-opacity']).toBeUndefined()
     expect(capaPorId('estaciones-rio-pastillas').paint['icon-opacity']).toBeUndefined()
   })
@@ -189,7 +188,7 @@ describe('CapaEstacionesRio', () => {
     expect(pastilla.minzoom).toBeUndefined()
     expect(pastilla.layout['icon-text-fit']).toBe('both')
     expect(pastilla.layout['icon-image']).toEqual(['get', 'insignia'])
-    expect(pastilla.layout['text-field']).toEqual(['format', ['get', 'nivel'], {}, ['get', 'edad'], { 'font-scale': 0.82 }])
+    expect(pastilla.layout['text-field']).toEqual(['get', 'nivel'])
   })
 
   it('pide la fuente Noto Sans que sirve el basemap (no el Open Sans por defecto de MapLibre)', async () => {
