@@ -181,11 +181,11 @@ describe('PanelRadar', () => {
 
     const grupo = screen.getByRole('group', { name: 'Variable meteorológica' })
     expect(within(grupo).getAllByRole('button')).toHaveLength(4)
-    expect(within(grupo).getByRole('button', { name: 'Lluvia' })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(grupo).getByRole('button', { name: 'Probabilidad' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(grupo).getByRole('button', { name: 'Lluvia (mm)' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(grupo).getByRole('button', { name: 'Lluvia (prob)' })).toHaveAttribute('aria-pressed', 'false')
     expect(within(grupo).getByRole('button', { name: 'Viento' })).toHaveAttribute('aria-pressed', 'false')
     expect(within(grupo).getByRole('button', { name: 'Granizo' })).toHaveAttribute('aria-pressed', 'false')
-    expect(within(grupo).queryByRole('button', { name: /\(mm\)|\(estimado\)/ })).not.toBeInTheDocument()
+    expect(within(grupo).queryByRole('button', { name: /\(estimado\)/ })).not.toBeInTheDocument()
     expect(grupo).toHaveClass('map-seg--2')
 
     fireEvent.click(within(grupo).getByRole('button', { name: 'Viento' }))
