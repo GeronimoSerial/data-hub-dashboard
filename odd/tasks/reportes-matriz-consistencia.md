@@ -54,7 +54,8 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 - [x] T3 Server validation in `app/api/problematicas/parte/route.ts` using the same module (400 on blocked).
 - [x] T4 Severity drawer on scope "toda" + stronger visual for suggested option.
 - [x] T5 Move photo selector to step 1 + Crítica emphasis.
-- [ ] T6 Active state: preload in wizard, contradiction resolution, server check.
+- [x] T6 Active state: pure rule + server 409 check (b10c34f). Wizard preload dropped: new-report wizard redirects to /actualizar when afectaciones are active (user decision 2026-10-17).
+- [ ] T7 Apply consistency to the /actualizar flow (revisar-situacion): T1 blocks/warnings + "Solucionada / Sigue activa" sheet when moving to habitual.
 
 ## Checks
 `npx vitest run <focused files>`, `npx tsc --noEmit`, `npx eslint <changed files>`.
@@ -73,5 +74,4 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 - T6 PENDIENTE (asistente): (a) prop opcional `estadoActual` en `ReporteInicialForm` y tarjeta "Situación actual" en paso 1 (`situacion-actual-resumen.tsx`); (b) hoja de decisiones en paso 3 al elegir "habitual" bajo la condición (ConfirmSheet, "Solucionada" / "Sigue activa" por afectación) que bloquea Continuar y envía `afectacionesSolucionadas`/`afectacionesConfirmadas`; (c) test de componente de la hoja. HALLAZGO: el asistente lo monta sólo `app/problematicas/parte/nuevo/page.tsx`, que redirige a `/actualizar` cuando hay afectaciones vigentes; la precarga desde `cargar/page.tsx` (fuera de su lugar, esa página no monta el asistente) no llega al formulario. Hace falta añadir `app/problematicas/parte/nuevo/page.tsx` y `components/infraestructura/nuevo-parte-contenido.tsx` a las superficies permitidas para cablear la precarga.
 
 ## Next step
-T6 asistente (ver arriba). T4 (falta el estilo de `.opcion--sugerido` en `app/globals.css`); T6 (server check for active state) can start from `primerBloqueoParte` and `evaluarConsistenciaParte`.
-- T4b: CSS rule for `.opcion--sugerido` added to app/globals.css by parent.
+T7.
