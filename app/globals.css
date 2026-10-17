@@ -347,6 +347,7 @@
 .pronostico-escuela__dias { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
 .pronostico-escuela__dias span { display: grid; gap: 2px; min-width: 0; padding: 4px 2px; background: var(--fill); border-radius: var(--r-sm, 4px); color: var(--ink-soft); text-align: center; font-size: var(--t-micro); }
 .pronostico-escuela__dias b { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.map-radar-riesgo__desglose { margin: 0; color: var(--ink-soft); font-size: var(--t-small); }
 .map-radar-riesgo__ver-mas { justify-self: start; padding: var(--s-2) 0; color: var(--ink-soft); font-size: var(--t-small); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; cursor: pointer; }
 .map-radar-riesgo__ver-mas:hover { color: var(--ink); }
 .map-radar-riesgo__reserva { display: grid; place-items: center; min-height: 12rem; border-radius: var(--r-md); background: var(--fill); }

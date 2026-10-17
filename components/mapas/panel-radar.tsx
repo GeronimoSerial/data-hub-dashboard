@@ -56,6 +56,7 @@ const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 const HORIZONTES: HorizonteMotor[] = [24, 72, 240]
 // La lista arranca corta para que "Alertas del SMN" quede a la vista sin scroll.
 const ESCUELAS_VISIBLES = 3
+const NIVELES_RESUMEN = ['muy_alto', 'alto', 'moderado'] as const
 
 export function PanelRadar(props: PanelRadarProps): JSX.Element {
   const { horizonte, disponibles, onHorizonte, variable, onVariable, puntos, escuelas, cargando, error, onSeleccionar, alertas, pronostico } = props
@@ -108,14 +109,19 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
             <>
               <div className="map-sitact__kpis" aria-label="Resumen de riesgo">
                 <div className="map-sitact__kpi map-sitact__kpi--resaltado">
-                  <strong>{FORMATO_NUMERO.format(resumen.escuelasAltas)}</strong>
-                  <span>Riesgo alto o muy alto</span>
+                  <strong>{FORMATO_NUMERO.format(resumen.escuelas)}</strong>
+                  <span>Escuelas en riesgo</span>
                 </div>
                 <div className="map-sitact__kpi">
-                  <strong>{FORMATO_NUMERO.format(resumen.alumnosAltos)}</strong>
+                  <strong>{FORMATO_NUMERO.format(resumen.alumnos)}</strong>
                   <span>Alumnos en esas escuelas</span>
                 </div>
               </div>
+              {resumen.escuelas > 0 && (
+                <p className="map-radar-riesgo__desglose">
+                  {NIVELES_RESUMEN.map((nivel) => `${FORMATO_NUMERO.format(resumen.porNivel[nivel])} ${ETIQUETA_NIVEL_RIESGO[nivel].toLowerCase()}`).join(' · ')}
+                </p>
+              )}
               {lista.length > 0 ? (
                 <div className="map-sitact__lista">
                   {listaVisible.map(({ escuela, nivel, amenaza }) => {

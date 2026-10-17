@@ -62,12 +62,24 @@ export function escuelasPorRiesgo(
   )
 }
 
-export function resumirRiesgo(lista: EscuelaEnRiesgo[]): { escuelasAltas: number; alumnosAltos: number } {
-  const altas = lista.filter(({ nivel }) => nivel === 'muy_alto' || nivel === 'alto')
-  return {
-    escuelasAltas: altas.length,
-    alumnosAltos: altas.reduce((total, { escuela }) => total + escuela.alumnos, 0),
+export interface ResumenRiesgo {
+  escuelas: number
+  alumnos: number
+  porNivel: Record<Exclude<NivelRiesgo, 'bajo'>, number>
+}
+
+// Cuenta desde riesgo moderado: es el mismo umbral que pinta la capa del mapa.
+export function resumirRiesgo(lista: EscuelaEnRiesgo[]): ResumenRiesgo {
+  const porNivel = { muy_alto: 0, alto: 0, moderado: 0 }
+  let escuelas = 0
+  let alumnos = 0
+  for (const { escuela, nivel } of lista) {
+    if (nivel === 'bajo') continue
+    porNivel[nivel] += 1
+    escuelas += 1
+    alumnos += escuela.alumnos
   }
+  return { escuelas, alumnos, porNivel }
 }
 
 export function colorRiesgo(nivel: NivelRiesgo): string {

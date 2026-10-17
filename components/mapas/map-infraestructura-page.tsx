@@ -1319,6 +1319,12 @@ export default function MapInfraestructuraPage(props: {
     [panelLateral],
   )
 
+  // Lista de riesgo, marcadores del radar y bloque territorial seleccionan por CUE.
+  const seleccionarPorCue = useCallback((cue: string) => {
+    const escuela = escuelasPorCue.get(cue) ?? dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
+    if (escuela) handleSeleccionarEscuelaBuscada(escuela)
+  }, [escuelasPorCue, dataEscuelasMapa, handleSeleccionarEscuelaBuscada])
+
   // El cluster también es clickeable para hacer zoom de expansión.
   const capasInteractivas = [
     CAPA_PARTES_ID,
@@ -2005,10 +2011,7 @@ export default function MapInfraestructuraPage(props: {
             resumen={resumenRadar}
             alertasResaltadas={alertasResaltadas}
             onVerAlertas={irAAlertasRadar}
-            onSeleccionarEscuela={(cue) => {
-              const escuela = escuelasPorCue.get(cue) ?? dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
-              if (escuela) handleSeleccionarEscuelaBuscada(escuela)
-            }}
+            onSeleccionarEscuela={seleccionarPorCue}
           />
 
           {/* Popup del CRUCE DE AGUA clickeado sobre la ruta (ver `handleClick`).
@@ -2183,10 +2186,7 @@ export default function MapInfraestructuraPage(props: {
                 escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
                 cargando={radarLoading && radarData === null}
                 error={radarError}
-                onSeleccionar={(cue) => {
-                  const escuela = escuelasPorCue.get(cue) ?? dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
-                  if (escuela) handleSeleccionarEscuelaBuscada(escuela)
-                }}
+                onSeleccionar={seleccionarPorCue}
                 alertas={{
                   grupos: gruposAlertasRadar,
                   cargando: resumenRadar === null && !resumenRadarError,
@@ -2205,10 +2205,7 @@ export default function MapInfraestructuraPage(props: {
                 territorio={territorio}
                 cargando={contextoTerritorial && territorioLoading}
                 error={territorioError !== null}
-                onSeleccionar={(cue) => {
-                  const escuela = escuelasPorCue.get(cue) ?? dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
-                  if (escuela) handleSeleccionarEscuelaBuscada(escuela)
-                }}
+                onSeleccionar={seleccionarPorCue}
               />
             )}
             capas={(

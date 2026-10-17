@@ -59,9 +59,13 @@ describe('escuelasPorRiesgo', () => {
 })
 
 describe('resumirRiesgo', () => {
-  it('cuenta y suma alumnos sólo para riesgos alto y muy alto', () => {
+  it('cuenta escuelas y alumnos desde riesgo moderado, con el desglose por nivel', () => {
     const resultado = escuelasPorRiesgo(puntos, padrón, 24)
-    expect(resumirRiesgo(resultado)).toEqual({ escuelasAltas: 3, alumnosAltos: 180 })
+    expect(resumirRiesgo(resultado)).toEqual({
+      escuelas: 4,
+      alumnos: 260,
+      porNivel: { muy_alto: 1, alto: 2, moderado: 1 },
+    })
   })
 })
 
