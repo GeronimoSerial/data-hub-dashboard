@@ -303,6 +303,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
   const fotosPreparadasRef = useRef<readonly FotoPreparada[]>([])
   const [cantidadFotos, setCantidadFotos] = useState(0)
+  const [fotosHabilitadas, setFotosHabilitadas] = useState(false)
   const movimientoFotosConfirmadoRef = useRef<string | null>(null)
   const claveEvidenciaRef = useRef(crypto.randomUUID())
   const [borradorPendiente, setBorradorPendiente] = useState<BorradorParteNuevo | null>(null)
@@ -980,7 +981,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           opcionales: la nota de Crítica es una recomendación.
         */}
         <div hidden={paso !== 1}>
-          {afectacion.severidad === 'Crítica' ? (
+          {fotosHabilitadas && afectacion.severidad === 'Crítica' ? (
             <p className="aviso-badge" role="note">
               <span className="aviso-badge__sello">Recomendado</span>
               <span className="aviso-badge__texto">Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.</span>
@@ -989,6 +990,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           <SelectorFotosFormulario
             draftId={`${DRAFT_ID_PREFIX}${cue}`}
             onCountChange={setCantidadFotos}
+            onHabilitadaChange={setFotosHabilitadas}
             onPreparadasChange={(fotos) => {
               fotosPreparadasRef.current = fotos
               if (movimientoFotosConfirmadoRef.current) vincularFotosPreparadas(movimientoFotosConfirmadoRef.current)

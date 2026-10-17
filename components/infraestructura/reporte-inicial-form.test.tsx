@@ -226,8 +226,9 @@ describe('ReporteInicialForm', () => {
     renderFormulario({ turnos: unaSeccion })
     completarQuePaso()
     continuar()
+    // Inundación ya sugiere Crítica para toda la escuela: no hay recomendación que mostrar.
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Mantener Alta' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
     continuar()
     fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -1357,5 +1358,23 @@ describe('foto del reporte en el primer paso (T5)', () => {
     fireEvent.click(hoja.getByRole('button', { name: 'Confirmar' }))
     expect(await screen.findByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeInTheDocument()
     expect(await selectorFotos()).toBeInTheDocument()
+  })
+
+  it('sin fotos habilitadas no recomienda adjuntar una foto aunque la severidad sea Crítica', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      if (String(input).includes('/borradores/config')) return jsonResponse({ borradoresSync: false, fotos: false, mapaBorradores: false })
+      return jsonResponse({ ok: true, movimientoId: 'm1' }, 201)
+    })
+    renderFormulario()
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    confirmarCategoria()
+    fireEvent.click(screen.getByRole('radio', { name: 'Inundación' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Crítica' }))
+    const hoja = within(screen.getByRole('dialog'))
+    fireEvent.click(hoja.getAllByRole('radio')[0])
+    fireEvent.click(hoja.getByRole('button', { name: 'Confirmar' }))
+
+    await act(async () => { await new Promise((resolver) => setTimeout(resolver, 0)) })
+    expect(screen.queryByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeNull()
   })
 })
