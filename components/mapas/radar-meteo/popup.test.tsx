@@ -26,9 +26,9 @@ describe('PopupRadar', () => {
     expect(within(dialogo).getByRole('button', { name: 'Cerrar' })).toBeInTheDocument()
 
     const filas = Object.fromEntries(Array.from(dialogo.querySelectorAll('dt')).map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]))
-    expect(Object.keys(filas)).toEqual(['Probabilidad', 'Lluvia', 'Viento', 'Granizo'])
-    expect(filas.Probabilidad).toBe('40 %')
-    expect(filas.Lluvia).toBe('2.3 mm/h')
+    expect(Object.keys(filas)).toEqual(['Lluvia (prob)', 'Lluvia (mm)', 'Viento', 'Granizo'])
+    expect(filas['Lluvia (prob)']).toBe('40 %')
+    expect(filas['Lluvia (mm)']).toBe('2.3 mm/h')
     expect(filas.Viento).toContain('18 km/h')
     expect(filas.Viento).toContain('ráfaga 35 km/h')
     expect(filas.Granizo).toBe('0')

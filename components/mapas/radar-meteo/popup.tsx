@@ -45,9 +45,9 @@ export function PopupRadar({
       <button type="button" className="map-cerrar" aria-label="Cerrar" onClick={onClose}><X aria-hidden="true" /></button>
       <strong>{cell.lat.toFixed(2)}, {cell.lon.toFixed(2)}</strong>
       <dl className="radar-meteo-popup-filas">
-        <dt>Probabilidad</dt>
+        <dt>Lluvia (prob)</dt>
         <dd>{probability ?? '—'} %</dd>
-        <dt>Lluvia</dt>
+        <dt>Lluvia (mm)</dt>
         <dd>{amount} {paso === 3 ? 'mm en 3 h' : 'mm/h'}</dd>
         <dt>Viento</dt>
         <dd>

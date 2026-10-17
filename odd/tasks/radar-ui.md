@@ -18,9 +18,9 @@ Make the radar tab of `/mapas/infraestructura` readable on desktop: one overlay 
 ## Tasks
 - [x] T1 Labels: rename variable labels in `selector.tsx` / `leyenda.tsx` and tests. (9fc2ab0)
 - [x] T2 Sidebar: stable layout, no late block jump; single heading hierarchy; fix lone granizo card.
-- [ ] T3 Overlays: one overlay open at a time (IMERG popup vs point forecast vs school card); point forecast never covers the sidebar or legends; z-index via tokens.
-- [ ] T4 Legends + timeline: separate legends from timeline; one-line axis labels with day only at midnight, ticks at 00/12 local, no clipping.
-- [ ] T5 Visual check with Playwright screenshots (desktop) after each task.
+- [x] T3 Overlays: one overlay open at a time (IMERG popup vs point forecast vs school card); point forecast never covers the sidebar or legends; z-index via tokens.
+- [x] T4 Legends + timeline: separate legends from timeline; one-line axis labels with day only at midnight, ticks at 00/12 local, no clipping.
+- [x] T5 Visual check with Playwright screenshots (desktop) after each task.
 
 ## Checks
 - `pnpm vitest run components/mapas` per task; full suite at close (3 known failures in `smn-alertas.test.ts`, missing XML fixtures).
@@ -30,3 +30,7 @@ Make the radar tab of `/mapas/infraestructura` readable on desktop: one overlay 
 - Exploration done.
 - Decision (user, 2026-10-17): keep the risk block in the radar sidebar. It is a different risk: computed and probabilistic, unlike "Situación actual" (director reports). T2 must label it as such and reserve its space so it never jumps in late.
 - Route: delegated direct (one writer, T1-T4 touch 5+ non-trivial files).
+- Commits: T1 `9fc2ab0`, T2 `a14c22b`, T4 `83311a3` (parallel worktree), T3 `65dcdc0` (parallel worktree, globals.css conflict resolved by hand), follow-up fix: popup rows use Lluvia (prob)/(mm), sidebar test updated for legend token.
+- Overlay rule: in radar mode a map click opens only the point forecast; IMERG layer stays, its popup is off (`sinPopup`). School card and point forecast close each other.
+- Checks: `pnpm vitest run components/mapas lib/infraestructura/radar-meteo app/typography-scale.test.ts` 548/548; `pnpm tsc --noEmit` 0. Desktop screenshots via tunnel reviewed.
+- Pending: legends are side by side (true stacking needs a shared container); "Situación actual" legend floats over the map; eslint error in ficha-escuela-pagina.tsx belongs to foreign uncommitted work.
