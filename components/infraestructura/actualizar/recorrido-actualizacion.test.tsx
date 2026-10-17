@@ -409,6 +409,15 @@ describe('RecorridoActualizacion: cierre de la última afectación (T8)', () => 
     expect(cuerpo.servicioEducativo.estado).toBe('normal')
   })
 
+  it('sin afectaciones vigentes con el edificio evacuado ofrece restablecer el funcionamiento', async () => {
+    stubConEstado({ ...estadoConEvacuacion(), afectaciones: [] })
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    const restablecer = screen.getByRole('region', { name: 'Restablecer el funcionamiento' })
+    expect(within(restablecer).getByRole('radio', { name: 'Sin daños / en uso normal' })).toBeChecked()
+    expect(within(restablecer).getByRole('radio', { name: 'Sí, con normalidad' })).toBeChecked()
+  })
+
   it('tras cerrar la última afectación ofrece restablecer el edificio y las clases, ya preseleccionados', async () => {
     const fetchMock = stubConEstado(estadoConEvacuacion())
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)

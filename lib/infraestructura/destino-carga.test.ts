@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { destinoParaParte, enlaceDestino } from './destino-carga'
 import type { ParteActual } from './parte-consulta'
-import type { Afectacion, Parte } from './trayectoria-tipos'
+import type { Afectacion, Parte, ServicioAlcance } from './trayectoria-tipos'
 
 const AHORA = '2026-09-18T10:00:00.000Z'
 const FUTURO = '2099-01-01T00:00:00.000Z'
 
-function parte(): Parte {
+function parte(overrides: Partial<Parte> = {}): Parte {
   return {
     id: 'parte-1',
     periodoId: 'periodo-1',
@@ -16,7 +16,21 @@ function parte(): Parte {
     estadoEstablecimientoRigeDesde: AHORA,
     creadaEn: AHORA,
     actualizadaEn: AHORA,
+    ...overrides,
   } as Parte
+}
+
+function alcanceEstablecimiento(estado: ServicioAlcance['estado']): ServicioAlcance {
+  return {
+    id: 'sa-1',
+    parteId: 'parte-1',
+    tipo: 'establecimiento',
+    referenciaId: null,
+    estado,
+    creadaEn: AHORA,
+    rigeDesde: AHORA,
+    retiradaEn: null,
+  } as ServicioAlcance
 }
 
 function afectacion(overrides: Partial<Afectacion> = {}): Afectacion {
@@ -74,6 +88,45 @@ describe('destinoParaParte', () => {
 
   it('con al menos una afectación vigente manda a actualizar', () => {
     expect(destinoParaParte(actual({ afectaciones: [afectacion()] }))).toBe('actualizar')
+  })
+
+  it('sin afectaciones y con el edificio en la normalidad manda al primer reporte', () => {
+    expect(destinoParaParte(actual())).toBe('nuevo')
+  })
+
+  // Tras cerrar la última afectación, un edificio o servicio fuera de lo normal
+  // no puede quedar sin salida: /actualizar es la pantalla que ofrece restablecerlo.
+  it.each(['evacuado', 'centro_evacuados', 'parcial'] as const)(
+    'sin afectaciones con el edificio %s manda a actualizar para restablecerlo',
+    (estadoEstablecimiento) => {
+      expect(destinoParaParte(actual({ parte: parte({ estadoEstablecimiento }) }))).toBe('actualizar')
+    },
+  )
+
+  it('sin afectaciones con el servicio suspendido en todo el establecimiento manda a actualizar', () => {
+    const destino = destinoParaParte(
+      actual({ servicioAlcance: [alcanceEstablecimiento('suspendido')] }),
+    )
+
+    expect(destino).toBe('actualizar')
+  })
+
+  it('sin afectaciones con el servicio suspendido en un turno manda a actualizar', () => {
+    const destino = destinoParaParte(
+      actual({
+        servicioAlcance: [{ ...alcanceEstablecimiento('suspendido'), tipo: 'turno', referenciaId: 'Mañana' } as ServicioAlcance],
+      }),
+    )
+
+    expect(destino).toBe('actualizar')
+  })
+
+  it('sin afectaciones y con el servicio suspendido ya retirado manda al primer reporte', () => {
+    const destino = destinoParaParte(
+      actual({ servicioAlcance: [{ ...alcanceEstablecimiento('suspendido'), retiradaEn: AHORA } as ServicioAlcance] }),
+    )
+
+    expect(destino).toBe('nuevo')
   })
 })
 
