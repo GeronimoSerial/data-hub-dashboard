@@ -226,6 +226,7 @@ describe('ReporteInicialForm', () => {
     completarQuePaso()
     continuar()
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mantener Alta' }))
     continuar()
     fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
     expect(screen.queryByRole('dialog')).toBeNull()

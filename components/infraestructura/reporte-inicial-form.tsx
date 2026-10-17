@@ -977,6 +977,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             borrador={afectacion}
             idPrefijo="reporte"
             turnos={turnos}
+            motivos={motivos}
             usaSelectorEstablecimiento
             ocultarPreguntaAlcance
             descripcionObligatoria={evaluarConsistenciaParte({ ...respuestasConsistencia, descripcion: '' }).bloqueos.some((r) => r.campo === 'descripcion')}

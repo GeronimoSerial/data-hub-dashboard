@@ -74,3 +74,22 @@ describe('CampoGravedad', () => {
     expect(valor().severidad).toBe('Crítica')
   })
 })
+
+describe('CampoGravedad — opción sugerida (T4b)', () => {
+  it('marca visualmente la opción sugerida sin cambiar la selección', () => {
+    render(<Controlado sugerida="Alta" />)
+
+    const sugerida = screen.getByRole('radio', { name: 'Alta' }).closest('.opcion')
+    const otra = screen.getByRole('radio', { name: 'Media' }).closest('.opcion')
+
+    expect(sugerida).toHaveClass('opcion--sugerido')
+    expect(otra).not.toHaveClass('opcion--sugerido')
+    expect(screen.getByRole('radio', { name: 'Alta' })).not.toBeChecked()
+  })
+
+  it('la opción sugerida conserva su insignia de texto', () => {
+    const { container } = render(<Controlado sugerida="Alta" />)
+
+    expect(container.querySelector('.badge-sugerido')).toHaveTextContent('Sugerido')
+  })
+})

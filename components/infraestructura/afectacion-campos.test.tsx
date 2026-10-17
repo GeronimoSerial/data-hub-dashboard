@@ -246,3 +246,94 @@ describe('CamposQuePaso — criterios de severidad', () => {
     }))
   })
 })
+
+/*
+  T4a: al pasar el alcance a "toda la escuela", si el motivo sugiere una
+  gravedad mayor que la elegida, se recomienda subirla (una vez por cambio).
+*/
+describe('CamposAQuienAfecta — recomendación de gravedad por alcance (T4a)', () => {
+  const motivosAlcance: MotivoRow[] = [
+    { id: 'sin-energia-o-agua', nombre: 'Sin energía o agua', categoria: 'establecimiento', orden: 20 },
+    { id: 'tormenta-severa', nombre: 'Tormenta severa', categoria: 'establecimiento', orden: 30 },
+  ]
+
+  function renderAlcance({
+    motivo,
+    severidad,
+    onChange = vi.fn(),
+  }: {
+    motivo: string
+    severidad: AfectacionBorrador['severidad']
+    onChange?: (siguiente: AfectacionBorrador) => void
+  }) {
+    const borrador: AfectacionBorrador = {
+      ...crearAfectacionVacia('a1'),
+      categoria: 'establecimiento',
+      motivo,
+      severidad,
+      alcanceEstablecimiento: 'algunas',
+      secciones: [TURNOS_FIXTURE[0].niveles[0].secciones[0].geSectionId],
+    }
+    render(
+      <CamposAQuienAfecta
+        borrador={borrador}
+        idPrefijo="reporte"
+        turnos={TURNOS_FIXTURE}
+        usaSelectorEstablecimiento
+        motivos={motivosAlcance}
+        onChange={onChange}
+      />,
+    )
+    return { onChange }
+  }
+
+  it('abre la recomendación cuando el alcance pasa a toda y la sugerida es mayor', () => {
+    renderAlcance({ motivo: 'Sin energía o agua', severidad: 'Media' })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+
+    const dialogo = screen.getByRole('dialog')
+    expect(dialogo).toHaveTextContent('Recomendamos subir la gravedad')
+    expect(dialogo).toHaveTextContent('Afecta a toda la escuela: sugerimos gravedad Alta.')
+    expect(screen.getByRole('button', { name: 'Cambiar a Alta' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mantener Media' })).toBeInTheDocument()
+  })
+
+  it('no abre la recomendación si la gravedad elegida ya es igual o mayor', () => {
+    renderAlcance({ motivo: 'Sin energía o agua', severidad: 'Alta' })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('"Cambiar a" aplica la gravedad sugerida', () => {
+    const { onChange } = renderAlcance({ motivo: 'Sin energía o agua', severidad: 'Media' })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar a Alta' }))
+
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ severidad: 'Alta' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('"Mantener" conserva la gravedad elegida', () => {
+    const { onChange } = renderAlcance({ motivo: 'Sin energía o agua', severidad: 'Media' })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mantener Media' }))
+
+    expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ severidad: 'Alta' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('subir a Crítica exige justificarla antes de aplicarla', () => {
+    const { onChange } = renderAlcance({ motivo: 'Tormenta severa', severidad: 'Media' })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar a Crítica' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('¿Por qué es crítica?')
+    expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ severidad: 'Crítica' }))
+  })
+})
