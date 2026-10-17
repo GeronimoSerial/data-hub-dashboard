@@ -125,6 +125,24 @@ describe('VistaPreviaEscuela', () => {
     expect(screen.queryByText('Afecta al establecimiento')).toBeNull()
   })
 
+  it('muestra alumnos afectados sobre la matrícula y su porcentaje', () => {
+    const escuela = { ...crearEscuelaBase(), clases: 'sin' as const, alumnosSinClases: 124 }
+
+    render(
+      <VistaPreviaEscuela
+        escuela={escuela}
+        urlFichaCompleta="/mapas/infraestructura/escuelas/1800123-00"
+        onCerrarVistaPrevia={vi.fn()}
+        onQuitarSeleccion={vi.fn()}
+      />,
+    )
+
+    const impacto = screen.getByTestId('preview-bloque-impacto')
+    expect(impacto).toHaveTextContent('124alumnos afectados')
+    expect(impacto).toHaveTextContent('40% de 310 alumnos de la escuela')
+    expect(screen.getByRole('img', { name: '40% de la matrícula afectada' })).toBeInTheDocument()
+  })
+
   it('distingue explícitamente la ausencia de reporte activo de la normalidad confirmada', () => {
     const escuela = crearEscuelaBase()
 

@@ -21,7 +21,6 @@ export interface VistaPreviaEscuelaProps {
     ubicacionDisponible?: boolean
   }
   urlFichaCompleta: string
-  planificacion?: { etiquetaVista: string; etiquetaNivel: string }[] | null
   onCerrarVistaPrevia: () => void
   onQuitarSeleccion: () => void
   onAbrirFichaCompleta?: () => void
@@ -50,7 +49,6 @@ function formatearFechaCorta(iso: string | null): string | null {
 export function VistaPreviaEscuela({
   escuela,
   urlFichaCompleta,
-  planificacion = null,
   onCerrarVistaPrevia,
   onQuitarSeleccion,
   onAbrirFichaCompleta,
@@ -79,6 +77,15 @@ export function VistaPreviaEscuela({
     : etiquetaCategoria(escuela.categoriaPrincipal)
 
   const etiquetaApoyo = etiquetaApoyoMapa(escuela.clases, escuela.apoyo)
+  // Per-situation totals can overlap, so the affected count never exceeds enrolment.
+  const alumnosAfectados = Math.min(
+    escuela.alumnos,
+    Math.max(escuela.parte?.alumnosDelHecho ?? 0, escuela.alumnosSinClases),
+  )
+  const porcentajeAfectados = escuela.alumnos > 0
+    ? Math.round((alumnosAfectados / escuela.alumnos) * 100)
+    : 0
+  const seccionesAfectadas = escuela.parte?.seccionesAlcanzadas ?? 0
   const fechaActualizacion = formatearFechaCorta(
     escuela.parte?.actualizadaEn ?? escuela.ultimaNovedad,
   )
@@ -114,7 +121,6 @@ export function VistaPreviaEscuela({
             CUE {escuela.cueAnexo}
             {ubicacionTexto ? ` · ${ubicacionTexto}` : ''}
             {escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''}
-            {` · ${FORMATO_NUMERO.format(escuela.alumnos)} ${escuela.alumnos === 1 ? 'alumno' : 'alumnos'}`}
           </p>
         </div>
         <button
@@ -176,11 +182,41 @@ export function VistaPreviaEscuela({
         )}
       </div>
 
+      {escuela.alumnos > 0 && (
+        <div className={styles.impacto} data-testid="preview-bloque-impacto">
+          <p className={styles.impactoCifra}>
+            <strong>{FORMATO_NUMERO.format(alumnosAfectados)}</strong>
+            <span>{alumnosAfectados === 1 ? 'alumno afectado' : 'alumnos afectados'}</span>
+          </p>
+          <p className={styles.impactoContexto}>
+            {porcentajeAfectados}% de {FORMATO_NUMERO.format(escuela.alumnos)} {escuela.alumnos === 1 ? 'alumno' : 'alumnos'} de la escuela
+          </p>
+          <div
+            className={styles.proporcion}
+            role="img"
+            aria-label={`${porcentajeAfectados}% de la matrícula afectada`}
+          >
+            <span style={{ width: `${porcentajeAfectados}%` }} />
+          </div>
+        </div>
+      )}
+
       <dl className={styles.datos} data-testid="preview-bloque-clases">
+        {seccionesAfectadas > 0 && (
+          <div>
+            <dt>Secciones afectadas</dt>
+            <dd>{FORMATO_NUMERO.format(seccionesAfectadas)}</dd>
+          </div>
+        )}
         <div>
           <dt>Clases</dt>
           <dd className={escuela.clases === 'normal' ? undefined : escuela.clases === 'parcial' ? styles.aviso : styles.alerta}>
             {ETIQUETA_ESTADO_CLASES[escuela.clases]}
+            {escuela.alumnosSinClases > 0 && (
+              <span className={styles.atenuado}>
+                {FORMATO_NUMERO.format(escuela.alumnosSinClases)} sin clases
+              </span>
+            )}
           </dd>
         </div>
         {etiquetaApoyo && (
@@ -211,10 +247,7 @@ export function VistaPreviaEscuela({
             </dd>
           </div>
         )}
-      </dl>
-
-      <dl className={styles.datos} data-testid="preview-bloque-riesgo">
-        <div>
+        <div data-testid="preview-bloque-riesgo">
           <dt>Antecedentes</dt>
           <dd>
             {escuela.situacionesHistoricas === 0
@@ -222,17 +255,13 @@ export function VistaPreviaEscuela({
               : `${FORMATO_NUMERO.format(escuela.situacionesHistoricas)} ${
                   escuela.situacionesHistoricas === 1 ? 'situación histórica' : 'situaciones históricas'
                 }`}
-            {escuela.solucionadasRecientes > 0
-              ? ` · ${FORMATO_NUMERO.format(escuela.solucionadasRecientes)} solucionada(s) recientemente`
-              : ''}
+            {escuela.solucionadasRecientes > 0 && (
+              <span className={styles.atenuado}>
+                {FORMATO_NUMERO.format(escuela.solucionadasRecientes)} solucionada(s) en 15 días
+              </span>
+            )}
           </dd>
         </div>
-        {planificacion?.map((item) => (
-          <div key={item.etiquetaVista}>
-            <dt>{item.etiquetaVista}</dt>
-            <dd>{item.etiquetaNivel}</dd>
-          </div>
-        ))}
       </dl>
 
       <div className={styles.actions}>

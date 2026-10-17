@@ -182,7 +182,6 @@ export function FichaEscuelaPanel({
           ubicacionDisponible: escuela.lat !== null && escuela.lon !== null,
         }}
         urlFichaCompleta={urlFichaCompleta}
-        planificacion={planificacion}
         onCerrarVistaPrevia={onCerrar}
         onQuitarSeleccion={onQuitarSeleccion ?? (() => {})}
         onAbrirFichaCompleta={onAbrirFichaCompleta}
