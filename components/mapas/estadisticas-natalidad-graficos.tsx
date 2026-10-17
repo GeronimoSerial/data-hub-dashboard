@@ -99,7 +99,7 @@ function estiloTooltip(paleta: Paleta): CSSProperties {
 
 const ESTILO_ETIQUETA_TOOLTIP: CSSProperties = { fontFamily: 'inherit', fontWeight: 600, color: 'inherit', marginBottom: 2 }
 const ESTILO_DATO_TOOLTIP: CSSProperties = { fontFamily: 'inherit' }
-const CLASE_EJE = { fill: 'var(--ink-soft)', fontSize: 11 }
+const CLASE_EJE = { fill: 'var(--ink-soft)', fontSize: 13 }
 
 function propsEje(paleta: Paleta) {
   return {
@@ -147,7 +147,7 @@ function etiquetaValorMiles(
 ): React.ReactElement | undefined {
   if (x == null || y == null || value == null) return undefined
   return (
-    <text x={x} y={Number(y) - 6} textAnchor="middle" fontSize={11} fill="currentColor">
+    <text x={x} y={Number(y) - 6} textAnchor="middle" fontSize={13} fill="currentColor">
       {typeof value === 'number' ? formatearMiles(value) : value}
     </text>
   )
@@ -326,7 +326,7 @@ function GraficoBarrasHorizontales<T extends FilaBarraHorizontal>(
                 <text
                   x={Number(x) + Number(width ?? 0) + 4}
                   y={Number(y) + Number(height ?? 0) / 2 + 3}
-                  fontSize={11}
+                  fontSize={13}
                   fontWeight={esSeleccionado ? 700 : 400}
                   fill={hayResaltado && !esSeleccionado ? paleta.texto : 'currentColor'}
                   opacity={hayResaltado && !esSeleccionado ? OPACIDAD_ATENUADA + 0.3 : 1}
@@ -343,7 +343,7 @@ function GraficoBarrasHorizontales<T extends FilaBarraHorizontal>(
               value={props.referencia.etiqueta}
               position="insideTopRight"
               fill={paleta.texto}
-              fontSize={11}
+              fontSize={13}
             />
           </ReferenceLine>
         )}

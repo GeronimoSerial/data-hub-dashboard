@@ -29,7 +29,7 @@
 .title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.125rem;
+  font-size: var(--t-h3);
   font-weight: 700;
   line-height: 1.25;
   letter-spacing: -0.01em;
@@ -207,4 +207,54 @@
 
 @media (prefers-reduced-motion: reduce) {
   .card * { transition: none !important; }
+}
+
+/* Headline impact: affected students against enrolment. */
+.impacto {
+  display: grid;
+  gap: var(--s-1);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+.impactoCifra {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.impactoCifra strong {
+  font-family: var(--font-display);
+  font-size: var(--t-h1);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.impactoCifra span {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.impactoContexto {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.proporcion {
+  height: 4px;
+  margin-top: var(--s-1);
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--band);
+}
+
+.proporcion span {
+  display: block;
+  height: 100%;
+  background: var(--danger-ink);
 }

@@ -33,7 +33,7 @@
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--ink);
-  font-size: 0.85rem;
+  font-size: var(--t-micro);
   font-weight: 600;
   text-decoration: none;
   transition: background-color 150ms ease;
@@ -76,7 +76,7 @@
 
 .schoolTitle {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: var(--t-h2);
   font-weight: 700;
   line-height: 1.2;
   color: var(--ink);
@@ -84,7 +84,7 @@
 
 .schoolMeta {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--t-small);
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
@@ -105,7 +105,7 @@
   border-radius: 0.5rem;
   background: var(--action, #0f172a);
   color: var(--action-ink, #ffffff);
-  font-size: 0.875rem;
+  font-size: var(--t-small);
   font-weight: 600;
   text-decoration: none;
 }
@@ -129,7 +129,7 @@
   background: var(--warning-surface, rgba(245, 158, 11, 0.12));
   color: var(--warning-ink, #b45309);
   border: 1px solid var(--warning-border, rgba(245, 158, 11, 0.3));
-  font-size: 0.82rem;
+  font-size: var(--t-micro);
   font-weight: 600;
 }
 
@@ -148,7 +148,7 @@
   border-radius: 999px;
   background: var(--fill);
   color: var(--ink-soft);
-  font-size: 0.8rem;
+  font-size: var(--t-micro);
   font-weight: 600;
   text-decoration: none;
 }
@@ -182,21 +182,21 @@
 
 .summaryLabel {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: var(--t-micro);
   font-weight: 600;
   color: var(--ink-soft);
 }
 
 .summaryValue {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--t-small);
   font-weight: 700;
   color: var(--ink);
 }
 
 .summarySub {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--t-micro);
   color: var(--ink-soft);
 }
 
@@ -206,7 +206,7 @@
   align-self: flex-start;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: var(--t-micro);
   font-weight: 700;
 }
 
@@ -217,7 +217,7 @@
   align-self: flex-start;
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: var(--t-micro);
   font-weight: 600;
 }
 
@@ -268,14 +268,14 @@
 
 .panelTitle {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--t-body);
   font-weight: 700;
   color: var(--ink);
 }
 
 .panelSubtitle {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--t-micro);
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
@@ -306,7 +306,7 @@
 
 .situacionMotivo {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--t-small);
   font-weight: 700;
   color: var(--ink);
 }
@@ -316,7 +316,7 @@
   grid-template-columns: auto 1fr;
   gap: 0.3rem 0.875rem;
   margin: 0;
-  font-size: 0.84rem;
+  font-size: var(--t-micro);
   font-variant-numeric: tabular-nums;
 }
 
@@ -338,7 +338,7 @@
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--ink);
-  font-size: 0.8rem;
+  font-size: var(--t-micro);
   font-weight: 600;
   cursor: pointer;
 }
@@ -358,12 +358,12 @@
   border-radius: 0.5rem;
   background: var(--fill);
   color: var(--ink-soft);
-  font-size: 0.875rem;
+  font-size: var(--t-small);
 }
 
 .subSectionTitle {
   margin: 0.5rem 0 0;
-  font-size: 0.9rem;
+  font-size: var(--t-small);
   font-weight: 700;
   color: var(--ink-soft);
 }

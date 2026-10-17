@@ -1970,7 +1970,7 @@ export default function MapInfraestructuraPage(props: {
                 role="img"
                 aria-label={`${badge.count} ${badge.count === 1 ? 'borrador sin enviar' : 'borradores sin enviar'}: ${badge.nombre}`}
                 title={`${badge.count} ${badge.count === 1 ? 'borrador sin enviar' : 'borradores sin enviar'}`}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 22, height: 22, padding: '0 5px', border: '1px solid var(--line)', borderRadius: 999, background: 'var(--card)', color: 'var(--ink-soft)', boxShadow: '0 1px 4px #0005', fontSize: 11, fontWeight: 700 }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 22, height: 22, padding: '0 5px', border: '1px solid var(--line)', borderRadius: 999, background: 'var(--card)', color: 'var(--ink-soft)', boxShadow: '0 1px 4px #0005', fontSize: 'var(--t-micro)', fontWeight: 700 }}
               >
                 {badge.count}
               </span>

@@ -14,7 +14,7 @@ export default function EscuelaFichaNotFound() {
       }}
       data-testid="escuela-ficha-not-found"
     >
-      <h1 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700 }}>
+      <h1 style={{ margin: 0, fontSize: 'var(--t-h2)', fontWeight: 700 }}>
         Establecimiento no disponible
       </h1>
       <p style={{ margin: 0, color: 'var(--ink-soft)', lineHeight: 1.5 }}>

@@ -143,7 +143,7 @@ function formatearMiles(valor: number): string {
   return valor.toLocaleString('es-AR')
 }
 
-const CLASE_EJE = { fill: 'var(--ink-soft)', fontSize: 11 }
+const CLASE_EJE = { fill: 'var(--ink-soft)', fontSize: 13 }
 
 function GraficoContenedor(props: { etiqueta: string; children: React.ReactNode }) {
   // Altura fija y explícita: ResponsiveContainer mide su contenedor, y un
