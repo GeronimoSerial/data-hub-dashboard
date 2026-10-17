@@ -11,8 +11,15 @@ import {
   esAfectacionLista,
   esAfectacionParcial,
   totalAlumnosDe,
+  AvisosConsistencia,
   type AfectacionBorrador,
 } from '@/components/infraestructura/afectacion-campos'
+import {
+  evaluarConsistenciaParte,
+  type AlcanceSecciones,
+  type CampoConsistencia,
+  type RespuestasConsistencia,
+} from '@/lib/infraestructura/consistencia-parte'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
@@ -106,6 +113,43 @@ function mensajeErrorVigencia(eleccion: EleccionVigencia): string | null {
 const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', 'Clases y edificio', '¿Desde cuándo?', 'Confirmar'] as const
 
 type Paso = 1 | 2 | 3 | 4 | 5
+
+// Campos de consistencia que bloquean "Continuar" en cada paso del asistente.
+const CAMPOS_CONSISTENCIA_POR_PASO: Partial<Record<Paso, CampoConsistencia[]>> = {
+  1: ['motivo', 'severidad', 'justificacionCritica'],
+  2: ['alcance', 'descripcion'],
+  3: ['edificio', 'clases', 'asistencia'],
+}
+
+// Respuestas del asistente en la forma que lee el módulo de consistencia.
+function respuestasDeConsistencia(datos: {
+  afectacion: AfectacionBorrador
+  motivos: MotivoRow[]
+  servicioEstado: '' | 'normal' | 'suspendido'
+  estadoEstablecimiento: '' | EstadoEstablecimiento
+  asistenciaBrinda: '' | 'si' | 'no'
+  vigencia: EleccionVigencia
+}): RespuestasConsistencia {
+  const { afectacion, motivos, servicioEstado, estadoEstablecimiento, asistenciaBrinda, vigencia } = datos
+  const alcance: AlcanceSecciones | null =
+    afectacion.alcanceEstablecimiento === 'toda'
+      ? { tipo: 'toda' }
+      : afectacion.secciones.length > 0
+        ? { tipo: 'algunas', secciones: afectacion.secciones.length }
+        : null
+  return {
+    categoria: afectacion.categoria || null,
+    motivoId: motivos.find((m) => m.nombre === afectacion.motivo)?.id ?? null,
+    severidad: (afectacion.severidad || null) as Severidad | null,
+    justificacionCritica: afectacion.justificacionCritica || null,
+    descripcion: afectacion.descripcion.trim(),
+    alcance,
+    clases: servicioEstado || null,
+    edificio: estadoEstablecimiento || null,
+    asistenciaBrinda: asistenciaBrinda === '' ? null : asistenciaBrinda === 'si',
+    vigencia,
+  }
+}
 
 const PASO_DESDE_CUANDO: Paso = 4
 const PASO_CONFIRMAR: Paso = 5
@@ -693,11 +737,25 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     borradorPendiente,
   ])
 
+  const respuestasConsistencia = respuestasDeConsistencia({
+    afectacion,
+    motivos,
+    servicioEstado,
+    estadoEstablecimiento,
+    asistenciaBrinda,
+    vigencia,
+  })
+  const consistencia = evaluarConsistenciaParte(respuestasConsistencia)
+
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
   // paso está completo. Se evalúa en el momento de avanzar, no mientras
   // escribe: un error que aparece antes de que el director termine de
   // contestar es una acusación, no una ayuda.
   function faltanteDelPaso(actual: Paso): string | null {
+    const bloqueosDelPaso = consistencia.bloqueos
+      .filter((regla) => (CAMPOS_CONSISTENCIA_POR_PASO[actual] ?? []).includes(regla.campo))
+      .map((regla) => regla.mensaje)
+    if (bloqueosDelPaso.length > 0) return bloqueosDelPaso.join(' ')
     if (actual === 1) {
       const sugerida = motivos.find((m) => m.nombre === afectacion.motivo)?.severidadSugerida ?? null
       const completo = afectacion.categoria !== '' && afectacion.motivo !== '' && gravedadCompleta(afectacion, sugerida)
@@ -902,6 +960,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             idPrefijo="reporte"
             motivos={motivos}
             otrasAfectaciones={[]}
+            avisos={consistencia.advertencias}
             onChange={(siguiente) => {
               cambiarAfectacion(siguiente)
               const sugerida = motivos.find((motivo) => motivo.nombre === siguiente.motivo)?.severidadSugerida ?? null
@@ -920,6 +979,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             turnos={turnos}
             usaSelectorEstablecimiento
             ocultarPreguntaAlcance
+            descripcionObligatoria={evaluarConsistenciaParte({ ...respuestasConsistencia, descripcion: '' }).bloqueos.some((r) => r.campo === 'descripcion')}
+            avisos={consistencia.advertencias}
             onChange={cambiarAfectacion}
             disabled={enviando}
           />
@@ -934,6 +995,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
                 setEstadoEstablecimiento(x.estadoEstablecimiento)
               }}
               alcanceParcial={afectacion.alcanceEstablecimiento !== 'toda'}
+              respuestas={respuestasConsistencia}
+              advertencias={consistencia.advertencias}
+              alcanceAlgunas={afectacion.alcanceEstablecimiento === 'algunas'}
               onInterrumpirTodaLaEscuela={() => {
                 setAfectacion((a) => ({
                   ...a,
@@ -961,6 +1025,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
                   ))}
                 </div>
               )}
+              <AvisosConsistencia reglas={consistencia.advertencias} campos={['asistencia']} />
             </fieldset>
           </>
         )}

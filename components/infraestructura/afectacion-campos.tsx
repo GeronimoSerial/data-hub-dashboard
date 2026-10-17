@@ -17,6 +17,7 @@ import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
 import { AvisosRedSeguridad } from '@/components/infraestructura/aviso-red-seguridad'
 import { evaluarRedesSeguridad } from '@/lib/infraestructura/red-seguridad'
+import type { CampoConsistencia, Regla } from '@/lib/infraestructura/consistencia-parte'
 
 export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
   establecimiento:
@@ -109,6 +110,24 @@ export interface CamposQuePasoProps extends CamposComunes {
    * es ruido — el director no lo está agregando, lo está mirando.
    */
   esNueva?: boolean
+  /** Advertencias de consistencia (no bloquean); se filtran por campo. */
+  avisos?: Regla[]
+}
+
+/** Advertencias de consistencia del parte, no bloqueantes, bajo el campo que las origina. */
+export function AvisosConsistencia({ reglas, campos }: { reglas: Regla[]; campos: CampoConsistencia[] }): JSX.Element | null {
+  const visibles = reglas.filter((regla) => campos.includes(regla.campo))
+  if (visibles.length === 0) return null
+  return (
+    <>
+      {visibles.map((regla) => (
+        <p key={regla.codigo} className="aviso-badge" role="note">
+          <span className="aviso-badge__sello">Revisar</span>
+          <span className="aviso-badge__texto">{regla.mensaje}</span>
+        </p>
+      ))}
+    </>
+  )
 }
 
 /*
@@ -130,6 +149,7 @@ export function CamposQuePaso({
   motivos,
   otrasAfectaciones,
   esNueva = false,
+  avisos = [],
   onChange,
   disabled = false,
 }: CamposQuePasoProps): JSX.Element {
@@ -267,6 +287,8 @@ export function CamposQuePaso({
           </span>
         </p>
       )}
+
+      <AvisosConsistencia reglas={avisos} campos={['motivo', 'severidad', 'justificacionCritica']} />
     </>
   )
 }
@@ -276,6 +298,9 @@ export interface CamposAQuienAfectaProps extends CamposComunes {
   usaSelectorEstablecimiento?: boolean
   ocultarPreguntaAlcance?: boolean
   ocultarDescripcion?: boolean
+  /** "Otro" exige describir la situación: la etiqueta lo dice y la validación del paso lo exige. */
+  descripcionObligatoria?: boolean
+  avisos?: Regla[]
 }
 
 export function CamposAQuienAfecta({
@@ -285,6 +310,8 @@ export function CamposAQuienAfecta({
   usaSelectorEstablecimiento = false,
   ocultarPreguntaAlcance = false,
   ocultarDescripcion = false,
+  descripcionObligatoria = false,
+  avisos = [],
   onChange,
   disabled = false,
 }: CamposAQuienAfectaProps): JSX.Element {
@@ -393,12 +420,15 @@ export function CamposAQuienAfecta({
         </div>
       )}
 
+      <AvisosConsistencia reglas={avisos} campos={['alcance']} />
+
       {!ocultarDescripcion ? (
         <div className="afectacion-campos__grupo">
-          <Label htmlFor={`${idPrefijo}-descripcion`}>Descripción (opcional)</Label>
+          <Label htmlFor={`${idPrefijo}-descripcion`}>{descripcionObligatoria ? 'Descripción (obligatoria)' : 'Descripción (opcional)'}</Label>
           <Textarea
             id={`${idPrefijo}-descripcion`}
             maxLength={500}
+            aria-required={descripcionObligatoria || undefined}
             value={borrador.descripcion}
             onChange={(evento) => onChange({ ...borrador, descripcion: evento.target.value })}
             disabled={disabled}

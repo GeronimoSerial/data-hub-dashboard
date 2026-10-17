@@ -50,7 +50,7 @@ Severity stays manual in step 1. When step 2 scope becomes "toda", if motive-sug
 Route: delegated direct, one Haiku writer per task (user instruction, ≤100k tokens each); parent supervises and spot-checks.
 
 - [x] T1 Rules module `lib/infraestructura/consistencia-parte.ts` + unit tests (blocked/warning/allowed tables, description required for Otro).
-- [ ] T2 Wire rules into wizard steps 1–3: disabled options with reason, inline warnings, mandatory description for Otro, scope copy.
+- [x] T2 Wire rules into wizard steps 1–3: disabled options with reason, inline warnings, mandatory description for Otro, scope copy.
 - [ ] T3 Server validation in `app/api/problematicas/parte/route.ts` using the same module (400 on blocked).
 - [ ] T4 Severity drawer on scope "toda" + stronger visual for suggested option.
 - [ ] T5 Move photo selector to step 1 + Crítica emphasis.
@@ -61,6 +61,7 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 
 ## Progress / evidence
 - T1: `lib/infraestructura/consistencia-parte.ts` + `lib/infraestructura/consistencia-parte.test.ts`. RED: module missing (suite failed to load). GREEN: `npx vitest run lib/infraestructura/consistencia-parte.test.ts` 36/36. `npx tsc --noEmit -p .` no errors. `npx eslint` on both files clean.
+- T2: `campos-clases-edificio.tsx` (opciones bloqueadas con motivo, avisos, copy de alcance parcial), `afectacion-campos.tsx` (`AvisosConsistencia`, descripción obligatoria con "Otro"), `reporte-inicial-form.tsx` (`respuestasDeConsistencia`, bloqueos por paso en `faltanteDelPaso`). RED: 4 casos nuevos de `campos-clases-edificio.test.tsx` fallaban antes de implementar. Tests de formulario ("Otro" exige descripción) añadidos después de la implementación; pasan. GREEN: `npx vitest run components/infraestructura lib/infraestructura/consistencia-parte.test.ts` 43 archivos, 488 pasan, 18 omitidos. `npx tsc --noEmit -p .` sin errores. `npx eslint` sobre los 5 archivos limpio.
 
 ## Next step
 T2 (wizard wiring) and T3 (server validation) can start from `evaluarConsistenciaParte` and `bloqueoOpcion`.

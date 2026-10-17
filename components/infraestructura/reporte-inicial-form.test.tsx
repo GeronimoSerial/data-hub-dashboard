@@ -390,6 +390,29 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
   })
 
+  it('con motivo "Otro" exige la descripción para avanzar desde el segundo paso', () => {
+    renderFormulario({
+      motivos: [...motivos, { id: 'otro-establecimiento', nombre: 'Otro problema en el establecimiento', categoria: 'establecimiento', orden: 90, severidadSugerida: null }],
+    })
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    confirmarCategoria()
+    fireEvent.click(screen.getByRole('radio', { name: 'Otro problema en el establecimiento' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    continuar()
+    completarAQuienAfecta()
+    expect(screen.getByLabelText('Descripción (obligatoria)')).toBeInTheDocument()
+
+    continuar()
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Describa la situación: al elegir "Otro" la descripción es obligatoria.')
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Descripción (obligatoria)'), { target: { value: 'Pérdida de agua en el baño' } })
+    continuar()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('¿Cómo está el edificio?')).toBeInTheDocument()
+  })
+
   it('usa las secciones afectadas como alcance de la interrupción', () => {
     renderFormulario()
 
