@@ -289,3 +289,17 @@ describe('formatearFechaLocal', () => {
     expect(formatearFechaLocal('2026-10-06 (aprox.)')).toBe('2026-10-06 (aprox.)')
   })
 })
+
+describe('ladosPastilla', () => {
+  it('flips the western neighbour to the left and leaves lone stations on the right', async () => {
+    const { ladosPastilla } = await import('./capa-estaciones-rio')
+    const lados = ladosPastilla([
+      { estacionId: 'a', lat: -29.0, lon: -56.6 },
+      { estacionId: 'b', lat: -29.05, lon: -56.5 },
+      { estacionId: 'c', lat: -27.0, lon: -58.0 },
+    ])
+    expect(lados.get('a')).toBe('izquierda')
+    expect(lados.get('b')).toBe('derecha')
+    expect(lados.get('c')).toBe('derecha')
+  })
+})

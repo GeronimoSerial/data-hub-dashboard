@@ -233,6 +233,14 @@ const CAPA_CLUSTER_EVACUADO_ID = 'infra-cluster-evacuado'
 // círculo de 6 px el click sobre una escuela del padrón casi siempre perdía
 // contra el polígono del departamento de abajo.
 const CAPA_PARTES_ESCUELA_ICONO_ID = 'infra-partes-escuela-icono'
+// Affected-school clusters stay above river station pins so their counts read.
+const CAPAS_SOBRE_ESTACIONES = [
+  CAPA_PARTES_CLUSTER_HALO_ID,
+  CAPA_PARTES_CLUSTER_ID,
+  CAPA_PARTES_CLUSTER_COUNT_ID,
+  CAPA_CLUSTER_CENTRO_EVACUADOS_ID,
+  CAPA_CLUSTER_EVACUADO_ID,
+] as const
 const CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID = 'infra-partes-escuela-solucionada-icono'
 
 // Color de foco/realce de la escuela seleccionada: mismo valor que el token
@@ -2086,7 +2094,7 @@ export default function MapInfraestructuraPage(props: {
             resaltadoId={eventoResaltado}
             onSeleccion={setEventoSeleccionado}
           />
-          <CapaEstacionesRio visible={capasVisibles.estacionesRio} />
+          <CapaEstacionesRio visible={capasVisibles.estacionesRio} capasEncima={CAPAS_SOBRE_ESTACIONES} />
         </MapGL>
       </div>
 

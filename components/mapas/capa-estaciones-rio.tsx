@@ -38,7 +38,7 @@ type EstacionRio = {
 type PuntoEstacion = {
   type: 'Feature'
   geometry: { type: 'Point'; coordinates: [number, number] }
-  properties: { estacionId: string; nombre: string; estado: EstadoAltura; insignia: string; marcador: string; texto: string }
+  properties: { estacionId: string; nombre: string; estado: EstadoAltura; insignia: string; marcador: string; texto: string; lado: LadoPastilla }
 }
 
 export const CAPA_ESTACIONES_RIO_ID = 'estaciones-rio-simbolos'
@@ -98,7 +98,33 @@ function formatoMetros(valor: number | null | undefined): string {
 }
 
 
+type LadoPastilla = 'derecha' | 'izquierda'
+
+// Roughly one chip at the overview zoom (~7): two stations closer than this would
+// stack their chips if both sat on the same side.
+const VECINDAD_LON = 0.45
+const VECINDAD_LAT = 0.2
+
+/**
+ * Chips default to the right of the pin. When two stations are neighbours, the
+ * western one (or the southern one if they share a meridian) flips its chip to
+ * the left so both levels stay visible without any collision hiding.
+ */
+export function ladosPastilla(estaciones: Array<{ estacionId: string; lat: number; lon: number }>): Map<string, LadoPastilla> {
+  const lados = new Map<string, LadoPastilla>(estaciones.map((e) => [e.estacionId, 'derecha']))
+  for (const a of estaciones) {
+    for (const b of estaciones) {
+      if (a === b) continue
+      if (Math.abs(a.lon - b.lon) > VECINDAD_LON || Math.abs(a.lat - b.lat) > VECINDAD_LAT) continue
+      const aCede = a.lon < b.lon - 0.02 || (Math.abs(a.lon - b.lon) <= 0.02 && a.lat < b.lat)
+      if (aCede) lados.set(a.estacionId, 'izquierda')
+    }
+  }
+  return lados
+}
+
 function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; features: PuntoEstacion[] } {
+  const lados = ladosPastilla(estaciones)
   return {
     type: 'FeatureCollection',
     features: estaciones.map((estacion) => ({
@@ -110,6 +136,7 @@ function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; featu
         estado: estacion.estado,
         insignia: idPastillaEstacion(estacion.estado),
         marcador: idMarcadorEstacion(estacion.estado),
+        lado: lados.get(estacion.estacionId) ?? 'derecha',
         // Sin dato still shows the last known level when the source has one.
         texto: estacion.lectura
           ? `${FLECHA_TENDENCIA[estacion.tendencia]}${formatoMetros(estacion.lectura.lecturaM)}`
@@ -119,12 +146,21 @@ function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; featu
   }
 }
 
-export function CapaEstacionesRio({ visible, beforeId }: { visible: boolean; beforeId?: string }) {
-  if (!visible) return null
-  return <CapaEstacionesRioActiva beforeId={beforeId} />
+type PropsCapa = {
+  visible: boolean
+  beforeId?: string
+  /** Layers kept above the stations (e.g. school clusters, so their counts stay readable). */
+  capasEncima?: readonly string[]
 }
 
-function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
+export function CapaEstacionesRio({ visible, beforeId, capasEncima }: PropsCapa) {
+  if (!visible) return null
+  return <CapaEstacionesRioActiva beforeId={beforeId} capasEncima={capasEncima} />
+}
+
+const SIN_CAPAS: readonly string[] = []
+
+function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<PropsCapa, 'visible'>) {
   const [estaciones, setEstaciones] = useState<EstacionRio[]>([])
   const [listo, setListo] = useState(false)
   const [seleccionada, setSeleccionada] = useState<string | null>(null)
@@ -172,16 +208,21 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
     const alTope = () => {
       const capas = mapaGl.getStyle?.()?.layers
       if (!capas?.length || !mapaGl.getLayer?.(ID_CAPA)) return
-      if (capas[capas.length - 1].id === ID_CAPA) return
-      if (mapaGl.getLayer?.(ID_CAPA_PASTILLA)) mapaGl.moveLayer(ID_CAPA_PASTILLA)
-      mapaGl.moveLayer(ID_CAPA)
+      const encima = capasEncima.filter((id) => mapaGl.getLayer?.(id))
+      // Pins < clusters < level chips: cluster counts stay readable over a pin and
+      // no layer can ever cover a station's level.
+      const pastilla = mapaGl.getLayer?.(ID_CAPA_PASTILLA) ? [ID_CAPA_PASTILLA] : []
+      const orden = [ID_CAPA, ...encima, ...pastilla]
+      const cola = capas.slice(-orden.length).map((capa) => capa.id)
+      if (cola.join('|') === orden.join('|')) return
+      for (const id of orden) mapaGl.moveLayer(id)
     }
     alTope()
     mapaGl.on('styledata', alTope)
     return () => {
       mapaGl.off('styledata', alTope)
     }
-  }, [mapa, listo, beforeId])
+  }, [mapa, listo, beforeId, capasEncima])
 
   useEffect(() => {
     if (!mapa || !listo) return
@@ -240,13 +281,15 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
               'icon-image': ['get', 'insignia'],
               'icon-text-fit': 'both',
               'icon-text-fit-padding': [3, 7, 3, 7],
+              // Every level is always shown: overlaps between neighbours are solved by
+              // placement (see ladosPastilla), never by collision hiding.
               'icon-allow-overlap': true,
               'text-field': ['get', 'texto'],
               'text-size': ['interpolate', ['linear'], ['zoom'], 6, 10, 9, 11],
               // MapLibre defaults to Open Sans, which the OpenFreeMap glyph server does not serve.
               'text-font': ['Noto Sans Bold'],
-              'text-anchor': 'left',
-              'text-offset': [1.4, -1.45],
+              'text-anchor': ['match', ['get', 'lado'], 'izquierda', 'right', 'left'],
+              'text-offset': ['match', ['get', 'lado'], 'izquierda', ['literal', [-1.4, -1.45]], ['literal', [1.4, -1.45]]],
               'text-allow-overlap': true,
               'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
             }}
@@ -268,6 +311,7 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
               'icon-anchor': 'bottom',
               'icon-size': ['interpolate', ['linear'], ['zoom'], 6, 0.85, 9, 1],
               'icon-allow-overlap': true,
+              // Pins always draw and never claim space, so they cannot hide their own chip.
               'icon-ignore-placement': true,
               'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
             }}
