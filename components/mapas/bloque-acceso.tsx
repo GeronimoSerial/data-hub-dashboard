@@ -26,7 +26,7 @@ function LinkMetodologia({ seccion }: { seccion: string }) {
   return (
     <a
       className="map-bloque-acceso__ayuda"
-      href={`#metodologia/${seccion}`}
+      href={`/mapas/infraestructura#metodologia/${seccion}`}
       aria-label="Cómo se calcula"
       title="Cómo se calcula"
     >

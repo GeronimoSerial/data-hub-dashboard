@@ -6,7 +6,7 @@ import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import type * as ParteConsultaModule from './parte-consulta'
-import { calcularAlumnosAlcanzados, listarEscuelasMapa, listarEscuelasMapaEnriquecidas, listarPartesVigentes, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
+import { calcularAlumnosAlcanzados, listarEscuelasMapa, listarEscuelasMapaEnriquecidas, listarPartesVigentes, obtenerEscuelaFichaEnriquecida, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
 import { crearAfectacion, crearParte, crearServicioAlcance } from './test-utils/parte-fixtures'
 import { infraAfectacion, infraParte, infraPeriodo } from '@/lib/db/schema'
 
@@ -631,3 +631,101 @@ describe('redondearCoordenada', () => {
     expect(redondearCoordenada(null)).toBeNull()
   })
 })
+
+describe('obtenerEscuelaFichaEnriquecida', () => {
+  it('devuelve cue_invalido para un CUE malformado', async () => {
+    const res = await obtenerEscuelaFichaEnriquecida('no-es-un-cue', { tipo: 'todo' })
+    expect(res).toEqual({ estado: 'cue_invalido' })
+  })
+
+  it('devuelve sin_alcance cuando el alcance es ninguno', async () => {
+    const res = await obtenerEscuelaFichaEnriquecida('1801605-00', { tipo: 'ninguno' })
+    expect(res).toEqual({ estado: 'sin_alcance' })
+  })
+
+  it('devuelve no_encontrada cuando la escuela no existe en el padrón', async () => {
+    const res = await obtenerEscuelaFichaEnriquecida('9999999-99', { tipo: 'todo' })
+    expect(res).toEqual({ estado: 'no_encontrada' })
+  })
+
+  it('enriquece escuela con ubicación válida en Corrientes', async () => {
+    const cue = '1801605-00'
+    await sembrarEscuelaPadron({
+      cue,
+      departamento: 'CAPITAL',
+      localidad: 'CORRIENTES',
+      lat: -27.47,
+      lon: -58.83,
+    })
+    const parteId = await crearParte(cue)
+    await crearAfectacion({ parteId, secciones: [], severidad: 'Alta', motivo: 'Anegamiento' })
+
+    const res = await obtenerEscuelaFichaEnriquecida(cue, { tipo: 'todo' })
+    expect(res.estado).toBe('ok')
+    if (res.estado === 'ok') {
+      expect(res.escuela.cueAnexo).toBe(cue)
+      expect(res.escuela.ubicacionDisponible).toBe(true)
+      expect(res.escuela.lat).toBe(-27.47)
+      expect(res.escuela.lon).toBe(-58.83)
+      expect(res.escuela.estado).toBe('afectada')
+      expect(res.escuela.gravedad).toBeGreaterThan(0)
+      expect(res.escuela.parte?.parteId).toBe(parteId)
+    }
+  })
+
+  it('enriquece escuela sin coordenadas con ubicacionDisponible false y lat/lon null', async () => {
+    const cue = '1801606-00'
+    await sembrarEscuelaPadron({
+      cue,
+      departamento: 'GOYA',
+      localidad: 'GOYA',
+      lat: null,
+      lon: null,
+    })
+    const parteId = await crearParte(cue)
+    await crearAfectacion({ parteId, secciones: [], severidad: 'Crítica', motivo: 'Evacuación' })
+
+    const res = await obtenerEscuelaFichaEnriquecida(cue, { tipo: 'todo' })
+    expect(res.estado).toBe('ok')
+    if (res.estado === 'ok') {
+      expect(res.escuela.cueAnexo).toBe(cue)
+      expect(res.escuela.ubicacionDisponible).toBe(false)
+      expect(res.escuela.lat).toBeNull()
+      expect(res.escuela.lon).toBeNull()
+      expect(res.escuela.estado).toBe('afectada')
+      expect(res.escuela.parte?.parteId).toBe(parteId)
+    }
+  })
+
+  it('respeta el alcance por niveles jurisdiccionales sin enumerar escuelas fuera de alcance', async () => {
+    const cueDentro = '1801607-00'
+    const cueFuera = '1801608-00'
+    await sembrarEscuelaPadron({ cue: cueDentro, departamento: 'CAPITAL', localidad: 'CORRIENTES', lat: -27.47, lon: -58.83 })
+    await sembrarEscuelaPadron({ cue: cueFuera, departamento: 'CAPITAL', localidad: 'CORRIENTES', lat: -27.48, lon: -58.84 })
+
+    const client = crearEjecutorSql(getRawClient())
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_nivel_jurisdiccional (id, nombre) VALUES (20, ?) ON CONFLICT(id) DO NOTHING',
+      args: ['Primaria'],
+    })
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_nivel_jurisdiccional (id, nombre) VALUES (30, ?) ON CONFLICT(id) DO NOTHING',
+      args: ['Secundaria'],
+    })
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_escuela_nivel_jur (cue_anexo, nivel_jurisdiccional_id, ciclo_lectivo) VALUES (?, 20, 2026)',
+      args: [cueDentro],
+    })
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_escuela_nivel_jur (cue_anexo, nivel_jurisdiccional_id, ciclo_lectivo) VALUES (?, 30, 2026)',
+      args: [cueFuera],
+    })
+
+    const okRes = await obtenerEscuelaFichaEnriquecida(cueDentro, { tipo: 'niveles', ids: [20] })
+    expect(okRes.estado).toBe('ok')
+
+    const fueraRes = await obtenerEscuelaFichaEnriquecida(cueFuera, { tipo: 'niveles', ids: [20] })
+    expect(fueraRes).toEqual({ estado: 'no_encontrada' })
+  })
+})
+

@@ -69,7 +69,12 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       optimizadaEtag: result.optimizadaEtag,
       miniaturaEtag: result.miniaturaEtag,
     }, { status: 200, headers: NO_STORE })
-  } catch {
+  } catch (error) {
+    // Name and message only: never the request body or storage credentials.
+    console.error('[adjuntos/confirmacion] verification failed', {
+      attachmentId,
+      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+    })
     return Response.json({ code: 'obs_error', error: 'The photo objects could not be verified.' }, { status: 502, headers: NO_STORE })
   }
 }

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { eq, sql } from 'drizzle-orm'
+import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraAdjunto, infraMovimiento, infraParte } from '@/lib/db/schema'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
@@ -176,6 +176,21 @@ export async function crearEvidenciaFotografica(
       repetido: false,
     }
   })
+}
+
+/**
+ * Latest non-evidence movement of the school's report: what photos attach to
+ * when the caller only knows the school. Null when the school has no report.
+ */
+export async function resolverMovimientoBaseEvidencia(cueAnexo: string): Promise<string | null> {
+  const [fila] = await getDb()
+    .select({ id: infraMovimiento.id })
+    .from(infraMovimiento)
+    .innerJoin(infraParte, eq(infraParte.id, infraMovimiento.parteId))
+    .where(and(eq(infraParte.cueAnexo, cueAnexo), ne(infraMovimiento.tipo, 'evidencia_fotografica')))
+    .orderBy(desc(infraMovimiento.creadaEn))
+    .limit(1)
+  return fila?.id ?? null
 }
 
 function validarEntrada(input: CrearEvidenciaFotograficaInput): void {

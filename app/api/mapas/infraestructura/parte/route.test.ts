@@ -261,4 +261,31 @@ describe('GET /api/mapas/infraestructura/parte', () => {
     // dentro de `datosPadron`.
     expect(tieneIdentidadDeAlumno(body.datosPadron)).toBe(false)
   })
+
+  it('devuelve 404 cuando director_nivel consulta una escuela fuera de su nivel jurisdiccional', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({
+      id: 'u-dir',
+      role: 'director_nivel',
+      banned: false,
+      nivelJurIds: [99],
+      accesoRecursos: 'todos' as const,
+      recursoIds: [],
+    })
+    const res = await GET(req(CUE))
+    expect(res.status).toBe(404)
+  })
+
+  it('devuelve 403 cuando director_nivel no tiene niveles jurisdiccionales asignados', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({
+      id: 'u-dir-vacio',
+      role: 'director_nivel',
+      banned: false,
+      nivelJurIds: [],
+      accesoRecursos: 'todos' as const,
+      recursoIds: [],
+    })
+    const res = await GET(req(CUE))
+    expect(res.status).toBe(403)
+  })
 })
+

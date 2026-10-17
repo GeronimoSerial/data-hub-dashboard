@@ -86,11 +86,35 @@ vi.mock('@/components/mapas/ficha-escuela-panel', () => ({
     onCerrar: () => void
     onVerAlumnosAlcanzados: (id: string) => void
     onVerHistorialCompleto: () => void
+    urlFichaCompleta?: string
+    onAbrirFichaCompleta?: () => void
+    onQuitarSeleccion?: () => void
   }): JSX.Element => (
-    <section data-testid="mock-ficha-escuela" data-cue={props.escuela.cueAnexo}>
+    <section
+      data-testid="mock-ficha-escuela"
+      data-cue={props.escuela.cueAnexo}
+      data-url-ficha={props.urlFichaCompleta ?? ''}
+    >
       <button onClick={props.onCerrar}>Volver a la lista</button>
       <button onClick={() => props.onVerAlumnosAlcanzados('a1')}>abrir-nominal-desde-ficha</button>
       <button onClick={props.onVerHistorialCompleto}>Ver historial</button>
+      {props.urlFichaCompleta && (
+        <a
+          href={props.urlFichaCompleta}
+          data-testid="abrir-ficha-completa"
+          onClick={(e) => {
+            e.preventDefault()
+            props.onAbrirFichaCompleta?.()
+          }}
+        >
+          Abrir ficha completa
+        </a>
+      )}
+      {props.onQuitarSeleccion && (
+        <button data-testid="preview-quitar-seleccion" onClick={props.onQuitarSeleccion}>
+          Quitar selección
+        </button>
+      )}
       {props.acceso}
     </section>
   ),
@@ -1038,7 +1062,8 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     const panelLateral = await screen.findByTestId('panel-lateral')
     expect(within(panelLateral).getByTestId('panel-radar')).toBeInTheDocument()
     expect(panelLateral).not.toBeEmptyDOMElement()
-    expect(screen.getByText('Riesgo actual (hoy) · 72 h')).toBeInTheDocument()
+    // En radar no se muestra la leyenda de situación actual.
+    expect(screen.queryByText('Riesgo actual (hoy) · 72 h')).not.toBeInTheDocument()
   })
 
   it('con Radar activo muestra el panel de riesgo y consulta el horizonte inicial', async () => {
@@ -1106,10 +1131,10 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(screen.getAllByRole('group', { name: 'Variable meteorológica' })).toHaveLength(1)
     expect(screen.queryByText('Consultando alertas…')).not.toBeInTheDocument()
     const variables = screen.getByRole('group', { name: 'Variable meteorológica' })
-    expect(within(variables).getByRole('button', { name: 'Lluvia' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(variables).getByRole('button', { name: 'Lluvia (mm)' })).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(within(variables).getByRole('button', { name: 'Viento' }))
     expect(within(variables).getByRole('button', { name: 'Viento' })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(variables).getByRole('button', { name: 'Lluvia' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(variables).getByRole('button', { name: 'Lluvia (mm)' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'Expandir leyenda: Viento' })).toBeInTheDocument()
     expect(document.querySelector('.radar-meteo-controls')).toBeNull()
     expect(screen.queryByText(/Estimación no calibrada/i)).not.toBeInTheDocument()
@@ -1207,7 +1232,8 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     await userEvent.click(screen.getByRole('button', { name: /Escuela 1, Capital/i }))
     const flotante = screen.getByTestId('ficha-flotante')
     expect(within(flotante).getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
-    expect(within(screen.getByTestId('panel-lateral')).queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    // En radar no se repite la selección arriba del panel: la vista previa ya la muestra.
+    expect(within(screen.getByTestId('panel-lateral')).queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
     expect(within(screen.getByTestId('panel-lateral')).getByTestId('panel-radar')).toBeInTheDocument()
   })
 
@@ -1322,7 +1348,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   it('muestra la lista simple de riesgo sin paneles de explicación técnica', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    expect(screen.getByText('Riesgo actual (hoy)')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo calculado (probabilístico)')).toBeInTheDocument()
     expect(screen.queryByTestId('risk-explanation-factores')).not.toBeInTheDocument()
     expect(screen.queryByText('Pronóstico por departamento')).not.toBeInTheDocument()
   })
@@ -1672,8 +1698,8 @@ describe('M2: panel de situación actual con padrón', () => {
 
     const panel = screen.getByTestId('panel-lateral')
     expect(within(panel).getByText('Situación actual')).toBeInTheDocument()
-    expect(within(panel).getByText('Escuelas con situaciones abiertas').previousElementSibling).toHaveTextContent('1')
-    expect(within(panel).getByText('Sin clases', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('1')
+    expect(within(panel).getByText('Escuelas sin clases').nextElementSibling).toHaveTextContent('1')
+    expect(within(panel).getByText(/con situaciones abiertas$/, { selector: '.map-sitact__kpi small' })).toHaveTextContent('De 1 con situaciones abiertas')
     expect(within(panel).getByRole('button', { name: /Escuela 1/ })).toBeInTheDocument()
   })
 
@@ -1687,7 +1713,7 @@ describe('M2: panel de situación actual con padrón', () => {
     rerender({ escuelasMapa: escuelasFiltradas })
 
     const panel = screen.getByTestId('panel-lateral')
-    expect(within(panel).getByText('Escuelas con situaciones abiertas').previousElementSibling).toHaveTextContent('0')
+    expect(within(panel).getByText(/con situaciones abiertas$/, { selector: '.map-sitact__kpi small' })).toHaveTextContent('De 0 con situaciones abiertas')
     expect(within(panel).getByText('Ninguna escuela con situaciones abiertas para estos filtros.')).toBeInTheDocument()
     desmontarMapa?.()
   })
@@ -2086,7 +2112,7 @@ describe('Task 4: cambiar de pestaña a Radar', () => {
     rerender({ pestana: 'radar' })
     const panelRadar = within(screen.getByTestId('panel-lateral'))
     expect(panelRadar.getByTestId('panel-radar')).toBeInTheDocument()
-    expect(panelRadar.getByTestId('reabrir-ficha')).toBeInTheDocument()
+    expect(panelRadar.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
 
     rerender({ pestana: 'actual' })
 
@@ -2195,3 +2221,42 @@ describe('paddingEncuadre', () => {
     expect(padding).toEqual({ top: 40, bottom: 40, left: 400, right: 356 })
   })
 })
+
+describe('Consulta Escolar: vista previa en el mapa y retorno a ficha completa', () => {
+  it('pasa urlFichaCompleta con parámetro volver y persiste el SnapshotRetornoMapa al abrir la ficha completa', async () => {
+    window.sessionStorage.clear()
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'actual' })
+
+    const ficha = await seleccionarPorBuscador('Escuela 1')
+    expect(ficha).toHaveAttribute(
+      'data-url-ficha',
+      `/mapas/infraestructura/escuelas/${CUE}?origen=mapa`,
+    )
+
+    await userEvent.click(within(ficha).getByTestId('abrir-ficha-completa'))
+
+    const { leerSnapshotRetornoMapa } = await import('@/lib/infraestructura/mapa/estado-retorno')
+    const snapshot = leerSnapshotRetornoMapa(window.sessionStorage)
+    expect(snapshot).toMatchObject({
+      version: 1,
+      origen: 'mapa',
+      tab: 'actual',
+      seleccionCue: CUE,
+      previewAbierto: true,
+    })
+  })
+
+  it('quitar selección desde la vista previa cierra el panel flotante y limpia la selección sin dejar "Ver ficha"', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'actual' })
+
+    const ficha = await seleccionarPorBuscador('Escuela 1')
+    await userEvent.click(within(ficha).getByTestId('preview-quitar-seleccion'))
+
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
+  })
+
+})
+
+

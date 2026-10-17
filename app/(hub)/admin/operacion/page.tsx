@@ -163,7 +163,7 @@ export default async function OperacionSalud() {
             </tbody>
           </table>
         )}
-        <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
+        <p style={{ color: 'var(--ink-soft)', fontSize: 'var(--t-micro)' }}>
           Datos meteorológicos: Open-Meteo.com (CC BY 4.0), ECMWF.
         </p>
       </section>
@@ -176,10 +176,10 @@ export default async function OperacionSalud() {
           {estado.climatologiaPrecipitacion.aniosMin}–{estado.climatologiaPrecipitacion.aniosMax} (mediana{' '}
           {estado.climatologiaPrecipitacion.aniosMediana}) de {estado.climatologiaPrecipitacion.aniosObjetivo}
         </p>
-        <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem', marginTop: 0 }}>
+        <p style={{ color: 'var(--ink-soft)', fontSize: 'var(--t-micro)', marginTop: 0 }}>
           Las celdas con menos de {estado.climatologiaPrecipitacion.minimoUsable} años siguen usando los umbrales provisorios.
         </p>
-        <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem', marginTop: 0 }}>
+        <p style={{ color: 'var(--ink-soft)', fontSize: 'var(--t-micro)', marginTop: 0 }}>
           El cálculo completo excede el cupo diario/mensual de Open-Meteo en una
           sola corrida: el timer diario avanza el cursor hasta el tope de cupo
           disponible ese día, sin recomputar lo ya hecho. Ver
@@ -262,7 +262,7 @@ export default async function OperacionSalud() {
             </ul>
           </div>
         )}
-        <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
+        <p style={{ color: 'var(--ink-soft)', fontSize: 'var(--t-micro)' }}>
           Límites del nivel gratuito de Open-Meteo, con margen de seguridad. Ver
           docs/ejecucion-enos/OM-cupo/registro.md.
         </p>

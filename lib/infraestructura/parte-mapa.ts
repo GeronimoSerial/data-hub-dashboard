@@ -34,6 +34,8 @@ import type {
 import { enriquecerEscuela } from './mapa/enriquecer'
 import type { EscuelaMapaEnriquecida } from './mapa/tipos'
 import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
+import { normalizeCue } from './cue'
+import { filtrosDeAlcance, type AlcanceMapa } from './alcance-mapa'
 
 // Mismos filtros de establecimiento/afectación que FiltrosAlertas
 // (consulta.ts), más los dos que agrega el modelo de parte: `categoria`
@@ -832,3 +834,154 @@ export async function listarEscuelasMapaEnriquecidas(
     }),
   }
 }
+
+export type EscuelaFichaEnriquecida = EscuelaMapaPadron & {
+  ubicacionDisponible: boolean
+}
+
+export type ResultadoEscuelaFicha =
+  | { estado: 'ok'; escuela: EscuelaFichaEnriquecida }
+  | { estado: 'no_encontrada' }
+  | { estado: 'sin_alcance' }
+  | { estado: 'cue_invalido' }
+
+export async function verificarCueEnAlcance(
+  client: EjecutorSql,
+  cueAnexo: string,
+  alcance: AlcanceMapa,
+): Promise<'ok' | 'sin_alcance' | 'fuera_de_alcance'> {
+  if (alcance.tipo === 'ninguno') return 'sin_alcance'
+  if (alcance.tipo === 'todo') return 'ok'
+  if (alcance.ids.length === 0) return 'sin_alcance'
+
+  const marcas = alcance.ids.map(() => '?').join(', ')
+  const res = await client.execute({
+    sql: `SELECT 1 FROM ge.ge_escuela_nivel_jur WHERE cue_anexo = ? AND nivel_jurisdiccional_id IN (${marcas}) LIMIT 1`,
+    args: [cueAnexo, ...alcance.ids],
+  })
+  return res.rows.length > 0 ? 'ok' : 'fuera_de_alcance'
+}
+
+export async function obtenerEscuelaFichaEnriquecida(
+  cueRaw: string,
+  alcance: AlcanceMapa,
+  ahoraMs: number = Date.now(),
+): Promise<ResultadoEscuelaFicha> {
+  const parsed = normalizeCue(cueRaw)
+  if (!parsed) return { estado: 'cue_invalido' }
+  if (alcance.tipo === 'ninguno') return { estado: 'sin_alcance' }
+  if (alcance.tipo === 'niveles' && alcance.ids.length === 0) {
+    return { estado: 'sin_alcance' }
+  }
+
+  const cueAnexo = parsed.value
+  const client = crearEjecutorSql(getRawClient())
+  await asegurarGeAdjuntada(client)
+
+  const filtros: FiltrosMapa = {
+    cueAnexo,
+    ...filtrosDeAlcance(alcance),
+  }
+
+  const padron = await cargarPadronEscuelas(client, filtros, null)
+  if (padron.length === 0) {
+    return { estado: 'no_encontrada' }
+  }
+
+  const fila = padron[0]
+  const ubicacionDisponible =
+    fila.lat !== null &&
+    fila.lon !== null &&
+    ubicacionEnCorrientes(fila.lat, fila.lon)
+
+  const [{ partes }, corte] = await Promise.all([
+    listarPartesVigentes(filtros),
+    getCorteVigente(client),
+  ])
+
+  const parte = partes[0]
+  const escuelaBase: EscuelaMapa = {
+    cueAnexo: fila.cueAnexo,
+    nombre: fila.nombre,
+    departamento: fila.departamento,
+    localidad: fila.localidad,
+    lat: ubicacionDisponible ? redondearCoordenada(fila.lat) : null,
+    lon: ubicacionDisponible ? redondearCoordenada(fila.lon) : null,
+    nivelJurisdiccional: fila.nivelJurisdiccional,
+    estado: parte ? 'afectada' : 'sin_afectacion_reportada',
+    ...(parte ? { parte } : {}),
+  }
+
+  const desde = new Date(ahoraMs - VENTANA_CAUSA_DIAS * 24 * 60 * 60 * 1000).toISOString()
+
+  const [situacionesRes, solucionadasRes, datosRes, asistenciaRes] = await Promise.all([
+    client.execute({
+      sql: `SELECT COUNT(a.id) AS situaciones
+        FROM infra_afectacion a
+        INNER JOIN infra_parte p ON p.id = a.parte_id
+        WHERE p.cue_anexo = ? AND (a.cierre IS NULL OR a.cierre <> 'retirada')`,
+      args: [cueAnexo],
+    }),
+    client.execute({
+      sql: `SELECT COUNT(a.id) AS situaciones
+        FROM infra_afectacion a
+        INNER JOIN infra_parte p ON p.id = a.parte_id
+        WHERE p.cue_anexo = ? AND a.cierre = 'solucionada' AND a.retirada_en >= ?`,
+      args: [cueAnexo, desde],
+    }),
+    corte
+      ? client.execute({
+          sql: `SELECT s.nivel, COUNT(DISTINCT a.ge_person_id) AS matricula
+            FROM ge.ge_seccion s
+            LEFT JOIN ge.ge_alumno_seccion a
+              ON a.corte_id = s.corte_id AND a.ge_section_id = s.ge_section_id
+            WHERE s.corte_id = ? AND s.cue_anexo = ?
+            GROUP BY s.nivel, s.ge_section_id`,
+          args: [corte.id, cueAnexo],
+        })
+      : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
+    parte
+      ? client.execute({
+          sql: 'SELECT asistencia_pedagogica FROM infra_parte WHERE id = ?',
+          args: [parte.parteId],
+        })
+      : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
+  ])
+
+  const situacionesHistoricas = Number(situacionesRes.rows[0]?.situaciones ?? 0)
+  const solucionadasRecientes = Number(solucionadasRes.rows[0]?.situaciones ?? 0)
+
+  const nivelesSet = new Set<string>()
+  let alumnos = 0
+  for (const r of datosRes.rows) {
+    nivelesSet.add(stringValor(r.nivel))
+    alumnos += Number(r.matricula ?? 0)
+  }
+
+  const asistencia =
+    asistenciaRes.rows.length > 0
+      ? parsearAsistenciaPedagogica(asistenciaRes.rows[0].asistencia_pedagogica)
+      : null
+
+  const enriquecida = enriquecerEscuela(
+    escuelaBase,
+    {
+      niveles: [...nivelesSet],
+      alumnos,
+      asistencia,
+      situacionesHistoricas,
+      solucionadasRecientes,
+    },
+    ahoraMs,
+  )
+
+  return {
+    estado: 'ok',
+    escuela: {
+      ...escuelaBase,
+      ...enriquecida,
+      ubicacionDisponible,
+    },
+  }
+}
+

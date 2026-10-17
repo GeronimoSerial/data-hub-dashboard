@@ -86,6 +86,7 @@ export interface RadarPunto {
   nivelRiesgo: string | null
   // Ver RadarEscuela.nivelAmenaza. Opcional para no romper fixtures previos.
   nivelAmenaza?: string | null
+  nivelVulnerabilidad?: string | null
   confianza: string
   nivelRiesgoAcceso: string | null
 }

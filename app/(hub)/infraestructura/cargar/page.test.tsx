@@ -55,4 +55,40 @@ describe('CargarParteEscuelaPage', () => {
     expect(screen.getByRole('note')).toHaveTextContent(/como administrador/i)
     expect(screen.queryByText(/solicitará la contraseña/i)).not.toBeInTheDocument()
   })
+
+  it('muestra enlace de retorno cuando volver es una ruta interna permitida', async () => {
+    getSessionUser.mockResolvedValue({ role: 'admin', banned: false })
+
+    render(
+      await CargarParteEscuelaPage({
+        searchParams: Promise.resolve({
+          cue: '1801605-04',
+          volver: '/mapas/infraestructura/escuelas/1801605-04?origen=mapa',
+        }),
+      }),
+    )
+
+    const link = screen.getByTestId('volver-origen-cargar')
+    expect(link).toHaveAttribute(
+      'href',
+      '/mapas/infraestructura/escuelas/1801605-04?origen=mapa',
+    )
+    expect(link).toHaveTextContent('Volver a la ficha de la escuela')
+  })
+
+  it('ignora volver cuando apunta a un origen externo o ruta no permitida', async () => {
+    getSessionUser.mockResolvedValue({ role: 'admin', banned: false })
+
+    render(
+      await CargarParteEscuelaPage({
+        searchParams: Promise.resolve({
+          cue: '1801605-04',
+          volver: 'https://evil.example/phish',
+        }),
+      }),
+    )
+
+    expect(screen.queryByTestId('volver-origen-cargar')).toBeNull()
+  })
 })
+

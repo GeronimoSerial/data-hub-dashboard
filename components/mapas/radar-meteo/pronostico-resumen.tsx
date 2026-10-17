@@ -29,6 +29,10 @@ export function PronosticoResumen(props: {
 
   return (
     <section className="map-radar-pronostico" aria-labelledby="map-radar-pronostico-titulo">
+      <h3 id="map-radar-pronostico-titulo" className="map-sitact__titulo-seccion">
+        <span>Pronóstico por departamento</span>
+        <span className="map-sitact__atenuado">{ventana}</span>
+      </h3>
       <div className="map-sitact__kpis map-sitact__kpis--3" aria-label="Resumen del pronóstico">
         <div className={`map-sitact__kpi${pronostico.conLluvia20mm > 0 ? ' map-sitact__kpi--resaltado' : ''}`}>
           <strong>{pronostico.conLluvia20mm}</strong>
@@ -46,10 +50,6 @@ export function PronosticoResumen(props: {
       </div>
 
       <section className="map-radar-pronostico__seccion">
-        <h3 id="map-radar-pronostico-titulo" className="map-sitact__titulo-seccion">
-          <span>Pronóstico por departamento</span>
-          <span className="map-sitact__atenuado">{ventana}</span>
-        </h3>
         {pronostico.filas.length > 0 ? (
           <>
             <div className="map-sitact__lista">

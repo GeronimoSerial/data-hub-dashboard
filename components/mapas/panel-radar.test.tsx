@@ -84,8 +84,9 @@ describe('PanelRadar', () => {
     render(<PanelRadar {...props()} />)
 
     expect(screen.getByTestId('panel-radar')).toBeInTheDocument()
-    expect(screen.getByText('Riesgo alto o muy alto').previousElementSibling).toHaveTextContent('2')
-    expect(screen.getByText('Alumnos en esas escuelas').previousElementSibling).toHaveTextContent('90')
+    expect(screen.getByText('Escuelas en riesgo').previousElementSibling).toHaveTextContent('3')
+    expect(screen.getByText('Alumnos en esas escuelas').previousElementSibling).toHaveTextContent('170')
+    expect(screen.getByText('1 muy alto · 1 alto · 1 moderado')).toBeInTheDocument()
     const filas = screen.getAllByRole('button', { name: /Escuela/ }).filter((boton) => boton.className.includes('map-sitact__fila'))
     expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual([
       'Escuela Muy Alta, Goya',
@@ -97,10 +98,10 @@ describe('PanelRadar', () => {
     expect(screen.getAllByText('Escuela Moderada')).toHaveLength(1)
   })
 
-  it('muestra la amenaza junto a la prioridad educativa, sin mezclarlas', () => {
+  it('explica el riesgo con el clima y la vulnerabilidad en lenguaje llano', () => {
     const conAmenaza = puntos.map((punto) =>
       punto.cueAnexo === '100' && punto.horizonteHoras === 72
-        ? { ...punto, nivelAmenaza: 'muy_alto' }
+        ? { ...punto, nivelAmenaza: 'muy_alto', nivelVulnerabilidad: 'bajo' }
         : punto.cueAnexo === '200' && punto.horizonteHoras === 72
           ? { ...punto, nivelAmenaza: null }
           : punto,
@@ -108,13 +109,13 @@ describe('PanelRadar', () => {
     render(<PanelRadar {...props({ puntos: conAmenaza })} />)
 
     const moderada = screen.getByRole('button', { name: 'Escuela Moderada, General Alvear' })
-    expect(within(moderada).getByText('Riesgo actual: Moderado')).toBeInTheDocument()
-    expect(within(moderada).getByText('Amenaza: Muy alto')).toBeInTheDocument()
+    expect(within(moderada).getByText('Riesgo moderado')).toBeInTheDocument()
+    expect(within(moderada).getByText('Clima: muy fuerte · Vulnerabilidad: baja')).toBeInTheDocument()
 
-    // Sin dato de amenaza no se inventa un nivel: sólo queda la prioridad.
+    // Sin datos no se inventa un motivo: sólo queda el nivel de riesgo.
     const alta = screen.getByRole('button', { name: 'Escuela Alta, Bella Vista' })
-    expect(within(alta).getByText('Riesgo actual: Alto')).toBeInTheDocument()
-    expect(within(alta).queryByText(/Amenaza/)).not.toBeInTheDocument()
+    expect(within(alta).getByText('Riesgo alto')).toBeInTheDocument()
+    expect(within(alta).queryByText(/Clima|Vulnerabilidad/)).not.toBeInTheDocument()
   })
 
   it('lista una escuela de prioridad baja cuando su amenaza es alta o muy alta, al final y sin sumarla a los KPIs', () => {
@@ -126,6 +127,7 @@ describe('PanelRadar', () => {
           : punto,
     )
     render(<PanelRadar {...props({ puntos: conAmenaza })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Ver más/ }))
 
     const filas = screen.getAllByRole('button', { name: /Escuela/ }).filter((boton) => boton.className.includes('map-sitact__fila'))
     expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual([
@@ -134,10 +136,10 @@ describe('PanelRadar', () => {
       'Escuela Moderada, General Alvear',
       'Escuela Baja, Ituzaingó',
     ])
-    expect(within(filas[3]).getByText('Riesgo actual: Bajo')).toBeInTheDocument()
-    expect(within(filas[3]).getByText('Amenaza: Alto')).toBeInTheDocument()
-    // Los KPIs siguen contando sólo la prioridad educativa alta o muy alta.
-    expect(screen.getByText('Riesgo alto o muy alto').previousElementSibling).toHaveTextContent('2')
+    expect(within(filas[3]).getByText('Riesgo bajo')).toBeInTheDocument()
+    expect(within(filas[3]).getByText('Clima: fuerte')).toBeInTheDocument()
+    // Los KPIs cuentan la prioridad educativa desde moderado; la amenaza sola no suma.
+    expect(screen.getByText('Escuelas en riesgo').previousElementSibling).toHaveTextContent('3')
   })
 
   it('no lista una escuela de prioridad baja con amenaza moderada o sin dato', () => {
@@ -153,8 +155,8 @@ describe('PanelRadar', () => {
     const { rerender } = render(<PanelRadar {...props()} />)
     rerender(<PanelRadar {...props({ horizonte: 24 })} />)
 
-    expect(screen.getByText('Riesgo alto o muy alto').previousElementSibling).toHaveTextContent('2')
-    expect(screen.getByText('Alumnos en esas escuelas').previousElementSibling).toHaveTextContent('100')
+    expect(screen.getByText('Escuelas en riesgo').previousElementSibling).toHaveTextContent('3')
+    expect(screen.getByText('Alumnos en esas escuelas').previousElementSibling).toHaveTextContent('160')
     const filas = screen.getAllByRole('button').filter((boton) => boton.className.includes('map-sitact__fila'))
     expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual([
       'Escuela Baja, Ituzaingó',
@@ -181,11 +183,11 @@ describe('PanelRadar', () => {
 
     const grupo = screen.getByRole('group', { name: 'Variable meteorológica' })
     expect(within(grupo).getAllByRole('button')).toHaveLength(4)
-    expect(within(grupo).getByRole('button', { name: 'Lluvia' })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(grupo).getByRole('button', { name: 'Probabilidad' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(grupo).getByRole('button', { name: 'Lluvia (mm)' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(grupo).getByRole('button', { name: 'Lluvia (prob)' })).toHaveAttribute('aria-pressed', 'false')
     expect(within(grupo).getByRole('button', { name: 'Viento' })).toHaveAttribute('aria-pressed', 'false')
     expect(within(grupo).getByRole('button', { name: 'Granizo' })).toHaveAttribute('aria-pressed', 'false')
-    expect(within(grupo).queryByRole('button', { name: /\(mm\)|\(estimado\)/ })).not.toBeInTheDocument()
+    expect(within(grupo).queryByRole('button', { name: /\(estimado\)/ })).not.toBeInTheDocument()
     expect(grupo).toHaveClass('map-seg--2')
 
     fireEvent.click(within(grupo).getByRole('button', { name: 'Viento' }))
@@ -202,9 +204,11 @@ describe('PanelRadar', () => {
   })
 
   it('muestra los estados de carga, error, ausencia de pronóstico y ausencia de escuelas en riesgo', () => {
-    const cargando = render(<PanelRadar {...props({ cargando: true })} />)
-    expect(screen.getByRole('status')).toHaveTextContent('Cargando pronóstico…')
-    expect(screen.queryByText('Riesgo alto o muy alto')).not.toBeInTheDocument()
+    const cargando = render(<PanelRadar {...props({ cargando: true, disponibles: [] })} />)
+    // Mientras carga el motor se reserva su lugar: el bloque no aparece tarde.
+    const reservado = screen.getByRole('region', { name: 'Riesgo calculado (probabilístico)' })
+    expect(within(reservado).getByRole('status')).toHaveTextContent('Calculando riesgo…')
+    expect(screen.queryByText('Escuelas en riesgo')).not.toBeInTheDocument()
     cargando.unmount()
 
     const error = render(<PanelRadar {...props({ error: 'falló' })} />)
@@ -213,12 +217,12 @@ describe('PanelRadar', () => {
 
     const sinPronostico = render(<PanelRadar {...props({ disponibles: [], pronostico: { ...pronosticoVacio, resumen: { ...resumenMeteo(), sinDatos: true, departamentos: [] } } })} />)
     expect(screen.getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toBeInTheDocument()
-    expect(screen.queryByText('Riesgo alto o muy alto')).not.toBeInTheDocument()
+    expect(screen.queryByText('Escuelas en riesgo')).not.toBeInTheDocument()
     expect(within(screen.getByRole('group', { name: 'Horizonte' })).getAllByRole('button').every((boton) => boton.getAttribute('aria-disabled') === 'false')).toBe(true)
     sinPronostico.unmount()
 
     render(<PanelRadar {...props({ puntos: [] })} />)
-    expect(screen.getByText('Riesgo alto o muy alto').previousElementSibling).toHaveTextContent('0')
+    expect(screen.getByText('Escuelas en riesgo').previousElementSibling).toHaveTextContent('0')
     expect(screen.getByText('Ninguna escuela en riesgo para estos filtros.')).toBeInTheDocument()
   })
 
@@ -257,7 +261,7 @@ describe('PanelRadar', () => {
   it('muestra motor y pronóstico juntos, y pasa la selección del departamento', () => {
     const onDepartamento = vi.fn()
     render(<PanelRadar {...props({ pronostico: { ...pronosticoVacio, resumen: resumenMeteo(), onDepartamento } })} />)
-    expect(screen.getByText('Riesgo actual (hoy)')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Riesgo calculado (probabilístico)' })).toBeInTheDocument()
     expect(screen.getByText('Pronóstico por departamento')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Bella Vista, 70 mm' }))
     expect(onDepartamento).toHaveBeenCalledWith('bella-vista')
@@ -272,5 +276,43 @@ describe('PanelRadar', () => {
     sinDatos.unmount()
     render(<PanelRadar {...props({ disponibles: [], error: 'falló', pronostico: { ...pronosticoVacio, error: true } })} />)
     expect(screen.getByRole('status')).toHaveTextContent('No se pudo cargar el pronóstico. Intente de nuevo más tarde.')
+  })
+
+  it('ubica el riesgo calculado en el mismo lugar al cargar y al terminar, antes de las alertas', () => {
+    const { rerender } = render(<PanelRadar {...props({ cargando: true, disponibles: [], puntos: null })} />)
+    const secciones = () => Array.from(screen.getByTestId('panel-radar').querySelectorAll(':scope > section')).map((s) => s.getAttribute('aria-labelledby'))
+    const antes = secciones()
+    rerender(<PanelRadar {...props()} />)
+    expect(secciones()).toEqual(antes)
+    expect(antes.indexOf('map-radar-riesgo-titulo')).toBeLessThan(antes.indexOf('radar-alertas-smn-titulo'))
+    const riesgo = screen.getByRole('region', { name: 'Riesgo calculado (probabilístico)' })
+    expect(within(riesgo).getByText('Escuelas en riesgo')).toBeInTheDocument()
+  })
+
+  it('encabeza el pronóstico con su título antes de los indicadores', () => {
+    render(<PanelRadar {...props({ pronostico: { ...pronosticoVacio, resumen: resumenMeteo() } })} />)
+    const seccion = screen.getByRole('region', { name: /Pronóstico por departamento/ })
+    expect(seccion.firstElementChild?.tagName).toBe('H3')
+  })
+
+  it('muestra 3 escuelas en riesgo y un "Ver más" que despliega el resto', () => {
+    const conAmenaza = puntos.map((punto) =>
+      punto.cueAnexo === '400' && punto.horizonteHoras === 72 ? { ...punto, nivelAmenaza: 'alto' } : punto,
+    )
+    render(<PanelRadar {...props({ puntos: conAmenaza })} />)
+    const filas = () => screen.getAllByRole('button').filter((boton) => boton.className.includes('map-sitact__fila'))
+    expect(filas()).toHaveLength(3)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver más (1)' }))
+    expect(filas()).toHaveLength(4)
+    expect(screen.getByRole('button', { name: 'Ver menos' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('omite del desglose los niveles sin escuelas', () => {
+    const sinMuyAlto = puntos.map((punto) =>
+      punto.cueAnexo === '300' && punto.horizonteHoras === 72 ? { ...punto, nivelRiesgo: 'alto' } : punto,
+    )
+    render(<PanelRadar {...props({ puntos: sinMuyAlto })} />)
+    expect(screen.getByText('2 alto · 1 moderado')).toBeInTheDocument()
   })
 })

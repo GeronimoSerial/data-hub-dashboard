@@ -122,7 +122,7 @@ describe('RiesgoEscuela', () => {
 
     await screen.findByTestId('riesgo-escuela-actual')
     expect(screen.queryByTestId('riesgo-escuela-planificacion')).not.toBeInTheDocument()
-    expect(screen.queryByText('Prioridad de planificación (exposición estructural)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Prioridad para obras y prevención')).not.toBeInTheDocument()
   })
 
   it('muestra las etiquetas de planificacion y el aviso cuando no hay dato', async () => {
@@ -132,7 +132,7 @@ describe('RiesgoEscuela', () => {
       <RiesgoEscuela cueAnexo={CUE} horizonte={72} planificacion={PLANIFICACION} />,
     )
     const planificacion = screen.getByTestId('riesgo-escuela-planificacion')
-    expect(planificacion).toHaveTextContent('Prioridad de planificación (exposición estructural)')
+    expect(planificacion).toHaveTextContent('Prioridad para obras y prevención')
     expect(within(planificacion).getByText('Prioridad alta')).toBeInTheDocument()
     expect(within(planificacion).getByText(/Vista regional/)).toBeInTheDocument()
     expect(within(planificacion).getByText(/Depende de la ubicación y los antecedentes/)).toBeInTheDocument()

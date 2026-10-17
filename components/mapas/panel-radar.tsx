@@ -1,6 +1,6 @@
 'use client'
 
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import { Segmentado } from '@/components/mapas/segmentado'
 import { AlertasSeccion } from '@/components/mapas/radar-meteo/alertas-seccion'
 import { PronosticoResumen } from '@/components/mapas/radar-meteo/pronostico-resumen'
@@ -10,7 +10,9 @@ import {
   colorRiesgo,
   escuelasEnRadar,
   ETIQUETA_HORIZONTE_MOTOR,
+  ETIQUETA_NIVEL_CLIMA,
   ETIQUETA_NIVEL_RIESGO,
+  ETIQUETA_NIVEL_VULNERABILIDAD,
   resumirRiesgo,
 } from '@/lib/infraestructura/mapa/radar'
 import { pronosticoPorHorizonte } from '@/lib/infraestructura/radar-meteo/pronostico-horizonte'
@@ -54,6 +56,9 @@ export interface PanelRadarProps {
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 const HORIZONTES: HorizonteMotor[] = [24, 72, 240]
+// La lista arranca corta para que "Alertas del SMN" quede a la vista sin scroll.
+const ESCUELAS_VISIBLES = 3
+const NIVELES_RESUMEN = ['muy_alto', 'alto', 'moderado'] as const
 
 export function PanelRadar(props: PanelRadarProps): JSX.Element {
   const { horizonte, disponibles, onHorizonte, variable, onVariable, puntos, escuelas, cargando, error, onSeleccionar, alertas, pronostico } = props
@@ -71,6 +76,8 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
   // Amenaza null = sin dato: no se muestra.
   const lista = puntos === null ? [] : escuelasEnRadar(puntos, escuelas, horizonte)
   const resumen = resumirRiesgo(lista)
+  const [verTodas, setVerTodas] = useState(false)
+  const listaVisible = verTodas ? lista : lista.slice(0, ESCUELAS_VISIBLES)
 
   return (
     <section className="map-sitact" aria-label="Radar" data-testid="panel-radar">
@@ -90,76 +97,83 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
         columnas={2}
       />
 
-      <AlertasSeccion {...alertas} />
-
-      {hayMotor ? (
-        <>
+      {hayMotor || cargando ? (
+        // Lugar fijo: se reserva mientras carga el motor para que el bloque no
+        // aparezca tarde y empuje el resto del panel. Es riesgo calculado
+        // (probabilístico), distinto de los reportes de "Situación actual".
+        <section aria-labelledby="map-radar-riesgo-titulo" className="map-radar-riesgo">
+          <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Riesgo calculado (probabilístico)</h3>
           {cargando ? (
-            <p role="status" className="map-sitact__vacio">Cargando pronóstico…</p>
+            <p role="status" className="map-sitact__vacio map-radar-riesgo__reserva">Calculando riesgo…</p>
           ) : error ? (
             <p role="status" className="map-sitact__vacio">No se pudo cargar el pronóstico. Intente de nuevo más tarde.</p>
           ) : (
             <>
               <div className="map-sitact__kpis" aria-label="Resumen de riesgo">
                 <div className="map-sitact__kpi map-sitact__kpi--resaltado">
-                  <strong>{FORMATO_NUMERO.format(resumen.escuelasAltas)}</strong>
-                  <span>Riesgo alto o muy alto</span>
+                  <strong>{FORMATO_NUMERO.format(resumen.escuelas)}</strong>
+                  <span>Escuelas en riesgo</span>
                 </div>
                 <div className="map-sitact__kpi">
-                  <strong>{FORMATO_NUMERO.format(resumen.alumnosAltos)}</strong>
+                  <strong>{FORMATO_NUMERO.format(resumen.alumnos)}</strong>
                   <span>Alumnos en esas escuelas</span>
                 </div>
               </div>
-
-              <section aria-labelledby="map-radar-riesgo-titulo">
-                <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Riesgo actual (hoy)</h3>
-                {lista.length > 0 ? (
-                  <div className="map-sitact__lista">
-                    {lista.map(({ escuela, nivel, amenaza }) => {
-                      const departamento = etiquetaDepartamento(escuela.departamento)
-                      const niveles = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
-                      return (
-                        <button
-                          key={escuela.cueAnexo}
-                          type="button"
-                          className="map-sitact__fila"
-                          onClick={() => onSeleccionar(escuela.cueAnexo)}
-                          aria-label={`${escuela.nombre}, ${departamento}`}
-                        >
-                          <span className="map-sitact__franja" style={{ backgroundColor: colorRiesgo(nivel) }} />
-                          <span className="map-sitact__contenido-fila">
-                            <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
-                            <span className="map-sitact__meta">{departamento}{niveles}</span>
-                            <span className="map-sitact__chips">
-                              <span className="map-sitact__pill map-sitact__pill--neutro">Riesgo actual: {ETIQUETA_NIVEL_RIESGO[nivel]}</span>
-                              {amenaza && (
-                                <span className={`map-sitact__pill ${amenaza === 'alto' || amenaza === 'muy_alto' ? 'map-sitact__pill--aviso' : 'map-sitact__pill--neutro'}`}>
-                                  Amenaza: {ETIQUETA_NIVEL_RIESGO[amenaza]}
-                                </span>
-                              )}
-                            </span>
+              {resumen.escuelas > 0 && (
+                <p className="map-radar-riesgo__desglose">
+                  {NIVELES_RESUMEN.filter((nivel) => resumen.porNivel[nivel] > 0).map((nivel) => `${FORMATO_NUMERO.format(resumen.porNivel[nivel])} ${ETIQUETA_NIVEL_RIESGO[nivel].toLowerCase()}`).join(' · ')}
+                </p>
+              )}
+              {lista.length > 0 ? (
+                <div className="map-sitact__lista">
+                  {listaVisible.map(({ escuela, nivel, amenaza, vulnerabilidad }) => {
+                    const departamento = etiquetaDepartamento(escuela.departamento)
+                    const niveles = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
+                    const motivo = [
+                      amenaza && `Clima: ${ETIQUETA_NIVEL_CLIMA[amenaza]}`,
+                      vulnerabilidad && `Vulnerabilidad: ${ETIQUETA_NIVEL_VULNERABILIDAD[vulnerabilidad]}`,
+                    ].filter(Boolean).join(' · ')
+                    return (
+                      <button
+                        key={escuela.cueAnexo}
+                        type="button"
+                        className="map-sitact__fila"
+                        onClick={() => onSeleccionar(escuela.cueAnexo)}
+                        aria-label={`${escuela.nombre}, ${departamento}`}
+                      >
+                        <span className="map-sitact__franja" style={{ backgroundColor: colorRiesgo(nivel) }} />
+                        <span className="map-sitact__contenido-fila">
+                          <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
+                          <span className="map-sitact__meta">{departamento}{niveles}</span>
+                          <span className="map-sitact__chips">
+                            <span className="map-sitact__pill map-sitact__pill--neutro">Riesgo {ETIQUETA_NIVEL_RIESGO[nivel].toLowerCase()}</span>
                           </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="map-sitact__vacio">Ninguna escuela en riesgo para estos filtros.</p>
-                )}
-              </section>
+                          {motivo && <span className="map-sitact__meta map-radar-riesgo__motivo">{motivo}</span>}
+                        </span>
+                      </button>
+                    )
+                  })}
+                  {lista.length > ESCUELAS_VISIBLES && (
+                    <button type="button" className="map-radar-riesgo__ver-mas" aria-expanded={verTodas} onClick={() => setVerTodas((valor) => !valor)}>
+                      {verTodas ? 'Ver menos' : `Ver más (${lista.length - ESCUELAS_VISIBLES})`}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="map-sitact__vacio map-sitact__vacio--linea">Ninguna escuela en riesgo para estos filtros.</p>
+              )}
             </>
           )}
-          {pronosticoHorizonte ? (
-            <PronosticoResumen pronostico={pronosticoHorizonte} horizonte={horizonte} runAt={pronostico.resumen?.runAt ?? null} departamentoId={pronostico.departamentoId} onDepartamento={pronostico.onDepartamento} />
-          ) : pronostico.cargando ? (
-            <p role="status" className="map-sitact__vacio">Cargando pronóstico…</p>
-          ) : null}
-        </>
-      ) : pronostico.cargando && !hayPronostico || cargando && !hayPronostico ? (
-        <p role="status" className="map-sitact__vacio">Cargando pronóstico…</p>
-      ) : hayPronostico && pronosticoHorizonte ? (
+        </section>
+      ) : null}
+
+      <AlertasSeccion {...alertas} />
+
+      {pronosticoHorizonte ? (
         <PronosticoResumen pronostico={pronosticoHorizonte} horizonte={horizonte} runAt={pronostico.resumen?.runAt ?? null} departamentoId={pronostico.departamentoId} onDepartamento={pronostico.onDepartamento} />
-      ) : error !== null && pronostico.error ? (
+      ) : pronostico.cargando || (cargando && !hayMotor) ? (
+        <p role="status" className="map-sitact__vacio">Cargando pronóstico…</p>
+      ) : hayMotor ? null : error !== null && pronostico.error ? (
         <p role="status" className="map-sitact__vacio">No se pudo cargar el pronóstico. Intente de nuevo más tarde.</p>
       ) : (
         <p className="map-sitact__vacio">Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.</p>

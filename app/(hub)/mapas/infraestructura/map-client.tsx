@@ -20,6 +20,10 @@ import { PanelEstadisticas } from '@/components/mapas/panel-estadisticas'
 import { MetodologiaMapa } from '@/components/mapas/metodologia/metodologia-mapa'
 import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
 import type { EscuelaMapaPadron } from '@/lib/infraestructura/parte-mapa'
+import {
+  leerSnapshotRetornoMapa,
+  parsearContextoMapaDeQuery,
+} from '@/lib/infraestructura/mapa/estado-retorno'
 import { cn } from '@/lib/utils'
 import styles from './map-header.module.css'
 
@@ -42,7 +46,9 @@ export function InfraestructuraMapClient(props: {
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
+  rutaActiva?: boolean
 }) {
+  const rutaActiva = props.rutaActiva ?? true
   const [tab, setTab] = React.useState<PestanaMapa>('actual')
   // Fullscreen target: tabs, filters and map share this element, so all stay visible.
   const contenedorPantallaCompleta = React.useRef<HTMLDivElement>(null)
@@ -52,10 +58,17 @@ export function InfraestructuraMapClient(props: {
     left: false,
     right: false,
   })
-  const seleccionarEscuelaRef = React.useRef<((escuela: EscuelaMapaPadron) => void) | null>(null)
-  const registrarSeleccion = React.useCallback((fn: ((escuela: EscuelaMapaPadron) => void) | null) => {
-    seleccionarEscuelaRef.current = fn
-  }, [])
+  const seleccionarEscuelaRef = React.useRef<
+    ((escuela: EscuelaMapaPadron, opciones?: { conservarCamara?: boolean }) => void) | null
+  >(null)
+  const [seleccionadorListo, setSeleccionadorListo] = React.useState(false)
+  const registrarSeleccion = React.useCallback(
+    (fn: ((escuela: EscuelaMapaPadron, opciones?: { conservarCamara?: boolean }) => void) | null) => {
+      seleccionarEscuelaRef.current = fn
+      setSeleccionadorListo(Boolean(fn))
+    },
+    [],
+  )
   const [filtros, setFiltros] = React.useState<FiltrosMapa>(FILTROS_MAPA_VACIOS)
   const { data: padron } = useEscuelasMapa()
   const escuelasFiltradas = React.useMemo(
@@ -89,14 +102,63 @@ export function InfraestructuraMapClient(props: {
     if (window.location.hash.slice(1) !== valor) window.location.hash = valor
   }
 
+  const buscarEscuelaEnPadron = React.useCallback(
+    (cueAnexo: string): EscuelaMapaPadron | null => {
+      const enEscuelas = padron?.escuelas.find((item) => item.cueAnexo === cueAnexo)
+      if (enEscuelas) return enEscuelas
+      const enSinUbicacion = padron?.sinUbicacion.find((item) => item.cueAnexo === cueAnexo)
+      if (!enSinUbicacion) return null
+      return {
+        cueAnexo: enSinUbicacion.cueAnexo,
+        nombre: enSinUbicacion.nombre,
+        departamento: enSinUbicacion.departamento,
+        localidad: enSinUbicacion.localidad,
+        lat: null,
+        lon: null,
+        estado: 'sin_afectacion_reportada',
+        niveles: [],
+        alumnos: 0,
+        gravedad: 0,
+        categoriaPrincipal: null,
+        clases: 'normal',
+        apoyo: null,
+        sinActualizar: false,
+        ultimaNovedad: null,
+        alumnosSinClases: 0,
+        situacionesHistoricas: 0,
+        solucionadasRecientes: 0,
+      }
+    },
+    [padron],
+  )
+
   function seleccionarEscuela(cueAnexo: string) {
-    const escuela = padron?.escuelas.find((item) => item.cueAnexo === cueAnexo)
+    const escuela = buscarEscuelaEnPadron(cueAnexo)
     if (!escuela) return
     if (tab === 'estadisticas' || tab === 'metodologia') {
       onTab(ultimaPestanaMapa || 'actual')
     }
     seleccionarEscuelaRef.current?.(escuela)
   }
+
+  const ultimoSearchAplicadoRef = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!rutaActiva || !padron || !seleccionadorListo || typeof window === 'undefined') return
+    const search = window.location.search
+    if (!search || ultimoSearchAplicadoRef.current === search) return
+    const params = new URLSearchParams(search)
+    const contexto = parsearContextoMapaDeQuery(params)
+    const cueBuscado = contexto.cue ?? params.get('cue')?.trim() ?? null
+    if (!cueBuscado) return
+    const escuela = buscarEscuelaEnPadron(cueBuscado)
+    if (!escuela) return
+    ultimoSearchAplicadoRef.current = search
+    // `enfocar=1` (from "Abrir mapa" in the school sheet) always centres on the school.
+    const conservarCamara =
+      params.get('enfocar') !== '1' &&
+      (contexto.origen === 'mapa' || Boolean(leerSnapshotRetornoMapa()))
+    seleccionarEscuelaRef.current?.(escuela, { conservarCamara })
+  }, [rutaActiva, padron, seleccionadorListo, buscarEscuelaEnPadron])
 
   React.useEffect(() => {
     const syncHash = () => {
@@ -109,7 +171,7 @@ export function InfraestructuraMapClient(props: {
     syncHash()
     window.addEventListener('hashchange', syncHash)
     return () => window.removeEventListener('hashchange', syncHash)
-  }, [props.riskRadarEnabled])
+  }, [props.riskRadarEnabled, rutaActiva])
 
   const revealTab = React.useCallback((target: HTMLElement | null) => {
     const el = tabsListRef.current
@@ -275,10 +337,11 @@ export function InfraestructuraMapClient(props: {
             seasonalEnabled={props.seasonalEnabled ?? false}
             pestana={pestanaDeMapa(ultimaPestanaMapa)}
             panel={ultimaPestanaMapa}
-            visible={mapaVisible}
+            visible={mapaVisible && rutaActiva}
             escuelasMapa={escuelasMapa}
             onRegistrarSeleccion={registrarSeleccion}
             contenedorPantallaCompleta={contenedorPantallaCompleta}
+            filtrosActivos={filtros}
           />
         </div>
 

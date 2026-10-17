@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Images, X } from 'lucide-react'
+import { useEffect, useState, type JSX } from 'react'
+import { ArrowUpRight, Camera, Plus, X } from 'lucide-react'
 import Image from 'next/image'
 import styles from './galeria-evidencia.module.css'
+import { CargaEvidencia } from './carga-evidencia'
 import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
 
 type FotoEvidencia = { attachmentId: string; thumbnailUrl: string }
@@ -28,18 +29,37 @@ function etiquetaMovimiento(type: string): string {
   return 'Movimiento'
 }
 
-export function GaleriaEvidencia({ cue }: { cue: string }) {
+export function GaleriaEvidencia({
+  cue,
+  movimientoBaseId,
+  urlCargarParte,
+  className,
+}: {
+  cue: string
+  /** Latest report movement; when omitted the server resolves it from the CUE. */
+  movimientoBaseId?: string | null
+  /** Report form, offered when the school has no report yet. */
+  urlCargarParte?: string
+  className?: string
+}) {
   const [movements, setMovements] = useState<MovimientoEvidencia[] | null>(null)
   const [error, setError] = useState(false)
   const [selected, setSelected] = useState<{ id: string; url: string } | null>(null)
   const [loadingPhoto, setLoadingPhoto] = useState<string | null>(null)
-  const [enabled, setEnabled] = useState(false)
+  const [flag, setFlag] = useState<'pending' | 'on' | 'off'>('pending')
+  const [cargando, setCargando] = useState(false)
+  const [recarga, setRecarga] = useState(0)
+  const [aviso, setAviso] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
     void fetchReportesOfflineFeatures().then((flags) => {
-      if (!active || !flags.fotos) return
-      setEnabled(true)
+      if (!active) return
+      if (!flags.fotos) {
+        setFlag('off')
+        return
+      }
+      setFlag('on')
       return fetch(`/api/infraestructura/adjuntos?cue=${encodeURIComponent(cue)}`)
         .then(async (response) => {
           if (!response.ok) throw new Error('Could not load evidence')
@@ -49,7 +69,7 @@ export function GaleriaEvidencia({ cue }: { cue: string }) {
         .catch(() => { if (active) setError(true) })
     })
     return () => { active = false }
-  }, [cue])
+  }, [cue, recarga])
 
   async function openPhoto(attachmentId: string) {
     setLoadingPhoto(attachmentId)
@@ -66,15 +86,66 @@ export function GaleriaEvidencia({ cue }: { cue: string }) {
   }
 
   const total = movements?.reduce((sum, movement) => sum + movement.photos.length, 0) ?? 0
-  if (!enabled) return null
+  if (flag === 'pending') return null
+  // Without the photo feature the section still shows, as an honest empty state.
+  const lista = flag === 'off' ? [] : movements
+  // With the photo feature on, photos are always attached right here.
+  const adjuntarAqui = flag === 'on'
+
+  function abrirCarga() {
+    setAviso(null)
+    setCargando(true)
+  }
+
+  function accionCarga(clase: string, texto: string, icono: JSX.Element) {
+    if (adjuntarAqui) {
+      return (
+        <button type="button" className={clase} onClick={abrirCarga} aria-expanded={cargando}>
+          {clase === styles.attach && icono}
+          {texto}
+          {clase !== styles.attach && icono}
+        </button>
+      )
+    }
+    return null
+  }
 
   return (
-    <section className={styles.gallery} aria-label="Evidencia fotográfica">
-      <h3><Images aria-hidden="true" /> Evidencia fotográfica{movements && total > 0 ? ` (${total})` : ''}</h3>
-      {movements === null && !error && <p role="status">Cargando fotos…</p>}
+    <section className={[styles.gallery, className].filter(Boolean).join(' ')} aria-label="Evidencia fotográfica">
+      <div className={styles.header}>
+        <div className={styles.heading}>
+          <h3>Evidencia fotográfica</h3>
+          {lista && <span className={styles.count}>{total === 1 ? '1 adjunto' : `${total} adjuntos`}</span>}
+        </div>
+        {!cargando && accionCarga(styles.attach, 'Adjuntar foto', <Plus aria-hidden="true" />)}
+      </div>
+      {cargando && (
+        <CargaEvidencia
+          cue={cue}
+          movimientoBaseId={movimientoBaseId}
+          urlCargarParte={urlCargarParte}
+          onCancelar={() => setCargando(false)}
+          onGuardado={() => {
+            setCargando(false)
+            setAviso('Fotos guardadas. Se suben en segundo plano y aparecen acá cuando terminan.')
+            setRecarga((valor) => valor + 1)
+          }}
+        />
+      )}
+      {aviso && <p role="status" className={styles.uploadNote}>{aviso}</p>}
+      {lista === null && !error && <p role="status">Cargando fotos…</p>}
       {error && <p role="alert">No se pudo cargar la evidencia fotográfica.</p>}
-      {movements && total === 0 && <p>Sin fotos registradas.</p>}
-      {movements?.map((movement) => (
+      {lista && total === 0 && !cargando && (
+        <div className={styles.empty}>
+          <span className={styles.emptyIcon} aria-hidden="true"><Camera /></span>
+          <div>
+            <p className={styles.emptyTitle}>Sin imágenes registradas</p>
+            <p className={styles.emptyText}>Se pueden adjuntar fotografías del estado de caminos, accesos o del predio escolar.</p>
+          </div>
+          {accionCarga(styles.browse, 'Examinar archivos', <ArrowUpRight aria-hidden="true" />)}
+        </div>
+      )}
+      {lista?.map((movement) => (
         <section className={styles.movement} key={movement.id}>
           <h4>{etiquetaMovimiento(movement.type)} · {fechaMovimiento(movement.createdAt)}</h4>
           <div className={styles.photos}>
