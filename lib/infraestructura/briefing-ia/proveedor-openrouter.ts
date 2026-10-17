@@ -1,10 +1,6 @@
-// Cliente HTTP puro contra OpenRouter (API compatible con OpenAI Chat
-// Completions). No usa SDK para evitar dependencias nuevas y para poder
-// inyectar fetchImpl en los tests sin tocar la red real.
-//
-// El costo real lo expone OpenRouter en usage.cost cuando el body envía
-// usage.include=true. Si no viene, se recalcula con la tarifa fija verificada
-// del modelo deepseek-v4.1-flash para no dejar el costo en null.
+// AI_BASE_URL permite usar un proxy compatible con OpenAI. Sin esa variable,
+// se mantiene OpenRouter. LiteLLM informa el costo en x-litellm-response-cost;
+// OpenRouter lo incluye en usage.cost.
 
 import { CONFIG_FUENTES } from '../riesgo/providers/config-fuentes'
 
@@ -145,8 +141,11 @@ export async function generarConOpenRouter(
   mensajes: MensajeChat[],
   opciones: OpcionesProveedorIA = {},
 ): Promise<ResultadoProveedorIA> {
-  const apiKey = opciones.apiKey ?? process.env.OPENROUTER_API_KEY
-  const modelo = opciones.modelo ?? process.env.OPENROUTER_MODEL ?? MODELO_POR_DEFECTO
+  const apiKey = opciones.apiKey ?? process.env.AI_API_KEY ?? process.env.OPENROUTER_API_KEY
+  const modelo = opciones.modelo ?? process.env.AI_MODEL ?? process.env.OPENROUTER_MODEL ?? MODELO_POR_DEFECTO
+  const url = process.env.AI_BASE_URL?.trim()
+    ? `${process.env.AI_BASE_URL.trim().replace(/\/+$/, '')}/chat/completions`
+    : URL_OPENROUTER
   const timeoutMs = opciones.timeoutMs ?? TIMEOUT_MS_POR_DEFECTO
   const fetchImpl = opciones.fetchImpl ?? fetch
 
@@ -159,7 +158,7 @@ export async function generarConOpenRouter(
   const temporizador = setTimeout(() => controlador.abort(), timeoutMs)
 
   try {
-    const respuesta = await fetchImpl(URL_OPENROUTER, {
+    const respuesta = await fetchImpl(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -187,12 +186,17 @@ export async function generarConOpenRouter(
       return fallo('http_error', Date.now() - inicio)
     }
 
+    const costoProxy = respuesta.headers.get('x-litellm-response-cost')
+    const costoProxyUsd = costoProxy === null ? null : Number(costoProxy)
+
     return {
       ok: true,
       contenido: lectura.contenido,
       tokensEntrada: lectura.tokensEntrada,
       tokensSalida: lectura.tokensSalida,
-      costoUsd: lectura.costo,
+      costoUsd: costoProxyUsd !== null && Number.isFinite(costoProxyUsd) && costoProxyUsd >= 0
+        ? costoProxyUsd
+        : lectura.costo,
       latenciaMs: Date.now() - inicio,
       motivoFallo: null,
     }

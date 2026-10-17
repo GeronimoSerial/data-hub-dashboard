@@ -124,7 +124,7 @@ export async function generarVeredictos(
     motivoLlamada = 'presupuesto_agotado'
   } else {
     modeloUsado =
-      opciones.modelo ?? process.env.OPENROUTER_MODEL ?? CONFIG_FUENTES.openrouter.modeloPorDefecto
+      opciones.modelo ?? process.env.AI_MODEL ?? process.env.OPENROUTER_MODEL ?? CONFIG_FUENTES.openrouter.modeloPorDefecto
     try {
       resultadoIa = await generarIa(
         [
