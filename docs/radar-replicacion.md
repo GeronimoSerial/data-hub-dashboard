@@ -28,6 +28,9 @@ en `false`. `RADAR_SYNC_ENABLED=false` bloquea en `jobs.mjs` los tres productore
 incluidos los disparos manuales, antes de cargar módulos o migrar. No afecta
 `sync-smn-alertas`, los otros jobs de riesgo ni la réplica.
 
+La [activación en Coolify y systemd](radar-operacion.md) queda preparada para
+ejecución manual.
+
 ## Verificación y reversión del código
 
 `npx vitest run scripts/replicar-radar-meteo.test.ts scripts/jobs.test.ts scripts/jobs.migracion-legacy.test.ts`
