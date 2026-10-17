@@ -55,9 +55,11 @@ export function MultiSelect<T extends string>({
                 className="ui-select-item"
                 label={opt.label}
               >
-                <SelectPrimitive.ItemIndicator>
-                  <Check size={15} />
-                </SelectPrimitive.ItemIndicator>
+                <span className="ui-select-check" aria-hidden="true">
+                  <SelectPrimitive.ItemIndicator>
+                    <Check size={13} strokeWidth={3} />
+                  </SelectPrimitive.ItemIndicator>
+                </span>
                 <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
               </SelectPrimitive.Item>
             ))}

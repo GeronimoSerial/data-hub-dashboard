@@ -2,6 +2,7 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { RecorridoActualizacion } from './recorrido-actualizacion'
@@ -57,6 +58,14 @@ afterEach(async () => { cleanup(); await esperarGuardadosPendientes(); vi.unstub
 
 function elegirAsistencia(valor: 'Sí' | 'No') {
   fireEvent.click(within(screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })).getByRole('radio', { name: valor }))
+}
+
+async function elegirModalidades(user: ReturnType<typeof userEvent.setup>, ...modalidades: string[]) {
+  await user.click(screen.getByRole('combobox', { name: '¿De qué tipo?' }))
+  for (const modalidad of modalidades) {
+    await user.click(await screen.findByRole('option', { name: modalidad }))
+  }
+  await user.keyboard('{Escape}')
 }
 
 describe('RecorridoActualizacion: borrador local', () => {
@@ -180,7 +189,7 @@ describe('RecorridoActualizacion: borrador local', () => {
     montar(); await irAlResumen()
     await waitFor(async () => expect(await leerBorradorGuardado()).not.toBeNull())
     elegirAsistencia('Sí')
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Cuadernillo' }))
+    await elegirModalidades(userEvent.setup(), 'Cuadernillo')
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await screen.findByText('Parte actualizado')
     await waitFor(async () => expect(await leerBorradorGuardado()).toBeNull())

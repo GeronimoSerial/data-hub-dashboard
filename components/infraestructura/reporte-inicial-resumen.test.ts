@@ -54,6 +54,16 @@ describe('describirAlcanceServicio', () => {
 })
 
 describe('armarResumen', () => {
+  it('informa cuántas fotos quedan adjuntas, de solo lectura', () => {
+    const lineas = armarResumen({ ...base, fotosAdjuntas: 2 })
+
+    expect(lineas).toContainEqual({ etiqueta: 'Fotos adjuntas', valor: '2' })
+  })
+
+  it('no informa fotos cuando el resumen no las recibe', () => {
+    expect(armarResumen(base).some((fila) => fila.etiqueta === 'Fotos adjuntas')).toBe(false)
+  })
+
   it('muestra el motivo, la severidad y el alcance en pares de etiqueta y valor', () => {
     const lineas = armarResumen(base)
 

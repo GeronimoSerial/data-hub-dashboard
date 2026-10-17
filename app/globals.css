@@ -1636,6 +1636,21 @@ time {
   background: var(--ink);
   color: var(--page);
 }
+/* Opciones de selección múltiple: blanco táctil mínimo de 44px. */
+.ui-select-item { min-height: 44px; }
+.ui-select-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--line);
+  border-radius: 4px;
+  background: var(--page);
+  color: var(--white);
+}
+.ui-select-item[data-selected] .ui-select-check { border-color: var(--accent); background: var(--accent); }
 
 .ui-tooltip-positioner { z-index: var(--z-tooltip); }
 .ui-tooltip-popup {
@@ -4776,7 +4791,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-color: var(--accent);
   background: var(--accent-tint);
 }
-.opcion:has(.opcion__input:disabled) { opacity: 0.55; cursor: not-allowed; }
+/* Deshabilitada no se confunde con una opción vacía: más tenue, borde punteado
+   y cursor de "no permitido". El motivo va dentro, con candado. */
+.opcion:has(.opcion__input:disabled) { opacity: 0.6; cursor: not-allowed; border-style: dashed; }
+.opcion:has(.opcion__input:disabled):hover { border-color: var(--line); }
+.opcion__bloqueo { display: flex; align-items: flex-start; gap: var(--s-1); font-size: var(--t-micro); color: var(--ink-soft); line-height: 1.35; }
+.opcion__candado { flex: none; margin-top: 2px; }
 .opcion__input {
   position: absolute;
   width: 1px;
@@ -4997,6 +5017,18 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .algo-nuevo__datos > .asistente__acciones {
   padding-top: 0;
   border-top: 0;
+}
+
+/* Barra de acciones del paso: queda al pie mientras se recorre el formulario,
+   para que Volver y Continuar/Guardar estén siempre a mano. Va al final de su
+   tarjeta, así que el último campo nunca queda bajo ella al llegar al fondo. */
+.asistente__acciones--pegada {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--card);
+  box-shadow: 0 -6px 12px -8px rgb(0 0 0 / 0.2);
+  padding-bottom: calc(var(--s-4) + env(safe-area-inset-bottom));
 }
 
 /* "Situación nueva" es el título de la pantalla; los bloques que siguen son
@@ -5395,6 +5427,37 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+/* Advertencia accionable: "Cambiar a …" aplica el valor; "Está bien así" la descarta. */
+.aviso-badge__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+
+.aviso-badge__accion {
+  min-height: 32px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-pill);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aviso-badge__accion--secundaria {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+.aviso-badge__accion:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
 .vigencia-field__acciones {
   display: flex;
@@ -6104,15 +6167,26 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 /* Gravedad por tono: la escala tonal del mapa (lib/mapas/paleta-tonal.ts)
    marca cada nivel con una franja; el nombre escrito sigue siendo la señal
    que no depende del color. */
-.opcion--sev-baja { --sev: #fecaca; --sev-tinta: #7f1d1d; }
-.opcion--sev-media { --sev: #f87171; --sev-tinta: #fff; }
-.opcion--sev-alta { --sev: #dc2626; --sev-tinta: #fff; }
-.opcion--sev-critica { --sev: #7f1d1d; --sev-tinta: #fff; }
+/* --sev-trazo: color de borde con contraste >= 4.5:1 sobre blanco (el relleno
+   claro de "Baja" no alcanza para un borde). */
+.opcion--sev-baja { --sev: #fecaca; --sev-tinta: #7f1d1d; --sev-trazo: #991b1b; }
+.opcion--sev-media { --sev: #f87171; --sev-tinta: #fff; --sev-trazo: #b91c1c; }
+.opcion--sev-alta { --sev: #dc2626; --sev-tinta: #fff; --sev-trazo: #991b1b; }
+.opcion--sev-critica { --sev: #7f1d1d; --sev-tinta: #fff; --sev-trazo: #7f1d1d; }
 .opcion--severidad { border-left: 8px solid var(--sev); }
-.opcion--severidad:hover { border-color: var(--sev); }
+.opcion--severidad:hover { border-color: var(--sev-trazo); }
+/* Sugerida sin elegir: contorno punteado de 2px y tinte suave. */
+.opcion--severidad.opcion--sugerido:not(:has(.opcion__input:checked)) {
+  border: 2px dashed var(--sev-trazo);
+  border-left: 8px solid var(--sev);
+  background: color-mix(in srgb, var(--sev) 10%, var(--card));
+}
+/* Elegida: contorno sólido de 2px, tinte más fuerte e indicador lleno. Si además
+   es la sugerida, conserva el badge "Sugerido" y este estilo sólido. */
 .opcion--severidad:has(.opcion__input:checked) {
-  border-color: var(--sev);
-  background: color-mix(in srgb, var(--sev) 16%, var(--card));
+  border: 2px solid var(--sev-trazo);
+  border-left: 8px solid var(--sev);
+  background: color-mix(in srgb, var(--sev) 22%, var(--card));
 }
 .opcion--severidad:has(.opcion__input:checked) .opcion__indicador {
   background: var(--sev);

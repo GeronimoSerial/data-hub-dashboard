@@ -2,6 +2,7 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MENSAJE_BORRADOR_PENDIENTE, ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
@@ -98,6 +99,14 @@ function completarAQuienAfecta(categoria: 'alumnos' | 'establecimiento' = 'estab
 }
 
 /** Paso 3: ¿hay clases? y cómo está el edificio (obligatorio). */
+async function elegirModalidades(user: ReturnType<typeof userEvent.setup>, ...modalidades: string[]) {
+  await user.click(screen.getByRole('combobox', { name: '¿De qué tipo?' }))
+  for (const modalidad of modalidades) {
+    await user.click(await screen.findByRole('option', { name: modalidad }))
+  }
+  await user.keyboard('{Escape}')
+}
+
 function completarEstadoEstablecimiento() {
   fireEvent.click(screen.getByRole('radio', { name: 'Sí, con normalidad' }))
   fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
@@ -225,7 +234,9 @@ describe('ReporteInicialForm', () => {
     renderFormulario({ turnos: unaSeccion })
     completarQuePaso()
     continuar()
+    // Inundación ya sugiere Crítica para toda la escuela: no hay recomendación que mostrar.
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
     continuar()
     fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -240,7 +251,7 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarEstadoEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Clase virtual' }))
+    await elegirModalidades(userEvent.setup(), 'Clase virtual')
     continuar()
     continuar()
     fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
@@ -248,6 +259,68 @@ describe('ReporteInicialForm', () => {
       const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
       expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Clase virtual'] })
     })
+  })
+
+  it('pregunta de qué tipo con un desplegable cerrado y sin casillas', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    const desplegable = screen.getByRole('combobox', { name: '¿De qué tipo?' })
+    expect(desplegable).toHaveAttribute('aria-expanded', 'false')
+    expect(desplegable).toHaveTextContent('Seleccione una o más opciones')
+    expect(screen.queryByRole('checkbox', { name: 'Clase virtual' })).toBeNull()
+    expect(screen.queryByText('¿De qué forma?')).toBeNull()
+  })
+
+  it('el desplegable marca varias modalidades y las resume en el trigger', async () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    await elegirModalidades(userEvent.setup(), 'Clase virtual', 'Cuadernillo')
+    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toHaveTextContent('Clase virtual, Cuadernillo')
+  })
+
+  it('se abre, marca y cierra con el teclado', async () => {
+    const user = userEvent.setup()
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    const desplegable = screen.getByRole('combobox', { name: '¿De qué tipo?' })
+    desplegable.focus()
+    await user.keyboard('{Enter}')
+    expect(desplegable).toHaveAttribute('aria-expanded', 'true')
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(screen.getByRole('option', { name: 'Cuadernillo' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{ArrowUp}')
+    await user.keyboard(' ')
+    expect(screen.getByRole('option', { name: 'Clase virtual' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{Escape}')
+    expect(desplegable).toHaveAttribute('aria-expanded', 'false')
+    expect(desplegable).toHaveTextContent('Cuadernillo, Clase virtual')
+  })
+
+  it('exige al menos una modalidad cuando se elige Sí', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    continuar()
+    expect(textoAlertas()).toContain('Elija al menos una modalidad de asistencia pedagógica.')
   })
 
   it('una Crítica justificada viaja al servidor con su justificación', async () => {
@@ -292,6 +365,21 @@ describe('ReporteInicialForm', () => {
 
     expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+  })
+
+  it('la barra de acciones queda pegada en todos los pasos y Volver aparece desde el segundo', () => {
+    renderFormulario()
+    const barra = () => screen.getByRole('button', { name: 'Continuar' }).closest('.asistente__acciones')
+
+    expect(barra()).toHaveClass('asistente__acciones--pegada')
+    expect(screen.queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument()
+
+    completarQuePaso()
+    continuar()
+
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+    expect(barra()).toHaveClass('asistente__acciones--pegada')
+    expect(within(barra() as HTMLElement).getByRole('button', { name: 'Volver' })).toBeInTheDocument()
   })
 
   it('envía rigeDesde resuelto al momento de enviar cuando se deja "Ahora"', async () => {
@@ -388,6 +476,29 @@ describe('ReporteInicialForm', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Elija al menos una sección para esta situación.')
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+  })
+
+  it('con motivo "Otro" exige la descripción para avanzar desde el segundo paso', () => {
+    renderFormulario({
+      motivos: [...motivos, { id: 'otro-establecimiento', nombre: 'Otro problema en el establecimiento', categoria: 'establecimiento', orden: 90, severidadSugerida: null }],
+    })
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    confirmarCategoria()
+    fireEvent.click(screen.getByRole('radio', { name: 'Otro problema en el establecimiento' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    continuar()
+    completarAQuienAfecta()
+    expect(screen.getByLabelText('Descripción (obligatoria)')).toBeInTheDocument()
+
+    continuar()
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Describa la situación: al elegir "Otro" la descripción es obligatoria.')
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Descripción (obligatoria)'), { target: { value: 'Pérdida de agua en el baño' } })
+    continuar()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('¿Cómo está el edificio?')).toBeInTheDocument()
   })
 
   it('usa las secciones afectadas como alcance de la interrupción', () => {
@@ -537,7 +648,7 @@ describe('ReporteInicialForm', () => {
     }
   })
 
-  it('muestra las modalidades de asistencia en un subgrupo sólo al elegir Sí', () => {
+  it('muestra el desplegable de tipo de asistencia sólo al elegir Sí', () => {
     renderFormulario()
     completarQuePaso()
     continuar()
@@ -545,12 +656,11 @@ describe('ReporteInicialForm', () => {
     continuar()
 
     fireEvent.click(screen.getByRole('radio', { name: 'No' }))
-    expect(screen.queryByRole('group', { name: '¿De qué forma?' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: '¿De qué tipo?' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
-    const modalidades = screen.getByRole('group', { name: '¿De qué forma?' })
-    expect(within(modalidades).getByRole('checkbox', { name: 'Clase virtual' })).toBeInTheDocument()
-    expect(within(modalidades).getByRole('checkbox', { name: 'Cuadernillo' })).toBeInTheDocument()
+    expect(screen.getByText('¿De qué tipo?')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toBeInTheDocument()
   })
 
   it('usa etiquetas de alcance y una confirmación sin repetir el título', async () => {
@@ -1274,5 +1384,81 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(JSON.parse(init.body as string).idempotencyKey).toBe('k-timeout')
+  })
+})
+
+describe('foto del reporte en el primer paso (T5)', () => {
+  function stubFetchConFotos() {
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      if (String(input).includes('/borradores/config')) return jsonResponse({ borradoresSync: false, fotos: true, mapaBorradores: false })
+      return jsonResponse({ ok: true, movimientoId: 'm1' }, 201)
+    })
+  }
+
+  const selectorFotos = () => screen.findByLabelText('Agregar fotos')
+  const estaOculto = (elemento: HTMLElement) => elemento.closest('[hidden]') !== null
+
+  it('muestra el selector de fotos en el primer paso, después del motivo', async () => {
+    stubFetchConFotos()
+    renderFormulario()
+
+    expect(estaOculto(await selectorFotos())).toBe(false)
+  })
+
+  it('en Confirmar no muestra el selector sino la cantidad de fotos adjuntas', async () => {
+    stubFetchConFotos()
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:foto')
+    renderFormulario()
+    const picker = await selectorFotos()
+    const fotos = [new File(['a'], 'patio.jpg', { type: 'image/jpeg' }), new File(['b'], 'aula.jpg', { type: 'image/jpeg' })]
+    await userEvent.setup().upload(picker, fotos)
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    continuar()
+    continuar()
+
+    expect(estaOculto(picker)).toBe(true)
+    expect(within(resumenConfirmacion()).getByText('Fotos adjuntas')).toBeInTheDocument()
+    expect(within(resumenConfirmacion()).getByText('2')).toBeInTheDocument()
+  })
+
+  it('con severidad Crítica recomienda adjuntar una foto, sin hacerla obligatoria', async () => {
+    stubFetchConFotos()
+    renderFormulario()
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    confirmarCategoria()
+    fireEvent.click(screen.getByRole('radio', { name: 'Inundación' }))
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    expect(screen.queryByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeNull()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Crítica' }))
+    // Inundación no sugiere Crítica: elegirla pide justificarla antes de aplicarla.
+    const hoja = within(screen.getByRole('dialog'))
+    fireEvent.click(hoja.getAllByRole('radio')[0])
+    fireEvent.click(hoja.getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeInTheDocument()
+    expect(await selectorFotos()).toBeInTheDocument()
+  })
+
+  it('sin fotos habilitadas no recomienda adjuntar una foto aunque la severidad sea Crítica', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      if (String(input).includes('/borradores/config')) return jsonResponse({ borradoresSync: false, fotos: false, mapaBorradores: false })
+      return jsonResponse({ ok: true, movimientoId: 'm1' }, 201)
+    })
+    renderFormulario()
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    confirmarCategoria()
+    fireEvent.click(screen.getByRole('radio', { name: 'Inundación' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Crítica' }))
+    const hoja = within(screen.getByRole('dialog'))
+    fireEvent.click(hoja.getAllByRole('radio')[0])
+    fireEvent.click(hoja.getByRole('button', { name: 'Confirmar' }))
+
+    await act(async () => { await new Promise((resolver) => setTimeout(resolver, 0)) })
+    expect(screen.queryByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeNull()
   })
 })

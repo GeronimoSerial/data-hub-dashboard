@@ -11,8 +11,15 @@ import {
   esAfectacionLista,
   esAfectacionParcial,
   totalAlumnosDe,
+  AvisosConsistencia,
   type AfectacionBorrador,
 } from '@/components/infraestructura/afectacion-campos'
+import {
+  evaluarConsistenciaParte,
+  type AlcanceSecciones,
+  type CampoConsistencia,
+  type RespuestasConsistencia,
+} from '@/lib/infraestructura/consistencia-parte'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
@@ -25,6 +32,7 @@ import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificac
 import { Button } from '@/components/ui/button'
 import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
 import { Opcion } from '@/components/ui/opcion'
+import { MultiSelect } from '@/components/ui/multi-select'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
@@ -106,6 +114,48 @@ function mensajeErrorVigencia(eleccion: EleccionVigencia): string | null {
 const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', 'Clases y edificio', '¿Desde cuándo?', 'Confirmar'] as const
 
 type Paso = 1 | 2 | 3 | 4 | 5
+
+// Campos de consistencia que bloquean "Continuar" en cada paso del asistente.
+const CAMPOS_CONSISTENCIA_POR_PASO: Partial<Record<Paso, CampoConsistencia[]>> = {
+  1: ['motivo', 'severidad', 'justificacionCritica'],
+  2: ['alcance', 'descripcion'],
+  3: ['edificio', 'clases', 'asistencia'],
+}
+
+const MODALIDADES_ASISTENCIA = [
+  { value: 'Clase virtual', label: 'Clase virtual' },
+  { value: 'Cuadernillo', label: 'Cuadernillo' },
+]
+
+// Respuestas del asistente en la forma que lee el módulo de consistencia.
+function respuestasDeConsistencia(datos: {
+  afectacion: AfectacionBorrador
+  motivos: MotivoRow[]
+  servicioEstado: '' | 'normal' | 'suspendido'
+  estadoEstablecimiento: '' | EstadoEstablecimiento
+  asistenciaBrinda: '' | 'si' | 'no'
+  vigencia: EleccionVigencia
+}): RespuestasConsistencia {
+  const { afectacion, motivos, servicioEstado, estadoEstablecimiento, asistenciaBrinda, vigencia } = datos
+  const alcance: AlcanceSecciones | null =
+    afectacion.alcanceEstablecimiento === 'toda'
+      ? { tipo: 'toda' }
+      : afectacion.secciones.length > 0
+        ? { tipo: 'algunas', secciones: afectacion.secciones.length }
+        : null
+  return {
+    categoria: afectacion.categoria || null,
+    motivoId: motivos.find((m) => m.nombre === afectacion.motivo)?.id ?? null,
+    severidad: (afectacion.severidad || null) as Severidad | null,
+    justificacionCritica: afectacion.justificacionCritica || null,
+    descripcion: afectacion.descripcion.trim(),
+    alcance,
+    clases: servicioEstado || null,
+    edificio: estadoEstablecimiento || null,
+    asistenciaBrinda: asistenciaBrinda === '' ? null : asistenciaBrinda === 'si',
+    vigencia,
+  }
+}
 
 const PASO_DESDE_CUANDO: Paso = 4
 const PASO_CONFIRMAR: Paso = 5
@@ -258,6 +308,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
   const fotosPreparadasRef = useRef<readonly FotoPreparada[]>([])
+  const [cantidadFotos, setCantidadFotos] = useState(0)
+  const [fotosHabilitadas, setFotosHabilitadas] = useState(false)
   const movimientoFotosConfirmadoRef = useRef<string | null>(null)
   const claveEvidenciaRef = useRef(crypto.randomUUID())
   const [borradorPendiente, setBorradorPendiente] = useState<BorradorParteNuevo | null>(null)
@@ -693,11 +745,25 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     borradorPendiente,
   ])
 
+  const respuestasConsistencia = respuestasDeConsistencia({
+    afectacion,
+    motivos,
+    servicioEstado,
+    estadoEstablecimiento,
+    asistenciaBrinda,
+    vigencia,
+  })
+  const consistencia = evaluarConsistenciaParte(respuestasConsistencia)
+
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
   // paso está completo. Se evalúa en el momento de avanzar, no mientras
   // escribe: un error que aparece antes de que el director termine de
   // contestar es una acusación, no una ayuda.
   function faltanteDelPaso(actual: Paso): string | null {
+    const bloqueosDelPaso = consistencia.bloqueos
+      .filter((regla) => (CAMPOS_CONSISTENCIA_POR_PASO[actual] ?? []).includes(regla.campo))
+      .map((regla) => regla.mensaje)
+    if (bloqueosDelPaso.length > 0) return bloqueosDelPaso.join(' ')
     if (actual === 1) {
       const sugerida = motivos.find((m) => m.nombre === afectacion.motivo)?.severidadSugerida ?? null
       const completo = afectacion.categoria !== '' && afectacion.motivo !== '' && gravedadCompleta(afectacion, sugerida)
@@ -841,6 +907,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     ...(afectacion.categoria === 'alumnos' || asistenciaBrinda === ''
       ? {}
       : { asistenciaPedagogica: { brinda: asistenciaBrinda === 'si', modalidades: modalidadesAsistencia } }),
+    fotosAdjuntas: cantidadFotos,
   })
 
   return (
@@ -902,6 +969,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             idPrefijo="reporte"
             motivos={motivos}
             otrasAfectaciones={[]}
+            avisos={consistencia.advertencias}
             onChange={(siguiente) => {
               cambiarAfectacion(siguiente)
               const sugerida = motivos.find((motivo) => motivo.nombre === siguiente.motivo)?.severidadSugerida ?? null
@@ -913,13 +981,39 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           />
         )}
 
+        {/*
+          Siempre montado (sólo oculto fuera del paso 1) para que las fotos
+          elegidas sobrevivan a cambiar de paso. Las fotos siguen siendo
+          opcionales: la nota de Crítica es una recomendación.
+        */}
+        <div hidden={paso !== 1}>
+          {fotosHabilitadas && afectacion.severidad === 'Crítica' ? (
+            <p className="aviso-badge" role="note">
+              <span className="aviso-badge__sello">Recomendado</span>
+              <span className="aviso-badge__texto">Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.</span>
+            </p>
+          ) : null}
+          <SelectorFotosFormulario
+            draftId={`${DRAFT_ID_PREFIX}${cue}`}
+            onCountChange={setCantidadFotos}
+            onHabilitadaChange={setFotosHabilitadas}
+            onPreparadasChange={(fotos) => {
+              fotosPreparadasRef.current = fotos
+              if (movimientoFotosConfirmadoRef.current) vincularFotosPreparadas(movimientoFotosConfirmadoRef.current)
+            }}
+          />
+        </div>
+
         {paso === 2 && (
           <CamposAQuienAfecta
             borrador={afectacion}
             idPrefijo="reporte"
             turnos={turnos}
+            motivos={motivos}
             usaSelectorEstablecimiento
             ocultarPreguntaAlcance
+            descripcionObligatoria={evaluarConsistenciaParte({ ...respuestasConsistencia, descripcion: '' }).bloqueos.some((r) => r.campo === 'descripcion')}
+            avisos={consistencia.advertencias}
             onChange={cambiarAfectacion}
             disabled={enviando}
           />
@@ -934,6 +1028,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
                 setEstadoEstablecimiento(x.estadoEstablecimiento)
               }}
               alcanceParcial={afectacion.alcanceEstablecimiento !== 'toda'}
+              respuestas={respuestasConsistencia}
+              advertencias={consistencia.advertencias}
+              alcanceAlgunas={afectacion.alcanceEstablecimiento === 'algunas'}
               onInterrumpirTodaLaEscuela={() => {
                 setAfectacion((a) => ({
                   ...a,
@@ -951,16 +1048,18 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
                 <Opcion key={valor} tipo="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} label={valor === 'si' ? 'Sí' : 'No'} compacta />
               ))}
               {asistenciaBrinda === 'si' && (
-                <div className="afectacion-campos__anidado" role="group" aria-labelledby="asistencia-modalidad-titulo">
-                  <p id="asistencia-modalidad-titulo" className="afectacion-campos__subtitulo">¿De qué forma?</p>
-                  {(['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
-                    <Opcion key={modalidad} tipo="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => {
-                      const marcada = e.currentTarget.checked
-                      setModalidadesAsistencia((actuales) => marcada ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))
-                    }} label={modalidad} compacta />
-                  ))}
+                <div className="afectacion-campos__anidado">
+                  <p className="afectacion-campos__subtitulo">¿De qué tipo?</p>
+                  <MultiSelect<string>
+                    value={modalidadesAsistencia}
+                    onChange={setModalidadesAsistencia}
+                    options={MODALIDADES_ASISTENCIA}
+                    placeholder="Seleccione una o más opciones"
+                    ariaLabel="¿De qué tipo?"
+                  />
                 </div>
               )}
+              <AvisosConsistencia reglas={consistencia.advertencias} campos={['asistencia']} />
             </fieldset>
           </>
         )}
@@ -998,16 +1097,6 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           </>
         )}
       </section>
-      <div hidden={paso !== PASO_CONFIRMAR}>
-        <SelectorFotosFormulario
-          draftId={`${DRAFT_ID_PREFIX}${cue}`}
-          onPreparadasChange={(fotos) => {
-            fotosPreparadasRef.current = fotos
-            if (movimientoFotosConfirmadoRef.current) vincularFotosPreparadas(movimientoFotosConfirmadoRef.current)
-          }}
-        />
-      </div>
-
       {error && (
         <p className="reporte-inicial__error" role="alert">
           {error}
@@ -1024,7 +1113,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             </p>
       )}
 
-      <div className="asistente__acciones">
+      <div className="asistente__acciones asistente__acciones--pegada">
         {indicePaso > 0 && (
           <Button type="button" variant="secondary" onClick={retroceder}>
             Volver
