@@ -134,7 +134,7 @@ describe('CapaEstacionesRio', () => {
     expect(registrarSimbolosEstacion).toHaveBeenCalledWith(expect.anything())
   })
 
-  it('con lectura vencida pinta el último estado conocido, atenuado y con su antigüedad', async () => {
+  it('con lectura vencida pinta el último estado conocido, opaco y con su antigüedad', async () => {
     const vencida = {
       ...ESTACIONES[0],
       estacionId: 'goya',
@@ -156,11 +156,14 @@ describe('CapaEstacionesRio', () => {
       vencida: true,
       insignia: 'estacion-pastilla-alerta',
       marcador: 'estacion-marcador-alerta',
-      texto: '3,70 m · 26 h',
+      texto: '3,70 m · hace 26 h',
+      edad: ' · hace 26 h',
     })
     // Sin lectura de verdad: sigue s/d y sin marca de vencida.
     expect(data.features[1].properties).toMatchObject({ estado: 'sin_dato', vencida: false, texto: 's/d' })
-    expect(capaPorId('estaciones-rio-simbolos').paint['icon-opacity']).toEqual(['case', ['get', 'vencida'], 0.5, 1])
+    // Never translucent: staleness is only the age suffix.
+    expect(capaPorId('estaciones-rio-simbolos').paint?.['icon-opacity']).toBeUndefined()
+    expect(capaPorId('estaciones-rio-pastillas').paint['icon-opacity']).toBeUndefined()
   })
 
   it('vuelve a registrar las insignias cuando cambia el estilo del mapa', async () => {
@@ -186,7 +189,7 @@ describe('CapaEstacionesRio', () => {
     expect(pastilla.minzoom).toBeUndefined()
     expect(pastilla.layout['icon-text-fit']).toBe('both')
     expect(pastilla.layout['icon-image']).toEqual(['get', 'insignia'])
-    expect(pastilla.layout['text-field']).toEqual(['get', 'texto'])
+    expect(pastilla.layout['text-field']).toEqual(['format', ['get', 'nivel'], {}, ['get', 'edad'], { 'font-scale': 0.82 }])
   })
 
   it('pide la fuente Noto Sans que sirve el basemap (no el Open Sans por defecto de MapLibre)', async () => {

@@ -119,7 +119,7 @@ function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObs
       <div className="map-leyenda__seccion-cuerpo">
         {estacionesRio && (
           <div className="map-leyenda__bloque">
-            <b className="map-leyenda__subtitulo">Estaciones de Prefectura<NotaInfo texto="Una lectura de más de 18 h se muestra atenuada con su antigüedad." /></b>
+            <b className="map-leyenda__subtitulo">Estaciones de Prefectura<NotaInfo texto="Una lectura de más de 18 h conserva su color y muestra su antigüedad." /></b>
             <ul className="map-leyenda__situacion">
               {ESTADOS_ALTURA_RIO.map(({ estado, etiqueta }) => (
                 <li className="map-leyenda__elemento" key={estado}>
@@ -128,7 +128,7 @@ function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObs
                 </li>
               ))}
               <li className="map-leyenda__elemento map-leyenda__elemento--vencida">
-                <PastillaEstacionLeyenda estado="normal" texto="3,00 m · 26 h" />
+                <PastillaEstacionLeyenda estado="normal" texto="3,00 m · hace 26 h" />
                 <span>Lectura de más de 18 h</span>
               </li>
             </ul>

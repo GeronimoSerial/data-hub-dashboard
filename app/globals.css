@@ -6899,6 +6899,3 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   line-height: 1;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
-
-/* Stale river reading sample: same muting as the map (icon-opacity 0.5). */
-.map-leyenda__elemento--vencida .map-estacion-leyenda { opacity: 0.55; }
