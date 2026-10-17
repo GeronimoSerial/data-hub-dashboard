@@ -134,6 +134,35 @@ describe('CapaEstacionesRio', () => {
     expect(registrarSimbolosEstacion).toHaveBeenCalledWith(expect.anything())
   })
 
+  it('con lectura vencida pinta el último estado conocido, atenuado y con su antigüedad', async () => {
+    const vencida = {
+      ...ESTACIONES[0],
+      estacionId: 'goya',
+      nombre: 'Goya',
+      lectura: { ...ESTACIONES[0].lectura!, lecturaM: 3.7 },
+      lecturaVencida: true,
+      estado: 'sin_dato',
+      tendencia: 'sin_dato',
+      estadoUltimaLectura: 'alerta',
+      horasDesdeLectura: 26,
+    }
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ estaciones: [vencida, ESTACIONES[1]] }) }) as unknown as typeof fetch
+    render(<CapaEstacionesRio visible />)
+
+    await screen.findByTestId('source')
+    const { data } = datosFuente()
+    expect(data.features[0].properties).toMatchObject({
+      estado: 'alerta',
+      vencida: true,
+      insignia: 'estacion-pastilla-alerta',
+      marcador: 'estacion-marcador-alerta',
+      texto: '3,70 m · 26 h',
+    })
+    // Sin lectura de verdad: sigue s/d y sin marca de vencida.
+    expect(data.features[1].properties).toMatchObject({ estado: 'sin_dato', vencida: false, texto: 's/d' })
+    expect(capaPorId('estaciones-rio-simbolos').paint['icon-opacity']).toEqual(['case', ['get', 'vencida'], 0.5, 1])
+  })
+
   it('vuelve a registrar las insignias cuando cambia el estilo del mapa', async () => {
     render(<CapaEstacionesRio visible />)
     await waitFor(() => expect(registrarSimbolosEstacion).toHaveBeenCalled())

@@ -2,6 +2,7 @@ import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { estadoAltura } from '@/lib/infraestructura/hidrometria/estado-altura'
+import { estadoUltimaLectura } from '@/lib/infraestructura/hidrometria/ultima-lectura'
 import { ultimaLecturaEstacion } from '@/lib/infraestructura/hidrometria/lecturas-repo'
 import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
@@ -38,6 +39,7 @@ export async function GET() {
           }
         : null
       const { estado, tendencia, vencida } = estadoAltura(lectura)
+      const ultima = estadoUltimaLectura(lectura)
 
       return {
         estacionId: estacion.estacionId,
@@ -52,6 +54,9 @@ export async function GET() {
         tendencia,
         // Lectura de más de EDAD_MAXIMA_LECTURA_HORAS: se informa como sin dato.
         lecturaVencida: vencida,
+        // Para el mapa: estado de nivel de la última lectura aunque esté vencida.
+        estadoUltimaLectura: ultima.estado,
+        horasDesdeLectura: ultima.horasDesdeLectura,
       }
     }),
   )

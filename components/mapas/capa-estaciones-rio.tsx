@@ -33,12 +33,15 @@ type EstacionRio = {
   lecturaVencida: boolean
   estado: EstadoAltura
   tendencia: Tendencia
+  /** Level state of the last reading even when stale (absent on older payloads). */
+  estadoUltimaLectura?: EstadoAltura
+  horasDesdeLectura?: number | null
 }
 
 type PuntoEstacion = {
   type: 'Feature'
   geometry: { type: 'Point'; coordinates: [number, number] }
-  properties: { estacionId: string; nombre: string; estado: EstadoAltura; insignia: string; marcador: string; texto: string; lado: LadoPastilla }
+  properties: { estacionId: string; nombre: string; estado: EstadoAltura; vencida: boolean; insignia: string; marcador: string; texto: string; lado: LadoPastilla }
 }
 
 export const CAPA_ESTACIONES_RIO_ID = 'estaciones-rio-simbolos'
@@ -123,26 +126,43 @@ export function ladosPastilla(estaciones: Array<{ estacionId: string; lat: numbe
   return lados
 }
 
+/**
+ * What the map paints: a stale reading keeps its last level state (muted, with its
+ * age) instead of turning gray; only a station without any reading is sin dato.
+ */
+export function estadoEnMapa(estacion: EstacionRio): { estado: EstadoAltura; vencida: boolean } {
+  if (!estacion.lectura) return { estado: 'sin_dato', vencida: false }
+  const vencida = estacion.lecturaVencida
+  return { estado: vencida ? (estacion.estadoUltimaLectura ?? estacion.estado) : estacion.estado, vencida }
+}
+
+function textoPastilla(estacion: EstacionRio, vencida: boolean): string {
+  if (!estacion.lectura) return 's/d'
+  const nivel = `${FLECHA_TENDENCIA[estacion.tendencia]}${formatoMetros(estacion.lectura.lecturaM)}`
+  const horas = estacion.horasDesdeLectura
+  return vencida && horas != null ? `${nivel} · ${horas} h` : nivel
+}
+
 function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; features: PuntoEstacion[] } {
   const lados = ladosPastilla(estaciones)
   return {
     type: 'FeatureCollection',
-    features: estaciones.map((estacion) => ({
+    features: estaciones.map((estacion) => {
+      const { estado, vencida } = estadoEnMapa(estacion)
+      return {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [estacion.lon, estacion.lat] },
       properties: {
         estacionId: estacion.estacionId,
         nombre: estacion.nombre,
-        estado: estacion.estado,
-        insignia: idPastillaEstacion(estacion.estado),
-        marcador: idMarcadorEstacion(estacion.estado),
+        estado,
+        vencida,
+        insignia: idPastillaEstacion(estado),
+        marcador: idMarcadorEstacion(estado),
         lado: lados.get(estacion.estacionId) ?? 'derecha',
-        // Sin dato still shows the last known level when the source has one.
-        texto: estacion.lectura
-          ? `${FLECHA_TENDENCIA[estacion.tendencia]}${formatoMetros(estacion.lectura.lecturaM)}`
-          : 's/d',
+        texto: textoPastilla(estacion, vencida),
       },
-    })),
+    }}),
   }
 }
 
@@ -294,6 +314,9 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
               'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
             }}
             paint={{
+              // Stale reading: muted chip, the age in the label says why.
+              'icon-opacity': ['case', ['get', 'vencida'], 0.5, 1],
+              'text-opacity': ['case', ['get', 'vencida'], 0.75, 1],
               'text-color': ['match', ['get', 'estado'],
                 'evacuacion', ESTILO_PASTILLA_ESTACION.evacuacion.texto,
                 'alerta', ESTILO_PASTILLA_ESTACION.alerta.texto,
@@ -315,6 +338,7 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
               'icon-ignore-placement': true,
               'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
             }}
+            paint={{ 'icon-opacity': ['case', ['get', 'vencida'], 0.5, 1] }}
           />
         </Source>
       )}
