@@ -86,11 +86,35 @@ vi.mock('@/components/mapas/ficha-escuela-panel', () => ({
     onCerrar: () => void
     onVerAlumnosAlcanzados: (id: string) => void
     onVerHistorialCompleto: () => void
+    urlFichaCompleta?: string
+    onAbrirFichaCompleta?: () => void
+    onQuitarSeleccion?: () => void
   }): JSX.Element => (
-    <section data-testid="mock-ficha-escuela" data-cue={props.escuela.cueAnexo}>
+    <section
+      data-testid="mock-ficha-escuela"
+      data-cue={props.escuela.cueAnexo}
+      data-url-ficha={props.urlFichaCompleta ?? ''}
+    >
       <button onClick={props.onCerrar}>Volver a la lista</button>
       <button onClick={() => props.onVerAlumnosAlcanzados('a1')}>abrir-nominal-desde-ficha</button>
       <button onClick={props.onVerHistorialCompleto}>Ver historial</button>
+      {props.urlFichaCompleta && (
+        <a
+          href={props.urlFichaCompleta}
+          data-testid="abrir-ficha-completa"
+          onClick={(e) => {
+            e.preventDefault()
+            props.onAbrirFichaCompleta?.()
+          }}
+        >
+          Abrir ficha completa
+        </a>
+      )}
+      {props.onQuitarSeleccion && (
+        <button data-testid="preview-quitar-seleccion" onClick={props.onQuitarSeleccion}>
+          Quitar selección
+        </button>
+      )}
       {props.acceso}
     </section>
   ),
@@ -1671,8 +1695,8 @@ describe('M2: panel de situación actual con padrón', () => {
 
     const panel = screen.getByTestId('panel-lateral')
     expect(within(panel).getByText('Situación actual')).toBeInTheDocument()
-    expect(within(panel).getByText('Escuelas con situaciones abiertas').previousElementSibling).toHaveTextContent('1')
-    expect(within(panel).getByText('Sin clases', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('1')
+    expect(within(panel).getByText('Escuelas sin clases').nextElementSibling).toHaveTextContent('1')
+    expect(within(panel).getByText(/con situaciones abiertas$/, { selector: '.map-sitact__kpi small' })).toHaveTextContent('De 1 con situaciones abiertas')
     expect(within(panel).getByRole('button', { name: /Escuela 1/ })).toBeInTheDocument()
   })
 
@@ -1686,7 +1710,7 @@ describe('M2: panel de situación actual con padrón', () => {
     rerender({ escuelasMapa: escuelasFiltradas })
 
     const panel = screen.getByTestId('panel-lateral')
-    expect(within(panel).getByText('Escuelas con situaciones abiertas').previousElementSibling).toHaveTextContent('0')
+    expect(within(panel).getByText(/con situaciones abiertas$/, { selector: '.map-sitact__kpi small' })).toHaveTextContent('De 0 con situaciones abiertas')
     expect(within(panel).getByText('Ninguna escuela con situaciones abiertas para estos filtros.')).toBeInTheDocument()
     desmontarMapa?.()
   })
@@ -2194,3 +2218,42 @@ describe('paddingEncuadre', () => {
     expect(padding).toEqual({ top: 40, bottom: 40, left: 400, right: 356 })
   })
 })
+
+describe('Consulta Escolar: vista previa en el mapa y retorno a ficha completa', () => {
+  it('pasa urlFichaCompleta con parámetro volver y persiste el SnapshotRetornoMapa al abrir la ficha completa', async () => {
+    window.sessionStorage.clear()
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'actual' })
+
+    const ficha = await seleccionarPorBuscador('Escuela 1')
+    expect(ficha).toHaveAttribute(
+      'data-url-ficha',
+      `/mapas/infraestructura/escuelas/${CUE}?origen=mapa`,
+    )
+
+    await userEvent.click(within(ficha).getByTestId('abrir-ficha-completa'))
+
+    const { leerSnapshotRetornoMapa } = await import('@/lib/infraestructura/mapa/estado-retorno')
+    const snapshot = leerSnapshotRetornoMapa(window.sessionStorage)
+    expect(snapshot).toMatchObject({
+      version: 1,
+      origen: 'mapa',
+      tab: 'actual',
+      seleccionCue: CUE,
+      previewAbierto: true,
+    })
+  })
+
+  it('quitar selección desde la vista previa cierra el panel flotante y limpia la selección sin dejar "Ver ficha"', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'actual' })
+
+    const ficha = await seleccionarPorBuscador('Escuela 1')
+    await userEvent.click(within(ficha).getByTestId('preview-quitar-seleccion'))
+
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
+  })
+
+})
+
+

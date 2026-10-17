@@ -456,4 +456,14 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
       window.matchMedia = matchMediaOriginal
     }
   })
+
+  it('selecciona automáticamente la escuela indicada en ?cue= al montar o retornar al mapa (incluyendo escuelas sin ubicación)', () => {
+    window.history.pushState({}, '', '/mapas/infraestructura?cue=180004-00&origen=mapa')
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+
+    expect(registroSeleccion.escuelasSeleccionadas).toHaveLength(1)
+    expect(registroSeleccion.escuelasSeleccionadas[0].cueAnexo).toBe('180004-00')
+    expect(registroSeleccion.escuelasSeleccionadas[0].lat).toBeNull()
+  })
 })
+

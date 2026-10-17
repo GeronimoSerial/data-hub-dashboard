@@ -144,8 +144,8 @@ describe('BloqueAcceso', () => {
     render(<BloqueAcceso geometria={null} exposicion={null} claseEscuela="alto" />)
     const links = screen.getAllByRole('link', { name: 'Cómo se calcula' })
     expect(links.map((a) => a.getAttribute('href'))).toEqual([
-      '#metodologia/inundacion-clases-rio',
-      '#metodologia/inundacion-ruta-acceso',
+      '/mapas/infraestructura#metodologia/inundacion-clases-rio',
+      '/mapas/infraestructura#metodologia/inundacion-ruta-acceso',
     ])
   })
 })

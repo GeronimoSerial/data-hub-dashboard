@@ -76,12 +76,16 @@ import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
+  construirUrlFichaEscuela,
+  guardarSnapshotRetornoMapa,
+  type EstadoCamaraMapa,
+} from '@/lib/infraestructura/mapa/estado-retorno'
+import {
   type CapaAccesos,
   type CapaRadar,
 } from '@/components/mapas/layer-control'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import { CAPA_ESTACIONES_RIO_ID, CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
-import { SeccionEventosReportados } from '@/components/mapas/seccion-eventos-reportados'
 import { CAPA_EVENTOS_REPORTADOS_ID, CapaEventosReportados, type ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
 import { CapaLluviaObservada, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import {
@@ -174,7 +178,7 @@ import {
   ID_IMAGEN_ESCUELA_SOLUCIONADA,
 } from '@/lib/mapas/iconos-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
+import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
 ensureMapWorker()
 
@@ -480,9 +484,6 @@ const ETIQUETA_ICONO_ESTADO: Record<IconoPunto, string> = {
 // etiqueta sale de `ETIQUETAS_CRUCE`, la única fuente de verdad del dominio.
 type InfoCruceClic = { lng: number; lat: number; clasificacion: ClasificacionCruce }
 
-// El departamento no tiene marcador debajo, así que el popup se conforma con
-// un offset vertical mínimo para no tapar el punto clickeado.
-const OFFSET_VUELO_EVENTO: [number, number] = [140, 160]
 const OFFSET_POPUP_DEPARTAMENTO: [number, number] = [0, -12]
 const PROPS_POPUP_INFO = {
   closeButton: false,
@@ -613,9 +614,12 @@ export default function MapInfraestructuraPage(props: {
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
   visible?: boolean
-  onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
+  onRegistrarSeleccion?: (
+    fn: ((escuela: EscuelaMapaPadron, opciones?: { conservarCamara?: boolean }) => void) | null
+  ) => void
   // Element that fullscreen should cover (tabs, filters and map). Defaults to the map shell.
   contenedorPantallaCompleta?: RefObject<HTMLElement | null>
+  filtrosActivos?: FiltrosMapa
 }) {
   const panel = props.panel ?? props.pestana
   const panelLateral = panel === 'radar' && !(props.riskRadarEnabled ?? false) ? 'actual' : panel
@@ -639,17 +643,9 @@ export default function MapInfraestructuraPage(props: {
   }, [capasVisibles])
   const [horasLluvia, setHorasLluvia] = useState<HorasLluvia>(72)
   const [metaLluvia, setMetaLluvia] = useState<MetaLluviaObservada | null>(null)
-  const [resumenEventos, setResumenEventos] = useState<ResumenEventosReportados | null>(null)
+  const [, setResumenEventos] = useState<ResumenEventosReportados | null>(null)
   const [eventoSeleccionado, setEventoSeleccionado] = useState<string | null>(null)
-  const [eventoResaltado, setEventoResaltado] = useState<string | null>(null)
-  // Land the event right of the side panel and low enough that its popup (anchored
-  // at the bottom, up to ~320 px tall) fits under the tab bar.
-  const seleccionarEvento = useCallback((id: string) => {
-    const item = resumenEventos?.eventos.find((evento) => evento.id === id)
-    if (!item || item.lon === null || item.lat === null) return
-    mapRef.current?.getMap()?.flyTo({ center: [item.lon, item.lat], zoom: Math.max(mapRef.current.getZoom(), 9), offset: OFFSET_VUELO_EVENTO, duration: 800 })
-    setEventoSeleccionado(id)
-  }, [resumenEventos])
+  const [eventoResaltado] = useState<string | null>(null)
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
@@ -1139,11 +1135,115 @@ export default function MapInfraestructuraPage(props: {
   const escuelasPorCue = useMemo(() => {
     const index = new Map<string, EscuelaMapaPadron>()
     for (const escuela of dataEscuelasMapa?.escuelas ?? []) index.set(escuela.cueAnexo, escuela)
+    for (const sinUb of dataEscuelasMapa?.sinUbicacion ?? []) {
+      if (!index.has(sinUb.cueAnexo)) {
+        index.set(sinUb.cueAnexo, {
+          cueAnexo: sinUb.cueAnexo,
+          nombre: sinUb.nombre,
+          departamento: sinUb.departamento,
+          localidad: sinUb.localidad,
+          lat: null,
+          lon: null,
+          estado: 'sin_afectacion_reportada',
+          niveles: [],
+          alumnos: 0,
+          gravedad: 0,
+          categoriaPrincipal: null,
+          clases: 'normal',
+          apoyo: null,
+          sinActualizar: false,
+          ultimaNovedad: null,
+          alumnosSinClases: 0,
+          situacionesHistoricas: 0,
+          solucionadasRecientes: 0,
+        })
+      }
+    }
     return index
   }, [dataEscuelasMapa])
 
   const escuelaSeleccionada = seleccionCue ? (escuelasPorCue.get(seleccionCue) ?? null) : null
   const parteSeleccionado = seleccionCue ? (partesPorCue.get(seleccionCue) ?? null) : null
+
+  const quitarSeleccion = useCallback(() => {
+    setSeleccionCue(null)
+    setEscuelaResaltada(null)
+    setFichaCerradaCue(null)
+    setFichaPestana(null)
+    setAvisoBusqueda(null)
+    setCruceInfoClic(null)
+  }, [])
+
+  const urlFichaCompleta = useMemo(() => {
+    if (!escuelaSeleccionada) return undefined
+    const filtros = props.filtrosActivos ?? FILTROS_MAPA_VACIOS
+    const filtrosConDepto: FiltrosMapa =
+      departamentoSeleccionado && !filtros.departamentos.includes(departamentoSeleccionado)
+        ? { ...filtros, departamentos: [...filtros.departamentos, departamentoSeleccionado] }
+        : filtros
+    return construirUrlFichaEscuela(escuelaSeleccionada.cueAnexo, {
+      tab: panelLateral,
+      filtros: filtrosConDepto,
+      horizonte: horizonteEfectivo,
+      variable: variableRadar,
+      vista: vistaPlanificacion,
+      desdeMapa: true,
+    })
+  }, [
+    escuelaSeleccionada,
+    panelLateral,
+    props.filtrosActivos,
+    departamentoSeleccionado,
+    horizonteEfectivo,
+    variableRadar,
+    vistaPlanificacion,
+  ])
+
+  const guardarSnapshotAlAbrirFicha = useCallback(() => {
+    if (!escuelaSeleccionada) return
+    const map = mapRef.current?.getMap()
+    let camara: EstadoCamaraMapa | null = null
+    if (map && typeof map.getCenter === 'function') {
+      const c = map.getCenter()
+      camara = {
+        lng: c.lng,
+        lat: c.lat,
+        zoom: typeof map.getZoom === 'function' ? map.getZoom() : 10,
+        bearing: typeof map.getBearing === 'function' ? map.getBearing() : 0,
+        pitch: typeof map.getPitch === 'function' ? map.getPitch() : 0,
+      }
+    }
+    guardarSnapshotRetornoMapa({
+      version: 1,
+      origen: 'mapa',
+      tab: panelLateral,
+      ultimaPestanaMapa: panelLateral,
+      filtros: props.filtrosActivos ?? FILTROS_MAPA_VACIOS,
+      seleccionCue: escuelaSeleccionada.cueAnexo,
+      previewAbierto: true,
+      camara,
+      basemap,
+      capasVisibles,
+      horasLluvia,
+      horizonteSeleccionado: horizonteEfectivo,
+      variableRadar,
+      vistaPlanificacion,
+      departamentoSeleccionado,
+      departamentoRadarId,
+    })
+  }, [
+    escuelaSeleccionada,
+    panelLateral,
+    props.filtrosActivos,
+    basemap,
+    capasVisibles,
+    horasLluvia,
+    horizonteEfectivo,
+    variableRadar,
+    vistaPlanificacion,
+    departamentoSeleccionado,
+    departamentoRadarId,
+  ])
 
   // ── Accesos territoriales (T5c2) ─────────────────────────────────────────
   //
@@ -1190,26 +1290,33 @@ export default function MapInfraestructuraPage(props: {
   }, [escuelaResaltada, parteSeleccionado])
 
   // Seleccionar desde un punto o el buscador abre la misma ficha y encuadre.
-  const handleSeleccionarEscuelaBuscada = useCallback((escuela: EscuelaMapaPadron) => {
-    if (escuela.lat === null || escuela.lon === null) {
-      setAvisoBusqueda(
-        `La escuela "${escuela.nombre}" no tiene ubicación cargada: se muestra la ficha, pero no se puede señalar en el mapa.`,
-      )
-      setEscuelaResaltada(null)
+  const handleSeleccionarEscuelaBuscada = useCallback(
+    (escuela: EscuelaMapaPadron, opciones?: { conservarCamara?: boolean }) => {
+      if (escuela.lat === null || escuela.lon === null) {
+        setAvisoBusqueda(
+          `La escuela "${escuela.nombre}" no tiene ubicación cargada: se muestra la ficha, pero no se puede señalar en el mapa.`,
+        )
+        setEscuelaResaltada(null)
+        setSeleccionCue(escuela.cueAnexo)
+        setFichaCerradaCue(null)
+        setFichaPestana(panelLateral)
+        if (!opciones?.conservarCamara) {
+          encuadreRutaPendiente.current = escuela.cueAnexo
+        }
+        return
+      }
+      setAvisoBusqueda(null)
+      setEscuelaResaltada({ cueAnexo: escuela.cueAnexo, lng: escuela.lon, lat: escuela.lat })
+      if (!opciones?.conservarCamara) {
+        mapRef.current?.getMap()?.flyTo({ center: [escuela.lon, escuela.lat], zoom: 14, duration: 900 })
+        encuadreRutaPendiente.current = escuela.cueAnexo
+      }
       setSeleccionCue(escuela.cueAnexo)
       setFichaCerradaCue(null)
       setFichaPestana(panelLateral)
-      encuadreRutaPendiente.current = escuela.cueAnexo
-      return
-    }
-    setAvisoBusqueda(null)
-    setEscuelaResaltada({ cueAnexo: escuela.cueAnexo, lng: escuela.lon, lat: escuela.lat })
-    mapRef.current?.getMap()?.flyTo({ center: [escuela.lon, escuela.lat], zoom: 14, duration: 900 })
-    setSeleccionCue(escuela.cueAnexo)
-    setFichaCerradaCue(null)
-    setFichaPestana(panelLateral)
-    encuadreRutaPendiente.current = escuela.cueAnexo
-  }, [panelLateral])
+    },
+    [panelLateral],
+  )
 
   // El cluster también es clickeable para hacer zoom de expansión.
   const capasInteractivas = [
@@ -1468,12 +1575,9 @@ export default function MapInfraestructuraPage(props: {
             escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
             actualizadoEn={actualizadoEn}
             onSeleccionar={(cueAnexo) => {
-              const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cueAnexo)
+              const escuela = escuelasPorCue.get(cueAnexo) ?? dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cueAnexo)
               if (escuela) handleSeleccionarEscuelaBuscada(escuela)
             }}
-            secciones={capasVisibles.eventosReportados ? (
-              <SeccionEventosReportados resumen={resumenEventos} onSeleccionar={seleccionarEvento} onResaltar={setEventoResaltado} />
-            ) : null}
           />
         </>
       )}
@@ -2076,7 +2180,7 @@ export default function MapInfraestructuraPage(props: {
                 cargando={radarLoading && radarData === null}
                 error={radarError}
                 onSeleccionar={(cue) => {
-                  const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
+                  const escuela = escuelasPorCue.get(cue) ?? dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
                   if (escuela) handleSeleccionarEscuelaBuscada(escuela)
                 }}
                 alertas={{
@@ -2098,7 +2202,7 @@ export default function MapInfraestructuraPage(props: {
                 cargando={contextoTerritorial && territorioLoading}
                 error={territorioError !== null}
                 onSeleccionar={(cue) => {
-                  const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
+                  const escuela = escuelasPorCue.get(cue) ?? dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
                   if (escuela) handleSeleccionarEscuelaBuscada(escuela)
                 }}
               />
@@ -2150,6 +2254,9 @@ export default function MapInfraestructuraPage(props: {
                 onVerAlumnosAlcanzados={setNominalAfectacionId}
                 onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
                 onCerrar={cerrarFicha}
+                urlFichaCompleta={urlFichaCompleta}
+                onAbrirFichaCompleta={guardarSnapshotAlAbrirFicha}
+                onQuitarSeleccion={quitarSeleccion}
               />
         </aside>
       )}
