@@ -26,8 +26,8 @@ const corrida = (fecha: string, mediana = 2): CorridaPrefectura => ({
     p10M: 1, p90M: 3, desde: '2025-10-01', hasta: '2026-10-01', fuente: 'prefectura-historico', calculadoEn: fecha }],
   lecturasOriginales: [{ estacionId: 'pna-corrientes', lecturas: [{ medidaEn: fecha, lecturaM: mediana }] }],
 })
-async function encolar(id: string) {
-  await getDb().insert(schema.infraDatasetEntrega).values({ versionId: id, destino: 'staging', proximoIntento: new Date('2026-01-01') })
+async function encolar(id: string, destino: 'staging' | 'dev' = 'staging') {
+  await getDb().insert(schema.infraDatasetEntrega).values({ versionId: id, destino, proximoIntento: new Date('2026-01-01') })
 }
 
 describe('Prefectura: histórico y entrega sin recalcular', () => {
@@ -45,7 +45,7 @@ describe('Prefectura: histórico y entrega sin recalcular', () => {
       const { versionId } = await publicarCorridaPrefectura(entrada, source)
       await publicarCorridaPrefectura(entrada, source)
       const cola = await source.select().from(schema.infraDatasetEntrega).where(eq(schema.infraDatasetEntrega.versionId, versionId))
-      expect(cola).toHaveLength(1)
+      expect(cola.map((e) => e.destino).sort()).toEqual(['dev', 'staging'])
       expect((await leerVersion('prefectura-alturas', versionId, source))?.documento).toHaveLength(2)
       // Este test verifica el publisher; no mezclar su entrega con las demás.
       await source.update(schema.infraDatasetEntrega).set({ entregadaEn: new Date() }).where(eq(schema.infraDatasetEntrega.versionId, versionId))
@@ -63,6 +63,17 @@ describe('Prefectura: histórico y entrega sin recalcular', () => {
     expect((await target.select().from(schema.hidroReferencia))[0].medianaM).toBe(2)
     expect(await entregarPrefectura(getDb(), target)).toEqual({ entregadas: 0, fallidas: 0 })
   })
+  it('entrega a dev sólo su propia cola, sin consumir la de staging', async () => {
+    expect(await entregarPrefectura(getDb(), target, new Date(), 50, 'dev')).toEqual({ entregadas: 0, fallidas: 0 })
+    const { versionId } = await publicarCorridaPrefectura(corrida('2026-10-16T10:30:00Z'))
+    await encolar(versionId, 'dev')
+    await encolar(versionId, 'staging')
+    expect(await entregarPrefectura(getDb(), target, new Date(), 50, 'dev')).toEqual({ entregadas: 1, fallidas: 0 })
+    const cola = await getDb().select().from(schema.infraDatasetEntrega).where(eq(schema.infraDatasetEntrega.versionId, versionId))
+    expect(cola.find((e) => e.destino === 'dev')?.entregadaEn).not.toBeNull()
+    expect(cola.find((e) => e.destino === 'staging')?.entregadaEn).toBeNull()
+    expect(await entregarPrefectura(getDb(), target)).toEqual({ entregadas: 1, fallidas: 0 })
+  })
   it('conserva el histórico y no retrocede la referencia al entregar una corrida atrasada', async () => {
     const nueva = await publicarCorridaPrefectura(corrida('2026-10-16T12:00:00Z', 5))
     await encolar(nueva.versionId)
@@ -72,7 +83,7 @@ describe('Prefectura: histórico y entrega sin recalcular', () => {
     await entregarPrefectura(getDb(), target)
     expect((await target.select().from(schema.hidroReferencia))[0].medianaM).toBe(5)
     expect((await leerVersion('prefectura-referencias', undefined, target))?.version.id).toBe(nueva.versionId)
-    expect(await listarVersiones('prefectura-referencias', target)).toHaveLength(3)
+    expect(await listarVersiones('prefectura-referencias', target)).toHaveLength(4)
   })
   it('una falla de staging conserva producción y la cola; reintenta sin duplicar', async () => {
     const nueva = await publicarCorridaPrefectura(corrida('2026-10-16T13:00:00Z', 6))

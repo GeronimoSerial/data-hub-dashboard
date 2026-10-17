@@ -23,14 +23,17 @@ async function copiarVersion(id: string, origen: Db, destino: Db, vistas = new S
   if (copiada !== id) throw new Error('Checksum de réplica distinto al origen')
 }
 
-/** Entrega acotada, idempotente y sin llamadas a Prefectura. */
-export async function entregarPrefectura(origen: Db, destino: Db, ahora = new Date(), limite = 50) {
+export type DestinoPrefectura = 'staging' | 'dev'
+
+/** Entrega acotada, idempotente y sin llamadas a Prefectura. Cada entorno consume sólo su cola. */
+export async function entregarPrefectura(origen: Db, destino: Db, ahora = new Date(), limite = 50,
+  entorno: DestinoPrefectura = 'staging') {
   let entregadas = 0
   let fallidas = 0
   for (let i = 0; i < limite; i++) {
     const procesada = await origen.transaction(async (tx) => {
       const [pendiente] = await tx.select().from(infraDatasetEntrega).where(and(
-        eq(infraDatasetEntrega.destino, 'staging'), isNull(infraDatasetEntrega.entregadaEn),
+        eq(infraDatasetEntrega.destino, entorno), isNull(infraDatasetEntrega.entregadaEn),
         lte(infraDatasetEntrega.proximoIntento, ahora),
       )).orderBy(infraDatasetEntrega.creadaEn).limit(1).for('update', { skipLocked: true })
       if (!pendiente) return false
@@ -57,14 +60,14 @@ export async function entregarPrefectura(origen: Db, destino: Db, ahora = new Da
           }
         })
         await tx.update(infraDatasetEntrega).set({ entregadaEn: ahora, ultimoError: null,
-          intentos: pendiente.intentos + 1 }).where(and(eq(infraDatasetEntrega.versionId, pendiente.versionId), eq(infraDatasetEntrega.destino, 'staging')))
+          intentos: pendiente.intentos + 1 }).where(and(eq(infraDatasetEntrega.versionId, pendiente.versionId), eq(infraDatasetEntrega.destino, entorno)))
         entregadas++
       } catch {
         // No propagar mensajes de drivers: pueden contener URL, parámetros o secretos.
         await tx.update(infraDatasetEntrega).set({ intentos: pendiente.intentos + 1,
           ultimoError: 'Entrega fallida; reintento pendiente',
           proximoIntento: new Date(ahora.getTime() + Math.min(3600, 30 * 2 ** Math.min(pendiente.intentos, 7)) * 1000),
-        }).where(and(eq(infraDatasetEntrega.versionId, pendiente.versionId), eq(infraDatasetEntrega.destino, 'staging')))
+        }).where(and(eq(infraDatasetEntrega.versionId, pendiente.versionId), eq(infraDatasetEntrega.destino, entorno)))
         fallidas++
       }
       return true
