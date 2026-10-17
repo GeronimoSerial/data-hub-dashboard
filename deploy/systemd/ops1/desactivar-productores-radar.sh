@@ -13,7 +13,10 @@ done
 [ "$instalados" = true ] || exit 0
 if [ -f /etc/enos-ops1/enos-ops1.env ]; then
   prefijo=$(sed -n 's/^CONTENEDOR_PREFIJO=//p' /etc/enos-ops1/enos-ops1.env | tr -d '\042\047')
-  [ "$prefijo" = "$uuid" ] || { echo 'Los timers OPS1 pertenecen a otro entorno' >&2; exit 1; }
+  case "$prefijo" in
+    "$uuid"|"$uuid-") ;;
+    *) echo 'Los timers OPS1 pertenecen a otro entorno' >&2; exit 1 ;;
+  esac
 else
   # Sin el archivo de entorno no se puede atribuir un timer instalado a este consumidor.
   for job in sync-radar-meteo verificar-radar-meteo sync-radar-ensemble; do
