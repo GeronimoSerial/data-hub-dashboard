@@ -54,7 +54,7 @@ const PALETA_RESPALDO: Paleta = {
   inicial: '#008275', // --teal-dark
   grilla: '#e0dfde', // --line
   eje: '#e0dfde',
-  texto: '#5f5e5c', // --ink-soft
+  texto: '#4a4947', // --ink-soft
   superficie: '#ffffff', // --card
   resalte: '#f5f5f4', // --fill
 }
