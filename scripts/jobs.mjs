@@ -424,6 +424,12 @@ export async function correrJob(nombre, opts) {
     return flagDeshabilitado(nombre)
   }
 
+  if (['sync-radar-meteo', 'verificar-radar-meteo', 'sync-radar-ensemble'].includes(nombre) &&
+    process.env.RADAR_SYNC_ENABLED === 'false') {
+    console.warn(`[jobs] "${nombre}" no ejecutado: RADAR_SYNC_ENABLED=false`)
+    return { ejecutado: false, motivo: 'radar_sync_deshabilitado' }
+  }
+
   // El job programado corre en su PROPIO proceso Node (systemd timer ->
   // scripts/jobs.mjs -> job.ts), así que NO comparte el `seedPromise`
   // memoizado del proceso web: la migración de esquema nunca corrió en este
