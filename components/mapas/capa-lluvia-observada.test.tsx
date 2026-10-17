@@ -173,9 +173,11 @@ describe('CapaLluviaObservada', () => {
     })
 
     const popup = await screen.findByTestId('popup')
-    expect(popup.textContent).toContain('Lluvia observada 72 h: 12,0 mm')
-    expect(popup.textContent).toContain('Ventana: ')
-    expect(popup.textContent).toContain('Ventana incompleta: 100/144 gránulos (cobertura 69 %) — el valor puede subestimar la lluvia.')
+    expect(popup.textContent).toContain('Acumulado de las últimas 72 h')
+    expect(popup.textContent).toContain('12,0 mm')
+    expect(popup.textContent).toContain('10–25 mm')
+    expect(popup.textContent).toContain('(69 % cubierto): la lluvia real puede ser mayor.')
+    expect(popup.textContent).toContain('NASA IMERG')
   })
 
   it('no abre el popup de lluvia cuando el clic cae sobre un marcador', async () => {

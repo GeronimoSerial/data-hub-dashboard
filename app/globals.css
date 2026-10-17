@@ -6924,3 +6924,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .tarjeta-estacion__datos { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2) var(--s-3); border-top: 1px solid var(--line-soft); padding-top: var(--s-2); }
 .tarjeta-estacion__datos dt { color: var(--ink-soft); font-size: 0.75rem; }
 .tarjeta-estacion__datos dd { margin: 0; font-size: 0.8125rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.tarjeta-lluvia { min-width: 15rem; display: grid; gap: var(--s-2); }
+.tarjeta-lluvia__clase { flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; background: var(--line-soft); color: var(--ink-soft); }
+.tarjeta-lluvia__cifra { margin: 0; font-size: 2rem; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+.tarjeta-lluvia__decimal { font-size: 1.25rem; }
+.tarjeta-lluvia__escala { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+.tarjeta-lluvia__escala span { height: 6px; border-radius: 2px; opacity: 0.35; }
+.tarjeta-lluvia__escala span[data-activa] { opacity: 1; height: 10px; margin-top: -2px; box-shadow: 0 0 0 1.5px var(--card), 0 0 0 2.5px var(--ink); }
+.tarjeta-lluvia__escala-ejes { display: flex; justify-content: space-between; margin-top: -4px; color: var(--ink-soft); font-size: 0.6875rem; font-variant-numeric: tabular-nums; }
+.tarjeta-lluvia__aviso { margin: 0; padding: var(--s-2); border-radius: var(--r-sm); background: var(--warn-tint); color: var(--warn); font-size: 0.75rem; }
+.tarjeta-lluvia__fuente { display: flex; align-items: center; gap: var(--s-2); border-top: 1px solid var(--line-soft); padding-top: var(--s-2); }
+.tarjeta-lluvia__fuente-nombre { margin: 0; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.02em; }
