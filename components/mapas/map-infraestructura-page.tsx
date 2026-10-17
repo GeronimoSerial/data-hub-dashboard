@@ -13,7 +13,6 @@ import MapGL, {
   AttributionControl,
   Layer,
   Marker,
-  NavigationControl,
   Popup,
   Source,
   type MapLayerMouseEvent,
@@ -60,6 +59,8 @@ import { Button } from '@/components/ui/button'
 import { VeredictoModal } from '@/components/veredicto/veredicto-modal'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
+import { ControlesZoom } from '@/components/mapas/controles-zoom'
+import { bboxGeometria } from '@/lib/mapas/geo'
 import { horaActualizacion, PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
 import { PanelRadar } from '@/components/mapas/panel-radar'
 import { PanelPlanificacion } from '@/components/mapas/panel-planificacion'
@@ -196,7 +197,9 @@ const CAPA_PARTES_CLUSTER_COUNT_ID = 'infra-partes-cluster-count'
 // escuela ni el ícono de evacuación del cluster dependen de este umbral:
 // derivan su visibilidad del estado de clustering REAL del mapa (ver
 // `cuesNoAgrupados` y los agregados de clusterProperties).
-const CAPA_PARTES_CLUSTER_MAX_ZOOM = 11
+// T4: split earlier (zoom 10) so a couple of clicks reach individual schools.
+const CAPA_PARTES_CLUSTER_MAX_ZOOM = 10
+const RADIO_AGRUPAMIENTO_CLUSTER = 32
 
 // V2: badge de estado por escuela individual. Un único ícono Lucide
 // superpuesto al punto de color reemplaza a los anillos/halos apilados que
@@ -638,7 +641,6 @@ export default function MapInfraestructuraPage(props: {
   const cerrarFicha = useCallback(() => {
     setFichaCerradaCue(seleccionCue)
   }, [seleccionCue])
-  const [clusterInfoClic, setClusterInfoClic] = useState<MapGeoJSONFeature | null>(null)
   // Clasificación de un CRUCE DE AGUA clickeado sobre la ruta (puente, vado
   // o sin evidencia). Es un popup informativo propio, no una selección: el
   // ícono es más chico que el punto de la escuela y antes el click se lo
@@ -747,7 +749,6 @@ export default function MapInfraestructuraPage(props: {
         map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
       }
     }
-    setClusterInfoClic(null)
     setCruceInfoClic(null)
   }, [modoRadar, props.pestana, props.riskRadarEnabled])
   // "Escuelas en riesgo hoy" outside Radar reuses the same engine snapshot.
@@ -862,18 +863,16 @@ export default function MapInfraestructuraPage(props: {
     [mostrarRiesgoSituacion, dataEscuelasMapaVisible, territorio],
   )
 
-  // Cierre con Esc de los popups de cruce y cluster abiertos por clic. Un solo
-  // listener vive mientras alguno está abierto.
+  // Cierre con Esc del popup de cruce abierto por clic.
   useEffect(() => {
-    if (!clusterInfoClic && !cruceInfoClic) return
+    if (!cruceInfoClic) return
     const alPresionarTecla = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      setClusterInfoClic(null)
-      setCruceInfoClic(null)
+        setCruceInfoClic(null)
     }
     window.addEventListener('keydown', alPresionarTecla)
     return () => window.removeEventListener('keydown', alPresionarTecla)
-  }, [clusterInfoClic, cruceInfoClic])
+  }, [cruceInfoClic])
 
   const datosAlertasFiltrados = useMemo(() => {
     if (!data || !props.escuelasMapa) return data
@@ -1333,8 +1332,10 @@ export default function MapInfraestructuraPage(props: {
       const clusterId = Number(feature.properties?.cluster_id)
       const coords = feature.geometry?.type === 'Point' ? feature.geometry.coordinates : null
       if (!source || !Number.isFinite(clusterId) || !coords) return
-      const zoom = await source.getClusterExpansionZoom(clusterId)
-      mapa.easeTo({ center: [coords[0], coords[1]], zoom })
+      const expansion = await source.getClusterExpansionZoom(clusterId)
+      // Always move at least one level so the click is visibly answered.
+      const zoom = Math.max(expansion, mapa.getZoom() + 1)
+      mapa.easeTo({ center: [coords[0], coords[1]], zoom, duration: 500 })
     } catch {
       // Cualquier fallo (fuente todavía cargando, supercluster no listo) es
       // ruido transitorio: mejor no hacer nada que romper el flujo del mapa.
@@ -1344,7 +1345,6 @@ export default function MapInfraestructuraPage(props: {
   const handleClick = useCallback((event: MapLayerMouseEvent) => {
     const features = event.features ?? []
 
-    setClusterInfoClic(null)
     setCruceInfoClic(null)
 
     // Station and media symbols open their own popup: a cluster underneath must not open a second one.
@@ -1401,7 +1401,8 @@ export default function MapInfraestructuraPage(props: {
           item.layer?.id === CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID,
       )
     if (feature?.layer?.id === CAPA_PARTES_CLUSTER_ID) {
-      setClusterInfoClic(feature)
+      // T4: a cluster click zooms straight in; no intermediate popup.
+      void acercarAlCluster(feature)
       return
     }
     if (feature?.properties?.cueAnexo) {
@@ -1430,7 +1431,12 @@ export default function MapInfraestructuraPage(props: {
       entradaPuntosPendiente.current = true
       setPuntosVisibles(false)
       setDepartamentoSeleccionado(siguiente)
-      if (siguiente === null) {
+      const limites = siguiente === null
+        ? null
+        : bboxGeometria(departamentosRaw?.features.find((item) => item.properties.nombre === siguiente)?.geometry ?? null)
+      if (limites) {
+        mapRef.current?.getMap()?.fitBounds(limites, { padding: paddingEncuadre(), duration: 600 })
+      } else {
         mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
       }
     }
@@ -1440,7 +1446,7 @@ export default function MapInfraestructuraPage(props: {
     dataEscuelasMapaVisible,
     handleSeleccionarEscuelaBuscada,
     departamentoSeleccionado,
-    setClusterInfoClic,
+    departamentosRaw,
     setCruceInfoClic,
     setSeleccionCue,
     setPuntosVisibles,
@@ -1604,6 +1610,10 @@ export default function MapInfraestructuraPage(props: {
           interactiveLayerIds={capasInteractivas}
           onClick={handleClick}
           cursor="pointer"
+          // No compass control: rotation stays off so north is always up.
+          dragRotate={false}
+          pitchWithRotate={false}
+          touchPitch={false}
           onLoad={handleMapLoad}
           // MapLibre descarta fuentes, capas e imágenes al cambiar el estilo.
           // El style.load (registrado en onLoad) determina el final real de
@@ -1622,7 +1632,10 @@ export default function MapInfraestructuraPage(props: {
           }}
         >
           <Fragment key={versionEstilo}>
-          <NavigationControl position="top-left" showCompass={!radarActivo} />
+          <ControlesZoom
+            mapRef={mapRef}
+            onVerProvincia={() => mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: paddingEncuadre(), duration: 600 })}
+          />
           {/* La atribución compacta deja libre la esquina inferior derecha del mapa. */}
           <AttributionControl key={radarActivo ? 'radar-attribution' : 'map-attribution'} position={radarActivo ? 'top-right' : 'bottom-right'} compact />
 
@@ -1738,7 +1751,7 @@ export default function MapInfraestructuraPage(props: {
               data={featureCollectionPadron}
               cluster={true}
               clusterMaxZoom={CAPA_PARTES_CLUSTER_MAX_ZOOM}
-              clusterRadius={40}
+              clusterRadius={RADIO_AGRUPAMIENTO_CLUSTER}
               clusterProperties={{
                 // T1.1b: agregados por max() entre los puntos agrupados — el
                 // El cluster hereda la severidad más alta, no un promedio.
@@ -2020,37 +2033,6 @@ export default function MapInfraestructuraPage(props: {
                   <strong>Cruce de agua: {etiqueta}</strong>
                   {' — '}{DESCRIPCIONES_CRUCE[cruceInfoClic.clasificacion]}
                 </p>
-              </Popup>
-            )
-          })()}
-          {clusterInfoClic && clusterInfoClic.geometry.type === 'Point' && (() => {
-            const [lng, lat] = clusterInfoClic.geometry.coordinates
-            const props = clusterInfoClic.properties ?? {}
-            const total = Number(props.point_count ?? 0)
-            const afectadas = Number(props.escuelasAfectadas ?? 0)
-            const criticas = Number(props.criticas ?? 0)
-            const altas = Number(props.altas ?? 0)
-            return (
-              <Popup
-                longitude={lng}
-                latitude={lat}
-                closeButton={false}
-                closeOnClick={false}
-                offset={OFFSET_POPUP_DEPARTAMENTO}
-                className='mapa-tooltip mapa-tooltip-cluster'
-              >
-                <p>
-                  <strong>{total}</strong> escuelas · <strong>{afectadas}</strong> con situaciones abiertas ({criticas} críticas, {altas} altas)
-                </p>
-                <button
-                  type='button'
-                  onClick={() => {
-                    void acercarAlCluster(clusterInfoClic)
-                    setClusterInfoClic(null)
-                  }}
-                >
-                  Acercar
-                </button>
               </Popup>
             )
           })()}

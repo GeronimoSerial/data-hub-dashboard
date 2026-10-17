@@ -27,8 +27,9 @@ const CUE_SIN_AFECTACION = '1801605-99'
 // pulsar "Ver recorrido"). Es un spy además de `flyTo` para poder contar
 // cuántas veces se encuadró: encuadrar de más es un bug tan visible como no
 // encuadrar.
-const { FLY_TO_MOCK, FIT_BOUNDS_MOCK, MAP_CONTAINER_MOCK } = vi.hoisted(() => ({
+const { FLY_TO_MOCK, FIT_BOUNDS_MOCK, MAP_CONTAINER_MOCK, EASE_TO_MOCK } = vi.hoisted(() => ({
   FLY_TO_MOCK: vi.fn(),
+  EASE_TO_MOCK: vi.fn(),
   FIT_BOUNDS_MOCK: vi.fn(),
   MAP_CONTAINER_MOCK: { container: null as HTMLElement | null, getContainer: vi.fn() },
 }))
@@ -513,6 +514,9 @@ vi.mock('react-map-gl/maplibre', () => {
         getMap: () => ({
           flyTo: FLY_TO_MOCK,
           fitBounds: FIT_BOUNDS_MOCK,
+          easeTo: EASE_TO_MOCK,
+          getZoom: () => 7,
+          getLayer: () => undefined,
           resize: vi.fn(),
           stop: vi.fn(),
           getContainer: MAP_CONTAINER_MOCK.getContainer,
@@ -528,7 +532,7 @@ vi.mock('react-map-gl/maplibre', () => {
           // los cues de `CUES_DESAGRUPADOS_MOCK` (por defecto, las dos
           // escuelas del padrón) como desagrupadas, así los <Marker> DOM
           // (badge de estado y riesgo) se renderizan en jsdom.
-          getSource: (id: string) => (id === 'infra-partes-src' ? {} : undefined),
+          getSource: (id: string) => (id === 'infra-partes-src' ? { getClusterExpansionZoom: async () => 9 } : undefined),
           querySourceFeatures: () =>
             CUES_DESAGRUPADOS_MOCK.cues.map((cueAnexo) => ({ properties: { cueAnexo } })),
         }),
@@ -1621,28 +1625,16 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
     expect(screen.queryByText(/En Capital hay 10 escuelas/)).not.toBeInTheDocument()
   })
 
-  it('clic de cluster muestra escuelas con situaciones abiertas', async () => {
+  it('clic de cluster acerca directo al zoom de expansión, sin popup', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
+    EASE_TO_MOCK.mockClear()
 
     await userEvent.click(screen.getByTestId('mock-click-cluster'))
 
-    expect(await screen.findByText((_contenido, element) =>
-      element?.tagName === 'P' && /8 escuelas/.test(element.textContent ?? ''),
-    )).toHaveTextContent('3 con situaciones abiertas (1 críticas, 2 altas)')
-  })
-
-  it('Esc cierra el popup de cluster', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true })
-    await userEvent.click(screen.getByTestId('mock-click-cluster'))
-
-    const popup = () => screen.queryByText((_contenido, element) =>
-      element?.tagName === 'P' && /8 escuelas/.test(element.textContent ?? ''),
-    )
-    expect(await screen.findByText((_contenido, element) =>
-      element?.tagName === 'P' && /8 escuelas/.test(element.textContent ?? ''),
-    )).toBeInTheDocument()
-    await userEvent.keyboard('{Escape}')
-    expect(popup()).not.toBeInTheDocument()
+    await waitFor(() => expect(EASE_TO_MOCK).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [-58.8, -27.5], zoom: 9 }),
+    ))
+    expect(screen.queryByText(/8 escuelas/)).not.toBeInTheDocument()
   })
 
   it('clickear el mismo departamento de nuevo quita el filtro', async () => {
