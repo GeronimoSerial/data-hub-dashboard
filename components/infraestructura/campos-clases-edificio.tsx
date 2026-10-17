@@ -6,6 +6,7 @@ import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { Opcion } from '@/components/ui/opcion'
 import { AvisosConsistencia } from '@/components/infraestructura/afectacion-campos'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import { evaluarCambioAHabitual } from '@/lib/infraestructura/consistencia-estado-activo'
 import {
   bloqueoOpcion,
   type Regla,
@@ -46,6 +47,10 @@ export function CamposClasesEdificio({
   advertencias = [],
   alcanceAlgunas = false,
   disabled = false,
+  estadoActual,
+  afectacionesActivas = [],
+  onConfirmarHabitual,
+  bloqueos = [],
 }: {
   valor: ValorClasesEdificio
   onCambiar: (valor: ValorClasesEdificio) => void
@@ -56,11 +61,32 @@ export function CamposClasesEdificio({
   advertencias?: Regla[]
   alcanceAlgunas?: boolean
   disabled?: boolean
+  /** Estado del edificio en la escuela hoy. Sólo la actualización lo informa. */
+  estadoActual?: EstadoEstablecimiento
+  /** Al pasar de evacuado o centro de evacuados a habitual, cada una necesita una decisión. */
+  afectacionesActivas?: Array<{ id: string; motivo: string }>
+  onConfirmarHabitual?: (decisiones: Record<string, 'solucionada' | 'sigue'>) => void
+  /** Bloqueos del cambio a habitual; cada uno se muestra bajo su grupo. */
+  bloqueos?: Regla[]
 }): JSX.Element {
   const [pendiente, setPendiente] = useState<EstadoEstablecimiento | null>(null)
+  const [hojaHabitual, setHojaHabitual] = useState(false)
+  const [decisiones, setDecisiones] = useState<Record<string, 'solucionada' | 'sigue'>>({})
   const evacuado = valor.estadoEstablecimiento === 'evacuado'
   const motivosClases = evacuado ? [] : motivosDeBloqueo(['normal', 'suspendido'], (e) => bloqueoClases(respuestas, e))
   const motivosEdificio = motivosDeBloqueo(Object.keys(ETIQUETA_ESTABLECIMIENTO), (e) => bloqueoEdificio(respuestas, e))
+  const saleDeEvacuacion = estadoActual !== undefined && INTERRUMPE_TODO.includes(estadoActual)
+  const decididas = afectacionesActivas.filter((afectacion) => decisiones[afectacion.id] !== undefined).length
+  // Sólo se usan las advertencias: no dependen del servicio, que aquí no interesa.
+  const avisosHabitual = evaluarCambioAHabitual({
+    estadoActual: estadoActual ?? null,
+    nuevoEstado: 'habitual',
+    servicioActual: 'normal',
+    servicioEnvio: null,
+    afectacionesActivas,
+    solucionadas: afectacionesActivas.filter((a) => decisiones[a.id] === 'solucionada').map((a) => a.id),
+    sigueActiva: afectacionesActivas.filter((a) => decisiones[a.id] === 'sigue').map((a) => a.id),
+  }).advertencias
 
   function aplicarEdificio(estado: EstadoEstablecimiento) {
     // Evacuado ⇒ sin clases: la combinación contraria es imposible.
@@ -69,6 +95,11 @@ export function CamposClasesEdificio({
 
   function elegirEdificio(estado: EstadoEstablecimiento) {
     if (bloqueoEdificio(respuestas, estado) !== null) return
+    if (estado === 'habitual' && saleDeEvacuacion && afectacionesActivas.length > 0) {
+      setDecisiones({})
+      setHojaHabitual(true)
+      return
+    }
     if (INTERRUMPE_TODO.includes(estado) && alcanceParcial) {
       setPendiente(estado)
       return
@@ -104,6 +135,9 @@ export function CamposClasesEdificio({
         {alcanceAlgunas && valor.servicioEstado === 'suspendido' ? (
           <p className="afectacion-campos__espera">Se suspenden las clases solo en las secciones seleccionadas</p>
         ) : null}
+        {bloqueos.filter((regla) => regla.campo === 'clases').map((regla) => (
+          <p key={regla.codigo} className="afectacion-campos__espera">{regla.mensaje}</p>
+        ))}
         <AvisosConsistencia reglas={advertencias} campos={['clases']} />
       </fieldset>
 
@@ -127,8 +161,46 @@ export function CamposClasesEdificio({
         {motivosEdificio.map((mensaje) => (
           <p key={mensaje} className="afectacion-campos__espera">{mensaje}</p>
         ))}
+        {bloqueos.filter((regla) => regla.campo === 'edificio').map((regla) => (
+          <p key={regla.codigo} className="afectacion-campos__espera">{regla.mensaje}</p>
+        ))}
         <AvisosConsistencia reglas={advertencias} campos={['edificio']} />
       </fieldset>
+
+      <ConfirmSheet
+        open={hojaHabitual}
+        titulo="¿Qué pasó con las afectaciones activas?"
+        confirmarLabel="Confirmar"
+        confirmarDeshabilitado={decididas < afectacionesActivas.length}
+        onCancelar={() => setHojaHabitual(false)}
+        onConfirmar={() => {
+          setHojaHabitual(false)
+          aplicarEdificio('habitual')
+          onConfirmarHabitual?.(decisiones)
+        }}
+      >
+        <p>Antes de figurar como habitual, indique qué pasa con cada afectación activa.</p>
+        {afectacionesActivas.map((afectacion) => (
+          <fieldset key={afectacion.id} className="afectacion-campos__grupo" aria-label={afectacion.motivo}>
+            <p className="afectacion-campos__legend">{afectacion.motivo}</p>
+            <div className="afectacion-campos__opciones">
+              {(['solucionada', 'sigue'] as const).map((decision) => (
+                <Opcion
+                  key={decision}
+                  tipo="radio"
+                  name={`habitual-${afectacion.id}`}
+                  value={decision}
+                  checked={decisiones[afectacion.id] === decision}
+                  onChange={() => setDecisiones((actual) => ({ ...actual, [afectacion.id]: decision }))}
+                  label={decision === 'solucionada' ? 'Solucionada' : 'Sigue activa'}
+                  compacta
+                />
+              ))}
+            </div>
+          </fieldset>
+        ))}
+        <AvisosConsistencia reglas={avisosHabitual} campos={['edificio']} />
+      </ConfirmSheet>
 
       <ConfirmSheet
         open={pendiente !== null}

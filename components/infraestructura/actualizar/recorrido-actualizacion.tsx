@@ -18,6 +18,8 @@ import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb
 import { confirmarFormulario, eliminarBorradorFormulario, guardarBorradorFormulario, guardarClaveEnvioFormulario, leerBorradorFormulario, leerConfirmacionFormulario, limpiarFormularioConfirmado, olvidarClaveEnvioFormulario, type BorradorFormulario } from '@/lib/infraestructura/parte/borrador-formulario'
 import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
 import { claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
+import { alcanceDe, mensajesDeBloqueo, respuestasDeSituacion } from '@/components/infraestructura/actualizar/consistencia-actualizacion'
+import { evaluarCambioAHabitual } from '@/lib/infraestructura/consistencia-estado-activo'
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
@@ -500,7 +502,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   }
 
   async function enviar(): Promise<void> {
-    if (enviando || enviandoRef.current) return
+    if (enviando || enviandoRef.current || bloqueos.length > 0) return
     if (asistenciaPedagogica.brinda === '') {
       setError('Indique si se brinda asistencia pedagógica.')
       return
@@ -599,6 +601,57 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const estadoEstablecimiento = datos.parte?.estadoEstablecimiento ?? 'habitual'
   const estadoServicio = datos.servicio?.estadoGeneral ?? 'normal'
   const clasesEdificio = recorrido.clasesEdificio ?? { servicioEstado: estadoServicio === 'suspendido' ? 'suspendido' as const : 'normal' as const, estadoEstablecimiento, confirmarInterrupcionTotal: false }
+  const seccionesEscuela = turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones.map((seccion) => seccion.geSectionId)))
+  const motivoIdDe = (nombre: string): string | null => motivos.find((motivo) => motivo.nombre === nombre)?.id ?? null
+  const afectacionesActivas = situaciones.map((situacion) => ({ id: situacion.id, motivo: situacion.motivo }))
+  const idsCon = (tipo: 'solucionada' | 'sigue'): string[] => situaciones.filter((situacion) => recorrido.respuestas[situacion.id]?.tipo === tipo).map((situacion) => situacion.id)
+  const habitual = evaluarCambioAHabitual({
+    estadoActual: estadoEstablecimiento,
+    nuevoEstado: clasesEdificio.estadoEstablecimiento,
+    servicioActual: estadoServicio,
+    servicioEnvio: clasesEdificio.servicioEstado,
+    afectacionesActivas: situaciones.map((situacion) => ({ id: situacion.id })),
+    solucionadas: idsCon('solucionada'),
+    sigueActiva: idsCon('sigue'),
+  })
+  // Sólo las situaciones que esta actualización toca (y la nueva) se evalúan:
+  // sus combinaciones son las que ella crea.
+  const mensajesDeCambios = [
+    ...situaciones.flatMap((situacion) => {
+      const respuesta = recorrido.respuestas[situacion.id]
+      if (respuesta?.tipo !== 'cambio') return []
+      const conClases = respuesta.cambio.aspectos.includes('clases-edificio')
+      return mensajesDeBloqueo(respuestasDeSituacion({
+        categoria: situacion.categoria,
+        motivoId: motivoIdDe(situacion.motivo),
+        severidad: respuesta.cambio.severidad ?? situacion.severidad,
+        justificacionCritica: respuesta.cambio.justificacionCritica ?? null,
+        alcance: respuesta.cambio.aspectos.includes('alcance') ? alcanceDe(respuesta.cambio.secciones, seccionesEscuela) : null,
+        clases: conClases ? clasesEdificio.servicioEstado : null,
+        edificio: conClases ? clasesEdificio.estadoEstablecimiento : null,
+      }), { descripcion: false })
+    }),
+    ...(recorrido.nueva
+      ? mensajesDeBloqueo(respuestasDeSituacion({
+        categoria: null,
+        motivoId: motivoIdDe(recorrido.nueva.motivo),
+        severidad: recorrido.nueva.severidad,
+        justificacionCritica: recorrido.nueva.justificacionCritica ?? null,
+        descripcion: recorrido.nueva.descripcion ?? '',
+        alcance: alcanceDe(recorrido.nueva.secciones, seccionesEscuela),
+        clases: clasesEdificio.servicioEstado,
+        edificio: clasesEdificio.estadoEstablecimiento,
+      }), { descripcion: true })
+      : []),
+  ]
+  const bloqueos = [...new Set([...mensajesDeCambios, ...habitual.bloqueos.map((regla) => regla.mensaje)])]
+  function decidirAfectacionesHabitual(decisiones: Record<string, 'solucionada' | 'sigue'>): void {
+    const ahora = new Date().toISOString()
+    setRecorrido((r) => Object.entries(decisiones).reduce(
+      (acumulado, [id, decision]) => responder(acumulado, id, decision === 'sigue' ? { tipo: 'sigue' } : { tipo: 'solucionada', solucionadaEn: ahora }),
+      r,
+    ))
+  }
   const pasoProgreso = typeof etapa === 'object' ? etapa.revisar + 1 : etapa === 'nuevo' ? ordenadas.length + 1 : ordenadas.length + 2
   const totalPasos = ordenadas.length + 2
 
@@ -719,6 +772,11 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
               encolarCascada(id, iso)
             }}
             posicion={{ actual: etapa.revisar + 1, total: ordenadas.length }}
+            motivoId={motivoIdDe(actual.motivo)}
+            estadoActual={estadoEstablecimiento}
+            afectacionesActivas={afectacionesActivas}
+            onDecidirAfectacionesHabitual={decidirAfectacionesHabitual}
+            habitual={habitual}
           />
           <div className="asistente__acciones">
             <Button
@@ -793,6 +851,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           onRetry={() => reintentarRef.current(true)}
           error={error}
           onVolver={() => moverEtapa('nuevo')}
+          bloqueos={bloqueos}
           onEnviar={() => void enviar()}
         />
       ) : null}
@@ -898,6 +957,7 @@ function ResumenEnvio({
   motivoEnvio,
   onRetry,
   error,
+  bloqueos,
   onVolver,
   onEnviar,
 }: {
@@ -911,6 +971,7 @@ function ResumenEnvio({
   motivoEnvio: string | null
   onRetry: () => void
   error: string | null
+  bloqueos: string[]
   onVolver: () => void
   onEnviar: () => void
 }): JSX.Element {
@@ -980,12 +1041,17 @@ function ResumenEnvio({
                 : MENSAJES_ESTADO[estadoEnvio]}
             </p>
       ) : null}
+      {bloqueos.length > 0 ? (
+        <ul className="reporte-inicial__error" role="alert">
+          {bloqueos.map((mensaje) => <li key={mensaje}>{mensaje}</li>)}
+        </ul>
+      ) : null}
       {error ? <p className="reporte-inicial__error" role="alert">{error}</p> : null}
       <div className="asistente__acciones">
         <Button type="button" variant="secondary" onClick={onVolver}>
           Volver
         </Button>
-        <Button type="button" onClick={onEnviar} disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
+        <Button type="button" onClick={onEnviar} disabled={bloqueos.length > 0 || enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
           {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? 'Reintentando…' : enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar actualización'}
         </Button>
       </div>

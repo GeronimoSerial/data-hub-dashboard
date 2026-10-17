@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
+import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CamposClasesEdificio, type ValorClasesEdificio } from './campos-clases-edificio'
 import type { RespuestasConsistencia, Regla } from '@/lib/infraestructura/consistencia-parte'
@@ -24,14 +25,24 @@ function Controlado({
   respuestas = SIN_RESPUESTAS,
   advertencias = [],
   alcanceAlgunas = false,
+  inicial = { servicioEstado: '', estadoEstablecimiento: '' },
+  estadoActual,
+  afectacionesActivas,
+  onConfirmarHabitual,
+  bloqueos,
 }: {
   alcanceParcial?: boolean
   onInterrumpir?: () => void
   respuestas?: RespuestasConsistencia
   advertencias?: Regla[]
   alcanceAlgunas?: boolean
+  inicial?: ValorClasesEdificio
+  estadoActual?: EstadoEstablecimiento
+  afectacionesActivas?: Array<{ id: string; motivo: string }>
+  onConfirmarHabitual?: (decisiones: Record<string, 'solucionada' | 'sigue'>) => void
+  bloqueos?: Regla[]
 }) {
-  const [v, setV] = useState<ValorClasesEdificio>({ servicioEstado: '', estadoEstablecimiento: '' })
+  const [v, setV] = useState<ValorClasesEdificio>(inicial)
   return (
     <>
       <CamposClasesEdificio
@@ -42,6 +53,10 @@ function Controlado({
         respuestas={{ ...respuestas, edificio: v.estadoEstablecimiento || null, clases: v.servicioEstado || null }}
         advertencias={advertencias}
         alcanceAlgunas={alcanceAlgunas}
+        estadoActual={estadoActual}
+        afectacionesActivas={afectacionesActivas}
+        onConfirmarHabitual={onConfirmarHabitual}
+        bloqueos={bloqueos}
       />
       <output data-testid="v">{JSON.stringify(v)}</output>
     </>
@@ -108,5 +123,64 @@ describe('CamposClasesEdificio', () => {
     render(<Controlado alcanceAlgunas />)
     fireEvent.click(screen.getByRole('radio', { name: 'No, se suspendieron' }))
     expect(screen.getByText('Se suspenden las clases solo en las secciones seleccionadas')).toBeInTheDocument()
+  })
+})
+
+describe('CamposClasesEdificio: salida de evacuación (T7)', () => {
+  const AFECTACIONES = [
+    { id: 'a', motivo: 'Inundación' },
+    { id: 'b', motivo: 'Sin energía o agua' },
+  ]
+  const EVACUADO = { servicioEstado: 'suspendido' as const, estadoEstablecimiento: 'evacuado' as const }
+
+  it('evacuado a habitual con afectaciones activas abre la hoja y no aplica el cambio aún', () => {
+    const onConfirmarHabitual = vi.fn()
+    render(<Controlado inicial={EVACUADO} estadoActual="evacuado" afectacionesActivas={AFECTACIONES} onConfirmarHabitual={onConfirmarHabitual} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
+    const sheet = screen.getByRole('dialog')
+    expect(within(sheet).getByRole('group', { name: 'Inundación' })).toBeInTheDocument()
+    expect(within(sheet).getByRole('group', { name: 'Sin energía o agua' })).toBeInTheDocument()
+    expect(v().estadoEstablecimiento).toBe('evacuado')
+    expect(onConfirmarHabitual).not.toHaveBeenCalled()
+  })
+
+  it('bloquea Confirmar hasta que cada afectación tenga una elección y envía los ids elegidos', () => {
+    const onConfirmarHabitual = vi.fn()
+    render(<Controlado inicial={EVACUADO} estadoActual="evacuado" afectacionesActivas={AFECTACIONES} onConfirmarHabitual={onConfirmarHabitual} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
+    const sheet = screen.getByRole('dialog')
+    const confirmar = within(sheet).getByRole('button', { name: 'Confirmar' })
+    expect(confirmar).toBeDisabled()
+    fireEvent.click(within(within(sheet).getByRole('group', { name: 'Inundación' })).getByRole('radio', { name: 'Solucionada' }))
+    expect(confirmar).toBeDisabled()
+    fireEvent.click(within(within(sheet).getByRole('group', { name: 'Sin energía o agua' })).getByRole('radio', { name: 'Sigue activa' }))
+    expect(within(sheet).getByRole('note')).toHaveTextContent('Se mantiene una afectación activa')
+    expect(confirmar).toBeEnabled()
+    fireEvent.click(confirmar)
+    expect(onConfirmarHabitual).toHaveBeenCalledWith({ a: 'solucionada', b: 'sigue' })
+    expect(v().estadoEstablecimiento).toBe('habitual')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('cancelar la hoja deja el edificio como estaba', () => {
+    const onConfirmarHabitual = vi.fn()
+    render(<Controlado inicial={EVACUADO} estadoActual="evacuado" afectacionesActivas={AFECTACIONES} onConfirmarHabitual={onConfirmarHabitual} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
+    expect(v().estadoEstablecimiento).toBe('evacuado')
+    expect(onConfirmarHabitual).not.toHaveBeenCalled()
+  })
+
+  it('sin afectaciones activas aplica el cambio sin hoja', () => {
+    render(<Controlado inicial={EVACUADO} estadoActual="evacuado" afectacionesActivas={[]} onConfirmarHabitual={vi.fn()} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(v().estadoEstablecimiento).toBe('habitual')
+  })
+
+  it('muestra el bloqueo de servicio suspendido bajo las clases y la opción sigue habilitada', () => {
+    render(<Controlado inicial={{ servicioEstado: 'suspendido', estadoEstablecimiento: 'habitual' }} bloqueos={[{ codigo: 'habitual-con-servicio-suspendido', campo: 'clases', mensaje: 'El servicio sigue suspendido. Para figurar como habitual, indique que las clases vuelven a dictarse.' }]} />)
+    expect(screen.getByText(/El servicio sigue suspendido/)).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Sí, con normalidad' })).toBeEnabled()
   })
 })
