@@ -121,7 +121,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
               </div>
               {resumen.escuelas > 0 && (
                 <p className="map-radar-riesgo__desglose">
-                  {NIVELES_RESUMEN.map((nivel) => `${FORMATO_NUMERO.format(resumen.porNivel[nivel])} ${ETIQUETA_NIVEL_RIESGO[nivel].toLowerCase()}`).join(' · ')}
+                  {NIVELES_RESUMEN.filter((nivel) => resumen.porNivel[nivel] > 0).map((nivel) => `${FORMATO_NUMERO.format(resumen.porNivel[nivel])} ${ETIQUETA_NIVEL_RIESGO[nivel].toLowerCase()}`).join(' · ')}
                 </p>
               )}
               {lista.length > 0 ? (

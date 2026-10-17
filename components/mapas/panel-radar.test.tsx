@@ -307,5 +307,12 @@ describe('PanelRadar', () => {
     expect(filas()).toHaveLength(4)
     expect(screen.getByRole('button', { name: 'Ver menos' })).toHaveAttribute('aria-expanded', 'true')
   })
-})
 
+  it('omite del desglose los niveles sin escuelas', () => {
+    const sinMuyAlto = puntos.map((punto) =>
+      punto.cueAnexo === '300' && punto.horizonteHoras === 72 ? { ...punto, nivelRiesgo: 'alto' } : punto,
+    )
+    render(<PanelRadar {...props({ puntos: sinMuyAlto })} />)
+    expect(screen.getByText('2 alto · 1 moderado')).toBeInTheDocument()
+  })
+})
