@@ -29,6 +29,7 @@ import { listarIdentidadesPorPersonas } from '@/lib/infraestructura/identidad'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import { validarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
+import { primerBloqueoParte } from '@/lib/infraestructura/consistencia-parte-servidor'
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
 import { diffParte, esDiffVacio, type DiffParte } from '@/lib/infraestructura/movimiento-diff'
 import {
@@ -480,6 +481,27 @@ export async function POST(request: Request) {
       return Response.json({ error: permitido.error }, { status: 400 })
     }
     nuevasConCategoria.push({ input: entrada, categoria: resuelto.categoria })
+  }
+
+  // Reglas de consistencia (mismo módulo que el asistente): una combinación
+  // bloqueada no se guarda. Las advertencias no bloquean.
+  const bloqueo = primerBloqueoParte(
+    nuevasConCategoria.map(({ input: entrada, categoria }) => ({
+      categoria,
+      motivoId: motivos.find((m) => m.nombre === entrada.motivo)?.id ?? null,
+      severidad: entrada.severidad,
+      justificacionCritica: entrada.justificacionCritica,
+      descripcion: entrada.descripcion,
+      seccionesCantidad: entrada.secciones.length,
+    })),
+    {
+      estadoEstablecimiento: input.estadoEstablecimiento?.estado ?? null,
+      servicioEstado: input.servicioEducativo?.estado ?? null,
+      asistenciaBrinda: input.asistenciaPedagogica?.brinda ?? null,
+    },
+  )
+  if (bloqueo) {
+    return Response.json({ error: bloqueo.mensaje, codigo: bloqueo.codigo }, { status: 400 })
   }
 
   const secciones = await listarSeccionesDelCue(client, corteId, cue.value)

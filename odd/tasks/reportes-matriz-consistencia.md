@@ -51,7 +51,7 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 
 - [x] T1 Rules module `lib/infraestructura/consistencia-parte.ts` + unit tests (blocked/warning/allowed tables, description required for Otro).
 - [x] T2 Wire rules into wizard steps 1–3: disabled options with reason, inline warnings, mandatory description for Otro, scope copy.
-- [ ] T3 Server validation in `app/api/problematicas/parte/route.ts` using the same module (400 on blocked).
+- [x] T3 Server validation in `app/api/problematicas/parte/route.ts` using the same module (400 on blocked).
 - [ ] T4 Severity drawer on scope "toda" + stronger visual for suggested option.
 - [ ] T5 Move photo selector to step 1 + Crítica emphasis.
 - [ ] T6 Active state: preload in wizard, contradiction resolution, server check.
@@ -63,5 +63,7 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 - T1: `lib/infraestructura/consistencia-parte.ts` + `lib/infraestructura/consistencia-parte.test.ts`. RED: module missing (suite failed to load). GREEN: `npx vitest run lib/infraestructura/consistencia-parte.test.ts` 36/36. `npx tsc --noEmit -p .` no errors. `npx eslint` on both files clean.
 - T2: `campos-clases-edificio.tsx` (opciones bloqueadas con motivo, avisos, copy de alcance parcial), `afectacion-campos.tsx` (`AvisosConsistencia`, descripción obligatoria con "Otro"), `reporte-inicial-form.tsx` (`respuestasDeConsistencia`, bloqueos por paso en `faltanteDelPaso`). RED: 4 casos nuevos de `campos-clases-edificio.test.tsx` fallaban antes de implementar. Tests de formulario ("Otro" exige descripción) añadidos después de la implementación; pasan. GREEN: `npx vitest run components/infraestructura lib/infraestructura/consistencia-parte.test.ts` 43 archivos, 488 pasan, 18 omitidos. `npx tsc --noEmit -p .` sin errores. `npx eslint` sobre los 5 archivos limpio.
 
+- T3: `lib/infraestructura/consistencia-parte-servidor.ts` (adaptador: arma `RespuestasConsistencia` por afectación nueva con la situación común; `primerBloqueoParte`) + `route.ts` POST, después del bucle de validación por afectación y antes de la transacción; responde 400 `{ error, codigo }` con el primer bloqueo. Pruebas: `lib/infraestructura/consistencia-parte-servidor.test.ts` (RED: módulo inexistente) y 3 casos nuevos en `route.test.ts` ("consistencia servidor (T3)": evacuación+habitual → 400, "Otro" sin descripción → 400, sólo advertencia → 201; RED: 2 de 3 respondían 201). GREEN: `npx vitest run app/api/problematicas/parte` 9 archivos, 76 pasan; `npx vitest run lib/infraestructura/consistencia-parte lib/infraestructura/consistencia-parte-servidor` 41 pasan; `npx tsc --noEmit -p .` sin errores; `npx eslint` sobre los 4 archivos limpio.
+
 ## Next step
-T2 (wizard wiring) and T3 (server validation) can start from `evaluarConsistenciaParte` and `bloqueoOpcion`.
+T4 (severity drawer on scope "toda") and T6 (server check for active state) can start from `primerBloqueoParte` and `evaluarConsistenciaParte`.

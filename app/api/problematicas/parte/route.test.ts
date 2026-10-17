@@ -134,6 +134,9 @@ const CUE_R2 = '1801605-63'
 const CUE_S = CUE_R2
 const CUE_R3 = '1801605-64'
 const CUE_T = '1801605-65'
+// CUE exclusivo de las pruebas de consistencia servidor (T3): ninguna prueba
+// previa escribe sobre él, así que el primer POST válido crea el parte.
+const CUE_U = '1801605-66'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -153,7 +156,7 @@ beforeAll(async () => {
   )
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
-    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T,
+    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -1238,5 +1241,40 @@ describe('parte enlaza la verificación de origen (batch E1)', () => {
     expect(fila?.estado).toBe('respondida')
     expect(fila?.resultado).toBe('con_afectacion')
     expect(fila?.movimientoId).toBe(body.movimientoId)
+  })
+})
+
+// T3: la ruta rechaza con 400 las combinaciones bloqueadas por las reglas de
+// consistencia (lib/infraestructura/consistencia-parte.ts). Las advertencias
+// nunca bloquean.
+describe('POST /api/problematicas/parte — consistencia servidor (T3)', () => {
+  it('rechaza evacuación preventiva con el edificio figurando como habitual (400 con codigo)', async () => {
+    const res = await POST(postReq({
+      cue: CUE_U, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'habitual' },
+      afectacionesNuevas: [{ motivo: 'Evacuación preventiva', severidad: 'Crítica', secciones: [seccionId(CUE_U, '10')] }],
+    }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.codigo).toBe('evacuacion-preventiva-habitual')
+    expect(body.error).toBe('Con una evacuación preventiva el edificio no puede figurar como habitual.')
+  })
+
+  it('rechaza "Otro" sin descripción (400 con codigo otro-sin-descripcion)', async () => {
+    const res = await POST(postReq({
+      cue: CUE_U, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Otro problema en el establecimiento', severidad: 'Media', secciones: [seccionId(CUE_U, '10')] }],
+    }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).codigo).toBe('otro-sin-descripcion')
+  })
+
+  it('una combinación sólo con advertencia no se rechaza (inundación con edificio habitual: 201)', async () => {
+    const res = await POST(postReq({
+      cue: CUE_U, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'habitual' },
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Crítica', secciones: [seccionId(CUE_U, '10')] }],
+    }))
+    expect(res.status).toBe(201)
   })
 })
