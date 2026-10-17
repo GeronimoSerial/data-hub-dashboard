@@ -126,6 +126,7 @@ describe('PanelRadar', () => {
           : punto,
     )
     render(<PanelRadar {...props({ puntos: conAmenaza })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Ver más/ }))
 
     const filas = screen.getAllByRole('button', { name: /Escuela/ }).filter((boton) => boton.className.includes('map-sitact__fila'))
     expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual([
@@ -292,4 +293,18 @@ describe('PanelRadar', () => {
     const seccion = screen.getByRole('region', { name: /Pronóstico por departamento/ })
     expect(seccion.firstElementChild?.tagName).toBe('H3')
   })
+
+  it('muestra 3 escuelas en riesgo y un "Ver más" que despliega el resto', () => {
+    const conAmenaza = puntos.map((punto) =>
+      punto.cueAnexo === '400' && punto.horizonteHoras === 72 ? { ...punto, nivelAmenaza: 'alto' } : punto,
+    )
+    render(<PanelRadar {...props({ puntos: conAmenaza })} />)
+    const filas = () => screen.getAllByRole('button').filter((boton) => boton.className.includes('map-sitact__fila'))
+    expect(filas()).toHaveLength(3)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver más (1)' }))
+    expect(filas()).toHaveLength(4)
+    expect(screen.getByRole('button', { name: 'Ver menos' })).toHaveAttribute('aria-expanded', 'true')
+  })
 })
+

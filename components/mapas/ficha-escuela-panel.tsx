@@ -39,6 +39,7 @@ interface FichaEscuelaPanelProps {
   urlFichaCompleta?: string
   onAbrirFichaCompleta?: () => void
   onQuitarSeleccion?: () => void
+  extraVistaPrevia?: ReactNode
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -109,6 +110,7 @@ export function FichaEscuelaPanel({
   urlFichaCompleta,
   onAbrirFichaCompleta,
   onQuitarSeleccion,
+  extraVistaPrevia = null,
 }: FichaEscuelaPanelProps) {
   const { estado, historial } = useFichaParte(escuela.cueAnexo)
   const tituloRef = useRef<HTMLHeadingElement>(null)
@@ -184,6 +186,7 @@ export function FichaEscuelaPanel({
         urlFichaCompleta={urlFichaCompleta}
         onCerrarVistaPrevia={onCerrar}
         onQuitarSeleccion={onQuitarSeleccion ?? (() => {})}
+        extra={extraVistaPrevia}
         onAbrirFichaCompleta={onAbrirFichaCompleta}
         cargandoParte={estado.fase === 'cargando'}
       />

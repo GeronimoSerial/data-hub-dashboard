@@ -1,6 +1,6 @@
 'use client'
 
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import { Segmentado } from '@/components/mapas/segmentado'
 import { AlertasSeccion } from '@/components/mapas/radar-meteo/alertas-seccion'
 import { PronosticoResumen } from '@/components/mapas/radar-meteo/pronostico-resumen'
@@ -54,6 +54,8 @@ export interface PanelRadarProps {
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 const HORIZONTES: HorizonteMotor[] = [24, 72, 240]
+// La lista arranca corta para que "Alertas del SMN" quede a la vista sin scroll.
+const ESCUELAS_VISIBLES = 3
 
 export function PanelRadar(props: PanelRadarProps): JSX.Element {
   const { horizonte, disponibles, onHorizonte, variable, onVariable, puntos, escuelas, cargando, error, onSeleccionar, alertas, pronostico } = props
@@ -71,6 +73,8 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
   // Amenaza null = sin dato: no se muestra.
   const lista = puntos === null ? [] : escuelasEnRadar(puntos, escuelas, horizonte)
   const resumen = resumirRiesgo(lista)
+  const [verTodas, setVerTodas] = useState(false)
+  const listaVisible = verTodas ? lista : lista.slice(0, ESCUELAS_VISIBLES)
 
   return (
     <section className="map-sitact" aria-label="Radar" data-testid="panel-radar">
@@ -114,7 +118,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
               </div>
               {lista.length > 0 ? (
                 <div className="map-sitact__lista">
-                  {lista.map(({ escuela, nivel, amenaza }) => {
+                  {listaVisible.map(({ escuela, nivel, amenaza }) => {
                     const departamento = etiquetaDepartamento(escuela.departamento)
                     const niveles = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
                     return (
@@ -141,6 +145,11 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
                       </button>
                     )
                   })}
+                  {lista.length > ESCUELAS_VISIBLES && (
+                    <button type="button" className="map-radar-riesgo__ver-mas" aria-expanded={verTodas} onClick={() => setVerTodas((valor) => !valor)}>
+                      {verTodas ? 'Ver menos' : `Ver más (${lista.length - ESCUELAS_VISIBLES})`}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <p className="map-sitact__vacio map-sitact__vacio--linea">Ninguna escuela en riesgo para estos filtros.</p>

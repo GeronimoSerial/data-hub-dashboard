@@ -61,25 +61,22 @@ describe('RadarMeteo — un solo overlay a la vez', () => {
     vi.unstubAllGlobals()
   })
 
-  it('abrir la tarjeta de escuela cierra el pronóstico del punto', () => {
-    montar()
+  it('clic en el marcador de una escuela cierra el pronóstico del punto y pide su vista previa', () => {
+    const onSeleccionarEscuela = vi.fn()
+    render(<RadarMeteo activo variable="lluvia" escuelas={[ESCUELA] as never} resumen={null} alertasResaltadas={[]} onVerAlertas={() => undefined} onSeleccionarEscuela={onSeleccionarEscuela} />)
+    act(() => window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: crearMapa() })))
     clicEnMapa()
     expect(screen.getByRole('dialog', PUNTO)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Pronóstico de Escuela Rural/ }))
 
     expect(screen.queryByRole('dialog', PUNTO)).toBeNull()
-    expect(document.querySelector('.radar-escuela-card')).not.toBeNull()
+    expect(onSeleccionarEscuela).toHaveBeenCalledWith(ESCUELA.cueAnexo)
   })
 
-  it('un clic en el mapa cierra la tarjeta de escuela y abre el pronóstico del punto', () => {
+  it('un clic en el mapa abre el pronóstico del punto', () => {
     montar()
-    fireEvent.click(screen.getByRole('button', { name: /Pronóstico de Escuela Rural/ }))
-    expect(document.querySelector('.radar-escuela-card')).not.toBeNull()
-
     clicEnMapa()
-
-    expect(document.querySelector('.radar-escuela-card')).toBeNull()
     expect(screen.getByRole('dialog', PUNTO)).toBeInTheDocument()
   })
 })

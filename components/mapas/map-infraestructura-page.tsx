@@ -94,6 +94,7 @@ import {
   bboxRuta,
 } from '@/components/mapas/capas-accesos'
 import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
+import { PronosticoEscuelaBloque } from '@/components/mapas/radar-meteo/escuela-card'
 import type { VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
 import { agruparAlertas } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
 import { useResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
@@ -2004,6 +2005,10 @@ export default function MapInfraestructuraPage(props: {
             resumen={resumenRadar}
             alertasResaltadas={alertasResaltadas}
             onVerAlertas={irAAlertasRadar}
+            onSeleccionarEscuela={(cue) => {
+              const escuela = escuelasPorCue.get(cue) ?? dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
+              if (escuela) handleSeleccionarEscuelaBuscada(escuela)
+            }}
           />
 
           {/* Popup del CRUCE DE AGUA clickeado sobre la ruta (ver `handleClick`).
@@ -2098,9 +2103,8 @@ export default function MapInfraestructuraPage(props: {
         </MapGL>
       </div>
 
-      {radarActivo ? (
-        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
-      ) : props.pestana === 'planificacion' ? (
+      {/* En radar no va la leyenda de situación actual: el radar trae la suya (lluvia, viento...). */}
+      {radarActivo ? null : props.pestana === 'planificacion' ? (
         <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'actual' ? (
         <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
@@ -2132,7 +2136,7 @@ export default function MapInfraestructuraPage(props: {
             onCerrarFicha={cerrarFicha}
             cabecera={(
               <>
-                {seleccionCue !== null && !fichaAbierta && (
+                {!radarActivo && seleccionCue !== null && !fichaAbierta && (
                   <SeleccionEscuela
                     nombre={escuelasPorCue.get(seleccionCue)?.nombre ?? seleccionCue}
                     onVerFicha={() => {
@@ -2257,6 +2261,7 @@ export default function MapInfraestructuraPage(props: {
                 urlFichaCompleta={urlFichaCompleta}
                 onAbrirFichaCompleta={guardarSnapshotAlAbrirFicha}
                 onQuitarSeleccion={quitarSeleccion}
+                extraVistaPrevia={radarActivo ? <PronosticoEscuelaBloque cueAnexo={escuelaSeleccionada.cueAnexo} /> : null}
               />
         </aside>
       )}

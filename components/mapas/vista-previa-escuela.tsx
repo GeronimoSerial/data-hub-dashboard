@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Clock, MapPinOff, X } from 'lucide-react'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
@@ -26,6 +26,8 @@ export interface VistaPreviaEscuelaProps {
   onAbrirFichaCompleta?: () => void
   /** True while the school's report is still loading; avoids flashing the category as the reason. */
   cargandoParte?: boolean
+  /** Contenido propio de la pestaña (p. ej. el pronóstico en Radar), antes de las acciones. */
+  extra?: ReactNode
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -53,6 +55,7 @@ export function VistaPreviaEscuela({
   onQuitarSeleccion,
   onAbrirFichaCompleta,
   cargandoParte = false,
+  extra = null,
 }: VistaPreviaEscuelaProps) {
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const sinUbicacion =
@@ -263,6 +266,8 @@ export function VistaPreviaEscuela({
           </dd>
         </div>
       </dl>
+
+      {extra}
 
       <div className={styles.actions}>
         <Link

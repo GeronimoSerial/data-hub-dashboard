@@ -34,3 +34,11 @@ Make the radar tab of `/mapas/infraestructura` readable on desktop: one overlay 
 - Overlay rule: in radar mode a map click opens only the point forecast; IMERG layer stays, its popup is off (`sinPopup`). School card and point forecast close each other.
 - Checks: `pnpm vitest run components/mapas lib/infraestructura/radar-meteo app/typography-scale.test.ts` 548/548; `pnpm tsc --noEmit` 0. Desktop screenshots via tunnel reviewed.
 - Pending: legends are side by side (true stacking needs a shared container); "Situación actual" legend floats over the map; eslint error in ficha-escuela-pagina.tsx belongs to foreign uncommitted work.
+
+## Round 2 (user feedback 2026-10-17)
+- [x] T6 Remove "Situación actual" floating legend in radar mode.
+- [x] T7 Risk list shows 3 schools + "Ver más (N)" so "Alertas del SMN" is reachable without scrolling.
+- [x] T8 One school card: radar uses the standard preview (same as Situación actual) with an embedded forecast block; the dark "Pronóstico puntual" card and its CSS are removed; no "Quitar selección" header above the sidebar in radar.
+- [x] T9 Daily rain values without unit (caption "Lluvia por día (mm)") so they fit; preview stops above the timeline.
+- Checks: vitest mapas+radar-meteo+typography 549/549; tsc 0; desktop screenshots reviewed.
+- Note: another session edits globals.css (editorial ficha block) and ficha files concurrently; those hunks were left out of these commits.

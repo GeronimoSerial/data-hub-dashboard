@@ -1061,7 +1061,8 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     const panelLateral = await screen.findByTestId('panel-lateral')
     expect(within(panelLateral).getByTestId('panel-radar')).toBeInTheDocument()
     expect(panelLateral).not.toBeEmptyDOMElement()
-    expect(screen.getByText('Riesgo actual (hoy) · 72 h')).toBeInTheDocument()
+    // En radar no se muestra la leyenda de situación actual.
+    expect(screen.queryByText('Riesgo actual (hoy) · 72 h')).not.toBeInTheDocument()
   })
 
   it('con Radar activo muestra el panel de riesgo y consulta el horizonte inicial', async () => {
@@ -1230,7 +1231,8 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     await userEvent.click(screen.getByRole('button', { name: /Escuela 1, Capital/i }))
     const flotante = screen.getByTestId('ficha-flotante')
     expect(within(flotante).getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
-    expect(within(screen.getByTestId('panel-lateral')).queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    // En radar no se repite la selección arriba del panel: la vista previa ya la muestra.
+    expect(within(screen.getByTestId('panel-lateral')).queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
     expect(within(screen.getByTestId('panel-lateral')).getByTestId('panel-radar')).toBeInTheDocument()
   })
 
@@ -2109,7 +2111,7 @@ describe('Task 4: cambiar de pestaña a Radar', () => {
     rerender({ pestana: 'radar' })
     const panelRadar = within(screen.getByTestId('panel-lateral'))
     expect(panelRadar.getByTestId('panel-radar')).toBeInTheDocument()
-    expect(panelRadar.getByTestId('reabrir-ficha')).toBeInTheDocument()
+    expect(panelRadar.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
 
     rerender({ pestana: 'actual' })
 

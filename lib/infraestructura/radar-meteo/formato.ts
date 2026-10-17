@@ -8,7 +8,12 @@ const formatoVientoKmh = new Intl.NumberFormat('es-AR', {
 })
 
 export function formatearLluviaMm(valor: number | null | undefined): string {
-  return valor == null ? '—' : `${formatoLluviaMm.format(valor)} mm`
+  return valor == null ? '—' : `${formatearLluviaNumero(valor)} mm`
+}
+
+// Sin unidad, para tablas que la indican en el encabezado.
+export function formatearLluviaNumero(valor: number | null | undefined): string {
+  return valor == null ? '—' : formatoLluviaMm.format(valor)
 }
 
 export function formatearVientoKmh(valor: number | null | undefined): string {
