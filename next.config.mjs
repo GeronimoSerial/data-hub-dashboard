@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  allowedDevOrigins: process.env.BETTER_AUTH_URL
+    ? [new URL(process.env.BETTER_AUTH_URL).hostname]
+    : [],
   serverExternalPackages: ['@libsql/client', 'libsql', '@electric-sql/pglite'],
   async rewrites() {
     const html = [
