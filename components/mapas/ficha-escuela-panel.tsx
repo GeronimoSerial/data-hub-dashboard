@@ -186,6 +186,7 @@ export function FichaEscuelaPanel({
         onCerrarVistaPrevia={onCerrar}
         onQuitarSeleccion={onQuitarSeleccion ?? (() => {})}
         onAbrirFichaCompleta={onAbrirFichaCompleta}
+        cargandoParte={estado.fase === 'cargando'}
       />
     )
   }

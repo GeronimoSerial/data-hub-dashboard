@@ -25,6 +25,8 @@ export interface VistaPreviaEscuelaProps {
   onCerrarVistaPrevia: () => void
   onQuitarSeleccion: () => void
   onAbrirFichaCompleta?: () => void
+  /** True while the school's report is still loading; avoids flashing the category as the reason. */
+  cargandoParte?: boolean
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -52,6 +54,7 @@ export function VistaPreviaEscuela({
   onCerrarVistaPrevia,
   onQuitarSeleccion,
   onAbrirFichaCompleta,
+  cargandoParte = false,
 }: VistaPreviaEscuelaProps) {
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const sinUbicacion =
@@ -144,6 +147,10 @@ export function VistaPreviaEscuela({
               <p className={styles.gravedad}>
                 Gravedad {severidad}
               </p>
+              {cargandoParte && !principal ? (
+                <p className={styles.situacionMeta} role="status">Cargando situación…</p>
+              ) : (
+                <>
               <p className={styles.motivo}>
                 {principal ? principal.motivo : (categoriaLabel ?? 'Situación activa')}
               </p>
@@ -154,6 +161,8 @@ export function VistaPreviaEscuela({
                 {categoriaLabel ? ` · ${categoriaLabel}` : ''}
                 {principal ? ` · desde ${desde(principal.rigeDesde)}` : ''}
               </p>
+                </>
+              )}
             </div>
           </>
         ) : escuela.parte ? (

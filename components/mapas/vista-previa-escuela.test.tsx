@@ -108,6 +108,23 @@ describe('VistaPreviaEscuela', () => {
     expect(onQuitar).toHaveBeenCalledTimes(1)
   })
 
+  it('no muestra la categoría como motivo mientras carga el parte', () => {
+    const escuela = { ...crearEscuelaBase(), gravedad: 3 as const, categoriaPrincipal: 'establecimiento' as const }
+
+    render(
+      <VistaPreviaEscuela
+        escuela={escuela}
+        urlFichaCompleta="/mapas/infraestructura/escuelas/1800123-00"
+        onCerrarVistaPrevia={vi.fn()}
+        onQuitarSeleccion={vi.fn()}
+        cargandoParte
+      />,
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando situación…')
+    expect(screen.queryByText('Afecta al establecimiento')).toBeNull()
+  })
+
   it('distingue explícitamente la ausencia de reporte activo de la normalidad confirmada', () => {
     const escuela = crearEscuelaBase()
 
