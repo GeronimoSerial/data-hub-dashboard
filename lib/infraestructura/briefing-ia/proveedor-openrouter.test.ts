@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generarConOpenRouter } from './proveedor-openrouter'
 import type { MensajeChat } from './proveedor-openrouter'
 
@@ -11,11 +11,36 @@ function respuestaJson(cuerpo: unknown, estado = 200): Response {
   })
 }
 
+beforeEach(() => {
+  vi.stubEnv('AI_API_KEY', undefined)
+  vi.stubEnv('AI_MODEL', undefined)
+  vi.stubEnv('AI_BASE_URL', undefined)
+})
+
 afterEach(() => {
   vi.unstubAllEnvs()
 })
 
 describe('generarConOpenRouter', () => {
+  it('usa el proxy configurado y contabiliza el costo informado por LiteLLM', async () => {
+    vi.stubEnv('AI_API_KEY', 'clave-proxy')
+    vi.stubEnv('AI_MODEL', 'deepseek-v4.1-flash')
+    vi.stubEnv('AI_BASE_URL', 'https://proxy.test/v1/')
+    const fetchEspia = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: 'texto' } }],
+      usage: { prompt_tokens: 100, completion_tokens: 20 },
+    }), { headers: { 'x-litellm-response-cost': '0.000054' } }))
+
+    const resultado = await generarConOpenRouter(MENSAJES, { fetchImpl: fetchEspia })
+
+    expect(resultado.ok).toBe(true)
+    expect(resultado.costoUsd).toBe(0.000054)
+    const [url, init] = fetchEspia.mock.calls[0]
+    expect(url).toBe('https://proxy.test/v1/chat/completions')
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer clave-proxy')
+    expect(JSON.parse(String(init?.body)).model).toBe('deepseek-v4.1-flash')
+  })
+
   it('sin apiKey devuelve sin_api_key y no llama a fetch', async () => {
     vi.stubEnv('OPENROUTER_API_KEY', '')
     const fetchEspia = vi.fn<typeof fetch>()
