@@ -247,7 +247,7 @@ function CapaLluviaObservadaActiva({
             id="lluvia-observada-raster"
             type="raster"
             beforeId={beforeId}
-            paint={{ 'raster-opacity': 0.65, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }}
+            paint={{ 'raster-opacity': 0.35, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }}
           />
         </Source>
       )}

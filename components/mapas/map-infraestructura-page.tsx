@@ -61,6 +61,7 @@ import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { ControlesZoom } from '@/components/mapas/controles-zoom'
 import { bboxGeometria } from '@/lib/mapas/geo'
+import { aquietarBasemap } from '@/lib/mapas/basemap-sereno'
 import { horaActualizacion, PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
 import { PanelRadar } from '@/components/mapas/panel-radar'
 import { PanelPlanificacion } from '@/components/mapas/panel-planificacion'
@@ -349,7 +350,7 @@ function layoutIconoCluster(icono: string): SymbolLayerSpecification['layout'] {
     'icon-image': icono,
     'icon-size': 1,
     'icon-anchor': 'center',
-    'icon-offset': OFFSET_BADGE_ESQUINA,
+    'icon-offset': expresionOffsetBadgeCluster(),
     'icon-allow-overlap': true,
     'icon-ignore-placement': true,
   }
@@ -379,9 +380,9 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
 const anilloColor = (oscuro = false) => coloresMapa(oscuro).tinta
 
 // Los clusters afectados usan la gravedad más alta presente. Un cluster que
-// contiene sólo escuelas sin reporte usa el fondo y el borde neutros del tema.
+// contiene sólo escuelas sin reporte es un disco suave y chico que retrocede.
 export function colorPorSeveridadRango(oscuro = false): ExpressionSpecification {
-  const colorFondo = coloresMapa(oscuro).sinReporteRelleno
+  const colorFondo = coloresMapa(oscuro).clusterNeutro
   const expresion: ExpressionSpecification = [
     'case', ['==', ['get', 'escuelasAfectadas'], 0], colorFondo, colorSeveridad(SEVERIDADES[0]),
   ]
@@ -392,16 +393,22 @@ export function colorPorSeveridadRango(oscuro = false): ExpressionSpecification 
 }
 
 // El radio del cluster sube por tramos con la cantidad de escuelas.
-export const RADIO_CLUSTER_MENOR = 16
-export const RADIO_CLUSTER_MEDIO = 22
-export const RADIO_CLUSTER_MAYOR = 28
+export const RADIO_CLUSTER_MENOR = 15
+export const RADIO_CLUSTER_MEDIO = 19
+export const RADIO_CLUSTER_MAYOR = 23
 
 export function expresionRadioCluster(): ExpressionSpecification {
   return ['step', ['get', 'point_count'], RADIO_CLUSTER_MENOR, 10, RADIO_CLUSTER_MEDIO, 50, RADIO_CLUSTER_MAYOR]
 }
 
 export function expresionRadioClusterSinReporte(): ExpressionSpecification {
-  return ['step', ['get', 'point_count'], 10, 10, 12, 50, 14]
+  return ['step', ['get', 'point_count'], 9, 10, 11, 50, 13]
+}
+
+// Badge de evacuación en la esquina superior derecha del cluster: el offset
+// sigue al radio para que el badge quede sobre el borde y no tape el número.
+export function expresionOffsetBadgeCluster(): ExpressionSpecification {
+  return ['step', ['get', 'point_count'], ['literal', [12, -12]], 10, ['literal', [15, -15]], 50, ['literal', [18, -18]]]
 }
 
 export function circlePaintPartes(oscuro = false): CircleLayerSpecification['paint'] {
@@ -423,39 +430,38 @@ export function circlePaintPartes(oscuro = false): CircleLayerSpecification['pai
     ],
     'circle-color': [
       'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
-      coloresMapa(oscuro).sinReporteRelleno, ['get', 'color'],
+      coloresMapa(oscuro).clusterNeutro, ['get', 'color'],
     ],
     'circle-opacity': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1, 0.9],
     'circle-stroke-color': [
       'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
-      coloresMapa(oscuro).sinReporteBorde, anilloColor(oscuro),
+      coloresMapa(oscuro).halo, anilloColor(oscuro),
     ],
     'circle-stroke-width': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1.5, 1],
   }
 }
 
+// Neutral clusters: soft fill, no ring. Affected clusters: severity fill with
+// a white rim that lifts them off the basemap.
 export function circlePaintCluster(oscuro = false): CircleLayerSpecification['paint'] {
   return {
     'circle-color': colorPorSeveridadRango(oscuro),
     'circle-radius': [
       'case', ['==', ['get', 'escuelasAfectadas'], 0], expresionRadioClusterSinReporte(), expresionRadioCluster(),
     ],
-    'circle-stroke-color': ['case', ['==', ['get', 'escuelasAfectadas'], 0], coloresMapa(oscuro).sinReporteBorde, anilloColor(oscuro)],
-    'circle-stroke-width': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 1.5, 1],
+    'circle-stroke-color': coloresMapa(oscuro).halo,
+    'circle-stroke-width': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 0, 2],
   }
 }
 
-// Halo del cluster: un disco translúcido del color del fondo, 4 px más ancho,
-// que separa el cluster del basemap y de los puntos vecinos.
+// Halo del cluster: sólo los afectados llevan un anillo difuso de su propio
+// color de severidad; los neutros no tienen halo y retroceden.
 export function circlePaintHaloCluster(oscuro = false): CircleLayerSpecification['paint'] {
   return {
-    'circle-color': coloresMapa(oscuro).halo,
-    'circle-radius': [
-      'case', ['==', ['get', 'escuelasAfectadas'], 0],
-      ['+', expresionRadioClusterSinReporte(), 3], ['+', expresionRadioCluster(), 4],
-    ],
-    'circle-opacity': oscuro ? 0.55 : 0.75,
-    'circle-blur': 0.4,
+    'circle-color': colorPorSeveridadRango(oscuro),
+    'circle-radius': ['+', expresionRadioCluster(), 7],
+    'circle-opacity': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 0, 0.22],
+    'circle-blur': 0.5,
   }
 }
 
@@ -464,7 +470,7 @@ export function expresionConteoCluster(): ExpressionSpecification {
 }
 
 export function colorTextoCluster(oscuro = false): ExpressionSpecification {
-  return ['case', ['==', ['get', 'escuelasAfectadas'], 0], coloresMapa(oscuro).textoSuave, ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff']
+  return ['case', ['==', ['get', 'escuelasAfectadas'], 0], coloresMapa(oscuro).clusterNeutroTexto, ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff']
 }
 
 export function filtroIconoEscuelaAfectada(): FilterSpecification {
@@ -1522,6 +1528,7 @@ export default function MapInfraestructuraPage(props: {
     registrarIconosCluster()
     actualizarCuesNoAgrupados()
     const map = mapRef.current?.getMap()
+    if (map) aquietarBasemap(map)
     if (map) {
       soltarPopupsVisibles.current?.()
       soltarPopupsVisibles.current = mantenerPopupsVisibles(map)
@@ -1534,6 +1541,7 @@ export default function MapInfraestructuraPage(props: {
           setIconosClusterListos(false)
         }
         ultimoEstiloCargado.current = estiloCargado
+        aquietarBasemap(map)
         registrarIconosCluster()
         window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
       }
@@ -1621,6 +1629,7 @@ export default function MapInfraestructuraPage(props: {
           onStyleData={() => {
             const map = mapRef.current?.getMap()
             registrarIconosCluster()
+            if (map?.isStyleLoaded()) aquietarBasemap(map)
             if (map?.isStyleLoaded()) window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
           }}
           onMoveEnd={actualizarCuesNoAgrupados}
@@ -1885,9 +1894,10 @@ export default function MapInfraestructuraPage(props: {
                 type="symbol"
                 layout={{
                   'text-field': expresionConteoCluster(),
-                  'text-size': 12,
-                  'text-font': ['Noto Sans Regular'],
-                  'text-allow-overlap': false,
+                  'text-size': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 10.5, 13],
+                  'text-font': ['case', ['==', ['get', 'escuelasAfectadas'], 0], ['literal', ['Noto Sans Regular']], ['literal', ['Noto Sans Bold']]],
+                  'text-allow-overlap': true,
+                  'text-ignore-placement': true,
                   visibility: ocultarPartes ? 'none' : 'visible',
                 }}
                 filter={['has', 'point_count']}

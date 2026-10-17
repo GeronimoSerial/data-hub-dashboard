@@ -27,7 +27,7 @@ describe('colorPorSeveridadRango', () => {
     // color de Baja como default.
     expect(expresion.length).toBe(2 + 2 * SEVERIDADES.length)
     expect(expresion[1]).toEqual(['==', ['get', 'escuelasAfectadas'], 0])
-    expect(expresion[2]).toBe('#ffffff')
+    expect(expresion[2]).toBe('#dcd8d3')
     expect(expresion[expresion.length - 1]).toBe(colorSeveridad('Baja'))
   })
 
@@ -69,7 +69,7 @@ describe('colorPorSeveridadRango', () => {
 
   it('con 0 escuelas afectadas en el cluster el color es el fondo del tema', () => {
     const expresion = colorPorSeveridadRango(false) as unknown[]
-    expect(evaluarColorCluster(expresion, { escuelasAfectadas: 0, gravedad: 0 })).toBe('#ffffff')
+    expect(evaluarColorCluster(expresion, { escuelasAfectadas: 0, gravedad: 0 })).toBe('#dcd8d3')
   })
 
   it('con al menos una escuela afectada el color es el de su severidad', () => {
@@ -123,11 +123,11 @@ describe('circlePaintPartes', () => {
     ])
   })
 
-  it('el borde usa gris neutro para gravedad 0 y no codifica el servicio', () => {
+  it('el borde es blanco en las escuelas sin reporte y no codifica el servicio', () => {
     const paint = circlePaintPartes()!
     expect(paint['circle-stroke-width']).toEqual(['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1.5, 1])
     expect(paint['circle-stroke-color']).toEqual([
-      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], '#8a8886', '#1c1c1c',
+      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], '#ffffff', '#1c1c1c',
     ])
     // El estado del servicio pasó al badge de íconos (V2): el paint del punto
     // ya no debe tener ninguna expresión data-driven sobre `servicio`.
@@ -231,14 +231,13 @@ describe('clusters sin reporte', () => {
     for (const count of [1, 9, 10, 49, 50, 100]) {
       expect(evaluarStep(radios, count)).toBeLessThan(RADIO_CLUSTER_MENOR)
     }
-    expect([1, 10, 50].map((count) => evaluarStep(radios, count))).toEqual([10, 12, 14])
+    expect([1, 10, 50].map((count) => evaluarStep(radios, count))).toEqual([9, 11, 13])
     const paint = circlePaintCluster(false)!
     expect(paint['circle-color']).toEqual(colorPorSeveridadRango(false))
-    expect(paint['circle-stroke-color']).toEqual([
-      'case', ['==', ['get', 'escuelasAfectadas'], 0], '#8a8886', '#1c1c1c',
-    ])
+    // Neutral clusters have no ring; affected ones get a white rim.
+    expect(paint['circle-stroke-color']).toBe('#ffffff')
     expect(paint['circle-stroke-width']).toEqual([
-      'case', ['==', ['get', 'escuelasAfectadas'], 0], 1.5, 1,
+      'case', ['==', ['get', 'escuelasAfectadas'], 0], 0, 2,
     ])
     for (const point_count of [1, 10, 50]) {
       const radio = evaluarPaint(paint['circle-radius'], { escuelasAfectadas: 0, point_count })
@@ -247,14 +246,14 @@ describe('clusters sin reporte', () => {
     }
   })
 
-  it('muestra point_count en neutro y usa --ink-soft para el texto sin reporte', () => {
+  it('muestra point_count en neutro y usa un gris apagado para el texto sin reporte', () => {
     const conteo = expresionConteoCluster()
     const claro = colorTextoCluster(false)
     const oscuro = colorTextoCluster(true)
     expect(conteo[0]).toBe('to-string')
     expect(evaluarPaint(conteo, { escuelasAfectadas: 0, point_count: 12 })).toBe('12')
     expect(evaluarPaint(conteo, { escuelasAfectadas: 4, point_count: 8 })).toBe('4')
-    expect(evaluarPaint(claro, { escuelasAfectadas: 0, severidadRango: 0 })).toBe('#5f5e5c')
+    expect(evaluarPaint(claro, { escuelasAfectadas: 0, severidadRango: 0 })).toBe('#57534e')
     expect(evaluarPaint(oscuro, { escuelasAfectadas: 0, severidadRango: 0 })).toBe('#dcd9d6')
   })
 })
@@ -330,11 +329,9 @@ describe('paintPuntosRiesgoAcceso', () => {
 })
 
 describe('borde y halo según el tema', () => {
-  it('usa tinta clara en oscuro para que el borde no se pierda sobre el basemap', () => {
-    expect(circlePaintCluster(true)!['circle-stroke-color']).toEqual([
-      'case', ['==', ['get', 'escuelasAfectadas'], 0], '#b5b2af', '#ffffff',
-    ])
-    expect(circlePaintHaloCluster(false)!['circle-color']).toBe('#ffffff')
-    expect(circlePaintHaloCluster(true)!['circle-color']).toBe('#000000')
+  it('el anillo del cluster sigue el fondo del tema y el halo usa la severidad', () => {
+    expect(circlePaintCluster(false)!['circle-stroke-color']).toBe('#ffffff')
+    expect(circlePaintCluster(true)!['circle-stroke-color']).toBe('#000000')
+    expect(circlePaintHaloCluster(false)!['circle-color']).toEqual(colorPorSeveridadRango(false))
   })
 })

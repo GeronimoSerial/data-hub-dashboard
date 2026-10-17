@@ -126,7 +126,7 @@ describe('CapaLluviaObservada', () => {
     expect(fuentes).toEqual(['lluvia-observada-src', 'lluvia-observada-hit-src'])
     const capas = screen.getAllByTestId('layer').map((nodo) => JSON.parse(nodo.getAttribute('data-props') ?? '{}'))
     expect(capas.map((capa) => capa.type)).toEqual(['raster', 'fill'])
-    expect(capas[0].paint).toEqual({ 'raster-opacity': 0.65, 'raster-resampling': 'linear', 'raster-fade-duration': 0 })
+    expect(capas[0].paint).toEqual({ 'raster-opacity': 0.35, 'raster-resampling': 'linear', 'raster-fade-duration': 0 })
     expect(capas[1].id).toBe('lluvia-observada-hit')
     expect(capas[1].paint).toEqual({ 'fill-opacity': 0 })
   })

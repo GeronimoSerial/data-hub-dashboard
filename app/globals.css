@@ -2384,8 +2384,7 @@ time {
   border-radius: 50%;
 }
 .map-leyenda__muestra--neutra {
-  background: var(--page);
-  border: 1.5px solid var(--ink-faint);
+  background: #dcd8d3;
 }
 .map-leyenda__muestra--rombo {
   border-radius: 0;
@@ -6879,3 +6878,18 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-zoom-boton:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .map-zoom-provincia { padding: 0 10px; margin-top: 4px; }
 @media (max-width: 720px) { .map-zoom-provincia span { display: none; } }
+
+/* River station chip in the legend: mirrors the map chip (T5). */
+.map-pastilla-estacion {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border: 1.5px solid;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+}

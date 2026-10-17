@@ -10,7 +10,7 @@ import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import type { ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
-import { IconoMapaLeyenda, InsigniaLeyenda, type IdInsignia } from '@/lib/mapas/insignias-mapa'
+import { IconoMapaLeyenda, InsigniaLeyenda, PastillaEstacionLeyenda, type EstadoEstacion, type IdInsignia } from '@/lib/mapas/insignias-mapa'
 import { GLIFO_BADGE_ESTADO, SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, svgBadgeEstado } from '@/lib/mapas/iconos-mapa'
 
 type RegistroEventosLeyenda = Pick<ResumenEventosReportados, 'actualizadoAl'>
@@ -33,11 +33,11 @@ const ESTADOS_LEYENDA = [
   { svg: SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, etiqueta: 'Solucionada recientemente' },
 ] as const
 
-const ESTADOS_ALTURA_RIO: ReadonlyArray<{ id: IdInsignia; etiqueta: string }> = [
-  { id: 'estacion-evacuacion', etiqueta: 'Evacuación' },
-  { id: 'estacion-alerta', etiqueta: 'Alerta' },
-  { id: 'estacion-normal', etiqueta: 'Normal' },
-  { id: 'estacion-sin-dato', etiqueta: 'Sin dato' },
+const ESTADOS_ALTURA_RIO: ReadonlyArray<{ estado: EstadoEstacion; etiqueta: string }> = [
+  { estado: 'evacuacion', etiqueta: 'Evacuación' },
+  { estado: 'alerta', etiqueta: 'Alerta' },
+  { estado: 'normal', etiqueta: 'Normal' },
+  { estado: 'sin_dato', etiqueta: 'Sin dato' },
 ]
 
 const CONFIANZA_EVENTOS: ReadonlyArray<{ id: IdInsignia; etiqueta: string }> = [
@@ -121,9 +121,9 @@ function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObs
           <div className="map-leyenda__bloque">
             <b className="map-leyenda__subtitulo">Estaciones de Prefectura<NotaInfo texto="Sin dato también cuando la última lectura tiene más de 18 h." /></b>
             <ul className="map-leyenda__situacion">
-              {ESTADOS_ALTURA_RIO.map(({ id, etiqueta }) => (
-                <li className="map-leyenda__elemento" key={id}>
-                  <InsigniaLeyenda id={id} tamano={22} />
+              {ESTADOS_ALTURA_RIO.map(({ estado, etiqueta }) => (
+                <li className="map-leyenda__elemento" key={estado}>
+                  <PastillaEstacionLeyenda estado={estado} texto="m" />
                   <span>{etiqueta}</span>
                 </li>
               ))}

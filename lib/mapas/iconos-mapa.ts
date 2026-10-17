@@ -19,14 +19,16 @@ import { svgIconoMapa, type FormaInsignia, type GlifoIcono } from './insignias-m
 // grande que los badges de esquina (cluster y estado por escuela).
 export const TAMANO_ICONO_BASE = 22
 export const TAMANO_ICONO_ESCUELA = 26
-export const TAMANO_ICONO_BADGE = 18
+export const TAMANO_ICONO_BADGE = 22
 
 // Offset compartido por los badges de esquina: superior derecha del punto.
 export const OFFSET_BADGE_ESQUINA: [number, number] = [13, -13]
 
-// Relleno de los badges de estado/evacuación: tinta oscura con glifo blanco,
-// legible sobre cualquier basemap y distinto de la escala de severidad.
-const RELLENO_BADGE = COLORES_MAPA_CLARO.tinta
+// Badges de estado/evacuación: chip blanco con anillo y glifo en rojo profundo.
+// Se leen sobre cualquier cluster (también sobre el rojo Crítica, gracias al
+// blanco) y no se confunden con un punto negro.
+const RELLENO_BADGE = '#ffffff'
+const GLIFO_BADGE = '#991b1b'
 
 type OpcionesIcono = {
   halo?: string
@@ -70,11 +72,15 @@ export const svgBadgeEstado = (glifo: LucideIcon, oscuro = false, tamano = TAMAN
   svgIconoMapa({
     forma: 'circulo',
     relleno: RELLENO_BADGE,
+    anillo: GLIFO_BADGE,
+    grosorAnillo: 1.75,
     icono: glifo,
-    colorGlifo: '#ffffff',
+    colorGlifo: GLIFO_BADGE,
     halo: coloresMapa(oscuro).contornoIcono,
     tamano,
     escala,
+    radio: 13.5,
+    tamanoGlifo: 17,
   })
 
 /** SVG de escuela afectada o solucionada; glifo oscuro sobre Baja/Media y blanco sobre Alta/Crítica. */

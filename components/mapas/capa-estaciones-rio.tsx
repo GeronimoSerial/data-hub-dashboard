@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
-import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
+import { ESTILO_PASTILLA_ESTACION, idPastillaEstacion, idPuntoEstacion, registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
 import { PALETA_ESTADO_ALTURA } from '@/lib/mapas/paleta-tonal'
 import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
 import { textoActualizado, textoAlturaRio } from '@/lib/infraestructura/presentacion/textos-dato'
@@ -38,18 +38,15 @@ type EstacionRio = {
 type PuntoEstacion = {
   type: 'Feature'
   geometry: { type: 'Point'; coordinates: [number, number] }
-  properties: { estacionId: string; nombre: string; estado: EstadoAltura; insignia: string; altura: string }
+  properties: { estacionId: string; nombre: string; estado: EstadoAltura; insignia: string; punto: string; altura: string; flecha: string }
 }
 
 export const CAPA_ESTACIONES_RIO_ID = 'estaciones-rio-simbolos'
 const ID_CAPA = CAPA_ESTACIONES_RIO_ID
 const ID_FUENTE = 'estaciones-rio-src'
-const INSIGNIAS_ESTACIONES = [
-  'estacion-evacuacion',
-  'estacion-alerta',
-  'estacion-normal',
-  'estacion-sin-dato',
-] as const
+// Zoom from which a station shows its level chip instead of a dot.
+export const ZOOM_PASTILLA_ESTACION = 8
+const FLECHA_TENDENCIA: Record<Tendencia, string> = { crece: '↑ ', baja: '↓ ', estable: '', sin_dato: '' }
 
 export const COLOR_ESTADO_ALTURA: Record<EstadoAltura, string> = PALETA_ESTADO_ALTURA
 
@@ -101,9 +98,6 @@ function formatoMetros(valor: number | null | undefined): string {
   return valor == null ? 'Sin dato' : `${valor.toFixed(2).replace('.', ',')} m`
 }
 
-function insigniaDe(estado: EstadoAltura): string {
-  return `estacion-${estado === 'sin_dato' ? 'sin-dato' : estado}`
-}
 
 function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; features: PuntoEstacion[] } {
   return {
@@ -115,8 +109,10 @@ function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; featu
         estacionId: estacion.estacionId,
         nombre: estacion.nombre,
         estado: estacion.estado,
-        insignia: insigniaDe(estacion.estado),
+        insignia: idPastillaEstacion(estacion.estado),
+        punto: idPuntoEstacion(estacion.estado),
         altura: estacion.lectura ? formatoMetros(estacion.lectura.lecturaM) : '',
+        flecha: FLECHA_TENDENCIA[estacion.tendencia],
       },
     })),
   }
@@ -154,7 +150,7 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
     // A basemap swap (e.g. Radar's dark style) drops every registered image, which
     // leaves the symbols invisible: register again whenever the style changes.
     const registrar = () => {
-      registrarInsignias(mapaGl, INSIGNIAS_ESTACIONES).then(() => {
+      registrarSimbolosEstacion(mapaGl).then(() => {
         if (vigente) setListo(true)
       })
     }
@@ -233,20 +229,36 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
             type="symbol"
             beforeId={beforeId}
             layout={{
-              'icon-image': ['get', 'insignia'],
+              // Dot at province zoom; level chip (state colour + level) closer in.
+              // Stations without data stay a faint dot at every zoom.
+              'icon-image': [
+                'step', ['zoom'], ['get', 'punto'],
+                ZOOM_PASTILLA_ESTACION, ['case', ['==', ['get', 'estado'], 'sin_dato'], ['get', 'punto'], ['get', 'insignia']],
+              ],
+              'icon-text-fit': 'both',
+              'icon-text-fit-padding': [3, 7, 3, 7],
               'icon-size': 1,
               'icon-allow-overlap': true,
               'icon-ignore-placement': false,
               'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
-              'text-field': ['step', ['zoom'], '', 8, ['get', 'altura']],
+              'text-field': [
+                'step', ['zoom'], '',
+                ZOOM_PASTILLA_ESTACION, ['case', ['==', ['get', 'estado'], 'sin_dato'], '', ['concat', ['get', 'flecha'], ['get', 'altura']]],
+              ],
               'text-size': 11,
               // MapLibre defaults to Open Sans, which the OpenFreeMap glyph server does not serve.
               'text-font': ['Noto Sans Regular'],
-              'text-offset': [0, 1.6],
-              'text-anchor': 'top',
-              'text-optional': true,
+              'text-anchor': 'center',
+              'text-allow-overlap': true,
             }}
-            paint={{ 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 }}
+            paint={{
+              'text-color': ['match', ['get', 'estado'],
+                'evacuacion', ESTILO_PASTILLA_ESTACION.evacuacion.texto,
+                'alerta', ESTILO_PASTILLA_ESTACION.alerta.texto,
+                'normal', ESTILO_PASTILLA_ESTACION.normal.texto,
+                ESTILO_PASTILLA_ESTACION.sin_dato.texto],
+              'icon-opacity': ['case', ['==', ['get', 'estado'], 'sin_dato'], 0.75, 1],
+            }}
           />
         </Source>
       )}

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import { CapaEstacionesRio, etiquetaEstadoAltura, COLOR_ESTADO_ALTURA, formatearFechaLocal } from './capa-estaciones-rio'
-import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
+import { registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
 
 const mapa = vi.hoisted(() => {
   type Manejador = (evento: unknown) => void
@@ -39,8 +39,9 @@ vi.mock('react-map-gl/maplibre', () => ({
   useMap: () => ({ current: mapa }),
 }))
 
-vi.mock('@/lib/mapas/insignias-mapa', () => ({
-  registrarInsignias: vi.fn(),
+vi.mock('@/lib/mapas/insignias-mapa', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/mapas/insignias-mapa')>()),
+  registrarSimbolosEstacion: vi.fn(),
 }))
 
 const ESTACIONES = [
@@ -92,7 +93,7 @@ function datosFuente(): { id: string; data: { features: Array<{ properties: Reco
 
 describe('CapaEstacionesRio', () => {
   beforeEach(() => {
-    vi.mocked(registrarInsignias).mockResolvedValue(undefined)
+    vi.mocked(registrarSimbolosEstacion).mockResolvedValue(undefined)
     mapa.limpiar()
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -114,26 +115,25 @@ describe('CapaEstacionesRio', () => {
     expect(data.features[0].properties).toMatchObject({
       estacionId: 'rosario',
       estado: 'evacuacion',
-      insignia: 'estacion-evacuacion',
+      insignia: 'estacion-pastilla-evacuacion',
+      punto: 'estacion-punto-evacuacion',
       altura: '4,12 m',
+      flecha: '↑ ',
     })
     expect(data.features[1].properties).toMatchObject({
       estacionId: 'corrientes',
-      insignia: 'estacion-sin-dato',
+      insignia: 'estacion-pastilla-sin-dato',
       altura: '',
     })
-    expect(registrarInsignias).toHaveBeenCalledWith(
-      expect.anything(),
-      ['estacion-evacuacion', 'estacion-alerta', 'estacion-normal', 'estacion-sin-dato'],
-    )
+    expect(registrarSimbolosEstacion).toHaveBeenCalledWith(expect.anything())
   })
 
   it('vuelve a registrar las insignias cuando cambia el estilo del mapa', async () => {
     render(<CapaEstacionesRio visible />)
-    await waitFor(() => expect(registrarInsignias).toHaveBeenCalled())
-    const antes = vi.mocked(registrarInsignias).mock.calls.length
+    await waitFor(() => expect(registrarSimbolosEstacion).toHaveBeenCalled())
+    const antes = vi.mocked(registrarSimbolosEstacion).mock.calls.length
     act(() => mapa.emitir('styledata', '', {}))
-    expect(vi.mocked(registrarInsignias).mock.calls.length).toBeGreaterThan(antes)
+    expect(vi.mocked(registrarSimbolosEstacion).mock.calls.length).toBeGreaterThan(antes)
   })
 
   it('usa una capa symbol con beforeId y solapamiento de iconos permitido', async () => {
@@ -144,7 +144,8 @@ describe('CapaEstacionesRio', () => {
     expect(capa.id).toBe('estaciones-rio-simbolos')
     expect(capa.beforeId).toBe('labels')
     expect(capa.layout['icon-allow-overlap']).toBe(true)
-    expect(capa.layout['icon-image']).toEqual(['get', 'insignia'])
+    expect(capa.layout['icon-text-fit']).toBe('both')
+    expect(JSON.stringify(capa.layout['icon-image'])).toContain('"insignia"')
   })
 
   it('pide la fuente Noto Sans que sirve el basemap (no el Open Sans por defecto de MapLibre)', async () => {

@@ -30,16 +30,22 @@ export type OpcionesSvgIconoMapa = {
   tamano?: number;
   /** Multiplicador de densidad del SVG emitido (2 para `pixelRatio: 2`). */
   escala?: number;
+  /** Radio del círculo en unidades del viewBox 32 (por defecto 12). */
+  radio?: number;
+  /** Lado del glifo en unidades del viewBox 32 (por defecto 18). */
+  tamanoGlifo?: number;
+  /** Grosor del anillo interior en unidades del viewBox. */
+  grosorAnillo?: number;
 };
 
 const VIEWBOX = 32;
 const TAMANO_ICONO = 18;
 const HALO_PX = 2;
 
-function marcaForma(forma: FormaInsignia, extra: string): string {
+function marcaForma(forma: FormaInsignia, extra: string, radio = 12): string {
   switch (forma) {
     case 'circulo':
-      return `<circle cx="16" cy="16" r="12" ${extra}/>`;
+      return `<circle cx="16" cy="16" r="${radio}" ${extra}/>`;
     case 'cuadrado':
       return `<rect x="5" y="5" width="22" height="22" rx="2" ${extra}/>`;
     case 'triangulo':
@@ -69,21 +75,24 @@ export function svgIconoMapa({
   anillo,
   tamano = 32,
   escala = 1,
+  radio = 12,
+  tamanoGlifo = TAMANO_ICONO,
+  grosorAnillo = 2,
 }: OpcionesSvgIconoMapa): string {
   // El trazo va centrado sobre el borde: el doble del halo deseado, en
   // unidades del viewBox, deja HALO_PX px CSS por fuera de la forma.
   const grosorHalo = ((HALO_PX * 2 * VIEWBOX) / tamano).toFixed(2);
   // Triangle has a wider base at the bottom, so its icon sits slightly lower.
-  const iconoY = (VIEWBOX - TAMANO_ICONO) / 2 + (forma === 'triangulo' ? 2 : 0);
-  const iconoX = (VIEWBOX - TAMANO_ICONO) / 2;
+  const iconoY = (VIEWBOX - tamanoGlifo) / 2 + (forma === 'triangulo' ? 2 : 0);
+  const iconoX = (VIEWBOX - tamanoGlifo) / 2;
   const px = tamano * escala;
-  const borde = anillo && anillo !== relleno ? ` stroke="${anillo}" stroke-width="2"` : '';
+  const borde = anillo && anillo !== relleno ? ` stroke="${anillo}" stroke-width="${grosorAnillo}"` : '';
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 ${VIEWBOX} ${VIEWBOX}">`,
-    marcaForma(forma, `fill="${halo}" stroke="${halo}" stroke-width="${grosorHalo}" stroke-linejoin="round"`),
-    marcaForma(forma, `fill="${relleno}"${borde} stroke-linejoin="round"`),
-    `<svg x="${iconoX}" y="${iconoY}" width="${TAMANO_ICONO}" height="${TAMANO_ICONO}" viewBox="0 0 24 24">${markupGlifo(icono, colorGlifo)}</svg>`,
+    marcaForma(forma, `fill="${halo}" stroke="${halo}" stroke-width="${grosorHalo}" stroke-linejoin="round"`, radio),
+    marcaForma(forma, `fill="${relleno}"${borde} stroke-linejoin="round"`, radio),
+    `<svg x="${iconoX}" y="${iconoY}" width="${tamanoGlifo}" height="${tamanoGlifo}" viewBox="0 0 24 24">${markupGlifo(icono, colorGlifo)}</svg>`,
     '</svg>',
   ].join('');
 }
@@ -224,4 +233,89 @@ export function IconoMapaLeyenda({ svg }: { svg: string }) {
 export function InsigniaLeyenda({ id, tamano = 24 }: { id: IdInsignia; tamano?: number }) {
   const { etiqueta: _etiqueta, ...opciones } = INSIGNIAS[id];
   return <IconoMapaLeyenda svg={svgInsignia({ ...opciones, tamano })} />;
+}
+
+// ── River station level chips ─────────────────────────────────────────────
+// A station reads as a compact chip: the state colour is the chip itself and
+// the river level is the text inside (MapLibre `icon-text-fit`). At low zoom
+// the same colour shows as a small dot. "Sin dato" is always a faint dot.
+
+export type EstadoEstacion = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato';
+
+export const ESTILO_PASTILLA_ESTACION: Record<EstadoEstacion, { fondo: string; borde: string; texto: string }> = {
+  evacuacion: { fondo: PALETA_ESTADO_ALTURA.evacuacion, borde: '#ffffff', texto: '#ffffff' },
+  alerta: { fondo: PALETA_ESTADO_ALTURA.alerta, borde: '#ffffff', texto: '#1c1c1c' },
+  normal: { fondo: '#ffffff', borde: PALETA_ESTADO_ALTURA.normal, texto: '#14532d' },
+  sin_dato: { fondo: '#ffffff', borde: PALETA_ESTADO_ALTURA.sin_dato, texto: '#4b5563' },
+};
+
+const sufijoEstado = (estado: EstadoEstacion) => (estado === 'sin_dato' ? 'sin-dato' : estado);
+export const idPastillaEstacion = (estado: EstadoEstacion) => `estacion-pastilla-${sufijoEstado(estado)}`;
+export const idPuntoEstacion = (estado: EstadoEstacion) => `estacion-punto-${sufijoEstado(estado)}`;
+
+/** 9-slice pill (2x pixels: 64x40), stretched around the label with `icon-text-fit`. */
+export function svgPastillaEstacion(estado: EstadoEstacion): string {
+  const { fondo, borde } = ESTILO_PASTILLA_ESTACION[estado];
+  return (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="40" viewBox="0 0 64 40">' +
+    `<rect x="1" y="2" width="62" height="36" rx="18" fill="rgba(0,0,0,0.12)"/>` +
+    `<rect x="2" y="1" width="60" height="35" rx="17.5" fill="${fondo}" stroke="${borde}" stroke-width="3"/>` +
+    '</svg>'
+  );
+}
+
+/** Small state dot (2x pixels) used at low zoom and for stations without data. */
+export function svgPuntoEstacion(estado: EstadoEstacion): string {
+  const { fondo, borde } = ESTILO_PASTILLA_ESTACION[estado];
+  const relleno = estado === 'normal' || estado === 'sin_dato' ? borde : fondo;
+  const r = estado === 'sin_dato' ? 6 : 8;
+  return (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
+    `<circle cx="12" cy="12" r="${r + 2.5}" fill="#ffffff"/><circle cx="12" cy="12" r="${r}" fill="${relleno}"/>` +
+    '</svg>'
+  );
+}
+
+type MapaImagenesEstirables = MapaImagenes & {
+  addImage(
+    id: string,
+    img: HTMLImageElement,
+    opts: { pixelRatio: number; stretchX?: [number, number][]; stretchY?: [number, number][]; content?: [number, number, number, number] },
+  ): void;
+};
+
+const ESTADOS_ESTACION: EstadoEstacion[] = ['evacuacion', 'alerta', 'normal', 'sin_dato'];
+
+/** Registers station chips (stretchable) and dots. Never throws. */
+export async function registrarSimbolosEstacion(map: MapaImagenesEstirables): Promise<void> {
+  await registrarImagenesSvg(map, ESTADOS_ESTACION.map((estado) => ({ id: idPuntoEstacion(estado), svg: svgPuntoEstacion(estado) })));
+  await Promise.all(
+    ESTADOS_ESTACION.map(async (estado) => {
+      const id = idPastillaEstacion(estado);
+      try {
+        if (map.hasImage(id)) return;
+        const img = await cargarImagen(svgPastillaEstacion(estado));
+        if (map.hasImage(id)) return;
+        map.addImage(id, img, {
+          pixelRatio: PIXEL_RATIO_ICONOS,
+          stretchX: [[20, 44]],
+          stretchY: [[17, 21]],
+          content: [14, 5, 50, 33],
+        });
+      } catch {
+        // Skip the chip; the dot still marks the station.
+      }
+    }),
+  );
+}
+
+/** Legend chip with the same colours as the map chip. */
+export function PastillaEstacionLeyenda({ estado, texto }: { estado: EstadoEstacion; texto: string }) {
+  const { fondo, borde, texto: color } = ESTILO_PASTILLA_ESTACION[estado];
+  if (estado === 'sin_dato') return <IconoMapaLeyenda svg={svgPuntoEstacion(estado).replace('width="24" height="24"', 'width="14" height="14"')} />;
+  return (
+    <span className="map-pastilla-estacion" aria-hidden="true" style={{ background: fondo, borderColor: borde, color }}>
+      {texto}
+    </span>
+  );
 }

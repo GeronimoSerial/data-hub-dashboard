@@ -15,6 +15,10 @@ export type ColoresMapa = {
   sinReporteBorde: string
   /** Texto del conteo de clusters neutros (`--ink-soft`). */
   textoSuave: string
+  /** Relleno suave de los clusters sin situaciones (retroceden frente a los afectados). */
+  clusterNeutro: string
+  /** Conteo de los clusters sin situaciones. */
+  clusterNeutroTexto: string
   /** Color de foco de la selección (`--marker`). */
   foco: string
   /** Sombra de los marcadores DOM. */
@@ -28,6 +32,8 @@ export const COLORES_MAPA_CLARO: ColoresMapa = {
   sinReporteRelleno: '#ffffff',
   sinReporteBorde: '#8a8886',
   textoSuave: '#5f5e5c',
+  clusterNeutro: '#dcd8d3',
+  clusterNeutroTexto: '#57534e',
   foco: '#facd05',
   sombra: 'rgba(0, 0, 0, 0.35)',
 }
@@ -41,6 +47,8 @@ export const COLORES_MAPA_OSCURO: ColoresMapa = {
   sinReporteRelleno: '#383634',
   sinReporteBorde: '#b5b2af',
   textoSuave: '#dcd9d6',
+  clusterNeutro: '#4d4b49',
+  clusterNeutroTexto: '#dcd9d6',
   foco: '#facd05',
   sombra: 'rgba(0, 0, 0, 0.6)',
 }

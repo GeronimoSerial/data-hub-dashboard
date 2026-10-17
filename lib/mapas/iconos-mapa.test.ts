@@ -27,13 +27,13 @@ describe('iconosClusterMapa', () => {
     for (const { svg } of ICONOS_CLUSTER_MAPA) {
       expect(svg).toContain('stroke-width="2"')
       expect(svg).not.toMatch(/stroke-width="(1\.7|2\.4|2\.5)"/)
-      expect(svg).toMatch(/^<svg [^>]*width="(52|36)"/)
+      expect(svg).toMatch(/^<svg [^>]*width="(52|44)"/)
     }
   })
 
   it('incluye un badge por estado de escuela con el mismo rasterizado', () => {
     for (const icono of ['sin', 'parcial', 'evacuado', 'centro', 'reloj'] as const) {
-      expect(svgDe(ICONOS_CLUSTER_MAPA, idImagenBadgeEstado(icono))).toMatch(/^<svg [^>]*width="36"/)
+      expect(svgDe(ICONOS_CLUSTER_MAPA, idImagenBadgeEstado(icono))).toMatch(/^<svg [^>]*width="44"/)
     }
   })
 
