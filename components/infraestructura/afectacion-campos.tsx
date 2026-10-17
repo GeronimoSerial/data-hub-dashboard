@@ -350,7 +350,7 @@ export function CamposAQuienAfecta({
   onChange,
   disabled = false,
 }: CamposAQuienAfectaProps): JSX.Element {
-  const [recomendacion, setRecomendacion] = useState<Severidad | null>(null)
+  const [recomendacion, setRecomendacion] = useState<{ sugerida: Severidad; porMotivo: Severidad } | null>(null)
   const [justificandoCritica, setJustificandoCritica] = useState(false)
   const [razonCritica, setRazonCritica] = useState<JustificacionCritica | ''>('')
   const [detalleCritica, setDetalleCritica] = useState('')
@@ -370,15 +370,19 @@ export function CamposAQuienAfecta({
   const razonCriticaValida = razonCritica !== '' && (razonCritica !== 'otro' || detalleCritica.trim() !== '')
 
   /*
-    Recomendación, no decisión: sólo al pasar a "toda la escuela" y sólo si la
-    gravedad sugerida para ese alcance supera la ya elegida. Se muestra una vez
-    por cambio de alcance; "Mantener" la deja como estaba.
+    Recomendación, no decisión: sólo al pasar a "toda la escuela", y sólo si la
+    sugerida para ese alcance supera tanto la del motivo como la ya elegida. Se
+    muestra una vez por cambio de alcance; "Mantener" la deja como estaba.
   */
   function recomendarPorAlcance(alcance: '' | 'toda' | 'algunas') {
     if (alcance !== 'toda' || borrador.alcanceEstablecimiento === 'toda' || borrador.severidad === '') return
-    const sugeridaToda = severidadSugeridaPorAlcance(motivoElegido?.id ?? null, { tipo: 'toda' })
-    if (sugeridaToda && SEVERIDADES.indexOf(sugeridaToda) > SEVERIDADES.indexOf(borrador.severidad)) {
-      setRecomendacion(sugeridaToda)
+    const motivoId = motivoElegido?.id ?? null
+    const porMotivo = severidadSugeridaPorAlcance(motivoId, null)
+    const sugerida = severidadSugeridaPorAlcance(motivoId, { tipo: 'toda' })
+    if (!porMotivo || !sugerida) return
+    const indiceSugerida = SEVERIDADES.indexOf(sugerida)
+    if (indiceSugerida > SEVERIDADES.indexOf(porMotivo) && indiceSugerida > SEVERIDADES.indexOf(borrador.severidad)) {
+      setRecomendacion({ sugerida, porMotivo })
     }
   }
 
@@ -499,14 +503,14 @@ export function CamposAQuienAfecta({
       <ConfirmSheet
         open={recomendacion !== null}
         titulo="Recomendamos subir la gravedad"
-        confirmarLabel={`Cambiar a ${recomendacion ?? ''}`}
+        confirmarLabel={`Cambiar a ${recomendacion?.sugerida ?? ''}`}
         cancelarLabel={`Mantener ${borrador.severidad}`}
         onCancelar={() => setRecomendacion(null)}
         onConfirmar={() => {
-          if (recomendacion) cambiarGravedadRecomendada(recomendacion)
+          if (recomendacion) cambiarGravedadRecomendada(recomendacion.sugerida)
         }}
       >
-        <p>{`Afecta a toda la escuela: sugerimos gravedad ${recomendacion ?? ''}.`}</p>
+        <p>{`Sugerimos ${recomendacion?.sugerida ?? ''} en lugar de ${recomendacion?.porMotivo ?? ''} porque afecta a toda la escuela.`}</p>
       </ConfirmSheet>
 
       <ConfirmSheet

@@ -255,6 +255,7 @@ describe('CamposAQuienAfecta — recomendación de gravedad por alcance (T4a)', 
   const motivosAlcance: MotivoRow[] = [
     { id: 'sin-energia-o-agua', nombre: 'Sin energía o agua', categoria: 'establecimiento', orden: 20 },
     { id: 'tormenta-severa', nombre: 'Tormenta severa', categoria: 'establecimiento', orden: 30 },
+    { id: 'inundacion', nombre: 'Inundación', categoria: 'establecimiento', orden: 10 },
   ]
 
   function renderAlcance({
@@ -294,13 +295,29 @@ describe('CamposAQuienAfecta — recomendación de gravedad por alcance (T4a)', 
 
     const dialogo = screen.getByRole('dialog')
     expect(dialogo).toHaveTextContent('Recomendamos subir la gravedad')
-    expect(dialogo).toHaveTextContent('Afecta a toda la escuela: sugerimos gravedad Alta.')
+    expect(dialogo).toHaveTextContent('Sugerimos Alta en lugar de Media porque afecta a toda la escuela.')
     expect(screen.getByRole('button', { name: 'Cambiar a Alta' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mantener Media' })).toBeInTheDocument()
   })
 
+  it('compara la sugerida para toda la escuela con la del motivo, antes y después', () => {
+    renderAlcance({ motivo: 'Tormenta severa', severidad: 'Media' })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Sugerimos Crítica en lugar de Alta porque afecta a toda la escuela.')
+  })
+
   it('no abre la recomendación si la gravedad elegida ya es igual o mayor', () => {
     renderAlcance({ motivo: 'Sin energía o agua', severidad: 'Alta' })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('no abre la recomendación en Inundación: su sugerida ya es Crítica y el alcance no la sube', () => {
+    renderAlcance({ motivo: 'Inundación', severidad: 'Media' })
 
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
 
