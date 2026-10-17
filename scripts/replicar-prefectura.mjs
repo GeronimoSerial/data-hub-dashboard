@@ -5,8 +5,10 @@ import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 registerTsResolver(process.cwd())
 const source = process.env.PREFECTURA_SOURCE_DATABASE_URL
 const target = process.env.DATABASE_URL
-if (!source || !target || new URL(source).pathname !== '/hub_prod' || new URL(target).pathname !== '/hub_staging') {
-  console.error('La entrega requiere origen hub_prod y destino hub_staging'); process.exit(1)
+const DESTINOS = { hub_staging: 'staging', hub_dev: 'dev' }
+const dbDestino = target ? new URL(target).pathname.slice(1) : ''
+if (!source || !target || new URL(source).pathname !== '/hub_prod' || !Object.hasOwn(DESTINOS, dbDestino)) {
+  console.error('La entrega requiere origen hub_prod y destino hub_staging o hub_dev'); process.exit(1)
 }
 const { buildPgPoolConfig } = await import('../lib/db/config-postgres.ts')
 const { getDb, getRawClient, migrarDb } = await import('../lib/db/index.ts')
@@ -16,9 +18,9 @@ const pool = new Pool({ ...buildPgPoolConfig(source), connectionTimeoutMillis: 1
 try {
   const origen = await pool.query('SELECT current_database() AS db')
   const destino = await getRawClient().query('SELECT current_database() AS db')
-  if (origen.rows[0].db !== 'hub_prod' || destino.rows[0].db !== 'hub_staging') throw new Error('Entornos incorrectos')
+  if (origen.rows[0].db !== 'hub_prod' || destino.rows[0].db !== dbDestino) throw new Error('Entornos incorrectos')
   await migrarDb()
-  const resultado = await entregarPrefectura(drizzle(pool, { schema }), getDb())
+  const resultado = await entregarPrefectura(drizzle(pool, { schema }), getDb(), new Date(), 50, DESTINOS[dbDestino])
   console.log(JSON.stringify(resultado))
   process.exitCode = resultado.fallidas ? 1 : 0
 } catch {
