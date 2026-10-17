@@ -153,7 +153,10 @@ export function InfraestructuraMapClient(props: {
     const escuela = buscarEscuelaEnPadron(cueBuscado)
     if (!escuela) return
     ultimoSearchAplicadoRef.current = search
-    const conservarCamara = contexto.origen === 'mapa' || Boolean(leerSnapshotRetornoMapa())
+    // `enfocar=1` (from "Abrir mapa" in the school sheet) always centres on the school.
+    const conservarCamara =
+      params.get('enfocar') !== '1' &&
+      (contexto.origen === 'mapa' || Boolean(leerSnapshotRetornoMapa()))
     seleccionarEscuelaRef.current?.(escuela, { conservarCamara })
   }, [rutaActiva, padron, seleccionadorListo, buscarEscuelaEnPadron])
 

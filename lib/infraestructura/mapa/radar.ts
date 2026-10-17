@@ -5,6 +5,22 @@ import type { EscuelaMapaEnriquecida } from './tipos'
 export type HorizonteMotor = 24 | 72 | 240
 export type NivelRiesgo = 'muy_alto' | 'alto' | 'moderado' | 'bajo'
 
+// Lenguaje llano para explicar el riesgo: la amenaza es el clima previsto y la
+// vulnerabilidad, qué tan expuesta está la escuela (antecedentes y terreno).
+export const ETIQUETA_NIVEL_CLIMA: Record<NivelRiesgo, string> = {
+  muy_alto: 'muy fuerte',
+  alto: 'fuerte',
+  moderado: 'moderado',
+  bajo: 'leve',
+}
+
+export const ETIQUETA_NIVEL_VULNERABILIDAD: Record<NivelRiesgo, string> = {
+  muy_alto: 'muy alta',
+  alto: 'alta',
+  moderado: 'moderada',
+  bajo: 'baja',
+}
+
 export const ETIQUETA_NIVEL_RIESGO: Record<NivelRiesgo, string> = {
   muy_alto: 'Muy alto',
   alto: 'Alto',
@@ -96,11 +112,14 @@ type PuntoRadar = {
   horizonteHoras: number
   nivelRiesgo: string | null
   nivelAmenaza?: string | null
+  nivelVulnerabilidad?: string | null
 }
 
 export interface EscuelaEnRadar extends EscuelaEnRiesgo {
   /** Amenaza en el horizonte elegido; null = sin dato. */
   amenaza: NivelRiesgo | null
+  /** Vulnerabilidad de la escuela en el horizonte elegido; null = sin dato. */
+  vulnerabilidad: NivelRiesgo | null
 }
 
 /**
@@ -114,13 +133,20 @@ export function escuelasEnRadar(
   escuelas: EscuelaMapaEnriquecida[],
   horizonte: HorizonteMotor,
 ): EscuelaEnRadar[] {
-  const amenazaPorCue = new Map(
+  const puntoPorCue = new Map(
     puntos
       .filter((punto) => punto.horizonteHoras === horizonte)
-      .map((punto) => [punto.cueAnexo, nivelRiesgo(punto.nivelAmenaza ?? null)]),
+      .map((punto) => [punto.cueAnexo, punto]),
   )
   return escuelasPorRiesgo(puntos, escuelas, horizonte)
-    .map((item) => ({ ...item, amenaza: amenazaPorCue.get(item.escuela.cueAnexo) ?? null }))
+    .map((item) => {
+      const punto = puntoPorCue.get(item.escuela.cueAnexo)
+      return {
+        ...item,
+        amenaza: nivelRiesgo(punto?.nivelAmenaza ?? null),
+        vulnerabilidad: nivelRiesgo(punto?.nivelVulnerabilidad ?? null),
+      }
+    })
     .filter(({ nivel, amenaza }) => nivel !== 'bajo' || amenaza === 'alto' || amenaza === 'muy_alto')
 }
 

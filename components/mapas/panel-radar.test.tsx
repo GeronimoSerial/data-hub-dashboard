@@ -98,10 +98,10 @@ describe('PanelRadar', () => {
     expect(screen.getAllByText('Escuela Moderada')).toHaveLength(1)
   })
 
-  it('muestra la amenaza junto a la prioridad educativa, sin mezclarlas', () => {
+  it('explica el riesgo con el clima y la vulnerabilidad en lenguaje llano', () => {
     const conAmenaza = puntos.map((punto) =>
       punto.cueAnexo === '100' && punto.horizonteHoras === 72
-        ? { ...punto, nivelAmenaza: 'muy_alto' }
+        ? { ...punto, nivelAmenaza: 'muy_alto', nivelVulnerabilidad: 'bajo' }
         : punto.cueAnexo === '200' && punto.horizonteHoras === 72
           ? { ...punto, nivelAmenaza: null }
           : punto,
@@ -109,13 +109,13 @@ describe('PanelRadar', () => {
     render(<PanelRadar {...props({ puntos: conAmenaza })} />)
 
     const moderada = screen.getByRole('button', { name: 'Escuela Moderada, General Alvear' })
-    expect(within(moderada).getByText('Riesgo actual: Moderado')).toBeInTheDocument()
-    expect(within(moderada).getByText('Amenaza: Muy alto')).toBeInTheDocument()
+    expect(within(moderada).getByText('Riesgo moderado')).toBeInTheDocument()
+    expect(within(moderada).getByText('Clima: muy fuerte · Vulnerabilidad: baja')).toBeInTheDocument()
 
-    // Sin dato de amenaza no se inventa un nivel: sólo queda la prioridad.
+    // Sin datos no se inventa un motivo: sólo queda el nivel de riesgo.
     const alta = screen.getByRole('button', { name: 'Escuela Alta, Bella Vista' })
-    expect(within(alta).getByText('Riesgo actual: Alto')).toBeInTheDocument()
-    expect(within(alta).queryByText(/Amenaza/)).not.toBeInTheDocument()
+    expect(within(alta).getByText('Riesgo alto')).toBeInTheDocument()
+    expect(within(alta).queryByText(/Clima|Vulnerabilidad/)).not.toBeInTheDocument()
   })
 
   it('lista una escuela de prioridad baja cuando su amenaza es alta o muy alta, al final y sin sumarla a los KPIs', () => {
@@ -136,8 +136,8 @@ describe('PanelRadar', () => {
       'Escuela Moderada, General Alvear',
       'Escuela Baja, Ituzaingó',
     ])
-    expect(within(filas[3]).getByText('Riesgo actual: Bajo')).toBeInTheDocument()
-    expect(within(filas[3]).getByText('Amenaza: Alto')).toBeInTheDocument()
+    expect(within(filas[3]).getByText('Riesgo bajo')).toBeInTheDocument()
+    expect(within(filas[3]).getByText('Clima: fuerte')).toBeInTheDocument()
     // Los KPIs cuentan la prioridad educativa desde moderado; la amenaza sola no suma.
     expect(screen.getByText('Escuelas en riesgo').previousElementSibling).toHaveTextContent('3')
   })

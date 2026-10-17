@@ -2,12 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Clock, MapPinOff } from 'lucide-react'
-import { EstadoActualSeveridad, TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
+import { ArrowLeft, ArrowUpRight, Clock, Cloud, MapPinOff } from 'lucide-react'
+import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
-import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
-import { colorSeveridad } from '@/lib/infraestructura/severidad'
+import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
@@ -52,11 +51,6 @@ export interface FichaEscuelaPaginaProps {
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 
-function etiquetaCategoria(categoria: string | null): string | null {
-  if (!categoria) return null
-  return esCategoria(categoria) ? CATEGORIA_META[categoria].label : categoria
-}
-
 export function FichaEscuelaPagina({
   escuela,
   mostrarEnlaceNominal,
@@ -78,6 +72,7 @@ export function FichaEscuelaPagina({
 
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [ahoraMs, setAhoraMs] = useState<number | null>(null)
+  const [pestanaActiva, setPestanaActiva] = useState('panorama')
 
   useEffect(() => {
     setAhoraMs(Date.now())
@@ -183,9 +178,6 @@ export function FichaEscuelaPagina({
           )
         : null
 
-  const categoria = principal
-    ? CATEGORIA_META[principal.categoria].label
-    : etiquetaCategoria(escuela.categoriaPrincipal)
 
   const ultimaActualizacionIso =
     datos?.parte?.actualizadaEn ?? escuela.parte?.actualizadaEn ?? escuela.ultimaNovedad
@@ -223,169 +215,108 @@ export function FichaEscuelaPagina({
   const tieneSituacionActiva = escuela.gravedad > 0 || afectaciones.length > 0
   const tieneParteRegistrado = Boolean(escuela.parte || datos?.parte)
 
+  const incidente =
+    afectaciones.length > 0
+      ? (afectaciones.find((afectacion) => afectacion.id === principal?.id) ?? afectaciones[0])
+      : null
+  const otrasAfectaciones = afectaciones.filter((afectacion) => afectacion.id !== incidente?.id)
+  const severidadIncidente = incidente?.severidad ?? severidad
+  const estadoEdificio = tieneParteRegistrado
+    ? ETIQUETA_ESTABLECIMIENTO[
+        datos?.parte?.estadoEstablecimiento ?? escuela.parte?.estadoEstablecimiento ?? 'habitual'
+      ]
+    : 'Sin parte registrado'
+  // Photos attach to the latest report movement; evidence-only movements cannot be a base.
+  const movimientoBaseEvidencia =
+    historial.fase === 'listo'
+      ? ([...historial.movimientos]
+          .filter((movimiento) => (movimiento.tipo as string) !== 'evidencia_fotografica')
+          .sort((a, b) => b.creadaEn.localeCompare(a.creadaEn))[0]?.id ?? null)
+      : null
+  const etiquetaAlumnos = escuela.alumnos === 1 ? 'alumno' : 'alumnos'
+
+  const verAlumnos = (afectacionId: string, className: string) =>
+    mostrarEnlaceNominal ? (
+      <button
+        type="button"
+        className={className}
+        data-testid={`ver-alumnos-${afectacionId}`}
+        onClick={() => setNominalAfectacionId(afectacionId)}
+      >
+        Ver alumnos alcanzados
+        <ArrowUpRight size={13} aria-hidden="true" />
+      </button>
+    ) : null
+
+  const pestanas = [
+    { id: 'panorama', etiqueta: 'Panorama' },
+    {
+      id: 'situaciones',
+      etiqueta: estado.fase === 'listo' ? `Situaciones (${afectaciones.length})` : 'Situaciones',
+    },
+    { id: 'territorio', etiqueta: 'Territorio y clima' },
+    { id: 'historial', etiqueta: 'Historial' },
+  ]
+
   return (
     <main className={styles.page} aria-label={`Ficha completa de ${escuela.nombre}`}>
-      <div className={styles.topBar}>
-        <Link
-          href={urlRetornoMapa}
-          className={styles.backLink}
-          data-testid="volver-al-mapa"
-        >
-          <ArrowLeft size={16} aria-hidden="true" />
+      <nav className={styles.topBar} aria-label="Navegación superior">
+        <Link href={urlRetornoMapa} className={styles.backLink} data-testid="volver-al-mapa">
+          <ArrowLeft size={14} aria-hidden="true" />
           <span>{vieneDelMapa ? 'Volver al mapa' : 'Ir al mapa'}</span>
         </Link>
-      </div>
+        <span className={styles.topBarLabel}>Detalle del establecimiento</span>
+      </nav>
 
-      <header id="resumen" className={styles.headerCard}>
-        <div className={styles.headerMain}>
-          <div className={styles.identity}>
-            <h1 className={styles.schoolTitle}>{escuela.nombre}</h1>
-            <p className={styles.schoolMeta}>
-              CUE {escuela.cueAnexo}
-              {ubicacionTexto ? ` · ${ubicacionTexto}` : ''}
-              {escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''}
-              {` · ${FORMATO_NUMERO.format(escuela.alumnos)} ${
-                escuela.alumnos === 1 ? 'alumno' : 'alumnos'
-              }`}
+      <header className={styles.header}>
+        <div className={styles.identity}>
+          <h1 className={styles.schoolTitle}>{escuela.nombre}</h1>
+          <div className={styles.schoolMeta}>
+            <p>
+              {[ubicacionTexto, `CUE ${escuela.cueAnexo}`].filter(Boolean).join(' · ')}
+            </p>
+            <p>
+              {[
+                escuela.niveles.length > 0 ? escuela.niveles.join(', ') : null,
+                `${FORMATO_NUMERO.format(escuela.alumnos)} ${etiquetaAlumnos} matriculados`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </p>
           </div>
-
-          <div className={styles.headerActions}>
-            <Link
-              href={urlCargarParte}
-              className={styles.primaryAction}
-              data-testid="accion-actualizar-parte"
-            >
-              {tieneSituacionActiva ? 'Actualizar el parte' : 'Cargar una situación'}
-            </Link>
-          </div>
+          {sinUbicacion && (
+            <div className={styles.sinUbicacionBanner} data-testid="ficha-sin-ubicacion">
+              <MapPinOff size={14} aria-hidden="true" />
+              <span>Ubicación no disponible en el mapa</span>
+            </div>
+          )}
         </div>
-
-        {sinUbicacion && (
-          <div className={styles.sinUbicacionBanner} data-testid="ficha-sin-ubicacion">
-            <MapPinOff size={16} aria-hidden="true" />
-            <span>Ubicación no disponible en el mapa</span>
-          </div>
-        )}
-
-        <nav className={styles.sectionNav} aria-label="Secciones de la ficha">
-          <a href="#resumen" className={styles.sectionNavLink}>
-            Resumen
-          </a>
-          <a href="#situaciones" className={styles.sectionNavLink}>
-            Situaciones
-          </a>
-          <a href="#acceso" className={styles.sectionNavLink}>
-            Acceso
-          </a>
-          <a href="#evidencia" className={styles.sectionNavLink}>
-            Evidencia
-          </a>
-          <a href="#historial" className={styles.sectionNavLink}>
-            Historial
-          </a>
-          <a href="#territorio" className={styles.sectionNavLink}>
-            Territorio y clima
-          </a>
-        </nav>
+        <Link
+          href={urlCargarParte}
+          className={styles.primaryAction}
+          data-testid="accion-actualizar-parte"
+        >
+          {tieneSituacionActiva ? 'Actualizar el parte' : 'Cargar una situación'}
+          <ArrowUpRight size={14} aria-hidden="true" className={styles.primaryActionIcono} />
+        </Link>
       </header>
 
-      <section
-        className={styles.summaryStrip}
-        aria-label="Resumen operativo y exposición"
-        data-testid="ficha-resumen-ejecutivo"
-      >
-        <div className={styles.summaryCard}>
-          <p className={styles.summaryLabel}>Situación reportada (parte operativo)</p>
-          {severidad ? (
-            <>
-              <span
-                className={styles.severidadPill}
-                style={{
-                  backgroundColor: colorSeveridad(severidad),
-                  color: TINTA_POR_SEVERIDAD[severidad],
-                }}
-              >
-                Gravedad {severidad}
-              </span>
-              <p className={styles.summarySub}>
-                {principal
-                  ? `${principal.motivo} · ${categoria} · desde ${desde(principal.rigeDesde)}`
-                  : categoria ?? 'Situación activa'}
-              </p>
-            </>
-          ) : tieneParteRegistrado ? (
-            <p className={styles.summarySub} data-testid="ficha-sin-situaciones">
-              Sin situaciones abiertas reportadas
-            </p>
-          ) : (
-            <p className={styles.summarySub} data-testid="ficha-sin-reporte">
-              Sin reporte activo (la ausencia de reporte no confirma normalidad)
-            </p>
-          )}
-        </div>
-
-        <div className={styles.summaryCard}>
-          <p className={styles.summaryLabel}>Clases y asistencia pedagógica</p>
-          <p className={styles.summaryValue}>{ETIQUETA_ESTADO_CLASES[escuela.clases]}</p>
-          <p className={styles.summarySub}>
-            Asistencia: {valorApoyoMapa(escuela.clases, escuela.apoyo) ?? 'No corresponde'}
-            {(datos?.parte || escuela.parte)
-              ? ` · Edificio: ${
-                  ETIQUETA_ESTABLECIMIENTO[
-                    datos?.parte?.estadoEstablecimiento ??
-                      escuela.parte?.estadoEstablecimiento ??
-                      'habitual'
-                  ]
-                }`
-              : ''}
-          </p>
-        </div>
-
-        <div className={styles.summaryCard}>
-          <p className={styles.summaryLabel}>Vigencia del parte</p>
-          {escuela.sinActualizar ? (
-            <span
-              className={`${styles.chipVigencia} ${styles.chipAviso}`}
-              data-testid="ficha-chip-sin-actualizar"
-            >
-              <Clock size={13} aria-hidden="true" />
-              Sin actualizar (&gt;72 h)
-            </span>
-          ) : tieneParteRegistrado ? (
-            <span
-              className={`${styles.chipVigencia} ${styles.chipOk}`}
-              data-testid="ficha-chip-vigente"
-            >
-              Vigente
-            </span>
-          ) : (
-            <p className={styles.summaryValue}>Sin parte registrado</p>
-          )}
-          <p className={styles.summarySub}>
-            {novedadRelativa ? `Última novedad: ${novedadRelativa}` : 'Sin actualizaciones recientes'}
-          </p>
-        </div>
-
-        <div className={`${styles.summaryCard} ${styles.summaryCardRiesgo}`}>
-          <p className={styles.summaryLabel}>Exposición y riesgo estimado</p>
-          <p className={styles.summaryValue}>
-            {escuela.situacionesHistoricas === 0
-              ? 'Sin situaciones históricas'
-              : `${FORMATO_NUMERO.format(escuela.situacionesHistoricas)} ${
-                  escuela.situacionesHistoricas === 1
-                    ? 'situación histórica'
-                    : 'situaciones históricas'
-                }`}
-          </p>
-          <p className={styles.summarySub}>
-            Estimación territorial e histórica, independiente del reporte del establecimiento
-          </p>
-        </div>
-      </section>
+      <nav className={styles.tabs} aria-label="Secciones de la ficha">
+        {pestanas.map((pestana) => (
+          <a
+            key={pestana.id}
+            href={`#${pestana.id}`}
+            className={styles.tab}
+            aria-current={pestanaActiva === pestana.id ? 'true' : undefined}
+            onClick={() => setPestanaActiva(pestana.id)}
+          >
+            {pestana.etiqueta}
+          </a>
+        ))}
+      </nav>
 
       <div className={styles.mainGrid}>
-        <div className={styles.column}>
+        <div id="panorama" className={styles.column}>
           {borradoresCount !== null && borradoresCount > 0 && (
             <BorradoresPendientes
               key={escuela.cueAnexo}
@@ -394,23 +325,7 @@ export function FichaEscuelaPagina({
             />
           )}
 
-          <section
-            id="situaciones"
-            className={styles.panelCard}
-            aria-labelledby="titulo-situaciones"
-          >
-            <div className={styles.panelHeader}>
-              <h2 id="titulo-situaciones" className={styles.panelTitle}>
-                Situaciones reportadas
-              </h2>
-              {estado.fase === 'listo' && (
-                <p className={styles.panelSubtitle}>
-                  {afectaciones.length}{' '}
-                  {afectaciones.length === 1 ? 'abierta' : 'abiertas'}
-                </p>
-              )}
-            </div>
-
+          <section id="situaciones" className={styles.situaciones} aria-label="Situaciones">
             {estado.fase === 'cargando' ? (
               <p role="status" className={styles.emptyState}>
                 Cargando situaciones del parte…
@@ -419,62 +334,76 @@ export function FichaEscuelaPagina({
               <p role="alert" className={styles.emptyState}>
                 No se pudo cargar la información operativa de la escuela.
               </p>
-            ) : afectaciones.length === 0 ? (
-              <p className={styles.emptyState}>
-                {tieneParteRegistrado
-                  ? 'Sin situaciones abiertas reportadas en el parte actual.'
-                  : 'Sin reporte activo para este establecimiento (la ausencia de reporte no confirma normalidad).'}
-              </p>
+            ) : incidente ? (
+              <article className={styles.incidente} data-testid="ficha-incidente">
+                <span className={styles.incidenteBadge}>
+                  <span
+                    className={styles.incidenteDot}
+                    aria-hidden="true"
+                  />
+                  Situación activa · Gravedad {incidente.severidad.toLowerCase()}
+                </span>
+                <h2 className={styles.incidenteTitulo}>{incidente.motivo}</h2>
+                <p className={styles.incidenteTexto}>
+                  {incidente.descripcion ?? CATEGORIA_META[incidente.categoria].label}
+                </p>
+                <div className={styles.incidenteMetricas}>
+                  <div>
+                    <p className={styles.metricaValor}>
+                      <span className={styles.metricaNumero}>
+                        {FORMATO_NUMERO.format(incidente.totales.alumnos)}
+                      </span>{' '}
+                      / {FORMATO_NUMERO.format(escuela.alumnos)} {etiquetaAlumnos}
+                    </p>
+                    <p className={styles.metricaCaption}>Alcanzados por la situación</p>
+                    <BarraAlumnos afectados={incidente.totales.alumnos} total={escuela.alumnos} />
+                  </div>
+                  <div className={styles.incidenteDetalle}>
+                    <p className={styles.incidenteDetalleFuerte}>
+                      {incidente.totales.secciones === 1
+                        ? '1 sección'
+                        : `${incidente.totales.secciones} secciones`}
+                    </p>
+                    <p>Desde {desde(incidente.rigeDesde)}</p>
+                    {verAlumnos(incidente.id, styles.linkSubrayado)}
+                  </div>
+                </div>
+              </article>
             ) : (
-              <div className={styles.situacionList}>
-                {afectaciones.map((afectacion) => {
-                  const causadaPor = afectaciones.find(
-                    (otra) => otra.id === afectacion.causadaPorId,
-                  )
-                  const rigeDesde = formatearMomentoHistorial(afectacion.rigeDesde).replace(
-                    /^Hoy/,
-                    'hoy',
-                  )
+              <div className={styles.emptyState}>
+                {tieneParteRegistrado ? (
+                  <p data-testid="ficha-sin-situaciones">Sin situaciones abiertas reportadas</p>
+                ) : (
+                  <p data-testid="ficha-sin-reporte">
+                    Sin reporte activo (la ausencia de reporte no confirma normalidad)
+                  </p>
+                )}
+              </div>
+            )}
+
+            {otrasAfectaciones.length > 0 && (
+              <div className={styles.listaSecundaria}>
+                <h3 className={styles.sectionTitleSmall}>
+                  Otras situaciones abiertas ({otrasAfectaciones.length})
+                </h3>
+                {otrasAfectaciones.map((afectacion) => {
+                  const causadaPor = afectaciones.find((otra) => otra.id === afectacion.causadaPorId)
                   return (
-                    <article className={styles.situacionItem} key={afectacion.id}>
-                      <div className={styles.situacionTop}>
-                        <h3 className={styles.situacionMotivo}>{afectacion.motivo}</h3>
+                    <article className={styles.itemSecundario} key={afectacion.id}>
+                      <div className={styles.itemSecundarioTop}>
+                        <h4 className={styles.itemSecundarioTitulo}>{afectacion.motivo}</h4>
                         <EstadoActualSeveridad severidad={afectacion.severidad} />
                       </div>
-                      <dl className={styles.kvGrid}>
-                        <dt>Alcance</dt>
-                        <dd>{resumirAlcance(afectacion.totales)}</dd>
-                        {rigeDesde && (
-                          <>
-                            <dt>Desde</dt>
-                            <dd>{rigeDesde}</dd>
-                          </>
-                        )}
-                        {causadaPor && (
-                          <>
-                            <dt>Causada por</dt>
-                            <dd>{causadaPor.motivo}</dd>
-                          </>
-                        )}
-                        {afectacion.descripcion && (
-                          <>
-                            <dt>Descripción</dt>
-                            <dd>{afectacion.descripcion}</dd>
-                          </>
-                        )}
-                        <dt>Categoría</dt>
-                        <dd>{CATEGORIA_META[afectacion.categoria].label}</dd>
-                      </dl>
-                      {mostrarEnlaceNominal && (
-                        <button
-                          type="button"
-                          className={styles.nominalBtn}
-                          data-testid={`ver-alumnos-${afectacion.id}`}
-                          onClick={() => setNominalAfectacionId(afectacion.id)}
-                        >
-                          Ver alumnos alcanzados
-                        </button>
-                      )}
+                      <p className={styles.itemSecundarioTexto}>
+                        {[
+                          resumirAlcance(afectacion.totales),
+                          `desde ${desde(afectacion.rigeDesde)}`,
+                          causadaPor ? `causada por ${causadaPor.motivo}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                      {verAlumnos(afectacion.id, styles.linkAccion)}
                     </article>
                   )
                 })}
@@ -482,60 +411,70 @@ export function FichaEscuelaPagina({
             )}
 
             {recientes.length > 0 && (
-              <>
-                <h3 className={styles.subSectionTitle}>
+              <div className={styles.listaSecundaria}>
+                <h3 className={styles.sectionTitleSmall}>
                   Solucionadas recientemente ({recientes.length})
                 </h3>
-                <div className={styles.situacionList}>
-                  {recientes.map((solucionada) => {
-                    const retiradaEn = formatearMomentoHistorial(
-                      solucionada.retiradaEn,
-                    ).replace(/^Hoy/, 'hoy')
-                    return (
-                      <article className={styles.situacionItem} key={solucionada.id}>
-                        <div className={styles.situacionTop}>
-                          <h4 className={styles.situacionMotivo}>{solucionada.motivo}</h4>
-                          <EstadoActualSeveridad
-                            severidad={solucionada.severidad}
-                            prefijo={false}
-                          />
-                        </div>
-                        <dl className={styles.kvGrid}>
-                          <dt>Solucionada</dt>
-                          <dd>{retiradaEn}</dd>
-                        </dl>
-                      </article>
-                    )
-                  })}
-                </div>
-              </>
+                {recientes.map((solucionada) => (
+                  <article className={styles.itemSecundario} key={solucionada.id}>
+                    <div className={styles.itemSecundarioTop}>
+                      <h4 className={styles.itemSecundarioTitulo}>{solucionada.motivo}</h4>
+                      <EstadoActualSeveridad severidad={solucionada.severidad} prefijo={false} />
+                    </div>
+                    <p className={styles.itemSecundarioTexto}>
+                      Solucionada {formatearMomentoHistorial(solucionada.retiradaEn).replace(/^Hoy/, 'hoy')}
+                    </p>
+                  </article>
+                ))}
+              </div>
             )}
           </section>
 
-          <section
-            id="evidencia"
-            className={styles.panelCard}
-            aria-labelledby="titulo-evidencia"
-          >
-            <div className={styles.panelHeader}>
-              <h2 id="titulo-evidencia" className={styles.panelTitle}>
-                Evidencia fotográfica
-              </h2>
-            </div>
-            <GaleriaEvidencia cue={escuela.cueAnexo} />
+          <section className={styles.section} aria-labelledby="titulo-continuidad">
+            <h3 id="titulo-continuidad" className={styles.sectionTitle}>
+              Continuidad educativa
+            </h3>
+            <dl className={styles.continuidad}>
+              <div>
+                <dt>Clases</dt>
+                <dd>{ETIQUETA_ESTADO_CLASES[escuela.clases]}</dd>
+              </div>
+              <div>
+                <dt>Edificio</dt>
+                <dd>{estadoEdificio}</dd>
+              </div>
+              <div>
+                <dt>Asistencia</dt>
+                <dd>{valorApoyoMapa(escuela.clases, escuela.apoyo) ?? 'No corresponde'}</dd>
+              </div>
+            </dl>
+            {severidadIncidente && escuela.clases === 'normal' && (
+              <p className={styles.notaPie}>
+                El funcionamiento habitual corresponde al estado informado en el parte. Las
+                situaciones activas se registran por separado.
+              </p>
+            )}
           </section>
+
+          <div id="evidencia" className={styles.anchor}>
+            <GaleriaEvidencia
+              cue={escuela.cueAnexo}
+              accionAdjuntar={urlCargarParte}
+              movimientoBaseId={movimientoBaseEvidencia}
+            />
+          </div>
 
           <section
             id="historial"
-            className={styles.panelCard}
+            className={styles.section}
             aria-labelledby="titulo-historial"
             data-testid="seccion-historial-inline"
           >
-            <div className={styles.panelHeader}>
-              <h2 id="titulo-historial" className={styles.panelTitle}>
-                Historial de movimientos
-              </h2>
-              <p className={styles.panelSubtitle}>
+            <div className={styles.sectionHeader}>
+              <h3 id="titulo-historial" className={styles.sectionTitle}>
+                Actividad reciente
+              </h3>
+              <span className={styles.sectionMeta}>
                 {escuela.situacionesHistoricas === 0
                   ? 'Sin situaciones históricas'
                   : `${FORMATO_NUMERO.format(escuela.situacionesHistoricas)} ${
@@ -543,9 +482,8 @@ export function FichaEscuelaPagina({
                         ? 'situación registrada'
                         : 'situaciones registradas'
                     }`}
-              </p>
+              </span>
             </div>
-
             {historial.fase === 'cargando' ? (
               <p role="status" className={styles.emptyState}>
                 Cargando historial…
@@ -559,21 +497,47 @@ export function FichaEscuelaPagina({
                 No hay movimientos registrados para este establecimiento.
               </p>
             ) : (
-              <LineaDeTiempo movimientos={historial.movimientos} limite={10} />
+              <div className={styles.historial}>
+                <LineaDeTiempo movimientos={historial.movimientos} limite={10} />
+              </div>
             )}
           </section>
         </div>
 
-        <div className={styles.column}>
-          <section
-            id="acceso"
-            className={styles.panelCard}
-            aria-labelledby="titulo-acceso"
-          >
-            <div className={styles.panelHeader}>
-              <h2 id="titulo-acceso" className={styles.panelTitle}>
-                Acceso al establecimiento
-              </h2>
+        <aside id="territorio" className={styles.column} aria-label="Territorio y clima">
+          <section className={styles.climaCard} aria-labelledby="titulo-clima">
+            <div className={styles.sectionHeader}>
+              <h3 id="titulo-clima" className={styles.sectionTitleSmall}>
+                Pronóstico en la escuela
+              </h3>
+              <Cloud size={20} strokeWidth={1.6} aria-hidden="true" className={styles.climaIcono} />
+            </div>
+            <p className={styles.sectionMeta}>Condiciones previstas · 72 horas</p>
+            <FichaTerritorial cueAnexo={escuela.cueAnexo} localidad={escuela.localidad} />
+          </section>
+
+          <section className={styles.section} aria-labelledby="titulo-ubicacion">
+            <div className={styles.sectionHeader}>
+              <h3 id="titulo-ubicacion" className={styles.sectionTitleSmall}>
+                Ubicación
+              </h3>
+              <Link
+                href={`/mapas/infraestructura?cue=${encodeURIComponent(escuela.cueAnexo)}&enfocar=1#actual`}
+                className={styles.linkAccion}
+                data-testid="abrir-mapa"
+              >
+                Abrir mapa
+                <ArrowUpRight size={13} aria-hidden="true" />
+              </Link>
+            </div>
+            <div className={styles.direccion}>
+              <p className={styles.direccionFuerte}>{escuela.localidad?.trim() || 'Sin localidad'}</p>
+              <p>{etiquetaDepartamento(escuela.departamento)}, Corrientes</p>
+              {!sinUbicacion && (
+                <p className={styles.coordenadas}>
+                  {escuela.lat?.toFixed(4)}, {escuela.lon?.toFixed(4)}
+                </p>
+              )}
             </div>
             <BloqueAcceso
               geometria={geometria}
@@ -589,32 +553,50 @@ export function FichaEscuelaPagina({
             />
           </section>
 
-          <section
-            id="territorio"
-            className={styles.panelCard}
-            aria-labelledby="titulo-territorio"
-          >
-            <div className={styles.panelHeader}>
-              <h2 id="titulo-territorio" className={styles.panelTitle}>
-                Exposición, riesgo y contexto territorial
-              </h2>
-            </div>
-
-            <RiesgoEscuela
-              cueAnexo={escuela.cueAnexo}
-              horizonte={72}
-              planificacion={planificacion}
-            />
-
-            <div>
-              <h3 className={styles.subSectionTitle}>Lluvia y río: datos de apoyo</h3>
-              <FichaTerritorial
-                cueAnexo={escuela.cueAnexo}
-                localidad={escuela.localidad}
-              />
-            </div>
+          <section className={styles.section} aria-labelledby="titulo-entorno">
+            <h3 id="titulo-entorno" className={styles.sectionTitleSmall}>
+              Entorno y accesibilidad
+            </h3>
+            <dl className={styles.filas}>
+              <div>
+                <dt>Antecedentes</dt>
+                <dd>
+                  {escuela.situacionesHistoricas === 0
+                    ? 'Sin situaciones históricas'
+                    : `${FORMATO_NUMERO.format(escuela.situacionesHistoricas)} ${
+                        escuela.situacionesHistoricas === 1 ? 'evento registrado' : 'eventos registrados'
+                      }`}
+                </dd>
+              </div>
+              <div>
+                <dt>Vigencia del parte</dt>
+                <dd>
+                  {escuela.sinActualizar ? (
+                    <span className={styles.chipAviso} data-testid="ficha-chip-sin-actualizar">
+                      <Clock size={12} aria-hidden="true" />
+                      Sin actualizar (&gt;72 h)
+                    </span>
+                  ) : tieneParteRegistrado ? (
+                    <span data-testid="ficha-chip-vigente">Vigente</span>
+                  ) : (
+                    'Sin parte registrado'
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Última novedad</dt>
+                <dd>{novedadRelativa ?? 'Sin datos'}</dd>
+              </div>
+            </dl>
           </section>
-        </div>
+
+          <section className={styles.section} aria-labelledby="titulo-riesgo">
+            <h3 id="titulo-riesgo" className={styles.sectionTitleSmall}>
+              Riesgo de la escuela
+            </h3>
+            <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={72} planificacion={planificacion} />
+          </section>
+        </aside>
       </div>
 
       {mostrarEnlaceNominal && (
@@ -624,5 +606,30 @@ export function FichaEscuelaPagina({
         />
       )}
     </main>
+  )
+}
+
+const MAX_BARRAS = 30
+
+function BarraAlumnos({ afectados, total }: { afectados: number; total: number }) {
+  if (total <= 0) return null
+  const barras = Math.min(total, MAX_BARRAS)
+  const marcadas = Math.min(
+    barras,
+    afectados > 0 ? Math.max(1, Math.round((afectados / total) * barras)) : 0,
+  )
+  return (
+    <div
+      className={styles.barra}
+      role="img"
+      aria-label={`${afectados} de ${total} alumnos alcanzados`}
+    >
+      {Array.from({ length: barras }, (_, indice) => (
+        <span
+          key={indice}
+          className={indice < marcadas ? styles.barraAfectada : styles.barraLibre}
+        />
+      ))}
+    </div>
   )
 }

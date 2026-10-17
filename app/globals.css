@@ -348,6 +348,7 @@
 .pronostico-escuela__dias span { display: grid; gap: 2px; min-width: 0; padding: 4px 2px; background: var(--fill); border-radius: var(--r-sm, 4px); color: var(--ink-soft); text-align: center; font-size: var(--t-micro); }
 .pronostico-escuela__dias b { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .map-radar-riesgo__desglose { margin: 0; color: var(--ink-soft); font-size: var(--t-small); }
+.map-radar-riesgo__motivo { color: var(--ink-soft); }
 .map-radar-riesgo__ver-mas { justify-self: start; padding: var(--s-2) 0; color: var(--ink-soft); font-size: var(--t-small); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; cursor: pointer; }
 .map-radar-riesgo__ver-mas:hover { color: var(--ink); }
 .map-radar-riesgo__reserva { display: grid; place-items: center; min-height: 12rem; border-radius: var(--r-md); background: var(--fill); }
@@ -6523,4 +6524,322 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .map-sitact { gap: var(--s-4); }
   .map-sitact__kpi strong { font-size: var(--t-h2); }
   .map-sitact__fila { padding-block: var(--s-2); }
+}
+
+/* ---------------------------------------------------------------------------
+   Editorial look for the school context blocks (access, risk, forecast).
+   Uses the school detail page palette (--f-*, --fs-*) when rendered inside it,
+   and falls back to the project tokens everywhere else (e.g. map side panel).
+   --------------------------------------------------------------------------- */
+.map-bloque-acceso {
+  gap: 0;
+  font-size: var(--fs-13, var(--t-small));
+  color: var(--f-ink-2, var(--ink));
+}
+
+.map-bloque-acceso__fila {
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--f-line-soft, var(--line-soft));
+}
+
+.map-bloque-acceso__inundacion > .map-bloque-acceso__fila:last-child {
+  border-bottom: 0;
+}
+
+.map-bloque-acceso__fila > svg {
+  width: 14px;
+  height: 14px;
+  flex-basis: 14px;
+  color: var(--f-ink-6, var(--ink-faint));
+}
+
+.map-bloque-acceso__fila > span {
+  font-weight: 500;
+}
+
+.map-bloque-acceso__detalle {
+  margin-top: 0.125rem;
+  font-weight: 400;
+  color: var(--f-ink-5, var(--ink-soft));
+  font-size: var(--fs-12, var(--t-micro));
+}
+
+.map-bloque-acceso__ayuda {
+  color: var(--f-ink-6, var(--ink-soft));
+}
+
+.map-bloque-acceso__estado {
+  padding: 0.5rem 0;
+  font-size: var(--fs-13, var(--t-small));
+  color: var(--f-ink-5, var(--ink-soft));
+}
+
+.riesgo-escuela {
+  gap: 1.25rem;
+  margin: 0;
+}
+
+.riesgo-escuela__bloque {
+  gap: 0.375rem;
+  padding: 1rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--f-line-soft, var(--line));
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--fs-13, var(--t-small));
+  color: var(--f-ink-4, var(--ink));
+}
+
+.riesgo-escuela__titulo {
+  font-family: inherit;
+  font-size: var(--fs-13-5, var(--t-small));
+  font-weight: 700;
+  color: var(--f-ink, var(--ink));
+}
+
+.riesgo-escuela__subtitulo,
+.riesgo-escuela__nota {
+  font-size: var(--fs-12, var(--t-micro));
+  color: var(--f-ink-5, var(--ink-soft));
+}
+
+.riesgo-escuela__subtitulo-seccion {
+  margin-top: 0.5rem;
+  font-size: var(--fs-12, var(--t-micro));
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--f-ink-5, var(--ink-soft));
+}
+
+.riesgo-escuela__nivel {
+  margin-top: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: var(--fs-11, var(--t-micro));
+  font-weight: 600;
+}
+
+.riesgo-escuela__nivel--bajo {
+  border: 0;
+  background: var(--f-badge, var(--fill));
+  color: var(--f-badge-ink, var(--ink));
+}
+
+.riesgo-escuela__conclusion {
+  font-size: var(--fs-13-5, var(--t-small));
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--f-ink, var(--ink));
+}
+
+.riesgo-escuela__bloque ul {
+  font-size: var(--fs-13, var(--t-small));
+  line-height: 1.625;
+  color: var(--f-ink-4, var(--ink-soft));
+}
+
+.riesgo-escuela__planificacion {
+  gap: 0.625rem;
+  font-size: var(--fs-13, var(--t-small));
+}
+
+.riesgo-escuela__planificacion > div {
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid var(--f-line-soft, var(--line-soft));
+}
+
+.riesgo-escuela__planificacion > div:last-child {
+  border-bottom: 0;
+}
+
+.riesgo-escuela__planificacion dt {
+  color: var(--f-ink-5, var(--ink-soft));
+}
+
+.riesgo-escuela__planificacion dd {
+  font-weight: 500;
+  color: var(--f-ink-2, var(--ink));
+  text-align: right;
+}
+
+.riesgo-escuela__tecnico {
+  font-size: var(--fs-12, var(--t-micro));
+  color: var(--f-ink-5, var(--ink-soft));
+}
+
+.ficha-territorial__titular {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+.ficha-territorial__titular-icono {
+  display: inline-flex;
+  color: #ca8a04;
+}
+
+.ficha-territorial__titular-icono--lluvia {
+  color: var(--f-accent, var(--blue));
+}
+
+.ficha-territorial__titular-icono svg {
+  width: 2rem;
+  height: 2rem;
+  stroke-width: 1.8;
+}
+
+.ficha-territorial__titular-valor {
+  margin: 0;
+  font-size: var(--fs-17, var(--t-h3));
+  font-weight: 700;
+  line-height: 1;
+  color: var(--f-ink, var(--ink));
+}
+
+.ficha-territorial__titular-nota {
+  margin: 0.25rem 0 0;
+  font-size: var(--fs-12, var(--t-micro));
+  color: var(--f-ink-5, var(--ink-soft));
+}
+
+.ficha-territorial__tramos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--f-line, var(--line));
+  text-align: center;
+}
+
+.ficha-territorial__tramos > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.ficha-territorial__tramos > div:nth-child(2) {
+  border-inline: 1px solid var(--f-line, var(--line));
+}
+
+.ficha-territorial__tramos dt {
+  font-size: var(--fs-12, var(--t-micro));
+  font-weight: 600;
+  color: var(--f-ink-2, var(--ink));
+}
+
+.ficha-territorial__tramos dd {
+  margin: 0;
+}
+
+.ficha-territorial__tramo-valor {
+  font-size: var(--fs-14, var(--t-small));
+  font-weight: 700;
+  color: var(--f-ink-6, var(--ink-faint));
+  font-variant-numeric: tabular-nums;
+}
+
+.ficha-territorial__tramo-nota {
+  font-size: var(--fs-11, var(--t-micro));
+  color: var(--f-ink-5, var(--ink-soft));
+}
+
+.ficha-territorial__puntos {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.75rem 0 0;
+  border-top: 1px solid var(--f-panel-line, var(--line));
+  list-style: none;
+  font-size: var(--fs-12-5, var(--t-micro));
+  line-height: 1.6;
+  color: var(--f-ink-4, var(--ink));
+}
+
+.ficha-territorial__detalle {
+  font-size: var(--fs-12, var(--t-micro));
+  color: var(--f-ink-5, var(--ink-soft));
+}
+
+.ficha-territorial__estado,
+.ficha-territorial__error,
+.ficha-territorial__razon {
+  margin: 0;
+  font-size: var(--fs-12-5, var(--t-micro));
+  line-height: 1.6;
+  color: var(--f-ink-5, var(--ink-soft));
+}
+
+.ficha-territorial--sin-datos .ficha-territorial__titulo {
+  margin: 0;
+  font-size: var(--fs-13-5, var(--t-small));
+  color: var(--f-ink, var(--ink));
+}
+
+.riesgo-escuela__encabezado {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.riesgo-escuela__horizonte {
+  flex-shrink: 0;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  background: var(--fill);
+  color: var(--ink);
+  font-size: var(--t-micro);
+  font-weight: 600;
+}
+
+.riesgo-escuela__explicacion {
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.riesgo-escuela__nivel-fila {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.riesgo-escuela__nivel-fila .riesgo-escuela__nivel {
+  margin-top: 0;
+}
+
+.riesgo-escuela__nivel-etiqueta {
+  font-size: var(--t-micro);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.riesgo-escuela__ayuda-vista {
+  display: block;
+  font-size: var(--t-micro);
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.riesgo-escuela__planificacion > div {
+  align-items: center;
+}
+
+/* Sub-block titles inside a section: smaller than the section title, set apart by a rule. */
+.riesgo-escuela__bloque {
+  padding-top: 0.875rem;
+}
+
+.riesgo-escuela__bloque:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.riesgo-escuela__titulo {
+  font-size: var(--t-small);
+  font-weight: 700;
+  text-transform: none;
 }

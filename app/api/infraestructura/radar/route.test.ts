@@ -454,8 +454,8 @@ describe('GET /api/infraestructura/radar', () => {
     const porCue = new Map(
       body.puntos.map((p: { cueAnexo: string }) => [p.cueAnexo, p]),
     )
-    expect(porCue.get('1000000-01')).toMatchObject({ nivelRiesgo: 'muy_alto', nivelAmenaza: 'alto' })
-    expect(porCue.get('1000000-03')).toMatchObject({ nivelRiesgo: null, nivelAmenaza: null })
+    expect(porCue.get('1000000-01')).toMatchObject({ nivelRiesgo: 'muy_alto', nivelAmenaza: 'alto', nivelVulnerabilidad: 'alto' })
+    expect(porCue.get('1000000-03')).toMatchObject({ nivelRiesgo: null, nivelAmenaza: null, nivelVulnerabilidad: null })
     const item = body.escuelas.items.find((i: { snapshotId: string }) => i.snapshotId === 's1')
     expect(item).toMatchObject({ scoreAmenaza: 70, nivelAmenaza: 'alto' })
   })
@@ -483,6 +483,7 @@ describe('GET /api/infraestructura/radar', () => {
         horizonteHoras: 24,
         nivelRiesgo: null,
         nivelAmenaza: null,
+        nivelVulnerabilidad: null,
         confianza: 'baja',
         nivelRiesgoAcceso: null,
       },

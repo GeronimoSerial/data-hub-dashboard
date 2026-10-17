@@ -96,7 +96,7 @@ function contarAntecedentesVigentes(resumen: ResumenHistorial, asOf: string) {
   }
 }
 
-function clasificarNivel(score: number): NivelRiesgo {
+export function clasificarNivel(score: number): NivelRiesgo {
   if (score < UMBRAL_MODERADO) return 'bajo'
   if (score < UMBRAL_ALTO) return 'moderado'
   if (score < UMBRAL_MUY_ALTO) return 'alto'

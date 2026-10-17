@@ -206,6 +206,9 @@ describe('FichaEscuelaPagina', () => {
     const irAlMapa = screen.getByTestId('volver-al-mapa')
     expect(irAlMapa.textContent).toContain('Ir al mapa')
     expect(irAlMapa.getAttribute('href')).toBe('/mapas/infraestructura?cue=1801605-00#actual')
+    expect(screen.getByTestId('abrir-mapa').getAttribute('href')).toBe(
+      '/mapas/infraestructura?cue=1801605-00&enfocar=1#actual',
+    )
 
     expect(screen.getByTestId('ficha-sin-ubicacion').textContent).toContain(
       'Ubicación no disponible en el mapa',

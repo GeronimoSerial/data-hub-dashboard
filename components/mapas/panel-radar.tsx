@@ -10,7 +10,9 @@ import {
   colorRiesgo,
   escuelasEnRadar,
   ETIQUETA_HORIZONTE_MOTOR,
+  ETIQUETA_NIVEL_CLIMA,
   ETIQUETA_NIVEL_RIESGO,
+  ETIQUETA_NIVEL_VULNERABILIDAD,
   resumirRiesgo,
 } from '@/lib/infraestructura/mapa/radar'
 import { pronosticoPorHorizonte } from '@/lib/infraestructura/radar-meteo/pronostico-horizonte'
@@ -124,9 +126,13 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
               )}
               {lista.length > 0 ? (
                 <div className="map-sitact__lista">
-                  {listaVisible.map(({ escuela, nivel, amenaza }) => {
+                  {listaVisible.map(({ escuela, nivel, amenaza, vulnerabilidad }) => {
                     const departamento = etiquetaDepartamento(escuela.departamento)
                     const niveles = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
+                    const motivo = [
+                      amenaza && `Clima: ${ETIQUETA_NIVEL_CLIMA[amenaza]}`,
+                      vulnerabilidad && `Vulnerabilidad: ${ETIQUETA_NIVEL_VULNERABILIDAD[vulnerabilidad]}`,
+                    ].filter(Boolean).join(' · ')
                     return (
                       <button
                         key={escuela.cueAnexo}
@@ -140,13 +146,9 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
                           <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
                           <span className="map-sitact__meta">{departamento}{niveles}</span>
                           <span className="map-sitact__chips">
-                            <span className="map-sitact__pill map-sitact__pill--neutro">Riesgo actual: {ETIQUETA_NIVEL_RIESGO[nivel]}</span>
-                            {amenaza && (
-                              <span className={`map-sitact__pill ${amenaza === 'alto' || amenaza === 'muy_alto' ? 'map-sitact__pill--aviso' : 'map-sitact__pill--neutro'}`}>
-                                Amenaza: {ETIQUETA_NIVEL_RIESGO[amenaza]}
-                              </span>
-                            )}
+                            <span className="map-sitact__pill map-sitact__pill--neutro">Riesgo {ETIQUETA_NIVEL_RIESGO[nivel].toLowerCase()}</span>
                           </span>
+                          {motivo && <span className="map-sitact__meta map-radar-riesgo__motivo">{motivo}</span>}
                         </span>
                       </button>
                     )

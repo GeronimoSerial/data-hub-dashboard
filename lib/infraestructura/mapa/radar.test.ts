@@ -138,3 +138,17 @@ describe('nivelRiesgo y colorRiesgo', () => {
     expect(colores.every((color) => typeof color === 'string' && color.length > 0)).toBe(true)
   })
 })
+
+describe('escuelasEnRadar — vulnerabilidad', () => {
+  it('acompaña cada escuela con el nivel de vulnerabilidad del horizonte elegido', () => {
+    const conVulnerabilidad = [
+      { cueAnexo: 'alto-muchos', horizonteHoras: 24, nivelRiesgo: 'alto', nivelAmenaza: 'muy_alto', nivelVulnerabilidad: 'bajo' },
+      { cueAnexo: 'moderado', horizonteHoras: 24, nivelRiesgo: 'moderado' },
+    ]
+    const resultado = escuelasEnRadar(conVulnerabilidad, padrón, 24)
+    expect(resultado.map(({ escuela, amenaza, vulnerabilidad }) => [escuela.cueAnexo, amenaza, vulnerabilidad])).toEqual([
+      ['alto-muchos', 'muy_alto', 'bajo'],
+      ['moderado', null, null],
+    ])
+  })
+})
