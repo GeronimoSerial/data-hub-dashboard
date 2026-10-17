@@ -354,3 +354,10 @@ Referencia de `OnCalendar` en UTC de las unidades de `deploy/systemd/ops1/`. Par
 
 Opcional: `sync-seasonal` (Open-Meteo Seasonal) está detrás de `SEASONAL_ENABLED`
 en la UI; el job corre igual, sólo se oculta la tarjeta.
+
+## Migración pendiente: radar producido sólo en producción
+
+La [operación de réplica del radar](../../radar-operacion.md) reemplaza los tres
+productores del radar en staging/dev por copias desde `hub_prod`. Hasta ejecutar
+manualmente `radar-operacion.yml` con `configurar`, la instalación existente sigue
+vigente. No reinstalar los tres timers radar en consumidores después de migrar.
