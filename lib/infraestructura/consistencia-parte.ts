@@ -172,7 +172,7 @@ const ADVERTENCIAS: DefinicionRegla[] = [
     codigo: 'clases-normales-con-asistencia',
     campo: 'asistencia',
     mensaje: 'Si las clases son normales, no suele haber asistencia pedagógica. Verifique la respuesta.',
-    cuando: (r) => r.clases === 'normal' && r.asistenciaBrinda === true && r.motivoId !== MOTIVO.sinEnergia,
+    cuando: (r) => r.clases === 'normal' && r.asistenciaBrinda === true,
   },
   {
     codigo: 'evacuacion-severidad-baja',

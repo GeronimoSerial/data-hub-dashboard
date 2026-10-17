@@ -124,8 +124,8 @@ describe('evaluarConsistenciaParte: combinaciones explícitamente permitidas', (
     expect(codigos(r.advertencias)).not.toContain('habitual-clases-suspendidas')
   })
 
-  it('sin energía o agua + clases normales con asistencia (clase virtual) no advierte', () => {
-    const r = evaluar({ motivoId: 'sin-energia-o-agua', edificio: 'parcial', clases: 'normal', asistenciaBrinda: true })
+  it('sin energía o agua + clases suspendidas con asistencia (clase virtual) no advierte', () => {
+    const r = evaluar({ motivoId: 'sin-energia-o-agua', edificio: 'parcial', clases: 'suspendido', asistenciaBrinda: true })
     expect(r.bloqueos).toEqual([])
     expect(r.advertencias).toEqual([])
   })
