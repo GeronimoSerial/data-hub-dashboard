@@ -6012,19 +6012,26 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 /* Gravedad por tono: la escala tonal del mapa (lib/mapas/paleta-tonal.ts)
    marca cada nivel con una franja; el nombre escrito sigue siendo la señal
    que no depende del color. */
-.opcion--sev-baja { --sev: #fecaca; --sev-tinta: #7f1d1d; }
-.opcion--sev-media { --sev: #f87171; --sev-tinta: #fff; }
-.opcion--sev-alta { --sev: #dc2626; --sev-tinta: #fff; }
-.opcion--sev-critica { --sev: #7f1d1d; --sev-tinta: #fff; }
+/* --sev-trazo: color de borde con contraste >= 4.5:1 sobre blanco (el relleno
+   claro de "Baja" no alcanza para un borde). */
+.opcion--sev-baja { --sev: #fecaca; --sev-tinta: #7f1d1d; --sev-trazo: #991b1b; }
+.opcion--sev-media { --sev: #f87171; --sev-tinta: #fff; --sev-trazo: #b91c1c; }
+.opcion--sev-alta { --sev: #dc2626; --sev-tinta: #fff; --sev-trazo: #991b1b; }
+.opcion--sev-critica { --sev: #7f1d1d; --sev-tinta: #fff; --sev-trazo: #7f1d1d; }
 .opcion--severidad { border-left: 8px solid var(--sev); }
-.opcion--severidad:hover { border-color: var(--sev); }
+.opcion--severidad:hover { border-color: var(--sev-trazo); }
+/* Sugerida sin elegir: contorno punteado de 2px y tinte suave. */
 .opcion--severidad.opcion--sugerido:not(:has(.opcion__input:checked)) {
-  background: color-mix(in srgb, var(--sev) 12%, var(--card));
-  box-shadow: inset 0 0 0 2px var(--sev);
+  border: 2px dashed var(--sev-trazo);
+  border-left: 8px solid var(--sev);
+  background: color-mix(in srgb, var(--sev) 10%, var(--card));
 }
+/* Elegida: contorno sólido de 2px, tinte más fuerte e indicador lleno. Si además
+   es la sugerida, conserva el badge "Sugerido" y este estilo sólido. */
 .opcion--severidad:has(.opcion__input:checked) {
-  border-color: var(--sev);
-  background: color-mix(in srgb, var(--sev) 16%, var(--card));
+  border: 2px solid var(--sev-trazo);
+  border-left: 8px solid var(--sev);
+  background: color-mix(in srgb, var(--sev) 22%, var(--card));
 }
 .opcion--severidad:has(.opcion__input:checked) .opcion__indicador {
   background: var(--sev);
