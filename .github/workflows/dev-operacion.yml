@@ -107,6 +107,8 @@ jobs:
                 'health_check_enabled':True,'health_check_path':'/minio/health/live','health_check_port':'9000'})
               api('/applications/'+almacen['uuid']+'/storages','POST',{
                 'type':'persistent','name':'data-hub-dashboard-dev-media-data','mount_path':'/data'})
+            dockerfile='FROM busybox:1.37.0-musl AS healthcheck\nFROM ghcr.io/coollabsio/minio@sha256:4f75fd76598afa23919555d1363e1fb13c632d9bcd4ce8edcf21d3cca2ed0579\nCOPY --from=healthcheck /bin/busybox /usr/bin/wget\nCMD ["server", "/data", "--address", ":9000"]\n'
+            api('/applications/'+almacen['uuid'],'PATCH',{'dockerfile':base64.b64encode(dockerfile.encode()).decode()})
             assert os.environ['DEV_MEDIA_ACCESS_KEY'] and os.environ['DEV_MEDIA_SECRET_KEY']
             valores={'MINIO_ROOT_USER':os.environ['DEV_MEDIA_ACCESS_KEY'],'MINIO_ROOT_PASSWORD':os.environ['DEV_MEDIA_SECRET_KEY'],
               'MINIO_BROWSER':'off','MINIO_API_CORS_ALLOW_ORIGIN':'https://dev.analisis.sistemas.mec.gob.ar,http://localhost:3000,http://127.0.0.1:3000'}
