@@ -32,6 +32,7 @@ import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificac
 import { Button } from '@/components/ui/button'
 import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
 import { Opcion } from '@/components/ui/opcion'
+import { MultiSelect } from '@/components/ui/multi-select'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
@@ -120,6 +121,11 @@ const CAMPOS_CONSISTENCIA_POR_PASO: Partial<Record<Paso, CampoConsistencia[]>> =
   2: ['alcance', 'descripcion'],
   3: ['edificio', 'clases', 'asistencia'],
 }
+
+const MODALIDADES_ASISTENCIA = [
+  { value: 'Clase virtual', label: 'Clase virtual' },
+  { value: 'Cuadernillo', label: 'Cuadernillo' },
+]
 
 // Respuestas del asistente en la forma que lee el módulo de consistencia.
 function respuestasDeConsistencia(datos: {
@@ -1042,14 +1048,15 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
                 <Opcion key={valor} tipo="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} label={valor === 'si' ? 'Sí' : 'No'} compacta />
               ))}
               {asistenciaBrinda === 'si' && (
-                <div className="afectacion-campos__anidado" role="group" aria-labelledby="asistencia-modalidad-titulo">
-                  <p id="asistencia-modalidad-titulo" className="afectacion-campos__subtitulo">¿De qué forma?</p>
-                  {(['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
-                    <Opcion key={modalidad} tipo="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => {
-                      const marcada = e.currentTarget.checked
-                      setModalidadesAsistencia((actuales) => marcada ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))
-                    }} label={modalidad} compacta />
-                  ))}
+                <div className="afectacion-campos__anidado">
+                  <p className="afectacion-campos__subtitulo">¿De qué tipo?</p>
+                  <MultiSelect<string>
+                    value={modalidadesAsistencia}
+                    onChange={setModalidadesAsistencia}
+                    options={MODALIDADES_ASISTENCIA}
+                    placeholder="Seleccione una o más opciones"
+                    ariaLabel="¿De qué tipo?"
+                  />
                 </div>
               )}
               <AvisosConsistencia reglas={consistencia.advertencias} campos={['asistencia']} />

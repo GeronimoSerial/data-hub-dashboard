@@ -5,6 +5,7 @@ import { CircleCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
 import { Opcion } from '@/components/ui/opcion'
+import { MultiSelect } from '@/components/ui/multi-select'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { SelectorFotosFormulario } from '@/components/infraestructura/fotos/selector-fotos-formulario'
 import { EntradaActualizar } from '@/components/infraestructura/actualizar/entrada-actualizar'
@@ -41,7 +42,12 @@ const MENSAJE_ERROR_GUARDADO = 'No pudimos guardar el parte. La información ing
 const MENSAJE_BORRADOR_INVALIDO = 'No se pudo recuperar la actualización guardada. Empezará una nueva.'
 type Carga = { fase: 'cargando' } | { fase: 'error'; mensaje: string } | { fase: 'listo'; datos: EstadoActualRespuesta; historial: MovimientoHistorial[] }
 type Etapa = EtapaActualizacion | 'enviado'
-type PayloadActualizacion = ReturnType<typeof construirEnvio> & { cue: string; rigeDesde: string; asistenciaPedagogica?: { brinda: boolean; modalidades: Array<'Clase virtual' | 'Cuadernillo'> } }
+type ModalidadAsistencia = 'Clase virtual' | 'Cuadernillo'
+const MODALIDADES_ASISTENCIA: { value: ModalidadAsistencia; label: string }[] = [
+  { value: 'Clase virtual', label: 'Clase virtual' },
+  { value: 'Cuadernillo', label: 'Cuadernillo' },
+]
+type PayloadActualizacion = ReturnType<typeof construirEnvio> & { cue: string; rigeDesde: string; asistenciaPedagogica?: { brinda: boolean; modalidades: ModalidadAsistencia[] } }
 type SituacionConAlcance = SituacionRecorrido & { secciones: number[]; alumnos: number[] }
 
 const DRAFT_ID_PREFIX = 'parte-actualizacion:'
@@ -1053,24 +1059,18 @@ function ResumenEnvio({
               compacta
           />
         ))}
-        {asistenciaPedagogica.brinda === 'si' && (['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
-          <Opcion
-              key={modalidad}
-              tipo="checkbox"
-              checked={asistenciaPedagogica.modalidades.includes(modalidad)}
-              onChange={(evento) => {
-                const marcada = evento.currentTarget.checked
-                onCambiarAsistencia({
-                brinda: 'si',
-                modalidades: marcada
-                  ? [...asistenciaPedagogica.modalidades, modalidad]
-                  : asistenciaPedagogica.modalidades.filter((actual) => actual !== modalidad),
-                })
-              }}
-              label={modalidad}
-              compacta
+        {asistenciaPedagogica.brinda === 'si' && (
+          <div className="afectacion-campos__anidado">
+            <p className="afectacion-campos__subtitulo">¿De qué tipo?</p>
+            <MultiSelect<ModalidadAsistencia>
+              value={asistenciaPedagogica.modalidades}
+              onChange={(modalidades) => onCambiarAsistencia({ brinda: 'si', modalidades })}
+              options={MODALIDADES_ASISTENCIA}
+              placeholder="Seleccione una o más opciones"
+              ariaLabel="¿De qué tipo?"
             />
-        ))}
+          </div>
+        )}
       {asistenciaPedagogica.brinda !== (asistenciaVigente === 'Sí' ? 'si' : 'no') ? (
         <p className="actualizacion-resumen__vigente">Actualmente: {asistenciaVigente}</p>
       ) : null}

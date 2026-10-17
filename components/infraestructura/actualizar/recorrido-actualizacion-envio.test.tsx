@@ -2,6 +2,7 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from '@/components/infraestructura/verificacion-vinculo'
@@ -69,6 +70,14 @@ async function prepararResumen() {
 function elegirAsistencia(valor: 'Sí' | 'No') {
   fireEvent.click(within(screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })).getByRole('radio', { name: valor }))
 }
+
+async function elegirModalidades(user: ReturnType<typeof userEvent.setup>, ...modalidades: string[]) {
+  await user.click(screen.getByRole('combobox', { name: '¿De qué tipo?' }))
+  for (const modalidad of modalidades) {
+    await user.click(await screen.findByRole('option', { name: modalidad }))
+  }
+  await user.keyboard('{Escape}')
+}
 async function enviar() { await prepararResumen(); elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }
 beforeEach(() => { CUE = `1801605-${++cueSecuencia}`; localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); vi.clearAllTimers(); globalThis.indexedDB = new IDBFactory(); vi.spyOn(Math, 'random').mockReturnValue(0.5) })
@@ -90,7 +99,7 @@ describe('RecorridoActualizacion: envío', () => {
     const fetchMock = stub(); montar(); await prepararResumen()
     const grupo = screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })
     fireEvent.click(within(grupo).getByRole('radio', { name: 'Sí' }))
-    fireEvent.click(within(grupo).getByRole('checkbox', { name: 'Clase virtual' }))
+    await elegirModalidades(userEvent.setup(), 'Clase virtual')
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await screen.findByText(guardado)
     expect(JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))).toMatchObject({
@@ -106,7 +115,7 @@ describe('RecorridoActualizacion: envío', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Elija al menos una modalidad de asistencia pedagógica.')
     expect(posteos(fetchMock)).toHaveLength(0)
-    fireEvent.click(within(grupo).getByRole('checkbox', { name: 'Cuadernillo' }))
+    await elegirModalidades(userEvent.setup(), 'Cuadernillo')
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await screen.findByText(guardado)
     const cuerpo = JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))

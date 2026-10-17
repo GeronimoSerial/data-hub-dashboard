@@ -1502,6 +1502,8 @@ time {
   background: var(--ink);
   color: var(--page);
 }
+/* Opciones de selección múltiple: blanco táctil mínimo de 44px. */
+.ui-select-item { min-height: 44px; }
 
 .ui-tooltip-positioner { z-index: var(--z-tooltip); }
 .ui-tooltip-popup {

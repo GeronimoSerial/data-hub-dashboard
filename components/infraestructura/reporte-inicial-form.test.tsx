@@ -99,6 +99,14 @@ function completarAQuienAfecta(categoria: 'alumnos' | 'establecimiento' = 'estab
 }
 
 /** Paso 3: ¿hay clases? y cómo está el edificio (obligatorio). */
+async function elegirModalidades(user: ReturnType<typeof userEvent.setup>, ...modalidades: string[]) {
+  await user.click(screen.getByRole('combobox', { name: '¿De qué tipo?' }))
+  for (const modalidad of modalidades) {
+    await user.click(await screen.findByRole('option', { name: modalidad }))
+  }
+  await user.keyboard('{Escape}')
+}
+
 function completarEstadoEstablecimiento() {
   fireEvent.click(screen.getByRole('radio', { name: 'Sí, con normalidad' }))
   fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
@@ -243,7 +251,7 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarEstadoEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Clase virtual' }))
+    await elegirModalidades(userEvent.setup(), 'Clase virtual')
     continuar()
     continuar()
     fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
@@ -251,6 +259,68 @@ describe('ReporteInicialForm', () => {
       const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
       expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Clase virtual'] })
     })
+  })
+
+  it('pregunta de qué tipo con un desplegable cerrado y sin casillas', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    const desplegable = screen.getByRole('combobox', { name: '¿De qué tipo?' })
+    expect(desplegable).toHaveAttribute('aria-expanded', 'false')
+    expect(desplegable).toHaveTextContent('Seleccione una o más opciones')
+    expect(screen.queryByRole('checkbox', { name: 'Clase virtual' })).toBeNull()
+    expect(screen.queryByText('¿De qué forma?')).toBeNull()
+  })
+
+  it('el desplegable marca varias modalidades y las resume en el trigger', async () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    await elegirModalidades(userEvent.setup(), 'Clase virtual', 'Cuadernillo')
+    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toHaveTextContent('Clase virtual, Cuadernillo')
+  })
+
+  it('se abre, marca y cierra con el teclado', async () => {
+    const user = userEvent.setup()
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    const desplegable = screen.getByRole('combobox', { name: '¿De qué tipo?' })
+    desplegable.focus()
+    await user.keyboard('{Enter}')
+    expect(desplegable).toHaveAttribute('aria-expanded', 'true')
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(screen.getByRole('option', { name: 'Cuadernillo' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{ArrowUp}')
+    await user.keyboard(' ')
+    expect(screen.getByRole('option', { name: 'Clase virtual' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{Escape}')
+    expect(desplegable).toHaveAttribute('aria-expanded', 'false')
+    expect(desplegable).toHaveTextContent('Cuadernillo, Clase virtual')
+  })
+
+  it('exige al menos una modalidad cuando se elige Sí', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    continuar()
+    expect(textoAlertas()).toContain('Elija al menos una modalidad de asistencia pedagógica.')
   })
 
   it('una Crítica justificada viaja al servidor con su justificación', async () => {
@@ -578,7 +648,7 @@ describe('ReporteInicialForm', () => {
     }
   })
 
-  it('muestra las modalidades de asistencia en un subgrupo sólo al elegir Sí', () => {
+  it('muestra el desplegable de tipo de asistencia sólo al elegir Sí', () => {
     renderFormulario()
     completarQuePaso()
     continuar()
@@ -586,12 +656,11 @@ describe('ReporteInicialForm', () => {
     continuar()
 
     fireEvent.click(screen.getByRole('radio', { name: 'No' }))
-    expect(screen.queryByRole('group', { name: '¿De qué forma?' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: '¿De qué tipo?' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
-    const modalidades = screen.getByRole('group', { name: '¿De qué forma?' })
-    expect(within(modalidades).getByRole('checkbox', { name: 'Clase virtual' })).toBeInTheDocument()
-    expect(within(modalidades).getByRole('checkbox', { name: 'Cuadernillo' })).toBeInTheDocument()
+    expect(screen.getByText('¿De qué tipo?')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toBeInTheDocument()
   })
 
   it('usa etiquetas de alcance y una confirmación sin repetir el título', async () => {
