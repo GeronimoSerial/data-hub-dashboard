@@ -8,7 +8,9 @@ El usuario descartó el prototipo del batch 1 y su entregable. Desde esta actual
 
 **Primera sección:** cabecera y controles de navegación/modo del mapa existente. Mejorar jerarquía, composición, espaciado, superficies y estados de interacción usando primitivas Base UI y componentes Arc adecuados. Mantener destinos, enlaces, flags y comportamiento actuales; no activar destinos futuros todavía inexistentes.
 
-**Siguiente sección autorizada:** consulta escolar. Sustituir el expediente extenso sobre el mapa por una vista previa compacta con acceso a una ficha completa en página propia, reutilizando datos y módulos actuales. Verificar selección, apertura, acciones existentes y regreso con modo, filtros, selección, cámara y capas conservados. No incluye crear el listado Escuelas, reorganizar toda la navegación ni implementar Ríos. Se delega a un worker nuevo y se detiene tras esta entrega.
+**Consulta escolar entregada:** vista previa compacta sobre el mapa y ficha completa en página propia, con retorno al contexto. Conservar esa entrega, incluida la tarjeta única con altura según su contenido y la instancia persistente de MapLibre.
+
+**Sección actual, corrección del usuario:** mejorar el sidebar izquierdo existente de `/mapas/infraestructura`. El listado de escuelas permanece a la izquierda, junto al mapa. Simplificarlo y limpiarlo: menos elementos, jerarquía clara y selección evidente, reutilizando los datos y componentes actuales y conservando los criterios de cada modo. Abrir la ficha completa debe permitir volver al mismo contexto del mapa y del listado lateral. La implementación de un listado independiente fue descartada: no crear una página de listado, una nueva pestaña «Escuelas» ni otro destino de navegación para reemplazar el sidebar. Prioridad: interfaz limpia, no sobrecargada. Sin buscador propio en el sidebar (alcanza el de la cabecera), sin `select` nativo y sin agregar pestañas, chips ni barras de herramientas nuevas; mejorar es quitar o reagrupar, no sumar controles. Un primer intento que agregó buscador, pestañas de filtro y `select` de orden fue descartado. Esta corrección prevalece sobre la navegación propuesta y las referencias históricas a una sección Escuelas en ambos documentos. No incluye reorganizar otras herramientas ni implementar Ríos. Verificar esta sección y detenerse para devolución.
 
 **Plataformas objetivo, corrección del usuario:** el mapa está pensado para escritorio y laptops, incluidas pantallas pequeñas. No dedicar trabajo a mobile, bottom sheets móviles ni composiciones específicas para teléfonos. Validar como referencia 1280×720, 1366×768 y 1440×900 CSS px, cuidando especialmente la altura útil, paneles y acciones visibles. Estas medidas son referencias de comprobación, no un nuevo mínimo rígido. No retirar compatibilidad existente de componentes compartidos. Esta instrucción prevalece sobre las menciones a móvil/tablet de los batches históricos siguientes.
 
@@ -99,7 +101,7 @@ Mientras se mejora la primera sección real de la UI, otro worker prepara la bas
 
 **Cierre:** toda la información y las acciones actuales están disponibles en el nuevo detalle; consultar o actualizar una escuela permite regresar al contexto anterior.
 
-## Batch 3 · Simplificar la selección y sumar Escuelas
+## Batch 3 · Simplificar la selección y mejorar el sidebar izquierdo
 
 **Objetivo:** separar encontrar una escuela de consultar su expediente.
 
@@ -107,7 +109,7 @@ Mientras se mejora la primera sección real de la UI, otro worker prepara la bas
 
 - Reemplazar la ficha extensa del mapa por una vista previa breve con acceso al detalle completo.
 - Diferenciar cerrar el resumen de quitar la selección.
-- Crear el listado de Escuelas con búsqueda, filtros y orden comprensibles.
+- Limpiar el listado existente del sidebar izquierdo, manteniéndolo junto al mapa: menos elementos, sin buscador propio (se usa el de la cabecera), sin `select` nativo y sin crear una página independiente.
 - Unificar el aspecto de los resultados, conservando los criterios propios de situación, pronóstico y planificación.
 - Permitir encontrar y abrir escuelas sin coordenadas desde el listado.
 - Conservar la posición y los filtros al regresar desde una ficha.
