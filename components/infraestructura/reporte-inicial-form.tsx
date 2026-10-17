@@ -302,6 +302,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
   const fotosPreparadasRef = useRef<readonly FotoPreparada[]>([])
+  const [cantidadFotos, setCantidadFotos] = useState(0)
   const movimientoFotosConfirmadoRef = useRef<string | null>(null)
   const claveEvidenciaRef = useRef(crypto.randomUUID())
   const [borradorPendiente, setBorradorPendiente] = useState<BorradorParteNuevo | null>(null)
@@ -899,6 +900,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     ...(afectacion.categoria === 'alumnos' || asistenciaBrinda === ''
       ? {}
       : { asistenciaPedagogica: { brinda: asistenciaBrinda === 'si', modalidades: modalidadesAsistencia } }),
+    fotosAdjuntas: cantidadFotos,
   })
 
   return (
@@ -971,6 +973,28 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             disabled={enviando}
           />
         )}
+
+        {/*
+          Siempre montado (sólo oculto fuera del paso 1) para que las fotos
+          elegidas sobrevivan a cambiar de paso. Las fotos siguen siendo
+          opcionales: la nota de Crítica es una recomendación.
+        */}
+        <div hidden={paso !== 1}>
+          {afectacion.severidad === 'Crítica' ? (
+            <p className="aviso-badge" role="note">
+              <span className="aviso-badge__sello">Recomendado</span>
+              <span className="aviso-badge__texto">Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.</span>
+            </p>
+          ) : null}
+          <SelectorFotosFormulario
+            draftId={`${DRAFT_ID_PREFIX}${cue}`}
+            onCountChange={setCantidadFotos}
+            onPreparadasChange={(fotos) => {
+              fotosPreparadasRef.current = fotos
+              if (movimientoFotosConfirmadoRef.current) vincularFotosPreparadas(movimientoFotosConfirmadoRef.current)
+            }}
+          />
+        </div>
 
         {paso === 2 && (
           <CamposAQuienAfecta
@@ -1064,16 +1088,6 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           </>
         )}
       </section>
-      <div hidden={paso !== PASO_CONFIRMAR}>
-        <SelectorFotosFormulario
-          draftId={`${DRAFT_ID_PREFIX}${cue}`}
-          onPreparadasChange={(fotos) => {
-            fotosPreparadasRef.current = fotos
-            if (movimientoFotosConfirmadoRef.current) vincularFotosPreparadas(movimientoFotosConfirmadoRef.current)
-          }}
-        />
-      </div>
-
       {error && (
         <p className="reporte-inicial__error" role="alert">
           {error}

@@ -2,6 +2,7 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MENSAJE_BORRADOR_PENDIENTE, ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
@@ -1298,5 +1299,63 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(JSON.parse(init.body as string).idempotencyKey).toBe('k-timeout')
+  })
+})
+
+describe('foto del reporte en el primer paso (T5)', () => {
+  function stubFetchConFotos() {
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      if (String(input).includes('/borradores/config')) return jsonResponse({ borradoresSync: false, fotos: true, mapaBorradores: false })
+      return jsonResponse({ ok: true, movimientoId: 'm1' }, 201)
+    })
+  }
+
+  const selectorFotos = () => screen.findByLabelText('Agregar fotos')
+  const estaOculto = (elemento: HTMLElement) => elemento.closest('[hidden]') !== null
+
+  it('muestra el selector de fotos en el primer paso, después del motivo', async () => {
+    stubFetchConFotos()
+    renderFormulario()
+
+    expect(estaOculto(await selectorFotos())).toBe(false)
+  })
+
+  it('en Confirmar no muestra el selector sino la cantidad de fotos adjuntas', async () => {
+    stubFetchConFotos()
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:foto')
+    renderFormulario()
+    const picker = await selectorFotos()
+    const fotos = [new File(['a'], 'patio.jpg', { type: 'image/jpeg' }), new File(['b'], 'aula.jpg', { type: 'image/jpeg' })]
+    await userEvent.setup().upload(picker, fotos)
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    continuar()
+    continuar()
+
+    expect(estaOculto(picker)).toBe(true)
+    expect(within(resumenConfirmacion()).getByText('Fotos adjuntas')).toBeInTheDocument()
+    expect(within(resumenConfirmacion()).getByText('2')).toBeInTheDocument()
+  })
+
+  it('con severidad Crítica recomienda adjuntar una foto, sin hacerla obligatoria', async () => {
+    stubFetchConFotos()
+    renderFormulario()
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    confirmarCategoria()
+    fireEvent.click(screen.getByRole('radio', { name: 'Inundación' }))
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    expect(screen.queryByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeNull()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Crítica' }))
+    // Inundación no sugiere Crítica: elegirla pide justificarla antes de aplicarla.
+    const hoja = within(screen.getByRole('dialog'))
+    fireEvent.click(hoja.getAllByRole('radio')[0])
+    fireEvent.click(hoja.getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeInTheDocument()
+    expect(await selectorFotos()).toBeInTheDocument()
   })
 })

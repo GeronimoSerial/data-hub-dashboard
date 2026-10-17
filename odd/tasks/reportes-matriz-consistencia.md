@@ -53,7 +53,7 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 - [x] T2 Wire rules into wizard steps 1–3: disabled options with reason, inline warnings, mandatory description for Otro, scope copy.
 - [x] T3 Server validation in `app/api/problematicas/parte/route.ts` using the same module (400 on blocked).
 - [x] T4 Severity drawer on scope "toda" + stronger visual for suggested option.
-- [ ] T5 Move photo selector to step 1 + Crítica emphasis.
+- [x] T5 Move photo selector to step 1 + Crítica emphasis.
 - [ ] T6 Active state: preload in wizard, contradiction resolution, server check.
 
 ## Checks
@@ -66,6 +66,8 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 - T3: `lib/infraestructura/consistencia-parte-servidor.ts` (adaptador: arma `RespuestasConsistencia` por afectación nueva con la situación común; `primerBloqueoParte`) + `route.ts` POST, después del bucle de validación por afectación y antes de la transacción; responde 400 `{ error, codigo }` con el primer bloqueo. Pruebas: `lib/infraestructura/consistencia-parte-servidor.test.ts` (RED: módulo inexistente) y 3 casos nuevos en `route.test.ts` ("consistencia servidor (T3)": evacuación+habitual → 400, "Otro" sin descripción → 400, sólo advertencia → 201; RED: 2 de 3 respondían 201). GREEN: `npx vitest run app/api/problematicas/parte` 9 archivos, 76 pasan; `npx vitest run lib/infraestructura/consistencia-parte lib/infraestructura/consistencia-parte-servidor` 41 pasan; `npx tsc --noEmit -p .` sin errores; `npx eslint` sobre los 4 archivos limpio.
 
 - T4 (parcial, T4a completo; T4b pendiente de CSS): `afectacion-campos.tsx` (`CamposAQuienAfecta` recomienda al pasar a "toda" si la sugerida por alcance supera la elegida; "Cambiar a X" aplica, Crítica exige justificación en el mismo sheet; "Mantener Y" conserva; `motivos` nuevo prop) y `reporte-inicial-form.tsx` (pasa `motivos`). `campo-gravedad.tsx` añade `opcion--sugerido` a la sugerida. RED: 4 casos de drawer + 1 de clase fallaban antes de implementar. GREEN: `npx vitest run components/infraestructura` 42 archivos, 459 pasan, 18 omitidos (un caso de `reporte-inicial-form.test.tsx` ajustado: descarta el aviso con "Mantener Alta" antes de continuar). `npx tsc --noEmit -p .` sin errores. `npx eslint` sobre los 6 archivos limpio. PENDIENTE: estilo visual de `.opcion--sugerido` en `app/globals.css` (fuera de las superficies permitidas); T4 sigue sin marcar hasta aplicarlo.
+
+- T5: `reporte-inicial-form.tsx` monta `SelectorFotosFormulario` siempre, oculto (`hidden`) fuera del paso 1, justo después de `CamposQuePaso`; nota Crítica (`aviso-badge`, "Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.") encima del selector cuando `severidad === 'Crítica'`; paso 5 muestra "Fotos adjuntas: N" vía `armarResumen` (`reporte-inicial-resumen.ts`, prop `fotosAdjuntas` alimentada por `onCountChange`). Fotos siguen opcionales; borrador/cola offline sin cambios (las fotos se vinculan tras el envío, como antes). RED: 4 casos nuevos fallaban (selector en paso 1, Confirmar con conteo, Crítica, resumen). GREEN: `npx vitest run components/infraestructura` 42 archivos, 464 pasan, 18 omitidos; `npx tsc --noEmit -p .` sin errores; `npx eslint` sobre los 4 archivos limpio.
 
 ## Next step
 T4 (falta el estilo de `.opcion--sugerido` en `app/globals.css`); T6 (server check for active state) can start from `primerBloqueoParte` and `evaluarConsistenciaParte`.
