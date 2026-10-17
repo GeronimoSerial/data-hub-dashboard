@@ -82,6 +82,12 @@ const ESTACIONES = [
   },
 ]
 
+function capaPorId(id: string): { id: string; beforeId?: string; minzoom?: number; layout: Record<string, unknown>; paint: Record<string, unknown> } {
+  const capa = screen.getAllByTestId('layer').map((nodo) => JSON.parse(nodo.dataset.props ?? '{}')).find((c) => c.id === id)
+  if (!capa) throw new Error(`sin capa ${id}`)
+  return capa
+}
+
 function ultimaCapa(): { id: string; beforeId?: string; layout: Record<string, unknown>; paint: Record<string, unknown> } {
   const nodos = screen.getAllByTestId('layer')
   return JSON.parse(nodos[nodos.length - 1].dataset.props ?? '{}')
@@ -116,14 +122,14 @@ describe('CapaEstacionesRio', () => {
       estacionId: 'rosario',
       estado: 'evacuacion',
       insignia: 'estacion-pastilla-evacuacion',
-      punto: 'estacion-punto-evacuacion',
-      altura: '4,12 m',
-      flecha: '↑ ',
+      marcador: 'estacion-marcador-evacuacion',
+      texto: '↑ 4,12 m',
     })
     expect(data.features[1].properties).toMatchObject({
       estacionId: 'corrientes',
       insignia: 'estacion-pastilla-sin-dato',
-      altura: '',
+      marcador: 'estacion-marcador-sin-dato',
+      texto: 's/d',
     })
     expect(registrarSimbolosEstacion).toHaveBeenCalledWith(expect.anything())
   })
@@ -139,20 +145,26 @@ describe('CapaEstacionesRio', () => {
   it('usa una capa symbol con beforeId y solapamiento de iconos permitido', async () => {
     render(<CapaEstacionesRio visible beforeId="labels" />)
 
-    await screen.findByTestId('layer')
-    const capa = ultimaCapa()
-    expect(capa.id).toBe('estaciones-rio-simbolos')
-    expect(capa.beforeId).toBe('labels')
-    expect(capa.layout['icon-allow-overlap']).toBe(true)
-    expect(capa.layout['icon-text-fit']).toBe('both')
-    expect(JSON.stringify(capa.layout['icon-image'])).toContain('"insignia"')
+    await screen.findAllByTestId('layer')
+    const marcador = ultimaCapa()
+    expect(marcador.id).toBe('estaciones-rio-simbolos')
+    expect(marcador.beforeId).toBe('labels')
+    expect(marcador.layout['icon-allow-overlap']).toBe(true)
+    expect(marcador.layout['icon-anchor']).toBe('bottom')
+    expect(marcador.layout['icon-image']).toEqual(['get', 'marcador'])
+    const pastilla = capaPorId('estaciones-rio-pastillas')
+    expect(pastilla.beforeId).toBe('labels')
+    expect(pastilla.minzoom).toBeUndefined()
+    expect(pastilla.layout['icon-text-fit']).toBe('both')
+    expect(pastilla.layout['icon-image']).toEqual(['get', 'insignia'])
+    expect(pastilla.layout['text-field']).toEqual(['get', 'texto'])
   })
 
   it('pide la fuente Noto Sans que sirve el basemap (no el Open Sans por defecto de MapLibre)', async () => {
     render(<CapaEstacionesRio visible />)
 
-    await screen.findByTestId('layer')
-    expect(ultimaCapa().layout['text-font']).toEqual(['Noto Sans Regular'])
+    await screen.findAllByTestId('layer')
+    expect(capaPorId('estaciones-rio-pastillas').layout['text-font']).toEqual(['Noto Sans Bold'])
   })
 
   it('sin beforeId mantiene las estaciones por encima de capas agregadas después (clusters de escuelas)', async () => {
@@ -169,7 +181,7 @@ describe('CapaEstacionesRio', () => {
     Object.assign(mapa, extra)
     try {
       render(<CapaEstacionesRio visible />)
-      await screen.findByTestId('layer')
+      await screen.findAllByTestId('layer')
       expect(ultimaCapa().beforeId).toBeUndefined()
 
       act(() => mapa.emitir('styledata', '', {}))

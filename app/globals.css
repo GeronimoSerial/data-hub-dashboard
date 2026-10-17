@@ -6880,6 +6880,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 @media (max-width: 720px) { .map-zoom-provincia span { display: none; } }
 
 /* River station chip in the legend: mirrors the map chip (T5). */
+.map-estacion-leyenda {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .map-pastilla-estacion {
   display: inline-flex;
   align-items: center;

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
-import { ESTILO_PASTILLA_ESTACION, idPastillaEstacion, idPuntoEstacion, registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
+import { ESTILO_PASTILLA_ESTACION, idMarcadorEstacion, idPastillaEstacion, registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
 import { PALETA_ESTADO_ALTURA } from '@/lib/mapas/paleta-tonal'
 import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
 import { textoActualizado, textoAlturaRio } from '@/lib/infraestructura/presentacion/textos-dato'
@@ -38,14 +38,13 @@ type EstacionRio = {
 type PuntoEstacion = {
   type: 'Feature'
   geometry: { type: 'Point'; coordinates: [number, number] }
-  properties: { estacionId: string; nombre: string; estado: EstadoAltura; insignia: string; punto: string; altura: string; flecha: string }
+  properties: { estacionId: string; nombre: string; estado: EstadoAltura; insignia: string; marcador: string; texto: string }
 }
 
 export const CAPA_ESTACIONES_RIO_ID = 'estaciones-rio-simbolos'
 const ID_CAPA = CAPA_ESTACIONES_RIO_ID
+const ID_CAPA_PASTILLA = 'estaciones-rio-pastillas'
 const ID_FUENTE = 'estaciones-rio-src'
-// Zoom from which a station shows its level chip instead of a dot.
-export const ZOOM_PASTILLA_ESTACION = 8
 const FLECHA_TENDENCIA: Record<Tendencia, string> = { crece: '↑ ', baja: '↓ ', estable: '', sin_dato: '' }
 
 export const COLOR_ESTADO_ALTURA: Record<EstadoAltura, string> = PALETA_ESTADO_ALTURA
@@ -110,9 +109,11 @@ function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; featu
         nombre: estacion.nombre,
         estado: estacion.estado,
         insignia: idPastillaEstacion(estacion.estado),
-        punto: idPuntoEstacion(estacion.estado),
-        altura: estacion.lectura ? formatoMetros(estacion.lectura.lecturaM) : '',
-        flecha: FLECHA_TENDENCIA[estacion.tendencia],
+        marcador: idMarcadorEstacion(estacion.estado),
+        // Sin dato still shows the last known level when the source has one.
+        texto: estacion.lectura
+          ? `${FLECHA_TENDENCIA[estacion.tendencia]}${formatoMetros(estacion.lectura.lecturaM)}`
+          : 's/d',
       },
     })),
   }
@@ -171,7 +172,9 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
     const alTope = () => {
       const capas = mapaGl.getStyle?.()?.layers
       if (!capas?.length || !mapaGl.getLayer?.(ID_CAPA)) return
-      if (capas[capas.length - 1].id !== ID_CAPA) mapaGl.moveLayer(ID_CAPA)
+      if (capas[capas.length - 1].id === ID_CAPA) return
+      if (mapaGl.getLayer?.(ID_CAPA_PASTILLA)) mapaGl.moveLayer(ID_CAPA_PASTILLA)
+      mapaGl.moveLayer(ID_CAPA)
     }
     alTope()
     mapaGl.on('styledata', alTope)
@@ -200,13 +203,17 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
       const id = idDe(evento)
       if (id) setSeleccionada(id)
     }
-    mapa.on('mouseenter', ID_CAPA, alEntrar)
-    mapa.on('mouseleave', ID_CAPA, alSalir)
-    mapa.on('click', ID_CAPA, alHacerClic)
+    for (const id of [ID_CAPA, ID_CAPA_PASTILLA]) {
+      mapa.on('mouseenter', id, alEntrar)
+      mapa.on('mouseleave', id, alSalir)
+      mapa.on('click', id, alHacerClic)
+    }
     return () => {
-      mapa.off('mouseenter', ID_CAPA, alEntrar)
-      mapa.off('mouseleave', ID_CAPA, alSalir)
-      mapa.off('click', ID_CAPA, alHacerClic)
+      for (const id of [ID_CAPA, ID_CAPA_PASTILLA]) {
+        mapa.off('mouseenter', id, alEntrar)
+        mapa.off('mouseleave', id, alSalir)
+        mapa.off('click', id, alHacerClic)
+      }
     }
   }, [mapa, listo])
 
@@ -225,31 +232,23 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
       {listo && (
         <Source id={ID_FUENTE} type="geojson" data={datos}>
           <Layer
-            id={ID_CAPA}
+            id={ID_CAPA_PASTILLA}
             type="symbol"
             beforeId={beforeId}
             layout={{
-              // Dot at province zoom; level chip (state colour + level) closer in.
-              // Stations without data stay a faint dot at every zoom.
-              'icon-image': [
-                'step', ['zoom'], ['get', 'punto'],
-                ZOOM_PASTILLA_ESTACION, ['case', ['==', ['get', 'estado'], 'sin_dato'], ['get', 'punto'], ['get', 'insignia']],
-              ],
+              // Level chip beside the pin at every zoom (user: level must read zoomed out too).
+              'icon-image': ['get', 'insignia'],
               'icon-text-fit': 'both',
               'icon-text-fit-padding': [3, 7, 3, 7],
-              'icon-size': 1,
               'icon-allow-overlap': true,
-              'icon-ignore-placement': false,
-              'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
-              'text-field': [
-                'step', ['zoom'], '',
-                ZOOM_PASTILLA_ESTACION, ['case', ['==', ['get', 'estado'], 'sin_dato'], '', ['concat', ['get', 'flecha'], ['get', 'altura']]],
-              ],
-              'text-size': 11,
+              'text-field': ['get', 'texto'],
+              'text-size': ['interpolate', ['linear'], ['zoom'], 6, 10, 9, 11],
               // MapLibre defaults to Open Sans, which the OpenFreeMap glyph server does not serve.
-              'text-font': ['Noto Sans Regular'],
-              'text-anchor': 'center',
+              'text-font': ['Noto Sans Bold'],
+              'text-anchor': 'left',
+              'text-offset': [1.4, -1.45],
               'text-allow-overlap': true,
+              'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
             }}
             paint={{
               'text-color': ['match', ['get', 'estado'],
@@ -257,7 +256,20 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
                 'alerta', ESTILO_PASTILLA_ESTACION.alerta.texto,
                 'normal', ESTILO_PASTILLA_ESTACION.normal.texto,
                 ESTILO_PASTILLA_ESTACION.sin_dato.texto],
-              'icon-opacity': ['case', ['==', ['get', 'estado'], 'sin_dato'], 0.75, 1],
+            }}
+          />
+          <Layer
+            id={ID_CAPA}
+            type="symbol"
+            beforeId={beforeId}
+            layout={{
+              // State-coloured pin with a river glyph, at every zoom and for sin dato too.
+              'icon-image': ['get', 'marcador'],
+              'icon-anchor': 'bottom',
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 6, 0.85, 9, 1],
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
             }}
           />
         </Source>

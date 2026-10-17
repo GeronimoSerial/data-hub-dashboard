@@ -82,8 +82,10 @@ describe('LeyendaMapa · altura de ríos', () => {
     expect(leyenda.getByText('Alerta')).toBeTruthy()
     expect(leyenda.getByText('Normal')).toBeTruthy()
     expect(leyenda.getByText('Sin dato')).toBeTruthy()
-    expect(container.querySelectorAll('.map-pastilla-estacion')).toHaveLength(3)
-    expect(container.querySelectorAll('.map-insignia')).toHaveLength(1)
+    expect(container.querySelectorAll('.map-pastilla-estacion')).toHaveLength(4)
+    expect(container.querySelectorAll('.map-estacion-leyenda .map-insignia')).toHaveLength(4)
+    expect(leyenda.getAllByText('3,00 m')).toHaveLength(3)
+    expect(leyenda.getByText('s/d')).toBeTruthy()
     expect(leyenda.getAllByRole('note').some((nota) => nota.getAttribute('title') === 'Sin dato también cuando la última lectura tiene más de 18 h.')).toBe(true)
   })
 

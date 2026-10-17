@@ -123,7 +123,7 @@ function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObs
             <ul className="map-leyenda__situacion">
               {ESTADOS_ALTURA_RIO.map(({ estado, etiqueta }) => (
                 <li className="map-leyenda__elemento" key={estado}>
-                  <PastillaEstacionLeyenda estado={estado} texto="m" />
+                  <PastillaEstacionLeyenda estado={estado} texto={estado === 'sin_dato' ? 's/d' : '3,00 m'} />
                   <span>{etiqueta}</span>
                 </li>
               ))}

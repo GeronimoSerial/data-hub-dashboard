@@ -235,23 +235,25 @@ export function InsigniaLeyenda({ id, tamano = 24 }: { id: IdInsignia; tamano?: 
   return <IconoMapaLeyenda svg={svgInsignia({ ...opciones, tamano })} />;
 }
 
-// ── River station level chips ─────────────────────────────────────────────
-// A station reads as a compact chip: the state colour is the chip itself and
-// the river level is the text inside (MapLibre `icon-text-fit`). At low zoom
-// the same colour shows as a small dot. "Sin dato" is always a faint dot.
+// ── River station markers and level chips ────────────────────────────────
+// Every station is a pin with a river glyph, coloured by state (sin dato is a
+// solid slate pin, never faint), so it is recognisable at any zoom, with a
+// level chip beside it (`icon-text-fit`).
 
 export type EstadoEstacion = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato';
 
-export const ESTILO_PASTILLA_ESTACION: Record<EstadoEstacion, { fondo: string; borde: string; texto: string }> = {
-  evacuacion: { fondo: PALETA_ESTADO_ALTURA.evacuacion, borde: '#ffffff', texto: '#ffffff' },
-  alerta: { fondo: PALETA_ESTADO_ALTURA.alerta, borde: '#ffffff', texto: '#1c1c1c' },
-  normal: { fondo: '#ffffff', borde: PALETA_ESTADO_ALTURA.normal, texto: '#14532d' },
-  sin_dato: { fondo: '#ffffff', borde: PALETA_ESTADO_ALTURA.sin_dato, texto: '#4b5563' },
+const PIN_SIN_DATO = '#64748b';
+
+export const ESTILO_PASTILLA_ESTACION: Record<EstadoEstacion, { fondo: string; borde: string; texto: string; pin: string; glifo: string }> = {
+  evacuacion: { fondo: PALETA_ESTADO_ALTURA.evacuacion, borde: '#ffffff', texto: '#ffffff', pin: PALETA_ESTADO_ALTURA.evacuacion, glifo: '#ffffff' },
+  alerta: { fondo: PALETA_ESTADO_ALTURA.alerta, borde: '#ffffff', texto: '#1c1c1c', pin: PALETA_ESTADO_ALTURA.alerta, glifo: '#1c1c1c' },
+  normal: { fondo: '#ffffff', borde: PALETA_ESTADO_ALTURA.normal, texto: '#14532d', pin: PALETA_ESTADO_ALTURA.normal, glifo: '#ffffff' },
+  sin_dato: { fondo: '#ffffff', borde: PIN_SIN_DATO, texto: '#334155', pin: PIN_SIN_DATO, glifo: '#ffffff' },
 };
 
 const sufijoEstado = (estado: EstadoEstacion) => (estado === 'sin_dato' ? 'sin-dato' : estado);
 export const idPastillaEstacion = (estado: EstadoEstacion) => `estacion-pastilla-${sufijoEstado(estado)}`;
-export const idPuntoEstacion = (estado: EstadoEstacion) => `estacion-punto-${sufijoEstado(estado)}`;
+export const idMarcadorEstacion = (estado: EstadoEstacion) => `estacion-marcador-${sufijoEstado(estado)}`;
 
 /** 9-slice pill (2x pixels: 64x40), stretched around the label with `icon-text-fit`. */
 export function svgPastillaEstacion(estado: EstadoEstacion): string {
@@ -264,14 +266,17 @@ export function svgPastillaEstacion(estado: EstadoEstacion): string {
   );
 }
 
-/** Small state dot (2x pixels) used at low zoom and for stations without data. */
-export function svgPuntoEstacion(estado: EstadoEstacion): string {
-  const { fondo, borde } = ESTILO_PASTILLA_ESTACION[estado];
-  const relleno = estado === 'normal' || estado === 'sin_dato' ? borde : fondo;
-  const r = estado === 'sin_dato' ? 6 : 8;
+const PATH_PIN = 'M14 2C7.4 2 2 7.3 2 13.8c0 8.2 10 17.6 11.1 18.6a1.3 1.3 0 0 0 1.8 0C16 31.4 26 22 26 13.8 26 7.3 20.6 2 14 2z';
+
+/** Station pin, 24x30 CSS px (emitted at `escala`x), anchored at its tip. */
+export function svgMarcadorEstacion(estado: EstadoEstacion, escala = 2): string {
+  const { pin, glifo } = ESTILO_PASTILLA_ESTACION[estado];
   return (
-    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
-    `<circle cx="12" cy="12" r="${r + 2.5}" fill="#ffffff"/><circle cx="12" cy="12" r="${r}" fill="${relleno}"/>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${24 * escala}" height="${30 * escala}" viewBox="0 0 28 35">` +
+    '<ellipse cx="14" cy="33" rx="5" ry="1.6" fill="rgba(0,0,0,0.22)"/>' +
+    `<path d="${PATH_PIN}" fill="#ffffff" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round"/>` +
+    `<path d="${PATH_PIN}" fill="${pin}" stroke="rgba(0,0,0,0.18)" stroke-width="0.75"/>` +
+    `<svg x="7" y="6.8" width="14" height="14" viewBox="0 0 ${TAMANO_ICONO} ${TAMANO_ICONO}">${markupGlifo(Waves, glifo)}</svg>` +
     '</svg>'
   );
 }
@@ -288,7 +293,7 @@ const ESTADOS_ESTACION: EstadoEstacion[] = ['evacuacion', 'alerta', 'normal', 's
 
 /** Registers station chips (stretchable) and dots. Never throws. */
 export async function registrarSimbolosEstacion(map: MapaImagenesEstirables): Promise<void> {
-  await registrarImagenesSvg(map, ESTADOS_ESTACION.map((estado) => ({ id: idPuntoEstacion(estado), svg: svgPuntoEstacion(estado) })));
+  await registrarImagenesSvg(map, ESTADOS_ESTACION.map((estado) => ({ id: idMarcadorEstacion(estado), svg: svgMarcadorEstacion(estado) })));
   await Promise.all(
     ESTADOS_ESTACION.map(async (estado) => {
       const id = idPastillaEstacion(estado);
@@ -303,19 +308,21 @@ export async function registrarSimbolosEstacion(map: MapaImagenesEstirables): Pr
           content: [14, 5, 50, 33],
         });
       } catch {
-        // Skip the chip; the dot still marks the station.
+        // Skip the chip; the pin still marks the station.
       }
     }),
   );
 }
 
-/** Legend chip with the same colours as the map chip. */
+/** Legend sample: the station pin plus a level chip with the map colours. */
 export function PastillaEstacionLeyenda({ estado, texto }: { estado: EstadoEstacion; texto: string }) {
   const { fondo, borde, texto: color } = ESTILO_PASTILLA_ESTACION[estado];
-  if (estado === 'sin_dato') return <IconoMapaLeyenda svg={svgPuntoEstacion(estado).replace('width="24" height="24"', 'width="14" height="14"')} />;
   return (
-    <span className="map-pastilla-estacion" aria-hidden="true" style={{ background: fondo, borderColor: borde, color }}>
-      {texto}
+    <span className="map-estacion-leyenda" aria-hidden="true">
+      <IconoMapaLeyenda svg={svgMarcadorEstacion(estado, 0.6)} />
+      <span className="map-pastilla-estacion" style={{ background: fondo, borderColor: borde, color }}>
+        {texto}
+      </span>
     </span>
   );
 }
