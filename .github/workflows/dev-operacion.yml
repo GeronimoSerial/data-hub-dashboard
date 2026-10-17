@@ -38,7 +38,7 @@ jobs:
             try:
               with urllib.request.urlopen(req,timeout=45) as r: return json.load(r)
             except urllib.error.HTTPError as error:
-              if path=='/applications/dockerfile':
+              if path=='/applications/dockerfile' or (data and set(data)=={'dockerfile'}):
                 print('Dockerfile validation',error.read().decode()[:1000])
               raise
           op=os.environ['OPERACION']
