@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  allowedDevOrigins: process.env.ALLOWED_DEV_ORIGINS?.split(',') ?? [],
   serverExternalPackages: ['@libsql/client', 'libsql', '@electric-sql/pglite'],
   async rewrites() {
     const html = [
