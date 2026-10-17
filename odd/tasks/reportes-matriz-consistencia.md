@@ -52,7 +52,7 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 - [x] T1 Rules module `lib/infraestructura/consistencia-parte.ts` + unit tests (blocked/warning/allowed tables, description required for Otro).
 - [x] T2 Wire rules into wizard steps 1–3: disabled options with reason, inline warnings, mandatory description for Otro, scope copy.
 - [x] T3 Server validation in `app/api/problematicas/parte/route.ts` using the same module (400 on blocked).
-- [ ] T4 Severity drawer on scope "toda" + stronger visual for suggested option.
+- [x] T4 Severity drawer on scope "toda" + stronger visual for suggested option.
 - [ ] T5 Move photo selector to step 1 + Crítica emphasis.
 - [ ] T6 Active state: preload in wizard, contradiction resolution, server check.
 
@@ -69,3 +69,4 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 
 ## Next step
 T4 (falta el estilo de `.opcion--sugerido` en `app/globals.css`); T6 (server check for active state) can start from `primerBloqueoParte` and `evaluarConsistenciaParte`.
+- T4b: CSS rule for `.opcion--sugerido` added to app/globals.css by parent.
