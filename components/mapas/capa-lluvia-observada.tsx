@@ -321,7 +321,7 @@ function TarjetaLluvia({
         <LogoNasa size={26} />
         <div>
           <p className="tarjeta-lluvia__fuente-nombre">NASA IMERG</p>
-          <p className="tarjeta-estacion__sub">Medido desde satélites</p>
+          <p className="tarjeta-estacion__sub">Constelación de satélites NASA · JAXA</p>
         </div>
       </div>
     </div>
