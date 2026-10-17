@@ -11,7 +11,7 @@ import { EntradaActualizar } from '@/components/infraestructura/actualizar/entra
 import { RevisarSituacion } from '@/components/infraestructura/actualizar/revisar-situacion'
 import { AlgoNuevo } from '@/components/infraestructura/actualizar/algo-nuevo'
 import { MENSAJE_ACCESO_VENCIDO, MENSAJE_ERROR_LECTURA, MENSAJE_SIN_CORTE, MENSAJE_SIN_SITUACION, type EstadoActualRespuesta } from '@/components/infraestructura/estado-actual-textos'
-import { formatearMomento, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
+import { ETIQUETA_CLASES, ETIQUETA_ESTABLECIMIENTO, formatearMomento, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from '@/components/infraestructura/verificacion-vinculo'
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
@@ -20,6 +20,8 @@ import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } f
 import { claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
 import { alcanceDe, mensajesDeBloqueo, respuestasDeSituacion } from '@/components/infraestructura/actualizar/consistencia-actualizacion'
 import { evaluarCambioAHabitual } from '@/lib/infraestructura/consistencia-estado-activo'
+import { bloqueoOpcion } from '@/lib/infraestructura/consistencia-parte'
+import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
@@ -522,7 +524,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     const payload: PayloadActualizacion = {
       cue,
       rigeDesde: new Date().toISOString(),
-      ...construirEnvio(situaciones, recorrido),
+      ...construirEnvio(situaciones, recorridoEnvio),
       ...(asistenciaCambiada && asistenciaSeleccionada ? { asistenciaPedagogica: asistenciaSeleccionada } : {}),
     }
     let exito = false
@@ -600,9 +602,30 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const actual = actualOrdenada ? situaciones.find((situacion) => situacion.id === actualOrdenada.id) ?? null : null
   const estadoEstablecimiento = datos.parte?.estadoEstablecimiento ?? 'habitual'
   const estadoServicio = datos.servicio?.estadoGeneral ?? 'normal'
-  const clasesEdificio = recorrido.clasesEdificio ?? { servicioEstado: estadoServicio === 'suspendido' ? 'suspendido' as const : 'normal' as const, estadoEstablecimiento, confirmarInterrupcionTotal: false }
+  // Sin afectaciones activas que queden, un edificio o servicio fuera de lo normal
+  // se restablece: la propuesta por defecto es habitual con clases normales.
+  const todasCerradas = situaciones.every((situacion) => recorrido.respuestas[situacion.id]?.tipo === 'solucionada')
+  const restablecer = todasCerradas && (estadoEstablecimiento !== 'habitual' || estadoServicio !== 'normal')
+  const clasesActuales = { servicioEstado: estadoServicio === 'suspendido' ? 'suspendido' as const : 'normal' as const, estadoEstablecimiento, confirmarInterrupcionTotal: false }
+  const clasesEdificio = recorrido.clasesEdificio ?? (restablecer
+    ? { servicioEstado: 'normal' as const, estadoEstablecimiento: 'habitual' as const, confirmarInterrupcionTotal: false }
+    : clasesActuales)
+  // Lo que se envía: si la propuesta de restablecer no se tocó, también viaja.
+  const recorridoEnvio = restablecer && recorrido.clasesEdificio === null ? { ...recorrido, clasesEdificio } : recorrido
   const seccionesEscuela = turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones.map((seccion) => seccion.geSectionId)))
   const motivoIdDe = (nombre: string): string | null => motivos.find((motivo) => motivo.nombre === nombre)?.id ?? null
+  // Cada afectación activa que siguiera como está bloquea habitual si su motivo lo impide.
+  const bloqueosHabitualPorAfectacion = Object.fromEntries(situaciones.flatMap((situacion) => {
+    const regla = bloqueoOpcion(respuestasDeSituacion({
+      categoria: situacion.categoria,
+      motivoId: motivoIdDe(situacion.motivo),
+      severidad: situacion.severidad,
+      alcance: null,
+      clases: null,
+      edificio: null,
+    }), 'edificio', 'habitual')
+    return regla ? [[situacion.id, regla.mensaje] as const] : []
+  }))
   const afectacionesActivas = situaciones.map((situacion) => ({ id: situacion.id, motivo: situacion.motivo }))
   const idsCon = (tipo: 'solucionada' | 'sigue'): string[] => situaciones.filter((situacion) => recorrido.respuestas[situacion.id]?.tipo === tipo).map((situacion) => situacion.id)
   const habitual = evaluarCambioAHabitual({
@@ -777,6 +800,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             afectacionesActivas={afectacionesActivas}
             onDecidirAfectacionesHabitual={decidirAfectacionesHabitual}
             habitual={habitual}
+            bloqueosHabitualPorAfectacion={bloqueosHabitualPorAfectacion}
           />
           <div className="asistente__acciones">
             <Button
@@ -795,6 +819,25 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         </section>
       ) : null}
 
+      {etapa === 'nuevo' && restablecer ? (
+        <section className="revisar-situacion" aria-label="Restablecer el funcionamiento">
+          <h3>Restablecer el funcionamiento</h3>
+          <p className="recorrido-actualizacion__descripcion">Ya no quedan afectaciones activas. Confirme si el edificio y las clases vuelven a la normalidad.</p>
+          <CamposClasesEdificio
+            valor={clasesEdificio}
+            onCambiar={({ servicioEstado, estadoEstablecimiento }) => {
+              if (servicioEstado === '' || estadoEstablecimiento === '') return
+              setRecorrido((r) => ({
+                ...r,
+                clasesEdificio: { servicioEstado, estadoEstablecimiento, confirmarInterrupcionTotal: false },
+              }))
+            }}
+            alcanceParcial={false}
+            onInterrumpirTodaLaEscuela={() => undefined}
+            estadoActual={estadoEstablecimiento}
+          />
+        </section>
+      ) : null}
       {etapa === 'nuevo' ? (
         <>
           <AlgoNuevo
@@ -836,7 +879,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 
       {etapa === 'resumen' ? (
         <ResumenEnvio
-          lineasResumen={lineasResumen}
+          lineasResumen={restablecer ? [...lineasResumen, { titulo: 'Edificio y clases', filas: [{ etiqueta: 'Edificio', valor: ETIQUETA_ESTABLECIMIENTO[clasesEdificio.estadoEstablecimiento] }, { etiqueta: 'Clases', valor: ETIQUETA_CLASES[clasesEdificio.servicioEstado] }] }] : lineasResumen}
           asistenciaVigente={asistenciaVigente.brinda ? 'Sí' : 'No'}
           asistenciaPedagogica={asistenciaPedagogica}
           enviando={enviando}

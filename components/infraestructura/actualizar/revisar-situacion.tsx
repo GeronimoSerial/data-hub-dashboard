@@ -46,6 +46,8 @@ export interface RevisarSituacionProps {
   onDecidirAfectacionesHabitual?: (decisiones: Record<string, 'solucionada' | 'sigue'>) => void
   /** Bloqueos y advertencias del cambio a habitual, calculados con las respuestas ya guardadas. */
   habitual?: ResultadoCambioAHabitual
+  /** Por afectación activa, el bloqueo de habitual si sigue activa (ver CamposClasesEdificio). */
+  bloqueosHabitualPorAfectacion?: Record<string, string>
 }
 
 function seccionesDe(turnos: TurnoContexto[]): number[] {
@@ -226,7 +228,13 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
           {aspectos.includes('clases-edificio') && (
             <div id="revisar-situacion-clases" className="revisar-situacion__bloque" tabIndex={-1}>
               <div className="revisar-situacion__preguntas-edificio">
-                <CamposClasesEdificio valor={clases} onCambiar={(valor) => { setClases(valor); guardarCambio(aspectos, gravedad, alcance, valor) }} alcanceParcial={alcance.alcanceEstablecimiento !== 'toda'} onInterrumpirTodaLaEscuela={() => { setInterrumpeTodo(true); guardarCambio(aspectos, gravedad, alcance, clases, true) }} respuestas={respuestasCambio} estadoActual={p.estadoActual} afectacionesActivas={p.afectacionesActivas} onConfirmarHabitual={p.onDecidirAfectacionesHabitual} bloqueos={p.habitual?.bloqueos} advertencias={p.habitual?.advertencias} />
+                <CamposClasesEdificio valor={clases} onCambiar={(valor) => {
+                  setClases(valor)
+                  // Una afectación ya cerrada en esta actualización (hoja de salida de
+                  // evacuación) conserva su cierre: el cambio de clases es sólo del edificio.
+                  if (p.respuesta?.tipo === 'solucionada') p.onCambiarClasesEdificio({ ...valor, confirmarInterrupcionTotal: interrumpeTodo })
+                  else guardarCambio(aspectos, gravedad, alcance, valor)
+                }} alcanceParcial={alcance.alcanceEstablecimiento !== 'toda'} onInterrumpirTodaLaEscuela={() => { setInterrumpeTodo(true); guardarCambio(aspectos, gravedad, alcance, clases, true) }} respuestas={respuestasCambio} estadoActual={p.estadoActual} afectacionesActivas={p.afectacionesActivas} onConfirmarHabitual={p.onDecidirAfectacionesHabitual} bloqueos={p.habitual?.bloqueos} advertencias={p.habitual?.advertencias} bloqueosHabitualPorAfectacion={p.bloqueosHabitualPorAfectacion} />
               </div>
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-clases' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>

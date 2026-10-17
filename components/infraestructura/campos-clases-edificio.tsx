@@ -51,6 +51,7 @@ export function CamposClasesEdificio({
   afectacionesActivas = [],
   onConfirmarHabitual,
   bloqueos = [],
+  bloqueosHabitualPorAfectacion = {},
 }: {
   valor: ValorClasesEdificio
   onCambiar: (valor: ValorClasesEdificio) => void
@@ -68,15 +69,25 @@ export function CamposClasesEdificio({
   onConfirmarHabitual?: (decisiones: Record<string, 'solucionada' | 'sigue'>) => void
   /** Bloqueos del cambio a habitual; cada uno se muestra bajo su grupo. */
   bloqueos?: Regla[]
+  /**
+   * Por afectación activa, el motivo por el que no puede figurar como habitual
+   * si sigue activa. Una afectación que se cierra en esta actualización no bloquea.
+   */
+  bloqueosHabitualPorAfectacion?: Record<string, string>
 }): JSX.Element {
   const [pendiente, setPendiente] = useState<EstadoEstablecimiento | null>(null)
   const [hojaHabitual, setHojaHabitual] = useState(false)
   const [decisiones, setDecisiones] = useState<Record<string, 'solucionada' | 'sigue'>>({})
   const evacuado = valor.estadoEstablecimiento === 'evacuado'
-  const motivosClases = evacuado ? [] : motivosDeBloqueo(['normal', 'suspendido'], (e) => bloqueoClases(respuestas, e))
-  const motivosEdificio = motivosDeBloqueo(Object.keys(ETIQUETA_ESTABLECIMIENTO), (e) => bloqueoEdificio(respuestas, e))
   const saleDeEvacuacion = estadoActual !== undefined && INTERRUMPE_TODO.includes(estadoActual)
+  // Al salir de una evacuación con afectaciones activas, el bloqueo de habitual
+  // lo decide la hoja: cada afectación se marca solucionada o sigue activa.
+  const habitualDecididoEnLaHoja = (estado: string) => estado === 'habitual' && saleDeEvacuacion && afectacionesActivas.length > 0
+  const bloqueoEdificioVigente = (estado: string) => (habitualDecididoEnLaHoja(estado) ? null : bloqueoEdificio(respuestas, estado))
+  const motivosClases = evacuado ? [] : motivosDeBloqueo(['normal', 'suspendido'], (e) => bloqueoClases(respuestas, e))
+  const motivosEdificio = motivosDeBloqueo(Object.keys(ETIQUETA_ESTABLECIMIENTO), bloqueoEdificioVigente)
   const decididas = afectacionesActivas.filter((afectacion) => decisiones[afectacion.id] !== undefined).length
+  const seguiraSinHabitual = afectacionesActivas.some((afectacion) => decisiones[afectacion.id] === 'sigue' && bloqueosHabitualPorAfectacion[afectacion.id])
   // Sólo se usan las advertencias: no dependen del servicio, que aquí no interesa.
   const avisosHabitual = evaluarCambioAHabitual({
     estadoActual: estadoActual ?? null,
@@ -94,8 +105,8 @@ export function CamposClasesEdificio({
   }
 
   function elegirEdificio(estado: EstadoEstablecimiento) {
-    if (bloqueoEdificio(respuestas, estado) !== null) return
-    if (estado === 'habitual' && saleDeEvacuacion && afectacionesActivas.length > 0) {
+    if (bloqueoEdificioVigente(estado) !== null) return
+    if (habitualDecididoEnLaHoja(estado)) {
       setDecisiones({})
       setHojaHabitual(true)
       return
@@ -152,7 +163,7 @@ export function CamposClasesEdificio({
                 value={estado}
                 checked={valor.estadoEstablecimiento === estado}
                 onChange={() => elegirEdificio(estado)}
-                disabled={disabled || bloqueoEdificio(respuestas, estado) !== null}
+                disabled={disabled || bloqueoEdificioVigente(estado) !== null}
                 label={ETIQUETA_ESTABLECIMIENTO[estado]}
                 compacta
               />
@@ -171,7 +182,7 @@ export function CamposClasesEdificio({
         open={hojaHabitual}
         titulo="¿Qué pasó con las afectaciones activas?"
         confirmarLabel="Confirmar"
-        confirmarDeshabilitado={decididas < afectacionesActivas.length}
+        confirmarDeshabilitado={decididas < afectacionesActivas.length || seguiraSinHabitual}
         onCancelar={() => setHojaHabitual(false)}
         onConfirmar={() => {
           setHojaHabitual(false)
@@ -197,6 +208,9 @@ export function CamposClasesEdificio({
                 />
               ))}
             </div>
+            {decisiones[afectacion.id] === 'sigue' && bloqueosHabitualPorAfectacion[afectacion.id]
+              ? <p className="afectacion-campos__espera">{bloqueosHabitualPorAfectacion[afectacion.id]}</p>
+              : null}
           </fieldset>
         ))}
         <AvisosConsistencia reglas={avisosHabitual} campos={['edificio']} />

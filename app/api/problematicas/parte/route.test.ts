@@ -139,6 +139,9 @@ const CUE_T = '1801605-65'
 const CUE_U = '1801605-66'
 // CUE exclusivo de la contradicción evacuado → habitual con afectación activa (T6).
 const CUE_V = '1801605-67'
+// CUE exclusivos del cierre de la evacuación preventiva (T8).
+const CUE_W = '1801605-68'
+const CUE_X = '1801605-69'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -158,7 +161,7 @@ beforeAll(async () => {
   )
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
-    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U, CUE_V,
+    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U, CUE_V, CUE_W, CUE_X,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -986,6 +989,52 @@ describe('POST /api/problematicas/parte — cierre de borrador', () => {
     expect(await getDb().select().from(infraMovimiento).where(eq(infraMovimiento.idempotencyKey, idempotencyKey))).toHaveLength(0)
     const [draft] = await getDb().select().from(infraBorrador).where(eq(infraBorrador.id, draftId))
     expect(draft).toMatchObject({ estado: 'open', revision: 0, movimientoId: null })
+  })
+})
+
+describe('POST /api/problematicas/parte — cierre de la evacuación preventiva (T8)', () => {
+  // Cada prueba usa su propio CUE: la base de pruebas se comparte entre ellas.
+  async function evacuarConPreventiva(cue: string) {
+    const alta = await POST(postReq({
+      cue, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'evacuado' }, confirmarInterrupcionTotal: true,
+      servicioEducativo: { estado: 'suspendido', alcance: { tipo: 'establecimiento' } },
+      afectacionesNuevas: [{ motivo: 'Evacuación preventiva', severidad: 'Crítica', secciones: [seccionId(cue, '10')] }],
+    }))
+    expect(alta.status).toBe(201)
+    const [afectacion] = await getDb()
+      .select({ id: infraAfectacion.id })
+      .from(infraAfectacion)
+      .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
+      .where(and(eq(infraParte.cueAnexo, cue), isNull(infraAfectacion.retiradaEn)))
+      .limit(1)
+    expect(afectacion).toBeDefined()
+    return afectacion!.id
+  }
+
+  it('cerrar la evacuación en el mismo envío que pasa a habitual con servicio normal: 201', async () => {
+    const cue = CUE_W
+    const id = await evacuarConPreventiva(cue)
+    const res = await POST(postReq({
+      cue, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'habitual' },
+      servicioEducativo: { estado: 'normal', alcance: { tipo: 'establecimiento' } },
+      afectacionesSolucionadas: [{ id }],
+    }))
+    expect(res.status).toBe(201)
+    const [parte] = await getDb().select().from(infraParte).where(eq(infraParte.cueAnexo, cue)).limit(1)
+    expect(parte?.estadoEstablecimiento).toBe('habitual')
+  })
+
+  it('cerrar la evacuación sin devolver las clases a normal: 409 por servicio suspendido', async () => {
+    const id = await evacuarConPreventiva(CUE_X)
+    const res = await POST(postReq({
+      cue: CUE_X, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'habitual' },
+      afectacionesSolucionadas: [{ id }],
+    }))
+    expect(res.status).toBe(409)
+    expect((await res.json()).codigo).toBe('habitual-con-servicio-suspendido')
   })
 })
 

@@ -30,6 +30,7 @@ function Controlado({
   afectacionesActivas,
   onConfirmarHabitual,
   bloqueos,
+  bloqueosHabitualPorAfectacion,
 }: {
   alcanceParcial?: boolean
   onInterrumpir?: () => void
@@ -41,6 +42,7 @@ function Controlado({
   afectacionesActivas?: Array<{ id: string; motivo: string }>
   onConfirmarHabitual?: (decisiones: Record<string, 'solucionada' | 'sigue'>) => void
   bloqueos?: Regla[]
+  bloqueosHabitualPorAfectacion?: Record<string, string>
 }) {
   const [v, setV] = useState<ValorClasesEdificio>(inicial)
   return (
@@ -57,6 +59,7 @@ function Controlado({
         afectacionesActivas={afectacionesActivas}
         onConfirmarHabitual={onConfirmarHabitual}
         bloqueos={bloqueos}
+        bloqueosHabitualPorAfectacion={bloqueosHabitualPorAfectacion}
       />
       <output data-testid="v">{JSON.stringify(v)}</output>
     </>
@@ -182,5 +185,60 @@ describe('CamposClasesEdificio: salida de evacuación (T7)', () => {
     render(<Controlado inicial={{ servicioEstado: 'suspendido', estadoEstablecimiento: 'habitual' }} bloqueos={[{ codigo: 'habitual-con-servicio-suspendido', campo: 'clases', mensaje: 'El servicio sigue suspendido. Para figurar como habitual, indique que las clases vuelven a dictarse.' }]} />)
     expect(screen.getByText(/El servicio sigue suspendido/)).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Sí, con normalidad' })).toBeEnabled()
+  })
+})
+
+describe('CamposClasesEdificio: evacuación preventiva que se cierra en la misma actualización (T8)', () => {
+  const RESPUESTAS_EVACUACION: RespuestasConsistencia = {
+    ...SIN_RESPUESTAS,
+    motivoId: 'evacuacion-preventiva',
+    severidad: 'Crítica',
+    alcance: { tipo: 'toda' },
+  }
+  const EVACUADO = { servicioEstado: 'suspendido' as const, estadoEstablecimiento: 'evacuado' as const }
+  const EVACUACION = [{ id: 'e', motivo: 'Evacuación preventiva' }]
+  const MENSAJE_EVACUACION = 'Con una evacuación preventiva el edificio no puede figurar como habitual.'
+
+  it('Sin daños no queda deshabilitado y la hoja decide la evacuación', () => {
+    const onConfirmarHabitual = vi.fn()
+    render(
+      <Controlado
+        respuestas={RESPUESTAS_EVACUACION}
+        inicial={EVACUADO}
+        estadoActual="evacuado"
+        afectacionesActivas={EVACUACION}
+        onConfirmarHabitual={onConfirmarHabitual}
+        bloqueosHabitualPorAfectacion={{ e: MENSAJE_EVACUACION }}
+      />,
+    )
+    const sinDanos = screen.getByRole('radio', { name: 'Sin daños / en uso normal' })
+    expect(sinDanos).toBeEnabled()
+    fireEvent.click(sinDanos)
+    const sheet = screen.getByRole('dialog')
+    expect(within(sheet).getByRole('button', { name: 'Confirmar' })).toBeDisabled()
+    fireEvent.click(within(within(sheet).getByRole('group', { name: 'Evacuación preventiva' })).getByRole('radio', { name: 'Solucionada' }))
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Confirmar' }))
+    expect(onConfirmarHabitual).toHaveBeenCalledWith({ e: 'solucionada' })
+    expect(v().estadoEstablecimiento).toBe('habitual')
+  })
+
+  it('si la evacuación sigue activa, la hoja muestra el bloqueo y no deja confirmar', () => {
+    const onConfirmarHabitual = vi.fn()
+    render(
+      <Controlado
+        respuestas={RESPUESTAS_EVACUACION}
+        inicial={EVACUADO}
+        estadoActual="evacuado"
+        afectacionesActivas={EVACUACION}
+        onConfirmarHabitual={onConfirmarHabitual}
+        bloqueosHabitualPorAfectacion={{ e: MENSAJE_EVACUACION }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
+    const sheet = screen.getByRole('dialog')
+    fireEvent.click(within(within(sheet).getByRole('group', { name: 'Evacuación preventiva' })).getByRole('radio', { name: 'Sigue activa' }))
+    expect(within(sheet).getByText(MENSAJE_EVACUACION)).toBeInTheDocument()
+    expect(within(sheet).getByRole('button', { name: 'Confirmar' })).toBeDisabled()
+    expect(onConfirmarHabitual).not.toHaveBeenCalled()
   })
 })
