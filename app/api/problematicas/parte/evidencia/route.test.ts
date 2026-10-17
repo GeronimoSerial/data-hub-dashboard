@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { enabled, seeded, crear } = vi.hoisted(() => ({ enabled: vi.fn(), seeded: vi.fn(), crear: vi.fn() }))
+const { enabled, seeded, crear, resolver } = vi.hoisted(() => ({
+  enabled: vi.fn(),
+  seeded: vi.fn(),
+  crear: vi.fn(),
+  resolver: vi.fn(),
+}))
 
 vi.mock('@/lib/infraestructura/parte/feature-flags', () => ({
   getReportesOfflineFeatures: enabled,
@@ -9,6 +14,7 @@ vi.mock('@/lib/infraestructura/parte/feature-flags', () => ({
 vi.mock('@/lib/db/seed', () => ({ ensureSeeded: seeded }))
 vi.mock('@/lib/infraestructura/adjuntos/evidencia-fotografica', () => ({
   crearEvidenciaFotografica: crear,
+  resolverMovimientoBaseEvidencia: resolver,
   ErrorEvidenciaFotografica: class ErrorEvidenciaFotografica extends Error {
     status = 403
   },
@@ -36,7 +42,23 @@ describe('POST /api/problematicas/parte/evidencia', () => {
   beforeEach(() => {
     enabled.mockReset().mockReturnValue({ fotos: true })
     seeded.mockReset().mockResolvedValue(undefined)
+    resolver.mockReset().mockResolvedValue(null)
     crear.mockReset().mockResolvedValue({ movimientoId: 'movement-1', attachmentIds: [declaration.attachmentId], repetido: false })
+  })
+
+  it('resolves the base movement from the CUE when only the school is known', async () => {
+    resolver.mockResolvedValue('latest-movement')
+    const response = await POST(request({ cue: '1801605-00', idempotencyKey: 'evidence-key', fotos: [declaration] }))
+    expect(response.status).toBe(200)
+    expect(resolver).toHaveBeenCalledWith('1801605-00')
+    expect(crear).toHaveBeenCalledWith(expect.any(Request), expect.objectContaining({ movimientoBaseId: 'latest-movement' }))
+  })
+
+  it('answers sin_parte when the school has no report to attach photos to', async () => {
+    const response = await POST(request({ cue: '1801605-00', idempotencyKey: 'evidence-key', fotos: [declaration] }))
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({ code: 'sin_parte' })
+    expect(crear).not.toHaveBeenCalled()
   })
 
   it('returns the flag-off response without creating evidence', async () => {

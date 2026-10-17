@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type JSX } from 'react'
 import { ArrowUpRight, Camera, Plus, X } from 'lucide-react'
-import Link from 'next/link'
 import Image from 'next/image'
 import styles from './galeria-evidencia.module.css'
 import { CargaEvidencia } from './carga-evidencia'
@@ -32,15 +31,15 @@ function etiquetaMovimiento(type: string): string {
 
 export function GaleriaEvidencia({
   cue,
-  accionAdjuntar,
   movimientoBaseId,
+  urlCargarParte,
   className,
 }: {
   cue: string
-  /** Report form to open when the school has no report to attach photos to yet. */
-  accionAdjuntar?: string
-  /** Latest report movement; with it photos are attached right here. */
+  /** Latest report movement; when omitted the server resolves it from the CUE. */
   movimientoBaseId?: string | null
+  /** Report form, offered when the school has no report yet. */
+  urlCargarParte?: string
   className?: string
 }) {
   const [movements, setMovements] = useState<MovimientoEvidencia[] | null>(null)
@@ -90,8 +89,8 @@ export function GaleriaEvidencia({
   if (flag === 'pending') return null
   // Without the photo feature the section still shows, as an honest empty state.
   const lista = flag === 'off' ? [] : movements
-  const adjuntarAqui = flag === 'on' && Boolean(movimientoBaseId)
-  const adjuntar = flag === 'on' && !movimientoBaseId ? accionAdjuntar : undefined
+  // With the photo feature on, photos are always attached right here.
+  const adjuntarAqui = flag === 'on'
 
   function abrirCarga() {
     setAviso(null)
@@ -108,15 +107,6 @@ export function GaleriaEvidencia({
         </button>
       )
     }
-    if (adjuntar) {
-      return (
-        <Link href={adjuntar} className={clase}>
-          {clase === styles.attach && icono}
-          {texto}
-          {clase !== styles.attach && icono}
-        </Link>
-      )
-    }
     return null
   }
 
@@ -129,10 +119,11 @@ export function GaleriaEvidencia({
         </div>
         {!cargando && accionCarga(styles.attach, 'Adjuntar foto', <Plus aria-hidden="true" />)}
       </div>
-      {cargando && movimientoBaseId && (
+      {cargando && (
         <CargaEvidencia
           cue={cue}
           movimientoBaseId={movimientoBaseId}
+          urlCargarParte={urlCargarParte}
           onCancelar={() => setCargando(false)}
           onGuardado={() => {
             setCargando(false)
