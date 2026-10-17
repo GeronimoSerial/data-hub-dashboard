@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowUpRight, Clock, Cloud, MapPinOff } from 'lucide-react'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
@@ -73,6 +73,53 @@ export function FichaEscuelaPagina({
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [ahoraMs, setAhoraMs] = useState<number | null>(null)
   const [pestanaActiva, setPestanaActiva] = useState('panorama')
+  const [altoCabecera, setAltoCabecera] = useState(0)
+  const cabeceraRef = useRef<HTMLDivElement>(null)
+  // While a tab-triggered smooth scroll runs, the scroll spy must not override the clicked tab.
+  const scrollPorClickRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const cabecera = cabeceraRef.current
+    if (!cabecera || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => setAltoCabecera(cabecera.offsetHeight))
+    observer.observe(cabecera)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const ids = ['panorama', 'situaciones', 'territorio', 'historial']
+    function alScroll() {
+      if (scrollPorClickRef.current !== null) return
+      const limite = (cabeceraRef.current?.getBoundingClientRect().bottom ?? 0) + 24
+      let activa = ids[0]
+      let mejorTop = -Infinity
+      for (const id of ids) {
+        const top = document.getElementById(id)?.getBoundingClientRect().top
+        if (top === undefined || top > limite) continue
+        if (top > mejorTop + 1) {
+          mejorTop = top
+          activa = id
+        }
+      }
+      setPestanaActiva(activa)
+    }
+    document.addEventListener('scroll', alScroll, { capture: true, passive: true })
+    return () => document.removeEventListener('scroll', alScroll, { capture: true })
+  }, [])
+
+  function irASeccion(evento: MouseEvent<HTMLAnchorElement>, id: string) {
+    const destino = document.getElementById(id)
+    if (!destino) return
+    evento.preventDefault()
+    setPestanaActiva(id)
+    const reducido = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    destino.scrollIntoView({ behavior: reducido ? 'auto' : 'smooth', block: 'start' })
+    window.history.replaceState(null, '', `#${id}`)
+    if (scrollPorClickRef.current !== null) window.clearTimeout(scrollPorClickRef.current)
+    scrollPorClickRef.current = window.setTimeout(() => {
+      scrollPorClickRef.current = null
+    }, 800)
+  }
 
   useEffect(() => {
     setAhoraMs(Date.now())
@@ -259,7 +306,11 @@ export function FichaEscuelaPagina({
   ]
 
   return (
-    <main className={styles.page} aria-label={`Ficha completa de ${escuela.nombre}`}>
+    <main
+      className={styles.page}
+      aria-label={`Ficha completa de ${escuela.nombre}`}
+      style={{ '--ficha-cabecera-h': `${altoCabecera}px` } as CSSProperties}
+    >
       <nav className={styles.topBar} aria-label="Navegación superior">
         <Link href={urlRetornoMapa} className={styles.backLink} data-testid="volver-al-mapa">
           <ArrowLeft size={14} aria-hidden="true" />
@@ -268,52 +319,54 @@ export function FichaEscuelaPagina({
         <span className={styles.topBarLabel}>Detalle del establecimiento</span>
       </nav>
 
-      <header className={styles.header}>
-        <div className={styles.identity}>
-          <h1 className={styles.schoolTitle}>{escuela.nombre}</h1>
-          <div className={styles.schoolMeta}>
-            <p>
-              {[ubicacionTexto, `CUE ${escuela.cueAnexo}`].filter(Boolean).join(' · ')}
-            </p>
-            <p>
-              {[
-                escuela.niveles.length > 0 ? escuela.niveles.join(', ') : null,
-                `${FORMATO_NUMERO.format(escuela.alumnos)} ${etiquetaAlumnos} matriculados`,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-          </div>
-          {sinUbicacion && (
-            <div className={styles.sinUbicacionBanner} data-testid="ficha-sin-ubicacion">
-              <MapPinOff size={14} aria-hidden="true" />
-              <span>Ubicación no disponible en el mapa</span>
+      <div ref={cabeceraRef} className={styles.cabecera}>
+        <header className={styles.header}>
+          <div className={styles.identity}>
+            <h1 className={styles.schoolTitle}>{escuela.nombre}</h1>
+            <div className={styles.schoolMeta}>
+              <p>
+                {[ubicacionTexto, `CUE ${escuela.cueAnexo}`].filter(Boolean).join(' · ')}
+              </p>
+              <p>
+                {[
+                  escuela.niveles.length > 0 ? escuela.niveles.join(', ') : null,
+                  `${FORMATO_NUMERO.format(escuela.alumnos)} ${etiquetaAlumnos} matriculados`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
             </div>
-          )}
-        </div>
-        <Link
-          href={urlCargarParte}
-          className={styles.primaryAction}
-          data-testid="accion-actualizar-parte"
-        >
-          {tieneSituacionActiva ? 'Actualizar el parte' : 'Cargar una situación'}
-          <ArrowUpRight size={14} aria-hidden="true" className={styles.primaryActionIcono} />
-        </Link>
-      </header>
-
-      <nav className={styles.tabs} aria-label="Secciones de la ficha">
-        {pestanas.map((pestana) => (
-          <a
-            key={pestana.id}
-            href={`#${pestana.id}`}
-            className={styles.tab}
-            aria-current={pestanaActiva === pestana.id ? 'true' : undefined}
-            onClick={() => setPestanaActiva(pestana.id)}
+            {sinUbicacion && (
+              <div className={styles.sinUbicacionBanner} data-testid="ficha-sin-ubicacion">
+                <MapPinOff size={14} aria-hidden="true" />
+                <span>Ubicación no disponible en el mapa</span>
+              </div>
+            )}
+          </div>
+          <Link
+            href={urlCargarParte}
+            className={styles.primaryAction}
+            data-testid="accion-actualizar-parte"
           >
-            {pestana.etiqueta}
-          </a>
-        ))}
-      </nav>
+            {tieneSituacionActiva ? 'Actualizar el parte' : 'Cargar una situación'}
+            <ArrowUpRight size={14} aria-hidden="true" className={styles.primaryActionIcono} />
+          </Link>
+        </header>
+
+        <nav className={styles.tabs} aria-label="Secciones de la ficha">
+          {pestanas.map((pestana) => (
+            <a
+              key={pestana.id}
+              href={`#${pestana.id}`}
+              className={styles.tab}
+              aria-current={pestanaActiva === pestana.id ? 'true' : undefined}
+              onClick={(evento) => irASeccion(evento, pestana.id)}
+            >
+              {pestana.etiqueta}
+            </a>
+          ))}
+        </nav>
+      </div>
 
       <div className={styles.mainGrid}>
         <div id="panorama" className={styles.column}>
@@ -459,8 +512,8 @@ export function FichaEscuelaPagina({
           <div id="evidencia" className={styles.anchor}>
             <GaleriaEvidencia
               cue={escuela.cueAnexo}
-              accionAdjuntar={urlCargarParte}
               movimientoBaseId={movimientoBaseEvidencia}
+              urlCargarParte={urlCargarParte}
             />
           </div>
 

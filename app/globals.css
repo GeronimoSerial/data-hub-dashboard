@@ -103,8 +103,8 @@
 
   /* ── Type ── Manual §4. */
   --font-display: var(--font-barlow-condensed), 'Barlow Semi Condensed', sans-serif;
-  --font-body: var(--font-barlow), 'Barlow', system-ui, sans-serif;
-  --font-title: var(--font-body);
+  --font-body: var(--font-inter), 'Inter', system-ui, sans-serif;
+  --font-title: var(--font-barlow), 'Barlow', system-ui, sans-serif;
   --font-ministry: var(--font-montserrat), 'Montserrat', sans-serif;
 
   --t-micro: 0.875rem;
@@ -495,7 +495,7 @@ h1, h2, h3 {
 
 /* h4 and below are subheads, not titles: Barlow SemiBold, sentence case. */
 h4, h5, h6 {
-  font-family: var(--font-body);
+  font-family: var(--font-title);
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
