@@ -38,7 +38,7 @@ jobs:
             try:
               with urllib.request.urlopen(req,timeout=45) as r: return json.load(r)
             except urllib.error.HTTPError as error:
-              if path=='/applications/dockerfile' or (data and set(data)=={'dockerfile'}):
+              if path=='/applications/dockerfile':
                 print('Dockerfile validation',error.read().decode()[:1000])
               raise
           op=os.environ['OPERACION']
@@ -95,9 +95,6 @@ jobs:
           elif op=='almacenamiento':
             assert dev
             almacen=next((a for a in apps if a.get('name')=='data-hub-dashboard-dev-media'),None)
-            if almacen and 'COPY --from=healthcheck' not in api('/applications/'+almacen['uuid']).get('dockerfile',''):
-              api('/applications/'+almacen['uuid'],'DELETE')
-              almacen=None
             if not almacen:
               ambiente=api('/applications/'+dev['uuid'])['environment']['uuid']
               almacen=api('/applications/dockerfile','POST',{
@@ -121,12 +118,7 @@ jobs:
             for intento in range(60):
               estado=api('/deployments/'+despliegue)['status']
               if estado=='finished': break
-              if estado in ['failed','cancelled-by-user']:
-                detalle=json.dumps(api('/deployments/'+despliegue))
-                for secreto in list(valores.values())+[os.environ.get('COOLIFY_TOKEN',''),os.environ.get('DEV_DATABASE_URL','')]:
-                  if secreto: detalle=detalle.replace(secreto,'[REDACTED]')
-                print(detalle[-18000:])
-                raise RuntimeError('Falló el despliegue del almacenamiento de dev')
+              if estado in ['failed','cancelled-by-user']: raise RuntimeError('Falló el despliegue del almacenamiento de dev')
               time.sleep(5)
             else: raise RuntimeError('El almacenamiento sigue desplegándose')
             print('Almacenamiento privado de dev desplegado')
