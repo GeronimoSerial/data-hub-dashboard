@@ -169,7 +169,7 @@ import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-pu
 import { mantenerPopupsVisibles } from '@/components/mapas/popups-visibles'
 import { puntosRiesgoSobreSituacion, soloConDatoOJuntoLaguna } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
-  ICONOS_CLUSTER_MAPA,
+  iconosClusterMapa,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
   ID_IMAGEN_CLUSTER_EVACUADO,
   ID_IMAGEN_ESCUELA_ALTA,
@@ -178,6 +178,7 @@ import {
   ID_IMAGEN_ESCUELA_MEDIA,
   ID_IMAGEN_ESCUELA_SOLUCIONADA,
 } from '@/lib/mapas/iconos-mapa'
+import { COLORES_MAPA_CLARO, PIXEL_RATIO_ICONOS, coloresMapa } from '@/lib/mapas/colores-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
@@ -193,6 +194,7 @@ const CAPA_PARTES_ID = 'infra-partes'
 // Los clusters de supercluster tienen ids propios para distinguir el click
 // de un agregado del click de una escuela.
 const CAPA_PARTES_CLUSTER_ID = 'infra-partes-cluster'
+const CAPA_PARTES_CLUSTER_HALO_ID = 'infra-partes-cluster-halo'
 const CAPA_PARTES_CLUSTER_COUNT_ID = 'infra-partes-cluster-count'
 
 // Umbral de clustering: sólo `clusterMaxZoom` de la fuente de escuelas — el
@@ -237,7 +239,7 @@ const CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID = 'infra-partes-escuela-soluciona
 // Color de foco/realce de la escuela seleccionada: mismo valor que el token
 // `--marker` (= `--yellow`, globals.css) que el hub usa para selección/foco.
 // MapLibre no resuelve var() en el paint, así que se repite el literal.
-const COLOR_FOCO_SELECCION = '#facd05'
+const COLOR_FOCO_SELECCION = COLORES_MAPA_CLARO.foco
 
 // Límites departamentales. Se declaran antes que la capa de partes en el
 // árbol de MapGL para que queden por debajo: son contexto geográfico, no el
@@ -347,7 +349,7 @@ const CAPA_DEPARTAMENTO_HOVER_BORDE_ID = 'infra-departamento-hover-borde'
 function layoutIconoCluster(icono: string): SymbolLayerSpecification['layout'] {
   return {
     'icon-image': icono,
-    'icon-size': 0.8,
+    'icon-size': 1,
     'icon-anchor': 'center',
     'icon-offset': [13, -13],
     'icon-allow-overlap': true,
@@ -372,16 +374,18 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
 // punto neutro menor que crece suavemente con el zoom. Los clusters sin
 // reportes también son menores que los que contienen escuelas afectadas.
 
-// Color NEUTRO compartido por el borde del punto y los íconos del badge (el
-// color de severidad ya está tomado por el relleno; reusarlo para el estado
-// sería una segunda escala). El borde es un trazo mínimo fijo que separa el
-// punto del fondo, ya no codifica el servicio.
-const ANILLO_COLOR = '#1c1c1c'
+// Color NEUTRO del borde del punto y del badge (el color de severidad ya está
+// tomado por el relleno; reusarlo para el estado sería una segunda escala). El
+// borde es un trazo mínimo que separa el punto del fondo: tinta oscura en el
+// tema claro y clara en el oscuro, donde `#1c1c1c` se perdía sobre el basemap.
+const anilloColor = (oscuro = false) => coloresMapa(oscuro).tinta
+// El glifo del badge DOM va sobre fondo blanco en ambos temas.
+const COLOR_GLIFO_BADGE = COLORES_MAPA_CLARO.tinta
 
 // Los clusters afectados usan la gravedad más alta presente. Un cluster que
 // contiene sólo escuelas sin reporte usa el fondo y el borde neutros del tema.
 export function colorPorSeveridadRango(oscuro = false): ExpressionSpecification {
-  const colorFondo = oscuro ? '#000000' : '#ffffff' // `--page` en globals.css; MapLibre no resuelve var().
+  const colorFondo = coloresMapa(oscuro).sinReporteRelleno
   const expresion: ExpressionSpecification = [
     'case', ['==', ['get', 'escuelasAfectadas'], 0], colorFondo, colorSeveridad(SEVERIDADES[0]),
   ]
@@ -423,12 +427,12 @@ export function circlePaintPartes(oscuro = false): CircleLayerSpecification['pai
     ],
     'circle-color': [
       'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
-      colorEscuelaSinReporte(oscuro), ['get', 'color'],
+      coloresMapa(oscuro).sinReporteRelleno, ['get', 'color'],
     ],
     'circle-opacity': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1, 0.9],
     'circle-stroke-color': [
       'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
-      colorBordeSinReporte(oscuro), ANILLO_COLOR,
+      coloresMapa(oscuro).sinReporteBorde, anilloColor(oscuro),
     ],
     'circle-stroke-width': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1.5, 1],
   }
@@ -440,8 +444,22 @@ export function circlePaintCluster(oscuro = false): CircleLayerSpecification['pa
     'circle-radius': [
       'case', ['==', ['get', 'escuelasAfectadas'], 0], expresionRadioClusterSinReporte(), expresionRadioCluster(),
     ],
-    'circle-stroke-color': ['case', ['==', ['get', 'escuelasAfectadas'], 0], colorBordeSinReporte(oscuro), ANILLO_COLOR],
+    'circle-stroke-color': ['case', ['==', ['get', 'escuelasAfectadas'], 0], coloresMapa(oscuro).sinReporteBorde, anilloColor(oscuro)],
     'circle-stroke-width': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 1.5, 1],
+  }
+}
+
+// Halo del cluster: un disco translúcido del color del fondo, 4 px más ancho,
+// que separa el cluster del basemap y de los puntos vecinos.
+export function circlePaintHaloCluster(oscuro = false): CircleLayerSpecification['paint'] {
+  return {
+    'circle-color': coloresMapa(oscuro).halo,
+    'circle-radius': [
+      'case', ['==', ['get', 'escuelasAfectadas'], 0],
+      ['+', expresionRadioClusterSinReporte(), 3], ['+', expresionRadioCluster(), 4],
+    ],
+    'circle-opacity': oscuro ? 0.55 : 0.75,
+    'circle-blur': 0.4,
   }
 }
 
@@ -450,8 +468,7 @@ export function expresionConteoCluster(): ExpressionSpecification {
 }
 
 export function colorTextoCluster(oscuro = false): ExpressionSpecification {
-  // `--ink-soft` en globals.css; MapLibre no resuelve var().
-  return ['case', ['==', ['get', 'escuelasAfectadas'], 0], oscuro ? '#c9c6c3' : '#5f5e5c', ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff']
+  return ['case', ['==', ['get', 'escuelasAfectadas'], 0], coloresMapa(oscuro).textoSuave, ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff']
 }
 
 export function filtroIconoEscuelaAfectada(): FilterSpecification {
@@ -496,31 +513,37 @@ const PROPS_POPUP_INFO = {
 // Badge: círculo claro detrás del ícono para que se lea sobre cualquier color
 // de severidad (incluida Crítica, rojo oscuro). Sólo decorativo: el evento
 // apunta al punto del mapa, no al badge.
-function estiloBadgeEstado(): CSSProperties {
+function estiloBadgeEstado(oscuro = false): CSSProperties {
   return {
     width: TAMANO_BADGE_ESTADO,
     height: TAMANO_BADGE_ESTADO,
     borderRadius: '50%',
     background: 'rgba(255, 255, 255, 0.95)',
-    border: `1px solid ${ANILLO_COLOR}`,
+    border: `1px solid ${anilloColor(oscuro)}`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     pointerEvents: 'none',
-    boxShadow: '0 0 0 1px rgba(28, 28, 28, 0.15)',
+    boxShadow: `0 1px 3px ${coloresMapa(oscuro).sombra}`,
   }
 }
 
 // Carga un SVG standalone como imagen de MapLibre. `map.addImage` necesita un
 // HTMLImageElement ya decodificado, así que se espera a `onload` antes de
 // registrarlo. Silencioso ante error: el peor caso es que no aparezca el
-// ícono del cluster, nunca que se rompa el mapa.
-function cargarIconoEnMapa(mapa: MapLibreMap, id: string, svg: string): Promise<void> {
+// ícono del cluster, nunca que se rompa el mapa. Los SVG vienen al doble de
+// su tamaño CSS (`pixelRatio`). `reemplazar` actualiza una imagen ya
+// registrada, p. ej. al cambiar de tema sin recargar el estilo (radar).
+function cargarIconoEnMapa(mapa: MapLibreMap, id: string, svg: string, reemplazar = false): Promise<void> {
   return new Promise((resolve) => {
     const imagen = new Image()
     imagen.onload = () => {
       try {
-        if (!mapa.hasImage(id)) mapa.addImage(id, imagen)
+        if (!mapa.hasImage(id)) mapa.addImage(id, imagen, { pixelRatio: PIXEL_RATIO_ICONOS })
+        else if (reemplazar) {
+          mapa.removeImage(id)
+          mapa.addImage(id, imagen, { pixelRatio: PIXEL_RATIO_ICONOS })
+        }
       } catch {
         // Ícono ya registrado o estilo no listo: se ignora.
       }
@@ -1125,6 +1148,9 @@ export default function MapInfraestructuraPage(props: {
   // filtro CSS que invertía todo el canvas (ver comentario en globals.css).
   const mapStyle = radarActivo || mode === 'dark' ? 'https://tiles.openfreemap.org/styles/dark' : BASEMAPS[basemap].styleUrl
   const mapStyleRef = useRef(mapStyle)
+  // El borde de los íconos depende del tema; los handlers de `style.load` se
+  // registran una sola vez, así que leen el tema vigente desde un ref.
+  const oscuroRef = useRef(mode === 'dark')
   useEffect(() => {
     mapStyleRef.current = mapStyle
   }, [mapStyle])
@@ -1525,14 +1551,14 @@ export default function MapInfraestructuraPage(props: {
   // (aislamiento/inundación/cruces): comparten el canal `icon-image` y el
   // mismo ciclo de vida del estilo, así que un solo gate (`iconosClusterListos`)
   // cubre a ambos grupos sin duplicar listeners de `styledata`.
-  function registrarIconosCluster() {
+  function registrarIconosCluster(reemplazar = false) {
     const mapa = mapRef.current?.getMap()
     if (!mapa || typeof mapa.hasImage !== 'function' || typeof mapa.addImage !== 'function') {
       return
     }
-    const pendientes = [...ICONOS_CLUSTER_MAPA, ...ICONOS_ACCESOS_MAPA]
-      .filter(({ id }) => !mapa.hasImage(id))
-      .map(({ id, svg }) => cargarIconoEnMapa(mapa, id, svg))
+    const pendientes = [...iconosClusterMapa(oscuroRef.current), ...ICONOS_ACCESOS_MAPA]
+      .filter(({ id }) => reemplazar || !mapa.hasImage(id))
+      .map(({ id, svg }) => cargarIconoEnMapa(mapa, id, svg, reemplazar))
     if (pendientes.length === 0) {
       setIconosClusterListos(true)
       return
@@ -1564,6 +1590,16 @@ export default function MapInfraestructuraPage(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCuesNoAgrupados, setIconosClusterListos])
+
+  // Cambio de tema: con radar activo el estilo no se recarga, así que las
+  // imágenes ya registradas se reemplazan por las del tema nuevo.
+  useEffect(() => {
+    const oscuro = mode === 'dark'
+    if (oscuroRef.current === oscuro) return
+    oscuroRef.current = oscuro
+    registrarIconosCluster(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
 
   // Encuadre de la ruta seleccionada: sólo si la geometría dibujada tiene un
   // bbox real (una ruta ausente dejaría un `fitBounds` inválido). El padding
@@ -1813,10 +1849,9 @@ export default function MapInfraestructuraPage(props: {
                 `capasInteractivas`), así el click/hover acierta el ícono
                 completo y no sólo el centro del círculo.
 
-                Q17: `icon-size: 1.2` agranda la escuela individual (~26 px)
-                SÓLO en esta capa; el SVG base compartido queda igual para no
-                agrandar de rebote los íconos Tent/DoorOpen de cluster. Las
-                variantes de severidad son las mismas en ambos temas.
+                Q17: la escuela individual se rasteriza a 26 px y el badge de
+                cluster a 18 px, ambos con `icon-size: 1` y `pixelRatio: 2`
+                (nítidos en HiDPI). El borde sigue el tema.
               */}
               {iconosClusterListos && (
                 <Layer
@@ -1832,7 +1867,7 @@ export default function MapInfraestructuraPage(props: {
                       ['==', ['get', 'severidad'], 'Media'], ID_IMAGEN_ESCUELA_MEDIA,
                       ID_IMAGEN_ESCUELA_BAJA,
                     ],
-                    'icon-size': 1.2,
+                    'icon-size': 1,
                     'icon-anchor': 'center',
                     'icon-allow-overlap': true,
                     'icon-ignore-placement': true,
@@ -1851,7 +1886,7 @@ export default function MapInfraestructuraPage(props: {
                   layout={{
                     visibility: ocultarPartes ? 'none' : 'visible',
                     'icon-image': ID_IMAGEN_ESCUELA_SOLUCIONADA,
-                    'icon-size': 1.2,
+                    'icon-size': 1,
                     'icon-anchor': 'center',
                     'icon-allow-overlap': true,
                     'icon-ignore-placement': true,
@@ -1863,7 +1898,19 @@ export default function MapInfraestructuraPage(props: {
                 />
               )}
               {/* Los clusters afectados usan la severidad más alta; los que
-                  sólo tienen escuelas sin reporte son neutros y más chicos. */}
+                  sólo tienen escuelas sin reporte son neutros y más chicos.
+                  El halo va debajo y los despega del basemap. */}
+              <Layer
+                id={CAPA_PARTES_CLUSTER_HALO_ID}
+                type="circle"
+                layout={{ visibility: ocultarPartes ? 'none' : 'visible' }}
+                filter={['has', 'point_count']}
+                paint={{
+                  ...circlePaintHaloCluster(mode === 'dark'),
+                  ...(puntosVisibles ? {} : { 'circle-opacity': 0 }),
+                  'circle-opacity-transition': { duration: 180, delay: 0 },
+                }}
+              />
               <Layer
                 id={CAPA_PARTES_CLUSTER_ID}
                 type="circle"
@@ -1950,15 +1997,15 @@ export default function MapInfraestructuraPage(props: {
               >
                 <div
                   data-capa={CAPA_BADGE_ESTADO_ID}
-                  style={estiloBadgeEstado()}
+                  style={estiloBadgeEstado(mode === 'dark')}
                   role="img"
                   aria-label={`${etiqueta}: ${badge.nombre}`}
                   title={`${etiqueta}: ${badge.nombre}`}
                 >
                   <Icono
                     size={ICONO_BADGE_ESTADO_TAMANO}
-                    strokeWidth={2.4}
-                    color={ANILLO_COLOR}
+                    strokeWidth={2}
+                    color={COLOR_GLIFO_BADGE}
                   />
                 </div>
               </Marker>
@@ -1970,14 +2017,14 @@ export default function MapInfraestructuraPage(props: {
               key={`infra-borradores-${badge.cue}`}
               longitude={badge.lon}
               latitude={badge.lat}
-              anchor="top-left"
-              offset={[8, 7]}
+              anchor="center"
+              offset={[11, 11]}
             >
               <span
                 role="img"
                 aria-label={`${badge.count} ${badge.count === 1 ? 'borrador sin enviar' : 'borradores sin enviar'}: ${badge.nombre}`}
                 title={`${badge.count} ${badge.count === 1 ? 'borrador sin enviar' : 'borradores sin enviar'}`}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 22, height: 22, padding: '0 5px', border: '1px solid var(--line)', borderRadius: 999, background: 'var(--card)', color: 'var(--ink-soft)', boxShadow: '0 1px 4px #0005', fontSize: 'var(--t-micro)', fontWeight: 700 }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: TAMANO_BADGE_ESTADO, height: TAMANO_BADGE_ESTADO, padding: '0 4px', border: `1px solid ${anilloColor(mode === 'dark')}`, borderRadius: 999, background: 'var(--card)', color: 'var(--ink-soft)', boxShadow: `0 1px 3px ${coloresMapa(mode === 'dark').sombra}`, fontSize: 'var(--t-micro)', fontWeight: 700, lineHeight: 1 }}
               >
                 {badge.count}
               </span>
@@ -2068,7 +2115,8 @@ export default function MapInfraestructuraPage(props: {
 
           {/* V2 (hallazgo 5): realce de foco de la escuela seleccionada, sea
               por el buscador o por la ficha abierta. Un pin DOM (MapPin) en el
-              color de foco del hub (`--marker`), anclado por su punta inferior
+              color de foco del hub (`--marker`) con borde de tinta del tema y
+              sombra, anclado por su punta inferior
               al punto de la escuela. Reemplaza al anillo circular de MapLibre:
               sin fondo ni anillo, así se ve encima tanto de un punto individual
               como de un cluster todavía sin desagrupar mientras el flyTo llega
@@ -2081,9 +2129,11 @@ export default function MapInfraestructuraPage(props: {
               anchor="bottom"
             >
               <MapPin
-                size={26}
-                strokeWidth={2.4}
-                color={COLOR_FOCO_SELECCION}
+                size={28}
+                strokeWidth={2}
+                color={anilloColor(mode === 'dark')}
+                fill={COLOR_FOCO_SELECCION}
+                style={{ filter: `drop-shadow(0 2px 3px ${coloresMapa(mode === 'dark').sombra})` }}
                 aria-hidden="true"
               />
             </Marker>

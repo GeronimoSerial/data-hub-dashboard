@@ -6,6 +6,7 @@ import {
   circlePaintPartes,
   circlePaintEscuelasSinReporte,
   circlePaintCluster,
+  circlePaintHaloCluster,
   colorPorSeveridadRango,
   colorTextoCluster,
   expresionConteoCluster,
@@ -254,7 +255,7 @@ describe('clusters sin reporte', () => {
     expect(evaluarPaint(conteo, { escuelasAfectadas: 0, point_count: 12 })).toBe('12')
     expect(evaluarPaint(conteo, { escuelasAfectadas: 4, point_count: 8 })).toBe('4')
     expect(evaluarPaint(claro, { escuelasAfectadas: 0, severidadRango: 0 })).toBe('#5f5e5c')
-    expect(evaluarPaint(oscuro, { escuelasAfectadas: 0, severidadRango: 0 })).toBe('#c9c6c3')
+    expect(evaluarPaint(oscuro, { escuelasAfectadas: 0, severidadRango: 0 })).toBe('#dcd9d6')
   })
 })
 
@@ -325,5 +326,15 @@ describe('paintPuntosRiesgoAcceso', () => {
     expect(grosorAlto).toBeGreaterThan(evaluarMatch(grosor, 'bajo') as number)
     expect(grosorAlto).toBeGreaterThan(evaluarMatch(grosor, 'moderado') as number)
     expect(grosorAlto).toBeGreaterThan(evaluarMatch(grosor, 'sin_cobertura') as number)
+  })
+})
+
+describe('borde y halo según el tema', () => {
+  it('usa tinta clara en oscuro para que el borde no se pierda sobre el basemap', () => {
+    expect(circlePaintCluster(true)!['circle-stroke-color']).toEqual([
+      'case', ['==', ['get', 'escuelasAfectadas'], 0], '#b5b2af', '#ffffff',
+    ])
+    expect(circlePaintHaloCluster(false)!['circle-color']).toBe('#ffffff')
+    expect(circlePaintHaloCluster(true)!['circle-color']).toBe('#000000')
   })
 })

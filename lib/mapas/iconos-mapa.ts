@@ -19,20 +19,24 @@
 
 import { SEVERIDAD_COLORES } from '@/lib/infraestructura/severidad'
 import { COLOR_SIN_AFECTACION } from './construir-escuelas-mapa-feature-collection'
+import { COLORES_MAPA_CLARO, GROSOR_TRAZO_ICONO, PIXEL_RATIO_ICONOS, coloresMapa } from './colores-mapa'
+
+// Tamaño CSS por defecto del badge; el SVG se emite al doble y MapLibre lo
+// registra con `pixelRatio: 2`, así queda nítido en pantallas HiDPI.
+export const TAMANO_ICONO_BASE = 22
 
 export const ATRIBUTOS_LUCIDE_BASE =
-  'xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" ' +
+  'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" ' +
   'fill="none" stroke-linecap="round" stroke-linejoin="round"'
 
-const atributosLucide = (strokeWidth: number, stroke = '#1c1c1c') =>
-  `${ATRIBUTOS_LUCIDE_BASE} stroke="${stroke}" stroke-width="${strokeWidth}"`
+const atributosLucide = (strokeWidth: number, stroke: string, tamano: number) => {
+  const px = tamano * PIXEL_RATIO_ICONOS
+  return `${ATRIBUTOS_LUCIDE_BASE} width="${px}" height="${px}" stroke="${stroke}" stroke-width="${strokeWidth}"`
+}
 
-const ATRIBUTOS_LUCIDE = atributosLucide(2.4)
-
-// Fondo del badge circular con el color que se le pase. El borde oscuro fino
-// (por defecto `#1c1c1c`, stroke-width 1) se conserva para variantes de
-// severidad y los íconos de cluster.
-export const fondoBadge = (colorRelleno: string, colorBorde = '#1c1c1c') =>
+// Fondo del badge circular con el color que se le pase. El borde fino separa
+// el badge del basemap; su color depende del tema (ver `colores-mapa`).
+export const fondoBadge = (colorRelleno: string, colorBorde = COLORES_MAPA_CLARO.tinta) =>
   `<circle cx="12" cy="12" r="11" fill="${colorRelleno}" stroke="${colorBorde}" stroke-width="1" />`
 
 // Construye un badge con el trazo elegido por contraste: oscuro sobre fondos claros y blanco sobre los oscuros de la rampa.
@@ -40,9 +44,15 @@ export const construirSvgIcono = (
   path: string,
   colorFondo: string,
   colorTrazo: string,
-  colorBorde = '#1c1c1c',
-  strokeWidth = 2.4,
-) => `<svg ${atributosLucide(strokeWidth, colorTrazo)}>${fondoBadge(colorFondo, colorBorde)}${path}</svg>`
+  colorBorde = COLORES_MAPA_CLARO.tinta,
+  strokeWidth = GROSOR_TRAZO_ICONO,
+  tamano = TAMANO_ICONO_BASE,
+) => `<svg ${atributosLucide(strokeWidth, colorTrazo, tamano)}>${fondoBadge(colorFondo, colorBorde)}${path}</svg>`
+
+// Tamaños CSS finales (con `icon-size: 1`): la escuela individual se lee
+// más grande que el badge de esquina del cluster.
+export const TAMANO_ICONO_ESCUELA = 26
+export const TAMANO_ICONO_CLUSTER = 18
 
 export const ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS = 'infra-icono-centro-evacuados'
 export const ID_IMAGEN_CLUSTER_EVACUADO = 'infra-icono-evacuado'
@@ -62,37 +72,39 @@ const PATH_ESCUELA =
   '<path d="M6 4.933V21" />' +
   '<circle cx="12" cy="9" r="2" />'
 
-const svgIconoEscuela = (colorFondo: string, colorTrazo: string, colorBorde = '#1c1c1c') =>
-  construirSvgIcono(PATH_ESCUELA, colorFondo, colorTrazo, colorBorde, 1.7)
+const PATH_CENTRO_EVACUADOS =
+  '<path d="M3.5 21 14 3" /><path d="M20.5 21 10 3" /><path d="M15.5 21 12 15l-3.5 6" /><path d="M2 21h20" />'
+const PATH_EVACUADO =
+  '<path d="M11 20H2" /><path d="M11 4.562v16.157a1 1 0 0 0 1.242.97L19 20V5.562a2 2 0 0 0-1.515-1.94l-4-1A2 2 0 0 0 11 4.561z" />' +
+  '<path d="M11 4H8a2 2 0 0 0-2 2v14" /><path d="M14 12h.01" /><path d="M22 20h-3" />'
+const PATH_CHECK = '<path d="M20 6 9 17l-5-5" />'
 
-// Tent (centro de evacuados): prioridad 1 del badge de estado.
-export const SVG_ICONO_CLUSTER_CENTRO_EVACUADOS = `<svg ${ATRIBUTOS_LUCIDE}>${fondoBadge('#ffffff')}<path d="M3.5 21 14 3" /><path d="M20.5 21 10 3" /><path d="M15.5 21 12 15l-3.5 6" /><path d="M2 21h20" /></svg>`
+/**
+ * Íconos de escuela y cluster para el tema pedido. El borde usa la tinta del
+ * tema; el trazo de los afectados se elige por contraste contra la escala
+ * tonal (oscuro sobre Baja/Media, blanco sobre Alta/Crítica).
+ */
+export function iconosClusterMapa(oscuro = false): ReadonlyArray<{ id: string; svg: string }> {
+  const { tinta } = coloresMapa(oscuro)
+  const escuela = (fondo: string, trazo: string) =>
+    construirSvgIcono(PATH_ESCUELA, fondo, trazo, tinta, GROSOR_TRAZO_ICONO, TAMANO_ICONO_ESCUELA)
+  const cluster = (path: string) =>
+    construirSvgIcono(path, '#ffffff', COLORES_MAPA_CLARO.tinta, tinta, GROSOR_TRAZO_ICONO, TAMANO_ICONO_CLUSTER)
+  return [
+    // Tent (centro de evacuados): prioridad 1 del badge de estado.
+    { id: ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS, svg: cluster(PATH_CENTRO_EVACUADOS) },
+    // DoorOpen (establecimiento evacuado): prioridad 2 del badge de estado.
+    { id: ID_IMAGEN_CLUSTER_EVACUADO, svg: cluster(PATH_EVACUADO) },
+    { id: ID_IMAGEN_ESCUELA_BAJA, svg: escuela(SEVERIDAD_COLORES.Baja, '#1c1c1c') },
+    { id: ID_IMAGEN_ESCUELA_MEDIA, svg: escuela(SEVERIDAD_COLORES.Media, '#1c1c1c') },
+    { id: ID_IMAGEN_ESCUELA_ALTA, svg: escuela(SEVERIDAD_COLORES.Alta, '#ffffff') },
+    { id: ID_IMAGEN_ESCUELA_CRITICA, svg: escuela(SEVERIDAD_COLORES.Crítica, '#ffffff') },
+    {
+      id: ID_IMAGEN_ESCUELA_SOLUCIONADA,
+      svg: construirSvgIcono(PATH_CHECK, COLOR_SIN_AFECTACION, '#ffffff', tinta, GROSOR_TRAZO_ICONO, TAMANO_ICONO_ESCUELA),
+    },
+  ]
+}
 
-// DoorOpen (establecimiento evacuado): prioridad 2 del badge de estado.
-export const SVG_ICONO_CLUSTER_EVACUADO = `<svg ${ATRIBUTOS_LUCIDE}>${fondoBadge('#ffffff')}<path d="M11 20H2" /><path d="M11 4.562v16.157a1 1 0 0 0 1.242.97L19 20V5.562a2 2 0 0 0-1.515-1.94l-4-1A2 2 0 0 0 11 4.561z" /><path d="M11 4H8a2 2 0 0 0-2 2v14" /><path d="M14 12h.01" /><path d="M22 20h-3" /></svg>`
-
-// Afectadas: badge relleno del color de severidad. El trazo se elige por
-// contraste contra la escala tonal de una sola gama (claro→oscuro): oscuro
-// sobre los fondos claros (Baja/Media), blanco sobre los oscuros
-// (Alta/Crítica), donde el trazo oscuro se perdería.
-export const SVG_ICONO_ESCUELA_BAJA = svgIconoEscuela(SEVERIDAD_COLORES.Baja, '#1c1c1c')
-export const SVG_ICONO_ESCUELA_MEDIA = svgIconoEscuela(SEVERIDAD_COLORES.Media, '#1c1c1c')
-export const SVG_ICONO_ESCUELA_ALTA = svgIconoEscuela(SEVERIDAD_COLORES.Alta, '#ffffff')
-export const SVG_ICONO_ESCUELA_CRITICA = svgIconoEscuela(SEVERIDAD_COLORES.Crítica, '#ffffff')
-export const SVG_ICONO_ESCUELA_SOLUCIONADA = construirSvgIcono(
-  '<path d="M20 6 9 17l-5-5" />',
-  COLOR_SIN_AFECTACION,
-  '#ffffff',
-)
-
-export const ICONOS_CLUSTER_MAPA: ReadonlyArray<{ id: string; svg: string }> = [
-  { id: ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS, svg: SVG_ICONO_CLUSTER_CENTRO_EVACUADOS },
-  { id: ID_IMAGEN_CLUSTER_EVACUADO, svg: SVG_ICONO_CLUSTER_EVACUADO },
-  // Las variantes de severidad se registran con el mismo ciclo de vida que
-  // las imágenes de cluster; la capa de escuela elige según su severidad.
-  { id: ID_IMAGEN_ESCUELA_BAJA, svg: SVG_ICONO_ESCUELA_BAJA },
-  { id: ID_IMAGEN_ESCUELA_MEDIA, svg: SVG_ICONO_ESCUELA_MEDIA },
-  { id: ID_IMAGEN_ESCUELA_ALTA, svg: SVG_ICONO_ESCUELA_ALTA },
-  { id: ID_IMAGEN_ESCUELA_CRITICA, svg: SVG_ICONO_ESCUELA_CRITICA },
-  { id: ID_IMAGEN_ESCUELA_SOLUCIONADA, svg: SVG_ICONO_ESCUELA_SOLUCIONADA },
-]
+/** Variante clara, para quien sólo necesita los ids o el SVG de referencia. */
+export const ICONOS_CLUSTER_MAPA = iconosClusterMapa(false)
