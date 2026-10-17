@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment } from 'react'
+import { calcularMarcasEje } from './ejes-tiempo'
 import { fechaRadar } from './escalas'
 
 export function LineaTiempoRadar({
@@ -25,6 +25,7 @@ export function LineaTiempoRadar({
   onPasoChange: (paso: 1 | 3) => void
 }) {
   const current = times[frame]
+  const marcas = calcularMarcasEje(times, 'America/Argentina/Buenos_Aires')
   const label = current
     ? `${fechaRadar(current, { weekday: 'short', day: 'numeric', month: 'short' }).replaceAll(',', '')} · ${fechaRadar(current, { hour: '2-digit', minute: '2-digit', hour12: false })}`
     : ''
@@ -59,26 +60,19 @@ export function LineaTiempoRadar({
         disabled={!times.length}
       />
       <div className="radar-meteo-days">
-        {times.map((time, index) => {
-          const date = fechaRadar(time, { day: 'numeric', month: 'short' })
-          const previous = index ? fechaRadar(times[index - 1], { day: 'numeric', month: 'short' }) : null
-          const left = `${times.length > 1 ? index * 100 / (times.length - 1) : 0}%`
-          return (
-            <Fragment key={time}>
-              <i style={{ left }} />
-              {date !== previous && (
-                <span className="radar-meteo-day-tick" style={{ left }}>
-                  {fechaRadar(time, { weekday: 'short', day: 'numeric' }).replaceAll(',', '')}
-                </span>
-              )}
-              {index % 4 === 0 && (
-                <small className="radar-meteo-hour-tick" style={{ left }}>
-                  {fechaRadar(time, { hour: '2-digit', hour12: false })}
-                </small>
-              )}
-            </Fragment>
-          )
-        })}
+        {times.map((time, index) => (
+          <i key={time} style={{ left: `${times.length > 1 ? index * 100 / (times.length - 1) : 0}%` }} />
+        ))}
+        {marcas.map((marca, index) => (
+          <span
+            key={marca.time}
+            className={`radar-meteo-axis-tick radar-meteo-axis-tick--${marca.tipo}`}
+            data-align={index === 0 && marca.left < 5 ? 'start' : index === marcas.length - 1 && marca.left > 95 ? 'end' : undefined}
+            style={{ left: `${marca.left}%` }}
+          >
+            {marca.label}
+          </span>
+        ))}
       </div>
     </div>
   )

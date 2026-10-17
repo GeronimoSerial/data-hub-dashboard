@@ -2413,6 +2413,8 @@ time {
 .map-leyenda__icono { width: 14px; height: 14px; flex: 0 0 auto; color: var(--ink); }
 .map-shell[data-radar-activo='true'] .map-leyenda {
   z-index: 13;
+  /* Sits left of .radar-meteo-legend (224px wide), same baseline above the timeline. */
+  right: calc(var(--s-3) + 224px + var(--s-3));
   bottom: calc(7.5rem + var(--s-3));
 }
 @media (max-width: 720px) {
@@ -2656,7 +2658,7 @@ time {
 .radar-meteo-skeleton { position:absolute; z-index:1; pointer-events:none; inset:0; background:linear-gradient(105deg,transparent 35%,rgba(180,220,245,.07) 48%,transparent 62%); background-size:220% 100%; animation:radar-skeleton 1.4s linear infinite; }
 @keyframes radar-shimmer { to { opacity:.4 } }
 @keyframes radar-skeleton { to { background-position:-220% 0; } }
-.radar-meteo-legend { right:16px; bottom:122px; width:224px; padding:12px; display:grid; gap:7px; }
+.radar-meteo-legend { right:var(--s-3); bottom:calc(7.5rem + var(--s-3)); width:224px; padding:12px; display:grid; gap:7px; }
 .radar-meteo-legend-toggle { display:contents; color:inherit; background:none; border:0; padding:0; text-align:left; cursor:pointer; }
 .radar-meteo-legend-details { display:contents; }
 .radar-meteo-legend-title { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
@@ -2680,10 +2682,12 @@ time {
 .radar-meteo-timeline-actions label { margin-left:auto; display:flex; align-items:center; gap:5px; }
 .radar-meteo-timeline select { color:inherit; background:#152739; border:1px solid #40586d; border-radius:6px; padding:4px; }
 .radar-meteo-timeline input[type="range"] { width:100%; accent-color:#58c9e9; }
-.radar-meteo-days { position:relative; height:25px; color:#8fa6b7; font-size:var(--t-micro); }
+.radar-meteo-days { position:relative; height:16px; color:#8fa6b7; font-size:var(--t-micro); }
 .radar-meteo-days i { position:absolute; top:-7px; height:5px; border-left:1px solid #668094; }
-.radar-meteo-days .radar-meteo-day-tick { position:absolute; top:12px; transform:translateX(-50%); white-space:nowrap; }
-.radar-meteo-days .radar-meteo-hour-tick { position:absolute; top:0; transform:translateX(-50%); color:#6d8495; font-size:var(--t-micro); }
+.radar-meteo-days .radar-meteo-axis-tick { position:absolute; top:0; transform:translateX(-50%); white-space:nowrap; line-height:1.4; }
+.radar-meteo-days .radar-meteo-axis-tick--hora { color:#6d8495; }
+.radar-meteo-days .radar-meteo-axis-tick[data-align="start"] { transform:none; }
+.radar-meteo-days .radar-meteo-axis-tick[data-align="end"] { transform:translateX(-100%); }
 .radar-meteo-popup { top:78px; right:16px; padding:14px; width:270px; }
 .radar-meteo-popup button { float:right; padding:0 5px; font-size:var(--t-h2); }
 .radar-meteo-popup svg { width:100%; height:42px; }
