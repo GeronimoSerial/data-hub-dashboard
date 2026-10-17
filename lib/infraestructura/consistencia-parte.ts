@@ -168,7 +168,8 @@ const ADVERTENCIAS: DefinicionRegla[] = [
   {
     codigo: 'inaccesibilidad-docentes-parcial',
     campo: 'edificio',
-    mensaje: 'Si los docentes no pueden acceder, lo habitual es un edificio parcial. Verifique el estado del edificio.',
+    mensaje: 'Si el problema es solo el acceso de los docentes, el edificio suele estar en uso normal. Verifique el estado del edificio.',
+    sugerencia: { campo: 'edificio', valor: 'habitual', etiqueta: 'Cambiar a Sin daños' },
     cuando: (r) => r.motivoId === MOTIVO.inaccesibilidad && r.edificio === 'parcial',
   },
   {
