@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { and, count, eq } from 'drizzle-orm'
+import { and, count, eq, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, getRawClient } from '@/lib/db'
 import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
@@ -137,6 +137,8 @@ const CUE_T = '1801605-65'
 // CUE exclusivo de las pruebas de consistencia servidor (T3): ninguna prueba
 // previa escribe sobre él, así que el primer POST válido crea el parte.
 const CUE_U = '1801605-66'
+// CUE exclusivo de la contradicción evacuado → habitual con afectación activa (T6).
+const CUE_V = '1801605-67'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -156,7 +158,7 @@ beforeAll(async () => {
   )
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
-    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U,
+    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U, CUE_V,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -1274,6 +1276,46 @@ describe('POST /api/problematicas/parte — consistencia servidor (T3)', () => {
       cue: CUE_U, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
       estadoEstablecimiento: { estado: 'habitual' },
       afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Crítica', secciones: [seccionId(CUE_U, '10')] }],
+    }))
+    expect(res.status).toBe(201)
+  })
+})
+
+describe('POST /api/problematicas/parte — estado activo al pasar a habitual (T6)', () => {
+  it('evacuado a habitual con una afectación activa sin decidir: 409 con codigo, sin escribir', async () => {
+    const alta = await POST(postReq({
+      cue: CUE_V, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'evacuado' }, confirmarInterrupcionTotal: true,
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Crítica', secciones: [seccionId(CUE_V, '10')] }],
+    }))
+    expect(alta.status).toBe(201)
+
+    const res = await POST(postReq({
+      cue: CUE_V, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'habitual' },
+    }))
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.codigo).toBe('habitual-con-afectaciones-activas')
+    expect(body.error).toBe('Antes de figurar como habitual, indique qué pasa con cada afectación activa: solucionada o sigue activa.')
+
+    const [parte] = await getDb().select().from(infraParte).where(eq(infraParte.cueAnexo, CUE_V)).limit(1)
+    expect(parte?.estadoEstablecimiento).toBe('evacuado')
+  })
+
+  it('el mismo cambio con la afectación solucionada en el envío: 201', async () => {
+    const [afectacion] = await getDb()
+      .select({ id: infraAfectacion.id })
+      .from(infraAfectacion)
+      .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
+      .where(and(eq(infraParte.cueAnexo, CUE_V), isNull(infraAfectacion.retiradaEn)))
+      .limit(1)
+    expect(afectacion).toBeDefined()
+
+    const res = await POST(postReq({
+      cue: CUE_V, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'habitual' },
+      afectacionesSolucionadas: [{ id: afectacion!.id }],
     }))
     expect(res.status).toBe(201)
   })

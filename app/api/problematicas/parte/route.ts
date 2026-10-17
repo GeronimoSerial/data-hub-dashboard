@@ -46,6 +46,7 @@ import { listarSeccionesDelCue } from '@/lib/infraestructura/secciones-cue'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { calcularEstadoServicioGeneral } from '@/lib/infraestructura/servicio-educativo'
+import { evaluarCambioAHabitual, type EstadoEdificioActivo } from '@/lib/infraestructura/consistencia-estado-activo'
 import { causaElegible } from '@/lib/infraestructura/causa-afectacion'
 import type {
   Afectacion,
@@ -68,11 +69,13 @@ const MENSAJE_SIN_SITUACION =
 
 class ErrorCierreBorrador extends Error {
   readonly status: number
+  readonly codigo: string | undefined
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, codigo?: string) {
     super(message)
     this.name = 'ErrorCierreBorrador'
     this.status = status
+    this.codigo = codigo
   }
 }
 
@@ -748,6 +751,23 @@ export async function POST(request: Request) {
         : { periodo, parte: null, afectaciones: [], servicioAlcance: [], secciones }
       const antes = snapshotDesde(actualAntesReal, input.rigeDesde)
       const afectacionesVigentesActuales = afectacionesActuales.filter((a) => a.retiradaEn === null)
+
+      // Contradicción con la situación activa (T6), evaluada contra el estado
+      // releído con el lock de escritura: cubre a dos personas que reportan a
+      // la vez. Una combinación bloqueada aborta la transacción entera.
+      const cambioAHabitual = evaluarCambioAHabitual({
+        estadoActual: (parteFilaActual?.estadoEstablecimiento as EstadoEdificioActivo | undefined) ?? null,
+        nuevoEstado: input.estadoEstablecimiento?.estado ?? null,
+        servicioActual: calcularEstadoServicioGeneral(servicioAlcanceActual, secciones),
+        servicioEnvio: input.servicioEducativo?.estado ?? null,
+        afectacionesActivas: afectacionesVigentesActuales.map((a) => ({ id: a.id })),
+        solucionadas: [...input.afectacionesSolucionadas.map((s) => s.id), ...input.afectacionesRetiradas],
+        sigueActiva: input.afectacionesConfirmadas,
+      })
+      const bloqueoActivo = cambioAHabitual.bloqueos[0]
+      if (bloqueoActivo) {
+        throw new ErrorCierreBorrador(409, bloqueoActivo.mensaje, bloqueoActivo.codigo)
+      }
       const causaPorNuevaId = new Map<string, string>()
 
       for (const { input: entrada, categoria } of nuevasConCategoria) {
@@ -994,7 +1014,10 @@ export async function POST(request: Request) {
     })
   } catch (err) {
     if (err instanceof ErrorCierreBorrador) {
-      return Response.json({ error: err.message }, { status: err.status })
+      return Response.json(
+        err.codigo ? { error: err.message, codigo: err.codigo } : { error: err.message },
+        { status: err.status },
+      )
     }
     if (err instanceof RollbackDiffVacio) {
       return jsonError('Todavía no realizó cambios en el parte actual', 409)
