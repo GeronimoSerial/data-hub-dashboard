@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { ESTILO_PASTILLA_ESTACION, idMarcadorEstacion, idPastillaEstacion, registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
 import { PALETA_ESTADO_ALTURA } from '@/lib/mapas/paleta-tonal'
-import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
-import { textoActualizado, textoAlturaRio } from '@/lib/infraestructura/presentacion/textos-dato'
+import { TarjetaEstacionRio } from './tarjeta-estacion-rio'
 
 type EstadoAltura = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 type Tendencia = 'crece' | 'baja' | 'estable' | 'sin_dato'
@@ -59,17 +58,7 @@ const ETIQUETA_ESTADO: Record<EstadoAltura, string> = {
   sin_dato: 'Sin dato',
 }
 
-const ETIQUETA_TENDENCIA: Record<Tendencia, string> = {
-  crece: 'Crece',
-  baja: 'Baja',
-  estable: 'Estable',
-  sin_dato: 'Sin dato',
-}
 
-const ETIQUETA_RIO: Record<EstacionRio['rio'], string> = {
-  parana: 'Río Paraná',
-  uruguay: 'Río Uruguay',
-}
 
 export function etiquetaEstadoAltura(estado: EstadoAltura): string {
   return ETIQUETA_ESTADO[estado]
@@ -189,7 +178,6 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
   const [estaciones, setEstaciones] = useState<EstacionRio[]>([])
   const [listo, setListo] = useState(false)
   const [seleccionada, setSeleccionada] = useState<string | null>(null)
-  const [enfocada, setEnfocada] = useState<string | null>(null)
   const { current: mapa } = useMap()
 
   useEffect(() => {
@@ -258,12 +246,11 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
     const alEntrar = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
       const id = idDe(evento)
       if (!id) return
+      // No hover tooltip: the pointer cursor alone invites the click.
       mapa.getCanvas().style.cursor = 'pointer'
-      setEnfocada(id)
     }
     const alSalir = () => {
       mapa.getCanvas().style.cursor = ''
-      setEnfocada(null)
     }
     const alHacerClic = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
       const id = idDe(evento)
@@ -285,14 +272,11 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
 
   const datos = useMemo(() => puntosDe(estaciones), [estaciones])
   const activa = estaciones.find((estacion) => estacion.estacionId === seleccionada) ?? null
-  const alturaActiva = textoAlturaRio({
-    alturaM: activa?.lectura?.lecturaM ?? null,
-    estado: activa?.estado ?? 'sin_dato',
-    alertaM: activa?.lectura?.alertaM ?? null,
-    evacuacionM: activa?.lectura?.evacuacionM ?? null,
-  })
-  const enfoque = estaciones.find((estacion) => estacion.estacionId === enfocada) ?? null
-
+  const cerrar = useCallback(() => {
+    setSeleccionada(null)
+    // Keyboard users land back on the map after closing the card.
+    mapa?.getCanvas().focus?.()
+  }, [mapa])
   return (
     <>
       {listo && (
@@ -343,49 +327,17 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
           />
         </Source>
       )}
-      {enfoque && !activa && (
-        <Popup
-          longitude={enfoque.lon}
-          latitude={enfoque.lat}
-          anchor="bottom"
-          closeButton={false}
-          closeOnClick={false}
-          className="mapa-tooltip"
-          offset={18}
-        >
-          {`Estación Prefectura ${enfoque.nombre} · Altura del río: ${enfoque.lectura ? formatoMetros(enfoque.lectura.lecturaM) : 'sin dato'} · ${etiquetaEstadoAltura(enfoque.estado)} — clic para ver detalle`}
-        </Popup>
-      )}
       {activa && (
         <Popup
           longitude={activa.lon}
           latitude={activa.lat}
           anchor="bottom"
-          maxWidth="360px"
-          onClose={() => setSeleccionada(null)}
+          maxWidth="340px"
+          offset={30}
+          onClose={cerrar}
           closeOnClick={false}
         >
-          <div className="map-popup">
-            <p className="map-popup-title">{activa.nombre}</p>
-            <p className="map-popup-muted">{ETIQUETA_RIO[activa.rio]}</p>
-            <hr className="map-popup-rule" />
-            <p className="map-popup-row">
-              <DatoFechado
-                actualizado={textoActualizado(activa.lectura?.medidaEn)}
-                vencido={activa.lecturaVencida}
-              >
-                <strong>{alturaActiva.altura}</strong>
-              </DatoFechado>
-              {' · '}{alturaActiva.estado}
-              {activa.lectura?.inconsistente && <NotaInfo texto="Lectura marcada como inconsistente por la fuente." />}
-            </p>
-            {alturaActiva.umbrales && <p className="map-popup-muted">{alturaActiva.umbrales}</p>}
-            <p className="map-popup-row">Tendencia: {ETIQUETA_TENDENCIA[activa.tendencia]}</p>
-            <p className="map-popup-muted">
-              <small>Fuente: Prefectura Naval Argentina</small>
-              <NotaInfo texto="Ubicación declarada por el publicador (no verificada)." />
-            </p>
-          </div>
+          <TarjetaEstacionRio estacion={{ ...activa, ...estadoEnMapa(activa) }} onCerrar={cerrar} />
         </Popup>
       )}
     </>

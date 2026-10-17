@@ -236,25 +236,18 @@ describe('CapaEstacionesRio', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('con lectura vencida no muestra un aviso: atenúa el valor y deja la fecha en el tooltip', async () => {
-    render(<CapaEstacionesRio visible />)
-
-    await screen.findByTestId('source')
-    act(() => {
-      mapa.emitir('click', 'estaciones-rio-simbolos', { features: [{ properties: { estacionId: 'corrientes' } }] })
-    })
-
-    const popup = await waitFor(() => screen.getByTestId('popup'))
-    expect(within(popup).getByText('Corrientes')).toBeTruthy()
-    expect(within(popup).getByText('Altura del río: sin dato')).toBeTruthy()
-    expect(popup.textContent).not.toMatch(/desactualizad/i)
-    expect(popup.querySelector('.dato-fechado--vencido')).not.toBeNull()
-    // La procedencia no va en el texto: queda detrás del ícono de info.
-    expect(popup.textContent).not.toContain('no verificada')
-    expect(within(popup).getByRole('note')).toHaveAttribute('title', 'Ubicación declarada por el publicador (no verificada).')
-  })
-
-  it('con lectura vigente dice la altura del río explícita, el estado y los umbrales', async () => {
+  it('al hacer clic abre la tarjeta con nivel, estado, serie y distancias a umbrales', async () => {
+    global.fetch = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        String(url).includes('/lecturas?')
+          ? { lecturas: [
+              { medidaEn: '2026-10-09T12:00:00-03:00', lecturaM: 3.6 },
+              { medidaEn: '2026-10-11T12:00:00-03:00', lecturaM: 4.0 },
+              { medidaEn: '2026-10-12T12:00:00-03:00', lecturaM: 4.12 },
+            ] }
+          : { estaciones: ESTACIONES },
+    })) as unknown as typeof fetch
     render(<CapaEstacionesRio visible />)
 
     await screen.findByTestId('source')
@@ -262,27 +255,41 @@ describe('CapaEstacionesRio', () => {
       mapa.emitir('click', 'estaciones-rio-simbolos', { features: [{ properties: { estacionId: 'rosario' } }] })
     })
 
-    const popup = await waitFor(() => screen.getByTestId('popup'))
-    expect(within(popup).getByText('Altura del río: 4,12 m')).toBeTruthy()
-    expect(popup.querySelector('.dato-fechado--vencido')).toBeNull()
-    expect(popup.querySelector('.dato-fechado')?.getAttribute('title')).toMatch(/^Actualizado \d{2}\/\d{2} \d{2}:\d{2}$/)
+    const tarjeta = await screen.findByRole('dialog', { name: 'Rosario' }, { timeout: 5000 })
+    expect(tarjeta.querySelector('.tarjeta-estacion__estado')?.textContent).toBe('Evacuación')
+    // Actual, alerta and evacuación share the top row.
+    expect([...tarjeta.querySelectorAll('.tarjeta-estacion__cifra dd')].map((n) => n.textContent)).toEqual(['4,12 m', '3,50 m', '4,00 m'])
+    expect(within(tarjeta).getByText('Superada por 0,62 m')).toBeTruthy()
+    expect(await within(tarjeta).findByRole('img', { name: /últimos 7 días/i }, { timeout: 5000 })).toBeTruthy()
+    expect(within(tarjeta).getByText('+0,12 m (+3,0 %)')).toBeTruthy()
+    expect(within(tarjeta).getByText('+0,52 m (+14,4 %)')).toBeTruthy()
+    expect(vi.mocked(global.fetch).mock.calls.some(([u]) => String(u).startsWith('/api/infraestructura/hidrometria/estaciones/rosario/lecturas?desde='))).toBe(true)
   })
 
-  it('muestra el tooltip de una línea al entrar y lo oculta al salir', async () => {
+  it('Escape cierra la tarjeta', async () => {
+    render(<CapaEstacionesRio visible />)
+    await screen.findByTestId('source')
+    act(() => {
+      mapa.emitir('click', 'estaciones-rio-pastillas', { features: [{ properties: { estacionId: 'corrientes' } }] })
+    })
+    const tarjeta = await screen.findByRole('dialog', { name: 'Corrientes' }, { timeout: 5000 })
+    expect(within(tarjeta).getByText('Sin lecturas publicadas.')).toBeTruthy()
+    expect(document.activeElement).toBe(tarjeta)
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('no muestra tooltip al pasar el puntero', async () => {
     render(<CapaEstacionesRio visible />)
 
     await screen.findByTestId('source')
     act(() => {
       mapa.emitir('mouseenter', 'estaciones-rio-simbolos', { features: [{ properties: { estacionId: 'corrientes' } }] })
     })
-    expect(
-      (await screen.findByTestId('tooltip')).textContent,
-    ).toBe('Estación Prefectura Corrientes · Altura del río: sin dato · Sin dato — clic para ver detalle')
-
-    act(() => {
-      mapa.emitir('mouseleave', 'estaciones-rio-simbolos', {})
-    })
-    await waitFor(() => expect(screen.queryByTestId('tooltip')).toBeNull())
+    expect(screen.queryByTestId('tooltip')).toBeNull()
+    expect(screen.queryByTestId('popup')).toBeNull()
   })
 
   it('no rompe la capa si la petición falla', async () => {
