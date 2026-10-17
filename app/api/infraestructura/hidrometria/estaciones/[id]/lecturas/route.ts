@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/db'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 import {
   consultarHistoriaEstacion,
   validarConsultaHistoriaEstacion,
@@ -15,6 +16,8 @@ type Ctx = { params: Promise<{ id: string }> }
 export async function GET(request: Request, ctx: Ctx) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
+
+  await cargarReferencias()
 
   const { id } = await ctx.params
   const { searchParams } = new URL(request.url)

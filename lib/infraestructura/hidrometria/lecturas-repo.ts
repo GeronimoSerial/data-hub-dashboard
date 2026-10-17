@@ -3,8 +3,8 @@ import { and, asc, count, desc, eq, gte, lte, max, min } from 'drizzle-orm'
 import type { getDb } from '@/lib/db'
 import { hidroLectura } from '@/lib/db/schema'
 import {
-  CATALOGO_ESTACIONES_PREFECTURA,
-  CATALOGO_ESTACIONES_PREFECTURA_VERSION,
+  obtenerEstacionesPrefectura,
+  obtenerVersionCatalogoPrefectura,
   type EstacionPrefectura,
 } from './estaciones-prefectura'
 import {
@@ -206,7 +206,7 @@ function parsearIsoConZona(valor: unknown): number | null {
 }
 
 export function obtenerEstacionCatalogo(estacionId: string): EstacionPrefectura | null {
-  return CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.estacionId === estacionId) ?? null
+  return obtenerEstacionesPrefectura().find((e) => e.estacionId === estacionId) ?? null
 }
 
 export function validarConsultaHistoriaEstacion(entrada: {
@@ -533,7 +533,7 @@ export async function consultarHistoriaEstacion(
       lat: estacion.coordenadas?.lat ?? null,
       lon: estacion.coordenadas?.lon ?? null,
       coordenadasVerificadas: false,
-      catalogoVersion: CATALOGO_ESTACIONES_PREFECTURA_VERSION,
+      catalogoVersion: obtenerVersionCatalogoPrefectura(),
     },
     rangoSolicitado: {
       desde: desdeIso,

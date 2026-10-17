@@ -7,6 +7,9 @@ import { categorias, hidroLectura, infraPeriodo, niveles, recursos, tipos } from
 import type { SessionUser } from '@/lib/acl'
 import { getSessionUser } from '@/lib/session'
 import { USER } from '@/lib/infraestructura/riesgo/__fixtures__/motor-api'
+import { estadoReferencias } from '@/lib/infraestructura/datasets/memoria'
+import { guardarVersion } from '@/lib/infraestructura/datasets/repositorio'
+import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 
 vi.mock('@/lib/session', () => ({
   getSessionUser: vi.fn(),
@@ -105,6 +108,36 @@ function filaLectura(
 }
 
 describe('GET /api/infraestructura/hidrometria/estaciones/[id]/lecturas', () => {
+  it('carga el catálogo publicado en una entrada directa sin referencias en memoria', async () => {
+    mockUsuario(USER)
+    await registrarRecursoMapaEnDbEfimera()
+    const catalogoVersion = await guardarVersion({
+      datasetId: 'estaciones-prefectura',
+      nombre: 'Estaciones Prefectura',
+      revision: 'entrada-directa',
+      fuente: 'fixture',
+      formato: 'array',
+      clave: 'estacionId',
+      datos: obtenerEstacionesPrefectura().map((estacion) => ({ ...estacion })),
+    })
+    const estado = estadoReferencias()
+    const referenciasAnteriores = estado.referencias
+    const cargadoEnAnterior = estado.cargadoEn
+    estado.referencias = new Map()
+    estado.cargadoEn = 0
+    try {
+      const res = await llamar(ESTACION, '?desde=2026-10-13T00:00:00Z&hasta=2026-10-16T00:00:00Z')
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({
+        estacion: { estacionId: ESTACION, catalogoVersion },
+        lecturas: [],
+      })
+    } finally {
+      estado.referencias = referenciasAnteriores
+      estado.cargadoEn = cargadoEnAnterior
+    }
+  })
+
   it('rechaza sin sesión con 401 sin invocar ensureSeeded ni escribir en la base', async () => {
     mockUsuario(null)
     const res = await llamar(
