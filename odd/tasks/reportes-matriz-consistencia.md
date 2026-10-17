@@ -57,6 +57,9 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 - [x] T6 Active state: pure rule + server 409 check (b10c34f). Wizard preload dropped: new-report wizard redirects to /actualizar when afectaciones are active (user decision 2026-10-17).
 - [x] T7 Apply consistency to the /actualizar flow (revisar-situacion): T1 blocks/warnings + "Solucionada / Sigue activa" sheet when moving to habitual.
 
+- [ ] T8 Update flow fixes from E2E (2026-10-17, CUE 1800831-00): (a) afectaciones being closed (solucionada/retirada) must not feed consistency rules (client + server); (b) closing the last active afectación while building is evacuado/centro_evacuados or service suspended must offer restoring building to habitual and classes to normal (no dead end).
+- [ ] T9 Mobile: user cannot go back between wizard steps on mobile (new report wizard and update flow).
+
 ## Checks
 `npx vitest run <focused files>`, `npx tsc --noEmit`, `npx eslint <changed files>`.
 
@@ -77,4 +80,4 @@ Route: delegated direct, one Haiku writer per task (user instruction, ≤100k to
 - T7 límites conocidos: el bloqueo corta el envío (resumen), no cada "Continuar" de paso; sólo se evalúan situaciones tocadas por la actualización; si después de confirmar la hoja se vuelve a cambiar clases/edificio en la misma tarjeta, su respuesta de hoja se reemplaza y el envío queda bloqueado hasta volver a decidirla.
 
 ## Next step
-Pendiente: T6 (asistente, ver nota arriba) y T4b (CSS de `.opcion--sugerido`).
+T8, then T9.
