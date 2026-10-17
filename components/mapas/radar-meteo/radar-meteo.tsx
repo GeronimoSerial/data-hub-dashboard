@@ -529,6 +529,8 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
         closestDistance = distance
       }
     })
+    // One overlay at a time: the point forecast replaces the school card.
+    setCueEscuela(null)
     setPoint(closestIndex >= 0 ? closestIndex : null)
   }, [data])
 
@@ -637,6 +639,7 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
             title={`${escuela.nombre} · abrir pronóstico`}
             onClick={(event) => {
               event.stopPropagation()
+              setPoint(null)
               setCueEscuela(escuela.cueAnexo)
             }}
           >•</button>

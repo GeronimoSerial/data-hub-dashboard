@@ -36,6 +36,7 @@ export function PopupRadar({
   const amount = precipitation === null || precipitation === undefined
     ? '—'
     : precipitation.toFixed(1)
+  const probability = data.valores.precipitation_probability?.[frame]?.[index]
   const direction = data.valores.wind_direction_10m?.[frame]?.[index] ?? null
   const probabilitySeries = data.valores.precipitation_probability?.map((values) => values[index] ?? 0) ?? []
 
@@ -43,12 +44,19 @@ export function PopupRadar({
     <div className="radar-meteo-popup" role="dialog" aria-label="Pronóstico en el punto seleccionado">
       <button type="button" className="map-cerrar" aria-label="Cerrar" onClick={onClose}><X aria-hidden="true" /></button>
       <strong>{cell.lat.toFixed(2)}, {cell.lon.toFixed(2)}</strong>
-      <p>Probabilidad {data.valores.precipitation_probability?.[frame]?.[index] ?? '—'}% · Lluvia {amount} {paso === 3 ? 'mm en 3 h' : 'mm/h'}</p>
-      <p>
-        Viento del {letraViento(direction)} {data.valores.wind_speed_10m?.[frame]?.[index] ?? '—'} km/h
-        {' '}({direction === null ? '—' : Math.round(direction)}°) · ráfaga {data.valores.wind_gusts_10m?.[frame]?.[index] ?? '—'} km/h
-      </p>
-      <p>Granizo estimado: {data.valores.granizo?.[frame]?.[index] ?? '—'}</p>
+      <dl className="radar-meteo-popup-filas">
+        <dt>Probabilidad</dt>
+        <dd>{probability ?? '—'} %</dd>
+        <dt>Lluvia</dt>
+        <dd>{amount} {paso === 3 ? 'mm en 3 h' : 'mm/h'}</dd>
+        <dt>Viento</dt>
+        <dd>
+          {letraViento(direction)} {data.valores.wind_speed_10m?.[frame]?.[index] ?? '—'} km/h
+          {' '}({direction === null ? '—' : Math.round(direction)}°) · ráfaga {data.valores.wind_gusts_10m?.[frame]?.[index] ?? '—'} km/h
+        </dd>
+        <dt>Granizo</dt>
+        <dd>{data.valores.granizo?.[frame]?.[index] ?? '—'}</dd>
+      </dl>
       <Sparkline data={probabilitySeries} />
     </div>
   )

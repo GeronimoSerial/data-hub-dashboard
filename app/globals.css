@@ -2688,7 +2688,13 @@ time {
 .radar-meteo-days .radar-meteo-axis-tick--hora { color:#6d8495; }
 .radar-meteo-days .radar-meteo-axis-tick[data-align="start"] { transform:none; }
 .radar-meteo-days .radar-meteo-axis-tick[data-align="end"] { transform:translateX(-100%); }
-.radar-meteo-popup { top:78px; right:16px; padding:14px; width:270px; }
+/* Radar overlays (point forecast, school card) open in the top-left of the free map area:
+   right of the sidebar, away from the bottom-right legends and the top-right summary. */
+.radar-meteo-popup { top:var(--s-3); left:calc(55px + var(--map-sidebar-ancho) + var(--s-3)); padding:14px; width:270px; }
+.radar-meteo-popup-filas { display:grid; grid-template-columns:auto 1fr; gap:4px 10px; margin:8px 0; }
+.radar-meteo-popup-filas dt { color:#a9c0d0; }
+.radar-meteo-popup-filas dd { margin:0; font-variant-numeric:tabular-nums; }
+@media(max-width:720px) { .radar-meteo-popup { left:8px; right:8px; width:auto; } }
 .radar-meteo-popup button { float:right; padding:0 5px; font-size:var(--t-h2); }
 .radar-meteo-popup svg { width:100%; height:42px; }
 .radar-meteo-debug-readout { position:fixed; z-index:15; right:360px; top:216px; padding:5px 8px; color:#e8f3fb; background:#101d2b; border:1px solid #536b7d; border-radius:6px; font: var(--t-micro)/1.3 ui-monospace,monospace; }
@@ -2733,7 +2739,8 @@ time {
 .radar-verificacion strong { color:#fff; font-size:var(--t-micro); }
 .radar-verificacion span { cursor:help; }
 .radar-resumen-empty { padding:14px 12px; margin:0; color:#c2cfd4; font-size:var(--t-micro); line-height:1.45; }
-.radar-escuela-card { position:fixed; z-index:10; left:58px; bottom:145px; width:275px; max-height:38vh; overflow:auto; padding:11px; color:#e7eef1; background:rgba(10,20,29,.92); border:1px solid rgba(169,194,207,.3); border-radius:9px; backdrop-filter:blur(9px); font-size:var(--t-micro); }
+/* Same layer as map popups (z 40, see the stacking order at .maplibregl-map). */
+.radar-escuela-card { position:absolute; z-index:40; top:var(--s-3); left:calc(55px + var(--map-sidebar-ancho) + var(--s-3)); width:275px; max-height:38vh; overflow:auto; padding:11px; color:#e7eef1; background:rgba(10,20,29,.92); border:1px solid rgba(169,194,207,.3); border-radius:9px; backdrop-filter:blur(9px); font-size:var(--t-micro); }
 .radar-escuela-card form { display:grid; gap:6px; }.radar-escuela-card form label { color:#dce6e9; font-weight:650; }.radar-escuela-card form div { display:flex; gap:5px; }.radar-escuela-card input { min-width:0; flex:1; padding:7px; color:#f2f6f7; background:#111f29; border:1px solid #52646e; border-radius:5px; }.radar-escuela-card button { padding:6px 9px; color:#fff; background:#294959; border:1px solid #607e8c; border-radius:5px; cursor:pointer; }.radar-escuela-card h3 { margin:9px 0 2px; font-size:var(--t-micro); }.radar-escuela-card p { margin:7px 0; color:#c0cdd2; line-height:1.4; }.radar-escuela-bars { display:flex; height:38px; align-items:flex-end; gap:1px; margin-top:8px; }.radar-escuela-bars i { flex:1; min-width:1px; background:#4a9eaf; border-radius:2px 2px 0 0; }.radar-escuela-sin-lluvia48h { padding:7px 8px; margin:8px 0 0 !important; background:#142630; border-radius:4px; font-size:var(--t-micro); }.radar-escuela-dias { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; margin-top:8px; }.radar-escuela-dias span { display:grid; gap:3px; min-width:0; padding:4px 2px; background:#192a34; text-align:center; font-size:var(--t-micro); }.radar-escuela-dias b { color:#eef5f6; font-variant-numeric:tabular-nums; white-space:nowrap; font-size:var(--t-micro); }
 .radar-escuela-marker { width:17px; height:17px; padding:0; color:#deeff1; background:rgba(35,92,105,.72); border:1px solid rgba(236,248,250,.8); border-radius:50%; box-shadow:0 0 0 2px rgba(8,25,32,.72); font-size:var(--t-body); line-height:12px; cursor:pointer; }
 @media(max-width:700px) {
@@ -2742,7 +2749,7 @@ time {
  .radar-resumen-header { padding:9px 10px; }.radar-resumen h2 { font-size:var(--t-small); }.radar-resumen-search { padding:7px 9px; }
  .radar-resumen-toggle { display:block; padding:5px 7px; color:#edf4f5; background:#263d48; border:1px solid #687f89; border-radius:5px; font-size:var(--t-micro); }
  .radar-resumen-table th:first-child { min-width:88px; }.radar-dia-cell { min-width:43px; }
- .radar-escuela-card { left:8px; bottom:165px; width:min(275px,76vw); max-height:30vh; }
+ .radar-escuela-card { left:8px; width:min(275px,76vw); max-height:30vh; }
 }
 @media(max-width:600px) {
   .radar-resumen { bottom:160px; }

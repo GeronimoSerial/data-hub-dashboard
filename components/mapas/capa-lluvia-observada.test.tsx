@@ -191,6 +191,18 @@ describe('CapaLluviaObservada', () => {
     expect(screen.queryByTestId('popup')).toBeNull()
   })
 
+  it('no abre su popup con sinPopup (modo radar: el clic abre solo el pronóstico del punto)', async () => {
+    render(<CapaLluviaObservada visible horas={72} sinPopup />)
+    await waitFor(() => expect(screen.getAllByTestId('source').length).toBeGreaterThan(0))
+    const manejadorClic = mapa.on.mock.calls.findLast((llamada) => llamada[0] === 'click' && llamada[1] === 'lluvia-observada-hit')?.[2]
+
+    act(() => {
+      manejadorClic?.({ point: { x: 10, y: 10 }, lngLat: { lng: -58.8, lat: -27.4 }, features: [{ properties: CELDA_PARCIAL }] })
+    })
+
+    expect(screen.queryByTestId('popup')).toBeNull()
+  })
+
   it('quita los listeners del mapa al desmontar', async () => {
     const { unmount } = render(<CapaLluviaObservada visible horas={72} />)
     await waitFor(() => expect(screen.getAllByTestId('source').length).toBeGreaterThan(0))

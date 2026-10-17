@@ -154,24 +154,30 @@ export function CapaLluviaObservada({
   horas,
   onMeta,
   beforeId,
+  sinPopup = false,
 }: {
   visible: boolean
   horas: HorasLluvia
   onMeta?: (meta: MetaLluviaObservada) => void
   beforeId?: string
+  // In radar mode a map click belongs to the point forecast: the observed-rain layer
+  // stays visible (with its legend) but does not open its own popup.
+  sinPopup?: boolean
 }) {
   if (!visible) return null
-  return <CapaLluviaObservadaActiva horas={horas} onMeta={onMeta} beforeId={beforeId} />
+  return <CapaLluviaObservadaActiva horas={horas} onMeta={onMeta} beforeId={beforeId} sinPopup={sinPopup} />
 }
 
 function CapaLluviaObservadaActiva({
   horas,
   onMeta,
   beforeId,
+  sinPopup,
 }: {
   horas: HorasLluvia
   onMeta?: (meta: MetaLluviaObservada) => void
   beforeId?: string
+  sinPopup: boolean
 }) {
   const [respuesta, setRespuesta] = useState<RespuestaLluvia | null>(null)
   const [clic, setClic] = useState<ClicLluvia | null>(null)
@@ -248,7 +254,7 @@ function CapaLluviaObservadaActiva({
       <Source id="lluvia-observada-hit-src" type="geojson" data={datosHit as never}>
         <Layer id={ID_HIT} type="fill" beforeId={beforeId} paint={{ 'fill-opacity': 0 }} />
       </Source>
-      {clic && (
+      {clic && !sinPopup && (
         <Popup longitude={clic.lon} latitude={clic.lat} anchor="bottom" onClose={() => setClic(null)} closeOnClick={false}>
           <div className="map-popup">
             <p className="map-popup-title">Lluvia observada {horas} h: {formatoMm(clic.propiedades.acumuladoMm)}</p>
