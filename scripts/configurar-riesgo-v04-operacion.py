@@ -19,11 +19,16 @@ CAMPOS = ['uuid', 'name', 'command', 'frequency', 'timeout', 'enabled']
 # Estado deseado por job de scripts/jobs.mjs. `crear` = datos completos si la
 # tarea no existe; el resto de las claves se comparan y se corrigen con PATCH.
 # Todo job no listado acá queda como está.
+def comando(job):
+    # Mismo formato que el resto de las tareas de producción en Coolify.
+    return 'sh -c "cd /app && node scripts/jobs.mjs ' + job + '"'
+
+
 DESEADO = {
-    'sync-ina-serie-diaria': {'frequency': '10 6 * * *', 'enabled': True,
+    'sync-ina-serie-diaria': {'frequency': '10 6 * * *', 'enabled': True, 'command': comando('sync-ina-serie-diaria'),
                               'crear': {'timeout': 1800}},
     # Antes de calcular-riesgo (`15 2,8,14,20 * * *`).
-    'sync-ina-pronostico': {'frequency': '50 1,7,13,19 * * *', 'enabled': True,
+    'sync-ina-pronostico': {'frequency': '50 1,7,13,19 * * *', 'enabled': True, 'command': comando('sync-ina-pronostico'),
                             'crear': {'timeout': 600}},
     'sync-radar-meteo': {'frequency': '27 3,9,15,21 * * *'},
     'climatologia-caudal': {'enabled': False},
@@ -78,7 +83,7 @@ def planificar(existentes):
         campos = {k: v for k, v in deseado.items() if k != 'crear'}
         if not actuales:
             if 'crear' in deseado:
-                datos = {'name': job, 'command': 'node scripts/jobs.mjs ' + job, **campos, **deseado['crear']}
+                datos = {'name': job, 'command': comando(job), **campos, **deseado['crear']}
                 plan.append(('crear', None, datos))
             continue
         for task in actuales:
