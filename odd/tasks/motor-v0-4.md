@@ -65,7 +65,8 @@ Tracker: `GeronimoSerial/motor-v0.4` (base `origin/dev` f07002f7). Cada tarea = 
 | 01 | `motor-v0.4/01-contratos-candidato` | T1 | 853f4e88 (+ registro ODD) |
 | 02 | `motor-v0.4/02-altimetria` | T2 | 7180d65d |
 | 03 | `motor-v0.4/03-ina-catalogo-serie` | T3 | 0139e672 |
-| 04 | `motor-v0.4/04-ina-pronosticos` | T4 | (ver T4) |
+| 04 | `motor-v0.4/04-ina-pronosticos` | T4 | 9d803fb2 |
+| 05 | `motor-v0.4/05-modelo-temporal` | T5 | — |
 
 ## Progreso y evidencia
 
