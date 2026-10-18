@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, TEXTO_CONFIRMAR_CATEGORIA, type AfectacionBorrador } from './afectacion-campos'
 import { SEVERIDAD_CRITERIOS } from '@/lib/infraestructura/severidad'
@@ -30,7 +30,9 @@ function renderCamposQuePaso({
 }
 
 afterEach(() => {
-  document.body.innerHTML = ''
+  // Desmonta los árboles de React: vaciar el DOM deja trabajo pendiente del
+  // scheduler que corre después de cerrar jsdom (window is not defined).
+  cleanup()
 })
 
 describe('CamposAQuienAfecta — selector legado', () => {
