@@ -20,7 +20,11 @@ Staff need school lists (afectadas, sin clases, con clases, asistidas, en riesgo
 
 ## Tasks
 - [x] T1 — `exceljs` dependency + `lib/exportaciones/libro-institucional.ts`: generic institutional workbook builder (escudo, title, generated date, applied filters, styled header row, frozen header, autofilter, zebra rows, column widths, print setup). Unit tests.
-- [ ] T2 — `lib/exportaciones/escuelas.ts`: export type catalog (predicate + columns + title per type) over `EscuelaMapaEnriquecida`; en-riesgo uses radar logic. Unit tests.
+- [x] T2 — `lib/exportaciones/escuelas.ts`: export type catalog (predicate + columns + title per type) over `EscuelaMapaEnriquecida`; en-riesgo uses radar logic. Unit tests.
+  - Evidence: RED observed (module missing). GREEN: `pnpm vitest run lib/exportaciones` → 2 files, 18 passed. `pnpm tsc --noEmit -p .` → exit 0. `pnpm eslint lib/exportaciones` → exit 0.
+  - Afectada = `escuela.parte !== undefined` (the enriched type has no `estado`). Asistidas = apoyo in {virtual, cuadernillo, ambos, brinda}, the same set as the map's "brinda" filter.
+  - en-riesgo takes its data from `ContextoExportacionEscuelas.riesgoPorCue`, built with `riesgoPorCueDesdeRadar(puntos, escuelas, horizonte)`. T3 must load the radar points for the horizon and pass that map in.
+  - "Dirección" column = `nivelJurisdiccionalNombre`. The type has no postal address field.
 - [ ] T3 — `app/api/infraestructura/exportar/route.ts`: GET `?tipo=&departamento=&direccion=…`, auth + role scope, returns xlsx with Content-Disposition (`lib/archivo.ts`). Tests.
 - [ ] T4 — Download control on `/mapas/infraestructura` that exports with the active filters.
 
