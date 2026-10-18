@@ -106,12 +106,23 @@ def imprimir_plan(plan, existentes):
 
 
 def operar(op):
-    if op not in ['inspeccionar', 'configurar', 'estado', 'listar']:
+    if op not in ['inspeccionar', 'configurar', 'estado', 'listar', 'ejecutar-riesgo', 'estado-riesgo']:
         raise ValueError('Operación desconocida')
     uuid = app_uuid()
     validar_destino(uuid)
     prefix = '/applications/' + uuid
     existentes = tasks(uuid)
+    if op in ['ejecutar-riesgo', 'estado-riesgo']:
+        # Dispara (o consulta) la tarea programada calcular-riesgo dentro del
+        # contenedor de producción; su lease por bloque de 6 h evita duplicar.
+        task = next(t for t in existentes if job_de(t) == 'calcular-riesgo')
+        if op == 'ejecutar-riesgo':
+            api(prefix + '/scheduled-tasks/' + task['uuid'] + '/execute', 'POST')
+            print('calcular-riesgo solicitado')
+        response = api(prefix + '/scheduled-tasks/' + task['uuid'] + '/executions')
+        rows = response if isinstance(response, list) else response.get('data', [])
+        print('calcular-riesgo', json.dumps([{k: r.get(k) for k in ['uuid', 'status', 'started_at', 'finished_at']} for r in rows[:3]]))
+        return
     if op == 'listar':
         # Sólo lectura: todas las tareas programadas de producción.
         for t in existentes:
