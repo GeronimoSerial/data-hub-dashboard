@@ -1,22 +1,15 @@
 'use client'
 
 import * as React from 'react'
-import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
-import { NotaInfo } from '@/components/ui/dato-fechado'
-import { ROTULO_FUENTE } from '@/lib/infraestructura/veredicto/plantilla'
+import { Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState, type JSX } from 'react'
-import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import type { DtoVeredicto, MetricaDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
+import type { DtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import type { EventoTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
-import { nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
-import {
-  describirAguaArriba,
-  describirTraza,
-  horaArt,
-  type TrazaLegible,
-} from '@/lib/infraestructura/veredicto/traza-texto'
+import { etiquetaNivel, nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
+import { lecturaDelDia } from '@/lib/infraestructura/veredicto/resumen'
 import { NivelChip } from './nivel-chip'
+import { contarPalabras, pasoEscritura, TextoIA, useEscribiendo } from './texto-ia'
 import { VeredictoAcciones } from './veredicto-acciones'
 
 export type { EventoTerreno }
@@ -31,8 +24,6 @@ type Props = {
 
 type EstadoCarga = 'cargando' | 'error' | 'ok'
 
-const PREFIJO_DEPARTAMENTO = 'departamento:'
-
 function fechaCorta(fecha: string): string {
   const [, m, d] = fecha.split('-')
   return `${d}/${m}`
@@ -43,91 +34,26 @@ function diaSemana(fecha: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('es', { weekday: 'long' })
 }
 
-// La etiqueta sale del `tipoDia` persistido (calculado en hora argentina por el
-// job), no del reloj del navegador.
-function etiquetaTemporal(tipoDia: DtoVeredicto['tipoDia']): 'OBSERVADO' | 'HOY' | 'PRONÓSTICO' {
-  if (tipoDia === 'hoy') return 'HOY'
-  return tipoDia === 'observado' ? 'OBSERVADO' : 'PRONÓSTICO'
+// The label comes from the stored `tipoDia` (computed in Argentina time by the
+// job), not from the browser clock.
+function fechaHoyArgentina(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
 }
 
-function prettifyDepartamento(id: string): string {
-  // Mismo nombre (con tildes) que el resto del mapa.
-  return etiquetaDepartamento(id.toUpperCase())
+function diaSemanaCorto(fecha: string): string {
+  const dia = diaSemana(fecha).slice(0, 3)
+  return `${dia.charAt(0).toUpperCase()}${dia.slice(1)}`
 }
 
-function primeraOracion(texto: string | null): string {
-  if (!texto) return ''
-  return texto.split(/(?<=[.!?])\s/)[0] ?? ''
+function etiquetaTemporal(tipoDia: DtoVeredicto['tipoDia']): string {
+  if (tipoDia === 'hoy') return 'hoy'
+  return tipoDia === 'observado' ? 'observado' : 'pronóstico'
 }
 
-type NivelRadar = 'bajo' | 'moderado' | 'alto' | 'muy_alto'
-type PuntoRadar = {
-  departamento: string | null
-  horizonteHoras: number
-  nivelRiesgo: NivelRadar | null
-}
-type ConteoNiveles = Partial<Record<NivelRadar, number>>
-
-const ORDEN_NIVELES_RADAR: NivelRadar[] = ['muy_alto', 'alto', 'moderado', 'bajo']
-const ETIQUETA_NIVEL_RADAR: Record<NivelRadar, string> = {
-  muy_alto: 'muy alto',
-  alto: 'alto',
-  moderado: 'moderado',
-  bajo: 'bajo',
-}
-
-function claveDepartamento(nombre: string): string {
-  return nombre
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .trim()
-}
-
-function contarNivelesPorDepartamento(puntos: PuntoRadar[]): Record<string, ConteoNiveles> {
-  const mapa: Record<string, ConteoNiveles> = {}
-  for (const p of puntos) {
-    if (p.horizonteHoras !== 72 || !p.nivelRiesgo || !p.departamento) continue
-    const clave = claveDepartamento(p.departamento)
-    const conteo = mapa[clave] ?? {}
-    conteo[p.nivelRiesgo] = (conteo[p.nivelRiesgo] ?? 0) + 1
-    mapa[clave] = conteo
-  }
-  return mapa
-}
-
-function textoEscuelasPorRiesgo(conteo: ConteoNiveles | undefined): string {
-  if (!conteo) return ''
-  return ORDEN_NIVELES_RADAR.filter((nivel) => (conteo[nivel] ?? 0) > 0)
-    .map((nivel) => `${conteo[nivel]} ${ETIQUETA_NIVEL_RADAR[nivel]}`)
-    .join(' · ')
-}
-
-function etiquetaMetrica(metrica: MetricaDtoVeredicto): string {
-  const unidad = metrica.unidad ? ` ${metrica.unidad}` : ''
-  return `${metrica.etiqueta} ${String(metrica.valor)}${unidad}`
-}
-
-function notaTecnica(veredicto: DtoVeredicto): string | null {
-  const partes = [
-    veredicto.fuentesAusentes.length > 0 ? `Sin datos de: ${veredicto.fuentesAusentes.map(textoItem).join(', ')}.` : null,
-    veredicto.fuente === 'plantilla' ? 'Generado por reglas (IA no disponible).' : null,
-  ].filter((parte): parte is string => parte !== null)
-  return partes.length > 0 ? partes.join(' ') : null
-}
-
-function textoItem(item: unknown): string {
-  if (typeof item === 'string') return (ROTULO_FUENTE as Record<string, string>)[item] ?? item
-  if (item !== null && typeof item === 'object') {
-    const r = item as Record<string, unknown>
-    return String(r.etiqueta ?? r.id ?? r.fuente ?? JSON.stringify(item))
-  }
-  return String(item)
-}
-
-function descripcionTraza(item: unknown, metricas: MetricaDtoVeredicto[]): string {
-  if (item === null || typeof item !== 'object') return textoItem(item)
-  return describirTraza(item as TrazaLegible, metricas)
+function etiquetaDia(tipoDia: string, fecha: string): string {
+  if (tipoDia === 'hoy') return 'Hoy'
+  const dia = diaSemana(fecha)
+  return `${dia.charAt(0).toUpperCase()}${dia.slice(1)} ${fechaCorta(fecha)} · ${etiquetaTemporal(tipoDia)}`
 }
 
 function extraerVeredictos(body: unknown): DtoVeredicto[] {
@@ -138,84 +64,96 @@ function extraerVeredictos(body: unknown): DtoVeredicto[] {
   return []
 }
 
-function DetalleVeredicto({
-  veredicto,
-  metricas,
+/** Text that types in only when it was written by the AI. */
+function Texto({ texto, ia, inicio, paso }: { texto: string; ia: boolean; inicio: number; paso: number }): JSX.Element {
+  return ia ? <TextoIA texto={texto} inicio={inicio} paso={paso} /> : <>{texto}</>
+}
+
+function VeredictoDelDia({
+  fecha,
+  fechaHoy,
+  delDia,
+  onSeleccionarDepartamento,
 }: {
-  veredicto: DtoVeredicto
-  metricas: MetricaDtoVeredicto[]
+  fecha: string
+  fechaHoy: string
+  delDia: DtoVeredicto[]
+  onSeleccionarDepartamento?(departamentoId: string): void
 }): JSX.Element {
-  const frases = (veredicto.frases ?? []) as Array<{
-    texto?: string
-    refs?: string[]
-  }>
+  const lectura = lecturaDelDia(delDia)
+  const { provincia, titular, lineas, sinNovedad, conIa } = lectura
+  const tipoDia = fecha === fechaHoy ? 'hoy' : fecha < fechaHoy ? 'observado' : 'pronostico'
+  // The headline and every line type in as one sequence within one time budget.
+  const textos = [titular, ...lineas.map((l) => l.texto)]
+  const total = contarPalabras(textos)
+  const paso = pasoEscritura(total)
+  const inicio = (i: number) => contarPalabras(textos.slice(0, i))
+  const escribiendo = useEscribiendo(total * paso + 250)
+
   return (
-    <section aria-label="Detalle del veredicto" className="veredicto-detalle">
-      <header className="veredicto-detalle__encabezado">
-        <h3>
-          {diaSemana(veredicto.fecha)} {fechaCorta(veredicto.fecha)} · {etiquetaTemporal(veredicto.tipoDia)}
-        </h3>
-        <NivelChip nivel={veredicto.nivel} />
-        {veredicto.enCalibracion ? <span className="badge veredicto-calibracion">En calibración</span> : null}
-        {/* Procedencia y fuentes ausentes: detalle técnico detrás del ícono de info, no en el texto. */}
-        {notaTecnica(veredicto) ? <NotaInfo texto={notaTecnica(veredicto) as string} /> : null}
-        <span
-          className="veredicto-detalle__meta"
-          title={veredicto.imergHasta ? `Lluvia observada hasta ${horaArt(veredicto.imergHasta)}` : undefined}
-        >
-          generado {horaArt(veredicto.generadoEn)}
-        </span>
+    <section
+      aria-label="Veredicto del día"
+      className="veredicto-dia"
+      data-escribiendo={conIa && escribiendo ? 'true' : undefined}
+    >
+      <header className="veredicto-dia__encabezado">
+        <h3>{etiquetaDia(tipoDia, fecha)}</h3>
+        {provincia ? <NivelChip nivel={provincia.nivel} /> : null}
+        {provincia?.enCalibracion ? <span className="veredicto-calibracion">En calibración</span> : null}
       </header>
 
-      {/* Con frases de IA, `texto` es su concatenación: se muestra una sola vez. */}
-      {veredicto.texto && frases.length === 0 ? <p>{veredicto.texto}</p> : null}
+      {delDia.length === 0 ? <p className="veredicto-modal__estado">El veredicto de este día todavía no se generó.</p> : null}
 
-      {frases.length > 0 ? (
-        <ul className="veredicto-detalle__frases">
-          {frases.map((frase, i) => (
-            <li key={i}>
-              <span>{frase.texto}</span>{' '}
-              <span className="veredicto-detalle__refs">
-                {(frase.refs ?? []).map((refId) => {
-                  const metrica = metricas.find((m) => m.id === refId)
-                  if (!metrica) return null
-                  const etiqueta = etiquetaMetrica(metrica)
-                  return metrica.fuenteUrl ? (
-                    <a key={refId} href={metrica.fuenteUrl} target="_blank" rel="noreferrer">
-                      {etiqueta}
-                    </a>
-                  ) : (
-                    <span key={refId}>{etiqueta}</span>
-                  )
-                })}
-              </span>
+      {titular ? (
+        <p className="veredicto-dia__titular">
+          <Texto texto={titular} ia={provincia?.fuente === 'ia'} inicio={0} paso={paso} />
+        </p>
+      ) : (
+        <p className="veredicto-dia__vacio">Sin veredicto de provincia para este día.</p>
+      )}
+
+      {lineas.length > 0 ? (
+        <ul aria-label="Departamentos" className="veredicto-lineas">
+          {lineas.map((linea, i) => (
+            <li key={linea.veredicto.id} className="veredicto-linea" data-nivel={linea.veredicto.nivel}>
+              <div className="veredicto-linea__cabeza">
+                <strong>{linea.nombre}</strong>
+                <NivelChip nivel={linea.veredicto.nivel} />
+                {onSeleccionarDepartamento ? (
+                  <button
+                    type="button"
+                    className="veredicto-linea__mapa"
+                    aria-label={`Ver ${linea.nombre} en el mapa`}
+                    onClick={() => onSeleccionarDepartamento(linea.id)}
+                  >
+                    Ver en el mapa
+                  </button>
+                ) : null}
+              </div>
+              <p className="veredicto-linea__texto">
+                <Texto texto={linea.texto} ia={linea.veredicto.fuente === 'ia'} inicio={inicio(i + 1)} paso={paso} />
+              </p>
             </li>
           ))}
         </ul>
       ) : null}
 
-      {veredicto.traza.length > 0 ? (
-        <div className="veredicto-seccion">
-          <h4>Por qué este nivel</h4>
-          <ul>
-            {veredicto.traza.map((item, i) => (
-              <li key={i}>{descripcionTraza(item, metricas)}</li>
-            ))}
-          </ul>
-        </div>
+      {sinNovedad.length > 0 ? (
+        <p className="veredicto-dia__quietos">
+          {lineas.length === 0 ? 'Sin novedades en ningún departamento.' : `Sin novedades: ${sinNovedad.join(', ')}.`}
+        </p>
       ) : null}
 
-      {veredicto.aguasArriba.length > 0 ? (
-        <div className="veredicto-seccion">
-          <h4>Aguas arriba (contexto, no modifica el nivel)</h4>
-          <ul>
-            {veredicto.aguasArriba.map((a) => (
-              <li key={a.estacionId}>{describirAguaArriba(a)}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
+      <p className="veredicto-procedencia">
+        {conIa ? (
+          <>
+            <Sparkles aria-hidden="true" className="veredicto-ia-icono" size={14} strokeWidth={2} />
+            Generado con IA · puede contener errores
+          </>
+        ) : (
+          'Generado por reglas automáticas'
+        )}
+      </p>
     </section>
   )
 }
@@ -231,30 +169,12 @@ export function VeredictoModal({
   const [veredictos, setVeredictos] = useState<DtoVeredicto[]>([])
   const [seleccion, setSeleccion] = useState<string | null>(null)
   const [eventosCargados, setEventosCargados] = useState<EventoTerreno[]>([])
-  const [conteoRadar, setConteoRadar] = useState<Record<string, ConteoNiveles>>({})
-
-  useEffect(() => {
-    if (!open) return
-    let cancelado = false
-    fetch('/api/infraestructura/radar?horizonte=72&pageSize=1', {
-      headers: { Accept: 'application/json' },
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const body = (await res.json()) as { puntos?: PuntoRadar[] }
-        return contarNivelesPorDepartamento(Array.isArray(body.puntos) ? body.puntos : [])
-      })
-      .then((conteo) => {
-        if (!cancelado) setConteoRadar(conteo)
-      })
-      .catch(() => {
-        // Fallo silencioso: sin conteos, la lista de departamentos sigue igual.
-      })
-    return () => {
-      cancelado = true
-    }
-  }, [open])
-
+  // Every opening starts on the current day.
+  const [abiertoAntes, setAbiertoAntes] = useState(open)
+  if (open !== abiertoAntes) {
+    setAbiertoAntes(open)
+    if (open) setSeleccion(null)
+  }
   useEffect(() => {
     if (!open) return
     let cancelado = false
@@ -287,14 +207,12 @@ export function VeredictoModal({
     return new Map([...mapa.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
   }, [veredictos])
 
-  const fechas = [...porFecha.keys()]
-  const fechaHoy = veredictos.find((v) => v.tipoDia === 'hoy')?.fecha
-  const fechaDefault = fechaHoy ?? fechas[fechas.length - 1] ?? null
-  const fechaActiva = seleccion && porFecha.has(seleccion) ? seleccion : fechaDefault
+  // The stored `tipoDia` is fixed at generation time, so "today" comes from the clock.
+  const fechaHoy = fechaHoyArgentina()
+  const fechas = porFecha.has(fechaHoy) || porFecha.size === 0 ? [...porFecha.keys()] : [...porFecha.keys(), fechaHoy].sort()
+  const fechaActiva = seleccion && fechas.includes(seleccion) ? seleccion : fechaHoy
 
   const delDia = fechaActiva ? (porFecha.get(fechaActiva) ?? []) : []
-  const provincia = delDia.find((v) => v.ambito === 'provincia') ?? null
-  const departamentos = delDia.filter((v) => v.ambito !== 'provincia')
   const eventosVisibles = eventos ?? eventosCargados
   const eventosDelDia = fechaActiva ? eventosVisibles.filter((e) => e.fecha === fechaActiva) : []
 
@@ -352,72 +270,41 @@ export function VeredictoModal({
                     key={fecha}
                     type="button"
                     aria-pressed={activa}
+                    aria-label={[fechaCorta(fecha), prov ? etiquetaNivel(prov.nivel) : null, prov ? etiquetaTemporal(prov.tipoDia) : null].filter(Boolean).join(' · ')}
                     onClick={() => setSeleccion(fecha)}
-                    className="chip veredicto-timeline__dia"
+                    className="veredicto-timeline__dia"
+                    data-tipo={fecha === fechaHoy ? 'hoy' : fecha < fechaHoy ? 'observado' : 'pronostico'}
+                    data-nivel={prov?.nivel}
                   >
-                    <span className="veredicto-timeline__fecha">{fechaCorta(fecha)}</span>
-                    {prov ? <NivelChip nivel={prov.nivel} /> : null}
-                    {prov ? (
-                      <span className="veredicto-timeline__tipo">{etiquetaTemporal(prov.tipoDia).toLowerCase()}</span>
-                    ) : null}
+                    <span className="veredicto-timeline__semana">{fecha === fechaHoy ? 'Hoy' : diaSemanaCorto(fecha)}</span>
+                    <span className="veredicto-timeline__fecha">{fecha.slice(8)}</span>
+                    <span className="veredicto-timeline__nivel" aria-hidden="true" />
                   </button>
                 )
               })}
             </div>
 
-            {provincia ? (
-              <DetalleVeredicto veredicto={provincia} metricas={provincia.metricas} />
-            ) : (
-              <p className="veredicto-seccion__vacio">Sin veredicto de provincia para este día.</p>
-            )}
+            {fechaActiva ? (
+              // Keyed by date: the typing effect replays only when another day is shown.
+              <VeredictoDelDia
+                key={fechaActiva}
+                fecha={fechaActiva}
+                fechaHoy={fechaHoy}
+                delDia={delDia}
+                onSeleccionarDepartamento={onSeleccionarDepartamento}
+              />
+            ) : null}
 
-            <section aria-label="Departamentos con señal" className="veredicto-seccion">
-              <h3>Departamentos con señal</h3>
-              <p className="veredicto-seccion__nota">
-                Nivel del día según reglas del veredicto: lluvia, ríos y pronóstico por departamento.
-              </p>
-              {departamentos.length === 0 ? (
-                <p className="veredicto-seccion__vacio">Sin departamentos con señal para este día.</p>
-              ) : (
-                <ul>
-                  {departamentos.map((d) => {
-                    const id = d.ambito.startsWith(PREFIJO_DEPARTAMENTO)
-                      ? d.ambito.slice(PREFIJO_DEPARTAMENTO.length)
-                      : d.ambito
-                    return (
-                      <li key={d.id} className="veredicto-depto">
-                        <NivelChip nivel={d.nivel} />
-                        <span className="veredicto-depto__nombre">{prettifyDepartamento(id)}</span>
-                        <span className="veredicto-depto__resumen">{primeraOracion(d.texto)}</span>
-                        {textoEscuelasPorRiesgo(conteoRadar[claveDepartamento(id)]) ? (
-                          <span className="veredicto-depto__escuelas" data-testid="veredicto-depto-escuelas">
-                            Escuelas por riesgo actual (hoy):{' '}
-                            {textoEscuelasPorRiesgo(conteoRadar[claveDepartamento(id)])}
-                          </span>
-                        ) : null}
-                        <Button type="button" variant="ghost" size="sm" onClick={() => onSeleccionarDepartamento?.(id)}>
-                          Ver en el mapa
-                        </Button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </section>
-
-            <section aria-label="Confirmado en terreno (no modifica el nivel)" className="veredicto-seccion">
-              <h3>Confirmado en terreno (no modifica el nivel)</h3>
-              {eventosDelDia.length === 0 ? (
-                <p className="veredicto-seccion__vacio">Sin eventos confirmados con fuente verificable para este día.</p>
-              ) : (
+            {eventosDelDia.length > 0 ? (
+              <section aria-label="Confirmado en terreno" className="veredicto-seccion">
+                <h3>Confirmado en terreno</h3>
                 <ul>
                   {eventosDelDia.map((e) => (
                     <li key={e.id} className="veredicto-evento">
                       <strong>{e.titulo}</strong>
                       <span>
-                        {e.lugar} ({nombreDepartamento(e.departamento)}) · {e.fechaTexto}
+                        {e.lugar} ({nombreDepartamento(e.departamento)}) · {e.fechaTexto} · {e.confianzaTexto}
                       </span>
-                      <span className="badge veredicto-nivel">{e.confianzaTexto}</span>
                       <a href={e.fuente.url} target="_blank" rel="noopener noreferrer">
                         {e.fuente.medio}
                         {e.fuente.fecha ? `, ${e.fuente.fecha}` : ''}
@@ -425,8 +312,8 @@ export function VeredictoModal({
                     </li>
                   ))}
                 </ul>
-              )}
-            </section>
+              </section>
+            ) : null}
           </div>
         ) : null}
       </DialogContent>
