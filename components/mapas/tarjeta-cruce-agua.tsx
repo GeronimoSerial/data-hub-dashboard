@@ -88,11 +88,6 @@ function formatearKm(metros: number): string {
   return km.toLocaleString('es-AR', { maximumFractionDigits: km < 10 ? 1 : 0 })
 }
 
-function formatearFechaIso(fecha: string): string {
-  const coincide = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha)
-  return coincide ? `${coincide[3]}/${coincide[2]}/${coincide[1]}` : fecha
-}
-
 export type LluviaEnCruce = { mm: number; horas: number }
 
 export function TarjetaCruceAgua({
@@ -116,7 +111,6 @@ export function TarjetaCruceAgua({
   const destino = geometria?.destino?.nombre
   const distanciaKm = geometria?.distanciaKm
   const via = geometria?.viaPrincipal
-  const fecha = geometria?.fechaExtractoOsm
 
   return (
     <div className="map-popup tarjeta-estacion tarjeta-cruce" data-clase={clasificacion}>
@@ -176,7 +170,7 @@ export function TarjetaCruceAgua({
 
       <div className="tarjeta-lluvia__fuente">
         <p className="tarjeta-estacion__sub">
-          OpenStreetMap{fecha ? ` · extracto ${formatearFechaIso(fecha)}` : ''}
+          Mapa colaborativo OpenStreetMap
         </p>
       </div>
     </div>

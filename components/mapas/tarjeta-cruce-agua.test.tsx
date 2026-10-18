@@ -49,7 +49,7 @@ describe('contextoCruceEnRuta', () => {
 })
 
 describe('TarjetaCruceAgua', () => {
-  it('muestra curso, puente, contexto de ruta, lluvia y extracto OSM', () => {
+  it('muestra curso, puente, contexto de ruta, lluvia y crédito de OpenStreetMap', () => {
     render(
       <TarjetaCruceAgua
         clasificacion="puente"
@@ -72,7 +72,7 @@ describe('TarjetaCruceAgua', () => {
     expect(screen.getByText('Escuela 123')).toBeTruthy()
     expect(screen.getByText('Camino a Goya · 3,4 km')).toBeTruthy()
     expect(screen.getByText('Vía principal: RP 12 · sin pavimentar')).toBeTruthy()
-    expect(screen.getByText('OpenStreetMap · extracto 26/09/2026')).toBeTruthy()
+    expect(screen.getByText('Mapa colaborativo OpenStreetMap')).toBeTruthy()
   })
 
   it('omite los datos que faltan y nunca afirma si hoy se puede pasar', () => {
@@ -83,7 +83,7 @@ describe('TarjetaCruceAgua', () => {
     expect(screen.queryByText(/Cruce \d+ de/)).toBeNull()
     expect(screen.queryByText(/Lluvia observada/)).toBeNull()
     expect(screen.queryByText(/Camino a/)).toBeNull()
-    expect(screen.getByText('OpenStreetMap')).toBeTruthy()
+    expect(screen.getByText('Mapa colaborativo OpenStreetMap')).toBeTruthy()
     expect(container.textContent).not.toMatch(/es transitable|se puede pasar hoy|intransitable/i)
   })
 })

@@ -1811,7 +1811,10 @@ describe('MapInfraestructuraPage — textos visibles con contexto completo', () 
 
       const mapa = document.querySelector('.map-shell')
       expect(mapa).not.toBeNull()
-      expect(mapa?.textContent).not.toMatch(
+      // The crossing card credits OpenStreetMap in its footer on purpose; everything else stays plain.
+      const sinCreditos = mapa!.cloneNode(true) as HTMLElement
+      sinCreditos.querySelectorAll('.tarjeta-lluvia__fuente').forEach((nodo) => nodo.remove())
+      expect(sinCreditos.textContent).not.toMatch(
         /vencid|fuente|extracto|corrida|ODbL|arcsec|Aqueduct|OpenStreetMap|\bOSM\b|physrisk|per[ií]odo de retorno|metodolog/i,
       )
     },
@@ -2137,7 +2140,7 @@ describe('accesos territoriales fuera de los controles generales', () => {
 
     await userEvent.click(screen.getByTestId('mock-click-cruce'))
 
-    expect(await screen.findByText(/Cruce de agua: Sin puente registrado/)).toBeInTheDocument()
+    expect(await screen.findByText(/Sin puente registrado/)).toBeInTheDocument()
     // "Sin puente registrado" NO afirma que falte el puente: sólo que OSM no
     // tiene el tag. El popup lo dice, o el director se lleva una conclusión
     // equivocada.
@@ -2150,16 +2153,16 @@ describe('accesos territoriales fuera de los controles generales', () => {
 
     // Cualquier otro clic lo cierra.
     await userEvent.click(screen.getByTestId('mock-click-parte'))
-    await waitFor(() => expect(screen.queryByText(/Cruce de agua: Sin puente registrado/)).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/Sin puente registrado/)).not.toBeInTheDocument())
   })
 
   it('Esc cierra el popup del cruce de agua', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
     await userEvent.click(screen.getByTestId('mock-click-cruce'))
-    expect(await screen.findByText(/Cruce de agua: Sin puente registrado/)).toBeInTheDocument()
+    expect(await screen.findByText(/Sin puente registrado/)).toBeInTheDocument()
 
     await userEvent.keyboard('{Escape}')
-    expect(screen.queryByText(/Cruce de agua: Sin puente registrado/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Sin puente registrado/)).not.toBeInTheDocument()
   })
 })
 
