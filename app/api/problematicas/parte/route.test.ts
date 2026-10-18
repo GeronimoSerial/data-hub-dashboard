@@ -163,6 +163,8 @@ const CUE_W = '1801605-68'
 const CUE_X = '1801605-69'
 // CUE exclusivo del test de error inesperado (500 genérico + log).
 const CUE_ERROR_INESPERADO = '1801605-70'
+// CUE exclusivo de las pruebas de reloj del cliente (rigeDesde futuro).
+const CUE_RELOJ_CLIENTE = '1801605-71'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -183,7 +185,7 @@ beforeAll(async () => {
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
     CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U, CUE_V, CUE_W, CUE_X,
-    CUE_ERROR_INESPERADO,
+    CUE_ERROR_INESPERADO, CUE_RELOJ_CLIENTE,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -403,6 +405,38 @@ describe('POST /api/problematicas/parte', () => {
       failHook.armed = false
       spy.mockRestore()
     }
+  })
+
+  // R2: el reloj del cliente no decide la vigencia. Un rigeDesde adelantado
+  // dentro de la tolerancia se persiste recortado al ahora del servidor; más
+  // allá de la tolerancia el envío se rechaza.
+  it('un rigeDesde adelantado dentro de la tolerancia se persiste recortado al ahora del servidor', async () => {
+    const antes = Date.now()
+    const adelantado = new Date(antes + 10 * 60_000).toISOString()
+    const res = await POST(postReq({
+      cue: CUE_RELOJ_CLIENTE, idempotencyKey: crypto.randomUUID(), rigeDesde: adelantado,
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [seccionId(CUE_RELOJ_CLIENTE, '10')] }],
+    }))
+    expect(res.status).toBe(201)
+    const { parteId } = await res.json()
+    const despues = Date.now()
+
+    const movimientos = await getDb().select().from(infraMovimiento).where(eq(infraMovimiento.parteId, parteId))
+    expect(movimientos).toHaveLength(1)
+    const persistido = new Date(movimientos[0]!.rigeDesde).getTime()
+    expect(persistido).toBeGreaterThanOrEqual(antes)
+    expect(persistido).toBeLessThanOrEqual(despues)
+    expect(movimientos[0]!.rigeDesde).not.toBe(adelantado)
+  })
+
+  it('rechaza un rigeDesde adelantado más allá de la tolerancia de reloj', async () => {
+    const res = await POST(postReq({
+      cue: CUE_RELOJ_CLIENTE, idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [seccionId(CUE_RELOJ_CLIENTE, '10')] }],
+    }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('La fecha debe estar entre hace 12 meses y el momento actual.')
   })
 
   it('el primer POST crea el parte con el corteId del corte vigente y un movimiento reporte_inicial', async () => {
