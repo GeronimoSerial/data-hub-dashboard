@@ -5,7 +5,7 @@ import { Lock } from 'lucide-react'
 import { ETIQUETA_CLASES, ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { Opcion } from '@/components/ui/opcion'
-import { AvisosConsistencia } from '@/components/infraestructura/afectacion-campos'
+import { AvisosConsistencia, type Descartes } from '@/components/infraestructura/afectacion-campos'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import { evaluarCambioAHabitual } from '@/lib/infraestructura/consistencia-estado-activo'
 import {
@@ -76,6 +76,7 @@ export function CamposClasesEdificio({
   onConfirmarHabitual,
   bloqueos = [],
   bloqueosHabitualPorAfectacion = {},
+  descartes,
 }: {
   valor: ValorClasesEdificio
   onCambiar: (valor: ValorClasesEdificio) => void
@@ -98,6 +99,8 @@ export function CamposClasesEdificio({
    * si sigue activa. Una afectación que se cierra en esta actualización no bloquea.
    */
   bloqueosHabitualPorAfectacion?: Record<string, string>
+  /** Descartes de avisos compartidos con el formulario que lo contiene. */
+  descartes?: Descartes
 }): JSX.Element {
   const [pendiente, setPendiente] = useState<EstadoEstablecimiento | null>(null)
   const [hojaHabitual, setHojaHabitual] = useState(false)
@@ -196,10 +199,11 @@ export function CamposClasesEdificio({
                 reglas={advertencias.filter((regla) => regla.campo === 'clases' && respuestas?.clases === estado)}
                 campos={['clases']}
                 onAplicar={aplicarSugerencia}
+                descartes={descartes}
               />
             </Fragment>
           ))}
-          <AvisosConsistencia reglas={avisosClasesSueltos} campos={['clases']} onAplicar={aplicarSugerencia} />
+          <AvisosConsistencia reglas={avisosClasesSueltos} campos={['clases']} onAplicar={aplicarSugerencia} descartes={descartes} />
         </div>
         {evacuado ? <p className="afectacion-campos__espera">El edificio está evacuado</p> : null}
         {sinClases ? <p className="afectacion-campos__espera">El edificio está sin clases</p> : null}
@@ -230,10 +234,11 @@ export function CamposClasesEdificio({
                 reglas={advertencias.filter((regla) => regla.campo === 'edificio' && respuestas?.edificio === estado)}
                 campos={['edificio']}
                 onAplicar={aplicarSugerencia}
+                descartes={descartes}
               />
             </Fragment>
           ))}
-          <AvisosConsistencia reglas={avisosEdificioSueltos} campos={['edificio']} onAplicar={aplicarSugerencia} />
+          <AvisosConsistencia reglas={avisosEdificioSueltos} campos={['edificio']} onAplicar={aplicarSugerencia} descartes={descartes} />
         </div>
       </fieldset>
 
@@ -272,7 +277,7 @@ export function CamposClasesEdificio({
               : null}
           </fieldset>
         ))}
-        <AvisosConsistencia reglas={avisosHabitual} campos={['edificio']} />
+        <AvisosConsistencia reglas={avisosHabitual} campos={['edificio']} descartes={descartes} />
       </ConfirmSheet>
 
       <ConfirmSheet

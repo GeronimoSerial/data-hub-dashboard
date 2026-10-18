@@ -1478,3 +1478,23 @@ describe('foto del reporte en el primer paso (T5)', () => {
     expect(screen.queryByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeNull()
   })
 })
+
+describe('ReporteInicialForm — descartes de avisos entre pasos (R6)', () => {
+  it('un aviso descartado sigue descartado al avanzar y volver al paso', async () => {
+    stubFetch()
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    const texto = await screen.findByText(/Una inundación suele afectar al edificio/)
+    fireEvent.click(within(texto.closest('[role="note"]') as HTMLElement).getByRole('button', { name: 'Está bien así' }))
+    expect(screen.queryByText(/Una inundación suele afectar/)).toBeNull()
+
+    continuar()
+    volver()
+
+    expect(screen.queryByText(/Una inundación suele afectar/)).toBeNull()
+  })
+})

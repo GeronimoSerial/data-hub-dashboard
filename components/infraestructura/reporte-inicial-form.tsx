@@ -12,6 +12,7 @@ import {
   esAfectacionParcial,
   totalAlumnosDe,
   AvisosConsistencia,
+  useDescartes,
   type AfectacionBorrador,
 } from '@/components/infraestructura/afectacion-campos'
 import {
@@ -757,6 +758,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     vigencia,
   })
   const consistencia = evaluarConsistenciaParte(respuestasConsistencia)
+  // Los descartes viven aquí, no en cada aviso: cada paso monta los suyos y se pierden al cambiar.
+  const descartes = useDescartes(consistencia.advertencias)
 
   // Gravedad sugerida con el alcance real de las secciones elegidas: la misma que
   // usa el servidor para decidir si la justificación de Crítica hace falta.
@@ -982,6 +985,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             motivos={motivos}
             otrasAfectaciones={[]}
             avisos={consistencia.advertencias}
+            descartes={descartes}
             onChange={(siguiente) => {
               cambiarAfectacion(siguiente)
               const sugerida = sugeridaDeAfectacion(siguiente)
@@ -1026,6 +1030,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             ocultarPreguntaAlcance
             descripcionObligatoria={evaluarConsistenciaParte({ ...respuestasConsistencia, descripcion: '' }).bloqueos.some((r) => r.campo === 'descripcion')}
             avisos={consistencia.advertencias}
+            descartes={descartes}
             onChange={cambiarAfectacion}
             disabled={enviando}
           />
@@ -1043,6 +1048,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
               alcanceParcial={afectacion.alcanceEstablecimiento !== 'toda'}
               respuestas={respuestasConsistencia}
               advertencias={consistencia.advertencias}
+              descartes={descartes}
               alcanceAlgunas={afectacion.alcanceEstablecimiento === 'algunas'}
               onInterrumpirTodaLaEscuela={() => {
                 setAfectacion((a) => ({
@@ -1073,7 +1079,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
                   />
                 </div>
               )}
-              <AvisosConsistencia reglas={consistencia.advertencias} campos={['asistencia']} />
+              <AvisosConsistencia reglas={consistencia.advertencias} campos={['asistencia']} descartes={descartes} />
             </fieldset>
           </>
         )}

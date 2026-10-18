@@ -23,7 +23,7 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - [x] R4 Idempotency: lookup inside the transaction; detect unique violations by driver error code, not message regex.
 - [x] R5 Single source of consistency rules shared by client and server.
 - [x] R5b Client 'nueva' evaluation passes the afectación category so the alumnos exemption matches the server.
-- [ ] R6 A3 follow-up: banner dismissals must not reset across `reporte-inicial-form` steps.
+- [x] R6 A3 follow-up: banner dismissals must not reset across `reporte-inicial-form` steps.
 - [ ] R7 Extract route domain logic into a use case + repository (behavior-preserving), dedupe JSON mapping and motivo lookups.
 - [ ] R8 A5: Mermaid flow map + UX proposal doc.
 
