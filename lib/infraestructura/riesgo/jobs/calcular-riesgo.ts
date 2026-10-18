@@ -45,6 +45,7 @@ import type {
   ResumenHistorial,
 } from '../motor/puertos'
 import { adquirirLease, inicioDeBloqueUtc, publicarResultado, renovarLease } from '../job-run'
+import { publicarRunOperativo } from '../publicar-run'
 
 const TIPO_JOB = 'calcular-riesgo-v0'
 const VERSION_JOB = 'v1'
@@ -289,6 +290,7 @@ export async function calcularYPublicarRiesgo(params?: {
         iniciadoEn: asOf,
         publicadoEn: null,
         estado: 'preparando',
+        modo: 'operativo',
         cobertura: null,
         creadaEn: asOf,
       }),
@@ -392,31 +394,21 @@ export async function calcularYPublicarRiesgo(params?: {
 
     // PUBLICACIÓN ATÓMICA POR RUN: los datos (snapshots/factores) ya estaban
     // escritos desde el bucle pero ETIQUETADOS a un run en 'preparando',
-    // invisible para cualquier lector que filtre por vigente. Esta transacción
-    // corta es la ÚNICA que cambia qué run es el vigente, y el índice único
+    // invisible para cualquier lector que filtre por vigente. El publicador
+    // explícito (publicar-run.ts) es el ÚNICO que cambia qué run es el
+    // vigente: valida modo y versión en servidor y corre la transacción corta
+    // (vencer el vigente anterior + publicar este run). El índice único
     // parcial infra_risk_run_vigente_unico (ver schema.ts) impone a nivel DB
-    // que nunca haya dos vigentes a la vez. Sólo estas 2 actualizaciones: los
-    // inserts masivos ya se hicieron fuera de la transacción. Reintento
-    // seguro ante SQLITE_BUSY: la transacción se revierte entera si falla a
-    // mitad de camino, y repetir las mismas 2 actualizaciones desde cero
-    // produce el mismo estado final (vencer el vigente anterior + publicar
-    // este run), sin duplicar ni saltear ninguna.
-    await conReintentoPorBloqueo(() =>
-      db.transaction(async (tx) => {
-        await tx
-          .update(infraRiskRun)
-          .set({ estado: 'vencido' })
-          .where(eq(infraRiskRun.estado, 'vigente'))
-        await tx
-          .update(infraRiskRun)
-          .set({
-            estado: 'vigente',
-            publicadoEn: new Date().toISOString(),
-            cobertura: { procesadas, conEvidencia, sinEvidencia },
-          })
-          .where(eq(infraRiskRun.id, idRun))
-      }),
-    )
+    // que nunca haya dos vigentes a la vez.
+    const publicacion = await publicarRunOperativo({
+      runId: idRun,
+      cobertura: { procesadas, conEvidencia, sinEvidencia },
+    })
+    // Este job siempre crea runs operativos de MOTOR_VERSION; un rechazo es un
+    // error de programación y se trata como falla (el catch marca 'fallido').
+    if (!publicacion.publicado) {
+      throw new Error(`calcular-riesgo: publicación rechazada (${publicacion.motivo})`)
+    }
 
     await publicarResultado({
       jobRunId,

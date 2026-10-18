@@ -23,6 +23,15 @@ describe('JOBS_ESPERADOS', () => {
   })
 
   it('sólo deja sin programar los jobs que producción no corre', () => {
-    expect(JOBS_ESPERADOS.filter((job) => !job.habilitado).map((job) => job.nombre).sort()).toEqual(['episodios-derivados', 'sync-seasonal'])
+    expect(JOBS_ESPERADOS.filter((job) => !job.habilitado).map((job) => job.nombre).sort()).toEqual(['calcular-riesgo-v04-candidato', 'episodios-derivados', 'sync-seasonal'])
+  })
+
+  it('declara el candidato v0.4 con su propio tipo de lease, sin programar', () => {
+    expect(porNombre.get('calcular-riesgo-v04-candidato')).toEqual({
+      nombre: 'calcular-riesgo-v04-candidato',
+      tipo: 'calcular-riesgo-v04-candidato',
+      intervaloMinutos: 360,
+      habilitado: false,
+    })
   })
 })

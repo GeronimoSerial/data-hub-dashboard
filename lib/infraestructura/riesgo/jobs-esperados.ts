@@ -50,6 +50,14 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
   // Running in production every 6 h (calcular-riesgo, sync-pronostico-caudal, sync-ensemble)
   // and hourly (situacion-corte), the cadences of their deploy/systemd/ops1 timers.
   { nombre: 'calcular-riesgo', tipo: 'calcular-riesgo-v0', intervaloMinutos: 360, habilitado: true },
+  // Motor v0.4 en modo candidato (odd/tasks/motor-v0-4.md): no programado
+  // hasta decidir su ejecución; nunca publica el puntero vigente.
+  {
+    nombre: 'calcular-riesgo-v04-candidato',
+    tipo: 'calcular-riesgo-v04-candidato',
+    intervaloMinutos: 360,
+    habilitado: false,
+  },
   {
     nombre: 'sync-pronostico-caudal',
     tipo: 'sync-hazard-pronostico-caudal',

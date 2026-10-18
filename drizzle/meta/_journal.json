@@ -169,6 +169,13 @@
       "when": 1792186700412,
       "tag": "0023_prefectura_entregas",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792286390961,
+      "tag": "0024_motor_v04_candidato",
+      "breakpoints": true
     }
   ]
 }

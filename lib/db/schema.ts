@@ -869,11 +869,19 @@ export const infraRiskRun = pgTable(
     modeloVersion: text('modelo_version').notNull(),
     iniciadoEn: text('iniciado_en').notNull(),
     publicadoEn: text('publicado_en'),
-    // 'preparando' | 'vigente' | 'vencido' | 'fallido'.
+    // 'preparando' | 'vigente' | 'vencido' | 'fallido' | 'completado'.
+    // 'completado' es el estado final de una corrida candidata (Motor v0.4):
+    // terminó y es auditable, pero nunca pasa a 'vigente'.
     estado: text('estado').notNull(),
     // p. ej. { procesadas: 2005, conEvidencia: 1800, sinEvidencia: 205 }.
     cobertura: jsonb('cobertura').$type<Record<string, number>>(),
     creadaEn: text('creada_en').notNull(),
+    // 'operativo' | 'candidato' (migración 0024). Las filas previas quedan
+    // 'operativo' por defecto y se leen igual que antes.
+    modo: text('modo').notNull().default('operativo'),
+    // Metadatos de corrida v0.4 validados con
+    // lib/infraestructura/riesgo/motor-v04/contratos.ts (null en v0.3).
+    metadatos: jsonb('metadatos').$type<Record<string, unknown>>(),
   },
   (t) => [
     uniqueIndex('infra_risk_run_vigente_unico')
@@ -881,6 +889,10 @@ export const infraRiskRun = pgTable(
       .where(sql`${t.estado} = 'vigente'`),
     index('infra_risk_run_periodo_id_idx').on(t.periodoId),
     index('infra_risk_run_publicado_en_idx_e7b').on(t.publicadoEn),
+    // Aislamiento del candidato a nivel DB: aunque el código fallara, una
+    // corrida candidata no puede ocupar el puntero vigente.
+    check('infra_risk_run_modo_check', sql`${t.modo} IN ('operativo', 'candidato')`),
+    check('infra_risk_run_candidato_no_vigente', sql`${t.modo} <> 'candidato' OR ${t.estado} <> 'vigente'`),
   ],
 )
 
@@ -921,6 +933,9 @@ export const infraRiskSnapshot = pgTable(
     exposicionSecciones: integer('exposicion_secciones'),
     calculadoEn: text('calculado_en').notNull(),
     validoHasta: text('valido_hasta').notNull(),
+    // Resultado probabilístico v0.4 por CUE/anexo × horizonte, validado con
+    // motor-v04/contratos.ts. No reemplaza los scores heredados (null en v0.3).
+    resultadoV04: jsonb('resultado_v04').$type<Record<string, unknown>>(),
   },
   (t) => [
     uniqueIndex('infra_risk_snapshot_uidx').on(t.runId, t.cueAnexo, t.horizonteHoras),

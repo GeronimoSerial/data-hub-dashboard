@@ -43,6 +43,7 @@ const NOMBRES_VALIDOS = [
   'climatologia-caudal',
   'climatologia-imerg',
   'calcular-riesgo',
+  'calcular-riesgo-v04-candidato',
   'episodios-derivados',
   'sync-seasonal',
   'situacion-corte',
@@ -389,6 +390,16 @@ async function correrCalcularRiesgo() {
   return calcularYPublicarRiesgo()
 }
 
+// Candidato Motor v0.4: escribe un run 'completado' aislado del operativo; no
+// publica el puntero vigente (ver lib/infraestructura/riesgo/publicar-run.ts).
+async function correrCalcularRiesgoCandidatoV04() {
+  if (!(await jobsActivos())) return flagDeshabilitado('calcular-riesgo-v04-candidato')
+  const { calcularRiesgoCandidatoV04 } = await import(
+    '../lib/infraestructura/riesgo/jobs/calcular-riesgo-v04.ts'
+  )
+  return calcularRiesgoCandidatoV04()
+}
+
 async function correrEpisodiosDerivados() {
   if (!(await jobsActivos())) return flagDeshabilitado('episodios-derivados')
   const { correrJobEpisodiosDerivados } = await import(
@@ -470,6 +481,8 @@ export async function correrJob(nombre, opts) {
       return correrCalculoClimatologiaImerg()
     case 'calcular-riesgo':
       return correrCalcularRiesgo()
+    case 'calcular-riesgo-v04-candidato':
+      return correrCalcularRiesgoCandidatoV04()
     case 'episodios-derivados':
       return correrEpisodiosDerivados()
     case 'sync-seasonal':
