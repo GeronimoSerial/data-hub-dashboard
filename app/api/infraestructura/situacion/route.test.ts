@@ -100,4 +100,24 @@ describe('GET /api/infraestructura/situacion', () => {
     const texto = JSON.stringify(body)
     expect(texto).not.toMatch(/gePersonId|nombreAlumno/i)
   })
+  it('expone estadoDatos con un job fallido primero, aunque tenga un éxito anterior', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(editor())
+    const { getDb } = await import('@/lib/db')
+    const { infraJobRun } = await import('@/lib/db/schema')
+    const ahora = Date.now()
+    const iso = (horasAtras: number) => new Date(ahora - horasAtras * 3_600_000).toISOString()
+    const fila = { tipo: 'calcular-hazard-climatologia-caudal', version: 'v1', intento: 1, errorSaneado: null }
+    await getDb().insert(infraJobRun).values([
+      { ...fila, id: randomUUID(), claveIdempotente: 'ayer', estado: 'completado', iniciadoEn: iso(25), creadaEn: iso(25), actualizadaEn: iso(24) },
+      { ...fila, id: randomUUID(), claveIdempotente: 'hoy', estado: 'fallido', intento: 3, errorSaneado: 'GloFAS respondió 503', iniciadoEn: iso(1), creadaEn: iso(1), actualizadaEn: iso(1) },
+    ])
+
+    const res = await GET(url())
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.estadoDatos.problemas).toBeGreaterThan(0)
+    const [primero] = body.estadoDatos.items
+    expect(primero).toMatchObject({ id: 'job:climatologia-caudal', estado: 'fallido', ultimoError: 'GloFAS respondió 503' })
+    expect(primero.ultimoExitoEn).not.toBeNull()
+  })
 })
