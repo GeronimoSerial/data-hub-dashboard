@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type JSX } from 'react'
 import { Popover } from '@base-ui/react/popover'
-import { Segmentado } from '@/components/mapas/segmentado'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import {
   detalleAislamiento,
@@ -50,7 +50,14 @@ export function EscuelasAisladas(props: {
             <Kpi valor={resumen.lejanas} texto="A más de 30 km de una localidad urbana" />
             <Kpi valor={resumen.sinAlternativa} texto="Sin camino alternativo" />
           </ul>
-          <Segmentado etiqueta="Ordenar por" opciones={ORDENES_AISLADAS} valor={orden} onChange={setOrden} columnas={3} />
+          <Select value={orden} items={ORDENES_AISLADAS.map((o) => ({ value: o.valor, label: o.etiqueta }))} onValueChange={(v) => v != null && setOrden(v as OrdenAisladas)}>
+            <SelectTrigger className="map-filtro-input" aria-label="Ordenar por" />
+            <SelectContent>
+              {ORDENES_AISLADAS.map((o) => (
+                <SelectItem key={o.valor} value={o.valor}>{o.etiqueta}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="map-sitact__lista">
             {lista.map((item) => {
               const { escuela } = item

@@ -3,9 +3,9 @@ import type { AislamientoEscuelaMapa } from '@/lib/infraestructura/territorio-ma
 export type OrdenAisladas = 'distancia' | 'tierra' | 'vados'
 
 export const ORDENES_AISLADAS: ReadonlyArray<{ valor: OrdenAisladas; etiqueta: string }> = [
-  { valor: 'distancia', etiqueta: 'Más lejos' },
+  { valor: 'distancia', etiqueta: 'Más lejos de una localidad' },
   { valor: 'tierra', etiqueta: 'Más km de tierra' },
-  { valor: 'vados', etiqueta: 'Más vados' },
+  { valor: 'vados', etiqueta: 'Más vados sin puente' },
 ]
 
 /** Más de esta distancia por camino a una localidad urbana ya es aislamiento alto. */

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { PanelPlanificacion } from './panel-planificacion'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
@@ -34,7 +35,7 @@ function props(overrides: Partial<React.ComponentProps<typeof PanelPlanificacion
 describe('PanelPlanificacion', () => {
   afterEach(cleanup)
 
-  it('lista escuelas aisladas con detalle, resumen y orden', () => {
+  it('lista escuelas aisladas con detalle, resumen y orden', async () => {
     render(<PanelPlanificacion {...props()} />)
     expect(screen.getByRole('heading', { name: 'Escuelas aisladas' })).toBeInTheDocument()
     const filas = () => screen.getAllByRole('button').filter((boton) => boton.className.includes('map-sitact__fila'))
@@ -47,7 +48,9 @@ describe('PanelPlanificacion', () => {
     expect(resumen).toHaveTextContent('60Alumnos')
     expect(resumen).toHaveTextContent('1A más de 30 km de una localidad urbana')
     expect(resumen).toHaveTextContent('1Sin camino alternativo')
-    fireEvent.click(screen.getByRole('button', { name: 'Más km de tierra' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('combobox', { name: 'Ordenar por' }))
+    await user.click(await screen.findByRole('option', { name: 'Más km de tierra' }))
     expect(filas().map((fila) => fila.getAttribute('aria-label'))).toEqual(['Escuela Uno, Goya', 'Escuela Dos, Bella Vista'])
   })
 
