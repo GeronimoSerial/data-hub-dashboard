@@ -37,8 +37,8 @@ afterEach(() => vi.useRealTimers())
 
 describe('describirMovimiento', () => {
   it('describe el alta y las modalidades de asistencia pedagógica', () => {
-    const diff = diffParte(crearSnapshotVacio(), { ...crearSnapshotVacio(), asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] } })
-    expect(describirMovimiento(diff)).toContain('Se brinda asistencia pedagógica: Clase virtual y Cuadernillo')
+    const diff = diffParte(crearSnapshotVacio(), { ...crearSnapshotVacio(), asistenciaPedagogica: { brinda: true, modalidades: ['Asistencia virtual', 'Cuadernillos impresos'] } })
+    expect(describirMovimiento(diff)).toContain('Se brinda asistencia pedagógica: Asistencia virtual y Cuadernillos impresos')
   })
   it('diff vacío no produce líneas', () => {
     expect(describirMovimiento(diffVacio)).toEqual([])

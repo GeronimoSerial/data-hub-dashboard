@@ -26,7 +26,7 @@ import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
-import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
+import { MODALIDADES_ASISTENCIA_PEDAGOGICA, type EstadoServicioGeneral, type ModalidadAsistenciaPedagogica } from '@/lib/infraestructura/trayectoria-tipos'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { declararFotosFormulario, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 
@@ -42,11 +42,8 @@ const MENSAJE_ERROR_GUARDADO = 'No pudimos guardar el parte. La información ing
 const MENSAJE_BORRADOR_INVALIDO = 'No se pudo recuperar la actualización guardada. Empezará una nueva.'
 type Carga = { fase: 'cargando' } | { fase: 'error'; mensaje: string } | { fase: 'listo'; datos: EstadoActualRespuesta; historial: MovimientoHistorial[] }
 type Etapa = EtapaActualizacion | 'enviado'
-type ModalidadAsistencia = 'Clase virtual' | 'Cuadernillo'
-const MODALIDADES_ASISTENCIA: { value: ModalidadAsistencia; label: string }[] = [
-  { value: 'Clase virtual', label: 'Clase virtual' },
-  { value: 'Cuadernillo', label: 'Cuadernillo' },
-]
+type ModalidadAsistencia = ModalidadAsistenciaPedagogica
+const MODALIDADES_ASISTENCIA: { value: ModalidadAsistencia; label: string }[] = MODALIDADES_ASISTENCIA_PEDAGOGICA.map((m) => ({ value: m, label: m }))
 type PayloadActualizacion = ReturnType<typeof construirEnvio> & { cue: string; rigeDesde: string; asistenciaPedagogica?: { brinda: boolean; modalidades: ModalidadAsistencia[] } }
 type SituacionConAlcance = SituacionRecorrido & { secciones: number[]; alumnos: number[] }
 

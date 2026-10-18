@@ -39,7 +39,7 @@ import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import { JUSTIFICACIONES_CRITICA } from '@/lib/infraestructura/justificacion-critica'
 import { requiereJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
-import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import { esModalidadAsistenciaPedagogica, MODALIDADES_ASISTENCIA_PEDAGOGICA, type EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import {
   errorVigencia as obtenerErrorVigencia,
   etiquetaVigencia,
@@ -122,10 +122,7 @@ const CAMPOS_CONSISTENCIA_POR_PASO: Partial<Record<Paso, CampoConsistencia[]>> =
   3: ['edificio', 'clases', 'asistencia'],
 }
 
-const MODALIDADES_ASISTENCIA = [
-  { value: 'Clase virtual', label: 'Clase virtual' },
-  { value: 'Cuadernillo', label: 'Cuadernillo' },
-]
+const MODALIDADES_ASISTENCIA = MODALIDADES_ASISTENCIA_PEDAGOGICA.map((m) => ({ value: m, label: m }))
 
 // Respuestas del asistente en la forma que lee el módulo de consistencia.
 function respuestasDeConsistencia(datos: {
@@ -221,7 +218,7 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   }
   if (typeof b.estadoEstablecimiento !== 'string') return false
   if (b.asistenciaBrinda !== undefined && b.asistenciaBrinda !== '' && b.asistenciaBrinda !== 'si' && b.asistenciaBrinda !== 'no') return false
-  if (b.modalidadesAsistencia !== undefined && (!Array.isArray(b.modalidadesAsistencia) || !b.modalidadesAsistencia.every((m) => m === 'Clase virtual' || m === 'Cuadernillo'))) return false
+  if (b.modalidadesAsistencia !== undefined && (!Array.isArray(b.modalidadesAsistencia) || !b.modalidadesAsistencia.every(esModalidadAsistenciaPedagogica))) return false
   if (
     b.estadoEstablecimiento !== '' &&
     !Object.prototype.hasOwnProperty.call(ETIQUETA_ESTABLECIMIENTO, b.estadoEstablecimiento)

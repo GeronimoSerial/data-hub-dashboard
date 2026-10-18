@@ -1,7 +1,8 @@
 import type { EstadoRecorrido } from './recorrido-actualizacion'
+import { esModalidadAsistenciaPedagogica, type ModalidadAsistenciaPedagogica } from '../trayectoria-tipos'
 
 export type EtapaActualizacion = 'entrada' | { revisar: number } | 'nuevo' | 'resumen'
-export type AsistenciaSeleccionada = { brinda: '' | 'si' | 'no'; modalidades: Array<'Clase virtual' | 'Cuadernillo'> }
+export type AsistenciaSeleccionada = { brinda: '' | 'si' | 'no'; modalidades: ModalidadAsistenciaPedagogica[] }
 
 export interface BorradorRecorridoActualizacion {
   generacion: string
@@ -60,7 +61,7 @@ export function esBorradorRecorridoActualizacion(valor: unknown): valor is Borra
   if (!Object.prototype.hasOwnProperty.call(recorrido, 'clasesEdificio') || (recorrido.clasesEdificio !== null && !esClasesEdificio(recorrido.clasesEdificio))) return false
   const asistencia = borrador.asistenciaPedagogica as Record<string, unknown> | null
   return !!asistencia && ['si', 'no', ''].includes(String(asistencia.brinda)) &&
-    Array.isArray(asistencia.modalidades) && asistencia.modalidades.every((m) => m === 'Clase virtual' || m === 'Cuadernillo')
+    Array.isArray(asistencia.modalidades) && asistencia.modalidades.every(esModalidadAsistenciaPedagogica)
 }
 
 export function coincidenIdsSituaciones(guardados: string[], vigentes: string[]): boolean {

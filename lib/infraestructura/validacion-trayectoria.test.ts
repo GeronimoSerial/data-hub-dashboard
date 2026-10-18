@@ -171,7 +171,9 @@ describe('parseParteActualizacionInput', () => {
   })
 
   it('valida y acepta modalidades de asistencia pedagógica', () => {
-    expect(parseParteActualizacionInput({ ...basePayload, asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] } }).ok).toBe(true)
+    expect(parseParteActualizacionInput({ ...basePayload, asistenciaPedagogica: { brinda: true, modalidades: ['Asistencia virtual', 'Cuadernillos impresos'] } }).ok).toBe(true)
+    expect(parseParteActualizacionInput({ ...basePayload, asistenciaPedagogica: { brinda: true, modalidades: ['Asistencia virtual', 'Cuadernillos digitales', 'Cuadernillos impresos', 'Otras propuestas'] } }).ok).toBe(true)
+    expect(parseParteActualizacionInput({ ...basePayload, asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual'] } }).ok).toBe(false)
     expect(parseParteActualizacionInput({ ...basePayload, asistenciaPedagogica: { brinda: true, modalidades: [] } }).ok).toBe(false)
   })
 

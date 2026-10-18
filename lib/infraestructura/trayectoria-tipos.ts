@@ -17,7 +17,19 @@ export type { Severidad, Categoria }
 // --- Enums / uniones (mismos nombres que CONTRACT.md) ---
 
 export type EstadoEstablecimiento = 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados' | 'sin_clases'
-export type ModalidadAsistenciaPedagogica = 'Clase virtual' | 'Cuadernillo'
+// Única lista de modalidades de asistencia pedagógica: la usan el asistente,
+// la actualización, la validación y el mapa.
+export const MODALIDADES_ASISTENCIA_PEDAGOGICA = [
+  'Asistencia virtual',
+  'Cuadernillos digitales',
+  'Cuadernillos impresos',
+  'Otras propuestas',
+] as const
+export type ModalidadAsistenciaPedagogica = (typeof MODALIDADES_ASISTENCIA_PEDAGOGICA)[number]
+
+export function esModalidadAsistenciaPedagogica(valor: unknown): valor is ModalidadAsistenciaPedagogica {
+  return (MODALIDADES_ASISTENCIA_PEDAGOGICA as readonly unknown[]).includes(valor)
+}
 export interface AsistenciaPedagogica {
   brinda: boolean
   modalidades: ModalidadAsistenciaPedagogica[]

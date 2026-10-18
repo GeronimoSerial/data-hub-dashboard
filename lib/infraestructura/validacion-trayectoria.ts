@@ -11,6 +11,7 @@
 // Ningún schema de este archivo acepta un campo `categoria` del cliente.
 import { z } from 'zod'
 import { normalizeCue } from './cue'
+import { MODALIDADES_ASISTENCIA_PEDAGOGICA } from './trayectoria-tipos'
 import { SEVERIDADES } from './validacion'
 import { JUSTIFICACIONES_CRITICA } from './justificacion-critica'
 import { MENSAJE_FUERA_DE_RANGO_VIGENCIA, normalizarVigenciaRecibida } from './vigencia-rango'
@@ -56,7 +57,7 @@ const ESTADOS_ESTABLECIMIENTO = ['habitual', 'parcial', 'evacuado', 'centro_evac
 const ESTADOS_SERVICIO = ['normal', 'suspendido'] as const
 const asistenciaPedagogicaSchema = z.object({
   brinda: z.boolean(),
-  modalidades: z.array(z.enum(['Clase virtual', 'Cuadernillo'])).max(2),
+  modalidades: z.array(z.enum(MODALIDADES_ASISTENCIA_PEDAGOGICA)).max(MODALIDADES_ASISTENCIA_PEDAGOGICA.length),
 }).refine((v) => v.brinda ? v.modalidades.length > 0 : v.modalidades.length === 0, 'Indique una modalidad si brinda asistencia pedagógica')
 
 // --- Afectaciones (spec §9) ---

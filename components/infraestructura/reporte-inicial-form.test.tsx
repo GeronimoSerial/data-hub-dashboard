@@ -251,13 +251,13 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarEstadoEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
-    await elegirModalidades(userEvent.setup(), 'Clase virtual')
+    await elegirModalidades(userEvent.setup(), 'Asistencia virtual')
     continuar()
     continuar()
     fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
     await waitFor(() => {
       const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-      expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Clase virtual'] })
+      expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Asistencia virtual'] })
     })
   })
 
@@ -272,7 +272,7 @@ describe('ReporteInicialForm', () => {
     const desplegable = screen.getByRole('combobox', { name: '¿De qué tipo?' })
     expect(desplegable).toHaveAttribute('aria-expanded', 'false')
     expect(desplegable).toHaveTextContent('Seleccione una o más opciones')
-    expect(screen.queryByRole('checkbox', { name: 'Clase virtual' })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: 'Asistencia virtual' })).toBeNull()
     expect(screen.queryByText('¿De qué forma?')).toBeNull()
   })
 
@@ -284,8 +284,8 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarEstadoEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
-    await elegirModalidades(userEvent.setup(), 'Clase virtual', 'Cuadernillo')
-    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toHaveTextContent('Clase virtual, Cuadernillo')
+    await elegirModalidades(userEvent.setup(), 'Asistencia virtual', 'Cuadernillos impresos')
+    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toHaveTextContent('Asistencia virtual, Cuadernillos impresos')
   })
 
   it('se abre, marca y cierra con el teclado', async () => {
@@ -302,13 +302,13 @@ describe('ReporteInicialForm', () => {
     await user.keyboard('{Enter}')
     expect(desplegable).toHaveAttribute('aria-expanded', 'true')
     await user.keyboard('{ArrowDown}{Enter}')
-    expect(screen.getByRole('option', { name: 'Cuadernillo' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: 'Cuadernillos digitales' })).toHaveAttribute('aria-selected', 'true')
     await user.keyboard('{ArrowUp}')
     await user.keyboard(' ')
-    expect(screen.getByRole('option', { name: 'Clase virtual' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: 'Asistencia virtual' })).toHaveAttribute('aria-selected', 'true')
     await user.keyboard('{Escape}')
     expect(desplegable).toHaveAttribute('aria-expanded', 'false')
-    expect(desplegable).toHaveTextContent('Cuadernillo, Clase virtual')
+    expect(desplegable).toHaveTextContent('Cuadernillos digitales, Asistencia virtual')
   })
 
   it('exige al menos una modalidad cuando se elige Sí', () => {

@@ -99,12 +99,12 @@ describe('RecorridoActualizacion: envío', () => {
     const fetchMock = stub(); montar(); await prepararResumen()
     const grupo = screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })
     fireEvent.click(within(grupo).getByRole('radio', { name: 'Sí' }))
-    await elegirModalidades(userEvent.setup(), 'Clase virtual')
+    await elegirModalidades(userEvent.setup(), 'Asistencia virtual')
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await screen.findByText(guardado)
     expect(JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))).toMatchObject({
       afectacionesConfirmadas: ['a', 'b'],
-      asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual'] },
+      asistenciaPedagogica: { brinda: true, modalidades: ['Asistencia virtual'] },
     })
   })
 
@@ -115,11 +115,11 @@ describe('RecorridoActualizacion: envío', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Elija al menos una modalidad de asistencia pedagógica.')
     expect(posteos(fetchMock)).toHaveLength(0)
-    await elegirModalidades(userEvent.setup(), 'Cuadernillo')
+    await elegirModalidades(userEvent.setup(), 'Cuadernillos impresos')
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await screen.findByText(guardado)
     const cuerpo = JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))
-    expect(cuerpo.asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Cuadernillo'] })
+    expect(cuerpo.asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Cuadernillos impresos'] })
   })
 
   it('exige responder la asistencia pedagógica, que llega sin nada marcado', async () => {

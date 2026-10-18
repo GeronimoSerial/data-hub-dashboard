@@ -34,8 +34,9 @@ export function derivarApoyo(
   if (asistencia === null) return 'sin_dato'
   if (!asistencia.brinda) return 'no'
 
-  const virtual = asistencia.modalidades.includes('Clase virtual')
-  const cuadernillo = asistencia.modalidades.includes('Cuadernillo')
+  const virtual = asistencia.modalidades.includes('Asistencia virtual')
+  const cuadernillo =
+    asistencia.modalidades.includes('Cuadernillos digitales') || asistencia.modalidades.includes('Cuadernillos impresos')
   if (virtual && cuadernillo) return 'ambos'
   if (virtual) return 'virtual'
   if (cuadernillo) return 'cuadernillo'
