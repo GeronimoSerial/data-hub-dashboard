@@ -121,6 +121,13 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
     expect(screen.queryByRole('link', { name: 'Actualizar el parte' })).toBeNull()
   })
 
+  it('does not offer the history when the school never opened a parte', async () => {
+    render(<EstadoActualParte cue={CUE} />)
+    await screen.findByRole('link', { name: 'Cargar una situación' })
+
+    expect(screen.queryByRole('button', { name: 'Ver historial' })).toBeNull()
+  })
+
   it('treats an opened parte with no vigente afectación as "sin situación"', async () => {
     vi.stubGlobal(
       'fetch',
@@ -145,6 +152,9 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
     expect(screen.getByText('Sin daños / en uso normal')).toBeVisible()
     // Y la última actualización sigue siendo el ancla temporal del parte.
     expect(screen.getByText('Última actualización: 18 de septiembre, 10:35')).toBeVisible()
+    // Con la situación solucionada, el historial del parte sigue a mano.
+    fireEvent.click(screen.getByRole('button', { name: 'Ver historial' }))
+    expect(screen.getByRole('dialog', { name: 'Historial' })).toBeInTheDocument()
   })
 })
 
