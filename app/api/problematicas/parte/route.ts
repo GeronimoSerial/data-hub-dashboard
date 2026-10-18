@@ -29,7 +29,7 @@ import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from '@/lib/infraestru
 import { listarIdentidadesPorPersonas } from '@/lib/infraestructura/identidad'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import { validarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
-import { listarMotivos } from '@/lib/infraestructura/motivos'
+import { listarMotivos, type MotivoRow } from '@/lib/infraestructura/motivos'
 import { primerBloqueoParte } from '@/lib/infraestructura/consistencia-parte-servidor'
 import { alcanceDeSecciones, severidadSugeridaPorAlcance } from '@/lib/infraestructura/consistencia-parte'
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
@@ -53,6 +53,7 @@ import { causaElegible } from '@/lib/infraestructura/causa-afectacion'
 import type {
   Afectacion,
   EstadoEstablecimiento,
+  Parte,
   Severidad,
   TipoMovimiento,
 } from '@/lib/infraestructura/trayectoria-tipos'
@@ -370,6 +371,26 @@ async function intentarVincularVerificacion(
   }
 }
 
+// Fila de infra_parte → Parte tipado: el estado es un enum y la asistencia se
+// guarda serializada como JSON en texto.
+function parteDeFila(fila: typeof infraParte.$inferSelect): Parte {
+  return {
+    ...fila,
+    estadoEstablecimiento: fila.estadoEstablecimiento as EstadoEstablecimiento,
+    asistenciaPedagogica: fila.asistenciaPedagogica ? JSON.parse(fila.asistenciaPedagogica) : null,
+  }
+}
+
+// Id por nombre de motivo, armado una sola vez por request. Gana la primera
+// coincidencia, igual que el find que reemplaza.
+function indiceMotivoIds(motivos: MotivoRow[]): Map<string, string> {
+  const indice = new Map<string, string>()
+  for (const motivo of motivos) {
+    if (!indice.has(motivo.nombre)) indice.set(motivo.nombre, motivo.id)
+  }
+  return indice
+}
+
 export async function POST(request: Request) {
   await ensureSeeded()
 
@@ -480,6 +501,7 @@ export async function POST(request: Request) {
   // --- Validación contra la base, igual que POST /api/problematicas ---
 
   const motivos = await listarMotivos()
+  const motivoIdPorNombre = indiceMotivoIds(motivos)
   const nuevasConCategoria: Array<{
     input: (typeof input.afectacionesNuevas)[number]
     categoria: CategoriaAfectacion
@@ -501,7 +523,7 @@ export async function POST(request: Request) {
   const bloqueo = primerBloqueoParte(
     nuevasConCategoria.map(({ input: entrada, categoria }) => ({
       categoria,
-      motivoId: motivos.find((m) => m.nombre === entrada.motivo)?.id ?? null,
+      motivoId: motivoIdPorNombre.get(entrada.motivo) ?? null,
       severidad: entrada.severidad,
       justificacionCritica: entrada.justificacionCritica,
       descripcion: entrada.descripcion,
@@ -530,7 +552,7 @@ export async function POST(request: Request) {
       return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
     }
     const sugerida = severidadSugeridaPorAlcance(
-      motivos.find((m) => m.nombre === entrada.motivo)?.id ?? null,
+      motivoIdPorNombre.get(entrada.motivo) ?? null,
       alcanceDeSecciones(entrada.secciones, todasLasSecciones),
     )
     const justificada = validarJustificacionCritica({
@@ -634,7 +656,7 @@ export async function POST(request: Request) {
         .where(eq(infraAfectacionSeccion.afectacionId, modificacion.id))
       ).map((s) => s.geSectionId)
       const sugerida = severidadSugeridaPorAlcance(
-        motivos.find((m) => m.nombre === fila?.motivo)?.id ?? null,
+        (fila ? motivoIdPorNombre.get(fila.motivo) : undefined) ?? null,
         alcanceDeSecciones(seccionesActuales, todasLasSecciones),
       )
       const justificada = validarJustificacionCritica({
@@ -787,7 +809,7 @@ export async function POST(request: Request) {
       const actualAntesReal: ParteActual = parteFilaActual
         ? {
             periodo,
-            parte: { ...parteFilaActual, estadoEstablecimiento: parteFilaActual.estadoEstablecimiento as EstadoEstablecimiento, asistenciaPedagogica: parteFilaActual.asistenciaPedagogica ? JSON.parse(parteFilaActual.asistenciaPedagogica) : null },
+            parte: parteDeFila(parteFilaActual),
             afectaciones: afectacionesActuales,
             servicioAlcance: servicioAlcanceActual,
             secciones,
@@ -968,9 +990,7 @@ export async function POST(request: Request) {
       const despues = snapshotDesde(
         {
           periodo,
-          parte: parteDespues
-            ? { ...parteDespues, estadoEstablecimiento: parteDespues.estadoEstablecimiento as EstadoEstablecimiento, asistenciaPedagogica: parteDespues.asistenciaPedagogica ? JSON.parse(parteDespues.asistenciaPedagogica) : null }
-            : null,
+          parte: parteDespues ? parteDeFila(parteDespues) : null,
           afectaciones: afectacionesDespues,
           servicioAlcance: servicioAlcanceDespues,
           secciones,

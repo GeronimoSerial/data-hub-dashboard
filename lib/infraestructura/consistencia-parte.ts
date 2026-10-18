@@ -356,3 +356,11 @@ export function alcanceDeSecciones(seccionIds: number[], todasLasSecciones: numb
   if (todasLasSecciones.length > 0 && todasLasSecciones.every((id) => elegidas.has(id))) return { tipo: 'toda' }
   return { tipo: 'algunas', secciones: seccionIds.length }
 }
+
+// Exención de alumnos: "alumnos" no pregunta por edificio ni clases, así que
+// esas respuestas no existen para esa categoría y no bloquean nada. La usan
+// cliente (consistencia-actualizacion) y servidor (consistencia-parte-servidor)
+// para que la misma afectación evalúe igual en los dos lados.
+export function preguntaEdificioYClases(categoria: CategoriaAfectacion | null): boolean {
+  return categoria !== 'alumnos'
+}

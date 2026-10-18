@@ -1,6 +1,7 @@
 import {
   alcanceDeSecciones,
   evaluarConsistenciaParte,
+  preguntaEdificioYClases,
   type AlcanceSecciones,
   type EstadoClasesConsistencia,
   type EstadoEdificioConsistencia,
@@ -41,11 +42,11 @@ export function respuestasDeSituacion(datos: DatosSituacionConsistencia): Respue
 // Situación nueva: misma exención que el servidor (consistencia-parte-servidor),
 // alumnos no pregunta por edificio ni clases.
 export function respuestasNuevaDeActualizacion(datos: DatosSituacionConsistencia): RespuestasConsistencia {
-  const esAlumnos = datos.categoria === 'alumnos'
+  const pregunta = preguntaEdificioYClases(datos.categoria)
   return respuestasDeSituacion({
     ...datos,
-    clases: esAlumnos ? null : datos.clases,
-    edificio: esAlumnos ? null : datos.edificio,
+    clases: pregunta ? datos.clases : null,
+    edificio: pregunta ? datos.edificio : null,
   })
 }
 

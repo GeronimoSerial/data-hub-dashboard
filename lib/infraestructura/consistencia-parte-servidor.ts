@@ -2,6 +2,7 @@ import type { CategoriaAfectacion } from './categorias'
 import type { JustificacionCritica } from './justificacion-critica'
 import {
   evaluarConsistenciaParte,
+  preguntaEdificioYClases,
   type AlcanceSecciones,
   type EstadoClasesConsistencia,
   type EstadoEdificioConsistencia,
@@ -40,7 +41,7 @@ export function respuestasAfectacionNueva(
 ): RespuestasConsistencia {
   // Alumnos no pregunta por edificio, clases ni asistencia (ver el asistente):
   // esas respuestas no existen para esa categoría, así que no bloquean nada.
-  const esAlumnos = afectacion.categoria === 'alumnos'
+  const pregunta = preguntaEdificioYClases(afectacion.categoria)
   const alcance: AlcanceSecciones | null =
     afectacion.seccionesCantidad > 0 ? { tipo: 'algunas', secciones: afectacion.seccionesCantidad } : null
   return {
@@ -50,9 +51,9 @@ export function respuestasAfectacionNueva(
     justificacionCritica: afectacion.justificacionCritica ?? null,
     descripcion: afectacion.descripcion?.trim() ?? '',
     alcance,
-    clases: esAlumnos ? null : situacion.servicioEstado,
-    edificio: esAlumnos ? null : situacion.estadoEstablecimiento,
-    asistenciaBrinda: esAlumnos ? null : situacion.asistenciaBrinda,
+    clases: pregunta ? situacion.servicioEstado : null,
+    edificio: pregunta ? situacion.estadoEstablecimiento : null,
+    asistenciaBrinda: pregunta ? situacion.asistenciaBrinda : null,
     // La vigencia no interviene en ninguna regla bloqueante; sólo en
     // advertencias, que este chequeo nunca devuelve.
     vigencia: null,
