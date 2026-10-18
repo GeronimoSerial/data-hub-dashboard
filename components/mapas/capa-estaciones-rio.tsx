@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { ESTILO_PASTILLA_ESTACION, idMarcadorEstacion, idPastillaEstacion, registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
 import { PALETA_ESTADO_ALTURA } from '@/lib/mapas/paleta-tonal'
+import { ANCHO_RIO_TENIDO, FILTRO_RIO_TENIDO, celdasRio, colorRioTenido } from '@/lib/mapas/rio-tenido'
 import { TarjetaEstacionRio } from './tarjeta-estacion-rio'
 
 type EstadoAltura = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
@@ -47,6 +48,7 @@ export const CAPA_ESTACIONES_RIO_ID = 'estaciones-rio-simbolos'
 const ID_CAPA = CAPA_ESTACIONES_RIO_ID
 const ID_CAPA_PASTILLA = 'estaciones-rio-pastillas'
 const ID_FUENTE = 'estaciones-rio-src'
+const ID_CAPA_RIO_TENIDO = 'estaciones-rio-tenido'
 const FLECHA_TENDENCIA: Record<Tendencia, string> = { crece: '↑ ', baja: '↓ ', estable: '', sin_dato: '' }
 
 export const COLOR_ESTADO_ALTURA: Record<EstadoAltura, string> = PALETA_ESTADO_ALTURA
@@ -267,6 +269,27 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
     }
   }, [mapa, listo])
 
+  // The river band sits under the basemap labels, so every overlay (school and
+  // station pins included) draws above it. Re-read after a basemap swap.
+  const [basemap, setBasemap] = useState<{ antesDeEtiquetas?: string; conFuente: boolean }>({ conFuente: false })
+  useEffect(() => {
+    if (!mapa) return
+    const mapaGl = mapa.getMap()
+    const leer = () => {
+      const antesDeEtiquetas = mapaGl.getStyle?.()?.layers?.find((capa) => capa.type === 'symbol')?.id
+      const conFuente = Boolean(mapaGl.getSource?.('openmaptiles'))
+      setBasemap((previo) =>
+        previo.antesDeEtiquetas === antesDeEtiquetas && previo.conFuente === conFuente ? previo : { antesDeEtiquetas, conFuente },
+      )
+    }
+    leer()
+    mapaGl.on('styledata', leer)
+    return () => {
+      mapaGl.off('styledata', leer)
+    }
+  }, [mapa])
+  const colorRio = useMemo(() => colorRioTenido(celdasRio(estaciones)), [estaciones])
+
   const datos = useMemo(() => puntosDe(estaciones), [estaciones])
   const activa = estaciones.find((estacion) => estacion.estacionId === seleccionada) ?? null
   const cerrar = useCallback(() => {
@@ -276,6 +299,18 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
   }, [mapa])
   return (
     <>
+      {estaciones.length > 0 && basemap.conFuente && (
+        <Layer
+          id={ID_CAPA_RIO_TENIDO}
+          type="line"
+          source="openmaptiles"
+          source-layer="waterway"
+          beforeId={basemap.antesDeEtiquetas}
+          filter={FILTRO_RIO_TENIDO as never}
+          layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+          paint={{ 'line-color': colorRio as never, 'line-opacity': 0.4, 'line-width': ANCHO_RIO_TENIDO as never }}
+        />
+      )}
       {listo && (
         <Source id={ID_FUENTE} type="geojson" data={datos}>
           <Layer
