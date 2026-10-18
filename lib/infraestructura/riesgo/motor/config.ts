@@ -237,6 +237,11 @@ export const DIAS_POR_HORIZONTE_V04 = { 24: 1, 72: 3, 240: 10 } as const
 // Sin climatología, el umbral provisorio (definido sobre lo acumulado en el
 // horizonte) recibe lo acumulado en (0, h].
 export const COBERTURA_MIN_VENTANA_V04_HORAS = 18
+// F5 — Respaldo v0.4: si la ingesta más reciente no cubre la ventana, se usa la
+// ingesta previa que sí la cubra, sólo si no tiene más de estas horas de
+// antigüedad respecto de `ahora`. Evita mezclar un pronóstico viejo con el
+// vigente, pero absorbe una ingesta incompleta (ej. 06/12/18 UTC de ECMWF).
+export const EDAD_MAX_INGESTA_RESPALDO_V04_HORAS = 18
 // F8 — Ensemble v0.4: además de no usar corridas posteriores a asOf (regla
 // as-of que ya aplica a ambas reglas), una corrida de más de estas horas no se
 // usa y el horizonte cae al determinístico.

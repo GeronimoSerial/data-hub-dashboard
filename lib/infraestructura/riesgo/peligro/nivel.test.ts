@@ -1198,6 +1198,151 @@ describe('consultas de pronóstico as-of (ahora)', () => {
   })
 })
 
+describe('F5 v0.4 con respaldo de ingesta previa (240 h)', () => {
+  const ULTIMA = '2026-09-26T18:00:00.000Z'
+  const PREVIA = '2026-09-26T12:00:00.000Z'
+  const PREVIA_VIEJA = '2026-09-25T18:00:00.000Z'
+  const AHORA_ULTIMA = new Date(ULTIMA)
+  const HORA_MS = 3_600_000
+
+  // Climatología diaria anterior a todas las ingestas: umbrales 10/20/30 mm.
+  async function insertarClimatologiaCon(conexion: typeof db, geometryRef: string): Promise<void> {
+    await conexion.insert(hazardClimatology).values(
+      (['p90', 'p95', 'p99'] as const).map((percentil, indice) =>
+        filaClimatologia({
+          geometryRef,
+          variable: 'precipitacion_diaria',
+          percentil,
+          valor: [10, 20, 30][indice],
+          calculadoEn: '2026-09-01T00:00:00.000Z',
+        }),
+      ),
+    )
+  }
+
+  // Una fila por hora de horizonte entre `desde` y `hasta` (ambos incluidos).
+  function filasHorizontes(
+    corridaEn: string,
+    desde: number,
+    hasta: number,
+    valor: number,
+  ): ReturnType<typeof filaPronostico>[] {
+    return Array.from({ length: hasta - desde + 1 }, (_, i) => {
+      const horizonteHoras = desde + i
+      return filaPronostico({
+        geometryRef: 'celda-respaldo',
+        variable: 'precipitacion',
+        corridaEn,
+        validoEn: new Date(Date.parse(corridaEn) + horizonteHoras * HORA_MS).toISOString(),
+        horizonteHoras,
+        valor,
+      })
+    })
+  }
+
+  it('usa la ingesta previa cuando la más reciente no cubre (217, 240] y la previa sí', async () => {
+    await insertarClimatologiaCon(db, 'celda-respaldo')
+    await db.insert(hazardForecast).values([
+      // Ingesta de 18 UTC: llega sólo a 233 h, 13 horas en la ventana.
+      ...filasHorizontes(ULTIMA, 221, 233, 9),
+      // Ingesta de 12 UTC: cubre 217..240, 24 horas.
+      ...filasHorizontes(PREVIA, 217, 240, 1),
+    ])
+
+    const [celda] = await obtenerNivelesPeligro({
+      geometryRefs: ['celda-respaldo'],
+      horizontes: [240],
+      ahora: AHORA_ULTIMA,
+      reglas: 'v0.4',
+    })
+
+    expect(celda).toMatchObject({
+      horizonteHoras: 240,
+      base: 'deterministico',
+      metodo: 'percentiles',
+      precipitacionMm: 24,
+      emitidoEn: PREVIA,
+      respaldoIngestaPrevia: true,
+    })
+    expect(celda.nivel).not.toBe('sin_dato')
+  })
+
+  it('sin respaldo si la ingesta previa tiene más de 18 h de antigüedad: queda sin_dato', async () => {
+    await insertarClimatologiaCon(db, 'celda-respaldo')
+    await db.insert(hazardForecast).values([
+      ...filasHorizontes(ULTIMA, 221, 233, 9),
+      ...filasHorizontes(PREVIA_VIEJA, 217, 240, 1),
+    ])
+
+    const [celda] = await obtenerNivelesPeligro({
+      geometryRefs: ['celda-respaldo'],
+      horizontes: [240],
+      ahora: AHORA_ULTIMA,
+      reglas: 'v0.4',
+    })
+
+    expect(celda.nivel).toBe('sin_dato')
+    expect(celda.respaldoIngestaPrevia).toBeUndefined()
+  })
+
+  it('prefiere la ingesta más reciente cuando ella sola cubre la ventana', async () => {
+    await insertarClimatologiaCon(db, 'celda-respaldo')
+    await db.insert(hazardForecast).values([
+      ...filasHorizontes(ULTIMA, 217, 240, 2),
+      ...filasHorizontes(PREVIA, 217, 240, 1),
+    ])
+
+    const [celda] = await obtenerNivelesPeligro({
+      geometryRefs: ['celda-respaldo'],
+      horizontes: [240],
+      ahora: AHORA_ULTIMA,
+      reglas: 'v0.4',
+    })
+
+    expect(celda).toMatchObject({ precipitacionMm: 48, emitidoEn: ULTIMA })
+    expect(celda.respaldoIngestaPrevia).toBeUndefined()
+  })
+
+  it('sin climatología, la ventana (0, 240] también usa el respaldo', async () => {
+    // Cobertura mínima en (0, 240] = 240 - (24 - 18) = 234 horas.
+    await db.insert(hazardForecast).values([
+      ...filasHorizontes(ULTIMA, 1, 225, 1),
+      ...filasHorizontes(PREVIA, 1, 240, 1),
+    ])
+
+    const [celda] = await obtenerNivelesPeligro({
+      geometryRefs: ['celda-respaldo'],
+      horizontes: [240],
+      ahora: AHORA_ULTIMA,
+      reglas: 'v0.4',
+    })
+
+    expect(celda).toMatchObject({
+      metodo: 'umbral_provisorio',
+      precipitacionMm: 240,
+      emitidoEn: PREVIA,
+      respaldoIngestaPrevia: true,
+    })
+    expect(celda.nivel).not.toBe('sin_dato')
+  })
+
+  it('v0.3 no usa respaldo: toma el horizonte más cercano de la ingesta más reciente', async () => {
+    await db.insert(hazardForecast).values([
+      ...filasHorizontes(ULTIMA, 233, 233, 5),
+      ...filasHorizontes(PREVIA, 217, 240, 1),
+    ])
+
+    const [celda] = await obtenerNivelesPeligro({
+      geometryRefs: ['celda-respaldo'],
+      horizontes: [240],
+      ahora: AHORA_ULTIMA,
+    })
+
+    expect(celda).toMatchObject({ metodo: 'umbral_provisorio', precipitacionMm: 5, emitidoEn: ULTIMA })
+    expect(celda.respaldoIngestaPrevia).toBeUndefined()
+  })
+})
+
 describe('agregarNivelPorDepartamento', () => {
   function nivelCelda(geometryRef: string, nivel: 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato') {
     return {
