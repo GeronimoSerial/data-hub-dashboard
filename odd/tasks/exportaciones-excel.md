@@ -41,6 +41,15 @@ Staff need school lists (afectadas, sin clases, con clases, asistidas, en riesgo
   - Nav file touched: `components/app-shell.tsx` (+ `components/app-shell.test.tsx`). Nav visibility is session-only; access is enforced by the page and the API, not by the nav.
   - Options come from `/api/mapas/infraestructura/escuelas` (same scope as the map), fetched once per mount, not polled.
 
+- [x] T5 — Combinable export filters + JSON preview (backend only).
+  - `estado` replaces `tipo`: repeatable or comma-separated; values `afectadas | sin-clases | con-clases | asistidas | en-riesgo`; empty = all schools. Estado group is OR (a school matches if it matches any selected estado); map filters (`departamento`, `direccion`, `clases`, `apoyo`, `gravedad`, `q`, …) are AND across the group.
+  - Columns: base + union of the selected estados' extra columns (catalog order, no duplicates). No estado: base + gravedad + estado de clases + asistencia, plus nivel de riesgo only when radar data is loaded.
+  - Radar loads only when `en-riesgo` is selected or `horizonte` is given (default 72 when `en-riesgo` alone).
+  - Title "Escuelas <estados unidos>" (e.g. "Escuelas sin clases y en riesgo"); filename slug from that title + date. Filtros block lists `Estado` plus every applied map filter.
+  - `GET /api/infraestructura/exportar?formato=json` returns `{ total, columnas: [{clave, encabezado}], filas }` with the first 200 rows; default `formato` is `xlsx`, other values 400.
+  - Evidence: RED observed (27 failing: new API missing). GREEN: `pnpm vitest run lib/exportaciones/escuelas.test.ts lib/exportaciones/solicitud.test.ts app/api/infraestructura/exportar` → 3 files, 45 passed. `pnpm tsc --noEmit -p .` → 1 error, `components/exportaciones/panel-exportaciones.tsx(70,41)` uses removed `nombreArchivo`; the panel is out of this task's surface and is replaced by the next task. `pnpm eslint lib/exportaciones app/api/infraestructura/exportar` → exit 0.
+  - Open point: the brief's "Why" example ("sin clases AND en riesgo") reads as intersection, but the Semantics line (OR within a group) is implemented. Confirm before the UI task.
+
 ## Acceptance criteria
 - Each stage-1 type downloads a valid .xlsx opening in Excel/LibreOffice, Arial, branded header, filters listed.
 - Filtered export rows equal what the map shows for the same filters.

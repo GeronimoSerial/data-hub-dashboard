@@ -3,12 +3,15 @@ import { ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import {
+  columnasExportacion,
   esTipoExportacion,
   EXPORTACIONES_ESCUELAS,
   filasExportacion,
   riesgoPorCueDesdeRadar,
+  tituloExportacion,
   TIPOS_EXPORTACION_ESCUELAS,
   type ContextoExportacionEscuelas,
+  type TipoExportacionEscuelas,
 } from './escuelas'
 
 function escuela(extra: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquecida {
@@ -79,12 +82,16 @@ const contexto: ContextoExportacionEscuelas = {
   ]),
 }
 
-function incluidas(tipo: Parameters<typeof filasExportacion>[0], lista = todas) {
-  return filasExportacion(tipo, lista, contexto).map((fila) => fila.cue).sort()
+function cues(estados: TipoExportacionEscuelas[], lista = todas): string[] {
+  return filasExportacion(estados, lista, contexto).map((fila) => fila.cue as string).sort()
+}
+
+function incluidas(tipo: TipoExportacionEscuelas, lista = todas) {
+  return cues([tipo], lista)
 }
 
 describe('esTipoExportacion', () => {
-  it('acepta sólo los cinco tipos de la etapa 1', () => {
+  it('acepta sólo los cinco estados de exportación', () => {
     expect(TIPOS_EXPORTACION_ESCUELAS).toEqual(['afectadas', 'sin-clases', 'con-clases', 'asistidas', 'en-riesgo'])
     for (const tipo of TIPOS_EXPORTACION_ESCUELAS) expect(esTipoExportacion(tipo)).toBe(true)
     expect(esTipoExportacion('bajo-lluvia')).toBe(false)
@@ -92,7 +99,7 @@ describe('esTipoExportacion', () => {
   })
 })
 
-describe('predicados por tipo', () => {
+describe('predicados por estado', () => {
   it('afectadas: sólo escuelas con parte', () => {
     expect(incluidas('afectadas')).toEqual(['30-00002-0', '30-00003-0', '30-00004-0'])
   })
@@ -120,7 +127,7 @@ describe('predicados por tipo', () => {
 
   it('en-riesgo: toma el nivel desde el contexto y excluye las demás', () => {
     expect(incluidas('en-riesgo')).toEqual(['30-00006-0', '30-00007-0'])
-    expect(filasExportacion('en-riesgo', todas)).toEqual([])
+    expect(filasExportacion(['en-riesgo'], todas)).toEqual([])
   })
 
   it('sin-clases y con-clases particionan el conjunto', () => {
@@ -131,12 +138,27 @@ describe('predicados por tipo', () => {
   })
 })
 
+describe('combinación de estados', () => {
+  it('sin estados seleccionados incluye todas las escuelas', () => {
+    expect(cues([])).toHaveLength(todas.length)
+  })
+
+  it('dentro del grupo de estados basta con cumplir alguno (unión, no intersección)', () => {
+    expect(cues(['sin-clases', 'en-riesgo'])).toEqual(['30-00003-0', '30-00004-0', '30-00006-0', '30-00007-0'])
+  })
+
+  it('una escuela que cumple dos estados aparece una sola vez', () => {
+    const doble = filasExportacion(['afectadas', 'sin-clases'], todas, contexto)
+    expect(doble.map((f) => f.cue).sort()).toEqual(['30-00002-0', '30-00003-0', '30-00004-0'])
+    expect(doble).toHaveLength(3)
+  })
+})
+
 describe('EXPORTACIONES_ESCUELAS', () => {
-  it('cada tipo tiene título, nombre de archivo y columnas base con claves únicas', () => {
+  it('cada estado tiene título, etiqueta y columnas base con claves únicas', () => {
     for (const tipo of TIPOS_EXPORTACION_ESCUELAS) {
       const definicion = EXPORTACIONES_ESCUELAS[tipo]
-      expect(definicion.titulo).toMatch(/^Escuelas /)
-      expect(definicion.nombreArchivo).toMatch(/^escuelas-[a-z-]+$/)
+      expect(definicion.titulo).toBe(`Escuelas ${definicion.etiqueta}`)
       const claves = definicion.columnas.map((c) => c.clave)
       expect(new Set(claves).size).toBe(claves.length)
       expect(claves.slice(0, 7)).toEqual(['cue', 'escuela', 'departamento', 'localidad', 'direccion', 'niveles', 'matricula'])
@@ -144,9 +166,40 @@ describe('EXPORTACIONES_ESCUELAS', () => {
   })
 })
 
+describe('tituloExportacion', () => {
+  it('sin estados es "Escuelas"', () => {
+    expect(tituloExportacion([])).toBe('Escuelas')
+  })
+
+  it('une las etiquetas de los estados seleccionados en el orden del catálogo', () => {
+    expect(tituloExportacion(['en-riesgo'])).toBe('Escuelas en riesgo')
+    expect(tituloExportacion(['sin-clases', 'en-riesgo'])).toBe('Escuelas sin clases y en riesgo')
+    expect(tituloExportacion(['en-riesgo', 'afectadas', 'sin-clases'])).toBe(
+      'Escuelas afectadas, sin clases y en riesgo',
+    )
+  })
+})
+
+describe('columnasExportacion', () => {
+  const claves = (estados: TipoExportacionEscuelas[], riesgo = false) =>
+    columnasExportacion(estados, { riesgo }).map((c) => c.clave)
+  const base = ['cue', 'escuela', 'departamento', 'localidad', 'direccion', 'niveles', 'matricula']
+
+  it('sin estados usa base + gravedad + estado de clases + asistencia, y riesgo sólo con datos cargados', () => {
+    expect(claves([])).toEqual([...base, 'gravedad', 'estadoClases', 'asistencia'])
+    expect(claves([], true)).toEqual([...base, 'gravedad', 'estadoClases', 'asistencia', 'nivelRiesgo'])
+  })
+
+  it('une las columnas extra de los estados sin duplicar y en orden estable', () => {
+    const esperado = [...base, 'gravedad', 'categoria', 'ultimaNovedad', 'estadoClases', 'alumnosSinClases', 'asistencia', 'nivelRiesgo']
+    expect(claves(['en-riesgo', 'sin-clases', 'afectadas', 'con-clases', 'asistidas'])).toEqual(esperado)
+    expect(claves(['sin-clases', 'afectadas'])).toEqual(claves(['afectadas', 'sin-clases']))
+  })
+})
+
 describe('filasExportacion', () => {
   it('devuelve filas con las claves de columnas y valores formateados', () => {
-    const [fila] = filasExportacion('afectadas', [afectada])
+    const [fila] = filasExportacion(['afectadas'], [afectada])
     expect(fila).toMatchObject({
       cue: '30-00002-0',
       escuela: 'Afectada',
@@ -162,7 +215,7 @@ describe('filasExportacion', () => {
   })
 
   it('en-riesgo expone el nivel de riesgo del contexto', () => {
-    const [fila] = filasExportacion('en-riesgo', todas, contexto)
+    const [fila] = filasExportacion(['en-riesgo'], todas, contexto)
     expect(fila).toMatchObject({ cue: '30-00006-0', nivelRiesgo: 'Alto' })
   })
 
@@ -172,13 +225,13 @@ describe('filasExportacion', () => {
       escuela({ cueAnexo: 'b', nombre: 'Beta', departamento: 'CONCORDIA', clases: 'sin', parte: parteFicticio }),
       escuela({ cueAnexo: 'a', nombre: 'Alfa', departamento: 'PARANA', clases: 'sin', parte: parteFicticio }),
     ]
-    expect(filasExportacion('sin-clases', lista).map((f) => f.cue)).toEqual(['b', 'a', 'z'])
+    expect(filasExportacion(['sin-clases'], lista).map((f) => f.cue)).toEqual(['b', 'a', 'z'])
   })
 
   it('no modifica la lista de entrada', () => {
     const lista = [sinClasesConApoyo, sinClasesSinApoyo]
     const copia = [...lista]
-    filasExportacion('sin-clases', lista)
+    filasExportacion(['sin-clases'], lista)
     expect(lista).toEqual(copia)
   })
 })

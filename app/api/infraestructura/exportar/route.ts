@@ -2,11 +2,17 @@ import { GET as radarGET } from '@/app/api/infraestructura/radar/route'
 import { archivoResponseHeaders } from '@/lib/archivo'
 import { crearLibroInstitucional } from '@/lib/exportaciones/libro-institucional'
 import {
-  EXPORTACIONES_ESCUELAS,
+  columnasExportacion,
   filasExportacion,
   riesgoPorCueDesdeRadar,
+  tituloExportacion,
 } from '@/lib/exportaciones/escuelas'
-import { etiquetasFiltros, nombreArchivoExportacion, parsearSolicitudExportacion } from '@/lib/exportaciones/solicitud'
+import {
+  etiquetasFiltros,
+  HORIZONTE_POR_DEFECTO,
+  nombreArchivoExportacion,
+  parsearSolicitudExportacion,
+} from '@/lib/exportaciones/solicitud'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { alcanceMapa, filtrosDeAlcance } from '@/lib/infraestructura/alcance-mapa'
@@ -19,6 +25,8 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const FILAS_PREVIA_JSON = 200
+const CABECERAS_PRIVADAS = { 'Cache-Control': 'private, no-store' }
 
 type RespuestaRadar = { puntos: Parameters<typeof riesgoPorCueDesdeRadar>[0] }
 
@@ -54,25 +62,40 @@ export async function GET(request: Request) {
 
   const parseo = parsearSolicitudExportacion(new URL(request.url).searchParams)
   if (!parseo.ok) return Response.json({ error: parseo.error }, { status: 400 })
-  const { tipo, filtros, horizonte } = parseo.solicitud
+  const { estados, filtros, horizonte, formato } = parseo.solicitud
 
   const { escuelas } = await listarEscuelasMapaEnriquecidas(filtrosDeAlcance(alcance))
   const seleccionadas = filtrarEscuelas(escuelas, filtros)
 
-  const riesgoPorCue = tipo === 'en-riesgo'
-    ? await cargarRiesgoPorCue(request, horizonte, seleccionadas)
+  // El radar sólo se consulta si hace falta: lo pide `en-riesgo` o un horizonte explícito.
+  const necesitaRiesgo = estados.includes('en-riesgo') || horizonte !== null
+  const riesgoPorCue = necesitaRiesgo
+    ? await cargarRiesgoPorCue(request, horizonte ?? HORIZONTE_POR_DEFECTO, seleccionadas)
     : undefined
   if (riesgoPorCue === null) {
     return Response.json({ error: 'No se pudo calcular el riesgo de las escuelas' }, { status: 500 })
   }
 
-  const definicion = EXPORTACIONES_ESCUELAS[tipo]
+  const filas = filasExportacion(estados, seleccionadas, { riesgoPorCue })
+  const columnas = columnasExportacion(estados, { riesgo: riesgoPorCue !== undefined })
+
+  if (formato === 'json') {
+    return Response.json(
+      {
+        total: filas.length,
+        columnas: columnas.map(({ clave, encabezado }) => ({ clave, encabezado })),
+        filas: filas.slice(0, FILAS_PREVIA_JSON),
+      },
+      { headers: CABECERAS_PRIVADAS },
+    )
+  }
+
   const generadoEn = new Date()
   const libro = await crearLibroInstitucional({
-    titulo: definicion.titulo,
-    filtros: etiquetasFiltros(filtros, opcionesDireccion(escuelas)),
-    columnas: definicion.columnas,
-    filas: filasExportacion(tipo, seleccionadas, { riesgoPorCue }),
+    titulo: tituloExportacion(estados),
+    filtros: etiquetasFiltros(filtros, opcionesDireccion(escuelas), estados),
+    columnas,
+    filas,
     generadoEn,
     unidad: 'escuelas',
   })
@@ -80,7 +103,7 @@ export async function GET(request: Request) {
   return new Response(libro, {
     headers: archivoResponseHeaders({
       mime: MIME_XLSX,
-      nombreOriginal: nombreArchivoExportacion(tipo, generadoEn),
+      nombreOriginal: nombreArchivoExportacion(estados, generadoEn),
       download: true,
     }),
   })

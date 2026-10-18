@@ -27,7 +27,8 @@ export interface ContextoExportacionEscuelas {
 
 export interface DefinicionExportacionEscuelas {
   titulo: string
-  nombreArchivo: string
+  /** Forma corta para títulos y nombres de archivo: "Escuelas <etiqueta>". */
+  etiqueta: string
   incluye: (escuela: EscuelaMapaEnriquecida, contexto: ContextoExportacionEscuelas) => boolean
   columnas: ColumnaLibro[]
   valores: (escuela: EscuelaMapaEnriquecida, contexto: ContextoExportacionEscuelas) => Record<string, unknown>
@@ -43,10 +44,15 @@ const COLUMNAS_BASE: ColumnaLibro[] = [
   { clave: 'matricula', encabezado: 'Matrícula', ancho: 12, formato: 'entero' },
 ]
 
+const COLUMNA_GRAVEDAD: ColumnaLibro = { clave: 'gravedad', encabezado: 'Gravedad', ancho: 16 }
 const COLUMNA_ESTADO_CLASES: ColumnaLibro = { clave: 'estadoClases', encabezado: 'Estado de clases', ancho: 22 }
 const COLUMNA_ALUMNOS_SIN_CLASES: ColumnaLibro = { clave: 'alumnosSinClases', encabezado: 'Alumnos sin clases', ancho: 16, formato: 'entero' }
 const COLUMNA_ASISTENCIA: ColumnaLibro = { clave: 'asistencia', encabezado: 'Asistencia pedagógica', ancho: 24 }
 const COLUMNA_ULTIMA_NOVEDAD: ColumnaLibro = { clave: 'ultimaNovedad', encabezado: 'Última novedad', ancho: 16, formato: 'fecha' }
+const COLUMNA_NIVEL_RIESGO: ColumnaLibro = { clave: 'nivelRiesgo', encabezado: 'Nivel de riesgo', ancho: 16 }
+
+/** Columnas de una exportación sin estados seleccionados (riesgo se suma sólo si hay datos). */
+const COLUMNAS_SIN_ESTADO: ColumnaLibro[] = [COLUMNA_GRAVEDAD, COLUMNA_ESTADO_CLASES, COLUMNA_ASISTENCIA]
 
 const APOYO_BRINDADO = new Set<EscuelaMapaEnriquecida['apoyo']>(['virtual', 'cuadernillo', 'ambos', 'brinda'])
 
@@ -81,11 +87,11 @@ const sinClases = (escuela: EscuelaMapaEnriquecida) => escuela.clases !== 'norma
 export const EXPORTACIONES_ESCUELAS: Record<TipoExportacionEscuelas, DefinicionExportacionEscuelas> = {
   afectadas: {
     titulo: 'Escuelas afectadas',
-    nombreArchivo: 'escuelas-afectadas',
+    etiqueta: 'afectadas',
     incluye: (escuela) => escuela.parte !== undefined,
     columnas: [
       ...COLUMNAS_BASE,
-      { clave: 'gravedad', encabezado: 'Gravedad', ancho: 16 },
+      COLUMNA_GRAVEDAD,
       { clave: 'categoria', encabezado: 'Categoría principal', ancho: 22 },
       COLUMNA_ULTIMA_NOVEDAD,
     ],
@@ -97,35 +103,77 @@ export const EXPORTACIONES_ESCUELAS: Record<TipoExportacionEscuelas, DefinicionE
   },
   'sin-clases': {
     titulo: 'Escuelas sin clases',
-    nombreArchivo: 'escuelas-sin-clases',
+    etiqueta: 'sin clases',
     incluye: sinClases,
     columnas: [...COLUMNAS_BASE, COLUMNA_ESTADO_CLASES, COLUMNA_ALUMNOS_SIN_CLASES, COLUMNA_ASISTENCIA],
     valores: (escuela) => valoresClases(escuela),
   },
   'con-clases': {
     titulo: 'Escuelas con clases',
-    nombreArchivo: 'escuelas-con-clases',
+    etiqueta: 'con clases',
     incluye: (escuela) => !sinClases(escuela),
     columnas: [...COLUMNAS_BASE, COLUMNA_ULTIMA_NOVEDAD],
     valores: (escuela) => ({ ultimaNovedad: fechaDeNovedad(escuela.ultimaNovedad) }),
   },
   asistidas: {
     titulo: 'Escuelas con asistencia pedagógica',
-    nombreArchivo: 'escuelas-asistidas',
+    etiqueta: 'con asistencia pedagógica',
     incluye: (escuela) => APOYO_BRINDADO.has(escuela.apoyo),
     columnas: [...COLUMNAS_BASE, COLUMNA_ESTADO_CLASES, COLUMNA_ALUMNOS_SIN_CLASES, COLUMNA_ASISTENCIA],
     valores: (escuela) => valoresClases(escuela),
   },
   'en-riesgo': {
     titulo: 'Escuelas en riesgo',
-    nombreArchivo: 'escuelas-en-riesgo',
+    etiqueta: 'en riesgo',
     incluye: (escuela, contexto) => contexto.riesgoPorCue?.has(escuela.cueAnexo) ?? false,
-    columnas: [...COLUMNAS_BASE, { clave: 'nivelRiesgo', encabezado: 'Nivel de riesgo', ancho: 16 }],
+    columnas: [...COLUMNAS_BASE, COLUMNA_NIVEL_RIESGO],
     valores: (escuela, contexto) => {
       const nivel = contexto.riesgoPorCue?.get(escuela.cueAnexo)
       return { nivelRiesgo: nivel ? ETIQUETA_NIVEL_RIESGO[nivel] : null }
     },
   },
+}
+
+const CLAVES_BASE = new Set(COLUMNAS_BASE.map((columna) => columna.clave))
+
+function estadosSeleccionados(estados: readonly TipoExportacionEscuelas[]): TipoExportacionEscuelas[] {
+  return TIPOS_EXPORTACION_ESCUELAS.filter((tipo) => estados.includes(tipo))
+}
+
+/** Une etiquetas en español: "a", "a y b", "a, b y c". */
+function unirEtiquetas(etiquetas: string[]): string {
+  if (etiquetas.length <= 1) return etiquetas.join('')
+  return `${etiquetas.slice(0, -1).join(', ')} y ${etiquetas[etiquetas.length - 1]}`
+}
+
+/** Título del libro: "Escuelas" o "Escuelas <estados unidos>". */
+export function tituloExportacion(estados: readonly TipoExportacionEscuelas[]): string {
+  const etiquetas = estadosSeleccionados(estados).map((tipo) => EXPORTACIONES_ESCUELAS[tipo].etiqueta)
+  return etiquetas.length === 0 ? 'Escuelas' : `Escuelas ${unirEtiquetas(etiquetas)}`
+}
+
+/**
+ * Columnas del libro: base + unión de las columnas extra de los estados (sin
+ * duplicar, en orden del catálogo). Sin estados usa las columnas por defecto;
+ * la de riesgo se suma sólo cuando el radar se cargó.
+ */
+export function columnasExportacion(
+  estados: readonly TipoExportacionEscuelas[],
+  opciones: { riesgo: boolean },
+): ColumnaLibro[] {
+  const extras = estadosSeleccionados(estados).length === 0
+    ? COLUMNAS_SIN_ESTADO
+    : estadosSeleccionados(estados).flatMap((tipo) =>
+        EXPORTACIONES_ESCUELAS[tipo].columnas.filter((columna) => !CLAVES_BASE.has(columna.clave)),
+      )
+  const vistas = new Set<string>()
+  const unicas = extras.filter((columna) => {
+    if (vistas.has(columna.clave)) return false
+    vistas.add(columna.clave)
+    return true
+  })
+  const riesgo = opciones.riesgo && !vistas.has(COLUMNA_NIVEL_RIESGO.clave) ? [COLUMNA_NIVEL_RIESGO] : []
+  return [...COLUMNAS_BASE, ...unicas, ...riesgo]
 }
 
 /** Cruza el radar con las escuelas: cue → nivel de riesgo de las escuelas que el radar muestra. */
@@ -137,15 +185,24 @@ export function riesgoPorCueDesdeRadar(
   return new Map(escuelasEnRadar(puntos, escuelas, horizonte).map(({ escuela, nivel }) => [escuela.cueAnexo, nivel]))
 }
 
-/** Filas del tipo indicado, ordenadas por departamento y nombre; no modifica `escuelas`. */
+/**
+ * Filas que cumplen algún estado seleccionado (unión); sin estados, todas.
+ * Cada fila trae los valores de todos los estados, para que una columna
+ * compartida por varios estados tenga el mismo dato. No modifica `escuelas`.
+ */
 export function filasExportacion(
-  tipo: TipoExportacionEscuelas,
+  estados: readonly TipoExportacionEscuelas[],
   escuelas: EscuelaMapaEnriquecida[],
   contexto: ContextoExportacionEscuelas = {},
 ): Record<string, unknown>[] {
-  const definicion = EXPORTACIONES_ESCUELAS[tipo]
+  const seleccionados = estadosSeleccionados(estados)
+  const cumple = (escuela: EscuelaMapaEnriquecida) =>
+    seleccionados.length === 0 || seleccionados.some((tipo) => EXPORTACIONES_ESCUELAS[tipo].incluye(escuela, contexto))
   return escuelas
-    .filter((escuela) => definicion.incluye(escuela, contexto))
+    .filter(cumple)
     .sort((a, b) => a.departamento.localeCompare(b.departamento, 'es') || a.nombre.localeCompare(b.nombre, 'es'))
-    .map((escuela) => ({ ...valoresBase(escuela), ...definicion.valores(escuela, contexto) }))
+    .map((escuela) => ({
+      ...valoresBase(escuela),
+      ...Object.assign({}, ...TIPOS_EXPORTACION_ESCUELAS.map((tipo) => EXPORTACIONES_ESCUELAS[tipo].valores(escuela, contexto))),
+    }))
 }
