@@ -23,7 +23,7 @@ describe('JOBS_ESPERADOS', () => {
   })
 
   it('sólo deja sin programar los jobs que producción no corre', () => {
-    expect(JOBS_ESPERADOS.filter((job) => !job.habilitado).map((job) => job.nombre).sort()).toEqual(['calcular-riesgo-v04-candidato', 'episodios-derivados', 'importar-altimetria-v04', 'sync-seasonal'])
+    expect(JOBS_ESPERADOS.filter((job) => !job.habilitado).map((job) => job.nombre).sort()).toEqual(['calcular-riesgo-v04-candidato', 'episodios-derivados', 'importar-altimetria-v04', 'sync-ina-serie-diaria', 'sync-seasonal'])
   })
 
   it('declara el candidato v0.4 con su propio tipo de lease, sin programar', () => {

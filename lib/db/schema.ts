@@ -1175,6 +1175,34 @@ export const infraAltimetriaEscolar = pgTable(
   ],
 )
 
+// Motor v0.4 (U3a): lotes crudos inmutables descargados de INA A5, por sha256
+// del payload. Cada fila de hidro_serie_diaria apunta al lote que la trajo.
+export const hidroLoteCrudo = pgTable('hidro_lote_crudo', {
+  sha256: text('sha256').primaryKey(),
+  fuente: text('fuente').notNull(),
+  url: text('url').notNull(),
+  serieId: integer('serie_id').notNull(),
+  payload: jsonb('payload').notNull(),
+  descargadoEn: text('descargado_en').notNull(),
+})
+
+// Motor v0.4 (U3a): altura diaria histórica por estación (fecha local
+// YYYY-MM-DD). Se conserva la primera observación de cada fecha: reejecutar
+// nunca cambia valor ni fecha; un valor distinto se informa como discrepancia.
+export const hidroSerieDiaria = pgTable(
+  'hidro_serie_diaria',
+  {
+    estacionId: text('estacion_id').notNull(),
+    fecha: text('fecha').notNull(),
+    fuente: text('fuente').notNull(),
+    valorM: doublePrecision('valor_m').notNull(),
+    serieId: integer('serie_id').notNull(),
+    loteSha256: text('lote_sha256').notNull().references(() => hidroLoteCrudo.sha256),
+    descargadoEn: text('descargado_en').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.estacionId, t.fecha, t.fuente] })],
+)
+
 // E7a: episodios derivados (calculados automáticamente)
 // Episodio por unidad territorial (hoy sólo 'departamento'; el tipo queda
 // parametrizado para poder pasar a 'cuenca' en una versión futura de la

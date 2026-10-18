@@ -54,6 +54,7 @@ const NOMBRES_VALIDOS = [
   'sync-prefectura-historico',
   'importar-exposicion-rio-dem',
   'importar-altimetria-v04',
+  'sync-ina-serie-diaria',
   'limpiar-adjuntos-huerfanos',
 ]
 
@@ -334,6 +335,14 @@ async function correrImportarAltimetriaV04() {
   return importarAltimetriaV04()
 }
 
+// Serie diaria histórica INA A5 (Motor v0.4): backfill por ventanas la primera
+// vez, incremental después; presupuesto de solicitudes acotado. No programado.
+async function correrSyncInaSerieDiaria() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-ina-serie-diaria')
+  const { sincronizarSerieDiariaIna } = await import('../lib/infraestructura/hidrometria/ina/sync-ina-serie-diaria.ts')
+  return sincronizarSerieDiariaIna()
+}
+
 async function correrSyncRadarEnsemble(opts) {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
   const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
@@ -512,6 +521,8 @@ export async function correrJob(nombre, opts) {
       return correrImportarExposicionRioDem()
     case 'importar-altimetria-v04':
       return correrImportarAltimetriaV04()
+    case 'sync-ina-serie-diaria':
+      return correrSyncInaSerieDiaria()
     default:
       throw new JobDesconocidoError(nombre)
   }
@@ -531,6 +542,7 @@ export function codigoSalida(nombreJob, resultado) {
   if (nombreJob === 'sync-prefectura-historico' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'importar-exposicion-rio-dem' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'importar-altimetria-v04' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'sync-ina-serie-diaria' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3

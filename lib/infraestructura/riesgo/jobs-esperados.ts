@@ -100,4 +100,11 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     intervaloMinutos: 1440,
     habilitado: false,
   },
+  // Motor v0.4 (T3): serie diaria histórica INA A5; no programada.
+  {
+    nombre: 'sync-ina-serie-diaria',
+    tipo: 'sync-ina-serie-diaria',
+    intervaloMinutos: 1440,
+    habilitado: false,
+  },
 ]
