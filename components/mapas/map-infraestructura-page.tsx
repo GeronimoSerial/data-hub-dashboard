@@ -549,10 +549,10 @@ export function paddingEncuadre(): PaddingOptions {
   const ancho = window.innerWidth
   const alto = window.innerHeight
 
-  let top = PADDING_ENCUADRE_BASE
-  let bottom = PADDING_ENCUADRE_BASE
-  let left = PADDING_ENCUADRE_BASE + (ancho > 720 ? ANCHO_COLUMNA_IZQUIERDA : 0)
-  let right = PADDING_ENCUADRE_BASE + (ancho > 720 ? 296 : 0)
+  const top = PADDING_ENCUADRE_BASE
+  const bottom = PADDING_ENCUADRE_BASE
+  const left = PADDING_ENCUADRE_BASE + (ancho > 720 ? ANCHO_COLUMNA_IZQUIERDA : 0)
+  const right = PADDING_ENCUADRE_BASE + (ancho > 720 ? 296 : 0)
 
   return recortarPadding({ top, bottom, left, right }, ancho, alto)
 }

@@ -88,10 +88,13 @@ function textoDistancia(d: number | null): string {
 type EstadoSerie = { tipo: 'cargando' } | { tipo: 'error' } | { tipo: 'lista'; puntos: PuntoNivel[] }
 
 function useSerie(estacionId: string, ultimaMedidaEn: string | null): EstadoSerie {
-  const [serie, setSerie] = useState<EstadoSerie>({ tipo: 'cargando' })
+  // El resultado guarda la clave que lo produjo: si cambia la estación, se deriva 'cargando' en render.
+  const clave = `${estacionId}|${ultimaMedidaEn ?? ''}`
+  const [resultado, setResultado] = useState<{ clave: string; serie: EstadoSerie } | null>(null)
   useEffect(() => {
     const controller = new AbortController()
-    setSerie({ tipo: 'cargando' })
+    const claveEfecto = `${estacionId}|${ultimaMedidaEn ?? ''}`
+    const setSerie = (serie: EstadoSerie) => setResultado({ clave: claveEfecto, serie })
     const hasta = new Date()
     // A stale station still gets its last week of readings, not an empty window.
     const fin = ultimaMedidaEn ? Math.min(hasta.getTime(), Date.parse(ultimaMedidaEn)) : hasta.getTime()
@@ -108,7 +111,7 @@ function useSerie(estacionId: string, ultimaMedidaEn: string | null): EstadoSeri
       })
     return () => controller.abort()
   }, [estacionId, ultimaMedidaEn])
-  return serie
+  return resultado?.clave === clave ? resultado.serie : { tipo: 'cargando' }
 }
 
 export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionTarjeta; onCerrar: () => void }) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowUpRight, Clock, Cloud, MapPinOff } from 'lucide-react'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
@@ -71,7 +71,10 @@ export function FichaEscuelaPagina({
   } = useExposicionRuta(escuela.cueAnexo, hazardContextEnabled)
 
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
-  const [ahoraMs, setAhoraMs] = useState<number | null>(null)
+  // El "ahora" se fija en el cliente; en SSR/hidratación queda en null para no desfasar el HTML.
+  const montado = useSyncExternalStore(suscribirSinCambios, () => true, () => false)
+  const [ahoraClienteMs] = useState(() => Date.now())
+  const ahoraMs = montado ? ahoraClienteMs : null
   const [pestanaActiva, setPestanaActiva] = useState('panorama')
   const [altoCabecera, setAltoCabecera] = useState(0)
   const cabeceraRef = useRef<HTMLDivElement>(null)
@@ -120,10 +123,6 @@ export function FichaEscuelaPagina({
       scrollPorClickRef.current = null
     }, 800)
   }
-
-  useEffect(() => {
-    setAhoraMs(Date.now())
-  }, [])
 
   const contextoQuery = useMemo(
     () => parsearContextoMapaDeQuery(searchParams),
@@ -685,4 +684,8 @@ function BarraAlumnos({ afectados, total }: { afectados: number; total: number }
       ))}
     </div>
   )
+}
+
+function suscribirSinCambios(): () => void {
+  return () => {}
 }
