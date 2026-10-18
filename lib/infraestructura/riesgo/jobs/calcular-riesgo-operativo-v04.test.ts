@@ -173,7 +173,7 @@ describe('calcularYPublicarRiesgo con Motor v0.4 operativo', () => {
 
   it('sin dato de peligro a 240 h en alguna escuela lo informa en degradacion y en insumosDegradados', async () => {
     const resultado = await calcularYPublicarRiesgo({
-      ahora: new Date('2026-10-18T00:30:00.000Z'),
+      ahora: new Date('2026-10-19T06:30:00.000Z'),
       puertos: puertos(),
       padron: padron(PADRON),
       altimetria: sinAltimetria,
@@ -189,7 +189,7 @@ describe('calcularYPublicarRiesgo con Motor v0.4 operativo', () => {
 
   it('una celda que usó la ingesta de respaldo a 240 h lo informa en degradacion', async () => {
     const resultado = await calcularYPublicarRiesgo({
-      ahora: new Date('2026-10-18T00:30:00.000Z'),
+      ahora: new Date('2026-10-19T12:30:00.000Z'),
       puertos: puertos({
         [`g-${CUE_A}`]: [nivel240(`g-${CUE_A}`, 'amarillo', { respaldoIngestaPrevia: true })],
         [`g-${CUE_B}`]: [nivel240(`g-${CUE_B}`, 'verde')],
@@ -206,7 +206,7 @@ describe('calcularYPublicarRiesgo con Motor v0.4 operativo', () => {
 
   it('con peligro a 240 h completo y sin respaldo no informa motivos de peligro', async () => {
     const resultado = await calcularYPublicarRiesgo({
-      ahora: new Date('2026-10-18T00:30:00.000Z'),
+      ahora: new Date('2026-10-19T18:30:00.000Z'),
       puertos: puertos({
         [`g-${CUE_A}`]: [nivel240(`g-${CUE_A}`, 'amarillo')],
         [`g-${CUE_B}`]: [nivel240(`g-${CUE_B}`, 'verde')],
