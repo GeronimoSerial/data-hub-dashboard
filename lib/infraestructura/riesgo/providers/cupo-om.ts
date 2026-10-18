@@ -24,6 +24,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { omCupoContador, omCupoCooldown } from '@/lib/db/schema'
+import { asegurarProductorOpenMeteo } from './rol-entorno'
 
 export type VentanaCupo = 'minuto' | 'hora' | 'dia' | 'mes'
 const VENTANAS: readonly VentanaCupo[] = ['minuto', 'hora', 'dia', 'mes']
@@ -355,7 +356,12 @@ export async function reservarCupo(params: {
   apiKeyPresente?: boolean
   esperar?: (ms: number) => Promise<void>
   esperaMaximaMs?: number
+  /** Entorno para resolver el rol (default `process.env`). */
+  entorno?: Record<string, string | undefined>
 }): Promise<ResultadoReservaCupo> {
+  // Choke point definitivo: ningún cliente Open-Meteo reserva cupo (y por lo
+  // tanto no hace la request) en un entorno consumidor.
+  asegurarProductorOpenMeteo(params.entorno)
   const db = params.db ?? getDb()
   const esperar = params.esperar ?? esperarReal
   const esperaMaximaMs = params.esperaMaximaMs ?? 65_000
