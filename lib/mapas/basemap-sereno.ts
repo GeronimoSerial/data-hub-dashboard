@@ -2,7 +2,9 @@
 // road shields and black place dots (`circle_11_black`) that compete with the
 // school and station symbols. Hide that noise and keep only town names, softer.
 
-type CapaEstilo = { id: string; type: string; layout?: Record<string, unknown> }
+import { realzarRutasYAgua, type CapaBasemap } from './basemap-rutas-agua'
+
+type CapaEstilo = CapaBasemap & { layout?: Record<string, unknown> }
 
 export type MapaEstilo = {
   getStyle(): { layers?: CapaEstilo[] } | undefined
@@ -19,6 +21,7 @@ export function aquietarBasemap(mapa: Partial<MapaEstilo>): void {
   const capas = mapa.getStyle()?.layers ?? []
   const setLayout = mapa.setLayoutProperty.bind(mapa)
   const setPaint = mapa.setPaintProperty.bind(mapa)
+  realzarRutasYAgua({ setLayoutProperty: setLayout, setPaintProperty: setPaint }, capas)
   for (const capa of capas) {
     if (capa.type !== 'symbol') continue
     try {
