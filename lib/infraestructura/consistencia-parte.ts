@@ -189,7 +189,7 @@ const ADVERTENCIAS: DefinicionRegla[] = [
   },
   {
     // Sin energía o agua con clases suspendidas: el estado que lo describe es "Sin clases".
-    codigo: 'habitual-clases-suspendidas',
+    codigo: 'habitual-clases-suspendidas-sin-energia',
     campo: 'clases',
     mensaje: 'El edificio figura habitual pero las clases están suspendidas. Si falta energía o agua en toda la escuela, indique que el edificio está sin clases.',
     sugerencia: CAMBIAR_A_SIN_CLASES,
@@ -288,6 +288,10 @@ function evaluarRegla(definicion: DefinicionRegla, respuestas: RespuestasConsist
   if (!definicion.cuando(registro, ahora)) return null
   const firma = JSON.stringify([...leidas].sort().map((clave) => [clave, respuestas[clave]]))
   return aRegla(definicion, firma)
+}
+
+export function codigosDeReglas(): string[] {
+  return [...BLOQUEOS, ...ADVERTENCIAS].map((definicion) => definicion.codigo)
 }
 
 export function evaluarConsistenciaParte(

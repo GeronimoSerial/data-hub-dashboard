@@ -24,6 +24,7 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - [x] R5 Single source of consistency rules shared by client and server.
 - [x] R5b Client 'nueva' evaluation passes the afectación category so the alumnos exemption matches the server.
 - [x] R6 A3 follow-up: banner dismissals must not reset across `reporte-inicial-form` steps.
+- [x] R6b Consistency rule codes are unique (habitual-clases-suspendidas defined twice)
 - [ ] R7 Extract route domain logic into a use case + repository (behavior-preserving), dedupe JSON mapping and motivo lookups.
 - [ ] R8 A5: Mermaid flow map + UX proposal doc.
 
@@ -86,3 +87,6 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
   - `npx tsc --noEmit`: exit 0
   - `timeout 300 npx vitest run components/infraestructura/actualizar lib/infraestructura/consistencia-parte app/api/problematicas/parte`: 20 files, 244 tests passed
   - commit: see git log (fix(parte): apply alumnos exemption to client nueva evaluation)
+- R6b: route inline (2 production-adjacent edits + task doc; mechanical rename). Test-first: new test `every rule code is unique because dismissals are keyed by code` failed RED (`TypeError: codigosDeReglas is not a function`) before the change. GREEN: exported `codigosDeReglas()`; second `habitual-clases-suspendidas` (sin energía variant) renamed to `habitual-clases-suspendidas-sin-energia`. No non-test consumers reference the code.
+  - `npx tsc --noEmit`: exit 0
+  - `timeout 300 npx vitest run lib/infraestructura/consistencia-parte components/infraestructura/reporte-inicial-form.test.tsx components/infraestructura/actualizar app/api/problematicas/parte`: 21 files, 321 tests passed

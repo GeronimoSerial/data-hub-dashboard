@@ -3,6 +3,7 @@ import { MOTIVOS_SEED } from './motivos'
 import {
   alcanceDeSecciones,
   bloqueoOpcion,
+  codigosDeReglas,
   evaluarConsistenciaParte,
   severidadSugeridaPorAlcance,
   type CampoConsistencia,
@@ -60,6 +61,14 @@ describe('evaluarConsistenciaParte: bloqueos', () => {
 
   it('no bloquea un motivo que no es Otro si la descripción está vacía', () => {
     expect(evaluar({ motivoId: 'inundacion', edificio: 'parcial', descripcion: '' }).bloqueos).toEqual([])
+  })
+})
+
+describe('reglas de consistencia', () => {
+  it('every rule code is unique because dismissals are keyed by code', () => {
+    const todos = codigosDeReglas()
+    const repetidos = todos.filter((codigo, indice) => todos.indexOf(codigo) !== indice)
+    expect(repetidos).toEqual([])
   })
 })
 
@@ -229,7 +238,7 @@ describe('advertencias accionables (T10)', () => {
   it('sin energía o agua con clases suspendidas sugiere el edificio sin clases', () => {
     const SIN_CLASES = { campo: 'edificio', valor: 'sin_clases', etiqueta: 'Cambiar a Sin clases' }
     const habitual = evaluar({ motivoId: 'sin-energia-o-agua', edificio: 'habitual', clases: 'suspendido' }).advertencias
-    expect(habitual.find((a) => a.codigo === 'habitual-clases-suspendidas')?.sugerencia).toEqual(SIN_CLASES)
+    expect(habitual.find((a) => a.codigo === 'habitual-clases-suspendidas-sin-energia')?.sugerencia).toEqual(SIN_CLASES)
     const evacuado = evaluar({ motivoId: 'sin-energia-o-agua', edificio: 'evacuado', clases: 'suspendido' }).advertencias
     expect(evacuado.find((a) => a.codigo === 'sin-energia-evacuado')?.sugerencia).toEqual(SIN_CLASES)
   })
