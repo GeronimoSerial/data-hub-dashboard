@@ -151,14 +151,15 @@ describe('calcularYPublicarRiesgo con Motor v0.4 operativo', () => {
     expect(new Set(snapshots.map((s) => s.cueAnexo))).toEqual(new Set([CUE_A, CUE_B]))
   })
 
-  it('RIESGO_REGLAS_MOTOR=v0.3 vuelve al operativo motor-v0.3 sin detalle v0.4', async () => {
+  it('una variable histórica v0.3 no cambia el motor operativo ni elimina el detalle v0.4', async () => {
     process.env.RIESGO_REGLAS_MOTOR = 'v0.3'
     try {
       const resultado = await calcularYPublicarRiesgo({ ahora: new Date('2026-10-19T00:30:00.000Z'), puertos: puertos() })
       if (!resultado.ejecutado) throw new Error('debió ejecutarse')
       const run = await runDe(resultado.runId)
-      expect(run).toMatchObject({ modeloVersion: 'motor-v0.3', modo: 'operativo', estado: 'vigente', metadatos: null })
-      for (const s of await snapshotsDe(resultado.runId)) expect(s.resultadoV04).toBeNull()
+      expect(run).toMatchObject({ modeloVersion: 'motor-v0.4', modo: 'operativo', estado: 'vigente' })
+      expect(run?.metadatos).not.toBeNull()
+      for (const s of await snapshotsDe(resultado.runId)) expect(s.resultadoV04).not.toBeNull()
     } finally {
       delete process.env.RIESGO_REGLAS_MOTOR
     }

@@ -16,7 +16,7 @@ escuelas quedan en riesgo.
 | `infra_risk_snapshot` | columnas heredadas | mismas columnas heredadas y además `resultado_v04` por fila |
 | Universo | escuelas con perfil territorial | **el mismo**. Las escuelas sin coordenadas siguen sin fila |
 | `cobertura` del run | `{procesadas, conEvidencia, sinEvidencia}` | las mismas 3 claves |
-| `publicar-run.ts` | acepta `motor-v0.3` | acepta `motor-v0.4` y `motor-v0.3`; sigue rechazando candidatos |
+| `publicar-run.ts` | acepta `motor-v0.3` | acepta únicamente `motor-v0.4`; sigue rechazando candidatos |
 | Job `calcular-riesgo-v04-candidato` | no programado | ya no figura en `jobs-esperados`. El código queda para corridas manuales de evaluación con el padrón completo |
 | `sync-ina-serie-diaria` | no programado | `10 6 * * *` |
 | `sync-ina-pronostico` | no programado | `50 1,7,13,19 * * *`, antes de `calcular-riesgo` |
@@ -58,18 +58,38 @@ Workflow manual `.github/workflows/riesgo-v04-operacion.yml`, que usa los secret
 El script se niega a operar si `DATABASE_URL` de la aplicación no apunta a
 `hub_prod`. Sólo toca las tareas listadas arriba.
 
-## Rollback de un ciclo
+## Una única versión operativa en todos los entornos
 
-1. En Coolify, poner `RIESGO_REGLAS_MOTOR=v0.3` en la aplicación de producción y redesplegar.
-2. El run vigente de v0.4 sigue publicado hasta la próxima corrida de
-   `calcular-riesgo` (bloque de 6 h siguiente). Esa corrida publica un run
-   `motor-v0.3` idéntico byte a byte al previo a la promoción, sin `metadatos` ni
-   `resultado_v04`.
-3. Para volver a v0.4: quitar la variable (o ponerla en `v0.4`) y redesplegar.
+Desde el 18/10/2026 sólo se publica `motor-v0.4` en producción, staging y dev.
+La variable antigua `RIESGO_REGLAS_MOTOR=v0.3` ya no cambia el motor operativo.
+Las reglas v0.3 del núcleo puro se conservan para comparaciones históricas.
+La migración `0029_riesgo_operativo_solo_v04` impide nuevas publicaciones v0.3
+también desde SQL directo, sin borrar corridas ni factores anteriores.
 
-El flag es transitorio. Una vez verificada la promoción se retiran
-`RIESGO_REGLAS_MOTOR`, `MOTOR_VERSION_V03` y `motor-v0.3` de
-`VERSIONES_OPERATIVAS`.
+v0.4 es la evaluación integral: conserva peligro meteorológico, caudal, lluvia
+observada, historial, vulnerabilidad, acceso y exposición educativa. Cambia las
+reglas F1–F6 y agrega la probabilidad fluvial; cuando ésta es estimable,
+reemplaza el factor anterior del río para evitar contarlo dos veces. Las
+columnas `score_*` y `nivel_*` y todos sus factores siguen persistidos.
+`resultado_v04` añade el detalle probabilístico; por sí solo no representa
+la evaluación completa. Sin probabilidad estimable se conserva el camino
+observado del río bajo las reglas de alcance v0.4, con abstención explícita.
+
+Para actualizar una base de desarrollo atrasada sin recalcular con insumos
+incompletos, `node scripts/replicar-riesgo-v04.mjs` copia la corrida vigente
+completa de `hub_prod` a `hub_staging` o `hub_dev`. Recibe
+`RIESGO_SOURCE_DATABASE_URL` y `DATABASE_URL`, valida los destinos, la versión,
+la cobertura y los tres horizontes. Copia el run, snapshots completos y todos
+los factores en una transacción; conserva las corridas anteriores como vencidas.
+No modifica insumos ni producción. Una copia incompleta revierte la operación.
+No reemplaza los jobs de cálculo ni la réplica de insumos Open-Meteo.
+
+La migración usa `NOT VALID` para permitir reemplazar un vigente antiguo sin
+alterar los históricos. Una vez publicado v0.4, validar la restricción:
+
+```sql
+ALTER TABLE infra_risk_run VALIDATE CONSTRAINT infra_risk_run_vigente_solo_v04;
+```
 
 ## Consultas de verificación
 

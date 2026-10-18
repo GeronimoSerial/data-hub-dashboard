@@ -19,14 +19,13 @@
 // es `motor-v0.4` con reglas v0.4, río probabilístico donde la superación del
 // terreno es `modelada` (insumos-operativo-v04.ts) y `resultado_v04` por fila.
 // El universo NO cambia: sólo escuelas con perfil (listarCuesConPerfil), igual
-// que motor-v0.3. RIESGO_REGLAS_MOTOR=v0.3 (flags.ts) es el rollback de un
-// ciclo: run `motor-v0.3` idéntico byte a byte al previo a la promoción.
+// que motor-v0.3. Las reglas históricas ya no pueden publicarse como operativas.
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
-import { MOTOR_VERSION, MOTOR_VERSION_V03, REGLAS_V04_VERSION, type ReglasMotor } from '../motor/config'
+import { MOTOR_VERSION, REGLAS_V04_VERSION, type ReglasMotor } from '../motor/config'
 import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
 import { riesgoReglasMotor } from '../flags'
 import { crearAdapterAltimetriaV04, type PuertoAltimetriaV04 } from '../motor-v04/altimetria-adaptador'
@@ -71,7 +70,7 @@ export async function calcularYPublicarRiesgo(params?: {
   terreno?: PuertoTerrenoV04
 }): Promise<ResultadoJobCalcularRiesgo> {
   const reglas: ReglasMotor = riesgoReglasMotor()
-  const modeloVersion = reglas === 'v0.4' ? MOTOR_VERSION : MOTOR_VERSION_V03
+  const modeloVersion = MOTOR_VERSION
   const ahora = params?.ahora ?? new Date()
   const asOf = ahora.toISOString()
   const claveIdempotente = inicioDeBloqueUtc(ahora).toISOString()
@@ -247,8 +246,7 @@ export async function calcularYPublicarRiesgo(params?: {
     // parcial infra_risk_run_vigente_unico (ver schema.ts) impone a nivel DB
     // que nunca haya dos vigentes a la vez.
     // Metadatos v0.4: insumos y degradación de la corrida (la cobertura
-    // conserva las 3 claves que lee el frontend). El rollback v0.3 no escribe
-    // metadatos, igual que motor-v0.3.
+    // conserva las 3 claves que lee el frontend).
     if (v04) {
       const metadatos = metadatosOperativoV04(v04, { modeloVersion, asOf, conRioProbabilistico })
       await conReintentoPorBloqueo(() => db.update(infraRiskRun).set({ metadatos }).where(eq(infraRiskRun.id, idRun)))

@@ -204,6 +204,13 @@
       "when": 1792293951464,
       "tag": "0028_ina_pronostico",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792344000000,
+      "tag": "0029_riesgo_operativo_solo_v04",
+      "breakpoints": true
     }
   ]
 }

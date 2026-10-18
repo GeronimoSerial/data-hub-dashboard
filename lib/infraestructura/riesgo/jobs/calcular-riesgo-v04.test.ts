@@ -33,14 +33,14 @@ function padronFake(escuelas: EscuelaPadronV04[] | null): PuertoPadronV04 {
 
 beforeAll(async () => {
   ;({ calcularRiesgoCandidatoV04: calcularRiesgoCandidatoV04Real } = await import('./calcular-riesgo-v04'))
-  // Un run operativo v0.3 vigente preexistente: el candidato no debe tocarlo.
+  // Un run operativo v0.4 vigente preexistente: el candidato no debe tocarlo.
   const [periodo] = await getDb().select().from(infraPeriodo).where(eq(infraPeriodo.estado, 'vigente')).limit(1)
   if (!periodo) throw new Error('la siembra no dejó período vigente')
   runOperativoId = randomUUID()
   await getDb().insert(infraRiskRun).values({
     id: runOperativoId,
     periodoId: periodo.id,
-    modeloVersion: 'motor-v0.3',
+    modeloVersion: 'motor-v0.4',
     iniciadoEn: '2026-10-17T12:00:00.000Z',
     publicadoEn: '2026-10-17T12:05:00.000Z',
     estado: 'vigente',
