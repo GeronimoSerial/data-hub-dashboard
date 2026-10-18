@@ -1,18 +1,23 @@
 'use client'
 
 import { useEffect, useRef, useState, type JSX } from 'react'
-import { prepararFotosFormulario, type FotoElegida, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
+import { prepararFotosFormulario, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 import { descartarSubidaFotoNoDeclarada } from '@/lib/infraestructura/fotos/subida-cola'
 import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
-import { SelectorFotos } from './selector-fotos'
+import { SelectorFotos, type FotoSeleccionada } from './selector-fotos'
 
 export function SelectorFotosFormulario({
   draftId,
+  fotos: fotosControladas,
+  onFotosChange,
   onPreparadasChange,
   onCountChange,
   onHabilitadaChange,
 }: {
   draftId: string
+  /** Lista controlada por el padre; sin ella, el formulario mantiene su propia lista. */
+  fotos?: readonly FotoSeleccionada[]
+  onFotosChange?: (fotos: readonly FotoSeleccionada[]) => void
   onPreparadasChange: (fotos: readonly FotoPreparada[]) => void
   onCountChange?: (count: number) => void
   /** Informa si las fotos están habilitadas en esta instalación (false: no hay selector). */
@@ -26,63 +31,74 @@ export function SelectorFotosFormulario({
     return () => { activo = false }
   }, [onHabilitadaChange])
 
-  const elegidasRef = useRef<FotoElegida[]>([])
+  const elegidasRef = useRef<string[]>([])
   const preparadasRef = useRef(new Map<string, FotoPreparada>())
   const enProcesoRef = useRef(new Map<string, Promise<void>>())
   const fallidasRef = useRef(new Map<string, string>())
   const versionRef = useRef(0)
+  const [internas, setInternas] = useState<readonly FotoSeleccionada[]>([])
+  const fotos = fotosControladas ?? internas
   const [aviso, setAviso] = useState('')
   const [procesando, setProcesando] = useState(false)
 
-  function cambiarFotos(fotos: readonly { attachmentId: string; original: Blob }[]) {
-    const idsActuales = new Set(fotos.map((foto) => foto.attachmentId))
-    const eliminadas = elegidasRef.current.filter((foto) => !idsActuales.has(foto.attachmentId))
-    elegidasRef.current = fotos.map((foto) => ({ ...foto }))
-    onCountChange?.(fotos.length)
+  // Las fotos restauradas ya están preparadas: se registran para no procesarlas otra vez.
+  useEffect(() => {
+    for (const foto of fotos) {
+      if (foto.preparada) preparadasRef.current.set(foto.id, foto.preparada)
+    }
+  }, [fotos])
+
+  function cambiarFotos(siguientes: readonly FotoSeleccionada[]) {
+    const idsActuales = new Set(siguientes.map((foto) => foto.id))
+    const eliminadas = elegidasRef.current.filter((id) => !idsActuales.has(id))
+    elegidasRef.current = siguientes.map((foto) => foto.id)
+    if (fotosControladas === undefined) setInternas(siguientes)
+    onFotosChange?.(siguientes)
+    onCountChange?.(siguientes.length)
     versionRef.current += 1
     if (eliminadas.length) {
-      for (const foto of eliminadas) {
-        preparadasRef.current.delete(foto.attachmentId)
-        fallidasRef.current.delete(foto.attachmentId)
+      for (const id of eliminadas) {
+        preparadasRef.current.delete(id)
+        fallidasRef.current.delete(id)
       }
-      void Promise.all(eliminadas.map((foto) => descartarSubidaFotoNoDeclarada(foto.attachmentId))).catch(() => {})
+      void Promise.all(eliminadas.map((id) => descartarSubidaFotoNoDeclarada(id))).catch(() => {})
     }
     setAviso('')
     onPreparadasChange([])
-    if (fotos.length === 0) return
+    if (siguientes.length === 0) return
 
-    for (const foto of fotos) {
-      if (preparadasRef.current.has(foto.attachmentId) || enProcesoRef.current.has(foto.attachmentId)
-        || fallidasRef.current.has(foto.attachmentId)) continue
-      const tarea = prepararFotosFormulario(draftId, [foto]).then(({ preparadas, errores }) => {
-        if (!elegidasRef.current.some((elegida) => elegida.attachmentId === foto.attachmentId)) {
-          void descartarSubidaFotoNoDeclarada(foto.attachmentId).catch(() => {})
+    for (const foto of siguientes) {
+      if (!foto.original || preparadasRef.current.has(foto.id) || enProcesoRef.current.has(foto.id)
+        || fallidasRef.current.has(foto.id)) continue
+      const tarea = prepararFotosFormulario(draftId, [{ attachmentId: foto.id, original: foto.original }]).then(({ preparadas, errores }) => {
+        if (!elegidasRef.current.includes(foto.id)) {
+          void descartarSubidaFotoNoDeclarada(foto.id).catch(() => {})
         } else if (preparadas[0]) {
-          preparadasRef.current.set(foto.attachmentId, preparadas[0])
+          preparadasRef.current.set(foto.id, preparadas[0])
         } else {
-          fallidasRef.current.set(foto.attachmentId, errores[0] ?? 'No se pudo preparar una foto.')
+          fallidasRef.current.set(foto.id, errores[0] ?? 'No se pudo preparar una foto.')
         }
       }).finally(() => {
-        enProcesoRef.current.delete(foto.attachmentId)
+        enProcesoRef.current.delete(foto.id)
         if (versionRef.current > 0) {
           const activas = elegidasRef.current
-          const procesandoAhora = activas.some((elegida) => enProcesoRef.current.has(elegida.attachmentId))
+          const procesandoAhora = activas.some((id) => enProcesoRef.current.has(id))
           setProcesando(procesandoAhora)
-          if (!procesandoAhora) onPreparadasChange(activas.flatMap((elegida) => {
-            const preparada = preparadasRef.current.get(elegida.attachmentId)
+          if (!procesandoAhora) onPreparadasChange(activas.flatMap((id) => {
+            const preparada = preparadasRef.current.get(id)
             return preparada ? [preparada] : []
           }))
-          const error = activas.map((elegida) => fallidasRef.current.get(elegida.attachmentId)).find(Boolean)
+          const error = activas.map((id) => fallidasRef.current.get(id)).find(Boolean)
           if (error) setAviso(`Una o más fotos no pudieron prepararse. Puede continuar con el reporte. ${error}`)
         }
       })
-      enProcesoRef.current.set(foto.attachmentId, tarea)
+      enProcesoRef.current.set(foto.id, tarea)
     }
-    const pendientes = fotos.map((foto) => enProcesoRef.current.get(foto.attachmentId)).filter((item): item is Promise<void> => !!item)
+    const pendientes = siguientes.map((foto) => enProcesoRef.current.get(foto.id)).filter((item): item is Promise<void> => !!item)
     setProcesando(pendientes.length > 0)
     if (pendientes.length === 0) {
-      onPreparadasChange(fotos.flatMap((foto) => {
-        const preparada = preparadasRef.current.get(foto.attachmentId)
+      onPreparadasChange(siguientes.flatMap((foto) => {
+        const preparada = preparadasRef.current.get(foto.id)
         return preparada ? [preparada] : []
       }))
     }
@@ -90,7 +106,7 @@ export function SelectorFotosFormulario({
 
   return (
     <>
-      <SelectorFotos onChange={() => {}} onItemsChange={cambiarFotos} />
+      <SelectorFotos onChange={() => {}} fotos={fotos} onFotosChange={cambiarFotos} />
       {procesando ? <p role="status">Preparando fotos en este dispositivo. Puede enviar el reporte mientras tanto.</p> : null}
       {aviso ? <p role="status">{aviso}</p> : null}
     </>
