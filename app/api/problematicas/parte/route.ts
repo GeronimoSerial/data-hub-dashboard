@@ -7,6 +7,7 @@
 // idempotencia, validación contra la base, transacción.
 import { z } from 'zod'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { esViolacionUniqueIdempotencyKey } from './idempotencia'
 import { getDb, getRawClient } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { ensureSeeded } from '@/lib/db/seed'
@@ -84,6 +85,18 @@ class ErrorCierreBorrador extends Error {
 // POST, un rollback deliberado (diff vacío, spec §17) de un error real de
 // escritura. Nunca sale de este archivo.
 class RollbackDiffVacio extends Error {}
+
+// Replay de idempotencia detectado DENTRO de la transacción: se lanza para
+// hacer rollback sin escribir nada y responder con el movimiento ya guardado.
+class ReplayIdempotencia extends Error {
+  readonly movimiento: typeof infraMovimiento.$inferSelect
+
+  constructor(movimiento: typeof infraMovimiento.$inferSelect) {
+    super('Movimiento ya registrado para esta idempotencyKey')
+    this.name = 'ReplayIdempotencia'
+    this.movimiento = movimiento
+  }
+}
 
 // Corrección de la carrera cross-device del gate N1 (ver
 // docs/ejecucion-enos/E1b/registro.md, "Correcciones del gate N1" → riesgo
@@ -421,11 +434,14 @@ export async function POST(request: Request) {
   const db = getDb()
   const client = crearEjecutorSql(getRawClient())
 
-  // Idempotencia: antes de cualquier escritura. Deliberadamente NO se aplica
-  // CUE_MAX_ALERTAS_ACTIVAS acá (ver docs/trayectoria-contrato-implementacion.md
-  // y batch-3-spec.md): hay un único parte por CUE y período, ese tope era
-  // del modelo deprecado (retirado en la Fase 4) y capar actualizaciones
-  // dejaría a un director afuera en medio de una inundación.
+  // Idempotencia, fast path: responde el replay sin el trabajo de validación.
+  // La autoridad es la comprobación repetida dentro de la transacción (más
+  // abajo) y el índice único; esta lectura previa no basta sola bajo carrera.
+  // Deliberadamente NO se aplica CUE_MAX_ALERTAS_ACTIVAS acá (ver
+  // docs/trayectoria-contrato-implementacion.md y batch-3-spec.md): hay un
+  // único parte por CUE y período, ese tope era del modelo deprecado
+  // (retirado en la Fase 4) y capar actualizaciones dejaría a un director
+  // afuera en medio de una inundación.
   const [movimientoExistente] = await db
     .select()
     .from(infraMovimiento)
@@ -442,18 +458,19 @@ export async function POST(request: Request) {
   // (alumnosPertenecenASecciones, el callback de la transacción).
   const corteId = corte.id
 
-  if (movimientoExistente) {
-    return respuestaExito(
+  const respuestaReplay = (movimiento: typeof infraMovimiento.$inferSelect) =>
+    respuestaExito(
       cue.value,
       corteId,
-      movimientoExistente.parteId,
-      movimientoExistente.id,
-      movimientoExistente.tipo as TipoMovimiento,
-      movimientoExistente.resumen as unknown as DiffParte,
+      movimiento.parteId,
+      movimiento.id,
+      movimiento.tipo as TipoMovimiento,
+      movimiento.resumen as unknown as DiffParte,
       200,
       verificacionVinculo,
     )
-  }
+
+  if (movimientoExistente) return respuestaReplay(movimientoExistente)
 
   const periodo = await obtenerPeriodoVigente(db)
   if (!periodo) {
@@ -691,6 +708,17 @@ export async function POST(request: Request) {
   try {
     resultado = await conReintentoPorBloqueo(async () => {
       return await db.transaction(async (tx) => {
+      // Idempotencia, autoritativa: la lectura va dentro de la MISMA
+      // transacción que el INSERT. Una request que llega después de que otra
+      // ya confirmó el movimiento ve su fila acá y responde replay, en vez de
+      // recalcular el diff contra el parte ya escrito (409 "sin cambios").
+      const [yaRegistrado] = await tx
+        .select()
+        .from(infraMovimiento)
+        .where(eq(infraMovimiento.idempotencyKey, input.idempotencyKey))
+        .limit(1)
+      if (yaRegistrado) throw new ReplayIdempotencia(yaRegistrado)
+
       if (draftId) {
         const [closure] = await tx.select().from(infraBorradorCierre)
           .where(eq(infraBorradorCierre.draftId, draftId)).limit(1)
@@ -1038,53 +1066,19 @@ export async function POST(request: Request) {
     if (err instanceof RollbackDiffVacio) {
       return jsonError('Todavía no realizó cambios en el parte actual', 409)
     }
-    // Violación del constraint único de idempotency_key. En SQLite (driver
-    // libsql, fallback para entornos que aún no migraron) el texto es
-    // "UNIQUE constraint failed: infra_movimiento.idempotency_key", envuelto
-    // por drizzle-orm en DrizzleQueryError — según la versión el texto puede
-    // caer en `err.message` o en `err.cause.message`, así que se revisan
-    // ambos. En Postgres el error trae `code === '23505'` y el nombre de la
-    // constraint (o el mensaje "duplicate key value violates unique
-    // constraint ...") menciona la columna; `code`/`constraint` pueden venir
-    // en el error envuelto por Drizzle, dentro de `err.cause`.
-    const msg = err instanceof Error ? err.message : String(err)
-    const causaMsg =
-      err instanceof Error && err.cause instanceof Error ? err.cause.message : ''
-    const causa = (err as { cause?: unknown }).cause
-    const errCode =
-      (err as { code?: string }).code ??
-      (causa && typeof causa === 'object' ? (causa as { code?: string }).code : undefined)
-    const constraint =
-      (err as { constraint?: string }).constraint ??
-      (causa && typeof causa === 'object' ? (causa as { constraint?: string }).constraint : undefined) ??
-      ''
-    const duplicadoIdempotencyKeyPostgres =
-      errCode === '23505' && /idempotency_key/i.test(`${msg} ${causaMsg} ${constraint}`)
-    if (
-      /UNIQUE constraint failed.*idempotency_key/i.test(msg) ||
-      /UNIQUE constraint failed.*idempotency_key/i.test(causaMsg) ||
-      duplicadoIdempotencyKeyPostgres
-    ) {
-      // Carrera: otra request con la misma idempotencyKey ganó mientras se
-      // procesaba ésta. Se responde como si fuera un replay, releyendo el
-      // movimiento que sí se escribió.
+    if (err instanceof ReplayIdempotencia) {
+      return respuestaReplay(err.movimiento)
+    }
+    if (esViolacionUniqueIdempotencyKey(err)) {
+      // Carrera: otra request con la misma idempotencyKey confirmó su INSERT
+      // entre nuestro chequeo y el nuestro. Se responde como replay, releyendo
+      // el movimiento que sí quedó escrito.
       const [race] = await db
         .select()
         .from(infraMovimiento)
         .where(eq(infraMovimiento.idempotencyKey, input.idempotencyKey))
         .limit(1)
-      if (race) {
-        return respuestaExito(
-          cue.value,
-          corteId,
-          race.parteId,
-          race.id,
-          race.tipo as TipoMovimiento,
-          race.resumen as unknown as DiffParte,
-          200,
-          verificacionVinculo,
-        )
-      }
+      if (race) return respuestaReplay(race)
     }
     // Solo nombre y mensaje: nunca el cuerpo de la request ni datos del parte.
     console.error('[problematicas/parte] POST failed', {

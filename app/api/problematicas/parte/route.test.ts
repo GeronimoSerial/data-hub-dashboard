@@ -165,6 +165,8 @@ const CUE_X = '1801605-69'
 const CUE_ERROR_INESPERADO = '1801605-70'
 // CUE exclusivo de las pruebas de reloj del cliente (rigeDesde futuro).
 const CUE_RELOJ_CLIENTE = '1801605-71'
+// CUE exclusivo del test de dos POST en paralelo con la MISMA idempotencyKey.
+const CUE_PARALELO = '1801605-73'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -185,7 +187,7 @@ beforeAll(async () => {
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
     CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U, CUE_V, CUE_W, CUE_X,
-    CUE_ERROR_INESPERADO, CUE_RELOJ_CLIENTE,
+    CUE_ERROR_INESPERADO, CUE_RELOJ_CLIENTE, CUE_PARALELO,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -600,6 +602,31 @@ describe('POST /api/problematicas/parte', () => {
     for (const cuerpo of cuerpos) {
       if (cuerpo.ok) expect(cuerpo.parteId).toBe(partes[0]!.id)
     }
+  })
+
+  it('dos POST en paralelo con la misma idempotencyKey escriben un solo movimiento y el otro responde 200 como replay', async () => {
+    const idempotencyKey = crypto.randomUUID()
+    const payload = {
+      cue: CUE_PARALELO,
+      idempotencyKey,
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [
+        { motivo: 'Tormenta severa', severidad: 'Baja' as const, secciones: [seccionId(CUE_PARALELO, '10')] },
+      ],
+    }
+
+    const respuestas = await Promise.all([POST(postReq(payload)), POST(postReq(payload))])
+    const cuerpos = await Promise.all(respuestas.map((r) => r.json()))
+
+    expect(respuestas.map((r) => r.status).sort()).toEqual([200, 201])
+    expect(cuerpos[0]!.movimientoId).toBeTruthy()
+    expect(cuerpos[1]!.movimientoId).toBe(cuerpos[0]!.movimientoId)
+
+    const movimientos = await getDb()
+      .select()
+      .from(infraMovimiento)
+      .where(eq(infraMovimiento.idempotencyKey, idempotencyKey))
+    expect(movimientos).toHaveLength(1)
   })
 
   it('el segundo POST (actualización) escribe tipo actualizacion y no crea un segundo parte', async () => {

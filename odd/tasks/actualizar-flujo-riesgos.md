@@ -19,7 +19,8 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - [x] R2 Server owns time: ignore/clamp client `rigeDesde` (server `now`, tolerate small skew) for eligibility.
 - [x] R3 Client races: serialize/debounce draft saves; guard replay effect against concurrent `enviar`; `enviandoRef` guard + typed base movimiento in `enviarSoloFotos`; single photo-link path; keep IDB/localStorage consistent.
 - [x] R2b Server date math must not depend on process TZ: make `vigencia-eleccion.ts` / `vigencia-rango.ts` (used server-side via `consistencia-parte.ts`) compute in America/Argentina/Buenos_Aires explicitly; add a test under TZ=UTC. (User requirement: server time must be Buenos Aires UTC-3.)
-- [ ] R4 Idempotency: lookup inside the transaction; detect unique violations by driver error code, not message regex.
+- [ ] R2c Client date math (vigencia-chips.tsx, reporte-inicial-form.tsx) uses browser-local Date; align with Buenos Aires via lib/infraestructura/zona-horaria.ts.
+- [x] R4 Idempotency: lookup inside the transaction; detect unique violations by driver error code, not message regex.
 - [ ] R5 Single source of consistency rules shared by client and server.
 - [ ] R6 A3 follow-up: banner dismissals must not reset across `reporte-inicial-form` steps.
 - [ ] R7 Extract route domain logic into a use case + repository (behavior-preserving), dedupe JSON mapping and motivo lookups.
@@ -54,3 +55,10 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
   - `timeout 300 npx vitest run lib/infraestructura/vigencia-eleccion lib/infraestructura/vigencia-rango lib/infraestructura/consistencia-parte components/infraestructura/actualizar app/api/problematicas/parte/route.test.ts`: 11 files, 209 tests passed
   - Same set plus `zona-horaria` under a scratch config without the TZ pin and with `TZ=UTC`: 12 files, 212 tests passed.
   - Out of scope (client, not in the surfaces): `vigencia-chips.tsx` and `reporte-inicial-form.tsx` still use browser-local `Date` methods.
+- R4: route inline (4 files inside the parent-authorized surfaces, no delegation). Test-first: `idempotencia.test.ts` RED (module missing); `route.test.ts` new test "dos POST en paralelo con la misma idempotencyKey..." RED with `expected [ 201, 409 ] to deeply equal [ 200, 201 ]` (the second request recalculated the diff against the committed parte and got 409 "sin cambios" instead of replay).
+  - Changes: `idempotencia.ts` (`esViolacionUniqueIdempotencyKey`: first driver node with `code`; `23505` + `constraint` matching idempotency_key; message fallback only when no code). The Drizzle wrapper message (which carries the SQL text) is never used when a driver code exists. `route.ts`: lookup repeated as the first step of the transaction (throws `ReplayIdempotencia`, rolled back, answered as replay 200); early lookup kept as fast path; race catch uses the helper.
+  - Constraint check: `drizzle/0000_daffy_squirrel_girl.sql:590` creates `infra_movimiento_idempotency_key_uidx` UNIQUE; no `DROP INDEX` in any migration; latest snapshot (`drizzle/meta/0028_snapshot.json`) keeps it. Driver is Postgres only (`lib/db/driver.ts`: pglite | postgres); SQLite/libsql is not on the request path (`@libsql/client` remains in package.json for scripts only), so the SQLite branch is kept only as a no-code fallback.
+  - Stale comment noted, not changed (outside surfaces): `lib/db/schema.ts:500` points to `ensureMovimientoIdempotencyKeyColumn` in `lib/db/seed.ts`, which no longer exists.
+  - `npx tsc --noEmit`: exit 0
+  - `timeout 300 npx vitest run app/api/problematicas/parte`: 10 files, 95 tests passed
+  - commit: see git log (fix(parte): make idempotency replay atomic and detect unique violations by code)
