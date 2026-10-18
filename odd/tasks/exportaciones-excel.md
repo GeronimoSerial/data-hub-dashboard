@@ -32,7 +32,14 @@ Staff need school lists (afectadas, sin clases, con clases, asistidas, en riesgo
   - Status codes: 401 no session, 403 role without scope, 400 bad `tipo` or `horizonte`, 500 when the radar fails for en-riesgo. Scope is passed to `listarEscuelasMapaEnriquecidas(filtrosDeAlcance(alcance))`.
   - Deviation: `radar/route.ts` has no reusable loader; its snapshot query lives inline in `GET`. T3 calls that `GET` handler internally with `?horizonte=` and reads `puntos`, so no SQL is copied. Extracting a `cargarPuntosRadar(horizonte)` into `lib/infraestructura` would be cleaner; that touches a file outside this task's surface.
   - Deviation: the auth/scope steps are repeated inline from `mapa-ruta.ts`, which is outside this task's surface and returns JSON only.
-- [ ] T4 — Download control on `/mapas/infraestructura` that exports with the active filters.
+- [x] T4 — Exportaciones tab in the hub nav with export UI.
+  - Scope: `Exportaciones` tab (signed-in users) in `components/app-shell.tsx` `NAV_SESION`; page `app/(hub)/exportaciones/page.tsx` with the map's access gate (`/mapas/infraestructura` recurso + alcance, else `/forbidden`); panel `components/exportaciones/panel-exportaciones.tsx` with the five types, description, departamento and dirección multi-selects (`MultiSelect`), horizonte `Segmentado` on en-riesgo only, and "Descargar Excel" per type with loading and server-error states.
+  - Pure URL helper `lib/exportaciones/url.ts` (`urlExportacionEscuelas`, reuses `serializarContextoMapaEnQuery`: `depto`, `direccion`; `horizonte` only for en-riesgo). RED observed (module missing), GREEN 4/4.
+  - Download helper `components/exportaciones/descarga.ts` takes the filename from `Content-Disposition` and shows the server's `error` message on non-2xx.
+  - Evidence: `pnpm vitest run lib/exportaciones components/exportaciones components/app-shell.test.tsx` → 6 files, 40 passed. `pnpm tsc --noEmit -p .` → exit 0. `pnpm eslint lib/exportaciones components/exportaciones 'app/(hub)/exportaciones' components/app-shell.tsx components/app-shell.test.tsx` → exit 0 (1 pre-existing `<img>` warning in the app-shell test mock).
+  - Panel and nav tests were written after the implementation, so their RED was not observed.
+  - Nav file touched: `components/app-shell.tsx` (+ `components/app-shell.test.tsx`). Nav visibility is session-only; access is enforced by the page and the API, not by the nav.
+  - Options come from `/api/mapas/infraestructura/escuelas` (same scope as the map), fetched once per mount, not polled.
 
 ## Acceptance criteria
 - Each stage-1 type downloads a valid .xlsx opening in Excel/LibreOffice, Arial, branded header, filters listed.
@@ -44,6 +51,7 @@ Staff need school lists (afectadas, sin clases, con clases, asistidas, en riesgo
 
 ## Delivery
 Strategy: ask-on-risk. Forecast ~700 authored lines → chain decision asked when the running count passes ~400.
+Chain strategy chosen by the user: `feature-branch-chain`.
 
 ## Progress
 - Worktree `../exportaciones-excel`, branch `GeronimoSerial/exportaciones-excel` from `origin/dev` (5cd5d781).
@@ -54,4 +62,4 @@ Strategy: ask-on-risk. Forecast ~700 authored lines → chain decision asked whe
   - Deviation: builder returns `Promise<ArrayBuffer>` (exceljs global `Buffer` typing rejects Node `Buffer`).
 
 ## Next step
-T4.
+Commit T4 (`feat(exportaciones): add the exports tab with filters and downloads`), then review with the user.

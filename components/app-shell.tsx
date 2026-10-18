@@ -18,6 +18,9 @@ const NAV = [
   { href: '/explorar', label: 'Explorar' },
 ]
 
+// Solo con sesión: la página valida el acceso al recurso del mapa de infraestructura.
+const NAV_SESION = { href: '/exportaciones', label: 'Exportaciones' }
+
 const ResourceDetailsContext = React.createContext({
   expanded: false,
   setExpanded: (_expanded: boolean) => {},
@@ -263,6 +266,7 @@ export function AppShell({
   // server-provided user so the header markup matches on hydration.
   const sessionUser = session.isPending ? initialUser : session.data?.user ?? null
   const role = (sessionUser as { role?: Role } | null)?.role
+  const navegacion = sessionUser ? [...NAV, NAV_SESION] : NAV
   const compactoMapa = isMapViewerPath(pathname)
   const mapViewer = isBleedViewerPath(pathname)
   const resourceViewer = pathname.startsWith('/recursos/')
@@ -326,7 +330,7 @@ export function AppShell({
             </Link>
 
             <nav className="app-nav" aria-label="Navegación principal">
-              {NAV.map((item) => (
+              {navegacion.map((item) => (
                 <Link key={item.href} href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
                   {item.label}
                 </Link>
@@ -373,7 +377,7 @@ export function AppShell({
                   <MenuIcon size={20} />
                 </MenuTrigger>
                 <MenuContent>
-                  {NAV.map((item) => (
+                  {navegacion.map((item) => (
                     <MenuItem key={item.href} onClick={() => router.push(item.href)}>{item.label}</MenuItem>
                   ))}
                   <MenuItem onClick={() => router.push('/explorar')}>Buscar</MenuItem>
