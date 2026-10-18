@@ -11,11 +11,20 @@
 // 24/72/240 h. Desde T6 la superación del terreno se modela por transferencia
 // por km de río donde es estimable (motor-v04/superacion-terreno.ts); el resto
 // de los eventos sigue `no_estimable` con motivo.
+// Motor único (T8): cada escuela con coordenadas corre el MISMO cálculo v0.3
+// (calcularRiesgoEscuela, todos sus puertos) y, donde la superación es
+// `modelada`, el factor río probabilístico reemplaza al de v0.3. Las columnas
+// heredadas (nivel/score/factores) quedan como las escribiría v0.3 con ese
+// reemplazo; `resultado_v04` guarda el detalle. Las escuelas sin coordenadas
+// no tienen fila en v0.3: acá conservan la fila de T1 con nivel null y motivo.
 import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
-import { infraPeriodo, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
+import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
+import type { PuertosMotor } from '../motor/puertos'
+import type { EvidenciaRioProbabilistica } from '../motor/tipos'
+import { calcularFilasEscuela, construirPuertosReales, crearPuertosConCache, insertarEnChunks } from './compartido-riesgo'
 import { adquirirLease, inicioDeBloqueUtc, publicarResultado, renovarLease } from '../job-run'
 import { CONFIG_V04, HORIZONTES_V04, MOTOR_V04_VERSION, hashCanonico } from '../motor-v04/config'
 import { esquemaMetadatosRunV04, type ResultadoEscuelaV04 } from '../motor-v04/contratos'
@@ -53,6 +62,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
   padron?: PuertoPadronV04
   altimetria?: PuertoAltimetriaV04
   terreno?: PuertoTerrenoV04
+  puertos?: PuertosMotor
 }): Promise<ResultadoJobCandidatoV04> {
   const ahora = params?.ahora ?? new Date()
   const asOf = ahora.toISOString()
@@ -145,10 +155,31 @@ export async function calcularRiesgoCandidatoV04(params?: {
       }),
     )
 
+    const puertos = crearPuertosConCache(params?.puertos ?? construirPuertosReales())
+    const sinUbicacion = new Set(padron.filter((e) => e.motivoUbicacion !== null).map((e) => e.cueAnexo))
     for (let inicio = 0; inicio < resultados.length; inicio += TAMANO_CHUNK_INSERCION) {
-      const chunk = resultados.slice(inicio, inicio + TAMANO_CHUNK_INSERCION).map((r) => filaSnapshot(idRun, r))
+      const filasSnapshot: (typeof infraRiskSnapshot.$inferInsert)[] = []
+      const filasFactor: (typeof infraRiskFactor.$inferInsert)[] = []
+      for (const r of resultados.slice(inicio, inicio + TAMANO_CHUNK_INSERCION)) {
+        if (sinUbicacion.has(r.cueAnexo)) {
+          filasSnapshot.push(filaSnapshotSinUbicacion(idRun, r))
+          continue
+        }
+        const { snapshot, factores } = await calcularFilasEscuela({
+          runId: idRun,
+          cueAnexo: r.cueAnexo,
+          horizonte: r.horizonteHoras,
+          asOf,
+          puertos,
+          rioProbabilistico: rioProbabilisticoDe(r),
+          extraSnapshot: { resultadoV04: r as unknown as Record<string, unknown> },
+        })
+        filasSnapshot.push(snapshot)
+        filasFactor.push(...factores)
+      }
       // Ids fijados antes del intento: reintentar el mismo INSERT es seguro.
-      await conReintentoPorBloqueo(() => db.insert(infraRiskSnapshot).values(chunk))
+      await conReintentoPorBloqueo(() => db.insert(infraRiskSnapshot).values(filasSnapshot))
+      await insertarEnChunks(db, infraRiskFactor, filasFactor, TAMANO_CHUNK_INSERCION)
       await renovarLease({ jobRunId, leaseOwner, duracionLeaseMs: DURACION_LEASE_MS, ahora: new Date() })
     }
 
@@ -243,13 +274,28 @@ function estimarSuperacionPorEscuela(params: {
   return salida
 }
 
-// Columnas heredadas de infra_risk_snapshot. El candidato no calcula el score
-// ordinal de v0.3 y no debe simular uno: todos los scores y niveles van en
-// null (nivel desconocido, no 'bajo'). Las columnas NOT NULL se llenan con el
+// Evidencia probabilística para el motor único: sólo si la superación con cota
+// principal es `modelada`; si no, null y el cálculo usa el río de v0.3.
+function rioProbabilisticoDe(r: ResultadoEscuelaV04): EvidenciaRioProbabilistica | null {
+  const { principal, conservador } = r.superacionTerreno
+  if (principal.estado !== 'modelada' || principal.probabilidad === null) return null
+  return {
+    principal: principal.probabilidad,
+    conservador: conservador.estado === 'modelada' ? conservador.probabilidad : null,
+    ventanaHoras: r.horizonteHoras,
+    metodo: principal.metodo ?? 'desconocido',
+    version: principal.version ?? 'desconocida',
+    diagnostico: principal.diagnostico,
+  }
+}
+
+// Columnas heredadas para una escuela SIN ubicación utilizable (v0.3 no tiene
+// fila para ella): todos los scores y niveles van en null (nivel desconocido,
+// no 'bajo'). Las columnas NOT NULL se llenan con el
 // mismo criterio que motor/calculo.ts usa para una escuela sin evidencia:
 // `evidenciaValida = false`, `confianza = 'baja'` y `validoHasta = asOf` (no
 // se declara validez futura). El resultado real vive en `resultado_v04`.
-function filaSnapshot(runId: string, r: ResultadoEscuelaV04): typeof infraRiskSnapshot.$inferInsert {
+function filaSnapshotSinUbicacion(runId: string, r: ResultadoEscuelaV04): typeof infraRiskSnapshot.$inferInsert {
   return {
     id: randomUUID(),
     runId,

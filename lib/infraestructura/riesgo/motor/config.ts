@@ -133,3 +133,16 @@ export const AGRAVANTES_ACCESO = {
   // SOLO de esta dimensión: no le resta su rol en historial/vulnerabilidad.
   accesoInterrumpido: 15,
 } as const
+
+// --- Motor v0.4: factor río probabilístico (T8, odd/tasks/motor-v0-4.md) ---
+// PROVISORIO, PENDIENTE DE DECISIÓN DEL USUARIO. Sólo lo usa el job candidato
+// (jobs/calcular-riesgo-v04.ts) mientras MOTOR_VERSION siga en motor-v0.3.
+// - Componente río = 100 × P(superación del terreno, cota principal) con el
+//   peso PESOS_AMENAZA.rioPrefectura (misma redistribución: si falta, no es 0).
+// - Los pisos observados de v0.3 (PISO_*_POR_ESTADO_RIO) se mantienen.
+// - Pisos probabilísticos de riesgo: sólo suben, nunca bajan.
+export const RIO_V04_MAPEO_VERSION = 'rio-v04-mapeo-provisorio-1'
+export const UMBRAL_P_ALTO_V04 = 0.5
+export const UMBRAL_P_MODERADO_V04 = 0.2
+export const PISO_RIESGO_P_ALTO_V04 = UMBRAL_ALTO
+export const PISO_RIESGO_P_MODERADO_V04 = UMBRAL_MODERADO

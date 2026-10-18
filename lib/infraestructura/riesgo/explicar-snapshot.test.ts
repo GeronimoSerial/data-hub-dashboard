@@ -226,4 +226,24 @@ describe('explicarSnapshot', () => {
 
     expect(resultado.situacionActual).toEqual(['Otra señal: viento fuerte sostenido.'])
   })
+
+  it('explica el factor río v0.4 (superación del terreno) sin romper altura_rio', () => {
+    const rioV04: FactorMotor = {
+      tipo: 'amenaza',
+      fuente: 'rio-v04',
+      variable: 'superacion_terreno',
+      valor: 0.42,
+      unidad: 'probabilidad',
+      contribucion: 10.5,
+      explicacion:
+        'Rio v0.4: P superacion del terreno 0.42 a 72h; conservador 0.55; metodo analogos-v2+transferencia-km version superacion-terreno-v1; mapeo rio-v04-mapeo-provisorio-1; piso ninguno',
+      observadoEn: '2026-10-12T12:00:00.000Z',
+    }
+    const resultado = explicarSnapshot(SNAPSHOT_ALTO, [rioV04, FACTOR_RIO])
+
+    expect(resultado.situacionActual).toEqual([
+      expect.stringContaining('Altura del río: 4,03 m'),
+      'Río: probabilidad 42 % de que el agua supere el terreno de la escuela en las próximas 72 h (escenario conservador 55 %).',
+    ])
+  })
 })

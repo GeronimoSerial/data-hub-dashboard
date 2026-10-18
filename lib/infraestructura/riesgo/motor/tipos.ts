@@ -69,3 +69,15 @@ export interface ResultadoRiesgoEscuela {
   calculadoEn: string
   validoHasta: string
 }
+
+// Evidencia probabilística del río (motor v0.4, T8) para UN horizonte: P de
+// superación del terreno con cota principal y conservadora. `principal` null
+// = no estimable → el cálculo usa el factor río de v0.3 sin cambios.
+export interface EvidenciaRioProbabilistica {
+  principal: number | null
+  conservador: number | null
+  ventanaHoras: HorizontePeligro
+  metodo: string
+  version: string
+  diagnostico?: Record<string, number | string | boolean | null>
+}

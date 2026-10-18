@@ -7,13 +7,19 @@ import { infraJobRun, infraPeriodo, infraRiskRun, infraRiskSnapshot } from '@/li
 import { esquemaMetadatosRunV04, esquemaResultadoEscuelaV04 } from '../motor-v04/contratos'
 import type { PuertoAltimetriaV04 } from '../motor-v04/altimetria-adaptador'
 import type { EscuelaPadronV04, PuertoPadronV04 } from '../motor-v04/padron'
+import { crearPuertosFake } from '../motor/__fixtures__/puertos-fake'
+import type { PuertosMotor } from '../motor/puertos'
+import { infraRiskFactor } from '@/lib/db/schema'
 import { crearAdapterTerrenoV04 } from '../motor-v04/terreno-adaptador'
 import { guardarLoteSerieDiaria } from '@/lib/infraestructura/hidrometria/ina/serie-diaria-repo'
 import type { calcularRiesgoCandidatoV04 as CalcularRiesgoCandidatoV04 } from './calcular-riesgo-v04'
 
 usarDbTemporal('calcular-riesgo-v04-')
 
-let calcularRiesgoCandidatoV04: typeof CalcularRiesgoCandidatoV04
+let calcularRiesgoCandidatoV04Real: typeof CalcularRiesgoCandidatoV04
+// Por defecto, puertos v0.3 vacíos (sin perfiles): el motor no evalúa nada.
+const calcularRiesgoCandidatoV04: typeof CalcularRiesgoCandidatoV04 = (p) =>
+  calcularRiesgoCandidatoV04Real({ puertos: crearPuertosFake({}), ...p })
 let runOperativoId: string
 
 const CON_COORD_A: EscuelaPadronV04 = { cueAnexo: '1800001-00', motivoUbicacion: null }
@@ -26,7 +32,7 @@ function padronFake(escuelas: EscuelaPadronV04[] | null): PuertoPadronV04 {
 }
 
 beforeAll(async () => {
-  ;({ calcularRiesgoCandidatoV04 } = await import('./calcular-riesgo-v04'))
+  ;({ calcularRiesgoCandidatoV04: calcularRiesgoCandidatoV04Real } = await import('./calcular-riesgo-v04'))
   // Un run operativo v0.3 vigente preexistente: el candidato no debe tocarlo.
   const [periodo] = await getDb().select().from(infraPeriodo).where(eq(infraPeriodo.estado, 'vigente')).limit(1)
   if (!periodo) throw new Error('la siembra no dejó período vigente')
@@ -66,6 +72,15 @@ async function jobRunDelBloque(claveIdempotente: string) {
     .from(infraJobRun)
     .where(and(eq(infraJobRun.tipo, 'calcular-riesgo-v04-candidato'), eq(infraJobRun.claveIdempotente, claveIdempotente)))
   return fila
+}
+
+// Puertos v0.3 con perfil y lluvia para las escuelas dadas (resto sin perfil).
+function puertosConPerfil(cues: string[]): PuertosMotor {
+  return crearPuertosFake({
+    territorio: Object.fromEntries(cues.map((c) => [c, { cueAnexo: c, geometryRef: `g-${c}`, departamento: 'Capital', puntoRioId: null, motivoExclusion: null }])),
+    lluvia24h: Object.fromEntries(cues.map((c) => [`g-${c}`, 40])),
+    lluvia72h: Object.fromEntries(cues.map((c) => [`g-${c}`, 90])),
+  })
 }
 
 describe('calcularRiesgoCandidatoV04', () => {
@@ -133,6 +148,30 @@ describe('calcularRiesgoCandidatoV04', () => {
         exposicionMatricula: null,
       })
     }
+  })
+
+  it('corre el cálculo v0.3 completo: nivel heredado lleno salvo sin coordenadas, sin tocar el vigente', async () => {
+    const resultado = await calcularRiesgoCandidatoV04({
+      ahora: new Date('2026-10-20T00:10:00.000Z'),
+      padron: padronFake(PADRON),
+      puertos: puertosConPerfil([CON_COORD_A.cueAnexo, CON_COORD_B.cueAnexo]),
+    })
+    if (!resultado.ejecutado) throw new Error('se esperaba ejecución')
+    const snaps = await snapshotsDe(resultado.runId)
+    expect(snaps).toHaveLength(9)
+    for (const s of snaps) {
+      esquemaResultadoEscuelaV04.parse(s.resultadoV04)
+      if (s.cueAnexo === SIN_COORD.cueAnexo) {
+        expect(s).toMatchObject({ nivelRiesgo: null, scoreRiesgo: null, evidenciaValida: false })
+      } else {
+        expect(s.evidenciaValida).toBe(true)
+        expect(s.nivelRiesgo).not.toBeNull()
+        expect(s.scoreRiesgo).not.toBeNull()
+        const factores = await getDb().select().from(infraRiskFactor).where(eq(infraRiskFactor.snapshotId, s.id))
+        expect(factores.some((f) => f.fuente === 'lluvia-observada')).toBe(true)
+      }
+    }
+    expect((await vigentes()).map((v) => v.id)).toEqual([runOperativoId])
   })
 
   it('reintentar en el mismo bloque no duplica corrida ni filas', async () => {
@@ -256,6 +295,7 @@ describe('calcularRiesgoCandidatoV04', () => {
     }
     const resultado = await calcularRiesgoCandidatoV04({
       ahora: new Date('2026-10-19T12:10:00.000Z'), padron: padronFake([DENTRO, FUERA, SIN]), altimetria, terreno,
+      puertos: puertosConPerfil([DENTRO.cueAnexo, FUERA.cueAnexo]),
     })
     if (!resultado.ejecutado) throw new Error('se esperaba ejecución')
     const porCue = new Map<string, ReturnType<typeof esquemaResultadoEscuelaV04.parse>[]>()
@@ -278,6 +318,17 @@ describe('calcularRiesgoCandidatoV04', () => {
       expect(r.superacionTerreno.principal).toMatchObject({ estado: 'no_estimable', probabilidad: null })
       expect(r.superacionTerreno.principal.motivos[0]).toBe('sin_coordenadas')
     }
+    // Motor único: el cálculo v0.3 llena nivel/score y el factor río v0.4
+    // reemplaza al de v0.3 sólo donde la superación es modelada.
+    const snaps = await snapshotsDe(resultado.runId)
+    for (const s of snaps.filter((x) => x.cueAnexo !== SIN.cueAnexo)) {
+      expect(s.nivelRiesgo).not.toBeNull()
+      const factores = await getDb().select().from(infraRiskFactor).where(eq(infraRiskFactor.snapshotId, s.id))
+      const v04 = factores.filter((f) => f.fuente === 'rio-v04')
+      expect(v04).toHaveLength(s.cueAnexo === DENTRO.cueAnexo ? 1 : 0)
+      if (v04[0]) expect(v04[0]).toMatchObject({ variable: 'superacion_terreno', unidad: 'probabilidad' })
+    }
+    for (const s of snaps.filter((x) => x.cueAnexo === SIN.cueAnexo)) expect(s.nivelRiesgo).toBeNull()
     const [run] = await getDb().select().from(infraRiskRun).where(eq(infraRiskRun.id, resultado.runId))
     const { cobertura } = esquemaMetadatosRunV04.parse(run?.metadatos)
     expect(cobertura.abstencionesPorMotivo.fuera_de_tramo_interpolable).toBe(6)

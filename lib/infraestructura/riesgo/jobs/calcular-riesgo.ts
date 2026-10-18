@@ -16,36 +16,21 @@
 // errores global re-publica el infra_job_run como 'fallido' antes de re-lanzar.
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
-import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
-import { crearAdapterAislamiento } from '../motor/adaptadores/aislamiento'
-import { crearAdapterExposicion } from '../motor/adaptadores/exposicion'
-import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
-import { crearAdapterHistorial } from '../motor/adaptadores/historial'
-import { crearAdapterLluvia } from '../motor/adaptadores/lluvia'
-import { crearAdapterPeligro } from '../motor/adaptadores/peligro'
-import { crearAdapterSusceptibilidad } from '../motor/adaptadores/susceptibilidad'
-import { crearAdapterTerritorio } from '../motor/adaptadores/territorio'
-import { calcularRiesgoEscuela } from '../motor/calculo'
 import { MOTOR_VERSION } from '../motor/config'
-import type {
-  HorizontePeligro,
-  IndicadoresSusceptibilidad,
-  LluviaObservadaCelda,
-  IndiceAislamiento,
-  NivelCaudalPunto,
-  NivelPeligroCelda,
-  PerfilTerritorio,
-  PuertosMotor,
-  EvidenciaRioNoDisponible,
-  EvidenciaRioPrefectura,
-  ResumenExposicion,
-  ResumenHistorial,
-} from '../motor/puertos'
+import type { PuertosMotor } from '../motor/puertos'
 import { adquirirLease, inicioDeBloqueUtc, publicarResultado, renovarLease } from '../job-run'
 import { publicarRunOperativo } from '../publicar-run'
+import {
+  HORIZONTES,
+  TAMANO_CHUNK_INSERCION,
+  calcularFilasEscuela,
+  construirPuertosReales,
+  crearPuertosConCache,
+  insertarEnChunks,
+} from './compartido-riesgo'
 
 const TIPO_JOB = 'calcular-riesgo-v0'
 const VERSION_JOB = 'v1'
@@ -58,168 +43,9 @@ const DURACION_LEASE_MS = 15 * 60 * 1000
 // Escuelas por lote de inserción bulk.
 const TAMANO_LOTE = 200
 
-// SQLite limita la cantidad de variables ("binds") por sentencia
-// (SQLITE_MAX_VARIABLE_NUMBER; 32766 en builds recientes, 999 en viejos). Un
-// único INSERT de un lote completo (TAMANO_LOTE=200 escuelas x 3 horizontes x
-// hasta ~8 factores/snapshot con más fuentes reales conectadas) puede superarlo
-// y reventar el job. Por eso cada lote se sub-trocea en INSERTs más chicos:
-// infraRiskFactor tiene 11 columnas, así que 500 filas = 5500 binds, holgado.
-const TAMANO_CHUNK_INSERCION = 500
-
-type DbMotor = ReturnType<typeof getDb>
-
-// Inserta `filas` en `tabla` partiéndolas en chunks de a lo sumo
-// `tamanoChunk`, para no exceder el límite de binds de SQLite.
-async function insertarEnChunks<TSchema extends SQLiteTable>(
-  db: DbMotor,
-  tabla: TSchema,
-  filas: TSchema['$inferInsert'][],
-  tamanoChunk: number,
-): Promise<void> {
-  for (let inicio = 0; inicio < filas.length; inicio += tamanoChunk) {
-    const chunk = filas.slice(inicio, inicio + tamanoChunk)
-    // Cada chunk es un INSERT único de filas con ids ya generados (nunca se
-    // regeneran entre intentos): si SQLITE_BUSY interrumpe el statement no
-    // queda nada escrito, así que reintentar el mismo INSERT es seguro. El
-    // run sigue 'preparando' durante todo este loop, invisible para
-    // lectores, así que un reintento acá no afecta la publicación atómica.
-    if (chunk.length > 0) await conReintentoPorBloqueo(() => db.insert(tabla).values(chunk))
-  }
-}
-
-const HORIZONTES: readonly HorizontePeligro[] = [24, 72, 240] as const
-
 export type ResultadoJobCalcularRiesgo =
   | { ejecutado: true; runId: string; escuelasProcesadas: number; conEvidencia: number; sinEvidencia: number }
   | { ejecutado: false; motivo: 'en_progreso_vigente' | 'ya_completado' | 'cobertura_insuficiente' }
-
-function construirPuertosReales(): PuertosMotor {
-  return {
-    peligro: crearAdapterPeligro(),
-    lluviaObservada: crearAdapterLluvia(),
-    territorio: crearAdapterTerritorio(),
-    aislamiento: crearAdapterAislamiento(),
-    susceptibilidad: crearAdapterSusceptibilidad(),
-    historial: crearAdapterHistorial(),
-    exposicion: crearAdapterExposicion(),
-    rioPrefectura: crearAdapterRioPrefectura(),
-  }
-}
-
-// Cacheo por corrida de las consultas que NO dependen del horizonte. El núcleo
-// calcularRiesgoEscuela se invoca una vez por (escuela, horizonte) y, para cada
-// horizonte, vuelve a pedir exactamente los mismos datos: el perfil territorial
-// (dato estático por escuela), el peligro de celda, el caudal del punto, la
-// lluvia observada, el historial, el aislamiento, la susceptibilidad y la
-// exposición. Ninguno de esos puertos recibe el horizonte como parámetro y
-// `asOf` es constante en toda la corrida, así que memoizar por su clave natural
-// (cueAnexo / geometryRef / puntoId) no cambia el resultado observable, sólo
-// evita repetir la misma consulta 3 veces (una por horizonte) y una vez por
-// cada escuela que comparte celda.
-//
-// obtenerNivelesCelda se trata aparte: el núcleo pide un horizonte por vez
-// (`horizontes: [h]`). Acá se pide la lista completa de horizontes UNA vez por
-// geometryRef y se filtra en memoria el horizonte solicitado, en vez de golpear
-// el puerto por cada horizonte y por cada escuela que comparte la misma celda.
-function crearPuertosConCache(puertos: PuertosMotor): PuertosMotor {
-  const perfiles = new Map<string, Promise<PerfilTerritorio | null>>()
-  const nivelesCelda = new Map<string, Promise<NivelPeligroCelda[]>>()
-  const nivelesCaudal = new Map<string, Promise<NivelCaudalPunto | null>>()
-  const lluvia = new Map<string, Promise<LluviaObservadaCelda>>()
-  const historiales = new Map<string, Promise<ResumenHistorial>>()
-  const aislamientos = new Map<string, Promise<IndiceAislamiento | null>>()
-  const susceptibilidades = new Map<string, Promise<IndicadoresSusceptibilidad | null>>()
-  const exposiciones = new Map<string, Promise<ResumenExposicion | null>>()
-  const evidenciasRio = new Map<string, Promise<EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null>>()
-
-  function memoizar<K, V>(
-    cache: Map<K, Promise<V>>,
-    clave: K,
-    producir: () => Promise<V>,
-  ): Promise<V> {
-    const cacheado = cache.get(clave)
-    if (cacheado !== undefined) return cacheado
-    const promesa = producir()
-    cache.set(clave, promesa)
-    return promesa
-  }
-
-  return {
-    peligro: {
-      obtenerNivelesCelda(params) {
-        const promesa = memoizar(nivelesCelda, params.geometryRef, () =>
-          puertos.peligro.obtenerNivelesCelda({
-            geometryRef: params.geometryRef,
-            horizontes: HORIZONTES,
-            asOf: params.asOf,
-          }),
-        )
-        // El array cacheado es el conjunto completo de horizontes; cada
-        // llamador recibe una vista filtrada a los horizontes que pidió, igual
-        // que devolvería el puerto subyacente.
-        return promesa.then((todos) =>
-          todos.filter((nivel) => params.horizontes.includes(nivel.horizonteHoras)),
-        )
-      },
-      obtenerNivelCaudal(params) {
-        return memoizar(nivelesCaudal, params.puntoId, () =>
-          puertos.peligro.obtenerNivelCaudal(params),
-        )
-      },
-    },
-    lluviaObservada: {
-      obtenerAcumulado(params) {
-        return memoizar(lluvia, params.geometryRef, () =>
-          puertos.lluviaObservada.obtenerAcumulado(params),
-        )
-      },
-    },
-    territorio: {
-      obtenerPerfil(cueAnexo) {
-        return memoizar(perfiles, cueAnexo, () => puertos.territorio.obtenerPerfil(cueAnexo))
-      },
-      listarCuesConPerfil() {
-        return puertos.territorio.listarCuesConPerfil()
-      },
-    },
-    aislamiento: {
-      obtenerIndice(cueAnexo) {
-        return memoizar(aislamientos, cueAnexo, () => puertos.aislamiento.obtenerIndice(cueAnexo))
-      },
-    },
-    susceptibilidad: {
-      obtenerIndicadores(cueAnexo) {
-        return memoizar(susceptibilidades, cueAnexo, () =>
-          puertos.susceptibilidad.obtenerIndicadores(cueAnexo),
-        )
-      },
-    },
-    historial: {
-      obtenerResumen(params) {
-        return memoizar(historiales, params.cueAnexo, () =>
-          puertos.historial.obtenerResumen(params),
-        )
-      },
-    },
-    exposicion: {
-      obtenerResumen(params) {
-        return memoizar(exposiciones, params.cueAnexo, () =>
-          puertos.exposicion.obtenerResumen(params),
-        )
-      },
-    },
-    ...(puertos.rioPrefectura
-      ? {
-          rioPrefectura: {
-            obtenerEvidencia(params: { cueAnexo: string; asOf: string }) {
-              const puerto = puertos.rioPrefectura!
-              return memoizar(evidenciasRio, params.cueAnexo, () => puerto.obtenerEvidencia(params))
-            },
-          },
-        }
-      : {}),
-  }
-}
 
 export async function calcularYPublicarRiesgo(params?: {
   ahora?: Date
@@ -311,45 +137,15 @@ export async function calcularYPublicarRiesgo(params?: {
 
       for (const cueAnexo of lote) {
         for (const horizonte of HORIZONTES) {
-          const resultado = await calcularRiesgoEscuela({ cueAnexo, horizonte, asOf, puertos })
-          const snapshotId = randomUUID()
-
-          filasSnapshot.push({
-            id: snapshotId,
+          const { resultado, snapshot, factores } = await calcularFilasEscuela({
             runId: idRun,
             cueAnexo,
-            horizonteHoras: horizonte,
-            evidenciaValida: resultado.evidenciaValida,
-            scoreRiesgo: resultado.scoreRiesgo,
-            nivelRiesgo: resultado.nivelRiesgo,
-            scoreAmenaza: resultado.scoreAmenaza,
-            nivelAmenaza: resultado.nivelAmenaza,
-            scoreVulnerabilidad: resultado.scoreVulnerabilidad,
-            confianza: resultado.confianza,
-            scoreRiesgoAcceso: resultado.riesgoAcceso.score,
-            nivelRiesgoAcceso: resultado.riesgoAcceso.nivel,
-            confianzaAcceso: resultado.riesgoAcceso.confianza,
-            exposicionMatricula: resultado.exposicion.matricula,
-            exposicionSecciones: resultado.exposicion.secciones,
-            calculadoEn: resultado.calculadoEn,
-            validoHasta: resultado.validoHasta,
+            horizonte,
+            asOf,
+            puertos,
           })
-
-          for (const factor of resultado.factores) {
-            filasFactor.push({
-              id: randomUUID(),
-              snapshotId,
-              tipo: factor.tipo,
-              fuente: factor.fuente,
-              variable: factor.variable,
-              valor: factor.valor,
-              unidad: factor.unidad,
-              contribucion: factor.contribucion,
-              peso: factor.peso,
-              explicacion: factor.explicacion,
-              observadoEn: factor.observadoEn,
-            })
-          }
+          filasSnapshot.push(snapshot)
+          filasFactor.push(...factores)
 
           // Contadores por snapshot (una escuela cuenta una vez por horizonte),
           // no por escuela.

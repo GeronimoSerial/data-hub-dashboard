@@ -540,3 +540,83 @@ describe('calcularRiesgoEscuela', () => {
  *   `observadoEn`; no hay `emitidoEn` en el contrato de lluvia para filtrar.
  * - `exposicion.obtenerResumen` ignora `asOf` (el fake no modela cortes).
  */
+
+// T8 (motor v0.4): factor río probabilístico dentro del MISMO cálculo.
+describe('calcularRiesgoEscuela con río probabilístico v0.4', () => {
+  const RIO_OBS = {
+    cueAnexo: CUE,
+    estacionId: 'pna-corrientes',
+    rio: 'parana' as const,
+    lecturaM: 5.2,
+    alertaM: 6,
+    evacuacionM: 7,
+    variacionM: 0.1,
+    medidaEn: '2026-09-26T09:00:00.000Z',
+    criterioExposicion: 'clase_rio=alto',
+  }
+  function conRio(estado: 'normal' | 'alerta' | 'evacuacion' | null): PuertosMotor {
+    return {
+      ...crearPuertosFake(escenarioBase()),
+      rioPrefectura: { obtenerEvidencia: async () => (estado === null ? null : { ...RIO_OBS, estado }) },
+    }
+  }
+  function prob(principal: number | null, conservador: number | null = principal, ventanaHoras: 24 | 72 | 240 = 24) {
+    return { principal, conservador, ventanaHoras, metodo: 'analogos-v2+transferencia-km', version: 'superacion-terreno-v1' }
+  }
+
+  it('sin entrada probabilística el resultado es idéntico al de v0.3', async () => {
+    const v03 = await calcular({ puertos: conRio('alerta') })
+    const sinEstimar = await calcular({ puertos: conRio('alerta'), rioProbabilistico: prob(null) })
+    expect(sinEstimar).toEqual(v03)
+    expect(v03.factores.some((f) => f.variable === 'altura_rio')).toBe(true)
+  })
+
+  it('el componente probabilístico reemplaza al factor altura_rio con peso rioPrefectura', async () => {
+    const r = await calcular({ puertos: conRio('normal'), rioProbabilistico: prob(0.3, 0.4) })
+    expect(r.factores.some((f) => f.variable === 'altura_rio')).toBe(false)
+    const f = r.factores.find((x) => x.fuente === 'rio-v04')!
+    expect(f).toMatchObject({ tipo: 'amenaza', variable: 'superacion_terreno', valor: 0.3, unidad: 'probabilidad' })
+    expect(f.explicacion).toContain('analogos-v2+transferencia-km')
+    expect(f.explicacion).toContain('conservador 0.4')
+    const amenaza = r.factores.filter((x) => x.tipo === 'amenaza')
+    const suma = amenaza.reduce((a, x) => a + x.contribucion, 0)
+    expect(Math.abs(suma - r.scoreAmenaza!)).toBeLessThan(0.05)
+    expect(f.contribucion).toBeCloseTo(30 * f.peso, 1)
+  })
+
+  it('el piso observado de v0.3 se conserva aunque P sea 0', async () => {
+    const r = await calcular({ puertos: conRio('evacuacion'), rioProbabilistico: prob(0, 0) })
+    expect(r.scoreRiesgo).toBeGreaterThanOrEqual(50)
+    expect(r.scoreAmenaza).toBeGreaterThanOrEqual(75)
+    expect(r.factores.find((x) => x.fuente === 'rio-v04')!.explicacion).toContain('piso observado_evacuacion')
+  })
+
+  it('los pisos probabilísticos sólo suben el riesgo', async () => {
+    const sinHistorial: PuertosMotor = {
+      ...conRio(null),
+      historial: { obtenerResumen: async () => ({ cueAnexo: CUE, cantidadConfirmadas: 0, duracionTotalHoras: 0, accesoInterrumpidoCantidad: 0, antecedentes: [] }) },
+      susceptibilidad: { obtenerIndicadores: async () => null },
+    }
+    const alto = await calcular({ puertos: sinHistorial, rioProbabilistico: prob(0.6, 0.7) })
+    expect(alto.scoreRiesgo).toBe(50)
+    expect(alto.nivelRiesgo).toBe('alto')
+    const moderado = await calcular({ puertos: sinHistorial, rioProbabilistico: prob(0.1, 0.25) })
+    expect(moderado.scoreRiesgo).toBe(25)
+    expect(moderado.factores.find((x) => x.fuente === 'rio-v04')!.explicacion).toContain('piso probabilistico_moderado')
+    const bajo = await calcular({ puertos: sinHistorial, rioProbabilistico: prob(0.05, 0.1) })
+    expect(bajo.scoreRiesgo).toBe(0)
+  })
+
+  it('P faltante conserva el factor río de v0.3', async () => {
+    const r = await calcular({ puertos: conRio('normal'), rioProbabilistico: prob(null, null) })
+    expect(r.factores.find((x) => x.variable === 'altura_rio')?.valor).toBe(5.2)
+    expect(r.factores.some((x) => x.fuente === 'rio-v04')).toBe(false)
+  })
+
+  it('los horizontes pueden diferir con el río probabilístico', async () => {
+    const puertos = conRio('normal')
+    const r24 = await calcular({ puertos, horizonte: 72, rioProbabilistico: prob(0.05, 0.05, 72) })
+    const r240 = await calcular({ puertos, horizonte: 72, rioProbabilistico: prob(0.9, 0.95, 72) })
+    expect(r240.scoreAmenaza!).toBeGreaterThan(r24.scoreAmenaza!)
+  })
+})

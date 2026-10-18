@@ -14,12 +14,23 @@ import {
   PESOS_VULNERABILIDAD,
   PISO_AMENAZA_POR_ESTADO_RIO,
   PISO_RIESGO_POR_ESTADO_RIO,
+  PISO_RIESGO_P_ALTO_V04,
+  PISO_RIESGO_P_MODERADO_V04,
+  RIO_V04_MAPEO_VERSION,
   UMBRAL_ALTO,
   UMBRAL_MODERADO,
   UMBRAL_MUY_ALTO,
+  UMBRAL_P_ALTO_V04,
+  UMBRAL_P_MODERADO_V04,
   VENTANA_HISTORIAL_DIAS,
 } from './config'
-import type { Confianza, FactorRiesgo, NivelRiesgo, ResultadoRiesgoEscuela } from './tipos'
+import type {
+  Confianza,
+  EvidenciaRioProbabilistica,
+  FactorRiesgo,
+  NivelRiesgo,
+  ResultadoRiesgoEscuela,
+} from './tipos'
 import { calcularRiesgoAcceso, type ResultadoRiesgoAcceso } from './riesgo-acceso'
 import { valorAmenazaRio } from './rio-prefectura'
 import { valorLluviaObservada } from './lluvia-observada'
@@ -125,8 +136,15 @@ export async function calcularRiesgoEscuela(params: {
   horizonte: HorizontePeligro
   asOf: string
   puertos: PuertosMotor
+  // Motor v0.4 (T8): P de superación del terreno para este horizonte. Si
+  // falta o `principal` es null, el cálculo es exactamente el de v0.3.
+  rioProbabilistico?: EvidenciaRioProbabilistica | null
 }): Promise<ResultadoRiesgoEscuela> {
   const { cueAnexo, horizonte, asOf, puertos } = params
+  const rioProb =
+    params.rioProbabilistico != null && params.rioProbabilistico.principal !== null
+      ? { ...params.rioProbabilistico, principal: params.rioProbabilistico.principal }
+      : null
 
   // PASO 1 - Territorio.
   const perfil = await puertos.territorio.obtenerPerfil(cueAnexo)
@@ -290,7 +308,9 @@ export async function calcularRiesgoEscuela(params: {
     ? await puertos.rioPrefectura.obtenerEvidencia({ cueAnexo, asOf })
     : null
   const rio = evidenciaRio !== null && !('disponibilidad' in evidenciaRio) ? evidenciaRio : null
-  if (evidenciaRio !== null && 'disponibilidad' in evidenciaRio) {
+  // Con P estimable, el factor probabilístico reemplaza al de v0.3 (incluido
+  // el 'sin_dato'): la lectura observada sólo sigue aportando sus pisos.
+  if (rioProb === null && evidenciaRio !== null && 'disponibilidad' in evidenciaRio) {
     factores.push({
       tipo: 'amenaza',
       fuente: 'rio-prefectura',
@@ -304,7 +324,7 @@ export async function calcularRiesgoEscuela(params: {
     })
     if (evidenciaRio.disponibilidad === 'sin_dato') cantidadFaltantes += 1
   }
-  if (rio !== null) {
+  if (rio !== null && rioProb === null) {
     const valorNumerico = valorAmenazaRio(rio)
     const tendencia =
       rio.variacionM === null ? 's/d' : rio.variacionM > 0 ? 'crece' : rio.variacionM < 0 ? 'baja' : 'estac'
@@ -321,6 +341,26 @@ export async function calcularRiesgoEscuela(params: {
     }
     factores.push(factor)
     componentesAmenaza.push({ factor, valorNumerico, pesoBase: PESOS_AMENAZA.rioPrefectura })
+  }
+  let factorRioV04: FactorRiesgo | null = null
+  if (rioProb !== null) {
+    factorRioV04 = {
+      tipo: 'amenaza',
+      fuente: 'rio-v04',
+      variable: 'superacion_terreno',
+      valor: rioProb.principal,
+      unidad: 'probabilidad',
+      contribucion: 0,
+      peso: 0,
+      explicacion: '',
+      observadoEn: asOf,
+    }
+    factores.push(factorRioV04)
+    componentesAmenaza.push({
+      factor: factorRioV04,
+      valorNumerico: clamp0a100(100 * rioProb.principal),
+      pesoBase: PESOS_AMENAZA.rioPrefectura,
+    })
   }
   const pisoAmenazaRio = rio === null ? null : PISO_AMENAZA_POR_ESTADO_RIO[rio.estado]
   const pisoRiesgoRio = rio === null ? null : PISO_RIESGO_POR_ESTADO_RIO[rio.estado]
@@ -439,8 +479,25 @@ export async function calcularRiesgoEscuela(params: {
   let nivelRiesgo: NivelRiesgo | null = null
   if (evidenciaValida && scoreVulnerabilidad !== null) {
     scoreRiesgo = clamp0a100(Math.round((scoreAmenaza * scoreVulnerabilidad) / 100))
+    const crudo = scoreRiesgo
     if (pisoRiesgoRio !== null) scoreRiesgo = Math.max(scoreRiesgo, pisoRiesgoRio)
+    const pisoProb = pisoProbabilistico(rioProb)
+    if (pisoProb !== null) scoreRiesgo = Math.max(scoreRiesgo, pisoProb.valor)
+    if (factorRioV04 !== null && rioProb !== null) {
+      // Piso que fijó el score (el observado gana el empate: es evidencia directa).
+      const piso =
+        scoreRiesgo === crudo
+          ? 'ninguno'
+          : pisoRiesgoRio !== null && scoreRiesgo === pisoRiesgoRio
+            ? `observado_${rio?.estado}`
+            : (pisoProb?.etiqueta ?? 'ninguno')
+      factorRioV04.explicacion = explicacionRioV04(rioProb, horizonte, piso)
+    }
     nivelRiesgo = clasificarNivel(scoreRiesgo)
+  }
+
+  if (factorRioV04 !== null && rioProb !== null && factorRioV04.explicacion === '') {
+    factorRioV04.explicacion = explicacionRioV04(rioProb, horizonte, 'ninguno')
   }
 
   // PASO 5 - Confianza.
@@ -505,4 +562,29 @@ export async function calcularRiesgoEscuela(params: {
     calculadoEn: asOf,
     validoHasta: validoHastaMasTemprano(validecesPeligro, asOf),
   }
+}
+
+// Pisos de riesgo por probabilidad (motor v0.4, provisorios en config.ts).
+function pisoProbabilistico(
+  rioProb: EvidenciaRioProbabilistica | null,
+): { valor: number; etiqueta: string } | null {
+  if (rioProb === null) return null
+  if (rioProb.principal !== null && rioProb.principal >= UMBRAL_P_ALTO_V04) {
+    return { valor: PISO_RIESGO_P_ALTO_V04, etiqueta: 'probabilistico_alto' }
+  }
+  if (rioProb.conservador !== null && rioProb.conservador >= UMBRAL_P_MODERADO_V04) {
+    return { valor: PISO_RIESGO_P_MODERADO_V04, etiqueta: 'probabilistico_moderado' }
+  }
+  return null
+}
+
+// El factor persistido no tiene columna de metadatos: método, versión,
+// horizonte, P conservadora y piso aplicado viajan en la explicación con un
+// formato estable (lo leen explicar-snapshot.ts y motor-v04/comparacion.ts).
+function explicacionRioV04(
+  rioProb: EvidenciaRioProbabilistica,
+  horizonte: HorizontePeligro,
+  piso: string,
+): string {
+  return `Rio v0.4: P superacion del terreno ${rioProb.principal} a ${horizonte}h; conservador ${rioProb.conservador ?? 's/d'}; metodo ${rioProb.metodo} version ${rioProb.version}; mapeo ${RIO_V04_MAPEO_VERSION}; piso ${piso}`
 }
