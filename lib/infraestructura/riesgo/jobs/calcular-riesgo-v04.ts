@@ -46,6 +46,8 @@ import { crearSerieDiaria, type EnsambleConjunto } from '../motor-v04/hidrologia
 import { ensambleConjuntoV2 } from '../motor-v04/hidrologia/analogos-v2'
 import { construirEscenariosSubida, tendenciaEnSitio, type AlcanceTendencia } from '../motor-v04/escenarios-estacion'
 import type { EscenarioSubidaEstacion } from '../motor/escenarios-subida'
+import { referenciaNivelEstacion, type ReferenciaNivelEstacion } from '../motor/referencia-nivel'
+import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
 import type { AltimetriaPorCue } from '../motor-v04/altimetria-adaptador'
 import type { EscuelaPadronV04 } from '../motor-v04/padron'
 
@@ -110,6 +112,10 @@ export async function calcularRiesgoCandidatoV04(params?: {
     const escenarios = terreno
       ? construirEscenariosSubida({ asOf, series: terreno.series, lecturas: terreno.lecturasPrefectura })
       : new Map<string, EscenarioSubidaEstacion>()
+    // T10c: referencia estable (mediana 1991–2020) y récord por estación.
+    const referencias = new Map<string, ReferenciaNivelEstacion>(
+      [...(terreno?.series ?? [])].map(([id, filas]) => [id, referenciaNivelEstacion(filas, fechaLocal(asOf))]),
+    )
     const { superacion, tendencias, alcancesMargen } = estimarSuperacionPorEscuela({ padron, terreno, altimetria, asOf, escenarios })
 
     const [periodo] = await db.select().from(infraPeriodo).where(eq(infraPeriodo.estado, 'vigente')).limit(1)
@@ -140,6 +146,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
         catalogoA5Version: terreno?.catalogoVersion ?? null,
         tramosVersion: terreno?.tramosVersion ?? null,
         escenariosSubida: Object.fromEntries([...escenarios].map(([id, e]) => [id, e.porHorizonte])),
+        referenciasNivel: Object.fromEntries(referencias),
         ultimaFechaSerie: terreno ? Object.fromEntries([...terreno.series].map(([id, f]) => [id, f.at(-1)?.fecha ?? null])) : null,
       }),
       estadoCalibracionEscolar: 'pendiente',
@@ -168,7 +175,10 @@ export async function calcularRiesgoCandidatoV04(params?: {
     )
 
     // Reglas v0.4 (T10): el candidato corrige los defectos auditados de v0.3.
-    const puertos = crearPuertosConCache(params?.puertos ?? construirPuertosReales({ reglas: 'v0.4', escenariosSubida: escenarios }))
+    const puertos = crearPuertosConCache(params?.puertos ?? {
+      ...construirPuertosReales({ reglas: 'v0.4', escenariosSubida: escenarios }),
+      rioPrefectura: crearAdapterRioPrefectura({ reglas: 'v0.4', escenarios, referencias }),
+    })
     const sinUbicacion = new Set(padron.filter((e) => e.motivoUbicacion !== null).map((e) => e.cueAnexo))
     for (let inicio = 0; inicio < resultados.length; inicio += TAMANO_CHUNK_INSERCION) {
       const filasSnapshot: (typeof infraRiskSnapshot.$inferInsert)[] = []

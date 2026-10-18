@@ -417,4 +417,72 @@ describe('resolverEvidenciaRio con reglas v0.4', () => {
     d.susceptibilidadPorCue.set(CUE, { ...SIN_EXPOSICION, claseRio: 'alto' })
     expect(resolverEvidenciaRio(d, CUE, ASOF_V04, V04)).toMatchObject({ disponibilidad: 'sin_dato' })
   })
+
+  // T10c: referencia estable del nivel, cero efectivo calibrado y agua sólo de río.
+  describe('T10c referencia estable', () => {
+    const IT = 'cue-ituz'
+    function ituz(mediana365: number): DatosRio {
+      return {
+        localidadPorCue: new Map([[IT, 'ITUZAINGO']]),
+        susceptibilidadPorCue: new Map([[IT, { ...SIN_EXPOSICION, claseRio: 'sin_riesgo' }]]),
+        distanciaRioKmPorCue: new Map(),
+        lecturas: [lectura({ estacionId: 'pna-ituzaingo', lecturaM: 4.1, alertaM: 4, evacuacionM: 5, medidaEn: LECTURA_V04 })],
+        coordenadasPorCue: new Map([[IT, { lat: -27.58, lon: -56.68 }]]),
+        demPorCue: new Map([[IT, { sueloM: 58, nivelRioDemM: 55, distanciaRioM: 300 }]]),
+        medianaPorEstacion: new Map([['pna-ituzaingo', mediana365]]),
+      }
+    }
+    const referencias = new Map([['pna-ituzaingo', { medianaLargoPlazoM: 1.6, aniosCompletos: 30, record: { valorM: 6.2, fecha: '1983-06-10' } }]])
+
+    it('misma altura con medianas de 365 días distintas → misma agua posible', () => {
+      const a = vigente(resolverEvidenciaRio(ituz(1.97), IT, ASOF_V04, { ...V04, referencias }))!
+      const b = vigente(resolverEvidenciaRio(ituz(4.79), IT, ASOF_V04, { ...V04, referencias }))!
+      expect(a.exposicionV04![24].aguaPosibleM).toBe(b.exposicionV04![24].aguaPosibleM)
+      expect(a.exposicionV04![24]).toMatchObject({ referencia: 'largo_plazo', aguaPosibleM: 57.5 })
+      // h_crit = suelo − margen − dem + referencia = 58 − 2 − 55 + 1,6
+      expect(a.exposicionV04![24].alturaCriticaM).toBeCloseTo(2.6, 2)
+      expect(a.exposicionV04![24].record).toEqual({ valorM: 6.2, fecha: '1983-06-10' })
+    })
+
+    it('sin serie de largo plazo: mediana de 365 días marcada referencia_inestable', () => {
+      const a = vigente(resolverEvidenciaRio(ituz(1.97), IT, ASOF_V04, V04))!
+      expect(a.exposicionV04![24].referencia).toBe('mediana_365_inestable')
+      expect(a.exposicionV04![24].detalle).toMatch(/referencia_inestable/)
+    })
+
+    const PDL = 'cue-pdl'
+    function pdl(dem: { sueloM: number; nivelRioDemM: number; distanciaRioM: number }, estacion = 'pna-paso-de-los-libres', localidad = 'PASO DE LOS LIBRES', mediana365 = 1.97): DatosRio {
+      return {
+        localidadPorCue: new Map([[PDL, localidad]]),
+        susceptibilidadPorCue: new Map([[PDL, { ...SIN_EXPOSICION, claseRio: 'sin_riesgo' }]]),
+        distanciaRioKmPorCue: new Map(),
+        lecturas: [lectura({ estacionId: estacion, lecturaM: 9.44, alertaM: 7, evacuacionM: 8.5, medidaEn: LECTURA_V04 })],
+        coordenadasPorCue: new Map([[PDL, { lat: -29.72, lon: -57.087 }]]),
+        demPorCue: new Map([[PDL, dem]]),
+        medianaPorEstacion: new Map([[estacion, mediana365]]),
+      }
+    }
+
+    it('Paso de los Libres usa el cero efectivo calibrado: cota = 39,19 + 0,837·(h + subida)', () => {
+      const r = vigente(resolverEvidenciaRio(pdl({ sueloM: 53.8, nivelRioDemM: 42, distanciaRioM: 360 }), PDL, ASOF_V04, V04))!
+      const e = r.exposicionV04![24]
+      expect(e.referencia).toBe('cero_efectivo')
+      expect(e.aguaPosibleM).toBeCloseTo(39.19 + 0.837 * 9.44, 2)
+      expect(e.alcance).toBe('ninguno')
+      expect(e.alturaCriticaM).toBeCloseTo((53.8 - 2 - 39.19) / 0.837, 2)
+      expect(e.h0M).toBe(9.44)
+    })
+
+    it('agua de laguna (57 m) en un tramo calibrado no se toma como río → no evaluable por DEM', () => {
+      const r = vigente(resolverEvidenciaRio(pdl({ sueloM: 58, nivelRioDemM: 57, distanciaRioM: 200 }), PDL, ASOF_V04, V04))!
+      expect(r.exposicionV04![24]).toMatchObject({ criterio: 'no_evaluable', alcance: 'ninguno' })
+    })
+
+    it('Monte Caseros: el DEM aplanado por el embalse (35,5 m) ya no marca la escuela', () => {
+      const d = pdl({ sueloM: 44.5, nivelRioDemM: 35.5, distanciaRioM: 400 }, 'pna-monte-caseros', 'MONTE CASEROS', 1.5)
+      d.lecturas = [lectura({ estacionId: 'pna-monte-caseros', lecturaM: 7.13, alertaM: 7, evacuacionM: 8, medidaEn: LECTURA_V04 })]
+      const r = vigente(resolverEvidenciaRio(d, PDL, ASOF_V04, V04))!
+      expect(r.exposicionV04![24]).toMatchObject({ referencia: 'cero_efectivo', alcance: 'ninguno' })
+    })
+  })
 })
