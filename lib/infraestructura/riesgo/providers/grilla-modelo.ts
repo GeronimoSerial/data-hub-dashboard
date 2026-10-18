@@ -118,6 +118,16 @@ export function crearColaLotesPorPuntoGrilla<T extends CeldaGrilla>(celdas: read
   }
 }
 
+function claveDeRef(geometryRef: string): string {
+  const [lat, lon] = geometryRef.split('_').map(Number)
+  return Number.isFinite(lat) && Number.isFinite(lon) ? clavePuntoGrilla({ geometryRef, lat, lon }) : `ref:${geometryRef}`
+}
+
+/** Cantidad de puntos de grilla distintos (= ubicaciones de un request) en `geometryRefs`. */
+export function contarPuntosGrilla(geometryRefs: readonly string[]): number {
+  return new Set(geometryRefs.map(claveDeRef)).size
+}
+
 /**
  * Parte `geometryRefs` ("lat_lon") en tandas de hasta `maxPuntos` puntos de
  * grilla sin partir un punto entre tandas, para que el provider deduplique
@@ -127,9 +137,7 @@ export function crearColaLotesPorPuntoGrilla<T extends CeldaGrilla>(celdas: read
 export function empaquetarRefsPorPuntoGrilla(geometryRefs: readonly string[], maxPuntos: number): string[][] {
   const porClave = new Map<string, string[]>()
   for (const geometryRef of geometryRefs) {
-    const [lat, lon] = geometryRef.split('_').map(Number)
-    const clave =
-      Number.isFinite(lat) && Number.isFinite(lon) ? clavePuntoGrilla({ geometryRef, lat, lon }) : `ref:${geometryRef}`
+    const clave = claveDeRef(geometryRef)
     const refs = porClave.get(clave)
     if (refs) refs.push(geometryRef)
     else porClave.set(clave, [geometryRef])

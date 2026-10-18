@@ -31,10 +31,10 @@ import {
   hazardEnsembleProb,
   infraGeoProfile,
 } from '@/lib/db/schema'
-import { TAMANO_LOTE_COORDENADAS_ENSEMBLE } from '../providers/ensemble'
+import { esperaEntreLotesEnsembleMs, TAMANO_LOTE_COORDENADAS_ENSEMBLE } from '../providers/ensemble'
 import type { obtenerProbabilidadesEnsemble as obtenerProbabilidadesEnsembleReal } from '../providers/ensemble'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
-import { empaquetarRefsPorPuntoGrilla } from '../providers/grilla-modelo'
+import { contarPuntosGrilla, empaquetarRefsPorPuntoGrilla } from '../providers/grilla-modelo'
 import {
   adquirirLease,
   claveIdempotenteDeBloque6h,
@@ -64,6 +64,15 @@ export type ResultadoEjecucionSyncEnsemble =
       ok: false
       motivo: 'lease_perdido_durante_ejecucion'
       resultado: ResultadoSyncEnsemble
+    }
+  // Cuota Open-Meteo (C2): quedaron celdas sin dato por red, cupo o 429. El
+  // job-run queda 'fallido' (nunca 'completado' con celdas faltantes) y una
+  // reejecución en el mismo bloque de 6h sólo pide las celdas sin filas.
+  | {
+      ok: false
+      motivo: 'cobertura_parcial'
+      resultado: ResultadoSyncEnsemble
+      celdasSinDato: number
     }
 
 const TIPO_JOB = 'sync-hazard-ensemble'
@@ -111,6 +120,25 @@ const PERCENTILES_UMBRAL = ['p90', 'p95', 'p99'] as const
 // tanda) y entre tanda y tanda se renueva el lease (mismo concepto que
 // sync-pronostico-caudal.ts).
 const PUNTOS_GRILLA_POR_TANDA = TAMANO_LOTE_COORDENADAS_ENSEMBLE
+
+// Única causa de "sin dato" que reintentar no arregla: la celda no tiene
+// umbrales de climatología. Cualquier otra (red, cupo, 429) deja cobertura
+// parcial.
+const ERROR_SIN_CLIMATOLOGIA = 'sin_climatologia'
+
+function esperarReal(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// Celdas que ya tienen filas de esta corrida (reejecución tras cobertura
+// parcial): no se vuelven a pedir.
+async function celdasYaPersistidas(db: Db, corridaEn: string): Promise<Set<string>> {
+  const filas = await db
+    .selectDistinct({ geometryRef: hazardEnsembleProb.geometryRef })
+    .from(hazardEnsembleProb)
+    .where(and(eq(hazardEnsembleProb.variable, VARIABLE_ENSEMBLE), eq(hazardEnsembleProb.corridaEn, corridaEn)))
+  return new Set(filas.map((fila) => fila.geometryRef))
+}
 
 type Db = ReturnType<typeof getDb>
 
@@ -270,6 +298,9 @@ export async function ejecutarSyncEnsemble(params?: {
   // Seam de test: permite inyectar un `renovarLease` fake sin mockear todo el
   // módulo job-run (que además aporta adquirirLease/publicarResultado).
   renovarLease?: typeof renovarLeaseReal
+  // Seam de test del espaciado entre tandas. Sin él, se espera de verdad
+  // sólo con el adaptador real (un provider o puerto inyectado no espera).
+  esperar?: (ms: number) => Promise<void>
 }): Promise<ResultadoEjecucionSyncEnsemble> {
   const db = getDb()
   const ahora = params?.ahora ?? new Date()
@@ -317,6 +348,7 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
     obtenerProbabilidades?: typeof obtenerProbabilidadesEnsembleReal
     puerto?: PuertoPronosticoEnsemble
     renovarLease?: typeof renovarLeaseReal
+    esperar?: (ms: number) => Promise<void>
   }
 }): Promise<ResultadoEjecucionSyncEnsemble> {
   const { db, ahora, ahoraIso, lease, params } = ctx
@@ -325,9 +357,12 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
     .selectDistinct({ geometryRef: infraGeoProfile.geometryRef })
     .from(infraGeoProfile)
     .where(isNotNull(infraGeoProfile.geometryRef))
+  // `corridaEn` se deriva del INICIO del bloque, no del wall-clock `ahora`.
+  const corridaEn = inicioDeBloqueUtc(ahora).toISOString()
+  const persistidas = await celdasYaPersistidas(db, corridaEn)
   const celdas = filasGeo
     .map((fila) => fila.geometryRef)
-    .filter((ref): ref is string => ref !== null)
+    .filter((ref): ref is string => ref !== null && !persistidas.has(ref))
 
   const { p95: umbralP95PorCelda, p99: umbralP99PorCelda } = await cargarUmbralesPorCelda(db)
 
@@ -348,8 +383,12 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
       obtenerProbabilidades: params?.obtenerProbabilidades,
     })
 
-  // `corridaEn` se deriva del INICIO del bloque, no del wall-clock `ahora`.
-  const corridaEn = inicioDeBloqueUtc(ahora).toISOString()
+  // Espaciado entre tandas (C2): cada tanda es un request de hasta 20 puntos
+  // de grilla con peso 5,1 por punto; esperar ese peso al ritmo del límite
+  // por minuto evita el 429 de Open-Meteo en vez de reaccionar a él.
+  const esperar =
+    params?.esperar ?? (params?.puerto || params?.obtenerProbabilidades ? undefined : esperarReal)
+  let puntosTandaAnterior = 0
 
   const erroresPorCelda: Record<string, string> = {}
   let celdasConsultadas = 0
@@ -360,6 +399,9 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
   const tandas = empaquetarRefsPorPuntoGrilla(celdas, PUNTOS_GRILLA_POR_TANDA)
   for (let indiceTanda = 0; indiceTanda < tandas.length; indiceTanda++) {
     const tanda = tandas[indiceTanda]
+    if (esperar && puntosTandaAnterior > 0) {
+      await esperar(esperaEntreLotesEnsembleMs(puntosTandaAnterior, Boolean(apiKey)))
+    }
 
     let diagnostico: {
       puntos: PuntoEnsembleProbabilistico[]
@@ -396,6 +438,7 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
     // adaptadores-ingesta/ensemble.ts); ya no hace falta el fallback a 1 por
     // tanda que usaba el import directo del provider.
     llamadasRealizadas += diagnostico.llamadasRealizadas
+    puntosTandaAnterior = diagnostico.llamadasRealizadas > 0 ? contarPuntosGrilla(tanda) : 0
 
     // La última tanda ya no tiene trabajo posterior que proteger: no renovamos
     // después de ella.
@@ -427,6 +470,19 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
   }
 
   await actualizarSalud(db, erroresPorCelda, ahoraIso)
+
+  const celdasSinDato = Object.values(erroresPorCelda).filter((error) => error !== ERROR_SIN_CLIMATOLOGIA).length
+  if (celdasSinDato > 0) {
+    await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'fallido',
+      contadores: { llamadas: resultado.llamadasRealizadas, filas: filasInsertadas, celdasSinDato },
+      errorSaneado: `cobertura_parcial: ${celdasSinDato} de ${celdas.length} celdas sin dato`,
+      ahora,
+    })
+    return { ok: false, motivo: 'cobertura_parcial', resultado, celdasSinDato }
+  }
 
   await publicarResultado({
     jobRunId: lease.jobRunId,

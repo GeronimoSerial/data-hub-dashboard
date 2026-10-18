@@ -447,3 +447,110 @@ describe('ejecutarSyncEnsemble — renovación de lease durante el loop', () => 
     expect(filas.every((fila) => fila.probabilidadP95 === 0.42)).toBe(true)
   })
 })
+
+// Cuota Open-Meteo (C2): una corrida con celdas sin dato por red/cupo no se
+// publica como completada; la reejecución en el mismo bloque sólo pide las
+// celdas que todavía no tienen filas.
+describe('ejecutarSyncEnsemble — cobertura parcial y reanudación', () => {
+  const ERROR_429 = 'rate_limited: HTTP 429 en intento 1/3; cooldown de 60 s sin reintento'
+
+  function fakeConErrorEn(refsConError: string[], vistos: string[][]): typeof obtenerProbabilidadesEnsembleReal {
+    const base = ensembleFake()
+    return async (args) => {
+      const sinError = {
+        ...args,
+        geometryRefsConCoordenada: args.geometryRefsConCoordenada.filter((c) => !refsConError.includes(c.geometryRef)),
+      }
+      vistos.push(args.geometryRefsConCoordenada.map((c) => c.geometryRef))
+      const resultado = await base(sinError)
+      for (const ref of refsConError) {
+        if (args.geometryRefsConCoordenada.some((c) => c.geometryRef === ref)) resultado.erroresPorCelda[ref] = ERROR_429
+      }
+      return resultado
+    }
+  }
+
+  it('deja el job-run fallido con cobertura parcial y reanuda sólo las celdas faltantes', async () => {
+    const ahora = new Date('2026-09-29T01:00:00.000Z') // bloque 00-06, libre
+    const db = getDb()
+
+    const vistosPrimera: string[][] = []
+    const primera = await ejecutarSyncEnsemble({
+      ahora,
+      obtenerProbabilidades: fakeConErrorEn([CELDAS[1]], vistosPrimera),
+    })
+
+    if (primera.ok || primera.motivo !== 'cobertura_parcial') throw new Error('se esperaba cobertura_parcial')
+    expect(primera.celdasSinDato).toBe(1)
+    expect(primera.resultado.filasInsertadas).toBe(2 * PUNTOS_POR_CELDA_DEFAULT)
+    const [jobRun] = await db.select().from(infraJobRun).where(eq(infraJobRun.claveIdempotente, '2026-09-29T00'))
+    expect(jobRun?.estado).toBe('fallido')
+    expect(jobRun?.errorSaneado).toContain('cobertura_parcial')
+    const [salud] = await db
+      .select()
+      .from(hazardSourceHealth)
+      .where(eq(hazardSourceHealth.provider, 'open-meteo-ensemble'))
+    expect(salud?.estado).toBe('degradado')
+
+    const vistosSegunda: string[][] = []
+    const segunda = await ejecutarSyncEnsemble({
+      ahora: new Date('2026-09-29T01:30:00.000Z'),
+      obtenerProbabilidades: fakeConErrorEn([], vistosSegunda),
+    })
+
+    expect(segunda).toEqual({
+      ok: true,
+      resultado: { celdasConsultadas: 1, filasInsertadas: PUNTOS_POR_CELDA_DEFAULT, llamadasRealizadas: 1 },
+    })
+    expect(vistosSegunda.flat()).toEqual([CELDAS[1]])
+    const [jobRunFinal] = await db
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.claveIdempotente, '2026-09-29T00'))
+    expect(jobRunFinal?.estado).toBe('completado')
+  })
+
+  it('una celda sin climatología no impide completar (no se arregla reintentando)', async () => {
+    const db = getDb()
+    const celdaSin = '-34.4_-64.4'
+    await insertarPerfilesGeo([{ cueAnexo: '1800098-00', geometryRef: celdaSin }])
+    try {
+      const resultado = await ejecutarSyncEnsemble({
+        ahora: new Date('2026-09-29T07:00:00.000Z'),
+        obtenerProbabilidades: ensembleFake(),
+      })
+      expect(resultado.ok).toBe(true)
+    } finally {
+      await borrarPerfilesGeo(['1800098-00'])
+    }
+    const [jobRun] = await db.select().from(infraJobRun).where(eq(infraJobRun.claveIdempotente, '2026-09-29T06'))
+    expect(jobRun?.estado).toBe('completado')
+  })
+
+  it('espacia las tandas según el peso del ensemble para respetar el límite por minuto', async () => {
+    const extra = Array.from({ length: 40 }, (_, indice) => ({
+      cueAnexo: `197000${indice + 1}-00`,
+      geometryRef: `${(-41 - indice * 0.5).toFixed(1)}_-62.0`,
+    }))
+    await insertarPerfilesGeo(extra)
+    await getDb()
+      .insert(hazardClimatology)
+      .values(extra.flatMap(({ geometryRef }) => filasClimatologia(geometryRef)))
+    const esperar = vi.fn(async (_ms: number) => {})
+    try {
+      // 3 base + 40 = 43 puntos de grilla: tandas de 20, 20 y 3.
+      await ejecutarSyncEnsemble({
+        ahora: new Date('2026-09-29T13:00:00.000Z'),
+        obtenerProbabilidades: ensembleFake(),
+        esperar,
+      })
+    } finally {
+      await getDb()
+        .delete(hazardClimatology)
+        .where(inArray(hazardClimatology.geometryRef, extra.map(({ geometryRef }) => geometryRef)))
+      await borrarPerfilesGeo(extra.map(({ cueAnexo }) => cueAnexo))
+    }
+    // 20 puntos × 5,1 = 102 de peso; 102 / 480 por minuto = 12,75 s.
+    expect(esperar.mock.calls.map(([ms]) => ms)).toEqual([12_750, 12_750])
+  })
+})
