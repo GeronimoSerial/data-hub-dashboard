@@ -5,10 +5,10 @@ Branch: `fix/actualizar-parte-correcciones` (from origin/main). Workers: haiku (
 Decision: photos are uploaded once per parte and reused across all sections.
 
 ## Tasks
-- [ ] A1 Accepting suggested "Crítica" must not ask for justification (client + server validation use the scope-based suggestion).
-- [ ] A2 Dialogs/sheets in the flow must not close on outside click.
-- [ ] A3 Dismissed consistency banner stays dismissed unless the fields its rule depends on change. (after A1, same file)
-- [ ] A4 Photos loaded once per parte; picker not re-prompting on later steps.
+- [x] A1 Accepting suggested "Crítica" must not ask for justification (client + server validation use the scope-based suggestion).
+- [x] A2 Dialogs/sheets in the flow must not close on outside click.
+- [x] A3 Dismissed consistency banner stays dismissed unless the fields its rule depends on change. (after A1, same file)
+- [x] A4 Photos loaded once per parte; picker not re-prompting on later steps.
 - [ ] A6 Map preview reflects partial operation (1800005-00 shows habitual).
 - [ ] A5 Mermaid map of the actualizar flow (read-only, docs) → UX proposal later.
 
@@ -16,3 +16,6 @@ Decision: photos are uploaded once per parte and reused across all sections.
 `npx vitest run <touched tests>`, `npx tsc --noEmit`, `npx eslint <touched files>`.
 
 ## Progress
+- A1 935f3a50 (option b: server derives scope from sections), A2 ef351ad4, A3 ece8dcc6, A4 42675c3d + A4b 5d887cea (draft persists photos, controlled picker). Merged into branch; tsc 0; 60 files / 655 tests passed.
+- A6 195421be on wip/a6, pending user confirmation of rule change (map service no longer gated by establecimiento situations).
+- Follow-ups: A3 dismissals reset across reporte-inicial-form steps; DBGT debug line at reporte-inicial-form.test.tsx:1459; UX proposal for flow (A5).
