@@ -1556,6 +1556,25 @@ time {
   transition: border-color 160ms ease;
 }
 .ui-select-trigger:hover { border-color: var(--ink); }
+.ui-select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-select-trigger > :last-child { flex-shrink: 0; }
+.ui-select-positioner { max-width: calc(100vw - 1rem); }
+.ui-select-positioner .ui-select-popup {
+  width: max-content;
+  min-width: min(var(--anchor-width), calc(100vw - 1rem));
+  max-width: calc(100vw - 1rem);
+}
+.ui-select-list {
+  max-height: min(20rem, var(--available-height, 50dvh));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 
 .active-filters {
   display: flex;

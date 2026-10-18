@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 import { PanelEncabezado } from './panel-encabezado'
 
-type PestanaConMapa = Exclude<PestanaMapa, 'estadisticas' | 'metodologia'>
+type PestanaConMapa = Exclude<PestanaMapa, 'estadisticas' | 'metodologia' | 'exportar'>
 
 const TITULOS: Record<PestanaConMapa, string> = {
   actual: 'Situación actual',
