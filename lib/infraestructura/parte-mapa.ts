@@ -446,8 +446,9 @@ export async function listarPartesVigentes(
     if (filtradas.length === 0) continue
 
     const secciones = seccionesPorCue.get(parteRow.cueAnexo) ?? []
-    // El estado del edificio/servicio es del parte y puede quedar viejo al solucionar una situación.
-    // Sólo se proyecta al mapa si existe alguna situación abierta de establecimiento.
+    // El estado del edificio puede quedar viejo al solucionar una situación de establecimiento: sólo se
+    // proyecta si existe alguna abierta. El servicio se deriva igual que en la ficha (parte-consulta),
+    // sin importar la categoría de las situaciones abiertas.
     const tieneSituacionDeEstablecimiento = vigentes.some((a) => a.categoria === 'establecimiento')
     const estadoEstablecimiento = tieneSituacionDeEstablecimiento
       ? parteRow.estadoEstablecimiento
@@ -455,9 +456,7 @@ export async function listarPartesVigentes(
     const servicioVigente = resolverAlcanceVigente(servicioPorParte.get(parteRow.id) ?? [], {
       clave: claveServicioAlcance,
     })
-    const servicioGeneral = tieneSituacionDeEstablecimiento
-      ? calcularEstadoServicioGeneral(servicioVigente, secciones)
-      : 'normal'
+    const servicioGeneral = calcularEstadoServicioGeneral(servicioVigente, secciones)
     if (filtros.servicio !== undefined && servicioGeneral !== filtros.servicio) continue
 
     const alumnosAlcanzados = new Set<number>()

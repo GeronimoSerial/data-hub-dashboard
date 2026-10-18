@@ -14,15 +14,16 @@ export interface ConfirmSheetProps {
   onConfirmar: () => void
   onCancelar: () => void
   /**
-   * Cierre por Escape, fondo o la X. Por defecto equivale a cancelar; se
-   * separa cuando el botón de cancelar es una acción propia (p. ej. Descartar).
+   * Cierre por Escape o la X. El press fuera del panel no cierra (ver
+   * `disablePointerDismissal`). Por defecto equivale a cancelar; se separa
+   * cuando el botón de cancelar es una acción propia (p. ej. Descartar).
    */
   onCerrar?: () => void
 }
 
 // Confirmación pensada para el celular (spec rediseño §3.1): sale desde abajo,
-// al alcance del pulgar, y cerrar por cualquier vía (Escape, fondo, la X)
-// equivale a cancelar — nunca deja una elección a medio aplicar.
+// al alcance del pulgar. Cerrar con Escape o la X equivale a cancelar; un
+// toque fuera del panel no hace nada, para no cancelar una acción por accidente.
 export function ConfirmSheet({
   open,
   titulo,
@@ -37,6 +38,7 @@ export function ConfirmSheet({
   return (
     <SheetRoot
       open={open}
+      disablePointerDismissal
       onOpenChange={(abierto) => {
         if (!abierto) onCerrar()
       }}

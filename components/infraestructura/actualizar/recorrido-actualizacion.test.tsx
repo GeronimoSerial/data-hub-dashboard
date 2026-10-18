@@ -88,6 +88,38 @@ describe('RecorridoActualizacion', () => {
     expect(declararFotosMock).toHaveBeenCalledWith(expect.objectContaining({ movimientoBaseId: 'movement-base' }))
   })
 
+  it('conserva las fotos agregadas en la entrada al avanzar al siguiente paso', async () => {
+    prepararFotosMock.mockImplementation(async (_draftId: string, fotos: Array<{ attachmentId: string }>) => ({
+      preparadas: fotos.map(({ attachmentId }) => ({
+        attachmentId,
+        bytesOptimizado: 1000,
+        bytesMiniatura: 200,
+        optimizadaContentType: 'image/jpeg',
+        miniaturaContentType: 'image/jpeg',
+      })),
+      errores: [],
+    }))
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes('/borradores/config')) {
+        return new Response(JSON.stringify({ borradoresSync: false, fotos: true, mapaBorradores: false }), { status: 200 })
+      }
+      if (init?.method === 'POST') return new Response(JSON.stringify({ ok: true, movimientoId: 'm1' }), { status: 201 })
+      const body = url.includes('/historial') ? { ok: true, movimientos: [] } : estadoActual()
+      return new Response(JSON.stringify(body), { status: 200 })
+    }))
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    const input = await screen.findByLabelText('Agregar fotos')
+    fireEvent.change(input, { target: { files: [new File(['a'], 'aula-1.jpg', { type: 'image/jpeg' })] } })
+    await waitFor(() => expect(prepararFotosMock).toHaveBeenCalled())
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    const fotosDelParte = await screen.findByRole('region', { name: 'Fotos del parte' })
+    expect(within(fotosDelParte).getByText('aula-1.jpg')).toBeInTheDocument()
+    expect(within(fotosDelParte).getByText('1 de 3 fotos')).toBeInTheDocument()
+    expect(within(fotosDelParte).queryByLabelText('Agregar fotos')).not.toBeInTheDocument()
+    expect(within(fotosDelParte).getByLabelText('Agregar más fotos')).toBeInTheDocument()
+    expect(prepararFotosMock).toHaveBeenCalledTimes(1)
+  })
+
   it('la barra de acciones de datos queda pegada y muestra Volver', async () => {
     stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)

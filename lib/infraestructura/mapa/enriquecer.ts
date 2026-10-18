@@ -72,10 +72,11 @@ export function enriquecerEscuela(
   ahoraMs: number,
 ): EscuelaMapaEnriquecida {
   const parte = e.parte
-  // El edificio y el servicio pertenecen al parte; al solucionar una situación, el servidor no los resetea.
+  // El servicio es el mismo que muestra la ficha, sin importar la categoría. El edificio sólo cuenta con
+  // una situación abierta de establecimiento: al solucionarla, el servidor no lo resetea.
   const tieneSituacionDeEstablecimiento = parte?.afectaciones.some((a) => a.categoria === 'establecimiento') ?? false
-  const clases = parte && tieneSituacionDeEstablecimiento
-    ? derivarClases(parte.estadoEstablecimiento, parte.servicio)
+  const clases = parte
+    ? derivarClases(tieneSituacionDeEstablecimiento ? parte.estadoEstablecimiento : 'habitual', parte.servicio)
     : 'normal'
   const principal = situacionPrincipalDe(parte)
   const niveles = [...new Set(extra.niveles.map((nivel) => nivel.trim()).filter(Boolean))]

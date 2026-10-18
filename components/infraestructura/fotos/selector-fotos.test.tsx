@@ -59,6 +59,19 @@ describe('SelectorFotos', () => {
     expect(screen.getByText('1 de 3 fotos')).toBeInTheDocument()
   })
 
+  it('muestra la lista controlada por el padre y le informa cada quita sin cambiarla por su cuenta', async () => {
+    const user = userEvent.setup()
+    const onFotosChange = vi.fn()
+    const fotos = [{ id: 'foto-1', nombre: 'aula.jpg', vistaPrevia: 'blob:aula' }]
+
+    render(<SelectorFotos onChange={vi.fn()} fotos={fotos} onFotosChange={onFotosChange} />)
+    await user.click(await screen.findByRole('button', { name: 'Quitar aula.jpg' }))
+
+    expect(onFotosChange).toHaveBeenLastCalledWith([])
+    expect(screen.getByRole('img', { name: 'aula.jpg' })).toHaveAttribute('src', 'blob:aula')
+    expect(screen.getByText('1 de 3 fotos')).toBeInTheDocument()
+  })
+
   it('keeps the selection at three and reports when additional photos are skipped', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -75,6 +88,6 @@ describe('SelectorFotos', () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining([expect.any(Blob), expect.any(Blob), expect.any(Blob)]))
     expect(onChange.mock.lastCall?.[0]).toHaveLength(3)
     expect(screen.getByRole('status')).toHaveTextContent('Se pueden agregar hasta 3 fotos. Se omitieron 1.')
-    expect(screen.getByLabelText('Agregar fotos')).toBeDisabled()
+    expect(screen.getByLabelText('Agregar más fotos')).toBeDisabled()
   })
 })

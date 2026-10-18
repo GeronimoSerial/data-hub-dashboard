@@ -29,6 +29,9 @@ import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import { MODALIDADES_ASISTENCIA_PEDAGOGICA, type EstadoServicioGeneral, type ModalidadAsistenciaPedagogica } from '@/lib/infraestructura/trayectoria-tipos'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { declararFotosFormulario, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
+import { restaurarFotosPreparadas } from '@/lib/infraestructura/fotos/restaurar-fotos'
+import { descartarSubidaFotoNoDeclarada } from '@/lib/infraestructura/fotos/subida-cola'
+import type { FotoSeleccionada } from '@/components/infraestructura/fotos/selector-fotos'
 
 export interface RecorridoActualizacionProps {
   cue: string
@@ -230,7 +233,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [fotosPreparadas, setFotosPreparadas] = useState<readonly FotoPreparada[]>([])
   const [claveEvidenciaFotos] = useState(() => crypto.randomUUID())
   const movimientoFotosConfirmadoRef = useRef<string | null>(null)
-  const [cantidadFotosSeleccionadas, setCantidadFotosSeleccionadas] = useState(0)
+  // Única fuente de las fotos elegidas: el selector la recibe y el borrador la guarda por referencia.
+  const [fotosElegidas, setFotosElegidas] = useState<readonly FotoSeleccionada[]>([])
+  const cantidadFotosSeleccionadas = fotosElegidas.length
+  const vistasRestauradasRef = useRef<string[]>([])
   const persistenciaBloqueadaRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [errorFotos, setErrorFotos] = useState<string | null>(null)
@@ -296,6 +302,21 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             setAvisoBorrador('La situación cambió desde que empezó. El borrador anterior se conservó en este dispositivo y no se aplicó a esta actualización.')
           } else {
             setBorradorPendiente(dato)
+            if (dato.referenciasFotos?.length) {
+              // Restaura antes de marcar el borrador como leído: así ningún guardado pisa las referencias.
+              const { fotos, faltantes } = await restaurarFotosPreparadas(dato.referenciasFotos)
+              if (cancelado) {
+                for (const foto of fotos) URL.revokeObjectURL(foto.vistaPrevia)
+                return
+              }
+              vistasRestauradasRef.current.push(...fotos.map((foto) => foto.vistaPrevia))
+              setFotosElegidas(fotos)
+              setFotosPreparadas(fotos.map((foto) => foto.preparada))
+              if (faltantes.length) {
+                setErrorFotos('Algunas fotos ya no están disponibles en este dispositivo y se quitaron del parte.')
+                setInteraccionIniciada(true)
+              }
+            }
           }
         }
       } catch (error) {
@@ -333,7 +354,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     const generacion = generacionRef.current ??= crypto.randomUUID()
     const datos: BorradorActualizacionConFotos = {
       generacion,
-      referenciasFotos: borradorCompartidoRef.current?.datos.referenciasFotos ?? [],
+      referenciasFotos: fotosElegidas.map((foto) => foto.id),
       etapa: etapa === 'enviado' ? 'resumen' : etapa,
       recorrido,
       asistenciaPedagogica,
@@ -356,7 +377,17 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     }).catch((error: unknown) => {
       setAvisoAlmacen(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo guardar el borrador local. Puede enviar las respuestas.')
     })
-  }, [borradorLeido, interaccionIniciada, borradorPendiente, claveBorrador, cue, etapa, recorrido, asistenciaPedagogica, situaciones])
+  }, [borradorLeido, interaccionIniciada, borradorPendiente, claveBorrador, cue, etapa, recorrido, asistenciaPedagogica, situaciones, fotosElegidas])
+
+  useEffect(() => {
+    const vistas = vistasRestauradasRef.current
+    return () => { for (const url of vistas) URL.revokeObjectURL(url) }
+  }, [])
+
+  function alCambiarFotos(fotos: readonly FotoSeleccionada[]): void {
+    setFotosElegidas(fotos)
+    setInteraccionIniciada(true)
+  }
 
   useEffect(() => {
     function alVolverAtras(): void {
@@ -903,8 +934,9 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       ) : null}
       <SelectorFotosFormulario
         draftId={fotosDraftId}
+        fotos={fotosElegidas}
+        onFotosChange={alCambiarFotos}
         onPreparadasChange={setFotosPreparadas}
-        onCountChange={setCantidadFotosSeleccionadas}
       />
       {errorFotos ? <p role="status">{errorFotos}</p> : null}
       {error && etapa !== 'resumen' ? <p role="alert">{error}</p> : null}
@@ -942,6 +974,9 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
               generacionRef.current = crypto.randomUUID()
               persistenciaBloqueadaRef.current = false
               setBorradorPendiente(null)
+              void Promise.all(fotosElegidas.map((foto) => descartarSubidaFotoNoDeclarada(foto.id))).catch(() => {})
+              setFotosElegidas([])
+              setFotosPreparadas([])
               setRecorrido(RECORRIDO_INICIAL)
               setEtapa('entrada')
               setInteraccionIniciada(false)
