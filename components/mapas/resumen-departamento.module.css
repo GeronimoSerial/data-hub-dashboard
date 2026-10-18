@@ -1,0 +1,31 @@
+/* An active department filter must read at a glance, so the card carries an accent band and an explicit exit. */
+.card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  padding-top: calc(var(--s-4) + 4px);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--accent);
+}
+
+.etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  justify-self: start;
+  width: fit-content;
+  margin: 0 0 var(--s-1);
+  padding: 2px var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: var(--t-micro);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}

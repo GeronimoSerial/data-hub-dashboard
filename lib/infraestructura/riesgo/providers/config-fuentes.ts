@@ -22,7 +22,7 @@ export const CONFIG_FUENTES = {
     timeoutMs: 30_000, // origen: lib/infraestructura/riesgo/providers/ecmwf.ts (TIMEOUT_MS_ECMWF)
     reintentos: 3, // origen: lib/infraestructura/riesgo/providers/cliente-http.ts:52
     tamanoLote: 50, // origen: lib/infraestructura/riesgo/providers/ecmwf.ts:35 (TAMANO_LOTE_COORDENADAS)
-    diasPronostico: 10, // origen: lib/infraestructura/riesgo/providers/ecmwf.ts:108 (FORECAST_DAYS)
+    diasPronostico: 11, // origen: lib/infraestructura/riesgo/providers/ecmwf.ts (FORECAST_HOURS=264 h, ~11 días)
   },
   flood: {
     host: 'flood-api', // origen: lib/infraestructura/riesgo/providers/flood.ts:42 (construirBaseUrl('flood-api', ...))

@@ -2,7 +2,8 @@
 const nextConfig = {
   output: 'standalone',
   allowedDevOrigins: process.env.BETTER_AUTH_URL
-    ? [new URL(process.env.BETTER_AUTH_URL).hostname]
+    // Browsers may send the fully qualified host with a trailing dot.
+    ? [new URL(process.env.BETTER_AUTH_URL).hostname, `${new URL(process.env.BETTER_AUTH_URL).hostname}.`]
     : [],
   serverExternalPackages: ['@libsql/client', 'libsql', '@electric-sql/pglite'],
   async rewrites() {

@@ -82,7 +82,7 @@ describe('VeredictoPublico', () => {
     expect(container.textContent ?? '').not.toContain('lluvia.obs')
   })
 
-  it('muestra las aguas arriba como contexto en el día de la provincia', () => {
+  it('hides technical details: upstream stations and the source list', () => {
     const conAguas = dto({
       id: 'x',
       fecha: '2026-10-11',
@@ -90,15 +90,28 @@ describe('VeredictoPublico', () => {
         { estacionId: 'pna-iguazu', nombre: 'IGUAZU', rio: 'parana', estadoMax: 'alerta', alturaMaxM: 27.5, umbralM: 27.9 },
       ],
     })
-    render(<VeredictoPublico veredictos={[conAguas]} />)
-    expect(
-      screen.getByText(
-        'Aguas arriba (contexto, no modifica el nivel): Prefectura Iguazú (río Paraná) — Altura del río: 27,50 m · Alerta (alerta 27,90 m)',
-      ),
-    ).toBeTruthy()
+    const { container } = render(<VeredictoPublico veredictos={[conAguas]} />)
+    expect(container.textContent).not.toMatch(/Aguas arriba/)
+    expect(screen.queryByRole('heading', { name: 'Fuentes' })).toBeNull()
+    expect(screen.queryByRole('link')).toBeNull()
   })
 
-  it('muestra los eventos confirmados de cada día como contexto', () => {
+  it('orders department lines by severity and collapses the quiet ones', () => {
+    render(
+      <VeredictoPublico
+        veredictos={[
+          dto({ id: 'p', fecha: '2026-10-13', tipoDia: 'hoy', nivel: 'severo', texto: 'Titular.' }),
+          dto({ id: 'g', fecha: '2026-10-13', tipoDia: 'hoy', ambito: 'departamento:GOYA', nivel: 'vigilancia', texto: 'Goya.' }),
+          dto({ id: 'e', fecha: '2026-10-13', tipoDia: 'hoy', ambito: 'departamento:ESQUINA', nivel: 'severo', texto: 'Esquina.' }),
+        ]}
+      />,
+    )
+    const nombres = screen.getAllByRole('listitem').map((li) => li.querySelector('strong')?.textContent)
+    expect(nombres).toEqual(['Esquina', 'Goya'])
+    expect(screen.getByText(/^Sin novedades:/)).toHaveTextContent('Bella Vista')
+  })
+
+  it('shows confirmed field events only on days that have them', () => {
     const eventos = [
       {
         id: 'EV-1',
@@ -114,17 +127,8 @@ describe('VeredictoPublico', () => {
       },
     ]
     render(<VeredictoPublico veredictos={VERED} eventos={eventos} />)
-    expect(screen.getAllByText('Confirmado en terreno (no modifica el nivel)')).toHaveLength(2)
+    expect(screen.getAllByText('Confirmado en terreno')).toHaveLength(1)
     expect(screen.getByText('Calles anegadas')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Diario X, 13/10/2026' })).toHaveAttribute('href', 'https://ex.com/nota')
-    expect(screen.getAllByText('Sin eventos confirmados con fuente verificable para este día.')).toHaveLength(1)
-  })
-
-  it('lista las fuentes con enlace, sin duplicar URLs', () => {
-    render(<VeredictoPublico veredictos={VERED} />)
-    // URL fuera del catálogo: el nombre legible cae a la propia URL.
-    const enlaces = screen.getAllByRole('link', { name: 'https://example.org/imerg' })
-    expect(enlaces).toHaveLength(1)
-    expect(enlaces[0]!.getAttribute('href')).toBe('https://example.org/imerg')
   })
 })
