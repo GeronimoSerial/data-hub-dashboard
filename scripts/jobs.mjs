@@ -55,6 +55,7 @@ const NOMBRES_VALIDOS = [
   'importar-exposicion-rio-dem',
   'importar-altimetria-v04',
   'sync-ina-serie-diaria',
+  'sync-ina-pronostico',
   'limpiar-adjuntos-huerfanos',
 ]
 
@@ -343,6 +344,14 @@ async function correrSyncInaSerieDiaria() {
   return sincronizarSerieDiariaIna()
 }
 
+// Última corrida de los pronósticos INA 499/289 (Motor v0.4): dedupe por
+// corrida, una solicitud por calibrado. No programado.
+async function correrSyncInaPronostico() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-ina-pronostico')
+  const { sincronizarPronosticoIna } = await import('../lib/infraestructura/hidrometria/ina/sync-ina-pronostico.ts')
+  return sincronizarPronosticoIna()
+}
+
 async function correrSyncRadarEnsemble(opts) {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
   const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
@@ -523,6 +532,8 @@ export async function correrJob(nombre, opts) {
       return correrImportarAltimetriaV04()
     case 'sync-ina-serie-diaria':
       return correrSyncInaSerieDiaria()
+    case 'sync-ina-pronostico':
+      return correrSyncInaPronostico()
     default:
       throw new JobDesconocidoError(nombre)
   }
@@ -543,6 +554,7 @@ export function codigoSalida(nombreJob, resultado) {
   if (nombreJob === 'importar-exposicion-rio-dem' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'importar-altimetria-v04' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'sync-ina-serie-diaria' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'sync-ina-pronostico' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3

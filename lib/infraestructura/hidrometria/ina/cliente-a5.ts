@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto'
 import { ejecutarConReintentos, type ResultadoHttp } from '@/lib/infraestructura/riesgo/providers/cliente-http'
 import { CONFIG_FUENTES } from '@/lib/infraestructura/riesgo/providers/config-fuentes'
 import { type EstacionA5, type ObservacionA5, parsearEstacionesA5, parsearObservacionesA5 } from './parser-a5'
+import { type CorridaA5, parsearCorridaA5 } from './parser-pronostico-a5'
 
 export type LoteObservacionesA5 = {
   url: string
@@ -14,10 +15,19 @@ export type LoteObservacionesA5 = {
   observaciones: ObservacionA5[]
 }
 
+export type LoteCorridaA5 = {
+  url: string
+  payload: unknown
+  sha256: string
+  corrida: CorridaA5
+}
+
 export type ClienteA5 = {
   obtenerEstaciones(): Promise<ResultadoHttp<EstacionA5[]>>
   /** Observaciones de la serie entre dos fechas `YYYY-MM-DD` (inclusive según A5). */
   obtenerObservaciones(serieId: number, desde: string, hasta: string): Promise<ResultadoHttp<LoteObservacionesA5>>
+  /** Última corrida del calibrado con sus pronósticos (sin autenticación, A5 sólo expone la última). */
+  obtenerUltimaCorrida(calId: number): Promise<ResultadoHttp<LoteCorridaA5>>
 }
 
 export type OpcionesClienteA5 = {
@@ -59,6 +69,14 @@ export function crearClienteA5(opts: OpcionesClienteA5 = {}): ClienteA5 {
           sha256: sha256Json(json),
           observaciones: parsearObservacionesA5(json, serieId),
         }),
+      })
+    },
+    obtenerUltimaCorrida: (calId) => {
+      const url = `${baseUrl}/sim/calibrados/${calId}/corridas/last?includeProno=true&format=json`
+      return ejecutarConReintentos({
+        ...comunes,
+        url,
+        parsearPayload: (json) => ({ url, payload: json, sha256: sha256Json(json), corrida: parsearCorridaA5(json, calId) }),
       })
     },
   }

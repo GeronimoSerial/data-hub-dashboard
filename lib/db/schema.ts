@@ -1203,6 +1203,46 @@ export const hidroSerieDiaria = pgTable(
   (t) => [primaryKey({ columns: [t.estacionId, t.fecha, t.fuente] })],
 )
 
+// Motor v0.4 (U3b): corridas de pronóstico INA A5 (calibrados 499/289). La
+// emisión se identifica por (cal_id, cor_id); volver a descargarla no cambia
+// forecast_date. lote_sha256 apunta al payload crudo.
+export const hidroInaCorrida = pgTable(
+  'hidro_ina_corrida',
+  {
+    calId: integer('cal_id').notNull(),
+    corId: integer('cor_id').notNull(),
+    forecastDate: text('forecast_date').notNull(),
+    descargadoEn: text('descargado_en').notNull(),
+    loteSha256: text('lote_sha256').notNull().references(() => hidroLoteCrudo.sha256),
+  },
+  (t) => [primaryKey({ columns: [t.calId, t.corId] }), index('hidro_ina_corrida_cal_forecast_idx').on(t.calId, t.forecastDate)],
+)
+
+// Motor v0.4 (U3b): valores de cada corrida tal como los publica INA. El
+// qualifier se guarda sin interpretar (main/p10/p90, inferior/medio/superior)
+// y el soporte temporal sale del catálogo series-pronostico-a5.
+export const hidroInaPronostico = pgTable(
+  'hidro_ina_pronostico',
+  {
+    calId: integer('cal_id').notNull(),
+    corId: integer('cor_id').notNull(),
+    seriesId: integer('series_id').notNull(),
+    estacionId: text('estacion_id'),
+    variable: text('variable'),
+    unidad: text('unidad'),
+    timestart: text('timestart').notNull(),
+    timeend: text('timeend').notNull(),
+    soporte: text('soporte').notNull(),
+    qualifier: text('qualifier'),
+    valor: doublePrecision('valor').notNull(),
+  },
+  (t) => [
+    foreignKey({ columns: [t.calId, t.corId], foreignColumns: [hidroInaCorrida.calId, hidroInaCorrida.corId] }),
+    uniqueIndex('hidro_ina_pronostico_valor_uq').on(t.corId, t.seriesId, t.timestart, t.timeend, sql`coalesce(${t.qualifier}, '')`),
+    check('hidro_ina_pronostico_soporte_check', sql`${t.soporte} in ('semanal_media', 'diario', 'instantaneo', 'desconocido')`),
+  ],
+)
+
 // E7a: episodios derivados (calculados automáticamente)
 // Episodio por unidad territorial (hoy sólo 'departamento'; el tipo queda
 // parametrizado para poder pasar a 'cuenca' en una versión futura de la

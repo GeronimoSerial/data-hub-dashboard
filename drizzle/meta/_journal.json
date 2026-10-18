@@ -190,6 +190,13 @@
       "when": 1792287789887,
       "tag": "0026_ina_serie_diaria",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792288251956,
+      "tag": "0027_ina_pronostico",
+      "breakpoints": true
     }
   ]
 }

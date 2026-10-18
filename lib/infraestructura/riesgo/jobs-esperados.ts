@@ -107,4 +107,11 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     intervaloMinutos: 1440,
     habilitado: false,
   },
+  // Motor v0.4 (T4): última corrida INA 499/289 (plan: 4 consultas/día); no programada.
+  {
+    nombre: 'sync-ina-pronostico',
+    tipo: 'sync-ina-pronostico',
+    intervaloMinutos: 360,
+    habilitado: false,
+  },
 ]

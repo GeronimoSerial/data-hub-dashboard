@@ -1,0 +1,142 @@
+{
+ "id": 1232811,
+ "forecast_date": "2026-10-16T03:00:00.000Z",
+ "series": [
+  {
+   "series_table": "series",
+   "series_id": 1540,
+   "cor_id": 1232811,
+   "pronosticos": [
+    {
+     "timestart": "2026-10-20T03:00:00.000Z",
+     "timeend": "2026-10-20T03:00:00.000Z",
+     "valor": 7,
+     "qualifier": "inferior"
+    },
+    {
+     "timestart": "2026-10-20T03:00:00.000Z",
+     "timeend": "2026-10-20T03:00:00.000Z",
+     "valor": 7.29,
+     "qualifier": "medio"
+    },
+    {
+     "timestart": "2026-10-20T03:00:00.000Z",
+     "timeend": "2026-10-20T03:00:00.000Z",
+     "valor": 7.8,
+     "qualifier": "superior"
+    },
+    {
+     "timestart": "2026-10-27T03:00:00.000Z",
+     "timeend": "2026-10-27T03:00:00.000Z",
+     "valor": 5.8,
+     "qualifier": "inferior"
+    },
+    {
+     "timestart": "2026-10-27T03:00:00.000Z",
+     "timeend": "2026-10-27T03:00:00.000Z",
+     "valor": 6.25,
+     "qualifier": "medio"
+    },
+    {
+     "timestart": "2026-10-27T03:00:00.000Z",
+     "timeend": "2026-10-27T03:00:00.000Z",
+     "valor": 6.6,
+     "qualifier": "superior"
+    }
+   ],
+   "tipo": "puntual",
+   "metadata": null
+  },
+  {
+   "series_table": "series",
+   "series_id": 3408,
+   "cor_id": 1232811,
+   "pronosticos": [
+    {
+     "timestart": "2026-10-20T03:00:00.000Z",
+     "timeend": "2026-10-20T03:00:00.000Z",
+     "valor": 3.65,
+     "qualifier": "inferior"
+    },
+    {
+     "timestart": "2026-10-20T03:00:00.000Z",
+     "timeend": "2026-10-20T03:00:00.000Z",
+     "valor": 4,
+     "qualifier": "medio"
+    },
+    {
+     "timestart": "2026-10-20T03:00:00.000Z",
+     "timeend": "2026-10-20T03:00:00.000Z",
+     "valor": 4.3,
+     "qualifier": "superior"
+    },
+    {
+     "timestart": "2026-10-27T03:00:00.000Z",
+     "timeend": "2026-10-27T03:00:00.000Z",
+     "valor": 4.3,
+     "qualifier": "inferior"
+    },
+    {
+     "timestart": "2026-10-27T03:00:00.000Z",
+     "timeend": "2026-10-27T03:00:00.000Z",
+     "valor": 4.72,
+     "qualifier": "medio"
+    },
+    {
+     "timestart": "2026-10-27T03:00:00.000Z",
+     "timeend": "2026-10-27T03:00:00.000Z",
+     "valor": 5.1,
+     "qualifier": "superior"
+    }
+   ],
+   "tipo": "puntual",
+   "metadata": null
+  },
+  {
+   "series_table": "series",
+   "series_id": 3524,
+   "cor_id": 1232811,
+   "pronosticos": [
+    {
+     "timestart": "2026-10-20T03:00:00.000Z",
+     "timeend": "2026-10-20T03:00:00.000Z",
+     "valor": 5.9,
+     "qualifier": "inferior"
+    },
+    {
+     "timestart": "2026-10-20T03:00:00.000Z",
+     "timeend": "2026-10-20T03:00:00.000Z",
+     "valor": 6.29,
+     "qualifier": "medio"
+    },
+    {
+     "timestart": "2026-10-20T03:00:00.000Z",
+     "timeend": "2026-10-20T03:00:00.000Z",
+     "valor": 6.7,
+     "qualifier": "superior"
+    },
+    {
+     "timestart": "2026-10-27T03:00:00.000Z",
+     "timeend": "2026-10-27T03:00:00.000Z",
+     "valor": 6,
+     "qualifier": "inferior"
+    },
+    {
+     "timestart": "2026-10-27T03:00:00.000Z",
+     "timeend": "2026-10-27T03:00:00.000Z",
+     "valor": 6.51,
+     "qualifier": "medio"
+    },
+    {
+     "timestart": "2026-10-27T03:00:00.000Z",
+     "timeend": "2026-10-27T03:00:00.000Z",
+     "valor": 6.8,
+     "qualifier": "superior"
+    }
+   ],
+   "tipo": "puntual",
+   "metadata": null
+  }
+ ],
+ "cal_id": 289
+}

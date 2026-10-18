@@ -52,3 +52,41 @@ node scripts/jobs.mjs sync-ina-serie-diaria
 ```
 
 Job no programado (`habilitado: false`); respeta el interruptor global de jobs. La primera corrida hace el backfill completo; las siguientes son incrementales. Una estación que falla no detiene las demás y la salud de la fuente `ina-a5` se actualiza en `hazard_source_health`.
+
+## Pronósticos (calibrados 499 y 289)
+
+| Calibrado | Nombre A5 | Variable | Soporte | Qualifiers | Paso |
+|---|---|---|---|---|---|
+| 499 | `parana_estacional_sissa` | `Hms` altura media semanal, m | `semanal_media` (25 series), `diario` (`Hmd`: Zárate, Atucha) | `main`, `p10`, `p90` | semanal |
+| 289 | `tabprono_central` | `H` altura hidrométrica, m | `instantaneo` (timeSupport 0) | `inferior`, `medio`, `superior` | semanal |
+
+- Catálogo de series: `ina/series-pronostico-a5.ts`, versión `SERIES_PRONOSTICO_VERSION` (`ina-a5-pronostico-2026-10-17.1`), resuelto con `/a5/obs/puntual/series?id=…` porque las corridas llegan con `metadata: null`.
+- Estaciones propias cubiertas: 499 → Itá Ibaté, Itatí, Paso de la Patria, Corrientes, Empedrado, Bella Vista, Goya, Esquina; 289 → Corrientes, Goya. Ituzaingó y el Uruguay no tienen pronóstico. El resto conserva los ids A5 con `estacion_id` nulo.
+- Todas las alturas son metros sobre el cero de la escala local, salvo Atucha (red `na-sa`, referencia `desconocida`). Las series 34881–34883 de 499 no están publicadas en A5: se guardan con variable, unidad y estación nulas y soporte `desconocido`. Una serie fuera del catálogo se guarda igual, sin estación, y el job la informa en `seriesDesconocidas`.
+
+### Qué no se infiere
+
+- `p10/p90` e `inferior/medio/superior` se guardan como etiquetas. No se derivan probabilidades ni se suponen cuantiles para `inferior/superior`.
+- Una media semanal nunca se convierte en pico diario. `timestart = timeend` en 499 no significa muestra instantánea: manda el soporte del catálogo.
+- No se interpola entre pasos semanales de 289.
+
+### Almacenamiento
+
+- Migración 0027: `hidro_ina_corrida` (PK `cal_id, cor_id`; `forecast_date`, `descargado_en`, `lote_sha256` → `hidro_lote_crudo`) y `hidro_ina_pronostico` (único por `cor_id, series_id, timestart, timeend, qualifier`; `qualifier` nulo permitido).
+- En `hidro_lote_crudo`, los lotes de calibrado usan `fuente = 'ina-a5-calibrado'` y `serie_id = cal_id`.
+- Una emisión ya guardada no se vuelve a guardar: ni lote, ni valores, ni cambio de `forecast_date`. Filas repetidas dentro de un payload conservan la primera.
+- Lectura: `leerUltimaCorridaIna(db, calId, asOf)` devuelve la corrida con mayor `forecast_date <= asOf`. Una emisión vieja descargada después no pasa a ser la más nueva.
+
+### Archivo histórico
+
+Sin autenticación A5 sólo entrega la última corrida (`/sim/calibrados/{id}/corridas/last`); `corridas_guardadas` requiere `cookieAuth` (289 tiene 73 corridas 2022-03 → 2024-06; 499, ninguna). Para evaluar con emisiones pasadas hay que pedir acceso a INA. Hasta entonces el archivo se arma descargando hacia adelante.
+
+### Presupuesto y ejecución
+
+Una solicitud por calibrado (2 por corrida del job), timeout y reintentos de `CONFIG_FUENTES.inaA5`. Con 4 consultas por día son 8 solicitudes diarias. Un calibrado que falla no detiene el otro; la salud de `ina-a5-pronostico` se actualiza best-effort.
+
+```bash
+node scripts/jobs.mjs sync-ina-pronostico
+```
+
+Job no programado (`habilitado: false`, intervalo previsto 6 h).

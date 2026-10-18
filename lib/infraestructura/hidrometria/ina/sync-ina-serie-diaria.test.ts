@@ -36,6 +36,7 @@ type Llamada = { serieId: number; desde: string; hasta: string }
 function clienteFalso(llamadas: Llamada[]): ClienteA5 {
   return {
     obtenerEstaciones: async () => ({ ok: false, motivo: 'http_error', detalle: 'no usado' }),
+    obtenerUltimaCorrida: async () => ({ ok: false, motivo: 'http_error', detalle: 'no usado' }),
     obtenerObservaciones: async (serieId, desde, hasta): Promise<ResultadoHttp<LoteObservacionesA5>> => {
       llamadas.push({ serieId, desde, hasta })
       if (serieId === goya.a5SerieAlturaDiariaId) return { ok: false, motivo: 'timeout', detalle: 'timeout tras 10ms' }
