@@ -3,6 +3,8 @@
 // allá en ninguna de las dos direcciones. Un solo lugar calcula los bordes
 // para que el campo del cliente (vigencia-field.tsx) y el schema del
 // servidor (validacion-trayectoria.ts) nunca discrepen.
+import { sumarMesesBA } from './zona-horaria'
+
 const MESES_VENTANA = 12
 
 export const MENSAJE_FUERA_DE_RANGO_VIGENCIA =
@@ -20,9 +22,7 @@ export interface RangoVigencia {
  * tests puedan congelarlo sin pisar el reloj del sistema.
  */
 export function rangoVigencia(ahora: Date = new Date()): RangoVigencia {
-  const min = new Date(ahora)
-  min.setMonth(min.getMonth() - MESES_VENTANA)
-  return { min, max: new Date(ahora) }
+  return { min: sumarMesesBA(ahora, -MESES_VENTANA), max: new Date(ahora) }
 }
 
 export function dentroDeRangoVigencia(fecha: Date, ahora: Date = new Date()): boolean {

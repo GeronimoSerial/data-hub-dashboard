@@ -18,6 +18,7 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - [x] R1 Log unexpected errors in the POST 500 path; remove DBGT debug line in `reporte-inicial-form.test.tsx`.
 - [x] R2 Server owns time: ignore/clamp client `rigeDesde` (server `now`, tolerate small skew) for eligibility.
 - [x] R3 Client races: serialize/debounce draft saves; guard replay effect against concurrent `enviar`; `enviandoRef` guard + typed base movimiento in `enviarSoloFotos`; single photo-link path; keep IDB/localStorage consistent.
+- [x] R2b Server date math must not depend on process TZ: make `vigencia-eleccion.ts` / `vigencia-rango.ts` (used server-side via `consistencia-parte.ts`) compute in America/Argentina/Buenos_Aires explicitly; add a test under TZ=UTC. (User requirement: server time must be Buenos Aires UTC-3.)
 - [ ] R4 Idempotency: lookup inside the transaction; detect unique violations by driver error code, not message regex.
 - [ ] R5 Single source of consistency rules shared by client and server.
 - [ ] R6 A3 follow-up: banner dismissals must not reset across `reporte-inicial-form` steps.
@@ -46,3 +47,10 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
   - `npx tsc --noEmit`: exit 0
   - `timeout 300 npx vitest run components/infraestructura/actualizar`: 6 files, 84 tests passed (baseline 82 + 2 new)
   - commit: see git log (fix(parte): serialize client draft saves and guard replay sends)
+- R2b: route delegated direct (this worker is the single writer for the parent-authorized surfaces; no further delegation). Shared helper `lib/infraestructura/zona-horaria.ts` (`calendarioBA`, `instanteBA`, `sumarMesesBA`) uses a fixed UTC-3 offset (Buenos Aires has no DST since 2009); no existing helper covered this (`rg` found only per-file `timeZone` Intl formatters, which are display-only).
+  - Test-first RED, method: `vitest.config.ts` pins `process.env.TZ` at config load, so `TZ=UTC npx vitest run` is overridden. The new tests switch `process.env.TZ` at runtime inside the test (Node 24 honors it) and restore it. RED on the pre-change code: `"hoy" usa el día de Buenos Aires...` and `"otro" combina fecha y hora...` (null / `2026-10-17T23:00Z` instead of `2026-10-18T02:00Z`); `el borde de 12 meses conserva la hora...` (`13:00Z` instead of `12:00Z` under America/New_York on the DST change day); `zona-horaria.test.ts` failed on the missing module.
+  - Changes: `vigencia-eleccion.ts` (combinar/fechaCalendario/resumen use the BA calendar, public signatures unchanged), `vigencia-rango.ts` (`setMonth` replaced by `sumarMesesBA`). Existing "hoy combina" test now asserts the BA instant instead of local `getHours`.
+  - `npx tsc --noEmit`: exit 0
+  - `timeout 300 npx vitest run lib/infraestructura/vigencia-eleccion lib/infraestructura/vigencia-rango lib/infraestructura/consistencia-parte components/infraestructura/actualizar app/api/problematicas/parte/route.test.ts`: 11 files, 209 tests passed
+  - Same set plus `zona-horaria` under a scratch config without the TZ pin and with `TZ=UTC`: 12 files, 212 tests passed.
+  - Out of scope (client, not in the surfaces): `vigencia-chips.tsx` and `reporte-inicial-form.tsx` still use browser-local `Date` methods.

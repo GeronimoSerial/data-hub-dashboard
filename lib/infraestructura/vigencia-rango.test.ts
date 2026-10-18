@@ -23,6 +23,23 @@ describe('rangoVigencia', () => {
   })
 })
 
+// Un proceso con horario de verano movía el borde de 12 meses una hora: el
+// reloj de Buenos Aires (UTC-3, sin horario de verano) no cambia.
+describe('rangoVigencia con la zona del proceso distinta de Buenos Aires', () => {
+  it('el borde de 12 meses conserva la hora de Buenos Aires aunque el proceso esté en Nueva York', () => {
+    const previa = process.env.TZ
+    process.env.TZ = 'America/New_York'
+    try {
+      // 2026-03-08 09:00 en Buenos Aires, justo el día que cambia el horario en EE. UU.
+      const min = rangoVigencia(new Date('2026-03-08T12:00:00.000Z')).min
+      expect(min.toISOString()).toBe('2025-03-08T12:00:00.000Z')
+    } finally {
+      if (previa === undefined) delete process.env.TZ
+      else process.env.TZ = previa
+    }
+  })
+})
+
 describe('dentroDeRangoVigencia', () => {
   it('acepta el propio "ahora" y el borde de 12 meses atrás', () => {
     expect(dentroDeRangoVigencia(AHORA, AHORA)).toBe(true)
