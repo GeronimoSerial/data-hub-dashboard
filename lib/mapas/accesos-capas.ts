@@ -303,6 +303,8 @@ export interface CruceAccesoProps {
   indice: number
   nombreCurso: string | null
   nombrePuente: string | null
+  tipoCurso: string | null
+  intermitente: boolean | null
 }
 
 export interface ResumenCobertura {
@@ -456,6 +458,8 @@ export function construirCrucesAcceso(
         indice,
         nombreCurso: cruce.nombreCurso ?? null,
         nombrePuente: cruce.nombrePuente ?? null,
+        tipoCurso: cruce.tipoCurso ?? null,
+        intermitente: cruce.intermitente ?? null,
       },
     }),
   )

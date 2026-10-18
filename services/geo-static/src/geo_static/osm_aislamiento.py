@@ -501,12 +501,16 @@ def clasificar_cruce(cruce: dict) -> str:
 def _cruce_export(cruce: dict, punto_x: float, punto_y: float) -> dict:
     """Registro de un cruce para el export de geometria. `nombreCurso` es el
     `name` OSM del curso de agua cruzado y `nombrePuente` el `bridge:name` o
-    `name` de la via cuando el cruce es un puente; ambos null si faltan."""
+    `name` de la via cuando el cruce es un puente; ambos null si faltan.
+    `tipoCurso` es el tag `waterway` del curso e `intermitente` sale de
+    `intermittent`/`seasonal` (null = desconocido, ver `_intermitente_desde_fila`)."""
     return {
         "lon": round(punto_x, 6),
         "lat": round(punto_y, 6),
         "clasificacion": clasificar_cruce(cruce),
         "nombreCurso": cruce.get("nombre_curso"),
+        "tipoCurso": cruce.get("tipo_curso"),
+        "intermitente": cruce.get("intermitente"),
         "nombrePuente": cruce.get("nombre_puente"),
     }
 
@@ -532,12 +536,12 @@ def _nombre_osm(valor):
     return None
 
 
-def _nombre_desde_fila(fila):
-    """`name` de una fila pyrosm: columna propia o, si pyrosm lo dejo dentro
-    de la columna `tags` (dict o JSON), desde ahi."""
-    nombre = _nombre_osm(fila.get("name"))
-    if nombre is not None:
-        return nombre
+def _tag_desde_fila(fila, clave: str):
+    """Valor str no vacio del tag `clave` de una fila pyrosm: columna propia o,
+    si pyrosm lo dejo dentro de la columna `tags` (dict o JSON), desde ahi."""
+    valor = _nombre_osm(fila.get(clave))
+    if valor is not None:
+        return valor
     tags = fila.get("tags")
     if isinstance(tags, str):
         import json
@@ -547,8 +551,36 @@ def _nombre_desde_fila(fila):
         except ValueError:
             return None
     if isinstance(tags, dict):
-        return _nombre_osm(tags.get("name"))
+        return _nombre_osm(tags.get(clave))
     return None
+
+
+def _nombre_desde_fila(fila):
+    """`name` de una fila pyrosm (columna propia o dentro de `tags`)."""
+    return _tag_desde_fila(fila, "name")
+
+
+def _intermitente_desde_fila(fila):
+    """Intermitencia de un curso de agua: True si `intermittent=yes` o
+    `seasonal=yes`; False solo si alguno de los dos esta explicitamente en
+    `no` (y ninguno en `yes`); None si no hay evidencia. Nunca asume False."""
+    valores = [
+        (_tag_desde_fila(fila, clave) or "").casefold()
+        for clave in ("intermittent", "seasonal")
+    ]
+    if "yes" in valores:
+        return True
+    if "no" in valores:
+        return False
+    return None
+
+
+def _atributos_agua_desde_fila(fila) -> dict:
+    """`tipo_curso` (tag `waterway`) e `intermitente` de una fila de agua."""
+    return {
+        "tipo_curso": _tag_desde_fila(fila, "waterway"),
+        "intermitente": _intermitente_desde_fila(fila),
+    }
 
 
 def _coordenadas_ruta(grafo, ruta_nodos) -> list[list[float]]:
@@ -848,6 +880,7 @@ def construir_geometrias_agua_y_fords_local(
     bbox_este: float,
     bbox_oeste: float,
     nombres_agua_out: Optional[list] = None,
+    atributos_agua_out: Optional[list] = None,
 ) -> tuple[list, list]:
     """Extrae del extracto local .osm.pbf los cursos de agua (`WATERWAYS_CRUCE`,
     como entidades separadas de la red vial; ver nota de modulo G1-fix2) y los
@@ -863,6 +896,12 @@ def construir_geometrias_agua_y_fords_local(
 
     `nombres_agua_out`: lista opcional que recibe, en paralelo a `agua`, el
     `name` OSM de cada curso de agua (None si falta).
+
+    `atributos_agua_out`: lista opcional que recibe, en paralelo a `agua`, un
+    dict `{"tipo_curso", "intermitente"}` por curso (ver
+    `_atributos_agua_desde_fila`). pyrosm deja `intermittent`/`seasonal` (y
+    todo tag que no es `waterway` ni columna propia) dentro de la columna
+    `tags` en JSON; verificado contra el extracto real, de ahi se leen.
 
     ## N3-G — DOS lecturas, no una
 
@@ -918,6 +957,8 @@ def construir_geometrias_agua_y_fords_local(
                     agua.append(geometria)
                     if nombres_agua_out is not None:
                         nombres_agua_out.append(_nombre_desde_fila(fila))
+                    if atributos_agua_out is not None:
+                        atributos_agua_out.append(_atributos_agua_desde_fila(fila))
 
     datos_ford = osm.get_data_by_custom_criteria(
         custom_filter={"ford": ["yes"]},
@@ -1101,6 +1142,7 @@ def construir_cruces_por_arista(
     puntos_ford=None,
     tolerancia_ford_m: float = TOLERANCIA_FORD_M,
     nombres_agua=None,
+    atributos_agua=None,
 ) -> dict:
     """Clasifica, UNA sola vez para todo el grafo (no por escuela), que
     aristas viales cruzan un curso de agua y con que tipo de cruce.
@@ -1121,6 +1163,9 @@ def construir_cruces_por_arista(
     `nombres_agua`: lista opcional paralela a `geometrias_agua` con el `name`
     de cada curso; alimenta `nombre_curso`. `nombre_puente` sale de la arista
     (`bridge:name`/`name`) solo cuando el cruce es un puente.
+
+    `atributos_agua`: lista opcional paralela a `geometrias_agua` con dicts
+    `{"tipo_curso", "intermitente"}`; sin ella ambos quedan None.
     """
     cruces: dict = {}
     if not geometrias_agua:
@@ -1160,6 +1205,11 @@ def construir_cruces_por_arista(
     for (u, v, k, datos, idx_agua, punto), cerca in zip(entradas, es_ford_cerca):
         explicito = _tiene_ford(datos, grafo, u, v) or cerca
         con_puente = _tiene_puente(datos)
+        atributos = (
+            atributos_agua[idx_agua]
+            if atributos_agua is not None and idx_agua < len(atributos_agua)
+            else {}
+        )
         cruces.setdefault((u, v, k), []).append(
             {
                 "nombre_curso": (
@@ -1168,6 +1218,8 @@ def construir_cruces_por_arista(
                     else None
                 ),
                 "nombre_puente": _nombre_puente(datos) if con_puente else None,
+                "tipo_curso": atributos.get("tipo_curso"),
+                "intermitente": atributos.get("intermitente"),
                 "agua_idx": idx_agua,
                 "punto": (punto.x, punto.y),
                 "con_puente": _tiene_puente(datos),

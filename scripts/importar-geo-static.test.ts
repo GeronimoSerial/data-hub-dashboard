@@ -309,6 +309,39 @@ describe('importarGeometria', () => {
     ])
   })
 
+  it('persiste tipoCurso e intermitente y acepta cruces sin ellos', async () => {
+    const cruces = [
+      { lon: -58.8, lat: -27.4, clasificacion: 'vado', tipoCurso: 'stream', intermitente: true },
+      { lon: -58.81, lat: -27.41, clasificacion: 'puente', tipoCurso: null, intermitente: null },
+      { lon: -58.82, lat: -27.42, clasificacion: 'sin_evidencia' },
+    ]
+    const path = escribirNdjsonGz('geometria-tipo-curso.ndjson.gz', [filaGeometriaBase({ cruces })])
+    const { db, llamadas } = crearDbFalsa()
+
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    const lote = llamadas[0].valores as Array<Record<string, unknown>>
+    expect(lote[0].cruces).toEqual(cruces)
+  })
+
+  it('rechaza intermitente no booleano', async () => {
+    const path = escribirNdjsonGz('geometria-intermitente-invalido.ndjson.gz', [filaGeometriaBase({
+      cruces: [{ lon: -58.8, lat: -27.4, clasificacion: 'vado', intermitente: 'yes' }],
+    })])
+    const { db } = crearDbFalsa()
+
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado.fallidas).toBe(1)
+  })
+
   it('inserta una fila valida con ruta y cruces en camelCase', async () => {
     const path = escribirNdjsonGz('geometria.ndjson.gz', [filaGeometriaBase()])
 

@@ -1833,3 +1833,77 @@ class TestSuperficies:
             "pavimentado": 800.0, "ripio": 360.0, "tierra": 140.0,
         }
         assert calcular_superficies(grafo, [1]) is None
+
+
+class TestTipoCursoEIntermitencia:
+    def test_intermitente_desde_fila(self):
+        from geo_static.osm_aislamiento import _intermitente_desde_fila
+
+        assert _intermitente_desde_fila(pd.Series({"intermittent": "yes"})) is True
+        assert _intermitente_desde_fila(pd.Series({"seasonal": "yes", "intermittent": "no"})) is True
+        assert _intermitente_desde_fila(pd.Series({"tags": '{"intermittent": "yes"}'})) is True
+        assert _intermitente_desde_fila(pd.Series({"intermittent": "no"})) is False
+        assert _intermitente_desde_fila(pd.Series({"intermittent": float("nan")})) is None
+        assert _intermitente_desde_fila(pd.Series({"waterway": "stream"})) is None
+
+    def test_lectura_pbf_lee_intermittent_desde_tags(self, monkeypatch):
+        import sys
+        import types
+
+        from shapely.geometry import LineString
+
+        from geo_static.osm_aislamiento import construir_geometrias_agua_y_fords_local
+
+        class OSMFalso:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def get_data_by_custom_criteria(self, custom_filter, **kwargs):
+                if "waterway" not in custom_filter:
+                    return None
+                return pd.DataFrame([
+                    {"geometry": LineString([(0, 0), (1, 1)]), "waterway": "stream",
+                     "tags": '{"visible":false,"intermittent":"yes"}'},
+                    {"geometry": LineString([(0, 1), (1, 0)]), "waterway": "river",
+                     "tags": '{"visible":false,"name":"Rio X"}'},
+                ])
+
+        monkeypatch.setitem(sys.modules, "pyrosm", types.SimpleNamespace(OSM=OSMFalso))
+        atributos = []
+        agua, _ = construir_geometrias_agua_y_fords_local(
+            "x.pbf", 1, 0, 1, 0, atributos_agua_out=atributos
+        )
+        assert len(agua) == 2
+        assert atributos == [
+            {"tipo_curso": "stream", "intermitente": True},
+            {"tipo_curso": "river", "intermitente": None},
+        ]
+
+    def test_cruces_exportan_tipo_e_intermitencia(self, monkeypatch):
+        g, agua = _grafo_multi_departamento_con_cabecera_compartida()
+        atributos = [{"tipo_curso": "stream", "intermitente": True} for _ in agua]
+        cruces = construir_cruces_por_arista(
+            g, construir_arbol_agua(agua), agua, atributos_agua=atributos
+        )
+        _patch_nearest_nodes_departamento(monkeypatch, _mapeo_export_departamento())
+        geometrias = []
+        calcular_metricas_departamento(
+            g, g.reverse(copy=False), _escuelas_export_departamento(), "cabecera",
+            cruces_por_arista=cruces, geometrias_out=geometrias,
+        )
+        exportados = [c for geometria in geometrias for c in geometria["cruces"]]
+        assert exportados
+        assert all(c["tipoCurso"] == "stream" and c["intermitente"] is True for c in exportados)
+
+    def test_cruces_sin_atributos_exportan_null(self, monkeypatch):
+        g, agua = _grafo_multi_departamento_con_cabecera_compartida()
+        cruces = construir_cruces_por_arista(g, construir_arbol_agua(agua), agua)
+        _patch_nearest_nodes_departamento(monkeypatch, _mapeo_export_departamento())
+        geometrias = []
+        calcular_metricas_departamento(
+            g, g.reverse(copy=False), _escuelas_export_departamento(), "cabecera",
+            cruces_por_arista=cruces, geometrias_out=geometrias,
+        )
+        exportados = [c for geometria in geometrias for c in geometria["cruces"]]
+        assert exportados
+        assert all(c["tipoCurso"] is None and c["intermitente"] is None for c in exportados)

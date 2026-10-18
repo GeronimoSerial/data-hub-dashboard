@@ -254,6 +254,24 @@ describe('construirCrucesAcceso', () => {
     })
   })
 
+  it('pasa tipoCurso e intermitente, con null cuando la fila vieja no los trae', () => {
+    const resultado = construirCrucesAcceso({
+      cueAnexo: 'A',
+      disponible: true,
+      cruces: [
+        { lon: -64, lat: -31, clasificacion: 'vado', tipoCurso: 'stream', intermitente: true },
+        { lon: -64.1, lat: -31.1, clasificacion: 'puente', tipoCurso: 'river', intermitente: false },
+        { lon: -64.2, lat: -31.2, clasificacion: 'vado' },
+      ],
+    })
+
+    expect(resultado.features.map((f) => [f.properties.tipoCurso, f.properties.intermitente])).toEqual([
+      ['stream', true],
+      ['river', false],
+      [null, null],
+    ])
+  })
+
   it('devuelve una colección vacía cuando no está disponible', () => {
     expect(construirCrucesAcceso(null).features).toHaveLength(0)
     expect(construirCrucesAcceso({ cueAnexo: 'A', disponible: false }).features).toHaveLength(0)

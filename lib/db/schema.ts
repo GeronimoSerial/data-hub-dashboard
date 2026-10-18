@@ -1510,6 +1510,10 @@ export type CruceAccesoOsm = {
   nombreCurso?: string | null
   // Bridge `bridge:name`/`name` for bridge crossings; absent in older rows.
   nombrePuente?: string | null
+  // OSM `waterway` value of the crossed waterway (river, stream, canal...); absent in older rows.
+  tipoCurso?: string | null
+  // true for intermittent=yes or seasonal=yes, false only when tagged `no`, null when unknown.
+  intermitente?: boolean | null
 }
 
 export type RutaGeoJson = {

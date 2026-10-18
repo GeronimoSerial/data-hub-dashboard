@@ -295,6 +295,8 @@ const cruceGeometriaSchema = z.object({
   // Optional: extracts produced before the job exported names omit them.
   nombreCurso: z.string().nullable().optional(),
   nombrePuente: z.string().nullable().optional(),
+  tipoCurso: z.string().nullable().optional(),
+  intermitente: z.boolean().nullable().optional(),
 })
 
 const viaPrincipalObjetoSchema = z.object({
