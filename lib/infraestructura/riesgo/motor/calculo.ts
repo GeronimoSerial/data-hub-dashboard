@@ -45,6 +45,7 @@ import { calcularRiesgoAcceso, type ResultadoRiesgoAcceso } from './riesgo-acces
 import { valorAmenazaRio } from './rio-prefectura'
 import { valorLluviaObservada } from './lluvia-observada'
 import { explicacionExposicionV04 } from './exposicion-v04'
+import { explicacionAlturaCritica } from './altura-critica'
 
 const clamp0a100 = (valor: number): number => Math.min(100, Math.max(0, valor))
 const redondear2 = (valor: number): number => Math.round(valor * 100) / 100
@@ -691,6 +692,10 @@ function explicacionRioV04(
 // Sin `alcanceMargen` (cota conservadora sin P con margen) se usa la P exacta
 // (conservadora o principal) para ambos umbrales.
 function alcanceObservadoModelado(rioProb: EvidenciaRioProbabilistica): { nivel: 'completo' | 'reducido' | 'ninguno'; texto: string } {
+  // T10d: con altura crítica, la compuerta es P(máx escala ≥ h_crit) /
+  // tendencia, con piso S2 y defensa (motor/altura-critica.ts).
+  const altura = rioProb.alcanceMargen?.alturaCritica ?? null
+  if (altura) return { nivel: altura.alcance, texto: `${altura.alcance}: ${explicacionAlturaCritica(altura, rioProb.ventanaHoras)}` }
   const pExacta = rioProb.conservador ?? rioProb.principal
   const pUmbral = rioProb.alcanceMargen ? rioProb.alcanceMargen.pUmbral : pExacta
   const pBanda = rioProb.alcanceMargen ? rioProb.alcanceMargen.pBanda : pExacta

@@ -320,7 +320,9 @@ describe('resolverEvidenciaRio — exposición dinámica por DEM (estimada)', ()
 
 // Reglas v0.4 (F3): exposición por terreno contra el agua posible.
 describe('resolverEvidenciaRio con reglas v0.4', () => {
-  const V04 = { reglas: 'v0.4' as const }
+  // Rama DEM + referencia (Ituzaingó tiene offset calibrado desde T10d).
+  const V04 = { reglas: 'v0.4' as const, cerosEfectivos: {} }
+  const V04_CALIBRADO = { reglas: 'v0.4' as const }
   const ASOF_V04 = '2026-10-18T02:15:04.000Z'
   const LECTURA_V04 = '2026-10-17T15:00:00.000Z'
 
@@ -463,25 +465,25 @@ describe('resolverEvidenciaRio con reglas v0.4', () => {
       }
     }
 
-    it('Paso de los Libres usa el cero efectivo calibrado: cota = 39,19 + 0,837·(h + subida)', () => {
-      const r = vigente(resolverEvidenciaRio(pdl({ sueloM: 53.8, nivelRioDemM: 42, distanciaRioM: 360 }), PDL, ASOF_V04, V04))!
+    it('Paso de los Libres usa el cero efectivo calibrado: cota = 37,12 + (h + subida) (b = 1, T10d)', () => {
+      const r = vigente(resolverEvidenciaRio(pdl({ sueloM: 53.8, nivelRioDemM: 42, distanciaRioM: 360 }), PDL, ASOF_V04, V04_CALIBRADO))!
       const e = r.exposicionV04![24]
       expect(e.referencia).toBe('cero_efectivo')
-      expect(e.aguaPosibleM).toBeCloseTo(39.19 + 0.837 * 9.44, 2)
+      expect(e.aguaPosibleM).toBeCloseTo(37.12 + 9.44, 2)
       expect(e.alcance).toBe('ninguno')
-      expect(e.alturaCriticaM).toBeCloseTo((53.8 - 2 - 39.19) / 0.837, 2)
+      expect(e.alturaCriticaM).toBeCloseTo(53.8 - 2 - 37.12, 2)
       expect(e.h0M).toBe(9.44)
     })
 
     it('agua de laguna (57 m) en un tramo calibrado no se toma como río → no evaluable por DEM', () => {
-      const r = vigente(resolverEvidenciaRio(pdl({ sueloM: 58, nivelRioDemM: 57, distanciaRioM: 200 }), PDL, ASOF_V04, V04))!
+      const r = vigente(resolverEvidenciaRio(pdl({ sueloM: 58, nivelRioDemM: 57, distanciaRioM: 200 }), PDL, ASOF_V04, V04_CALIBRADO))!
       expect(r.exposicionV04![24]).toMatchObject({ criterio: 'no_evaluable', alcance: 'ninguno' })
     })
 
     it('Monte Caseros: el DEM aplanado por el embalse (35,5 m) ya no marca la escuela', () => {
       const d = pdl({ sueloM: 44.5, nivelRioDemM: 35.5, distanciaRioM: 400 }, 'pna-monte-caseros', 'MONTE CASEROS', 1.5)
       d.lecturas = [lectura({ estacionId: 'pna-monte-caseros', lecturaM: 7.13, alertaM: 7, evacuacionM: 8, medidaEn: LECTURA_V04 })]
-      const r = vigente(resolverEvidenciaRio(d, PDL, ASOF_V04, V04))!
+      const r = vigente(resolverEvidenciaRio(d, PDL, ASOF_V04, V04_CALIBRADO))!
       expect(r.exposicionV04![24]).toMatchObject({ referencia: 'cero_efectivo', alcance: 'ninguno' })
     })
   })

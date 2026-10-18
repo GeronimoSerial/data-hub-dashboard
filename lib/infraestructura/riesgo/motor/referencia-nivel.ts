@@ -15,6 +15,7 @@ import {
   SALTO_MAX_DIARIO_M,
   VENTANA_REFERENCIA_LARGA_V04,
 } from './config'
+import { OFFSETS_CALIBRADOS_V04, offsetUtilizable } from './altura-critica'
 
 export type FilaNivelDiario = { fecha: string; valorM: number }
 
@@ -71,32 +72,18 @@ export type CeroEfectivo = {
   metodo: string
 }
 
-// Ajuste: percentil 75 de la elevación GLO-30 sobre el borde del agua
-// clasificada en escenas Sentinel-2 L2A (nubes < 20 %) en la zona urbana del
-// tramo, contra la altura diaria A5 de la escala del mismo día. Para agregar
-// una estación: ≥ 3 fechas con h distinto, regresión lineal, documentar aquí.
-export const CEROS_EFECTIVOS_V04: Readonly<Record<string, CeroEfectivo>> = {
-  'pna-paso-de-los-libres': {
-    estacionId: 'pna-paso-de-los-libres',
-    aM: 39.19,
-    bM: 0.837,
-    n: 5,
-    r2: 0.953,
-    fechas: ['2019-01-24', '2023-11-04', '2023-11-19', '2023-11-29', '2024-05-17'],
-    metodo: 'regresion borde S2 p75 vs h A5 (h 8,69–11,28 m)',
-  },
-  // Sólo 2 fechas con h muy parecido (8,35 y 8,88 m): pendiente física fija 1
-  // (la escala está en el embalse de Salto Grande) y a = media(p75 − h).
-  'pna-monte-caseros': {
-    estacionId: 'pna-monte-caseros',
-    aM: 31.26,
-    bM: 1,
-    n: 2,
-    r2: null,
-    fechas: ['2023-11-29', '2024-05-17'],
-    metodo: 'pendiente fija 1, a = media(borde S2 p75 − h A5)',
-  },
-}
+// T10d: los ceros efectivos salen de los offsets calibrados con pendiente fija
+// b = 1 (motor/altura-critica.ts, veredicto usar / usar con reservas). El
+// ajuste provisorio de T10c (Paso de los Libres 39,19 + 0,837·h, Monte Caseros
+// 31,26 + h con p75) queda reemplazado.
+export const CEROS_EFECTIVOS_V04: Readonly<Record<string, CeroEfectivo>> = Object.fromEntries(
+  Object.keys(OFFSETS_CALIBRADOS_V04).flatMap((id) => {
+    const c = offsetUtilizable(id)
+    if (!c) return []
+    const cero: CeroEfectivo = { estacionId: id, aM: c.aM, bM: 1, n: c.n, r2: null, fechas: [], metodo: `${c.fuente} (${c.veredicto}, sd ${c.sdM} m, ${c.fecha})` }
+    return [[id, cero]]
+  }),
+)
 
 export function cotaAguaCeroEfectivo(cero: CeroEfectivo, hM: number): number {
   return redondear2(cero.aM + cero.bM * hM)

@@ -1,3 +1,4 @@
+import type { InfoAlturaCritica } from './altura-critica'
 // Contratos Zod/TS de salida del motor v0 (E3b). Compartidos entre el núcleo
 // puro (motor/calculo.ts), el job de persistencia y las APIs de lectura.
 import { z } from 'zod'
@@ -88,5 +89,7 @@ export interface EvidenciaRioProbabilistica {
   // MARGEN_ERROR_DEM_V04_M) y ≥ (cota − margen − BANDA_EXPOSICION_V04_M), con
   // el mismo ensamble. Sólo decide el piso observado (mismo margen que la
   // zona DEM); los pisos probabilísticos usan la cota sin margen.
-  alcanceMargen?: { cotaConservadoraM: number; pUmbral: number; pBanda: number } | null
+  // T10d: altura crítica en la escala de referencia, P(máx ≥ h_crit), piso
+  // S2 y defensa; si está, decide el piso observado de la zona modelada.
+  alcanceMargen?: { cotaConservadoraM: number; pUmbral: number; pBanda: number; alturaCritica?: InfoAlturaCritica | null } | null
 }

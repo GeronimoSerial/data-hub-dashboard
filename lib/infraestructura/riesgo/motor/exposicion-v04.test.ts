@@ -108,3 +108,34 @@ describe('evaluarExposicionV04', () => {
     )
   })
 })
+
+describe('T10d: altura crítica en la zona DEM', () => {
+  const cero = { estacionId: 'pna-goya', aM: 28.73, bM: 1, n: 4, r2: null, fechas: [], metodo: 'b=1' }
+  // Suelo 38 → h_crit = 38 − 2 − 28,73 = 7,27 m; río esperado 28,73 + 3 = 31,73.
+  const dem = { sueloM: 38, nivelRioDemM: 31.5, distanciaRioM: 300 }
+  const maximos = { 24: Array(20).fill(6), 72: Array(20).fill(7), 240: Array(20).fill(8) }
+  const p = { ...base, dem, ceroEfectivo: cero, hReferenciaM: 3, h0M: 5, estacionId: 'pna-goya', maximosEscala: maximos }
+
+  it('P(máx escala ≥ h_crit) decide el piso y es monótona entre horizontes', () => {
+    const r = evaluarExposicionV04(p)
+    if (r.tipo !== 'evaluada') throw new Error(r.tipo)
+    expect(r.porHorizonte[240].alturaCritica).toMatchObject({ alturaCriticaM: 7.27, fuente: 'calibrada', pAlcanzar: 1, alcance: 'completo' })
+    expect(r.porHorizonte[24].alturaCritica?.pAlcanzar).toBe(0)
+    expect(r.porHorizonte[72].alcance).toBe('reducido')
+  })
+
+  it('la evidencia seca S2 eleva h_crit y apaga el piso', () => {
+    const r = evaluarExposicionV04({ ...p, evidenciaSeco: { estacionId: 'pna-goya', hSecoM: 8.5, fecha: '2023-11-12' } })
+    if (r.tipo !== 'evaluada') throw new Error(r.tipo)
+    expect(r.porHorizonte[240]).toMatchObject({ alturaCriticaM: 8.5, alcance: 'reducido' })
+  })
+
+  it('escuela defendida (coronamiento desconocido): piso un nivel menor y texto provisorio', () => {
+    const defensa = { id: 'goya-anillo', localidades: ['GOYA'], cotaCoronamientoM: null, datum: 'desconocido' as const, fuente: 'x', fechaRelevamiento: null, estado: 'desconocido' as const }
+    const r = evaluarExposicionV04({ ...p, defensa })
+    if (r.tipo !== 'evaluada') throw new Error(r.tipo)
+    expect(r.porHorizonte[240].alcance).toBe('reducido')
+    expect(explicacionExposicionV04(r.porHorizonte[240], 240)).toContain('protegida por defensa costera; cota de coronamiento desconocida: piso reducido un nivel (provisorio)')
+    expect(explicacionExposicionV04(r.porHorizonte[240], 240)).toContain('se alcanza con 7,27 m en la escala de Goya')
+  })
+})

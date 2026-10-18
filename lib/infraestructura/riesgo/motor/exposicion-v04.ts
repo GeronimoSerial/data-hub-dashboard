@@ -19,6 +19,16 @@ import { TOLERANCIA_NIVEL_RIO_M, UMBRAL_EMBALSE_M } from './exposicion-dinamica'
 import type { EscenarioHorizonte, EscenarioSubidaEstacion } from './escenarios-subida'
 import { BANDA_EXPOSICION_V04_M, DISTANCIA_DATOS_DEM_V04_M, MARGEN_ERROR_DEM_V04_M, TOLERANCIA_RIO_CERO_EFECTIVO_V04_M } from './config'
 import { alturaCriticaCeroEfectivo, cotaAguaCeroEfectivo, type CeroEfectivo } from './referencia-nivel'
+import {
+  aplicarEvidenciaSeco,
+  evaluarAlcanceAlturaCritica,
+  explicacionAlturaCritica,
+  type DefensaCostera,
+  type FuenteAlturaCritica,
+  type InfoAlturaCritica,
+  type MaximosEscala,
+} from './altura-critica'
+import type { EvidenciaSecoS2 } from './evidencia-seco-s2'
 
 const HORIZONTES: readonly HorizontePeligro[] = [24, 72, 240]
 const CLASES_RIO_EXPUESTAS = new Set(['alto', 'medio', 'bajo'])
@@ -50,6 +60,8 @@ export type ExposicionHorizonteV04 = {
   alturaCriticaBandaM?: number | null
   h0M?: number | null
   record?: RecordEscala | null
+  /** T10d: altura crítica (con piso S2), P(máx escala ≥ h_crit) y defensa. */
+  alturaCritica?: InfoAlturaCritica | null
 }
 
 export type ResultadoExposicionV04 =
@@ -73,6 +85,11 @@ export function evaluarExposicionV04(params: {
   ceroEfectivo?: CeroEfectivo | null
   hReferenciaM?: number | null
   record?: RecordEscala | null
+  /** T10d: estación del tramo, máximos de análogos de su escala, evidencia seca S2 y defensa. */
+  estacionId?: string
+  maximosEscala?: MaximosEscala | null
+  evidenciaSeco?: EvidenciaSecoS2 | null
+  defensa?: DefensaCostera | null
 }): ResultadoExposicionV04 {
   const { dem, nivelRioTramoM, anomaliaM } = params
   const h0M = params.h0M ?? null
@@ -92,7 +109,9 @@ export function evaluarExposicionV04(params: {
         ? 'cero efectivo sin altura de referencia para validar el agua del DEM'
         : `agua cercana a ${nivelRioDemM} m no es el río (esperado ${rioEsperadoM} m por cero efectivo)`
     } else if (cero && h0M !== null) {
-      const { alturaCriticaM, alturaCriticaBandaM } = alturaCriticaCeroEfectivo(cero, sueloM, MARGEN_ERROR_DEM_V04_M, BANDA_EXPOSICION_V04_M)
+      const crudas = alturaCriticaCeroEfectivo(cero, sueloM, MARGEN_ERROR_DEM_V04_M, BANDA_EXPOSICION_V04_M)
+      const altura = alturaCriticaT10d(params, crudas, 'calibrada', cero.aM)
+      const { alturaCriticaM, alturaCriticaBandaM } = altura?.porHorizonte[24] ?? crudas
       const porHorizonte = {} as Record<HorizontePeligro, ExposicionHorizonteV04>
       for (const h of HORIZONTES) {
         const escenario = params.escenario?.porHorizonte[h] ?? null
@@ -100,7 +119,7 @@ export function evaluarExposicionV04(params: {
         const margenM = redondear2(aguaPosibleM + MARGEN_ERROR_DEM_V04_M - sueloM)
         porHorizonte[h] = {
           criterio: 'dem_agua_posible',
-          alcance: alcanceDe(margenM),
+          alcance: altura?.porHorizonte[h].alcance ?? alcanceDe(margenM),
           margenM,
           sueloM,
           nivelRioDemM,
@@ -112,6 +131,7 @@ export function evaluarExposicionV04(params: {
           referencia: 'cero_efectivo',
           alturaCriticaM,
           alturaCriticaBandaM,
+          alturaCritica: altura?.porHorizonte[h] ?? null,
           ...extra,
         }
       }
@@ -124,15 +144,18 @@ export function evaluarExposicionV04(params: {
       }
       motivoNoEvaluable = 'sin nivel actual / referencia de estación'
     } else {
+      // Referencia equivalente de la escala: h0 − anomalía interpolada.
+      const hCritDem = h0M === null ? null : redondear2(sueloM - MARGEN_ERROR_DEM_V04_M - nivelRioDemM + h0M - anomaliaM!)
+      const altura = hCritDem === null ? null
+        : alturaCriticaT10d(params, { alturaCriticaM: hCritDem, alturaCriticaBandaM: redondear2(hCritDem - BANDA_EXPOSICION_V04_M) }, 'dem', redondear2(nivelRioDemM - h0M! + anomaliaM!))
       const porHorizonte = {} as Record<HorizontePeligro, ExposicionHorizonteV04>
       for (const h of HORIZONTES) {
         const escenario = params.escenario?.porHorizonte[h] ?? null
         const subidaM = escenario?.posibleM ?? 0
         const aguaPosibleM = redondear2(nivelRioDemM + anomaliaM + subidaM)
         const margenM = redondear2(aguaPosibleM + MARGEN_ERROR_DEM_V04_M - sueloM)
-        const alcance = alcanceDe(margenM)
-        // Referencia equivalente de la escala: h0 − anomalía interpolada.
-        const hCrit = h0M === null ? null : redondear2(sueloM - MARGEN_ERROR_DEM_V04_M - nivelRioDemM + h0M - anomaliaM!)
+        const alcance = altura?.porHorizonte[h].alcance ?? alcanceDe(margenM)
+        const hCrit = altura?.porHorizonte[h].alturaCriticaM ?? hCritDem
         const referencia = params.referencia ?? 'largo_plazo'
         porHorizonte[h] = {
           criterio: 'dem_agua_posible',
@@ -147,7 +170,8 @@ export function evaluarExposicionV04(params: {
           detalle: `DEM a ${dem.distanciaRioM} m del agua${referencia === 'mediana_365_inestable' ? '; referencia_inestable (mediana 365 d)' : ''}`,
           referencia,
           alturaCriticaM: hCrit,
-          alturaCriticaBandaM: hCrit === null ? null : redondear2(hCrit - BANDA_EXPOSICION_V04_M),
+          alturaCriticaBandaM: altura?.porHorizonte[h].alturaCriticaBandaM ?? (hCrit === null ? null : redondear2(hCrit - BANDA_EXPOSICION_V04_M)),
+          alturaCritica: altura?.porHorizonte[h] ?? null,
           ...extra,
         }
       }
@@ -176,6 +200,55 @@ export function evaluarExposicionV04(params: {
   return { tipo: 'evaluada', porHorizonte: { 24: respaldo, 72: respaldo, 240: respaldo } }
 }
 
+// T10d: piso de evidencia seca S2, P(máx escala ≥ h_crit) por horizonte con
+// los miembros de análogos, tendencia/onda y defensa costera. null sin h0.
+function alturaCriticaT10d(
+  params: Parameters<typeof evaluarExposicionV04>[0],
+  crudas: { alturaCriticaM: number; alturaCriticaBandaM: number },
+  fuente: FuenteAlturaCritica,
+  aEstacionM: number,
+): { porHorizonte: Record<HorizontePeligro, InfoAlturaCritica> } | null {
+  const h0M = params.h0M ?? null
+  if (h0M === null) return null
+  const ev = params.evidenciaSeco && (!params.estacionId || params.evidenciaSeco.estacionId === params.estacionId) ? params.evidenciaSeco : null
+  const conSeco = aplicarEvidenciaSeco(crudas, ev)
+  const esc = params.escenario?.porHorizonte
+  const det = {} as Record<HorizontePeligro, number | null>
+  const posible = {} as Record<HorizontePeligro, number | null>
+  for (const h of HORIZONTES) {
+    const e = esc?.[h]
+    det[h] = e && e.tendenciaMediaM !== null ? e.tendenciaMediaM + e.ondaM : null
+    posible[h] = e?.posibleM ?? 0
+  }
+  const alcances = evaluarAlcanceAlturaCritica({
+    alturaCriticaM: conSeco.alturaCriticaM,
+    alturaCriticaBandaM: conSeco.alturaCriticaBandaM,
+    h0M,
+    maximos: params.maximosEscala ?? null,
+    subidaDeterministaM: det,
+    subidaPosibleM: posible,
+    defensa: params.defensa ?? null,
+    aEstacionM,
+  })
+  const pAlcanzarPorHorizonte = { 24: alcances[24].pAlcanzar, 72: alcances[72].pAlcanzar, 240: alcances[240].pAlcanzar }
+  const porHorizonte = {} as Record<HorizontePeligro, InfoAlturaCritica>
+  for (const h of HORIZONTES) {
+    porHorizonte[h] = {
+      ...alcances[h],
+      estacionId: params.estacionId ?? 's/d',
+      fuente,
+      alturaCriticaM: conSeco.alturaCriticaM,
+      alturaCriticaBandaM: conSeco.alturaCriticaBandaM,
+      h0M,
+      record: params.record ?? null,
+      pAlcanzarPorHorizonte,
+      evidenciaSecoS2: ev ? { ...ev, elevada: conSeco.elevadaPorSeco } : null,
+      defensa: params.defensa ?? null,
+    }
+  }
+  return { porHorizonte }
+}
+
 function alcanceDe(margenM: number): AlcanceExposicion {
   return margenM >= 0 ? 'completo' : margenM >= -BANDA_EXPOSICION_V04_M ? 'reducido' : 'ninguno'
 }
@@ -189,7 +262,9 @@ export function explicacionExposicionV04(e: ExposicionHorizonteV04, h: Horizonte
     ? `subida ${s.posibleM} por ${s.decide} [analogos_p90 ${s.analogosP90M ?? 's/d'}, tendencia ${s.tendenciaMediaM ?? 's/d'} a ${s.tasaMediaM ?? 's/d'} m/dia, onda ${s.ondaM}]`
     : 'subida 0 por sin_escenario'
   const formula = e.referencia === 'cero_efectivo' ? `${e.detalle.replace(/^.*; /, '')}·(h ${e.h0M} + ${subida})` : `dem ${e.nivelRioDemM} + anomalia ${e.anomaliaM} + ${subida}`
-  const escala = e.alturaCriticaM != null
+  const escala = e.alturaCritica
+    ? `; ${explicacionAlturaCritica(e.alturaCritica, h)}`
+    : e.alturaCriticaM != null
     ? `; se alcanza con ${e.alturaCriticaM}m en la escala (banda ${e.alturaCriticaBandaM}m); hoy ${e.h0M ?? 's/d'}m; record ${e.record ? `${e.record.valorM}m (${e.record.fecha.slice(0, 4)})` : 's/d'}`
     : ''
   const inestable = e.referencia === 'mediana_365_inestable' ? '; referencia_inestable' : ''
