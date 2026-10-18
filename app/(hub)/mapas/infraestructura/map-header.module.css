@@ -2,24 +2,10 @@
 
 .headerBar {
   --hb-bg-top: #ffffff;
-  --hb-bg-bottom: #f8fafc;
   --hb-border: #dbe2ea;
-  --hb-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 4px 12px -2px rgba(15, 23, 42, 0.06);
-  --hb-track-bg: #eef2f6;
-  --hb-track-border: #d5dde7;
   --hb-tab-text: #475569;
   --hb-tab-hover-text: #0f172a;
-  --hb-tab-hover-bg: rgba(255, 255, 255, 0.55);
-  --hb-tab-active-bg: #ffffff;
   --hb-tab-active-text: #0f172a;
-  --hb-tab-active-border: rgba(15, 23, 42, 0.08);
-  --hb-tab-active-shadow:
-    0 1px 3px rgba(15, 23, 42, 0.1),
-    0 1px 2px rgba(15, 23, 42, 0.06);
-  --hb-tab-icon: #64748b;
-  --hb-tab-icon-active: #1a6318;
   --hb-accent-bar: #eab308;
   --hb-divider: #cbd5e1;
   --hb-badge-bg: #fffbeb;
@@ -42,35 +28,16 @@
   justify-content: space-between;
   gap: 0.75rem 1rem;
   padding: 0.5rem 1rem;
-  background: linear-gradient(180deg, var(--hb-bg-top) 0%, var(--hb-bg-bottom) 100%);
+  background: var(--hb-bg-top);
   border-bottom: 1px solid var(--hb-border);
-  box-shadow: var(--hb-shadow);
-  transition:
-    background-color 180ms ease,
-    border-color 180ms ease,
-    box-shadow 180ms ease;
 }
 
 :global([data-theme='dark']) .headerBar {
   --hb-bg-top: #181a1f;
-  --hb-bg-bottom: #121418;
   --hb-border: #2a2e37;
-  --hb-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.35),
-    0 6px 16px -4px rgba(0, 0, 0, 0.45);
-  --hb-track-bg: #0c0e12;
-  --hb-track-border: #262a33;
   --hb-tab-text: #94a3b8;
   --hb-tab-hover-text: #f1f5f9;
-  --hb-tab-hover-bg: rgba(255, 255, 255, 0.04);
-  --hb-tab-active-bg: #21252d;
   --hb-tab-active-text: #f8fafc;
-  --hb-tab-active-border: #363c48;
-  --hb-tab-active-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.45),
-    0 1px 2px rgba(0, 0, 0, 0.3);
-  --hb-tab-icon: #94a3b8;
-  --hb-tab-icon-active: #ffd60a;
   --hb-accent-bar: #ffd60a;
   --hb-divider: #2e333d;
   --hb-badge-bg: rgba(255, 214, 10, 0.16);
@@ -120,14 +87,14 @@
   left: 2px;
   border-top-left-radius: 0.5rem;
   border-bottom-left-radius: 0.5rem;
-  background: linear-gradient(90deg, var(--hb-track-bg) 20%, transparent 100%);
+  background: linear-gradient(90deg, var(--hb-bg-top) 20%, transparent 100%);
 }
 
 .tabsShell[data-right='true']::after {
   right: 2px;
   border-top-right-radius: 0.5rem;
   border-bottom-right-radius: 0.5rem;
-  background: linear-gradient(270deg, var(--hb-track-bg) 20%, transparent 100%);
+  background: linear-gradient(270deg, var(--hb-bg-top) 20%, transparent 100%);
 }
 
 /* Override global .ui-tabs-list inside the map header */
@@ -136,12 +103,10 @@
   display: inline-flex;
   align-items: center;
   gap: 0.1875rem;
-  padding: 0.25rem;
+  padding: 0;
   margin: 0;
-  background: var(--hb-track-bg);
-  border: 1px solid var(--hb-track-border);
-  border-radius: 0.6875rem;
-  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+  background: transparent;
+  border: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -166,12 +131,12 @@
   min-height: 2.125rem;
   padding: 0.3125rem 0.75rem;
   margin-bottom: 0;
-  border: 1px solid transparent;
-  border-radius: 0.5rem;
+  border: 0;
+  border-radius: 0;
   background: transparent;
   color: var(--hb-tab-text);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.005em;
   white-space: nowrap;
@@ -181,9 +146,7 @@
   transition:
     color 150ms ease,
     background-color 150ms ease,
-    border-color 150ms ease,
-    box-shadow 150ms ease,
-    transform 120ms ease;
+    border-color 150ms ease;
 }
 
 /* Subtle cluster separator between operational modes, layers, and analysis views */
@@ -204,11 +167,6 @@
 
 .headerBar :global(.ui-tabs-tab).tabTrigger:hover:not([data-active]):not([aria-selected='true']) {
   color: var(--hb-tab-hover-text);
-  background: var(--hb-tab-hover-bg);
-}
-
-.headerBar :global(.ui-tabs-tab).tabTrigger:active {
-  transform: translateY(0.5px);
 }
 
 /* Active state */
@@ -216,9 +174,7 @@
 .headerBar :global(.ui-tabs-tab).tabTrigger[aria-selected='true'] {
   color: var(--hb-tab-active-text);
   font-weight: 600;
-  background: var(--hb-tab-active-bg);
-  border-color: var(--hb-tab-active-border);
-  box-shadow: var(--hb-tab-active-shadow);
+  background: transparent;
 }
 
 /* Institutional bottom accent bar inside active tab */
@@ -226,34 +182,16 @@
 .headerBar :global(.ui-tabs-tab).tabTrigger[aria-selected='true']::after {
   content: '';
   position: absolute;
-  left: 0.625rem;
-  right: 0.625rem;
-  bottom: 0.125rem;
-  height: 2.5px;
-  border-radius: 999px;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0;
+  height: 2px;
   background: var(--hb-accent-bar);
 }
 
 .headerBar :global(.ui-tabs-tab).tabTrigger:focus-visible {
   outline: 2px solid var(--hb-focus-ring);
   outline-offset: 1px;
-}
-
-.tabIcon {
-  width: 0.9375rem;
-  height: 0.9375rem;
-  flex-shrink: 0;
-  color: var(--hb-tab-icon);
-  transition: color 150ms ease, transform 150ms ease;
-}
-
-.headerBar :global(.ui-tabs-tab).tabTrigger:hover .tabIcon {
-  color: var(--hb-tab-hover-text);
-}
-
-.headerBar :global(.ui-tabs-tab).tabTrigger[data-active] .tabIcon,
-.headerBar :global(.ui-tabs-tab).tabTrigger[aria-selected='true'] .tabIcon {
-  color: var(--hb-tab-icon-active);
 }
 
 /* Counter badge inside "Situación actual" */
@@ -312,19 +250,15 @@
   border: 1px solid var(--hb-chip-border);
   background: var(--hb-chip-bg);
   color: var(--hb-chip-text);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
-    color 150ms ease,
-    box-shadow 150ms ease,
-    transform 120ms ease;
+    color 150ms ease;
 }
 
 .headerBar :global(.filtros-busqueda-boton:hover) {
   background: var(--hb-chip-hover-bg);
   border-color: var(--hb-chip-hover-border);
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06);
 }
 
 .headerBar :global(.filtros-busqueda-boton:focus-visible) {
@@ -337,7 +271,6 @@
   border-radius: 0.5rem;
   border: 1px solid var(--hb-chip-border);
   background: var(--hb-chip-bg);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 
 .headerBar :global(.filtros-chip) {
@@ -350,23 +283,15 @@
   color: var(--hb-chip-text);
   font-size: 0.8125rem;
   font-weight: 500;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
-    color 150ms ease,
-    box-shadow 150ms ease,
-    transform 120ms ease;
+    color 150ms ease;
 }
 
 .headerBar :global(.filtros-chip:hover:not(.filtros-chip--activo)) {
   background: var(--hb-chip-hover-bg);
   border-color: var(--hb-chip-hover-border);
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06);
-}
-
-.headerBar :global(.filtros-chip:active) {
-  transform: translateY(0.5px);
 }
 
 .headerBar :global(.filtros-chip:focus-visible),
@@ -380,7 +305,6 @@
   border-color: var(--color-success, #1f6f1d);
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(31, 111, 29, 0.28);
 }
 
 /* Split active chip group (trigger + clear X button) */
@@ -476,7 +400,6 @@
   .headerBar,
   .tabIndicator,
   .headerBar :global(.ui-tabs-tab).tabTrigger,
-  .tabIcon,
   .headerBar :global(.ui-tabs-tab__contador).counterBadge,
   .headerBar :global(.filtros-chip) {
     transition: none !important;

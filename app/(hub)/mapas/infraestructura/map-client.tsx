@@ -2,14 +2,6 @@
 
 import * as React from 'react'
 import dynamic from 'next/dynamic'
-import {
-  Activity,
-  BarChart3,
-  BookOpen,
-  ClipboardList,
-  Layers,
-  Radar,
-} from 'lucide-react'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { pestanaDeMapa, resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
 import { filtrarEscuelas } from '@/lib/infraestructura/mapa/filtrar'
@@ -261,7 +253,6 @@ export function InfraestructuraMapClient(props: {
                   ? `Situación actual, ${cantidadConReporte} ${cantidadConReporte === 1 ? 'escuela' : 'escuelas'} con situaciones abiertas`
                   : undefined}
               >
-                <Activity className={styles.tabIcon} aria-hidden="true" />
                 Situación actual
                 {cantidadConReporte > 0 && (
                   <span
@@ -277,12 +268,10 @@ export function InfraestructuraMapClient(props: {
               </TabsTab>
               {props.riskRadarEnabled && (
                 <TabsTab value="radar" className={styles.tabTrigger}>
-                  <Radar className={styles.tabIcon} aria-hidden="true" />
                   Radar
                 </TabsTab>
               )}
               <TabsTab value="planificacion" className={styles.tabTrigger}>
-                <ClipboardList className={styles.tabIcon} aria-hidden="true" />
                 Planificación
               </TabsTab>
               <TabsTab
@@ -290,7 +279,6 @@ export function InfraestructuraMapClient(props: {
                 className={styles.tabTrigger}
                 data-cluster-start="true"
               >
-                <Layers className={styles.tabIcon} aria-hidden="true" />
                 Capas
               </TabsTab>
               <TabsTab
@@ -298,11 +286,9 @@ export function InfraestructuraMapClient(props: {
                 className={styles.tabTrigger}
                 data-cluster-start="true"
               >
-                <BarChart3 className={styles.tabIcon} aria-hidden="true" />
                 Estadísticas
               </TabsTab>
               <TabsTab value="metodologia" className={styles.tabTrigger}>
-                <BookOpen className={styles.tabIcon} aria-hidden="true" />
                 Metodología
               </TabsTab>
             </TabsList>
