@@ -1,13 +1,31 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { RecorridoActualizacion } from './recorrido-actualizacion'
 import { abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 import { crearColaTrabajosEnvio } from '@/lib/infraestructura/parte/cola-trabajos-envio'
+import type * as BorradorFormularioModulo from '@/lib/infraestructura/parte/borrador-formulario'
+
+const borradorMocks = vi.hoisted(() => ({ retener: null as Promise<void> | null, llamadas: 0, fallarEliminar: false }))
+vi.mock('@/lib/infraestructura/parte/borrador-formulario', async (importOriginal) => {
+  const real = await importOriginal<typeof BorradorFormularioModulo>()
+  return {
+    ...real,
+    guardarBorradorFormulario: async (...args: Parameters<typeof real.guardarBorradorFormulario>) => {
+      borradorMocks.llamadas++
+      if (borradorMocks.retener) await borradorMocks.retener
+      return real.guardarBorradorFormulario(...args)
+    },
+    eliminarBorradorFormulario: async (...args: Parameters<typeof real.eliminarBorradorFormulario>) => {
+      if (borradorMocks.fallarEliminar) throw new Error('IndexedDB no pudo borrar el borrador.')
+      return real.eliminarBorradorFormulario(...args)
+    },
+  }
+})
 
 const syncMocks = vi.hoisted(() => ({ registrar: vi.fn(), pedir: vi.fn(), callback: null as ((clave: string) => void) | null }))
 vi.mock('@/lib/infraestructura/parte/registrar-sync', () => ({
@@ -81,7 +99,10 @@ async function irAlResumen() {
 // localStorage. Queue a read on the same store so that save (and its mirror) settles before the
 // storage reset, otherwise the stale draft leaks into the next test as a "parte sin enviar".
 async function esperarGuardadosPendientes() { await leerBorradorGuardado() }
-afterEach(async () => { cleanup(); await esperarGuardadosPendientes(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks() })
+afterEach(async () => {
+  cleanup(); await esperarGuardadosPendientes(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks()
+  borradorMocks.retener = null; borradorMocks.llamadas = 0; borradorMocks.fallarEliminar = false
+})
 
 function elegirAsistencia(valor: 'Sí' | 'No') {
   fireEvent.click(within(screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })).getByRole('radio', { name: valor }))
@@ -223,6 +244,30 @@ describe('RecorridoActualizacion: borrador local', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Actualizar de nuevo' }))
     await screen.findByRole('button', { name: 'Actualizar el parte' })
     expect(await leerBorradorGuardado()).toBeNull()
+  })
+
+  it('no inicia otro guardado del borrador mientras el anterior sigue en curso', async () => {
+    let liberar: () => void = () => {}
+    borradorMocks.retener = new Promise<void>((resolver) => { liberar = resolver })
+    stub(); montar(); await empezarYResponderPrimera()
+    await act(() => new Promise((resolver) => setTimeout(resolver, 20)))
+    const enCurso = borradorMocks.llamadas
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    await act(() => new Promise((resolver) => setTimeout(resolver, 20)))
+    expect(borradorMocks.llamadas).toBe(enCurso)
+    borradorMocks.retener = null
+    liberar()
+    await waitFor(async () => expect((await leerBorradorGuardado())?.datos).toMatchObject({ etapa: { revisar: 1 } }))
+  })
+
+  it('quita el espejo de localStorage al enviar aunque IndexedDB no pueda borrar el borrador', async () => {
+    stub(); montar(); await irAlResumen()
+    await waitFor(async () => expect(localStorage.getItem(CLAVE)).not.toBeNull())
+    borradorMocks.fallarEliminar = true
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    await screen.findByText('Parte actualizado')
+    expect(localStorage.getItem(CLAVE)).toBeNull()
   })
 
   it('al volver con el historial del navegador desde resumen conserva las respuestas', async () => {

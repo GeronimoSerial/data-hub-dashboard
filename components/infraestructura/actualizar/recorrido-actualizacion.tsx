@@ -26,7 +26,8 @@ import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
-import { MODALIDADES_ASISTENCIA_PEDAGOGICA, type EstadoServicioGeneral, type ModalidadAsistenciaPedagogica } from '@/lib/infraestructura/trayectoria-tipos'
+import { MODALIDADES_ASISTENCIA_PEDAGOGICA, type EstadoServicioGeneral, type ModalidadAsistenciaPedagogica, type TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import type { TipoMovimientoEvidencia } from '@/lib/infraestructura/reportes-offline-contratos'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { declararFotosFormulario, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 import { restaurarFotosPreparadas } from '@/lib/infraestructura/fotos/restaurar-fotos'
@@ -207,6 +208,10 @@ export function RecorridoActualizacion({ cue, turnos, motivos }: RecorridoActual
   return <RecorridoCargado key={`${cue}:${resultado.datos.parte.id}`} cue={cue} turnos={turnos} motivos={motivos} datos={resultado.datos} historial={resultado.historial} onRecargar={recargar} />
 }
 
+function esEvidenciaFotografica(tipo: TipoMovimiento | TipoMovimientoEvidencia): tipo is TipoMovimientoEvidencia {
+  return tipo === 'evidencia_fotografica'
+}
+
 function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }: RecorridoActualizacionProps & { datos: EstadoActualRespuesta; historial: MovimientoHistorial[]; onRecargar: () => void }): JSX.Element {
   const almacenRef = useRef<Promise<AlmacenClaveValor> | null>(null)
   const almacen = useCallback(() => (almacenRef.current ??= crearAlmacenParte()), [])
@@ -249,6 +254,9 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const enviandoRef = useRef(false)
+  const guardadoBorradorEnCursoRef = useRef<Promise<void>>(Promise.resolve())
+  const secuenciaBorradorRef = useRef(0)
+  const movimientoFotosVinculadoRef = useRef<string | null>(null)
   const reintentarRef = useRef<(deliberado?: boolean) => void>(() => {})
   const cancelarReintentoProgramadoRef = useRef<(() => void) | null>(null)
   const exitoRef = useRef<() => void>(() => {})
@@ -360,18 +368,22 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       asistenciaPedagogica,
       idsSituaciones: situaciones.map((situacion) => situacion.id),
     }
-    const actual = borradorCompartidoRef.current ?? {
-      registro: {
-        draftId: `${DRAFT_ID_PREFIX}${cue}`,
-        generacion: generacionAlmacenRef.current,
-        version: 1 as const,
+    // Guardados en serie: cada uno parte del registro que dejó el anterior. Un cambio más nuevo descarta los que aún no empezaron.
+    const turno = ++secuenciaBorradorRef.current
+    guardadoBorradorEnCursoRef.current = guardadoBorradorEnCursoRef.current.then(async () => {
+      if (turno !== secuenciaBorradorRef.current) return
+      const actual = borradorCompartidoRef.current ?? {
+        registro: {
+          draftId: `${DRAFT_ID_PREFIX}${cue}`,
+          generacion: generacionAlmacenRef.current,
+          version: 1 as const,
+          datos,
+          actualizadoEn: new Date().toISOString(),
+        },
         datos,
-        actualizadoEn: new Date().toISOString(),
-      },
-      datos,
-    }
-    void guardarBorradorFormulario(actual, datos).then((guardado) => {
-      borradorCompartidoRef.current = guardado
+      }
+      borradorCompartidoRef.current = await guardarBorradorFormulario(actual, datos)
+      if (turno !== secuenciaBorradorRef.current) return
       setAvisoBorrador(null)
       try { localStorage.setItem(claveBorrador, JSON.stringify(datos)) } catch { /* IndexedDB sigue siendo el almacenamiento principal. */ }
     }).catch((error: unknown) => {
@@ -430,7 +442,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   }, [cue])
 
   const vincularFotosPreparadas = useCallback((movimientoId: string) => {
-    if (fotosPreparadas.length === 0) return
+    if (fotosPreparadas.length === 0 || movimientoFotosVinculadoRef.current === movimientoId) return
+    movimientoFotosVinculadoRef.current = movimientoId
     void declararFotosFormulario({
       draftId: fotosDraftId,
       movimientoBaseId: movimientoId,
@@ -447,15 +460,17 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       movimientoFotosConfirmadoRef.current = movimientoId
       vincularFotosPreparadas(movimientoId)
     }
-    const actual = borradorCompartidoRef.current
-    if (actual) {
-      void eliminarBorradorFormulario(actual).then(() => {
-        borradorCompartidoRef.current = null
-        localStorage.removeItem(claveBorrador)
-      }).catch((error: unknown) => {
-        setAvisoBorrador(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo limpiar el borrador local.')
-      })
-    }
+    // Descarta guardados pendientes y su espejo; el borrador se borra tras los que ya estaban en curso.
+    secuenciaBorradorRef.current++
+    try { localStorage.removeItem(claveBorrador) } catch { /* El espejo no bloquea la limpieza de IndexedDB. */ }
+    guardadoBorradorEnCursoRef.current = guardadoBorradorEnCursoRef.current.then(async () => {
+      const actual = borradorCompartidoRef.current
+      if (!actual) return
+      await eliminarBorradorFormulario(actual)
+      borradorCompartidoRef.current = null
+    }).catch((error: unknown) => {
+      setAvisoBorrador(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo limpiar el borrador local.')
+    })
     limpiarVinculoVerificacion()
     setBorradorPendiente(null)
     setGuardado(true)
@@ -478,10 +493,16 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         setMotivoEnvio(cola.motivoError ?? null)
         setIntentosEnvio(cola.intentos)
         if (esEstadoReintentable(cola.estado) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
-          const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
-          if (!cancelado && resultado?.ok) {
-            const cuerpo = resultado.respuesta as { movimientoId?: string } | null
-            alEnviarConExito(cuerpo?.movimientoId)
+          if (enviandoRef.current) return
+          enviandoRef.current = true
+          try {
+            const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
+            if (!cancelado && resultado?.ok) {
+              const cuerpo = resultado.respuesta as { movimientoId?: string } | null
+              alEnviarConExito(cuerpo?.movimientoId)
+            }
+          } finally {
+            enviandoRef.current = false
           }
         }
       }
@@ -583,8 +604,9 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   }
 
   async function enviarSoloFotos(): Promise<void> {
-    const base = historial.find((movimiento) => (movimiento.tipo as string) !== 'evidencia_fotografica')
-    if (!base || fotosPreparadas.length !== cantidadFotosSeleccionadas || cantidadFotosSeleccionadas === 0) return
+    const base = historial.find((movimiento) => !esEvidenciaFotografica(movimiento.tipo))
+    if (!base || enviandoRef.current || fotosPreparadas.length !== cantidadFotosSeleccionadas || cantidadFotosSeleccionadas === 0) return
+    enviandoRef.current = true
     setEnviando(true)
     setErrorFotos(null)
     try {
@@ -598,6 +620,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     } catch (error) {
       setErrorFotos(error instanceof Error ? error.message : 'No se pudieron guardar las fotos. Puede continuar con una actualización normal.')
     } finally {
+      enviandoRef.current = false
       setEnviando(false)
     }
   }

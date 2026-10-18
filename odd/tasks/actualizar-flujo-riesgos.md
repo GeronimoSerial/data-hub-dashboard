@@ -17,7 +17,7 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 ## Tasks (executed in order, one haiku writer each, delegated)
 - [x] R1 Log unexpected errors in the POST 500 path; remove DBGT debug line in `reporte-inicial-form.test.tsx`.
 - [x] R2 Server owns time: ignore/clamp client `rigeDesde` (server `now`, tolerate small skew) for eligibility.
-- [ ] R3 Client races: serialize/debounce draft saves; guard replay effect against concurrent `enviar`; `enviandoRef` guard + typed base movimiento in `enviarSoloFotos`; single photo-link path; keep IDB/localStorage consistent.
+- [x] R3 Client races: serialize/debounce draft saves; guard replay effect against concurrent `enviar`; `enviandoRef` guard + typed base movimiento in `enviarSoloFotos`; single photo-link path; keep IDB/localStorage consistent.
 - [ ] R4 Idempotency: lookup inside the transaction; detect unique violations by driver error code, not message regex.
 - [ ] R5 Single source of consistency rules shared by client and server.
 - [ ] R6 A3 follow-up: banner dismissals must not reset across `reporte-inicial-form` steps.
@@ -37,3 +37,12 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
   - `npx tsc --noEmit`: exit 0
   - `timeout 300 npx vitest run app/api/problematicas/parte/route.test.ts lib/infraestructura/validacion-trayectoria.test.ts`: 2 files, 94 tests passed
   - `npx vitest run app/api/problematicas/parte lib/infraestructura` (broad): partial, hung ~51 min with no output and was killed by the coordinator; not a verified result. Re-run only the focused files above.
+- R3: route inline (1 component file + 1 test file; the test harness is the existing `recorrido-actualizacion-borrador.test.tsx`). Test-first: two new tests RED on the pre-change code: `no inicia otro guardado del borrador mientras el anterior sigue en curso` (2nd save started while the 1st was in flight) and `quita el espejo de localStorage al enviar aunque IndexedDB no pueda borrar el borrador` (mirror survived a failed delete). Both GREEN after the change. The harness wraps `guardarBorradorFormulario`/`eliminarBorradorFormulario` through `vi.mock` with `importOriginal`.
+  - (a) Draft saves run on a promise chain with a sequence token: each save reads the registro left by the previous one; a newer change drops saves that have not started. No debounce needed, so the last change is not lost on unmount.
+  - (b) `alEnviarConExito` removes the localStorage mirror first and deletes the IDB draft on the same chain after pending saves. A save that finishes after the close does not re-mirror.
+  - (c) Replay effect takes `enviandoRef` (same guard as `enviar`). `reintentarRef` deliberately does not: the existing test `un timeout se reintenta automáticamente` expects a deliberate "Reintentar ahora" to supersede a hung auto-retry; guarding it broke that test (2 POSTs, expected 3), so it was reverted.
+  - (d) `enviarSoloFotos` sets/clears `enviandoRef`; the `as string` cast is replaced by the type guard `esEvidenciaFotografica`. Not covered by a RED test: the button is disabled while `enviando`, so the same-tick double call is not reachable via fireEvent.
+  - (e) `vincularFotosPreparadas` records `movimientoFotosVinculadoRef` and links once per movimientoId; the effect and `alEnviarConExito` share that guard. Not covered by a RED test (no runnable path reproduces the second trigger in jsdom).
+  - `npx tsc --noEmit`: exit 0
+  - `timeout 300 npx vitest run components/infraestructura/actualizar`: 6 files, 84 tests passed (baseline 82 + 2 new)
+  - commit: see git log (fix(parte): serialize client draft saves and guard replay sends)
