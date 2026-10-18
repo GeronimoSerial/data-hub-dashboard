@@ -56,6 +56,7 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
         puntosProcesados: obtenerPuntosRio().length,
         filasInsertadas: obtenerPuntosRio().length * 3,
         puntosConError: [],
+        puntosYaCompletos: 0,
       },
     })
 
@@ -97,6 +98,7 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
         puntosProcesados: obtenerPuntosRio().length - 1,
         filasInsertadas: (obtenerPuntosRio().length - 1) * 3,
         puntosConError: [PUNTO_CAIDO],
+        puntosYaCompletos: 0,
       },
     })
 
@@ -132,6 +134,7 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
         puntosProcesados: 0,
         filasInsertadas: 0,
         puntosConError: obtenerPuntosRio().map((punto) => punto.id),
+        puntosYaCompletos: 0,
       },
     })
 
@@ -162,13 +165,15 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
         puntosProcesados: obtenerPuntosRio().length,
         filasInsertadas: obtenerPuntosRio().length * 3,
         puntosConError: [],
+        puntosYaCompletos: 0,
       },
     })
   })
 
-  // Regresión P-1 (parcial): una falla de algunos puntos sigue siendo
-  // 'completado' pero deja constancia en `contadores` y `errorSaneado`.
-  it('una falla parcial queda completado con contadores.puntosConError y errorSaneado', async () => {
+  // Cursor resumable: una falla parcial deja la corrida 'fallido' (la clave
+  // sigue reintentable) con constancia en `contadores` y `errorSaneado`; antes
+  // quedaba 'completado' y los puntos faltantes no se reintentaban nunca.
+  it('una falla parcial queda fallido con contadores.puntosConError y errorSaneado', async () => {
     const periodoDesde = '2004-01-01'
     const periodoHasta = '2013-12-31'
     const version = 'caudal-climatologia-v0.5-parcial'
@@ -187,11 +192,12 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
       .from(infraJobRun)
       .where(eq(infraJobRun.claveIdempotente, clave))
 
-    expect(fila?.estado).toBe('completado')
+    expect(fila?.estado).toBe('fallido')
     expect(fila?.contadores).toEqual({
       puntos: obtenerPuntosRio().length - 1,
       filas: (obtenerPuntosRio().length - 1) * 3,
       puntosConError: 1,
+      puntosYaCompletos: 0,
     })
     expect(fila?.errorSaneado).toContain(PUNTO_CAIDO)
   })
@@ -225,5 +231,97 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
 
     expect(fila?.estado).toBe('fallido')
     expect(fila?.leaseOwner).toBeNull()
+  })
+
+  // Cursor resumable (cupo diario de Open-Meteo): cada punto se pide por
+  // separado y se persiste apenas responde, así el avance de un día sobrevive
+  // aunque el resto de los puntos se quede sin cupo.
+  it('pide cada punto en una llamada propia', async () => {
+    const pedidos: string[][] = []
+    const obtenerSeries: typeof ObtenerSeriesHistoricasCaudal = async (params) => {
+      pedidos.push(params.puntos.map((punto) => punto.id))
+      return seriesOkFake()(params)
+    }
+
+    await ejecutarCalculoClimatologiaCaudal({
+      periodoDesde: '2005-01-01',
+      periodoHasta: '2014-12-31',
+      version: 'caudal-climatologia-v0.6-por-punto',
+      obtenerSeries,
+    })
+
+    expect(pedidos).toEqual(obtenerPuntosRio().map((punto) => [punto.id]))
+  })
+
+  it('ante cupo agotado corta sin pedir más puntos y la próxima corrida retoma sólo los pendientes', async () => {
+    const periodoDesde = '2006-01-01'
+    const periodoHasta = '2015-12-31'
+    const version = 'caudal-climatologia-v0.7-reanuda'
+    const puntos = obtenerPuntosRio()
+    const pedidosPrimera: string[] = []
+    const cupoAlTercero: typeof ObtenerSeriesHistoricasCaudal = async (params) => {
+      const [punto] = params.puntos
+      pedidosPrimera.push(punto.id)
+      if (pedidosPrimera.length >= 3) {
+        return {
+          seriesPorPunto: {},
+          erroresPorPunto: { [punto.id]: { motivo: 'cupo_agotado', detalle: 'fake: ventana dia' } },
+        }
+      }
+      return seriesOkFake()(params)
+    }
+
+    const primera = await ejecutarCalculoClimatologiaCaudal({
+      periodoDesde,
+      periodoHasta,
+      version,
+      obtenerSeries: cupoAlTercero,
+    })
+
+    expect(pedidosPrimera).toEqual(puntos.slice(0, 3).map((punto) => punto.id))
+    expect(primera).toEqual({
+      ok: true,
+      resultado: {
+        puntosProcesados: 2,
+        filasInsertadas: 6,
+        puntosConError: puntos.slice(2).map((punto) => punto.id),
+        puntosYaCompletos: 0,
+      },
+    })
+
+    const { and, eq } = await import('drizzle-orm')
+    const clave = `${periodoDesde}_${periodoHasta}_${version}`
+    const [run] = await getDb().select().from(infraJobRun).where(eq(infraJobRun.claveIdempotente, clave))
+    expect(run?.estado).toBe('fallido')
+
+    const pedidosSegunda: string[] = []
+    const segunda = await ejecutarCalculoClimatologiaCaudal({
+      periodoDesde,
+      periodoHasta,
+      version,
+      obtenerSeries: async (params) => {
+        pedidosSegunda.push(...params.puntos.map((punto) => punto.id))
+        return seriesOkFake()(params)
+      },
+    })
+
+    expect(pedidosSegunda).toEqual(puntos.slice(2).map((punto) => punto.id))
+    expect(segunda).toEqual({
+      ok: true,
+      resultado: {
+        puntosProcesados: puntos.length - 2,
+        filasInsertadas: (puntos.length - 2) * 3,
+        puntosConError: [],
+        puntosYaCompletos: 2,
+      },
+    })
+
+    const filas = await getDb()
+      .select()
+      .from(hazardClimatology)
+      .where(and(eq(hazardClimatology.version, version), eq(hazardClimatology.periodoDesde, periodoDesde)))
+    expect(filas).toHaveLength(puntos.length * 3)
+    const [runFinal] = await getDb().select().from(infraJobRun).where(eq(infraJobRun.claveIdempotente, clave))
+    expect(runFinal?.estado).toBe('completado')
   })
 })
