@@ -1,7 +1,5 @@
-import { createElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { TriangleAlert, Waves } from 'lucide-react';
-import { renderToStaticMarkup } from 'react-dom/server';
 
 import { PALETA_ESTADO_ALTURA, RELLENO_ESTACION_SIN_DATO } from './paleta-tonal';
 import { GROSOR_TRAZO_ICONO, PIXEL_RATIO_ICONOS } from './colores-mapa';
@@ -60,9 +58,37 @@ function markupGlifo(icono: GlifoIcono, color: string): string {
       `stroke="${color}" stroke-width="${GROSOR_TRAZO_ICONO}" stroke-linecap="round" stroke-linejoin="round">${icono}</svg>`
     );
   }
-  return renderToStaticMarkup(
-    createElement(icono, { size: TAMANO_ICONO, color, strokeWidth: GROSOR_TRAZO_ICONO }),
+  const { className, iconNode } = elementoLucide(icono).props;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${TAMANO_ICONO}" height="${TAMANO_ICONO}" viewBox="0 0 24 24" fill="none" ` +
+    `stroke="${color}" stroke-width="${GROSOR_TRAZO_ICONO}" stroke-linecap="round" stroke-linejoin="round" class="lucide ${className}">` +
+    `${trazosLucide(iconNode)}</svg>`
   );
+}
+
+type NodoIcono = [string, Record<string, string | number>][];
+
+// lucide-react 1.x reads a context inside `Icon`, so rendering it with
+// react-dom/server during client module evaluation throws "Invalid hook call".
+// The forwardRef wrapper only forwards `iconNode` to `Icon`; calling its render
+// directly yields that node without running any hook.
+function elementoLucide(icono: LucideIcon): { props: { className: string; iconNode: NodoIcono } } {
+  const { render } = icono as unknown as {
+    render: (props: object, ref: null) => { props: { className: string; iconNode: NodoIcono } };
+  };
+  return render({}, null);
+}
+
+function trazosLucide(iconNode: NodoIcono): string {
+  return iconNode
+    .map(([etiqueta, atributos]) => {
+      const attrs = Object.entries(atributos)
+        .filter(([nombre]) => nombre !== 'key')
+        .map(([nombre, valor]) => `${nombre}="${valor}"`)
+        .join(' ');
+      return `<${etiqueta} ${attrs}/>`;
+    })
+    .join('');
 }
 
 /** Standalone SVG string shared by MapLibre images and inline legend markers. */

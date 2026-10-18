@@ -11,6 +11,7 @@ import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 import { CLAVE_CAPAS_VISIBLES } from '@/lib/infraestructura/mapa/capas'
+import { LIMITES_CORRIENTES } from '@/lib/mapas/departamentos'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
 
@@ -925,12 +926,12 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     async () => {
       await renderMapa({ mostrarEnlaceNominal: true })
       await userEvent.click(screen.getByTestId('mock-click-departamento'))
-      const panel = within(screen.getByTestId('panel-lateral'))
-      expect(panel.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('Departamento: Capital')
-      expect(panel.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('10 escuelas · 3 con situaciones abiertas · 30%')
+      const preview = within(screen.getByTestId('preview-departamento'))
+      expect(preview.getByRole('heading', { level: 2, name: 'Capital' })).toBeInTheDocument()
+      expect(preview.getByRole('region', { name: 'Departamento Capital' })).toHaveTextContent('Departamento · 10 escuelas')
       expect(screen.queryByText(/En Capital hay 10 escuelas/)).not.toBeInTheDocument()
-      await userEvent.click(screen.getByText('Quitar filtro'))
-      expect(screen.queryByRole('region', { name: 'Departamento seleccionado' })).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Cerrar departamento' }))
+      expect(screen.queryByTestId('preview-departamento')).not.toBeInTheDocument()
     },
     15000,
   )
@@ -1616,12 +1617,13 @@ describe('MapInfraestructuraPage — Planificación', () => {
 })
 
 describe('M1: clic de departamento y buscador de escuelas', () => {
-  it('clic de departamento muestra el resumen en el sidebar, sin popup flotante', async () => {
+  it('clic de departamento muestra el preview a la derecha, no en el sidebar', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    const panel = within(await screen.findByTestId('panel-lateral'))
-    expect(panel.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('Departamento: Capital')
-    expect(panel.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('10 escuelas · 3 con situaciones abiertas · 30%')
+    const preview = within(await screen.findByTestId('preview-departamento'))
+    expect(preview.getByRole('region', { name: 'Departamento Capital' })).toHaveTextContent('Departamento · 10 escuelas')
+    expect(preview.getByRole('region', { name: 'Departamento Capital' })).toHaveTextContent('3escuelas con situaciones abiertas')
+    expect(within(screen.getByTestId('panel-lateral')).queryByRole('region', { name: 'Departamento Capital' })).not.toBeInTheDocument()
     expect(screen.queryByText(/En Capital hay 10 escuelas/)).not.toBeInTheDocument()
   })
 
@@ -1641,29 +1643,29 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(await screen.findByRole('region', { name: 'Departamento seleccionado' })).toBeInTheDocument()
+    expect(await screen.findByTestId('preview-departamento')).toBeInTheDocument()
 
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(screen.queryByRole('region', { name: 'Departamento seleccionado' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('preview-departamento')).not.toBeInTheDocument()
   })
 
-  it('clickear otro departamento reemplaza el resumen del sidebar', async () => {
+  it('clickear otro departamento reemplaza el preview', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(await screen.findByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('Capital')
+    expect(await screen.findByTestId('preview-departamento')).toHaveTextContent('Capital')
 
     await userEvent.click(screen.getByTestId('mock-click-departamento-empedrado'))
-    expect(screen.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('Empedrado')
+    expect(screen.getByTestId('preview-departamento')).toHaveTextContent('Empedrado')
   })
 
-  it('mantiene el resumen del departamento en el panel lateral mientras la ficha de escuela está abierta en la ficha flotante', async () => {
+  it('la ficha de escuela reemplaza al preview del departamento mientras está abierta', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
     await userEvent.click(screen.getByTestId('mock-click-parte'))
 
     expect(await within(await screen.findByTestId('ficha-flotante')).findByTestId('mock-ficha-escuela')).toBeInTheDocument()
-    expect(within(screen.getByTestId('panel-lateral')).getByRole('region', { name: 'Departamento seleccionado' })).toBeInTheDocument()
+    expect(screen.queryByTestId('preview-departamento')).not.toBeInTheDocument()
   })
 
   // El clic sobre una escuela abre su ficha y el clic sobre un cluster
@@ -1830,8 +1832,8 @@ it('no conserva acciones flotantes de selección en la página ni en sus estilos
   expect(estilos).not.toContain('.map-seleccion-acciones')
 })
 
-describe('Q1: cerrar la ficha conserva la selección', () => {
-  it('cerrar la ficha no borra la selección: aparece "Ver ficha"', async () => {
+describe('Q1: cerrar la vista previa deselecciona la escuela', () => {
+  it('cerrar la ficha borra la selección y no deja nada en el panel lateral', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
     const ficha = await seleccionarPorBuscador('Escuela 1')
@@ -1839,37 +1841,20 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
 
     await cerrarFicha()
 
-    expect(within(screen.getByTestId('panel-lateral')).getByText('Situación actual')).toBeInTheDocument()
-    // Y hay una forma explícita de volver a la ficha.
-    expect(within(screen.getByTestId('panel-lateral')).getByTestId('reabrir-ficha')).toBeInTheDocument()
-  })
-
-  it('"Ver ficha" reabre la ficha y el grupo de acciones desaparece', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true })
-
-    await seleccionarPorBuscador('Escuela 1')
-    await cerrarFicha()
-
-    await userEvent.click(within(screen.getByTestId('panel-lateral')).getByTestId('reabrir-ficha'))
-
-    const ficha = await screen.findByTestId('mock-ficha-escuela')
-    expect(ficha).toHaveAttribute('data-cue', CUE)
-    expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
-  })
-
-  it('"Quitar selección" borra la selección completa y no deja el grupo flotando', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true })
-
-    await seleccionarPorBuscador('Escuela 1')
-    await cerrarFicha()
-
-    await userEvent.click(within(screen.getByTestId('panel-lateral')).getByTestId('quitar-seleccion'))
-
-    // Sin selección no hay ficha ni queda el grupo flotando sobre el mapa.
     expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('panel-lateral')).getByText('Situación actual')).toBeInTheDocument()
     expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
     expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
+  })
+
+  it('cerrar la ficha vuelve a la vista provincial', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+    await seleccionarPorBuscador('Escuela 1')
+    FIT_BOUNDS_MOCK.mockClear()
+
+    await cerrarFicha()
+
+    expect(FIT_BOUNDS_MOCK).toHaveBeenLastCalledWith(LIMITES_CORRIENTES, expect.objectContaining({ padding: expect.anything() }))
   })
 
   it('volver a elegir la MISMA escuela reabre la ficha que estaba cerrada', async () => {
@@ -1884,28 +1869,6 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     expect(ficha).toHaveAttribute('data-cue', CUE)
   })
 
-  it('el grupo sólo existe con selección viva y ficha cerrada', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true })
-
-    // Sin selección no hay grupo.
-    expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
-
-    await seleccionarPorBuscador('Escuela 1')
-    // Con la ficha abierta tampoco: el grupo es para el estado "cerrada".
-    expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Volver a la lista' }))
-    const panel = within(screen.getByTestId('panel-lateral'))
-    expect(await panel.findByTestId('quitar-seleccion')).toBeInTheDocument()
-    // Ambos botones son botones de verdad, no <div> con onClick.
-    expect(panel.getByTestId('reabrir-ficha').tagName).toBe('BUTTON')
-    expect(panel.getByTestId('reabrir-ficha')).toHaveAttribute('type', 'button')
-    expect(panel.getByTestId('reabrir-ficha')).toHaveAttribute(
-      'aria-label',
-      'Reabrir la ficha de Escuela 1',
-    )
-  })
-
   it('el shell marca data-ficha-abierta según el estado real de la ficha', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
     const shell = screen.getByTestId('mock-maplibre').closest('.map-shell')
@@ -1915,10 +1878,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     await waitFor(() => expect(shell).toHaveAttribute('data-ficha-abierta', 'true'))
 
     await userEvent.click(screen.getByRole('button', { name: 'Volver a la lista' }))
-    // Cerrada con selección viva: el atributo dice "false" pero el grupo
-    // sigue — es lo que permite al CSS correr los controles de capas.
     await waitFor(() => expect(shell).toHaveAttribute('data-ficha-abierta', 'false'))
-    expect(within(screen.getByTestId('panel-lateral')).getByTestId('reabrir-ficha')).toBeInTheDocument()
   })
 
   it('mantiene visible la columna izquierda y permite seleccionar una escuela', async () => {
@@ -1999,7 +1959,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
     expect(screen.queryByRole('checkbox', { name: /camino y cruces de agua/i })).not.toBeInTheDocument()
   })
 
-  it('"Quitar selección" limpia el aviso de la escuela sin ubicación', async () => {
+  it('cerrar la ficha limpia el aviso de la escuela sin ubicación', async () => {
     const ESCUELA_SIN_UBICACION: EscuelaMapaPadron = {
       cueAnexo: '1801605-77',
       nombre: 'Escuela del interior',
@@ -2044,9 +2004,8 @@ describe('Q3: encuadre de la ruta de acceso', () => {
       await seleccionarPorBuscador('Escuela 1')
       expect(screen.queryByTestId('aviso-busqueda-sin-ubicacion')).not.toBeInTheDocument()
 
-      // Y con la ficha cerrada, "Quitar selección" también lo limpia.
+      // Y cerrar la ficha también lo limpia.
       await userEvent.click(screen.getByRole('button', { name: 'Volver a la lista' }))
-      await userEvent.click(await within(screen.getByTestId('panel-lateral')).findByTestId('quitar-seleccion'))
       expect(screen.queryByTestId('aviso-busqueda-sin-ubicacion')).not.toBeInTheDocument()
     } finally {
       FIXTURE_ESCUELAS_MAPA.escuelas = padronOriginal
@@ -2089,34 +2048,6 @@ describe('Task 4: cambiar de pestaña a Radar', () => {
     expect(screen.getByTestId('mock-maplibre')).toBe(mapa)
   })
 
-  it('al volver a Situación actual conserva la selección y permite reabrir la ficha', async () => {
-    const { rerender } = await renderMapa({
-      mostrarEnlaceNominal: true,
-      riskRadarEnabled: true,
-      pestana: 'actual',
-    })
-    await seleccionarPorBuscador('Escuela 1')
-    await cerrarFicha()
-
-    rerender({ pestana: 'planificacion' })
-    expect(
-      within(screen.getByTestId('panel-lateral')).getByTestId('reabrir-ficha'),
-    ).toBeInTheDocument()
-
-    rerender({ pestana: 'radar' })
-    const panelRadar = within(screen.getByTestId('panel-lateral'))
-    expect(panelRadar.getByTestId('panel-radar')).toBeInTheDocument()
-    expect(panelRadar.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
-
-    rerender({ pestana: 'actual' })
-
-    const panel = screen.getByTestId('panel-lateral')
-    expect(panel).not.toBeEmptyDOMElement()
-    expect(within(panel).queryByTestId('panel-radar')).not.toBeInTheDocument()
-    expect(within(screen.getByTestId('panel-lateral')).getByTestId('reabrir-ficha')).toBeInTheDocument()
-    await userEvent.click(within(screen.getByTestId('panel-lateral')).getByTestId('reabrir-ficha'))
-    expect(await screen.findByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
-  })
 })
 
 // Q3: la ruta y los cruces de la escuela seleccionada siguen disponibles,

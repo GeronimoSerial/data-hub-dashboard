@@ -52,7 +52,7 @@ import '@/components/mapas/maplibre-popup.css'
 import { PanelLateral } from '@/components/mapas/panel-lateral'
 import { PanelCapas } from '@/components/mapas/panel-capas'
 import { ResumenDepartamento } from '@/components/mapas/resumen-departamento'
-import { SeleccionEscuela } from '@/components/mapas/seleccion-escuela'
+import { desgloseSuperficies, superficieVia } from '@/lib/infraestructura/mapa/acceso'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
 // Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración)
@@ -691,9 +691,16 @@ export default function MapInfraestructuraPage(props: {
   const [departamentoRadarId, setDepartamentoRadarId] = useState<string | null>(null)
   // Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración)
   const [veredictoAbierto, setVeredictoAbierto] = useState(false)
+  // Closing the preview deselects the school and returns to the province view.
   const cerrarFicha = useCallback(() => {
-    setFichaCerradaCue(seleccionCue)
-  }, [seleccionCue])
+    setSeleccionCue(null)
+    setEscuelaResaltada(null)
+    setFichaCerradaCue(null)
+    setFichaPestana(null)
+    setAvisoBusqueda(null)
+    setCruceInfoClic(null)
+    mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: paddingProvincia(), duration: 600 })
+  }, [])
   // Clasificación de un CRUCE DE AGUA clickeado sobre la ruta (puente, vado
   // o sin evidencia). Es un popup informativo propio, no una selección: el
   // ícono es más chico que el punto de la escuela y antes el click se lo
@@ -2200,35 +2207,6 @@ export default function MapInfraestructuraPage(props: {
             onCerrarFicha={cerrarFicha}
             cabecera={(
               <>
-                {!radarActivo && seleccionCue !== null && !fichaAbierta && (
-                  <SeleccionEscuela
-                    nombre={escuelasPorCue.get(seleccionCue)?.nombre ?? seleccionCue}
-                    onVerFicha={() => {
-                      setFichaPestana(panelLateral)
-                      setFichaCerradaCue(null)
-                    }}
-                    onQuitarSeleccion={() => {
-                      setSeleccionCue(null)
-                      setEscuelaResaltada(null)
-                      setFichaCerradaCue(null)
-                      setFichaPestana(null)
-                      setAvisoBusqueda(null)
-                      setCruceInfoClic(null)
-                    }}
-                  />
-                )}
-                {departamentoSeleccionado && (
-                  <ResumenDepartamento
-                    nombre={departamentoSeleccionado}
-                    totales={totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado)) ?? null}
-                    onQuitar={() => {
-                      entradaPuntosPendiente.current = true
-                      setPuntosVisibles(false)
-                      setDepartamentoSeleccionado(null)
-                      mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: paddingProvincia() })
-                    }}
-                  />
-                )}
               </>
             )}
             subtitulos={{
@@ -2289,6 +2267,20 @@ export default function MapInfraestructuraPage(props: {
           />
         </div>
       )}
+      {dataVisible && !fichaAbierta && !radarActivo && departamentoSeleccionado && (
+        <aside className="map-ficha-flotante" aria-label="Vista previa del departamento" data-testid="preview-departamento">
+          <ResumenDepartamento
+            nombre={departamentoSeleccionado}
+            totales={totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado)) ?? null}
+            onQuitar={() => {
+              entradaPuntosPendiente.current = true
+              setPuntosVisibles(false)
+              setDepartamentoSeleccionado(null)
+              mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: paddingProvincia() })
+            }}
+          />
+        </aside>
+      )}
       {dataVisible && fichaAbierta && escuelaSeleccionada && (
         <aside className="map-ficha-flotante" aria-label="Ficha de la escuela" data-testid="ficha-flotante">
               <FichaEscuelaPanel
@@ -2322,7 +2314,7 @@ export default function MapInfraestructuraPage(props: {
                 extraVistaPrevia={radarActivo ? <PronosticoEscuelaBloque cueAnexo={escuelaSeleccionada.cueAnexo} /> : null}
                 aislamiento={territorio?.aislamiento?.escuelas[escuelaSeleccionada.cueAnexo]?.nivel ?? null}
                 distanciaLocalidad={geometria?.disponible && typeof geometria.distanciaKm === 'number'
-                  ? { nombre: geometria.destino?.nombre ?? null, km: geometria.distanciaKm }
+                  ? { nombre: geometria.destino?.nombre ?? null, km: geometria.distanciaKm, superficie: superficieVia(geometria.viaPrincipal), desglose: desgloseSuperficies(geometria.superficies) }
                   : null}
               />
         </aside>

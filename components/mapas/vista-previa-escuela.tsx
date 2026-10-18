@@ -14,7 +14,7 @@ import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { DESCRIPCIONES_AISLAMIENTO } from '@/lib/mapas/accesos-capas'
-import { etiquetaKm } from '@/lib/infraestructura/mapa/acceso'
+import { etiquetaKm, etiquetaSuperficie, type SuperficieVia } from '@/lib/infraestructura/mapa/acceso'
 import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
 import styles from './vista-previa-escuela.module.css'
 
@@ -34,7 +34,7 @@ export interface VistaPreviaEscuelaProps {
   /** Static OSM access isolation level; omitted when the school has no row. */
   aislamiento?: NivelAislamientoMapa | null
   /** Road distance to the town the access route ends at; omitted while unknown. */
-  distanciaLocalidad?: { nombre: string | null; km: number } | null
+  distanciaLocalidad?: { nombre: string | null; km: number; superficie?: SuperficieVia | null; desglose?: string | null } | null
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -275,7 +275,9 @@ export function VistaPreviaEscuela({
             <dt>Hasta la localidad</dt>
             <dd>
               {etiquetaKm(distanciaLocalidad.km)} por camino
+              {!distanciaLocalidad.desglose && distanciaLocalidad.superficie ? ` ${etiquetaSuperficie(distanciaLocalidad.superficie)}` : ''}
               {distanciaLocalidad.nombre && <span className={styles.atenuado}>{distanciaLocalidad.nombre}</span>}
+              {distanciaLocalidad.desglose && <span className={styles.desglose}>{distanciaLocalidad.desglose}</span>}
             </dd>
           </div>
         )}
