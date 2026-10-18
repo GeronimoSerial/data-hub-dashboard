@@ -35,3 +35,13 @@ Branch `GeronimoSerial/motor-v0.4-integracion` from `origin/dev` a6914f16. Not p
 ## Open items
 - Prod/dev DBs that already applied motor migrations under old tags will re-run them under new tags (idempotent guards).
 - Install uv to run geo-static pytest.
+
+## T11 — Promote Motor v0.4 as operational engine (code part)
+Route: delegated direct (single bounded writer). Not pushed; prod scheduled tasks NOT applied.
+- [x] ddc0bea4 — `MOTOR_VERSION = motor-v0.4` (`MODELO_VERSION_V04` alias, `MOTOR_VERSION_V03` for rollback). `calcular-riesgo` (same TIPO_JOB/block/lease) runs reglas v0.4 via `jobs/insumos-operativo-v04.ts` (padrón, altimetría, terreno/serie INA → `prepararRioV04`), writes `resultado_v04`, run `metadatos` (reglas, insumos, `degradacion`), cobertura keeps its 3 keys. Universe unchanged (`listarCuesConPerfil`). Missing/stale inputs degrade (`padron_no_disponible`, `altimetria_no_disponible`, `terreno_no_disponible`, `serie_ina_desactualizada` > 3 days) to v0.3 river, never crash. Flag `RIESGO_REGLAS_MOTOR` (`flags.ts`, default v0.4; `v0.3` = one-cycle rollback, byte-identical golden test). `publicar-run.ts` accepts both versions, still rejects candidates.
+- [x] cb623a6a — jobs-esperados: candidate removed (code kept for manual evaluation runs: smaller change, harness reuse); `sync-ina-serie-diaria` (1440) and `sync-ina-pronostico` (360) enabled with `tipo: null` (they do not write `infra_job_run`; freshness via `hazard_source_health`). Consumers run INA jobs themselves (no shared quota; not in `JOBS_OPEN_METEO`). Altimetry import stays manual.
+- [x] (ops commit) — `scripts/configurar-riesgo-v04-operacion.py` + `test_riesgo_v04_operacion.py` + `.github/workflows/riesgo-v04-operacion.yml` (`inspeccionar` default/read-only diff, `configurar` idempotent, `estado`); guards `DATABASE_URL` = `hub_prod`; secrets `COOLIFY_TOKEN`, `COOLIFY_APP_UUID`.
+- [x] 3475881c — runbook-scheduler table + `docs/motor-v0.4/promocion.md` (changes, degradation, rollback, SQL checks).
+- RED observed: 10 failing tests (flags, publicar-run, operational v0.4) before implementation; GREEN after.
+- Checks: vitest riesgo/hidrometria/app/scripts 1843 pass, failures only known env (typography-scale, backup-postgres); tsc clean; eslint riesgo clean; python unittest 4 OK; pnpm build OK.
+- Pending (user): run workflow `inspeccionar` then `configurar` on prod; deploy; verify with promocion.md queries; remove rollback flag after one verified cycle.
