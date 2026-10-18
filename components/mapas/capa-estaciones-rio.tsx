@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { ESTILO_PASTILLA_ESTACION, idMarcadorEstacion, idPastillaEstacion, registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
 import { PALETA_ESTADO_ALTURA } from '@/lib/mapas/paleta-tonal'
-import { ANCHO_RIO_TENIDO, FILTRO_RIO_TENIDO, celdasRio, colorRioTenido } from '@/lib/mapas/rio-tenido'
+import { ANCHO_RIO_TENIDO, FILTRO_RIO_TENIDO, ZOOM_MINIMO_RIO_TENIDO, celdasRio, colorRioTenido } from '@/lib/mapas/rio-tenido'
 import { TarjetaEstacionRio } from './tarjeta-estacion-rio'
 
 type EstadoAltura = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
@@ -305,6 +305,7 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
           type="line"
           source="openmaptiles"
           source-layer="waterway"
+          minzoom={ZOOM_MINIMO_RIO_TENIDO}
           beforeId={basemap.antesDeEtiquetas}
           filter={FILTRO_RIO_TENIDO as never}
           layout={{ 'line-cap': 'round', 'line-join': 'round' }}

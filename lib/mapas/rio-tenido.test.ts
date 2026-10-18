@@ -45,10 +45,10 @@ describe('celdasRio', () => {
     expect(dentro([-59.0, -28.1], norte.poligono.coordinates[0])).toBe(false)
   })
 
-  it('a lone station owns a cell wide enough for the whole course', () => {
+  it('keeps a lone station\'s cell close to it, off the course beyond the province', () => {
     const [unica] = celdasRio([est('uruguay', -29.7, -57.1)])
-    expect(dentro([-55.7, -27.3], unica.poligono.coordinates[0])).toBe(true)
-    expect(dentro([-58.4, -31.5], unica.poligono.coordinates[0])).toBe(true)
+    expect(dentro([-57.4, -29.9], unica.poligono.coordinates[0])).toBe(true)
+    expect(dentro([-55.7, -27.3], unica.poligono.coordinates[0])).toBe(false)
   })
 })
 
@@ -61,7 +61,7 @@ describe('colorRioTenido', () => {
     const expresion = colorRioTenido(celdasRio([est('parana', -27.4, -58.8, 'alerta')])) as unknown[]
     expect(expresion[0]).toBe('case')
     expect(JSON.stringify(expresion[1])).toContain('"within"')
-    expect(JSON.stringify(expresion[1])).toContain('Paraná')
+    expect(JSON.stringify(expresion[1])).toContain('["literal",["Río Paraná","Rio Paraná"]]')
     expect(expresion[2]).toBe(PALETA_ESTADO_ALTURA.alerta)
     expect(expresion.at(-1)).toBe('rgba(0,0,0,0)')
   })
