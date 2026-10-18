@@ -37,6 +37,12 @@ const MS_POR_HORA = 3_600_000
 // servidor y a la vez reduce ~387 celdas reales a ~8 llamadas por ciclo.
 export const TAMANO_LOTE_COORDENADAS = 50
 
+// Cuota Open-Meteo (C4): un lote de 25 puntos × 240 h × 5 variables tardaba
+// más que el default de 10 s de cliente-http; cada timeout era un reintento
+// que volvía a reservar y gastar cupo (~110 unidades por corrida). Con 30 s
+// el request normal entra holgado y el reintento queda para fallas reales.
+export const TIMEOUT_MS_ECMWF = 30_000
+
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
 // Open-Meteo puede devolver nulls en el borde del horizonte: se modelan como
 // nullable y luego se descartan punto a punto (NO se convierten a 0).
@@ -235,6 +241,7 @@ export function crearProviderEcmwf(opts?: {
         url: construirUrlLote(representantes, apiKey),
         fetchImpl,
         cupo,
+        timeoutMs: TIMEOUT_MS_ECMWF,
         parsearPayload: crearParserLote(payloadEcmwfElementoSchema, representantes.length),
       })
 

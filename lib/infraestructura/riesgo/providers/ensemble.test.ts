@@ -7,6 +7,7 @@ import {
   obtenerProbabilidadesEnsemble,
   pesoLoteEnsemble,
   TAMANO_LOTE_COORDENADAS_ENSEMBLE,
+  TIMEOUT_MS_ENSEMBLE,
 } from './ensemble'
 import type { HazardEnsembleProbPunto } from './ensemble'
 import { longitudesDeUrl } from './__fixtures__/url'
@@ -375,5 +376,37 @@ describe('obtenerProbabilidadesEnsemble', () => {
     expect(porRef.get('-27.4_-58.8')).toMatchObject({ probabilidadP95: 1, probabilidadP99: 0 })
     expect(porRef.get('-27.5_-58.7')).toMatchObject({ probabilidadP95: 0, probabilidadP99: 0 })
     expect(porRef.get('-27.6_-58.8')).toMatchObject({ probabilidadP95: 1, probabilidadP99: 1 })
+  })
+  it('espera hasta 30 s una respuesta lenta en vez de cortarla a los 10 s y reintentar', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchImpl = vi.fn(
+        (url: string) =>
+          new Promise<Response>((resolve) => {
+            const cuerpo = JSON.stringify(payloadEnsembleParaLongitudes(longitudesDeUrl(url)))
+            setTimeout(() => resolve(new Response(cuerpo)), 20_000)
+          }),
+      )
+      const celdas = celdasSinteticas(1)
+      const promesa = obtenerProbabilidadesEnsemble({
+        geometryRefsConCoordenada: celdas,
+        corridaEn: CORRIDA_EN,
+        acumuladoHoras: 24,
+        ...mapasUmbral(
+          celdas.map((c) => c.geometryRef),
+          -1,
+          -1,
+        ),
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      })
+      await vi.advanceTimersByTimeAsync(20_000)
+      const { erroresPorCelda } = await promesa
+
+      expect(erroresPorCelda).toEqual({})
+      expect(fetchImpl).toHaveBeenCalledTimes(1)
+      expect(TIMEOUT_MS_ENSEMBLE).toBe(30_000)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

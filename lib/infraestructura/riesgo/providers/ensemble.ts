@@ -43,6 +43,10 @@ export const TAMANO_LOTE_COORDENADAS_ENSEMBLE = CONFIG_FUENTES.ensemble.tamanoLo
 // el fixture real ensemble-2026-09-26.json).
 const DIAS_PRONOSTICO_ENSEMBLE = CONFIG_FUENTES.ensemble.diasPronostico
 
+// Cuota Open-Meteo (C4): mismo criterio que `TIMEOUT_MS_ECMWF`; un lote de 20
+// puntos con 51 series horarias es la respuesta más pesada de los syncs.
+export const TIMEOUT_MS_ENSEMBLE = CONFIG_FUENTES.ensemble.timeoutMs
+
 const MIEMBRO_CONTROL = 'precipitation'
 const NOMBRES_MIEMBROS: string[] = [
   MIEMBRO_CONTROL,
@@ -319,6 +323,7 @@ export async function obtenerProbabilidadesEnsemble(params: {
       url: construirUrlLote(representantes, apiKey),
       fetchImpl,
       cupo,
+      timeoutMs: TIMEOUT_MS_ENSEMBLE,
       parsearPayload: crearParserLote(payloadEnsembleElementoSchema, representantes.length),
     })
 

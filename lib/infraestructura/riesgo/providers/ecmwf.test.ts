@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
-import { crearProviderEcmwf, TAMANO_LOTE_COORDENADAS } from './ecmwf'
+import { crearProviderEcmwf, TAMANO_LOTE_COORDENADAS, TIMEOUT_MS_ECMWF } from './ecmwf'
 import { longitudesDeUrl } from './__fixtures__/url'
 import { fetchOk, fetchJsonPorUrl } from './__fixtures__/fetch'
 import type { HazardForecastPunto } from '../tipos-hazard'
@@ -281,5 +281,27 @@ describe('crearProviderEcmwf', () => {
     expect(precip.get('-27.4_-58.8')).toEqual([-58.8, -58.8])
     expect(precip.get('-27.5_-58.7')).toEqual([-58.7, -58.7])
     expect(precip.get('-27.6_-58.75')).toEqual([-58.75, -58.75])
+  })
+  it('espera hasta 30 s una respuesta lenta en vez de cortarla a los 10 s y reintentar', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchImpl = vi.fn(
+        (url: string) =>
+          new Promise<Response>((resolve) => {
+            const cuerpo = JSON.stringify(payloadEcmwfParaLongitudes(longitudesDeUrl(url)))
+            setTimeout(() => resolve(new Response(cuerpo)), 20_000)
+          }),
+      )
+      const provider = crearProviderEcmwf({ fetchImpl: fetchImpl as unknown as typeof fetch })
+      const promesa = provider.obtenerPronosticoConDiagnostico({ geometryRefs: ['-27_0'], ahora: AHORA })
+      await vi.advanceTimersByTimeAsync(20_000)
+      const { erroresPorCelda } = await promesa
+
+      expect(erroresPorCelda).toEqual({})
+      expect(fetchImpl).toHaveBeenCalledTimes(1)
+      expect(TIMEOUT_MS_ECMWF).toBe(30_000)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
