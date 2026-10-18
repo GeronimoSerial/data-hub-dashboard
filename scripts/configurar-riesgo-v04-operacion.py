@@ -53,9 +53,13 @@ def tasks(uuid):
 
 def job_de(task):
     # Coincidencia exacta del job: 'sync-radar-meteo' no debe tocar otro job.
-    partes = (task.get('command') or '').split()
-    if len(partes) >= 3 and partes[-2].endswith('jobs.mjs'):
-        return partes[-1]
+    # Acepta variantes del comando de Coolify ('node scripts/jobs.mjs x',
+    # 'node /app/scripts/jobs.mjs x', 'sh -c "... jobs.mjs x"'): toma el token
+    # siguiente a jobs.mjs, sin comillas.
+    partes = (task.get('command') or '').replace('"', ' ').replace("'", ' ').split()
+    for i, parte in enumerate(partes[:-1]):
+        if parte.endswith('jobs.mjs'):
+            return partes[i + 1]
     return None
 
 
@@ -97,12 +101,17 @@ def imprimir_plan(plan, existentes):
 
 
 def operar(op):
-    if op not in ['inspeccionar', 'configurar', 'estado']:
+    if op not in ['inspeccionar', 'configurar', 'estado', 'listar']:
         raise ValueError('Operación desconocida')
     uuid = app_uuid()
     validar_destino(uuid)
     prefix = '/applications/' + uuid
     existentes = tasks(uuid)
+    if op == 'listar':
+        # Sólo lectura: todas las tareas programadas de producción.
+        for t in existentes:
+            print(json.dumps({k: t.get(k) for k in CAMPOS}, ensure_ascii=False))
+        return
     if op == 'estado':
         print(json.dumps([{k: t.get(k) for k in CAMPOS} for t in existentes if job_de(t) in DESEADO], ensure_ascii=False))
         for task in existentes:
