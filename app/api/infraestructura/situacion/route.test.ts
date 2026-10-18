@@ -106,7 +106,7 @@ describe('GET /api/infraestructura/situacion', () => {
     const { infraJobRun } = await import('@/lib/db/schema')
     const ahora = Date.now()
     const iso = (horasAtras: number) => new Date(ahora - horasAtras * 3_600_000).toISOString()
-    const fila = { tipo: 'calcular-hazard-climatologia-caudal', version: 'v1', intento: 1, errorSaneado: null }
+    const fila = { tipo: 'calculo-climatologia-imerg', version: 'v1', intento: 1, errorSaneado: null }
     await getDb().insert(infraJobRun).values([
       { ...fila, id: randomUUID(), claveIdempotente: 'ayer', estado: 'completado', iniciadoEn: iso(25), creadaEn: iso(25), actualizadaEn: iso(24) },
       { ...fila, id: randomUUID(), claveIdempotente: 'hoy', estado: 'fallido', intento: 3, errorSaneado: 'GloFAS respondió 503', iniciadoEn: iso(1), creadaEn: iso(1), actualizadaEn: iso(1) },
@@ -117,7 +117,7 @@ describe('GET /api/infraestructura/situacion', () => {
     const body = await res.json()
     expect(body.estadoDatos.problemas).toBeGreaterThan(0)
     const [primero] = body.estadoDatos.items
-    expect(primero).toMatchObject({ id: 'job:climatologia-caudal', estado: 'fallido', ultimoError: 'GloFAS respondió 503' })
+    expect(primero).toMatchObject({ id: 'job:climatologia-imerg', estado: 'fallido', ultimoError: 'GloFAS respondió 503' })
     expect(primero.ultimoExitoEn).not.toBeNull()
   })
 })
