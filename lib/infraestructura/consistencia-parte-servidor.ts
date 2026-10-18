@@ -14,6 +14,10 @@ import type { Severidad } from './validacion'
 // trae el estado del edificio, las clases y la asistencia una sola vez para
 // todo el envío, pero las reglas se evalúan por afectación nueva: esta función
 // arma las respuestas de cada una con la situación común.
+// Diferencias intencionales con el cliente: sólo se consulta el primer bloqueo
+// (no hay UX de opciones) y no hay vigencia ni asistencia en el cliente de
+// actualización. Pendiente: el alcance llega como cantidad, así que nunca es
+// "toda la escuela" (sólo afecta advertencias, no bloqueos).
 
 export interface AfectacionNuevaConsistencia {
   categoria: CategoriaAfectacion

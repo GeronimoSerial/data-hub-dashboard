@@ -1,4 +1,5 @@
 import {
+  alcanceDeSecciones,
   evaluarConsistenciaParte,
   type AlcanceSecciones,
   type EstadoClasesConsistencia,
@@ -47,7 +48,5 @@ export function mensajesDeBloqueo(respuestas: RespuestasConsistencia, { descripc
 }
 
 export function alcanceDe(secciones: number[] | undefined, seccionesDeLaEscuela: number[]): AlcanceSecciones | null {
-  if (!secciones || secciones.length === 0) return null
-  const todas = seccionesDeLaEscuela.length > 0 && seccionesDeLaEscuela.every((id) => secciones.includes(id))
-  return todas ? { tipo: 'toda' } : { tipo: 'algunas', secciones: secciones.length }
+  return alcanceDeSecciones(secciones ?? [], seccionesDeLaEscuela)
 }

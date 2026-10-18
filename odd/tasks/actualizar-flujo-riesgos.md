@@ -21,7 +21,7 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - [x] R2b Server date math must not depend on process TZ: make `vigencia-eleccion.ts` / `vigencia-rango.ts` (used server-side via `consistencia-parte.ts`) compute in America/Argentina/Buenos_Aires explicitly; add a test under TZ=UTC. (User requirement: server time must be Buenos Aires UTC-3.)
 - [ ] R2c Client date math (vigencia-chips.tsx, reporte-inicial-form.tsx) uses browser-local Date; align with Buenos Aires via lib/infraestructura/zona-horaria.ts.
 - [x] R4 Idempotency: lookup inside the transaction; detect unique violations by driver error code, not message regex.
-- [ ] R5 Single source of consistency rules shared by client and server.
+- [x] R5 Single source of consistency rules shared by client and server.
 - [ ] R6 A3 follow-up: banner dismissals must not reset across `reporte-inicial-form` steps.
 - [ ] R7 Extract route domain logic into a use case + repository (behavior-preserving), dedupe JSON mapping and motivo lookups.
 - [ ] R8 A5: Mermaid flow map + UX proposal doc.
@@ -62,3 +62,20 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
   - `npx tsc --noEmit`: exit 0
   - `timeout 300 npx vitest run app/api/problematicas/parte`: 10 files, 95 tests passed
   - commit: see git log (fix(parte): make idempotency replay atomic and detect unique violations by code)
+- R5: route inline (2 production files, 2 new test files; mapping done inline with bounded rg). Finding: the rules were already single-sourced in `lib/infraestructura/consistencia-parte.ts` (pure, no React/server-only imports). Client and server only differ in their adapters, so the work was to remove the one duplicate and pin parity.
+  - Changed: `consistencia-actualizacion.ts` `alcanceDe` now delegates to the core `alcanceDeSecciones` (was a copy with identical semantics). `consistencia-parte-servidor.ts` documents the intentional differences.
+  - Rule-difference table (both sides evaluated):
+    | Aspecto | Cliente (`consistencia-actualizacion.ts`) | Servidor (`consistencia-parte-servidor.ts`) | Estado |
+    |---|---|---|---|
+    | Reglas de bloqueo | core | core | igual |
+    | Alcance | `alcanceDe` (toda/algunas) | cantidad; nunca "toda" | pendiente, no afecta bloqueos (sólo advertencias) |
+    | Descripción | cruda; regla usa trim | trim en el adaptador | igual veredicto |
+    | Descripción obligatoria | `mensajesDeBloqueo(..., {descripcion})` oculta en filas existentes | siempre | intencional (UX) |
+    | Primer bloqueo vs lista | lista completa | primer bloqueo | intencional |
+    | Asistencia / vigencia | null | asistencia real, vigencia null | intencional (sin asistencia en actualizar) |
+    | Categoría alumnos | no la conoce en "nueva" (`categoria: null`): usa edificio/clases del envío | anula edificio/clases/asistencia | DIVERGENCIA, no corregida (ver abajo) |
+  - Mensajes: no cambiaron; ambos lados usan el mensaje del core.
+  - Test-first: characterization. Parity and alcance tests pass on the pre-change code (behavior preserved), so no RED was observed; mutation check instead: server edificio mutated for `centro_evacuados` -> `consistencia-parte-paridad.test.ts` 2 failed (`evacuación preventiva con centro de evacuados`, `inundación con centro de evacuados`), mutation reverted.
+  - Pending, outside surfaces: `recorrido-actualizacion.tsx` builds the "nueva" respuestas without categoria, so an alumnos afectación evaluated with `evacuado` + `clases normal` can block on the client only. Fix needs `recorrido-actualizacion.tsx` in surfaces (pass `categoria` from motivo). Also `consistencia-estado-activo.ts` holds a separate rule set (`evaluarCambioAHabitual`) not in the surfaces.
+  - `npx tsc --noEmit`: exit 0
+  - `timeout 300 npx vitest run components/infraestructura/actualizar lib/infraestructura/consistencia-parte app/api/problematicas/parte`: 20 files, 242 tests passed
