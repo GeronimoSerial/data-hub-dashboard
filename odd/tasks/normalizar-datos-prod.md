@@ -101,6 +101,67 @@ Backups y salidas: `/tmp/claude-1000/-home-gero-orca-workspaces-data-hub-dashboa
   (0 celdas por día) por el mismo cupo diario de Open-Meteo.
 - Sin escritura: requieren cupo de Open-Meteo o decisiones de scheduling.
 
+## Cuota Open-Meteo
+
+Objetivo: bajar el consumo diario de Open-Meteo (7.990–7.998 de 8.000 desde el
+2026-10-13) sin cambiar el scoring ni la forma de los datos persistidos, y
+completar el ensemble (sólo 240 de 387 celdas por corrida). Decisión del usuario
+del 2026-10-18: usar sólo IMERG y dejar de programar ERA5 (reemplaza el C6
+original de reanudar ERA5). Detalle y tabla antes/después:
+[docs/datos/cuota-open-meteo.md](../../docs/datos/cuota-open-meteo.md).
+
+- [x] C2. 429 sin reintento: cooldown persistido (`Retry-After` o 60 s), corte de
+  lotes, peso del ensemble con 51 miembros, espaciado de lotes — `47840efb`.
+- [x] C1. Un request por punto de grilla de 0,25° (ECMWF y ensemble), réplica a
+  las celdas antes de calcular probabilidades — `57ad0eb4`.
+- [x] C2b. `sync-ensemble` termina `fallido`/`cobertura_parcial` con celdas sin
+  dato y reanuda sólo las faltantes; espaciado entre tandas — `c6d36c9d`.
+- [x] C4. Timeout de 30 s para ECMWF y ensemble — `e8438ecd`.
+- [x] C3. radar-meteo cada 6 h (`27 3,9,15,21`), TTL de salud 420 min — commit de docs/ops de esta sección.
+- [x] C6. ERA5 (`climatologia-precipitacion`) y `climatologia-caudal` fuera del
+  scheduler en el runbook; código conservado para corridas manuales.
+- [ ] C6b. `lib/infraestructura/riesgo/jobs-esperados.ts`: `habilitado: false` para
+  las dos climatologías y `intervaloMinutos: 360` para radar-meteo. Fuera de las
+  superficies autorizadas de este paquete; pendiente de aprobación.
+- [ ] Rollout: deploy y cambios de Coolify (ver abajo).
+
+Evidencia (2026-10-18):
+
+- Prod read-only: ensemble `filas: 720` (240 celdas) y `llamadas: 20` por corrida;
+  salud `degradado` con `rate_limited: HTTP 429 en intento 3/3`. IMERG p90/p95/p99
+  en 387/387 celdas; ERA5 `climatologia-v1` en 21. radar-meteo `pesoTotal: 239`.
+- Open-Meteo público (6 llamadas, fuera del cupo de prod): las 387 celdas caen en
+  130 puntos; 385 en el punto más cercano y 2 (`-27.6_-56.4`, `-27.5_-56.6`) en un
+  vecino por `cell_selection=land`. Series idénticas por punto salvo
+  `temperature_2m` (hasta 0,1 °C, corrección por elevación). Ensemble: 120
+  ubicaciones → 200 y 110 más en el mismo minuto → 429 "Minutely API request
+  limit exceeded" sin `Retry-After`: Open-Meteo cuenta los 51 miembros.
+- Verificación por commit: `vitest run lib/infraestructura/riesgo
+  lib/infraestructura/radar-meteo scripts` verde salvo
+  `scripts/backup-postgres.test.ts` (falla de entorno previa: falta `podman`);
+  `tsc --noEmit` limpio; `eslint` sin errores (1 warning previo en
+  `radar-meteo/job-sync.test.ts`).
+
+Uso diario esperado: ~4.670 unidades (ensemble 2.652, pronóstico 552, radar-meteo
+956, radar-ensemble 510, climatologías 0).
+
+Rollout:
+
+1. Deploy de la rama a producción.
+2. Coolify, Scheduled Tasks de producción: `sync-radar-meteo` `27 */3 * * *` →
+   `27 3,9,15,21 * * *`; deshabilitar `climatologia-precipitacion`
+   (`43 21-23 * * *`) y `climatologia-caudal` (`41 21-23 * * *`); opcional:
+   `sync-ensemble` `5 2,8,14,20 * * *` → `5,35 2,8,14,20 * * *`.
+3. Verificar la primera corrida: ensemble `completado` con 1.161 filas y 7
+   llamadas; `om_cupo_contador` del día ~4.700.
+
+Riesgos abiertos: una celda nueva junto a agua podría caer en otro punto de
+grilla sin que la guarda lo detecte (sólo verifica al representante); la tabla
+de excepciones y el fixture se actualizan con una consulta pública. La
+temperatura replicada difiere hasta 0,1 °C de la que daría la celda.
+
+Ruta: delegada (writer único), 5 commits.
+
 ## Ruta por tarea
 
 | Tarea | Ruta | Motivo |

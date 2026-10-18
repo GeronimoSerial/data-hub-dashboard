@@ -18,7 +18,7 @@ Fuente de verdad de la lista de jobs y sus estados esperados:
 
 | Entorno | Mecanismo | Jobs programados | Notas |
 |---|---|---|---|
-| Producción | Coolify Scheduled Tasks | 12 (tabla "Producción") más los que se crean en este despliegue | `sync-imerg`, ambas climatologías y `sync-prefectura-alturas` creadas el 2026-10-13. Flags: ver abajo. |
+| Producción | Coolify Scheduled Tasks | 11 (tabla "Producción") más los que se crean en este despliegue | `sync-imerg`, ambas climatologías y `sync-prefectura-alturas` creadas el 2026-10-13. Las dos climatologías Open-Meteo salen del scheduler con el paquete "Cuota Open-Meteo" (2026-10-18). Flags: ver abajo. |
 | Staging | Timers systemd `enos-ops1-*` | 4 activos; 3 deshabilitados (tabla "Staging") | Corre la app de staging contra la base de staging. |
 
 `calcular-riesgo`, `sync-pronostico-caudal`, `sync-ensemble` y
@@ -53,16 +53,14 @@ Tareas configuradas en Coolify sobre la aplicación de producción:
 | Job (nombre de despacho) | Cron | Timeout | `infra_job_run.tipo` | Notas |
 |---|---|---|---|---|
 | sync-radar-ensemble | `55 3,9,15,21 * * *` | no registrado | `sync-radar-ensemble` | cada 6 h |
-| sync-radar-meteo | `27 */3 * * *` | no registrado | `sync-radar-meteo` | cada 3 h |
+| sync-radar-meteo | `27 3,9,15,21 * * *` | no registrado | `sync-radar-meteo` | cada 6 h (antes `27 */3`; los modelos se actualizan cada 6 h). Salud `open-meteo-radar` con TTL 420 min |
 | sync-smn-alertas | `7-59/15 * * * *` | no registrado | `sync-smn-alertas` | cada 15 min |
 | verificar-radar-meteo | `30 11 * * *` | no registrado | — (no escribe `infra_job_run`) | diario; estado `sin_trazabilidad` |
 | sync-imerg | `*/30 * * * *` | 300 s | `sync-hazard-imerg` | cada 30 min |
 | calcular-riesgo | `15 2,8,14,20 * * *` | no registrado | `calcular-riesgo-v0` | cada 6 h |
 | sync-pronostico-caudal | `0 2,8,14,20 * * *` | no registrado | `sync-hazard-pronostico-caudal` | cada 6 h |
-| sync-ensemble | `5 2,8,14,20 * * *` | no registrado | `sync-hazard-ensemble` | cada 6 h |
+| sync-ensemble | `5,35 2,8,14,20 * * *` | no registrado | `sync-hazard-ensemble` | cada 6 h. La ejecución de `:35` es el reintento del mismo bloque: si la de `:05` completó, es un no-op (`ya_completado`, sin llamadas); si terminó `cobertura_parcial`, pide sólo las celdas sin filas |
 | situacion-corte | `20 * * * *` | no registrado | `situacion-corte-v1` | cada hora |
-| climatologia-caudal | `41 21-23 * * *` | 1200 s | `calcular-hazard-climatologia-caudal` | diario, tres intentos (21, 22 y 23 h), cursor resumable |
-| climatologia-precipitacion | `43 21-23 * * *` | 1200 s | `calculo-climatologia` | diario, tres intentos (21, 22 y 23 h), cursor resumable |
 | climatologia-imerg | `20 4 * * *` | 3600 s | `calculo-climatologia-imerg` | diario; cursor resumable por mes, presupuesto `IMERG_CLIMATOLOGIA_DIAS_POR_CORRIDA` (default 1200 días ≈ 45 min). Requiere `EARTHDATA_TOKEN`. Salud: `hazard_source_health` `nasa-imerg-climatologia` (TTL 2 días). |
 | sync-prefectura-alturas | `17 * * * *` | 300 s | `sync-prefectura-alturas` | cada hora; creado 2026-10-13. Requiere `ENOS_JOBS_ENABLED` distinto de `false` en el contenedor. Exit `1` si devuelve `estado: fallido`. |
 | veredicto-diario | `45 0,6,12,18 * * *` | 600 s | `veredicto-diario-v0` | **pendiente de crear**. Comando `node scripts/jobs.mjs veredicto-diario`. Requiere `AI_VEREDICTO_ENABLED=true` (y `OPENROUTER_API_KEY` para texto IA). |
@@ -101,7 +99,9 @@ todas las instancias. Los timers no lo sobreescriben.
 
 Las cadencias de la tabla de arriba son las de las unidades del repo. Los
 minutos de producción difieren (por ejemplo radar-meteo `:27` en Coolify y
-`:12` en staging); la frecuencia es la misma.
+`:12` en staging). Desde el 2026-10-18 radar-meteo corre cada 6 h en producción;
+el timer de staging sigue en 3 h hasta la migración a réplica (ver "Migración
+pendiente" al final).
 
 ## Verificación
 
@@ -136,6 +136,15 @@ contra `infra_job_run`. Estados, con precedencia
 Tras cambiar una tarea o un timer, confirmar en `/admin/operacion` que el batch
 OPS1 refleja la corrida. Con `ENOS_JOBS_ENABLED=false` la columna "atrasado"
 muestra "Desactivado por configuración".
+
+Fuera del scheduler desde el paquete "Cuota Open-Meteo" (2026-10-18; ver
+[docs/datos/cuota-open-meteo.md](../../datos/cuota-open-meteo.md)). El código
+y el despacho de `scripts/jobs.mjs` quedan para corridas manuales:
+
+| Job | Cron anterior | Motivo |
+|---|---|---|
+| climatologia-caudal | `41 21-23 * * *` | climatología de los 8 puntos de río completa (cargada el 2026-10-18). Recalcular sólo a mano si cambia el período o la versión |
+| climatologia-precipitacion | `43 21-23 * * *` | ERA5 dejó de ser necesaria: el motor usa la climatología IMERG, completa para las 387 celdas. Consumía el cupo sobrante de cada día sin terminar nunca |
 
 ## Sincronía con el código
 
@@ -206,7 +215,7 @@ entorno del contenedor o deshabilitando la tarea en Coolify.
 `scripts/jobs.mjs` sigue el contrato de `scripts/job-diagnostico.mjs`, más un código propio:
 
 - **`0`** — corrió y publicó, **o** no hizo nada porque el job ya estaba `completado`, tenía un lease vigente, o `ENOS_JOBS_ENABLED=false`. Si el motivo fue el flag, revisar el `WARN` (¿pausa deliberada o apagado por error?).
-- **`1`** — excepción no manejada, o resultado `fallido` de `sync-prefectura-alturas` (fallo real). Revisar el log del scheduler (Coolify o `journalctl -u enos-ops1@<nombre>.service` en staging).
+- **`1`** — excepción no manejada, resultado `fallido` de `sync-prefectura-alturas` (fallo real), o `cobertura_parcial` de `sync-ensemble` (quedaron celdas sin dato por red, cupo o 429; el reintento de `:35` pide sólo las faltantes). Revisar el log del scheduler (Coolify o `journalctl -u enos-ops1@<nombre>.service` en staging).
 - **`2`** — nombre de job desconocido. Error de la tarea o unidad (nombre mal escrito), no del job.
 - **`3`** — el job perdió el lease antes de publicar: otro proceso lo recuperó por vencimiento. Tratarlo como problema de **scheduling/solapamiento**. Causa típica: intervalo menor a la duración del lease o del job.
 
@@ -221,10 +230,22 @@ mayo, el año anterior); no hay fechas fijas. Un día que falla descarta su mes,
 corrida `fallido` y la salud `degradado`; la próxima corrida retoma el mes. Completado el
 período, cada corrida sólo recalcula (minutos). Las celdas sin IMERG completo usan ERA5.
 
-## Climatologías: tareas diarias con cursor resumable (OM-cupo)
+## Climatologías Open-Meteo: sólo corridas manuales
+
+Desde el 2026-10-18 ninguna de las dos está programada (ver tabla "Producción").
+`climatologia-caudal` está completa. `climatologia-precipitacion` (ERA5) no se
+completa: el motor toma los umbrales de IMERG (`climatologia-imerg-v1`, 387 de 387
+celdas al 2026-10-18) y sólo cae en ERA5 para una celda sin IMERG completo (hoy 21
+celdas tienen ERA5 `climatologia-v1` de respaldo). Si una celda nueva queda sin IMERG
+completo y sin ERA5, el motor usa el umbral provisorio; el remedio es la corrida
+diaria de `climatologia-imerg`, no reactivar ERA5.
+
+Para una corrida manual: `node scripts/jobs.mjs climatologia-caudal` o
+`node scripts/jobs.mjs climatologia-precipitacion` dentro del contenedor, fuera de
+la ventana de los syncs de 6 h. El texto que sigue describe su funcionamiento.
 
 `climatologia-precipitacion` (ERA5, ~387 celdas × 30 años) y `climatologia-caudal`
-(GloFAS, 8 `PUNTOS_RIO` fijos × ~10 años) corren todos los días (tres intentos, de 21 a 23 h) y avanzan un cursor
+(GloFAS, 8 `PUNTOS_RIO` fijos × ~10 años) avanzan un cursor
 resumable en tandas; el cálculo completo excede el cupo mensual de Open-Meteo en
 una sola corrida (ver `docs/ejecucion-enos/OM-cupo/registro.md`). Nunca recomputan
 una celda ya persistida en `hazard_climatology` para el mismo período y versión
@@ -233,7 +254,7 @@ una celda ya persistida en `hazard_climatology` para el mismo período y versió
 Mientras queden celdas pendientes el job termina `fallido` A PROPÓSITO, para que el
 lease permita reanudar en la próxima ejecución. Es esperado, no un incidente. El
 avance real (celdas completas / total) se ve en `/admin/operacion`, no en "atrasado".
-Completadas ambas, el timer sigue corriendo sin gastar cupo.
+Completada, una corrida manual no gasta cupo.
 
 La de precipitación requiere unas ~48.500 llamadas contra `archive-api`; puede tardar varios meses. La de caudal usa `flood-api` (8 puntos), con volumen mucho menor.
 
@@ -255,7 +276,7 @@ La UI del Centro de Situación (E5) marca el corte como "desactualizado" con
 ## Credenciales de red por job
 
 - `sync-imerg` requiere `EARTHDATA_TOKEN`; sin esa variable se registra como fuente no disponible.
-- `sync-pronostico-caudal`, `sync-ensemble`, `sync-seasonal`, `sync-radar-meteo`, `sync-radar-ensemble` y ambas climatologías consultan Open-Meteo; `OPEN_METEO_API_KEY` habilita cuota paga si corresponde.
+- `sync-pronostico-caudal`, `sync-ensemble`, `sync-seasonal`, `sync-radar-meteo`, `sync-radar-ensemble` y ambas climatologías (manuales) consultan Open-Meteo; `OPEN_METEO_API_KEY` habilita cuota paga si corresponde. Presupuesto diario: [docs/datos/cuota-open-meteo.md](../../datos/cuota-open-meteo.md).
 - `sync-smn-alertas` consulta el feed CAP oficial del SMN; no consume cupo Open-Meteo.
 - `geo-perfiles`, `asociacion-rio`, `calcular-riesgo`, `episodios-derivados` y `situacion-corte` son derivados locales; no requieren credenciales de red.
 
