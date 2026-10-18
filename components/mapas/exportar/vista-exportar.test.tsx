@@ -44,7 +44,7 @@ beforeEach(() => {
     if (url.includes('formato=json')) {
       return new Response(JSON.stringify(PREVIA), { status: 200, headers: { 'Content-Type': 'application/json' } })
     }
-    return new Response(new Blob(['xlsx']), {
+    return new Response('xlsx', {
       status: 200,
       headers: { 'Content-Disposition': 'attachment; filename="escuelas-sin-clases-2026-10-18.xlsx"' },
     })
@@ -89,7 +89,7 @@ describe('VistaExportar', () => {
     expect(botonDescarga).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Cerrar' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    terminar(new Response(new Blob(['xlsx'])))
+    terminar(new Response('xlsx'))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Descargar Excel' })).toBeEnabled())
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce()
   })
