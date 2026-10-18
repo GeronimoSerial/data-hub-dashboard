@@ -192,7 +192,7 @@ def _fila_sin_datos(
 
 def _registro_geometria(
     cue_anexo, fecha_extracto, ruta, cruces, motivo,
-    via_principal=None, destino=None, distancia_destino_m=None,
+    via_principal=None, destino=None, distancia_destino_m=None, superficies=None,
 ):
     return {
         "cue_anexo": cue_anexo,
@@ -205,6 +205,7 @@ def _registro_geometria(
         "via_principal": via_principal,
         "destino": destino,
         "distancia_destino_m": distancia_destino_m,
+        "superficies": superficies,
     }
 
 
@@ -560,6 +561,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                             via_principal=geometria["via_principal"],
                             destino=geometria["destino"],
                             distancia_destino_m=geometria["distancia_destino_m"],
+                            superficies=geometria.get("superficies"),
                         )
                     )
             except Exception as exc:

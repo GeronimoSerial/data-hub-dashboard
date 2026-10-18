@@ -1816,3 +1816,20 @@ class TestNombresOsm:
         assert _nombre_desde_fila(pd.Series({"name": "Rio Santa Lucia"})) == "Rio Santa Lucia"
         assert _nombre_desde_fila(pd.Series({"name": None, "tags": '{"name": "Arroyo X"}'})) == "Arroyo X"
         assert _nombre_desde_fila(pd.Series({"name": float("nan"), "tags": None})) is None
+
+
+class TestSuperficies:
+    def test_metros_por_superficie(self):
+        import networkx as nx
+        from geo_static.osm_aislamiento import calcular_superficies
+
+        grafo = nx.MultiDiGraph()
+        grafo.add_edge(1, 2, length=800.0, highway="primary", surface="asphalt")
+        grafo.add_edge(2, 3, length=300.0, highway="unclassified")
+        grafo.add_edge(3, 4, length=140.0, highway="track")
+        grafo.add_edge(4, 5, length=60.0, highway="track", surface="gravel")
+
+        assert calcular_superficies(grafo, [1, 2, 3, 4, 5]) == {
+            "pavimentado": 800.0, "ripio": 360.0, "tierra": 140.0,
+        }
+        assert calcular_superficies(grafo, [1]) is None

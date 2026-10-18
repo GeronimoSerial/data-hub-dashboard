@@ -338,6 +338,41 @@ def calcular_via_principal(grafo, ruta_nodos) -> Optional[dict]:
     return {"nombre": nombre, "tipo": tipo, "pavimentada": agregado["pavimentada"]}
 
 
+SUPERFICIES_TIERRA = {"dirt", "earth", "ground", "mud", "sand", "grass"}
+SUPERFICIES_RIPIO = {"gravel", "compacted", "fine_gravel"}
+
+
+def _tipo_superficie(datos_arista: dict) -> str:
+    """Clasifica un tramo en `pavimentado`, `ripio` o `tierra`.
+
+    Reusa `_es_tramo_sin_pavimentar` para pavimentado/no pavimentado; entre los
+    no pavimentados manda el tag `surface` y, sin él, `highway=track` es tierra.
+    """
+    if not _es_tramo_sin_pavimentar(datos_arista):
+        return "pavimentado"
+    surface = _primer_valor(datos_arista.get("surface"))
+    if surface in SUPERFICIES_TIERRA:
+        return "tierra"
+    if surface in SUPERFICIES_RIPIO:
+        return "ripio"
+    return "tierra" if _primer_valor(datos_arista.get("highway")) == "track" else "ripio"
+
+
+def calcular_superficies(grafo, ruta_nodos) -> Optional[dict]:
+    """Metros por tipo de superficie sobre los mismos tramos que `calcular_via_principal`."""
+    if len(ruta_nodos) < 2:
+        return None
+    metros = {"pavimentado": 0.0, "ripio": 0.0, "tierra": 0.0}
+    for u, v in zip(ruta_nodos[:-1], ruta_nodos[1:]):
+        datos = _arista_de_menor_costo(grafo, u, v)
+        if datos is None:
+            continue
+        metros[_tipo_superficie(datos)] += float(datos.get("length", 0.0))
+    if sum(metros.values()) <= 0:
+        return None
+    return {tipo: round(valor, 1) for tipo, valor in metros.items()}
+
+
 def buscar_destinos_mas_cercanos(
     grafo_invertido, nodos_destino: dict, grafo_seguro_invertido=None,
     grafo_pavimentado_invertido=None,
@@ -1413,6 +1448,7 @@ def _evaluar_escuela_arista(
     geometria = {
         "ruta": None, "cruces": [], "motivo_sin_geometria": None,
         "destino": None, "distancia_destino_m": None, "via_principal": None,
+        "superficies": None,
     }
     resultado["snap_distancia_m"] = snap["distancia_m"]
 
@@ -1607,6 +1643,7 @@ def _evaluar_escuela_arista(
     else:
         geometria["ruta"] = {"type": "LineString", "coordinates": coordenadas}
     geometria["via_principal"] = calcular_via_principal(grafo, ruta_desde_exit)
+    geometria["superficies"] = calcular_superficies(grafo, ruta_desde_exit)
     geometria["cruces"] = cruces_export
     return resultado, geometria
 
