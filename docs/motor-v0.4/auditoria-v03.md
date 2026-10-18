@@ -141,3 +141,25 @@ margen < −2 m     → sin piso ni componente río
   (`EDAD_MAX_ENSEMBLE_V04_HORAS`) y el horizonte cae al determinístico.
 - `evidenciaValida` no se cambia: sigue siendo "hay alguna amenaza"; la mejora
   real es que la amenaza ya no se construye con insumos posteriores o vencidos.
+
+### F9 — Climatología IMERG por período (D9)
+
+- Reglas v0.4: `reducirClimatologiaObservada(filas, { porPeriodo: true })`
+  agrupa por celda, ventana, versión **y período**; un período incompleto no
+  presta percentiles y entre los completos gana el de período más reciente
+  (luego el calculado más recientemente). El candidato usa
+  `cargarClimatologiaPorPeriodoDesdeDb`.
+- Sólo v0.4: en prod conviven 2001–2010 y 2001–2014 bajo
+  `climatologia-imerg-v1`, así que corregirlo en v0.3 podía cambiar puntajes de
+  lluvia observada publicados.
+- Pendiente menor: el selector de umbrales del pronóstico
+  (`peligro/fuente-climatologia.ts`) ordena por `periodoHasta` y toma el primer
+  valor por percentil; si el período más reciente estuviera incompleto podría
+  completar con el anterior. Hoy ambos períodos están completos (387 celdas × 3).
+
+## Fuera de T10
+
+- Tramo por geometría: los tramos los aprueba el usuario (`tramos-prefectura`).
+- `tiene_alternativa_sin_cruce` nulo en OSM v4 (1.962/2.001): job geo-static de
+  otro agente.
+- Falla del job de climatología de caudal: panel estado-datos.

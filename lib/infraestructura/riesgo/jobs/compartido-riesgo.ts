@@ -12,7 +12,7 @@ import { crearAdapterAislamiento } from '../motor/adaptadores/aislamiento'
 import { crearAdapterExposicion } from '../motor/adaptadores/exposicion'
 import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
 import { crearAdapterHistorial } from '../motor/adaptadores/historial'
-import { crearAdapterLluvia } from '../motor/adaptadores/lluvia'
+import { cargarClimatologiaPorPeriodoDesdeDb, crearAdapterLluvia } from '../motor/adaptadores/lluvia'
 import { crearAdapterPeligro } from '../motor/adaptadores/peligro'
 import { crearAdapterSusceptibilidad } from '../motor/adaptadores/susceptibilidad'
 import { crearAdapterTerritorio } from '../motor/adaptadores/territorio'
@@ -78,7 +78,7 @@ export function construirPuertosReales(opciones: OpcionesPuertosReales = {}): Pu
   const v04 = opciones.reglas === 'v0.4'
   return {
     peligro: crearAdapterPeligro(v04 ? { reglas: 'v0.4' } : {}),
-    lluviaObservada: crearAdapterLluvia(),
+    lluviaObservada: crearAdapterLluvia(v04 ? { cargarClimatologia: cargarClimatologiaPorPeriodoDesdeDb } : {}),
     territorio: crearAdapterTerritorio(),
     aislamiento: crearAdapterAislamiento(),
     susceptibilidad: crearAdapterSusceptibilidad(v04 ? { conProfundidadFluvial: true } : {}),

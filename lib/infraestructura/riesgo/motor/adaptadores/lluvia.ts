@@ -53,6 +53,9 @@ export type FilaClimatologiaObservada = {
   valor: number
   version: string
   calculadoEn: string
+  // Período de la climatología (reglas v0.4, F9). Opcional para filas viejas.
+  periodoDesde?: string
+  periodoHasta?: string
 }
 
 function ventanaDe(fila: FilaClimatologiaObservada): 24 | 72 | null {
@@ -64,20 +67,27 @@ function ventanaDe(fila: FilaClimatologiaObservada): 24 | 72 | null {
   return null
 }
 
+// `porPeriodo` (reglas v0.4, F9): el período forma parte de la clave, así dos
+// períodos publicados bajo la misma versión no mezclan percentiles; entre los
+// grupos completos gana el de período más reciente y luego el calculado más
+// recientemente. Sin la opción, el agrupamiento de v0.3 (por versión).
 export function reducirClimatologiaObservada(
   filas: readonly FilaClimatologiaObservada[],
+  opciones: { porPeriodo?: boolean } = {},
 ): Map<string, ClimatologiaPorVentana> {
-  type Grupo = { geometryRef: string; ventana: 24 | 72; version: string; calculadoEn: string; p: Record<string, number> }
+  type Grupo = { geometryRef: string; ventana: 24 | 72; version: string; calculadoEn: string; periodoHasta: string; p: Record<string, number> }
   const grupos = new Map<string, Grupo>()
   for (const fila of filas) {
     const ventana = ventanaDe(fila)
     if (ventana === null) continue
-    const clave = `${fila.geometryRef}|${ventana}|${fila.version}`
+    const periodo = opciones.porPeriodo ? `|${fila.periodoDesde ?? ''}|${fila.periodoHasta ?? ''}` : ''
+    const clave = `${fila.geometryRef}|${ventana}|${fila.version}${periodo}`
     const grupo = grupos.get(clave) ?? {
       geometryRef: fila.geometryRef,
       ventana,
       version: fila.version,
       calculadoEn: fila.calculadoEn,
+      periodoHasta: opciones.porPeriodo ? (fila.periodoHasta ?? '') : '',
       p: {},
     }
     grupo.p[fila.percentil.toLowerCase()] = fila.valor
@@ -91,8 +101,10 @@ export function reducirClimatologiaObservada(
     if (p90 === undefined || p95 === undefined || p99 === undefined) continue
     const claveVentana = `${g.geometryRef}|${g.ventana}`
     const previa = elegidaEn.get(claveVentana)
-    if (previa !== undefined && previa > g.calculadoEn) continue
-    elegidaEn.set(claveVentana, g.calculadoEn)
+    // periodoHasta es '' sin la opción: el orden queda por calculadoEn (v0.3).
+    const recencia = `${g.periodoHasta}|${g.calculadoEn}`
+    if (previa !== undefined && previa > recencia) continue
+    elegidaEn.set(claveVentana, recencia)
     const porVentana = salida.get(g.geometryRef) ?? {}
     porVentana[g.ventana] = { p90, p95, p99, version: g.version }
     salida.set(g.geometryRef, porVentana)
@@ -100,8 +112,8 @@ export function reducirClimatologiaObservada(
   return salida
 }
 
-export const cargarClimatologiaDesdeDb: CargarClimatologia = async () => {
-  const filas = await getDb()
+async function cargarFilasClimatologiaObservada(): Promise<FilaClimatologiaObservada[]> {
+  return getDb()
     .select({
       geometryRef: hazardClimatology.geometryRef,
       variable: hazardClimatology.variable,
@@ -110,6 +122,8 @@ export const cargarClimatologiaDesdeDb: CargarClimatologia = async () => {
       valor: hazardClimatology.valor,
       version: hazardClimatology.version,
       calculadoEn: hazardClimatology.calculadoEn,
+      periodoDesde: hazardClimatology.periodoDesde,
+      periodoHasta: hazardClimatology.periodoHasta,
     })
     .from(hazardClimatology)
     .where(
@@ -119,8 +133,14 @@ export const cargarClimatologiaDesdeDb: CargarClimatologia = async () => {
         VARIABLE_CLIMATOLOGIA_OBSERVADA[72],
       ]),
     )
-  return reducirClimatologiaObservada(filas)
 }
+
+export const cargarClimatologiaDesdeDb: CargarClimatologia = async () =>
+  reducirClimatologiaObservada(await cargarFilasClimatologiaObservada())
+
+// Reglas v0.4 (F9): misma carga, agrupada por período.
+export const cargarClimatologiaPorPeriodoDesdeDb: CargarClimatologia = async () =>
+  reducirClimatologiaObservada(await cargarFilasClimatologiaObservada(), { porPeriodo: true })
 
 // geometryRef de la grilla 0.1° = "<lat>_<lon>" del centro de celda.
 function coordenadasDeCelda(geometryRef: string): { lat: number; lon: number } | null {
