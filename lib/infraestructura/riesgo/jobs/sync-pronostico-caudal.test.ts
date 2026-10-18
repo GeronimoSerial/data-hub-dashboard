@@ -149,7 +149,7 @@ describe('ejecutarSyncPronosticoCaudal', () => {
     expect(despues).toHaveLength(antesCount)
   })
 
-  it('un proveedor con errores por celda queda degradado pero el job completa ok', async () => {
+  it('un proveedor con errores por celda queda degradado y el job-run queda fallido por cobertura parcial', async () => {
     const ahora = new Date('2026-09-26T07:00:00.000Z') // bloque 06-12
     const celdaCaida = CELDAS[0]
     const mensaje = 'timeout: no respondió a los 12s'
@@ -160,9 +160,17 @@ describe('ejecutarSyncPronosticoCaudal', () => {
       floodProvider: floodFake(),
     })
 
-    expect(resultado.ok).toBe(true)
-    if (!resultado.ok) throw new Error('unreachable')
+    expect(resultado.ok).toBe(false)
+    if (resultado.ok || resultado.motivo !== 'cobertura_parcial') throw new Error('unreachable')
+    expect(resultado.puntosSinDato).toBe(1)
     expect(resultado.resultado.proveedoresConError).toEqual(['open-meteo-ecmwf'])
+    const runs = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.tipo, 'sync-hazard-pronostico-caudal'))
+    const run = runs.find((fila) => fila.iniciadoEn === ahora.toISOString())
+    expect(run?.estado).toBe('fallido')
+    expect(run?.errorSaneado).toMatch(/^cobertura_parcial: 1 de /)
     // celdas caídas no emiten puntos: 2 de ECMWF + todos los de flood
     expect(resultado.resultado.filasInsertadas).toBe(CELDAS.length - 1 + obtenerPuntosRio().length)
 

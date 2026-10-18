@@ -83,6 +83,15 @@ export type ResultadoEjecucionSyncPronosticoCaudal =
       motivo: 'lease_perdido_durante_ejecucion'
       resultado: ResultadoSyncPronosticoCaudal
     }
+  // Como sync-ensemble (cuota Open-Meteo C2): si alguna celda ECMWF o punto
+  // de río quedó sin dato, el job-run queda 'fallido' (nunca 'completado' con
+  // cobertura parcial). Las filas obtenidas igual se persisten.
+  | {
+      ok: false
+      motivo: 'cobertura_parcial'
+      resultado: ResultadoSyncPronosticoCaudal
+      puntosSinDato: number
+    }
 
 const TIPO_JOB = 'sync-hazard-pronostico-caudal'
 const VERSION_JOB = 'v1'
@@ -434,6 +443,20 @@ async function ejecutarCuerpoDelJob(ctx: {
 
   await actualizarSalud(db, ecmwfProvider.nombreProveedor, erroresEcmwf, ahoraIso)
   await actualizarSalud(db, floodProvider.nombreProveedor, erroresFlood, ahoraIso)
+
+  const puntosSinDato = Object.keys(erroresEcmwf).length + Object.keys(erroresFlood).length
+  if (puntosSinDato > 0) {
+    const total = celdasConsultadas + puntosRioConsultados
+    await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'fallido',
+      contadores: { llamadas: resultado.llamadasRealizadas, filas: filasInsertadas, puntosSinDato },
+      errorSaneado: `cobertura_parcial: ${puntosSinDato} de ${total} celdas/puntos sin dato`,
+      ahora,
+    })
+    return { ok: false, motivo: 'cobertura_parcial', resultado, puntosSinDato }
+  }
 
   await publicarResultado({
     jobRunId: lease.jobRunId,
