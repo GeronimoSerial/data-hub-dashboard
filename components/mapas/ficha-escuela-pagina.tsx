@@ -557,6 +557,12 @@ export function FichaEscuelaPagina({
         </div>
 
         <aside id="territorio" className={styles.column} aria-label="Territorio y clima">
+          <section className={styles.section} aria-labelledby="titulo-riesgo">
+            <h3 id="titulo-riesgo" className={styles.sectionTitleSmall}>
+              Riesgo de la escuela
+            </h3>
+            <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={72} planificacion={planificacion} />
+          </section>
           <section className={styles.climaCard} aria-labelledby="titulo-clima">
             <div className={styles.sectionHeader}>
               <h3 id="titulo-clima" className={styles.sectionTitleSmall}>
@@ -640,13 +646,6 @@ export function FichaEscuelaPagina({
                 <dd>{novedadRelativa ?? 'Sin datos'}</dd>
               </div>
             </dl>
-          </section>
-
-          <section className={styles.section} aria-labelledby="titulo-riesgo">
-            <h3 id="titulo-riesgo" className={styles.sectionTitleSmall}>
-              Riesgo de la escuela
-            </h3>
-            <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={72} planificacion={planificacion} />
           </section>
         </aside>
       </div>
