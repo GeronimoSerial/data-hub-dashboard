@@ -61,7 +61,14 @@ los servidores (prohibido acceder); el script `inspeccionar` lo lista.
 
 ## Evidencia
 
-Ver commits y salidas de verificación al cierre (sección siguiente se actualiza por tarea).
+Commits: T1 `bb928510`, T2 `822365d8`, T3 `ebf71780` (ruta: inline; contexto ya cargado, un escritor).
+
+- `vitest run --maxWorkers=6 scripts lib/infraestructura/riesgo`: 885 passed, 6 skipped; único fallo `scripts/backup-postgres.test.ts` (`spawn podman ENOENT`, ambiental, previo). Una corrida aislada mostró 2 fallos no reproducidos en 7 corridas posteriores (máquina cargada).
+- `tsc --noEmit`: exit 0.
+- `eslint lib/infraestructura/riesgo`: exit 0; `scripts/` está ignorado por la config, los archivos tocados pasan con `--no-ignore`.
+- `python3 -m unittest` de `test_riesgo_om_operacion.py`: 6 OK; `test_radar_operacion.py`: 4 OK.
+- RED observado para T1 (9 fallos antes de implementar) y T3 (python). T2: tests escritos antes del módulo, RED no ejecutado.
+- `.env.example` no se modificó: su lectura está bloqueada por una regla de permisos; las variables quedan documentadas en `docs/riesgo-om-replicacion.md`.
 
 ## Rollout (manual, por el usuario)
 
