@@ -6,6 +6,7 @@ import {
   riskEngineEnabled,
   riskMode,
   riskRadarEnabled,
+  riesgoReglasMotor,
   seasonalEnabled,
   situacionEnabled,
 } from './flags'
@@ -18,6 +19,7 @@ const CLAVES = [
   'HAZARD_CONTEXT_ENABLED',
   'SEASONAL_ENABLED',
   'SITUACION_ENABLED',
+  'RIESGO_REGLAS_MOTOR',
 ] as const
 
 const originales = new Map<string, string | undefined>()
@@ -90,10 +92,39 @@ describe('listarFlagsOperativas', () => {
       'RISK_ENGINE_ENABLED', 'RISK_RADAR_ENABLED', 'AI_VEREDICTO_ENABLED',
       'HAZARD_CONTEXT_ENABLED', 'SEASONAL_ENABLED',
       'RISK_MODE', 'SITUACION_ENABLED', 'EPISODIOS_DERIVADOS_ENABLED', 'ENOS_JOBS_ENABLED',
+      'RIESGO_REGLAS_MOTOR',
     ])
     process.env.SITUACION_ENABLED = 'true'
     process.env.RISK_MODE = 'advisory'
     expect(listarFlagsOperativas().find(({ nombre }) => nombre === 'SITUACION_ENABLED')?.valor).toBe('true')
     expect(listarFlagsOperativas().find(({ nombre }) => nombre === 'RISK_MODE')?.valor).toBe('advisory')
+  })
+})
+
+// Flag de rollback de un ciclo (docs/motor-v0.4/promocion.md): v0.4 por
+// defecto; sólo el valor exacto 'v0.3' vuelve a las reglas anteriores.
+describe('riesgoReglasMotor', () => {
+  it('devuelve "v0.4" sin la variable seteada', () => {
+    delete process.env.RIESGO_REGLAS_MOTOR
+    expect(riesgoReglasMotor()).toBe('v0.4')
+  })
+
+  it('devuelve "v0.3" con el valor exacto "v0.3" (espacios tolerados)', () => {
+    process.env.RIESGO_REGLAS_MOTOR = 'v0.3'
+    expect(riesgoReglasMotor()).toBe('v0.3')
+    process.env.RIESGO_REGLAS_MOTOR = ' v0.3 '
+    expect(riesgoReglasMotor()).toBe('v0.3')
+  })
+
+  it('devuelve "v0.4" con un valor inválido o "v0.4"', () => {
+    for (const valor of ['v0.4', '0.3', 'v03', '']) {
+      process.env.RIESGO_REGLAS_MOTOR = valor
+      expect(riesgoReglasMotor()).toBe('v0.4')
+    }
+  })
+
+  it('figura en listarFlagsOperativas con su valor efectivo', () => {
+    process.env.RIESGO_REGLAS_MOTOR = 'v0.3'
+    expect(listarFlagsOperativas().find(({ nombre }) => nombre === 'RIESGO_REGLAS_MOTOR')?.valor).toBe('v0.3')
   })
 })

@@ -1,9 +1,10 @@
 // Única fuente de lectura de flags de feature del motor de riesgo: ninguna
 // otra parte del repo debe leer RISK_ENGINE_ENABLED, RISK_RADAR_ENABLED,
-// ni RISK_MODE; SITUACION_, HAZARD_ y SEASONAL_
+// ni RISK_MODE; SITUACION_, HAZARD_, SEASONAL_ y RIESGO_REGLAS_MOTOR
 // también viven aquí. listarFlagsOperativas() enumera los flags de /admin/operacion.
 import { episodiosDerivadosEnabled } from '@/lib/infraestructura/episodios-derivados/flags'
 import { enosJobsEnabled } from '@/lib/infraestructura/jobs/flags'
+import type { ReglasMotor } from './motor/config'
 
 const ES_TRUE = 'true'
 const ES_ADVISORY = 'advisory'
@@ -56,6 +57,14 @@ export function situacionEnabled(): boolean {
   return esTrue(process.env.SITUACION_ENABLED)
 }
 
+// Reglas del job operativo calcular-riesgo (T11, docs/motor-v0.4/promocion.md):
+// 'v0.4' por defecto (motor promovido); sólo el valor exacto 'v0.3' activa el
+// rollback de un ciclo a motor-v0.3. Cualquier otro valor cae a 'v0.4'. Flag
+// transitorio: se retira tras verificar la promoción.
+export function riesgoReglasMotor(): ReglasMotor {
+  return process.env.RIESGO_REGLAS_MOTOR?.trim() === 'v0.3' ? 'v0.3' : 'v0.4'
+}
+
 /** Enumera los flags operativos mostrados en /admin/operacion. */
 export function listarFlagsOperativas(): Array<{ nombre: string; valor: string }> {
   return [
@@ -68,5 +77,6 @@ export function listarFlagsOperativas(): Array<{ nombre: string; valor: string }
     { nombre: 'SITUACION_ENABLED', valor: String(situacionEnabled()) },
     { nombre: 'EPISODIOS_DERIVADOS_ENABLED', valor: String(episodiosDerivadosEnabled()) },
     { nombre: 'ENOS_JOBS_ENABLED', valor: String(enosJobsEnabled()) },
+    { nombre: 'RIESGO_REGLAS_MOTOR', valor: riesgoReglasMotor() },
   ]
 }

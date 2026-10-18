@@ -10,7 +10,7 @@ import {
   HISTORIAL_TOPE_CANTIDAD,
   HISTORIAL_TOPE_DURACION_HORAS,
   MODELO_VERSION_V04,
-  MOTOR_VERSION,
+  MOTOR_VERSION_V03,
   NIVEL_PELIGRO_A_NUMERO,
   PESOS_AMENAZA,
   PESOS_VULNERABILIDAD,
@@ -156,7 +156,7 @@ export async function calcularRiesgoEscuela(params: {
 }): Promise<ResultadoRiesgoEscuela> {
   const { cueAnexo, horizonte, asOf, puertos } = params
   const v04 = params.reglas === 'v0.4'
-  const modeloVersion = v04 ? `${MODELO_VERSION_V04}+${REGLAS_V04_VERSION}` : MOTOR_VERSION
+  const modeloVersion = v04 ? `${MODELO_VERSION_V04}+${REGLAS_V04_VERSION}` : MOTOR_VERSION_V03
   const rioProb =
     params.rioProbabilistico != null && params.rioProbabilistico.principal !== null
       ? { ...params.rioProbabilistico, principal: params.rioProbabilistico.principal }

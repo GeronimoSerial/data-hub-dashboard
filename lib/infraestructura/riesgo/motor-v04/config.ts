@@ -1,6 +1,6 @@
 // Configuración versionada de Motor v0.4 en modo candidato (U1 de
-// "Motor v0.4/PLAN_IMPLEMENTACION.md"). Convive con motor-v0.3: no toca
-// MOTOR_VERSION de motor/config.ts, que sigue siendo el operativo publicado.
+// "Motor v0.4/PLAN_IMPLEMENTACION.md"). Desde T11 coincide con MOTOR_VERSION
+// de motor/config.ts: v0.4 es el motor operativo (docs/motor-v0.4/promocion.md).
 import { createHash } from 'node:crypto'
 
 export const MOTOR_V04_VERSION = 'motor-v0.4'

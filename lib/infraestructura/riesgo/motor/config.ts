@@ -3,7 +3,11 @@
 // subir MOTOR_VERSION: un snapshot persiste la versión que lo produjo
 // (infra_risk_run.modeloVersion) para que "mismos inputs/misma versión →
 // mismo score" sea verificable después de que la configuración cambie.
-export const MOTOR_VERSION = 'motor-v0.3'
+// PROMOCIÓN (T11, docs/motor-v0.4/promocion.md): motor-v0.4 es el motor
+// operativo. MOTOR_VERSION_V03 sólo identifica los runs del rollback de un
+// ciclo (RIESGO_REGLAS_MOTOR=v0.3); se retira tras verificar la promoción.
+export const MOTOR_VERSION = 'motor-v0.4'
+export const MOTOR_VERSION_V03 = 'motor-v0.3'
 
 // Escala de nivel de riesgo (documento base §5.1). Límites inclusivos por el
 // borde inferior de cada tramo: score < 25 → bajo, etc.
@@ -148,15 +152,15 @@ export const PISO_RIESGO_P_ALTO_V04 = UMBRAL_ALTO
 export const PISO_RIESGO_P_MODERADO_V04 = UMBRAL_MODERADO
 
 // --- Reglas v0.4 (T10, docs/motor-v0.4/auditoria-v03.md) ---
-// Selector explícito de reglas del cálculo compartido. El job operativo usa
-// 'v0.3' (resultado idéntico byte a byte a motor-v0.3); el candidato usa
-// 'v0.4', que corrige los defectos de la auditoría del 2026-10-18. Al promover,
-// 'v0.4' pasa a ser la única regla y se retira 'v0.3' (motor único).
+// Selector explícito de reglas del cálculo compartido. Desde la promoción
+// (T11) el job operativo usa 'v0.4' (corrige los defectos de la auditoría del
+// 2026-10-18); 'v0.3' (idéntico byte a byte a motor-v0.3) queda sólo como
+// rollback de un ciclo vía RIESGO_REGLAS_MOTOR (flags.ts) y luego se retira.
 export type ReglasMotor = 'v0.3' | 'v0.4'
 export const REGLAS_V04_VERSION = 'reglas-v0.4-3'
-// Versión que informa el resultado calculado con reglas v0.4 (la de la corrida
-// candidata); MOTOR_VERSION sigue siendo la del operativo hasta la promoción.
-export const MODELO_VERSION_V04 = 'motor-v0.4'
+// Alias histórico de MOTOR_VERSION (antes de T11 identificaba la corrida
+// candidata); se mantiene para no renombrar los usos existentes.
+export const MODELO_VERSION_V04 = MOTOR_VERSION
 
 // F1 — Susceptibilidad v0.4: SÓLO profundidad fluvial JRC RP100 (m), escala
 // lineal hasta el tope (profundidad ≥ tope = 100). Nunca se mezcla con calor,

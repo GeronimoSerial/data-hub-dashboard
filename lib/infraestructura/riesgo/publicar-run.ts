@@ -4,17 +4,18 @@
 //
 // Valida en servidor, dentro de la misma transacción que publica, que el run
 // exista, siga 'preparando', sea `modo = 'operativo'` y su `modeloVersion` sea
-// la versión operativa (MOTOR_VERSION). Un candidato v0.4 o un run operativo de
-// otra versión se rechazan sin tocar nada: la promoción de v0.4 queda fuera de
-// alcance (odd/tasks/motor-v0-4.md). La restricción
+// una versión operativa: motor-v0.4 (promovido en T11) o motor-v0.3 (rollback
+// de un ciclo con RIESGO_REGLAS_MOTOR=v0.3; se retira tras verificar la
+// promoción, docs/motor-v0.4/promocion.md). Un candidato o un run de otra
+// versión se rechazan sin tocar nada. La restricción
 // infra_risk_run_candidato_no_vigente (migración 0024) es la segunda barrera.
 import { and, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraRiskRun } from '@/lib/db/schema'
-import { MOTOR_VERSION } from './motor/config'
+import { MOTOR_VERSION, MOTOR_VERSION_V03 } from './motor/config'
 
-export const VERSIONES_OPERATIVAS: readonly string[] = [MOTOR_VERSION]
+export const VERSIONES_OPERATIVAS: readonly string[] = [MOTOR_VERSION, MOTOR_VERSION_V03]
 
 export type ResultadoPublicacionRun =
   | { publicado: true }

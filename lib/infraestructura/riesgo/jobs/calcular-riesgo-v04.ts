@@ -1,5 +1,8 @@
 // Job candidato de Motor v0.4 (U1 de "Motor v0.4/PLAN_IMPLEMENTACION.md").
-// Corre aislado del operativo motor-v0.3 (jobs/calcular-riesgo.ts):
+// Desde la promoción (T11) el operativo calcular-riesgo corre v0.4: este job
+// ya no se programa ni se espera en salud; queda sólo para corridas manuales
+// de evaluación con el padrón completo (scripts/jobs.mjs). Aislado del
+// operativo (jobs/calcular-riesgo.ts):
 // - lease propio en infra_job_run (TIPO_JOB distinto, misma clave de bloque de
 //   6 h): repetir dentro del bloque devuelve 'ya_completado' y no duplica;
 // - el run nace 'preparando' con `modo = 'candidato'` y termina 'completado',
@@ -23,7 +26,6 @@ import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import type { PuertosMotor } from '../motor/puertos'
-import type { EvidenciaRioProbabilistica } from '../motor/tipos'
 import { calcularFilasEscuela, construirPuertosReales, crearPuertosConCache, insertarEnChunks } from './compartido-riesgo'
 import { adquirirLease, inicioDeBloqueUtc, publicarResultado, renovarLease } from '../job-run'
 import { CONFIG_V04, HORIZONTES_V04, MOTOR_V04_VERSION, hashCanonico } from '../motor-v04/config'
@@ -32,8 +34,8 @@ import { crearAdapterAltimetriaV04, type PuertoAltimetriaV04 } from '../motor-v0
 import { crearAdapterPadronV04, type PuertoPadronV04 } from '../motor-v04/padron'
 import { construirResultadoPendienteV04, resumirCoberturaV04 } from '../motor-v04/resultado'
 import { crearAdapterTerrenoV04, type PuertoTerrenoV04 } from '../motor-v04/terreno-adaptador'
-import type { AlcanceTendencia } from '../motor-v04/escenarios-estacion'
-import { prepararRioV04, type AlcanceMargen } from '../motor-v04/preparacion-rio-v04'
+import { prepararRioV04 } from '../motor-v04/preparacion-rio-v04'
+import { rioProbabilisticoDe } from './insumos-operativo-v04'
 import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
 
 const TIPO_JOB = 'calcular-riesgo-v04-candidato'
@@ -234,27 +236,6 @@ export async function calcularRiesgoCandidatoV04(params?: {
       ahora,
     })
     throw error
-  }
-}
-
-// Evidencia probabilística para el motor único: sólo si la superación con cota
-// principal es `modelada`; si no, null y el cálculo usa el río de v0.3.
-function rioProbabilisticoDe(
-  r: ResultadoEscuelaV04,
-  tendencia: AlcanceTendencia | null,
-  alcanceMargen: AlcanceMargen | null,
-): EvidenciaRioProbabilistica | null {
-  const { principal, conservador } = r.superacionTerreno
-  if (principal.estado !== 'modelada' || principal.probabilidad === null) return null
-  return {
-    principal: principal.probabilidad,
-    conservador: conservador.estado === 'modelada' ? conservador.probabilidad : null,
-    ventanaHoras: r.horizonteHoras,
-    metodo: principal.metodo ?? 'desconocido',
-    version: principal.version ?? 'desconocida',
-    diagnostico: principal.diagnostico,
-    tendencia,
-    alcanceMargen,
   }
 }
 

@@ -87,10 +87,19 @@ describe('publicarRunOperativo', () => {
     expect((await leerRun(candidato))?.estado).toBe('preparando')
   })
 
-  it('rechaza un run operativo de una versión que no es la publicada (sin promoción implícita)', async () => {
-    const vigenteAntes = await idVigente()
+  it('acepta las dos versiones operativas: motor-v0.4 (promovida) y motor-v0.3 (rollback de un ciclo)', async () => {
     const v04 = await insertarRun({ modeloVersion: 'motor-v0.4' })
-    expect(await publicarRunOperativo({ runId: v04, cobertura: {} })).toEqual({
+    expect(await publicarRunOperativo({ runId: v04, cobertura: {} })).toEqual({ publicado: true })
+    expect(await idVigente()).toBe(v04)
+    const v03 = await insertarRun({ modeloVersion: 'motor-v0.3' })
+    expect(await publicarRunOperativo({ runId: v03, cobertura: {} })).toEqual({ publicado: true })
+    expect(await idVigente()).toBe(v03)
+  })
+
+  it('rechaza un run operativo de una versión que no es operativa', async () => {
+    const vigenteAntes = await idVigente()
+    const otra = await insertarRun({ modeloVersion: 'motor-v0.2' })
+    expect(await publicarRunOperativo({ runId: otra, cobertura: {} })).toEqual({
       publicado: false,
       motivo: 'version_no_operativa',
     })

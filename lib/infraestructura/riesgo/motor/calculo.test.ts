@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { crearPuertosFake, type EscenarioFake } from './__fixtures__/puertos-fake'
-import { LLUVIA_72H_SATURACION_MM, MOTOR_VERSION } from './config'
+import { LLUVIA_72H_SATURACION_MM, MOTOR_VERSION_V03 } from './config'
 import type {
   AntecedenteHistorial,
   IndicadoresSusceptibilidad,
@@ -156,7 +156,7 @@ describe('calcularRiesgoEscuela', () => {
     expect(typeof primera.scoreRiesgo).toBe('number')
     expect(primera.confianza).toBe('alta')
     expect(primera.exposicion).toEqual({ matricula: 420, secciones: 12 })
-    expect(primera.modeloVersion).toBe(MOTOR_VERSION)
+    expect(primera.modeloVersion).toBe(MOTOR_VERSION_V03)
     expect(primera.calculadoEn).toBe(AS_OF)
   })
 
