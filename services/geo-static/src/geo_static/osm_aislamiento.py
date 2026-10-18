@@ -477,12 +477,16 @@ def _cruce_export(cruce: dict, punto_x: float, punto_y: float) -> dict:
 
 
 def _nombre_puente(datos_arista: dict):
-    """Nombre del puente de una arista: `bridge:name` y despues `name`."""
-    for clave in ("bridge:name", "name"):
-        valor = _primer_valor(datos_arista.get(clave))
-        if isinstance(valor, str) and valor.strip():
-            return valor.strip()
-    return None
+    """Nombre del puente de una arista: `bridge:name`, o `name` solo si nombra un puente.
+
+    En OSM el `name` de un tramo-puente suele ser el de la calle o ruta
+    ("Ruta Nacional 12"), que no identifica al puente.
+    """
+    nombre = _nombre_osm(datos_arista.get("bridge:name"))
+    if nombre:
+        return nombre
+    nombre = _nombre_osm(datos_arista.get("name"))
+    return nombre if nombre and nombre.casefold().startswith("puente") else None
 
 
 def _nombre_osm(valor):

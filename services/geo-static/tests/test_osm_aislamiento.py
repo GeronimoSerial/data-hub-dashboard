@@ -1805,7 +1805,8 @@ class TestNombresOsm:
         from geo_static.osm_aislamiento import _nombre_puente
 
         assert _nombre_puente({"bridge:name": "Puente A", "name": "Ruta 12"}) == "Puente A"
-        assert _nombre_puente({"name": "Ruta 12"}) == "Ruta 12"
+        assert _nombre_puente({"name": "Ruta 12"}) is None
+        assert _nombre_puente({"name": "Puente Tala"}) == "Puente Tala"
         assert _nombre_puente({"name": float("nan")}) is None
         assert _nombre_puente({}) is None
 
