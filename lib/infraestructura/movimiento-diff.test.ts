@@ -34,6 +34,26 @@ function servicio(overrides: Partial<ServicioAlcance> & { id: string }): Servici
 }
 
 describe('diffParte', () => {
+  it('marca toda la escuela cuando la afectación nueva cubre completas todas las secciones del establecimiento', () => {
+    const toda = afectacion({ id: 'a1', secciones: [
+      { geSectionId: 1, seccionCompleta: true, alumnos: [10] },
+      { geSectionId: 2, seccionCompleta: true, alumnos: [20] },
+    ] })
+    const despues: ParteSnapshot = { ...crearSnapshotVacio(), afectaciones: [toda] }
+    expect(diffParte(crearSnapshotVacio(), despues, { seccionesEstablecimiento: [1, 2] }).afectacionesAgregadas[0].todaLaEscuela).toBe(true)
+    expect(diffParte(crearSnapshotVacio(), despues, { seccionesEstablecimiento: [1, 2, 3] }).afectacionesAgregadas[0].todaLaEscuela).toBeUndefined()
+    expect(diffParte(crearSnapshotVacio(), despues).afectacionesAgregadas[0].todaLaEscuela).toBeUndefined()
+  })
+
+  it('marca toda la escuela cuando un cambio de alcance pasa a cubrir todo el establecimiento', () => {
+    const antes: ParteSnapshot = { ...crearSnapshotVacio(), afectaciones: [afectacion({ id: 'a1', secciones: [{ geSectionId: 1, seccionCompleta: true, alumnos: [] }] })] }
+    const despues: ParteSnapshot = { ...crearSnapshotVacio(), afectaciones: [afectacion({ id: 'a1', secciones: [
+      { geSectionId: 1, seccionCompleta: true, alumnos: [] },
+      { geSectionId: 2, seccionCompleta: true, alumnos: [] },
+    ] })] }
+    expect(diffParte(antes, despues, { seccionesEstablecimiento: [1, 2] }).alcancesCambiados[0].todaLaEscuela).toBe(true)
+  })
+
   it('detecta cambios en la asistencia pedagógica', () => {
     const antes = crearSnapshotVacio()
     const despues = { ...antes, asistenciaPedagogica: { brinda: true, modalidades: ['Asistencia virtual'] as Array<'Asistencia virtual' | 'Cuadernillos impresos'> } }

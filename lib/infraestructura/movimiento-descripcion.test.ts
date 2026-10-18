@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
+import { describirMovimiento, normalizarDiff, tituloMovimiento } from './movimiento-descripcion'
 import { diffParte } from './movimiento-diff'
 import type { DiffParte } from './movimiento-diff'
 import { crearSnapshotVacio } from './trayectoria-tipos'
@@ -36,6 +36,18 @@ beforeEach(() => vi.setSystemTime(new Date('2026-10-05T18:00:00.000Z')))
 afterEach(() => vi.useRealTimers())
 
 describe('describirMovimiento', () => {
+  it('dice "Toda la escuela" sin contar secciones cuando la afectación alcanza a toda la escuela', () => {
+    const diff = { ...normalizarDiff({}), afectacionesAgregadas: [{ afectacionId: 'a1', motivo: 'Inundación', categoria: 'establecimiento' as const, severidad: 'Alta' as const, secciones: 12, alumnos: 300, todaLaEscuela: true }] }
+    const lineas = describirMovimiento(diff)
+    expect(lineas).toContain('Toda la escuela')
+    expect(lineas.join(' ')).not.toMatch(/secciones/)
+  })
+
+  it('un cambio de alcance a toda la escuela no cuenta secciones', () => {
+    const diff = { ...normalizarDiff({}), alcancesCambiados: [{ afectacionId: 'a1', motivo: 'Inundación', seccionesAgregadas: 5, seccionesRetiradas: 0, alumnosAgregados: 100, alumnosRetirados: 0, todaLaEscuela: true }] }
+    expect(describirMovimiento(diff)).toContain('Se amplió el alcance de Inundación: toda la escuela')
+  })
+
   it('describe el alta y las modalidades de asistencia pedagógica', () => {
     const diff = diffParte(crearSnapshotVacio(), { ...crearSnapshotVacio(), asistenciaPedagogica: { brinda: true, modalidades: ['Asistencia virtual', 'Cuadernillos impresos'] } })
     expect(describirMovimiento(diff)).toContain('Se brinda asistencia pedagógica: Asistencia virtual y Cuadernillos impresos')

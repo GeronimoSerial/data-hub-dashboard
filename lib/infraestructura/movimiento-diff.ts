@@ -34,6 +34,8 @@ export interface DiffAfectacionAgregada {
   severidad: Severidad
   secciones: number
   alumnos: number
+  /** Cubre completas todas las secciones del establecimiento. Ausente en diffs viejos. */
+  todaLaEscuela?: boolean
   causadaPor?: { afectacionId: string; motivo: string }
 }
 
@@ -62,6 +64,8 @@ export interface DiffAlcanceCambio {
   seccionesRetiradas: number
   alumnosAgregados: number
   alumnosRetirados: number
+  /** Después del cambio, cubre completas todas las secciones del establecimiento. */
+  todaLaEscuela?: boolean
 }
 
 export interface DiffCampoCambio {
@@ -116,6 +120,19 @@ function contarAlcance(afectacion: Afectacion): { secciones: number; alumnos: nu
     for (const id of seccion.alumnos) alumnos.add(id)
   }
   return { secciones: afectacion.secciones.length, alumnos: alumnos.size }
+}
+
+export interface DiffParteOpciones {
+  /** Todas las secciones del establecimiento; sin ellas no se marca "toda la escuela". */
+  seccionesEstablecimiento?: number[]
+}
+
+// "Toda la escuela" no se persiste como bandera: el asistente la expresa
+// marcando completas todas las secciones del establecimiento.
+function cubreTodaLaEscuela(afectacion: Afectacion, seccionesEstablecimiento: number[] | undefined): boolean {
+  if (!seccionesEstablecimiento || seccionesEstablecimiento.length === 0) return false
+  const completas = new Set(afectacion.secciones.filter((s) => s.seccionCompleta).map((s) => s.geSectionId))
+  return seccionesEstablecimiento.every((id) => completas.has(id))
 }
 
 function alumnosPorSeccion(afectacion: Afectacion): Map<number, Set<number>> {
@@ -226,7 +243,7 @@ function diffDatosAfectacion(antes: Afectacion, despues: Afectacion): DiffDatosC
   }
 }
 
-function diffAfectaciones(antes: Afectacion[], despues: Afectacion[]) {
+function diffAfectaciones(antes: Afectacion[], despues: Afectacion[], seccionesEstablecimiento?: number[]) {
   const antesPorId = new Map(antes.map((a) => [a.id, a]))
   const despuesPorId = new Map(despues.map((a) => [a.id, a]))
 
@@ -247,6 +264,7 @@ function diffAfectaciones(antes: Afectacion[], despues: Afectacion[]) {
         severidad: afectacion.severidad,
         secciones,
         alumnos,
+        ...(cubreTodaLaEscuela(afectacion, seccionesEstablecimiento) ? { todaLaEscuela: true } : {}),
       })
       continue
     }
@@ -264,7 +282,11 @@ function diffAfectaciones(antes: Afectacion[], despues: Afectacion[]) {
     if (cambioDatos) datosCambiados.push(cambioDatos)
 
     const cambioAlcance = diffAlcanceAfectacion(previa, afectacion)
-    if (cambioAlcance) alcancesCambiados.push(cambioAlcance)
+    if (cambioAlcance) {
+      alcancesCambiados.push(
+        cubreTodaLaEscuela(afectacion, seccionesEstablecimiento) ? { ...cambioAlcance, todaLaEscuela: true } : cambioAlcance,
+      )
+    }
   }
 
   for (const afectacion of antes) {
@@ -315,9 +337,9 @@ function diffEstablecimiento(
   return { de: antes, a: despues }
 }
 
-export function diffParte(antes: ParteSnapshot, despues: ParteSnapshot): DiffParte {
+export function diffParte(antes: ParteSnapshot, despues: ParteSnapshot, opciones: DiffParteOpciones = {}): DiffParte {
   const { afectacionesAgregadas, afectacionesRetiradas, severidadesCambiadas, alcancesCambiados, datosCambiados } =
-    diffAfectaciones(antes.afectaciones, despues.afectaciones)
+    diffAfectaciones(antes.afectaciones, despues.afectaciones, opciones.seccionesEstablecimiento)
 
   return {
     afectacionesAgregadas,
