@@ -6,21 +6,11 @@
 // app/api/problematicas/route.ts: acceso público, ensureSeeded, rate limit,
 // idempotencia, validación contra la base, transacción.
 import { z } from 'zod'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { esViolacionUniqueIdempotencyKey } from './idempotencia'
 import { getDb, getRawClient } from '@/lib/db'
+import { infraMovimiento, infraParte } from '@/lib/db/schema'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { ensureSeeded } from '@/lib/db/seed'
-import {
-  infraAfectacion,
-  infraAfectacionAlumno,
-  infraAfectacionSeccion,
-  infraBorrador,
-  infraBorradorCierre,
-  infraMovimiento,
-  infraParte,
-  infraServicioAlcance,
-} from '@/lib/db/schema'
 import { codigoSinAccesoParte, tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { normalizeCue } from '@/lib/infraestructura/cue'
@@ -44,6 +34,32 @@ import {
   snapshotDesde,
   type ParteActual,
 } from '@/lib/infraestructura/parte-consulta'
+import {
+  actualizarCamposAfectacion,
+  actualizarParte,
+  afectacionesPorIds,
+  alcancesServicioVigentes,
+  buscarBorrador,
+  buscarCierreBorrador,
+  buscarMovimientoPorIdempotencyKey,
+  buscarParteDeCueEnPeriodo,
+  causasPorId,
+  geSectionIdsDeAfectacion,
+  hayAfectacionVigentePorSecciones,
+  insertarAfectacion,
+  insertarAlumnosDeAfectacion,
+  insertarBorradorCierre,
+  insertarMovimiento,
+  insertarParteSiNoExiste,
+  insertarSeccionesDeAfectacion,
+  leerParte,
+  marcarBorradorEnviado,
+  reemplazarAlcanceServicio,
+  reemplazarAlumnosDeAfectacion,
+  reemplazarSeccionesDeAfectacion,
+  retirarAfectaciones,
+  solucionarAfectacion,
+} from '@/lib/infraestructura/parte/parte-repo'
 import { listarSeccionesDelCue } from '@/lib/infraestructura/secciones-cue'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
@@ -463,11 +479,7 @@ export async function POST(request: Request) {
   // único parte por CUE y período, ese tope era del modelo deprecado
   // (retirado en la Fase 4) y capar actualizaciones dejaría a un director
   // afuera en medio de una inundación.
-  const [movimientoExistente] = await db
-    .select()
-    .from(infraMovimiento)
-    .where(eq(infraMovimiento.idempotencyKey, input.idempotencyKey))
-    .limit(1)
+  const movimientoExistente = await buscarMovimientoPorIdempotencyKey(db, input.idempotencyKey)
 
   await asegurarGeAdjuntada(client)
   const corte = await getCorteVigente(client)
@@ -603,23 +615,14 @@ export async function POST(request: Request) {
     if (!todasConAlumno) return jsonError('Cada sección elegida debe incluir al menos un alumno', 400)
   }
 
-  const [parteExistente] = await db
-    .select()
-    .from(infraParte)
-    .where(and(eq(infraParte.cueAnexo, cue.value), eq(infraParte.periodoId, periodo.id)))
-    .limit(1)
+  const parteExistente = await buscarParteDeCueEnPeriodo(db, cue.value, periodo.id)
 
   const evacuaAhora = input.estadoEstablecimiento?.estado === 'evacuado' || input.estadoEstablecimiento?.estado === 'centro_evacuados'
   if (evacuaAhora && !input.confirmarInterrupcionTotal && parteExistente && input.servicioEducativo === undefined) {
-    const alcancesVigentes = await db.select({ tipo: infraServicioAlcance.tipo }).from(infraServicioAlcance)
-      .where(and(eq(infraServicioAlcance.parteId, parteExistente.id), isNull(infraServicioAlcance.retiradaEn)))
-    const hayAlcanceTotalOTurno = alcancesVigentes.some((a) => a.tipo === 'establecimiento' || a.tipo === 'turno')
+    const alcancesVigentes = await alcancesServicioVigentes(db, parteExistente.id)
+    const hayAlcanceTotalOTurno = alcancesVigentes.some((tipo) => tipo === 'establecimiento' || tipo === 'turno')
     if (!hayAlcanceTotalOTurno) {
-      const [hechoPorSecciones] = await db.select({ id: infraAfectacionSeccion.geSectionId })
-        .from(infraAfectacionSeccion)
-        .innerJoin(infraAfectacion, eq(infraAfectacion.id, infraAfectacionSeccion.afectacionId))
-        .where(and(eq(infraAfectacion.parteId, parteExistente.id), isNull(infraAfectacion.retiradaEn)))
-        .limit(1)
+      const hechoPorSecciones = await hayAfectacionVigentePorSecciones(db, parteExistente.id)
       if (hechoPorSecciones) return jsonError('Confirme que se interrumpe todo el establecimiento', 400)
     }
   }
@@ -634,10 +637,7 @@ export async function POST(request: Request) {
     if (!parteExistente) {
       return jsonError('La afectación indicada no existe en el parte actual', 400)
     }
-    const existentes = await db
-      .select()
-      .from(infraAfectacion)
-      .where(and(eq(infraAfectacion.parteId, parteExistente.id), inArray(infraAfectacion.id, idsReferenciados)))
+    const existentes = await afectacionesPorIds(db, parteExistente.id, idsReferenciados)
     const existentesPorId = new Map(existentes.map((a) => [a.id, a]))
     for (const id of idsReferenciados) {
       const fila = existentesPorId.get(id)
@@ -650,11 +650,7 @@ export async function POST(request: Request) {
       if (modificacion.severidad === undefined) continue
       const fila = existentesPorId.get(modificacion.id)
       // Sin secciones en el cambio, el alcance es el que la afectación ya tiene.
-      const seccionesActuales = modificacion.secciones ?? (await db
-        .select({ geSectionId: infraAfectacionSeccion.geSectionId })
-        .from(infraAfectacionSeccion)
-        .where(eq(infraAfectacionSeccion.afectacionId, modificacion.id))
-      ).map((s) => s.geSectionId)
+      const seccionesActuales = modificacion.secciones ?? (await geSectionIdsDeAfectacion(db, modificacion.id))
       const sugerida = severidadSugeridaPorAlcance(
         (fila ? motivoIdPorNombre.get(fila.motivo) : undefined) ?? null,
         alcanceDeSecciones(seccionesActuales, todasLasSecciones),
@@ -672,11 +668,7 @@ export async function POST(request: Request) {
       if (!modificacion.alumnos || modificacion.alumnos.length === 0) continue
       let seccionesEfectivas = modificacion.secciones
       if (!seccionesEfectivas) {
-        const actuales = await db
-          .select({ geSectionId: infraAfectacionSeccion.geSectionId })
-          .from(infraAfectacionSeccion)
-          .where(eq(infraAfectacionSeccion.afectacionId, modificacion.id))
-        seccionesEfectivas = actuales.map((s) => s.geSectionId)
+        seccionesEfectivas = await geSectionIdsDeAfectacion(db, modificacion.id)
       }
       if (!(await alumnosPertenecenASecciones(seccionesEfectivas, modificacion.alumnos))) {
         return jsonError('Alguno de los alumnos seleccionados no pertenece a las secciones indicadas', 400)
@@ -687,11 +679,7 @@ export async function POST(request: Request) {
   const idsCausa = [...new Set(input.afectacionesNuevas.flatMap((a) => (a.causadaPorId ? [a.causadaPorId] : [])))]
   const motivoCausaExterna = new Map<string, string>()
   if (idsCausa.length > 0) {
-    const causas = await db
-      .select({ id: infraAfectacion.id, motivo: infraAfectacion.motivo, retiradaEn: infraAfectacion.retiradaEn, cueAnexo: infraParte.cueAnexo })
-      .from(infraAfectacion)
-      .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
-      .where(inArray(infraAfectacion.id, idsCausa))
+    const causas = await causasPorId(db, idsCausa)
     const porId = new Map(causas.map((c) => [c.id, c]))
     for (const causa of causas) motivoCausaExterna.set(causa.id, causa.motivo)
     for (const id of idsCausa) {
@@ -734,20 +722,14 @@ export async function POST(request: Request) {
       // transacción que el INSERT. Una request que llega después de que otra
       // ya confirmó el movimiento ve su fila acá y responde replay, en vez de
       // recalcular el diff contra el parte ya escrito (409 "sin cambios").
-      const [yaRegistrado] = await tx
-        .select()
-        .from(infraMovimiento)
-        .where(eq(infraMovimiento.idempotencyKey, input.idempotencyKey))
-        .limit(1)
+      const yaRegistrado = await buscarMovimientoPorIdempotencyKey(tx, input.idempotencyKey)
       if (yaRegistrado) throw new ReplayIdempotencia(yaRegistrado)
 
       if (draftId) {
-        const [closure] = await tx.select().from(infraBorradorCierre)
-          .where(eq(infraBorradorCierre.draftId, draftId)).limit(1)
+        const closure = await buscarCierreBorrador(tx, draftId)
         if (closure) throw new ErrorCierreBorrador(410, 'El borrador ya está cerrado')
 
-        const [draft] = await tx.select().from(infraBorrador)
-          .where(eq(infraBorrador.id, draftId)).limit(1)
+        const draft = await buscarBorrador(tx, draftId)
         if (!draft) throw new ErrorCierreBorrador(404, 'No se encontró el borrador')
         if (draft.cueAnexo !== cue.value) {
           throw new ErrorCierreBorrador(409, 'El borrador no corresponde al CUE del reporte')
@@ -769,41 +751,21 @@ export async function POST(request: Request) {
         esNuevoParte = false
       } else {
         const nuevoId = crypto.randomUUID()
-        await tx
-          .insert(infraParte)
-          .values({
-            id: nuevoId,
-            periodoId: periodo.id,
-            cueAnexo: cue.value,
-            estadoEstablecimiento: 'habitual',
-            asistenciaPedagogica: null,
-            estadoEstablecimientoRigeDesde: input.rigeDesde,
-            corteId,
-            creadaEn: ahora,
-            actualizadaEn: ahora,
-          })
-          // Carrera en (cue_anexo, periodo_id): si otra request ya creó el
-          // parte mientras ésta esperaba el lock de escritura, este insert
-          // simplemente no hace nada y releemos abajo.
-          .onConflictDoNothing()
-        const [fila] = await tx
-          .select({ id: infraParte.id })
-          .from(infraParte)
-          .where(and(eq(infraParte.cueAnexo, cue.value), eq(infraParte.periodoId, periodo.id)))
-          .limit(1)
-        if (!fila) throw new Error('No se pudo crear ni leer el parte')
-        parteId = fila.id
-        // Si `fila.id` no es el id que generamos, otra transacción ganó la
-        // carrera del alta y ya creó el parte: esta request pasa a tratarse
-        // como una actualización, no como un segundo "reporte_inicial" del
-        // mismo parte (riesgo residual de E1b).
-        esNuevoParte = fila.id === nuevoId
+        parteId = await insertarParteSiNoExiste(tx, {
+          id: nuevoId,
+          periodoId: periodo.id,
+          cueAnexo: cue.value,
+          rigeDesde: input.rigeDesde,
+          corteId,
+          ahora,
+        })
+        esNuevoParte = parteId === nuevoId
       }
 
       // --- Fotografía "antes" (spec §12), releída DENTRO de la transacción
       // con el lock de escritura ya tomado — nunca la `parteExistente` de
       // más arriba, que pudo quedar desactualizada por la misma carrera.
-      const [parteFilaActual] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
+      const parteFilaActual = await leerParte(tx, parteId)
       const { afectaciones: afectacionesActuales, servicioAlcance: servicioAlcanceActual } =
         await obtenerAfectacionesYServicio(tx, clienteGeEnTx, parteId, corteId)
       const actualAntesReal: ParteActual = parteFilaActual
@@ -852,7 +814,7 @@ export async function POST(request: Request) {
 
         const id = crypto.randomUUID()
         if (entrada.causadaPorId) causaPorNuevaId.set(id, entrada.causadaPorId)
-        await tx.insert(infraAfectacion).values({
+        await insertarAfectacion(tx, {
           id,
           parteId,
           motivo: entrada.motivo,
@@ -866,13 +828,9 @@ export async function POST(request: Request) {
           creadaEn: ahora,
           retiradaEn: null,
         })
-        await tx
-          .insert(infraAfectacionSeccion)
-          .values(entrada.secciones.map((geSectionId) => ({ afectacionId: id, geSectionId })))
+        await insertarSeccionesDeAfectacion(tx, id, entrada.secciones)
         if (entrada.alumnos && entrada.alumnos.length > 0) {
-          await tx
-            .insert(infraAfectacionAlumno)
-            .values(entrada.alumnos.map((gePersonId) => ({ afectacionId: id, gePersonId })))
+          await insertarAlumnosDeAfectacion(tx, id, entrada.alumnos)
         }
       }
 
@@ -890,38 +848,22 @@ export async function POST(request: Request) {
         }
         if (modificacion.descripcion !== undefined) cambios.descripcion = modificacion.descripcion
         if (Object.keys(cambios).length > 0) {
-          await tx.update(infraAfectacion).set(cambios).where(eq(infraAfectacion.id, modificacion.id))
+          await actualizarCamposAfectacion(tx, modificacion.id, cambios)
         }
         if (modificacion.secciones !== undefined) {
-          await tx.delete(infraAfectacionSeccion).where(eq(infraAfectacionSeccion.afectacionId, modificacion.id))
-          if (modificacion.secciones.length > 0) {
-            await tx
-              .insert(infraAfectacionSeccion)
-              .values(modificacion.secciones.map((geSectionId) => ({ afectacionId: modificacion.id, geSectionId })))
-          }
+          await reemplazarSeccionesDeAfectacion(tx, modificacion.id, modificacion.secciones)
         }
         if (modificacion.alumnos !== undefined) {
-          await tx.delete(infraAfectacionAlumno).where(eq(infraAfectacionAlumno.afectacionId, modificacion.id))
-          if (modificacion.alumnos.length > 0) {
-            await tx
-              .insert(infraAfectacionAlumno)
-              .values(modificacion.alumnos.map((gePersonId) => ({ afectacionId: modificacion.id, gePersonId })))
-          }
+          await reemplazarAlumnosDeAfectacion(tx, modificacion.id, modificacion.alumnos)
         }
       }
 
       if (input.afectacionesRetiradas.length > 0) {
-        await tx
-          .update(infraAfectacion)
-          .set({ retiradaEn: input.rigeDesde, cierre: 'retirada' })
-          .where(inArray(infraAfectacion.id, input.afectacionesRetiradas))
+        await retirarAfectaciones(tx, input.afectacionesRetiradas, input.rigeDesde)
       }
 
       for (const solucionada of input.afectacionesSolucionadas) {
-        await tx
-          .update(infraAfectacion)
-          .set({ retiradaEn: solucionada.solucionadaEn ?? input.rigeDesde, cierre: 'solucionada' })
-          .where(eq(infraAfectacion.id, solucionada.id))
+        await solucionarAfectacion(tx, solucionada.id, solucionada.solucionadaEn ?? input.rigeDesde)
       }
 
       if (input.servicioEducativo) {
@@ -939,33 +881,7 @@ export async function POST(request: Request) {
         }
 
         for (const clave of claves) {
-          const condicionReferencia =
-            clave.referenciaId === null
-              ? isNull(infraServicioAlcance.referenciaId)
-              : eq(infraServicioAlcance.referenciaId, clave.referenciaId)
-          // Baja blanda de la fila vigente para esta clave puntual (spec
-          // §10: suspender una sección no debe tocar a las demás).
-          await tx
-            .update(infraServicioAlcance)
-            .set({ retiradaEn: input.rigeDesde })
-            .where(
-              and(
-                eq(infraServicioAlcance.parteId, parteId),
-                eq(infraServicioAlcance.tipo, clave.tipo),
-                condicionReferencia,
-                isNull(infraServicioAlcance.retiradaEn),
-              ),
-            )
-          await tx.insert(infraServicioAlcance).values({
-            id: crypto.randomUUID(),
-            parteId,
-            tipo: clave.tipo,
-            referenciaId: clave.referenciaId,
-            estado: input.servicioEducativo.estado,
-            rigeDesde: input.rigeDesde,
-            creadaEn: ahora,
-            retiradaEn: null,
-          })
+          await reemplazarAlcanceServicio(tx, parteId, clave, input.servicioEducativo.estado, input.rigeDesde, ahora)
         }
       }
 
@@ -980,13 +896,13 @@ export async function POST(request: Request) {
         actualizacionParte.estadoEstablecimientoRigeDesde = input.rigeDesde
       }
       if (input.asistenciaPedagogica !== undefined) actualizacionParte.asistenciaPedagogica = JSON.stringify(input.asistenciaPedagogica)
-      await tx.update(infraParte).set(actualizacionParte).where(eq(infraParte.id, parteId))
+      await actualizarParte(tx, parteId, actualizacionParte)
 
       // Fotografía "después", dentro de la misma transacción: si el diff
       // resulta vacío hay que poder revertir todo lo anterior.
       const { afectaciones: afectacionesDespues, servicioAlcance: servicioAlcanceDespues } =
         await obtenerAfectacionesYServicio(tx, clienteGeEnTx, parteId, corteId)
-      const [parteDespues] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
+      const parteDespues = await leerParte(tx, parteId)
       const despues = snapshotDesde(
         {
           periodo,
@@ -1021,7 +937,7 @@ export async function POST(request: Request) {
         diff.establecimientoCambiado === null && diff.asistenciaPedagogicaCambiada == null
       const tipoMovimiento: TipoMovimiento = soloConfirmaciones ? 'confirmacion' : esNuevoParte ? 'reporte_inicial' : 'actualizacion'
       const movimientoId = crypto.randomUUID()
-      await tx.insert(infraMovimiento).values({
+      await insertarMovimiento(tx, {
         id: movimientoId,
         parteId,
         tipo: tipoMovimiento,
@@ -1033,26 +949,15 @@ export async function POST(request: Request) {
       })
 
       if (draftId) {
-        const [draft] = await tx.select().from(infraBorrador)
-          .where(eq(infraBorrador.id, draftId)).limit(1)
+        const draft = await buscarBorrador(tx, draftId)
         if (!draft || draft.cueAnexo !== cue.value || draft.estado !== 'open') {
           throw new ErrorCierreBorrador(409, 'El borrador cambió durante el envío')
         }
         const revision = draft.revision + 1
-        const [updated] = await tx.update(infraBorrador).set({
-          estado: 'submitted',
-          movimientoId,
-          revision,
-          actividadEn: ahora,
-          sincronizadoEn: ahora,
-        }).where(and(
-          eq(infraBorrador.id, draftId),
-          eq(infraBorrador.revision, draft.revision),
-          eq(infraBorrador.estado, 'open'),
-        )).returning({ revision: infraBorrador.revision })
+        const updated = await marcarBorradorEnviado(tx, draftId, draft.revision, { movimientoId, revision, ahora })
         if (!updated) throw new ErrorCierreBorrador(409, 'El borrador cambió durante el envío')
 
-        await tx.insert(infraBorradorCierre).values({
+        await insertarBorradorCierre(tx, {
           draftId,
           cueAnexo: draft.cueAnexo,
           estadoCierre: 'submitted',
@@ -1093,11 +998,7 @@ export async function POST(request: Request) {
       // Carrera: otra request con la misma idempotencyKey confirmó su INSERT
       // entre nuestro chequeo y el nuestro. Se responde como replay, releyendo
       // el movimiento que sí quedó escrito.
-      const [race] = await db
-        .select()
-        .from(infraMovimiento)
-        .where(eq(infraMovimiento.idempotencyKey, input.idempotencyKey))
-        .limit(1)
+      const race = await buscarMovimientoPorIdempotencyKey(db, input.idempotencyKey)
       if (race) return respuestaReplay(race)
     }
     // Solo nombre y mensaje: nunca el cuerpo de la request ni datos del parte.
