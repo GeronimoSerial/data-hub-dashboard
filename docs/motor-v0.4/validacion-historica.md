@@ -189,3 +189,19 @@ Goya, Corrientes y Esquina tienen la defensa como registro tipado (`DefensaCoste
 cota de coronamiento desconocida. Mientras siga desconocida, el piso observado baja un
 nivel (provisorio). Cuando se cargue la cota, el motor compara el agua posible con el
 coronamiento. Detalle y pasos: [defensas-costeras.md](defensas-costeras.md).
+
+### Evaluación (asOf 2026-10-18T02:15:04Z, prod sólo lectura)
+
+| Horizonte | T10c bajo/mod/alto/muy alto | T10d |
+|---|---|---|
+| 24 h | 1.962 / 20 / 15 / 4 | 1.986 / 1 / 9 / 5 |
+| 72 h | 1.939 / 40 / 17 / 5 | 1.981 / 1 / 14 / 5 |
+| 240 h | 1.907 / 66 / 17 / 11 | 1.973 / 4 / 12 / 12 |
+
+- **Goya:** la mayoría de los cambios. Con la defensa provisoria y el río en 5,22 m (debajo de
+  la alerta), el piso reducido no fija piso.
+- **Corrientes:** 17 escuelas bajan a 240 h.
+- **Puerto Boca:** 3 bajan a 24 h.
+- **Suben:** Itatí (5 a 240 h, offset 44,50) y una escuela de Apipé Grande.
+- **Defensas:** 415 escuelas marcadas (Corrientes 323, Goya 67, Esquina 25).
+- **Paso de la Patria:** el piso seco S2 lleva h_crit a 7,38 m frente a 7,18 m hoy (P 10 días 30 %).
