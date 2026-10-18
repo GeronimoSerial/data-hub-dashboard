@@ -153,7 +153,7 @@ export const PISO_RIESGO_P_MODERADO_V04 = UMBRAL_MODERADO
 // 'v0.4', que corrige los defectos de la auditoría del 2026-10-18. Al promover,
 // 'v0.4' pasa a ser la única regla y se retira 'v0.3' (motor único).
 export type ReglasMotor = 'v0.3' | 'v0.4'
-export const REGLAS_V04_VERSION = 'reglas-v0.4-2'
+export const REGLAS_V04_VERSION = 'reglas-v0.4-3'
 // Versión que informa el resultado calculado con reglas v0.4 (la de la corrida
 // candidata); MOTOR_VERSION sigue siendo la del operativo hasta la promoción.
 export const MODELO_VERSION_V04 = 'motor-v0.4'

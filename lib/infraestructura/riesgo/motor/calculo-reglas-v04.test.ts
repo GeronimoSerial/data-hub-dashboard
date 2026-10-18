@@ -1,3 +1,4 @@
+import { defensaDeLocalidad, evaluarAlcanceAlturaCritica } from './altura-critica'
 // Reglas v0.4 del cálculo compartido (T10, docs/motor-v0.4/auditoria-v03.md):
 // F1 susceptibilidad sólo fluvial, F2 historial ausente sin partes y
 // combinación que no anula la amenaza, F7 confianza con faltantes reales.
@@ -301,6 +302,30 @@ describe('reglas v0.4 — F3 pisos por río según alcance', () => {
     // Pisos probabilísticos: contra el terreno SIN margen (sin cambios).
     const alto = await calcularH(p, 24, prob(60, { principal: 0.6, conservador: 0.7 }))
     expect(alto.nivelRiesgo).toBe('alto')
+  })
+
+  it('T10d zona modelada: la altura crítica decide el piso; escuela defendida baja un nivel', async () => {
+    const p = conRio('evacuacion', { 24: 'ninguno', 72: 'ninguno', 240: 'ninguno' })
+    const defensa = defensaDeLocalidad('GOYA')
+    const alcances = evaluarAlcanceAlturaCritica({
+      alturaCriticaM: 5, alturaCriticaBandaM: 3, h0M: 4.6, maximos: { 24: Array(20).fill(5.2), 72: Array(20).fill(5.4), 240: Array(20).fill(6) },
+      subidaDeterministaM: { 24: null, 72: null, 240: null }, defensa, aEstacionM: 28.73,
+    })
+    const altura = { ...alcances[24], estacionId: 'pna-goya', fuente: 'calibrada' as const, alturaCriticaM: 5, alturaCriticaBandaM: 3, h0M: 4.6, record: { valorM: 7.2, fecha: '1983-06-01' }, pAlcanzarPorHorizonte: { 24: 1, 72: 1, 240: 1 }, evidenciaSecoS2: null, defensa }
+    const prob: EvidenciaRioProbabilistica = {
+      principal: 0, conservador: 0, ventanaHoras: 24, metodo: 'analogos-v2+transferencia-km', version: 'superacion-terreno-v1',
+      alcanceMargen: { cotaConservadoraM: 35.73, pUmbral: 0, pBanda: 0, alturaCritica: altura },
+    }
+    const r = await calcularH(p, 24, prob)
+    expect(r.scoreRiesgo).toBe(25)
+    const texto = r.factores.find((f) => f.fuente === 'rio-v04')!.explicacion
+    expect(texto).toContain('alcance_observado reducido')
+    expect(texto).toContain('se alcanza con 5,00 m en la escala de Goya')
+    expect(texto).toContain('protegida por defensa costera; cota de coronamiento desconocida: piso reducido un nivel (provisorio)')
+    // Sin defensa, la misma P da el piso completo.
+    const sin = evaluarAlcanceAlturaCritica({ alturaCriticaM: 5, alturaCriticaBandaM: 3, h0M: 4.6, maximos: { 24: Array(20).fill(5.2), 72: [], 240: [] }, subidaDeterministaM: { 24: null, 72: null, 240: null }, defensa: null, aEstacionM: null })
+    const r2 = await calcularH(p, 24, { ...prob, alcanceMargen: { ...prob.alcanceMargen!, alturaCritica: { ...altura, ...sin[24], defensa: null } } })
+    expect(r2.scoreRiesgo).toBe(50)
   })
 })
 

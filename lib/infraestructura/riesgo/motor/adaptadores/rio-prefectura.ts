@@ -41,7 +41,9 @@ import { ultimaFilaConservadoraPorCue } from './susceptibilidad'
 import type { ReglasMotor } from '../config'
 import type { EscenarioSubidaEstacion } from '../escenarios-subida'
 import { evaluarExposicionV04 } from '../exposicion-v04'
-import { CEROS_EFECTIVOS_V04, type ReferenciaNivelEstacion } from '../referencia-nivel'
+import { CEROS_EFECTIVOS_V04, type CeroEfectivo, type ReferenciaNivelEstacion } from '../referencia-nivel'
+import { defensaDeLocalidad, type MaximosEscala } from '../altura-critica'
+import { evidenciaSecoS2 } from '../evidencia-seco-s2'
 
 // Valores numéricos pueden llegar como string desde pg (numeric/doublePrecision).
 type Numerico = number | string | null
@@ -109,12 +111,18 @@ export interface DependenciasAdapterRioPrefectura {
   escenarios?: ReadonlyMap<string, EscenarioSubidaEstacion>
   // Reglas v0.4 (T10c): mediana de largo plazo y récord por estación (serie A5).
   referencias?: ReadonlyMap<string, ReferenciaNivelEstacion>
+  // Reglas v0.4 (T10d): máximos por miembro de los análogos de cada escala.
+  maximosEscala?: ReadonlyMap<string, MaximosEscala>
 }
 
 export type OpcionesEvidenciaRio = {
   reglas?: ReglasMotor
   escenarios?: ReadonlyMap<string, EscenarioSubidaEstacion>
   referencias?: ReadonlyMap<string, ReferenciaNivelEstacion>
+  maximosEscala?: ReadonlyMap<string, MaximosEscala>
+  // Ceros efectivos por estación (por defecto CEROS_EFECTIVOS_V04); los tests
+  // de la rama DEM pasan {} para ejercitarla en estaciones calibradas.
+  cerosEfectivos?: Readonly<Record<string, CeroEfectivo>>
 }
 
 // Convierte a número; null, vacío o NaN quedan como null.
@@ -219,7 +227,7 @@ export function resolverEvidenciaRio(
   asOf: string,
   opciones: OpcionesEvidenciaRio = {},
 ): EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null {
-  if (opciones.reglas === 'v0.4') return resolverEvidenciaRioV04(datos, cueAnexo, asOf, opciones.escenarios, opciones.referencias)
+  if (opciones.reglas === 'v0.4') return resolverEvidenciaRioV04(datos, cueAnexo, asOf, opciones)
   const localidad = datos.localidadPorCue.get(cueAnexo)
   if (!localidad) return null
 
@@ -343,8 +351,7 @@ function resolverEvidenciaRioV04(
   datos: DatosRio,
   cueAnexo: string,
   asOf: string,
-  escenarios: ReadonlyMap<string, EscenarioSubidaEstacion> | undefined,
-  referencias: ReadonlyMap<string, ReferenciaNivelEstacion> | undefined,
+  { escenarios, referencias, maximosEscala, cerosEfectivos = CEROS_EFECTIVOS_V04 }: OpcionesEvidenciaRio,
 ): EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null {
   const localidad = datos.localidadPorCue.get(cueAnexo)
   if (!localidad) return null
@@ -361,12 +368,16 @@ function resolverEvidenciaRioV04(
     anomaliaM: anomalia?.anomaliaM ?? null,
     referencia: anomalia?.inestable ? 'mediana_365_inestable' : 'largo_plazo',
     h0M: lecturaVigenteM(datos, tramo.estacionId, asOf, asOfMs),
-    ceroEfectivo: CEROS_EFECTIVOS_V04[tramo.estacionId] ?? null,
+    ceroEfectivo: cerosEfectivos[tramo.estacionId] ?? null,
     hReferenciaM: referenciaV04(datos, referencias, tramo.estacionId)?.medianaM ?? null,
     record: referencias?.get(tramo.estacionId)?.record ?? null,
     represaAguasArriba: obtenerEstacionesConRepresa().has(tramo.estacionId),
     claseRio: datos.susceptibilidadPorCue.get(cueAnexo)?.claseRio ?? null,
     escenario: escenarios?.get(tramo.estacionId) ?? null,
+    estacionId: tramo.estacionId,
+    maximosEscala: maximosEscala?.get(tramo.estacionId) ?? null,
+    evidenciaSeco: evidenciaSecoS2(cueAnexo),
+    defensa: defensaDeLocalidad(localidad),
   })
   if (exposicion.tipo === 'no_aplica_embalse') {
     return { ...base, disponibilidad: 'no_aplica', motivo: `embalse aguas arriba de la represa: ${exposicion.detalle}` }
@@ -508,7 +519,7 @@ export function crearAdapterRioPrefectura(
   deps: DependenciasAdapterRioPrefectura = {},
 ): PuertoRioPrefectura {
   const cargarDatos = deps.cargarDatos ?? cargarDatosRioDesdeDb
-  const opciones: OpcionesEvidenciaRio = { reglas: deps.reglas, escenarios: deps.escenarios, referencias: deps.referencias }
+  const opciones: OpcionesEvidenciaRio = { reglas: deps.reglas, escenarios: deps.escenarios, referencias: deps.referencias, maximosEscala: deps.maximosEscala }
   let cache: Promise<DatosRio> | null = null
 
   function cargar(): Promise<DatosRio> {

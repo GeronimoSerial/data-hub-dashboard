@@ -47,18 +47,19 @@ describe('referenciaNivelEstacion', () => {
 })
 
 describe('cero efectivo calibrado', () => {
-  it('Paso de los Libres: cota = 39,19 + 0,837·h (borde Sentinel-2, n=5)', () => {
+  it('T10d: offsets calibrados con b = 1 (Paso de los Libres 37,12 + h; Paso de la Patria contradicho fuera)', () => {
     const pdl = CEROS_EFECTIVOS_V04['pna-paso-de-los-libres']!
-    expect(pdl).toMatchObject({ aM: 39.19, bM: 0.837, n: 5 })
-    expect(cotaAguaCeroEfectivo(pdl, 9.4)).toBeCloseTo(39.19 + 0.837 * 9.4, 2)
-    expect(CEROS_EFECTIVOS_V04['pna-monte-caseros']).toBeDefined()
+    expect(pdl).toMatchObject({ aM: 37.12, bM: 1 })
+    expect(cotaAguaCeroEfectivo(pdl, 9.4)).toBeCloseTo(37.12 + 9.4, 2)
+    expect(CEROS_EFECTIVOS_V04['pna-monte-caseros']).toMatchObject({ aM: 32.05, bM: 1 })
+    expect(CEROS_EFECTIVOS_V04['pna-paso-de-la-patria']).toBeUndefined()
+    expect(CEROS_EFECTIVOS_V04['pna-la-cruz']).toBeUndefined()
   })
 
   it('altura crítica: h_crit = (cota − margen − a)/b; banda con margen + banda', () => {
     const pdl = CEROS_EFECTIVOS_V04['pna-paso-de-los-libres']!
     const r = alturaCriticaCeroEfectivo(pdl, 53.8, 2, 2)
-    expect(r.alturaCriticaM).toBeCloseTo((53.8 - 2 - 39.19) / 0.837, 2)
-    expect(r.alturaCriticaM).toBeCloseTo(15.07, 1)
-    expect(r.alturaCriticaBandaM).toBeCloseTo((53.8 - 4 - 39.19) / 0.837, 2)
+    expect(r.alturaCriticaM).toBeCloseTo(53.8 - 2 - 37.12, 2)
+    expect(r.alturaCriticaBandaM).toBeCloseTo(53.8 - 4 - 37.12, 2)
   })
 })

@@ -24,7 +24,6 @@ import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import type { PuertosMotor } from '../motor/puertos'
 import type { EvidenciaRioProbabilistica } from '../motor/tipos'
-import { BANDA_EXPOSICION_V04_M, MARGEN_ERROR_DEM_V04_M } from '../motor/config'
 import { calcularFilasEscuela, construirPuertosReales, crearPuertosConCache, insertarEnChunks } from './compartido-riesgo'
 import { adquirirLease, inicioDeBloqueUtc, publicarResultado, renovarLease } from '../job-run'
 import { CONFIG_V04, HORIZONTES_V04, MOTOR_V04_VERSION, hashCanonico } from '../motor-v04/config'
@@ -32,26 +31,10 @@ import { esquemaMetadatosRunV04, type ResultadoEscuelaV04 } from '../motor-v04/c
 import { crearAdapterAltimetriaV04, type PuertoAltimetriaV04 } from '../motor-v04/altimetria-adaptador'
 import { crearAdapterPadronV04, type PuertoPadronV04 } from '../motor-v04/padron'
 import { construirResultadoPendienteV04, resumirCoberturaV04 } from '../motor-v04/resultado'
-import { crearAdapterTerrenoV04, type InsumosTerrenoV04, type PuertoTerrenoV04 } from '../motor-v04/terreno-adaptador'
-import {
-  estacionesDelEnsamble,
-  estimarSuperacionTerreno,
-  fechaLocal,
-  probabilidadesSobreCotas,
-  type EventoTerreno,
-  type UbicacionNoEstimable,
-} from '../motor-v04/superacion-terreno'
-import { tramoDeLocalidad, ubicarEscuelaEnRio, type UbicacionRio } from '../motor-v04/transferencia-nivel'
-import { crearSerieDiaria, type EnsambleConjunto } from '../motor-v04/hidrologia/analogos'
-import { ensambleConjuntoV2 } from '../motor-v04/hidrologia/analogos-v2'
-import { construirEscenariosSubida, tendenciaEnSitio, type AlcanceTendencia } from '../motor-v04/escenarios-estacion'
-import type { EscenarioSubidaEstacion } from '../motor/escenarios-subida'
-import { referenciaNivelEstacion, type ReferenciaNivelEstacion } from '../motor/referencia-nivel'
+import { crearAdapterTerrenoV04, type PuertoTerrenoV04 } from '../motor-v04/terreno-adaptador'
+import type { AlcanceTendencia } from '../motor-v04/escenarios-estacion'
+import { prepararRioV04, type AlcanceMargen } from '../motor-v04/preparacion-rio-v04'
 import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
-import type { AltimetriaPorCue } from '../motor-v04/altimetria-adaptador'
-import type { EscuelaPadronV04 } from '../motor-v04/padron'
-
-type AlcanceMargen = NonNullable<EvidenciaRioProbabilistica['alcanceMargen']>
 
 const TIPO_JOB = 'calcular-riesgo-v04-candidato'
 const VERSION_JOB = 'v1'
@@ -106,17 +89,12 @@ export async function calcularRiesgoCandidatoV04(params?: {
       : 0
 
     // Insumos de superación del terreno (T6): null = no pudieron cargarse.
-    const terreno = await (params?.terreno ?? crearAdapterTerrenoV04()).cargar(padron.map((e) => e.cueAnexo), asOf)
-    // Escenarios de subida por estación (reglas v0.4, F3): análogos A5 +
-    // tendencia y onda de las lecturas de Prefectura.
-    const escenarios = terreno
-      ? construirEscenariosSubida({ asOf, series: terreno.series, lecturas: terreno.lecturasPrefectura })
-      : new Map<string, EscenarioSubidaEstacion>()
-    // T10c: referencia estable (mediana 1991–2020) y récord por estación.
-    const referencias = new Map<string, ReferenciaNivelEstacion>(
-      [...(terreno?.series ?? [])].map(([id, filas]) => [id, referenciaNivelEstacion(filas, fechaLocal(asOf))]),
-    )
-    const { superacion, tendencias, alcancesMargen } = estimarSuperacionPorEscuela({ padron, terreno, altimetria, asOf, escenarios })
+    const terrenoCrudo = await (params?.terreno ?? crearAdapterTerrenoV04()).cargar(padron.map((e) => e.cueAnexo), asOf)
+    // Reglas v0.4: series depuradas (T10d), escenarios de subida (F3),
+    // referencia estable (T10c), máximos de análogos por escala y zona
+    // modelada con altura crítica (T10d).
+    const { terreno, escenarios, referencias, maximosEscala, superacion, tendencias, alcancesMargen, descartadasPorEstacion } =
+      prepararRioV04({ padron, terreno: terrenoCrudo, altimetria, asOf })
 
     const [periodo] = await db.select().from(infraPeriodo).where(eq(infraPeriodo.estado, 'vigente')).limit(1)
     if (!periodo) {
@@ -147,6 +125,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
         tramosVersion: terreno?.tramosVersion ?? null,
         escenariosSubida: Object.fromEntries([...escenarios].map(([id, e]) => [id, e.porHorizonte])),
         referenciasNivel: Object.fromEntries(referencias),
+        descartadasDepuracion: Object.fromEntries(descartadasPorEstacion),
         ultimaFechaSerie: terreno ? Object.fromEntries([...terreno.series].map(([id, f]) => [id, f.at(-1)?.fecha ?? null])) : null,
       }),
       estadoCalibracionEscolar: 'pendiente',
@@ -177,7 +156,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
     // Reglas v0.4 (T10): el candidato corrige los defectos auditados de v0.3.
     const puertos = crearPuertosConCache(params?.puertos ?? {
       ...construirPuertosReales({ reglas: 'v0.4', escenariosSubida: escenarios }),
-      rioPrefectura: crearAdapterRioPrefectura({ reglas: 'v0.4', escenarios, referencias }),
+      rioPrefectura: crearAdapterRioPrefectura({ reglas: 'v0.4', escenarios, referencias, maximosEscala }),
     })
     const sinUbicacion = new Set(padron.filter((e) => e.motivoUbicacion !== null).map((e) => e.cueAnexo))
     for (let inicio = 0; inicio < resultados.length; inicio += TAMANO_CHUNK_INSERCION) {
@@ -256,71 +235,6 @@ export async function calcularRiesgoCandidatoV04(params?: {
     })
     throw error
   }
-}
-
-// Superación del terreno por escuela y horizonte. El ensamble conjunto se
-// calcula una vez por par (estación del tramo, compañera) y se reutiliza.
-function estimarSuperacionPorEscuela(params: {
-  padron: readonly EscuelaPadronV04[]
-  terreno: InsumosTerrenoV04 | null
-  altimetria: AltimetriaPorCue | null
-  asOf: string
-  escenarios: ReadonlyMap<string, EscenarioSubidaEstacion>
-}): {
-  superacion: Map<string, Record<number, EventoTerreno>>
-  tendencias: Map<string, Record<number, AlcanceTendencia> | null>
-  alcancesMargen: Map<string, Record<number, AlcanceMargen>>
-} {
-  const { terreno } = params
-  const asOfFecha = fechaLocal(params.asOf)
-  const series = new Map([...(terreno?.series ?? [])].map(([id, filas]) => [id, crearSerieDiaria(filas)]))
-  const ensambles = new Map<string, EnsambleConjunto | null>()
-  const ensambleDe = (u: Extract<UbicacionRio, { estado: 'ubicada' }>) => {
-    const { referencia, companera } = estacionesDelEnsamble(u)
-    const clave = `${referencia}|${companera}`
-    if (!ensambles.has(clave)) {
-      const ref = series.get(referencia)
-      const otra = series.get(companera)
-      ensambles.set(clave, ref && otra ? ensambleConjuntoV2(ref, { [companera]: otra }, asOfFecha) : null)
-    }
-    return ensambles.get(clave) ?? null
-  }
-  const salida = new Map<string, Record<number, EventoTerreno>>()
-  const tendencias = new Map<string, Record<number, AlcanceTendencia> | null>()
-  const alcancesMargen = new Map<string, Record<number, AlcanceMargen>>()
-  for (const escuela of params.padron) {
-    const altimetria = params.altimetria?.porCue.get(escuela.cueAnexo) ?? null
-    const geo = terreno?.escuelas.get(escuela.cueAnexo)
-    // La falta de ubicación precede a cualquier otro motivo.
-    const ubicacion: UbicacionNoEstimable | UbicacionRio =
-      escuela.motivoUbicacion !== null ? { estado: 'no_estimable', motivo: escuela.motivoUbicacion }
-      : !terreno ? { estado: 'no_estimable', motivo: 'insumos_terreno_no_disponibles' }
-      : !geo ? { estado: 'no_estimable', motivo: 'ubicacion_escuela_no_disponible' }
-      : ubicarEscuelaEnRio({
-          punto: { lat: geo.lat, lon: geo.lon },
-          estacionTramoId: tramoDeLocalidad(geo.localidad, terreno.tramos),
-          estaciones: terreno.estaciones,
-        })
-    const ensamble = ubicacion.estado === 'ubicada' ? ensambleDe(ubicacion) : null
-    salida.set(escuela.cueAnexo, estimarSuperacionTerreno({ ubicacion, ensamble, altimetria }))
-    // Escenario "si se mantiene esta tendencia" contra la cota conservadora.
-    const cotaConservadora = altimetria?.estado === 'candidata' ? altimetria.cotaConservadoraM : null
-    tendencias.set(
-      escuela.cueAnexo,
-      ubicacion.estado === 'ubicada' && cotaConservadora !== null ? tendenciaEnSitio(ubicacion, params.escenarios, cotaConservadora) : null,
-    )
-    // Mismo margen de error vertical y banda que la zona DEM (T10b).
-    if (cotaConservadora !== null) {
-      const umbral = cotaConservadora - MARGEN_ERROR_DEM_V04_M
-      const ps = probabilidadesSobreCotas({ ubicacion, ensamble, cotasM: [umbral, umbral - BANDA_EXPOSICION_V04_M] })
-      if (ps !== null) {
-        const porH = {} as Record<number, AlcanceMargen>
-        for (const [h, [pUmbral, pBanda]] of Object.entries(ps)) porH[Number(h)] = { cotaConservadoraM: cotaConservadora, pUmbral, pBanda }
-        alcancesMargen.set(escuela.cueAnexo, porH)
-      }
-    }
-  }
-  return { superacion: salida, tendencias, alcancesMargen }
 }
 
 // Evidencia probabilística para el motor único: sólo si la superación con cota

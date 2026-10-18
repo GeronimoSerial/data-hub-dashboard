@@ -123,12 +123,69 @@ marcada `referencia_inestable`): Garruchos, Alvear, La Cruz, Yapeyú, Bompland, 
 
 ## 7. Limitaciones
 
-- La probabilidad P(máx de la escala ≥ h_crit) del ensemble de análogos no se calcula
-  todavía en la zona DEM: la decisión usa el escenario de subida (p90 de análogos,
-  tendencia, onda), que es la misma regla expresada en altura. La zona modelada (cota
-  + transferencia por km) aún no invierte la transferencia para informar h_crit.
-- El cero efectivo de Monte Caseros se apoya en 2 fechas con h casi igual (pendiente fija 1).
-- El récord descarta picos de un día (> 2,5 m sobre ambos vecinos); otros saltos
-  sostenidos (Ituzaingó 9,72 m en 2024-08, Empedrado 12,89 m en 2026-10) requieren revisión.
+- (Resuelto en T10d, §8) P(máx de la escala ≥ h_crit), h_crit en la zona modelada,
+  ceros efectivos con b = 1 y depuración de picos.
 - La verificación de lagunas sólo mejora en estaciones con cero efectivo; en el resto
   sigue la tolerancia contra el nivel DEM del tramo.
+
+## 8. T10d — altura crítica calibrada, evidencia seca S2 y defensas (`reglas-v0.4-3`)
+
+### Calibración costera (estudio 2026-10-18)
+
+Se clasificó el borde de agua en escenas Sentinel-2 L2A, se leyó la elevación GLO-30 sobre
+ese borde y se comparó con la altura A5 del mismo día, en 18 escalas.
+
+- **Pendiente b = 1.** La pendiente libre no es confiable: sale comprimida y cambia con el
+  percentil del borde (p25/p50/p75). Se fija b = 1 (el agua sube lo mismo que la escala) y
+  se calibra sólo el offset a = mediana(borde p50 − h) en las fechas de aguas altas.
+- Sobre el desborde, el borde GLO-30 queda ~1,0 m debajo de cero IGN + h (mediana −1,04 m en
+  7 escalas del Paraná).
+
+| Veredicto | Escalas (cota_agua = a + h) |
+|---|---|
+| usar | Corrientes 41,35; Itatí 44,50; Monte Caseros 32,05; Garruchos 51,21 |
+| usar con reservas | Paso de los Libres 37,12; Santo Tomé 45,11; Ituzaingó 57,47; Empedrado 39,92; Itá Ibaté 53,13 (h máx. < alerta); Esquina 20,66; Goya 28,73; Bella Vista 33,45; Alvear 40,21; Yapeyú 38,20 |
+| contradicho | Paso de la Patria 43,95: 3 escuelas siguieron secas a ~340 m del agua con h 7,38 m, mientras el ajuste dice que se alcanzaban con 6,25–6,52 m. No se usa el offset, sólo la evidencia seca como piso |
+| no usar | La Cruz, Mocoretá, Bompland (sigue el modelo anterior) |
+
+Los valores provisorios de T10c (Paso de los Libres 39,19 + 0,837·h; Monte Caseros 31,26 + h)
+quedan reemplazados. Cada constante versionada (`OFFSETS_CALIBRADOS_V04`) guarda fuente,
+fecha, n, desvío y veredicto.
+
+### Altura crítica por escuela (`motor/altura-critica.ts`)
+
+1. Offset calibrado (usar / con reservas): h_crit = cota − margen (2 m) − a.
+2. Zona modelada sin offset: h_crit en la escala de referencia del ensamble, con la que el
+   nivel transferido por km llega a cota − margen. Supone que la escala compañera sube lo
+   mismo: h_crit = h_ref + (umbral − nivel_sitio_actual).
+3. Resto: DEM + referencia de largo plazo (T10c).
+4. **Evidencia seca S2** (`motor/evidencia-seco-s2.ts`, 653 CUE): si S2 vio la escuela
+   seca con h_seco en la misma escala, h_crit ≥ h_seco. Escuelas sin evidencia, sin cambio.
+5. **P(máx de la escala ≥ h_crit)** a 24/72/240 h, con los miembros de `analogos-v2` de la
+   escala (zona modelada: la referencia del ensamble conjunto). Es monótona entre horizontes.
+   - Piso completo si P ≥ 0,05 o tendencia + onda llega a h_crit.
+   - Piso reducido si pasa lo mismo contra h_crit − 2 m.
+   - Si no, sin piso.
+   - Sin miembros de análogos se usa el escenario de subida posible, como en T10.
+6. Se persiste en la explicación del factor y, en la zona modelada, en el diagnóstico de
+   `resultado_v04`: `alturaCriticaM`, `alturaCriticaBandaM`, `h0M`, récord,
+   `pAlcanzar24/72/240`, fuente (`calibrada`, `cero+km`, `dem`), `evidenciaSecoS2M` y
+   `defensa`.
+
+### Depuración de series (`motor-v04/hidrologia/depuracion.ts`)
+
+Antes de análogos, récords y referencias se descartan:
+
+- **Valores no físicos**: fuera de (−5, 30) m, como Santo Tomé 1e12 m el 2017-11-26.
+- **Picos aislados**: |x − mediana de ±3 días| > max(2,5 m, 5·MAD). Ejemplos: Empedrado
+  12,33/12,44/12,89 m en 2026-09/10 e Ituzaingó 9,72 m el 2024-08-17. El MAD deja pasar las
+  crecidas reales que suben y bajan 2 m/día.
+- **Historia previa a la regulación**: Ituzaingó usa historia sólo desde 1995 (Yacyretá).
+  Es una constante por estación (`INICIO_HISTORIA_ESTACION_V04`).
+
+### Defensas costeras
+
+Goya, Corrientes y Esquina tienen la defensa como registro tipado (`DefensaCostera`), con
+cota de coronamiento desconocida. Mientras siga desconocida, el piso observado baja un
+nivel (provisorio). Cuando se cargue la cota, el motor compara el agua posible con el
+coronamiento. Detalle y pasos: [defensas-costeras.md](defensas-costeras.md).
