@@ -26,6 +26,18 @@ const ESTADO_CON_CORTE: EstadoSituacionCliente = {
   prioridades: [
     { cueAnexo: '1800001-00', departamento: 'PARANA', nivelRiesgo: 'alto', scoreRiesgo: 0.7 },
   ],
+  estadoDatos: {
+    items: [
+      {
+        id: 'job:climatologia-caudal', grupo: 'climatologias', nombre: 'Climatología de caudal', estado: 'fallido',
+        motivo: 'Falló la última corrida (intento 3).', ultimoExitoEn: '2026-09-26T21:50:00.000Z',
+        ultimoIntentoEn: '2026-09-27T11:00:00.000Z', ultimoError: 'GloFAS respondió 503', edadMinutos: 850,
+        intervaloMinutos: 1440,
+      },
+    ],
+    problemas: 1,
+    generadoEn: '2026-09-27T12:00:00.000Z',
+  },
 }
 
 const CAMBIOS_VACIOS = { porRegistro: [], porVigencia: [] }
@@ -71,6 +83,7 @@ describe('SituacionClient', () => {
       briefing: [],
       atraso: { texto: '—', atrasado: true, desactivadoPorConfig: false },
       prioridades: [],
+      estadoDatos: null,
     }
     unmount()
     render(<SituacionClient estadoInicial={estadoVacio} />)
@@ -89,13 +102,13 @@ describe('SituacionClient', () => {
     expect(items).toHaveLength(2)
   })
 
-  it('"Sin dato" nunca se pinta de verde: la fuente sin frescura no lleva color de éxito', () => {
+  it('muestra el estado de los datos con los problemas visibles (reemplaza la lista cruda de fuentes)', () => {
     render(<SituacionClient estadoInicial={ESTADO_CON_CORTE} />)
-    const fuenteSinDato = screen.getByTestId('situacion-fuente-nasa-gpm')
-    expect(fuenteSinDato).toHaveTextContent('sin dato')
-    expect(fuenteSinDato).toHaveTextContent('(al día)')
-    // Nunca "sin dato" con estilo de vencida=true (que es el único con color).
-    expect(fuenteSinDato.querySelector('[data-vencida="true"]')).toBeNull()
+    const panel = screen.getByTestId('estado-datos')
+    expect(panel).toHaveAttribute('open')
+    expect(panel).toHaveTextContent('1 fuente con problemas')
+    expect(panel).toHaveTextContent('GloFAS respondió 503')
+    expect(screen.queryByTestId('situacion-fuentes')).not.toBeInTheDocument()
   })
 
   it('el copy no usa nunca "alerta" ni "SMN"', () => {
@@ -152,6 +165,7 @@ describe('SituacionClient', () => {
       briefing: [],
       atraso: { texto: '—', atrasado: true, desactivadoPorConfig: false },
       prioridades: [],
+      estadoDatos: null,
     }
     render(<SituacionClient estadoInicial={estadoVacio} />)
     expect(screen.getByText('Todavía no se generó ningún corte.')).toBeInTheDocument()
