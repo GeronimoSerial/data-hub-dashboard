@@ -77,7 +77,7 @@ export type OpcionesPuertosReales = {
 export function construirPuertosReales(opciones: OpcionesPuertosReales = {}): PuertosMotor {
   const v04 = opciones.reglas === 'v0.4'
   return {
-    peligro: crearAdapterPeligro(),
+    peligro: crearAdapterPeligro(v04 ? { reglas: 'v0.4' } : {}),
     lluviaObservada: crearAdapterLluvia(),
     territorio: crearAdapterTerritorio(),
     aislamiento: crearAdapterAislamiento(),
@@ -144,7 +144,9 @@ export function crearPuertosConCache(puertos: PuertosMotor): PuertosMotor {
         )
       },
       obtenerNivelCaudal(params) {
-        return memoizar(nivelesCaudal, params.puntoId, () =>
+        // Con horizonte (reglas v0.4) el caudal depende de él: clave compuesta.
+        const clave = params.horizonteHoras === undefined ? params.puntoId : `${params.puntoId}|${params.horizonteHoras}`
+        return memoizar(nivelesCaudal, clave, () =>
           puertos.peligro.obtenerNivelCaudal(params),
         )
       },

@@ -34,7 +34,9 @@ export interface PuertoPeligro {
     horizontes: readonly HorizontePeligro[]
     asOf: string
   }): Promise<NivelPeligroCelda[]>
-  obtenerNivelCaudal(params: { puntoId: string; asOf: string }): Promise<NivelCaudalPunto | null>
+  // `horizonteHoras` (reglas v0.4, F6): máximo pronosticado en (0, h]; sin él,
+  // el caudal "actual" de v0.3 (igual para los tres horizontes).
+  obtenerNivelCaudal(params: { puntoId: string; asOf: string; horizonteHoras?: HorizontePeligro }): Promise<NivelCaudalPunto | null>
 }
 
 // Lluvia observada estimada por satélite (IMERG, la implementa E3a). Puede no

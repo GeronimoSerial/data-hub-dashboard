@@ -152,3 +152,25 @@ describe('crearAdapterPeligro.obtenerNivelCaudal', () => {
     expect(fila).toBeNull()
   })
 })
+
+// Reglas v0.4 (F5/F6): el adapter pasa las reglas y el horizonte del caudal.
+describe('crearAdapterPeligro con reglas v0.4', () => {
+  it('acumula la precipitación del día y evalúa el caudal dentro de la ventana', async () => {
+    const filas = []
+    for (let h = 1; h <= 24; h++) {
+      filas.push(filaPronostico({ geometryRef: GEOM, variable: 'precipitacion', corridaEn: CORRIDA, horizonteHoras: h, validoEn: new Date(Date.parse(CORRIDA) + h * 3_600_000).toISOString(), valor: 3 }))
+    }
+    filas.push(
+      filaPronostico({ geometryRef: PUNTO, variable: 'caudal', corridaEn: CORRIDA, horizonteHoras: 6, validoEn: '2026-09-26T06:00:00.000Z', valor: 50 }),
+      filaPronostico({ geometryRef: PUNTO, variable: 'caudal', corridaEn: CORRIDA, horizonteHoras: 60, validoEn: '2026-09-28T12:00:00.000Z', valor: 150 }),
+    )
+    await db.insert(hazardForecast).values(filas)
+    await insertarClimatologia(db, GEOM, 'precipitacion_diaria', { p90: 30, p95: 50, p99: 80 })
+    await insertarClimatologia(db, PUNTO, 'caudal_diario', { p90: 100, p95: 120, p99: 140 })
+    const v04 = crearAdapterPeligro({ reglas: 'v0.4' })
+    const [celda] = await v04.obtenerNivelesCelda({ geometryRef: GEOM, horizontes: [24], asOf: AS_OF })
+    expect(celda).toMatchObject({ nivel: 'naranja', precipitacionMm: 72 })
+    expect(await v04.obtenerNivelCaudal({ puntoId: PUNTO, asOf: AS_OF, horizonteHoras: 72 })).toMatchObject({ nivel: 'rojo' })
+    expect(await crearAdapterPeligro().obtenerNivelCaudal({ puntoId: PUNTO, asOf: AS_OF, horizonteHoras: 72 })).toMatchObject({ nivel: 'verde' })
+  })
+})

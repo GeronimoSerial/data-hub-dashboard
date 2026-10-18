@@ -252,7 +252,10 @@ export async function calcularRiesgoEscuela(params: {
   let nivelPeligroCaudal: NivelPeligro | null = null
   let caudalPresente = false
   if (puntoRioId !== null) {
-    const caudal = await puertos.peligro.obtenerNivelCaudal({ puntoId: puntoRioId, asOf })
+    // Reglas v0.4 (F6): caudal dentro de la ventana del horizonte.
+    const caudal = await puertos.peligro.obtenerNivelCaudal(
+      v04 ? { puntoId: puntoRioId, asOf, horizonteHoras: horizonte } : { puntoId: puntoRioId, asOf },
+    )
     nivelPeligroCaudal = caudal?.nivel ?? null
     if (caudal !== null && caudal.nivel !== 'sin_dato') {
       const valorNumerico = nivelPeligroANumero(caudal.nivel)

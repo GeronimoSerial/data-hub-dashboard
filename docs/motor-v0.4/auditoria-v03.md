@@ -111,3 +111,33 @@ margen < −2 m     → sin piso ni componente río
 - La explicación del factor tiene formato fijo:
   `exposicion v0.4 a <h>h: criterio <c>; alcance <a>; margen <m>m (suelo …, agua posible … = dem … + anomalia … + subida … por <analogos|tendencia|tendencia+onda> [analogos_p90 …, tendencia … a … m/dia, onda …]; margen_error 2m; banda 2m)`.
   En la zona modelada el factor `rio-v04` agrega `alcance_observado <criterio>`.
+
+### F5 — Precipitación determinística acumulada por ventana (D4)
+
+- Reglas v0.4 (`peligro/nivel.ts`, `reglas: 'v0.4'`): con climatología se suma
+  el pronóstico horario de la corrida más reciente en `(h − 24, h]` y se compara
+  con los percentiles **diarios**; 72 h usa `(48, 72]`, igual que la ventana de
+  24 h del ensemble en el día 3, y 240 h usa `(216, 240]`.
+- La ventana exige 18 h cubiertas (suma de `paso_horas`,
+  `COBERTURA_MIN_VENTANA_V04_HORAS`); si no, el horizonte no tiene pronóstico.
+- Sin climatología, el umbral provisorio (definido sobre el acumulado del
+  horizonte) recibe lo acumulado en `(0, h]`.
+
+### F6 — Caudal dentro de la ventana del horizonte (D6)
+
+- Reglas v0.4: el puerto recibe `horizonteHoras` y se evalúa el máximo
+  pronosticado en `(0, h]` de la corrida más reciente, no el horizonte más chico
+  para los tres. La caché por corrida usa la clave `punto|horizonte`.
+- La climatología de caudal sigue faltando en prod (0 filas): el caudal queda
+  `null` (sin dato), nunca 0. La falla del job de climatología de caudal queda
+  fuera de T10 (panel estado-datos).
+
+### F8 — Ensemble filtrado por asOf y edad (D8)
+
+- Ambas reglas: el cargador del ensemble ignora corridas posteriores a `ahora`
+  (regla as-of; en el operativo `ahora` es el instante actual, así que no cambia
+  ningún resultado publicado).
+- Reglas v0.4: además descarta corridas de más de 36 h
+  (`EDAD_MAX_ENSEMBLE_V04_HORAS`) y el horizonte cae al determinístico.
+- `evidenciaValida` no se cambia: sigue siendo "hay alguna amenaza"; la mejora
+  real es que la amenaza ya no se construye con insumos posteriores o vencidos.

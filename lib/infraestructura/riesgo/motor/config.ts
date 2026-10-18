@@ -211,3 +211,17 @@ export const SALTO_MAX_DIARIO_M = 2.5
 export const EDAD_MAX_LECTURA_TENDENCIA_DIAS = 2
 export const ONDA_MAX_V04_M = 1
 export const DIAS_POR_HORIZONTE_V04 = { 24: 1, 72: 3, 240: 10 } as const
+
+// F5 — Precipitación determinística v0.4: el pronóstico horario se acumula en
+// la ventana (h − 24, h] antes de compararlo con percentiles DIARIOS (v0.3
+// comparaba un solo valor horario). La ventana exige cubrir al menos estas
+// horas (suma de `paso_horas`); si no, no hay pronóstico para ese horizonte.
+// Sin climatología, el umbral provisorio (definido sobre lo acumulado en el
+// horizonte) recibe lo acumulado en (0, h].
+export const COBERTURA_MIN_VENTANA_V04_HORAS = 18
+// F8 — Ensemble v0.4: además de no usar corridas posteriores a asOf (regla
+// as-of que ya aplica a ambas reglas), una corrida de más de estas horas no se
+// usa y el horizonte cae al determinístico.
+export const EDAD_MAX_ENSEMBLE_V04_HORAS = 36
+// F6 — Caudal v0.4: máximo del pronóstico dentro de la ventana (0, h] de la
+// corrida más reciente, en lugar del horizonte más chico para los tres.

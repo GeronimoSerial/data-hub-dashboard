@@ -264,3 +264,23 @@ describe('reglas v0.4 — F3 pisos por río según alcance', () => {
     expect(v03.scoreRiesgo).toBeGreaterThanOrEqual(50)
   })
 })
+
+describe('reglas v0.4 — F6 caudal por horizonte', () => {
+  it('v0.4 pide el caudal del horizonte; v0.3 no', async () => {
+    const pedidos: Array<number | undefined> = []
+    const base = puertosCon(escenario())
+    const p: PuertosMotor = {
+      ...base,
+      peligro: {
+        ...base.peligro,
+        obtenerNivelCaudal: async (params) => {
+          pedidos.push(params.horizonteHoras)
+          return base.peligro.obtenerNivelCaudal(params)
+        },
+      },
+    }
+    await calcularRiesgoEscuela({ cueAnexo: CUE, horizonte: 72, asOf: AS_OF, puertos: p, reglas: 'v0.4' })
+    await calcularRiesgoEscuela({ cueAnexo: CUE, horizonte: 72, asOf: AS_OF, puertos: p })
+    expect(pedidos).toEqual([72, undefined])
+  })
+})
