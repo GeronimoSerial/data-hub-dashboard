@@ -324,11 +324,11 @@ function observarPeligro240(puertos: PuertosMotor, observado: ObservacionPeligro
       ...puertos.peligro,
       async obtenerNivelesCelda(params) {
         const niveles = await puertos.peligro.obtenerNivelesCelda(params)
-        for (const nivel of niveles) {
-          if (nivel.horizonteHoras !== 240) continue
-          if (nivel.respaldoIngestaPrevia) observado.respaldo = true
-          if (nivel.nivel === 'sin_dato') observado.sinDato = true
-        }
+        if (!params.horizontes.includes(240)) return niveles
+        // Igual que el núcleo, un nivel ausente cuenta como sin dato.
+        const nivel240 = niveles.find((nivel) => nivel.horizonteHoras === 240)
+        if (nivel240?.respaldoIngestaPrevia) observado.respaldo = true
+        if (nivel240 === undefined || nivel240.nivel === 'sin_dato') observado.sinDato = true
         return niveles
       },
     },
