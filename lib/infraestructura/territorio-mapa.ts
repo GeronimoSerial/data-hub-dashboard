@@ -21,6 +21,7 @@ import {
   infraSusceptibilidadEstatica,
   type CruceAccesoOsm,
   type RutaGeoJson,
+  type SuperficiesAcceso,
   type ViaPrincipalAcceso,
 } from '@/lib/db/schema'
 import {
@@ -96,6 +97,21 @@ export interface GeometriaAccesoRespuesta {
   viaPrincipal?: ViaPrincipalAcceso | null
   destino?: { nombre: string } | null
   distanciaKm?: number | null
+  superficies?: SuperficiesAcceso | null
+}
+
+// Older rows have no `superficies` inside the via_principal JSON: null, never zeros.
+function parsearSuperficies(valor: string | null): SuperficiesAcceso | null {
+  if (valor === null) return null
+  try {
+    const sup = (JSON.parse(valor) as { superficies?: Record<string, unknown> } | null)?.superficies
+    if (!sup) return null
+    const { pavimentado, ripio, tierra } = sup
+    if (![pavimentado, ripio, tierra].every((m) => typeof m === 'number' && Number.isFinite(m) && m >= 0)) return null
+    return { pavimentado: pavimentado as number, ripio: ripio as number, tierra: tierra as number }
+  } catch {
+    return null
+  }
 }
 
 function parsearViaPrincipal(valor: string | null): ViaPrincipalAcceso | null {
@@ -342,6 +358,7 @@ export function construirRespuestaGeometria(
     viaPrincipal: parsearViaPrincipal(fila.viaPrincipal),
     destino: fila.destinoNombre ? { nombre: fila.destinoNombre } : null,
     distanciaKm: fila.distanciaDestinoM === null ? null : fila.distanciaDestinoM / 1000,
+    superficies: parsearSuperficies(fila.viaPrincipal),
   }
 }
 

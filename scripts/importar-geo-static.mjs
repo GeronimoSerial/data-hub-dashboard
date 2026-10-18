@@ -265,7 +265,10 @@ function mapearFilaGeometria(fila) {
     versionJob: fila.version_job,
     ruta: fila.ruta,
     cruces: fila.cruces,
-    viaPrincipal: fila.via_principal == null ? null : JSON.stringify(fila.via_principal),
+    // Metres per surface ride inside the via_principal JSON so no column is needed.
+    viaPrincipal: fila.via_principal == null
+      ? null
+      : JSON.stringify(fila.superficies ? { ...fila.via_principal, superficies: fila.superficies } : fila.via_principal),
     destinoNombre: fila.destino?.nombre ?? null,
     distanciaDestinoM: fila.distancia_destino_m ?? null,
     motivoSinGeometria: fila.motivo_sin_geometria,
@@ -298,6 +301,11 @@ const viaPrincipalObjetoSchema = z.object({
   nombre: z.string().nullable(),
   tipo: z.string().min(1),
   pavimentada: z.boolean(),
+  superficies: z.object({
+    pavimentado: z.number().finite().nonnegative(),
+    ripio: z.number().finite().nonnegative(),
+    tierra: z.number().finite().nonnegative(),
+  }).optional(),
 })
 
 const viaPrincipalGeometriaSchema = z.string().nullable().superRefine((valor, contexto) => {

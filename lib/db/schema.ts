@@ -1517,6 +1517,13 @@ export type RutaGeoJson = {
   coordinates: Array<[number, number]>
 }
 
+/** Metres of the access route by surface (geo-static job v4, 2026-10-17 run onwards). */
+export type SuperficiesAcceso = {
+  pavimentado: number
+  ripio: number
+  tierra: number
+}
+
 export type ViaPrincipalAcceso = {
   nombre: string | null
   tipo: string

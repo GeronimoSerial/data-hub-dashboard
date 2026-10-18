@@ -360,6 +360,22 @@ describe('importarGeometria', () => {
     ]))
   })
 
+  it('guarda las superficies dentro del JSON de via principal', async () => {
+    const viaPrincipal = { nombre: 'Ruta Provincial 27', tipo: 'primary', pavimentada: false }
+    const superficies = { pavimentado: 8000, ripio: 3000, tierra: 1400 }
+    const path = escribirNdjsonGz('geometria-superficies.ndjson.gz', [filaGeometriaBase({
+      via_principal: viaPrincipal,
+      superficies,
+    })])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, { db: db as never, tabla: tablaGeometriaFalsa as never })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    const fila = (llamadas[0].valores as Array<Record<string, unknown>>)[0]
+    expect(JSON.parse(fila.viaPrincipal as string)).toEqual({ ...viaPrincipal, superficies })
+  })
+
   it('acepta campos nuevos explicitamente nulos', async () => {
     const path = escribirNdjsonGz('geometria-campos-nulos.ndjson.gz', [filaGeometriaBase({
       via_principal: null,
