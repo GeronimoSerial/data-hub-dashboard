@@ -19,7 +19,7 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - [x] R2 Server owns time: ignore/clamp client `rigeDesde` (server `now`, tolerate small skew) for eligibility.
 - [x] R3 Client races: serialize/debounce draft saves; guard replay effect against concurrent `enviar`; `enviandoRef` guard + typed base movimiento in `enviarSoloFotos`; single photo-link path; keep IDB/localStorage consistent.
 - [x] R2b Server date math must not depend on process TZ: make `vigencia-eleccion.ts` / `vigencia-rango.ts` (used server-side via `consistencia-parte.ts`) compute in America/Argentina/Buenos_Aires explicitly; add a test under TZ=UTC. (User requirement: server time must be Buenos Aires UTC-3.)
-- [ ] R2c Client date math (vigencia-chips.tsx, reporte-inicial-form.tsx) uses browser-local Date; align with Buenos Aires via lib/infraestructura/zona-horaria.ts.
+- [x] R2c Client date math (vigencia-chips.tsx, reporte-inicial-form.tsx) uses browser-local Date; align with Buenos Aires via lib/infraestructura/zona-horaria.ts.
 - [x] R4 Idempotency: lookup inside the transaction; detect unique violations by driver error code, not message regex.
 - [x] R5 Single source of consistency rules shared by client and server.
 - [x] R5b Client 'nueva' evaluation passes the afectación category so the alumnos exemption matches the server.
@@ -98,3 +98,8 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
   - `npx tsc --noEmit`: exit 0
   - `eslint app/api/problematicas/parte lib/infraestructura/parte`: exit 0, 0 warnings
   - `timeout 300 npx vitest run app/api/problematicas/parte lib/infraestructura/consistencia-parte components/infraestructura/actualizar`: 20 files, 245 tests passed (same before and after)
+- R2c: route inline (4 files, mechanical swap to the existing helpers; no new helper needed). Test-first RED with `process.env.TZ = America/New_York` flipped at runtime: `el rango de fechas usa el día de Buenos Aires...` (chips `min` `2025-10-17` instead of `2025-10-18`) and `clasifica el borde de 12 meses...` (`La fecha debe estar entre...` instead of `anterior a hace 12 meses`, value 09:15 BA on 2025-10-18). Both GREEN after the change. The boundary case is the only one that reaches the local-time check: `mensajeErrorVigencia` runs it only when the BA-correct check already failed.
+  - Changes: `vigencia-chips.tsx` `fechaInput` uses `calendarioBA`; `reporte-inicial-form.tsx` `mensajeErrorVigencia` builds the instant with `instanteBA` (was `new Date(año, mes-1, ...)`, local).
+  - Left as is: `actualizar/algo-nuevo.tsx` day labels already use `Intl` with `timeZone` America/Argentina/Buenos_Aires (display only); `actualizar/algo-nuevo.test.tsx:177` has a fixed local-time fixture (test data only).
+  - `npx tsc --noEmit`: exit 0
+  - `timeout 300 npx vitest run components/infraestructura/vigencia-chips components/infraestructura/reporte-inicial-form.test.tsx components/infraestructura/actualizar lib/infraestructura/zona-horaria lib/infraestructura/vigencia`: 14 files, 213 tests passed

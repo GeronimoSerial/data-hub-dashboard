@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { EleccionVigencia } from '@/lib/infraestructura/vigencia-eleccion'
 import { VigenciaChips } from './vigencia-chips'
 
@@ -76,6 +76,22 @@ describe('VigenciaChips', () => {
 
     expect(screen.getByLabelText('Fecha')).toHaveAttribute('lang', 'es-AR')
     expect(screen.getByLabelText('Hora')).toHaveAttribute('lang', 'es-AR')
+  })
+
+  it('el rango de fechas usa el día de Buenos Aires aunque el equipo esté en otra zona', () => {
+    const previa = process.env.TZ
+    process.env.TZ = 'America/New_York'
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-18T03:30:00.000Z'))
+    try {
+      render(<VigenciaChips value={{ modo: 'otro', fecha: '', hora: '' }} onChange={() => {}} label="Vigencia" />)
+      expect(screen.getByLabelText('Fecha')).toHaveAttribute('min', '2025-10-18')
+      expect(screen.getByLabelText('Fecha')).toHaveAttribute('max', '2026-10-18')
+    } finally {
+      vi.useRealTimers()
+      if (previa === undefined) delete process.env.TZ
+      else process.env.TZ = previa
+    }
   })
 
   it('sets the Argentine Spanish language on the date input for a resolved situation', () => {

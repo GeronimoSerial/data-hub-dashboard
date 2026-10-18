@@ -607,6 +607,32 @@ describe('ReporteInicialForm', () => {
     vi.useRealTimers()
   })
 
+  it('clasifica el borde de 12 meses con el calendario de Buenos Aires aunque el equipo esté en otra zona', async () => {
+    const previa = process.env.TZ
+    process.env.TZ = 'America/New_York'
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-18T12:30:00.000Z'))
+    try {
+      renderFormulario()
+      completarQuePaso()
+      continuar()
+      completarAQuienAfecta()
+      continuar()
+      completarEstadoEstablecimiento()
+      continuar()
+      fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
+      fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2025-10-18' } })
+      fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '09:15' } })
+      continuar()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('La fecha no puede ser anterior a hace 12 meses.')
+    } finally {
+      vi.useRealTimers()
+      if (previa === undefined) delete process.env.TZ
+      else process.env.TZ = previa
+    }
+  })
+
   it('enfoca y desplaza la fecha futura al mostrar su error', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))

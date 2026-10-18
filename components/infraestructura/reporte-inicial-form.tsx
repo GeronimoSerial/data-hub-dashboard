@@ -52,6 +52,7 @@ import {
   type EleccionVigencia,
 } from '@/lib/infraestructura/vigencia-eleccion'
 import { MENSAJE_FUERA_DE_RANGO_VIGENCIA, rangoVigencia } from '@/lib/infraestructura/vigencia-rango'
+import { instanteBA } from '@/lib/infraestructura/zona-horaria'
 import { VERSION_BORRADOR_ACTUAL, migrarPasoBorrador } from '@/lib/infraestructura/parte/borrador-migracion'
 import {
   colapsarHistorial,
@@ -107,7 +108,7 @@ function mensajeErrorVigencia(eleccion: EleccionVigencia): string | null {
 
   const [año, mes, dia] = eleccion.fecha.split('-').map(Number)
   const [hora, minuto] = eleccion.hora.split(':').map(Number)
-  const momento = new Date(año, mes - 1, dia, hora, minuto)
+  const momento = instanteBA(año, mes, dia, hora, minuto)
   const { min, max } = rangoVigencia()
   if (momento.getTime() > max.getTime()) return MENSAJE_FECHA_FUTURA
   if (momento.getTime() < min.getTime()) return MENSAJE_FECHA_ANTIGUA
