@@ -1,7 +1,5 @@
-import { createElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { TriangleAlert, Waves } from 'lucide-react';
-import { renderToStaticMarkup } from 'react-dom/server';
 
 import { PALETA_ESTADO_ALTURA, RELLENO_ESTACION_SIN_DATO } from './paleta-tonal';
 import { GROSOR_TRAZO_ICONO, PIXEL_RATIO_ICONOS } from './colores-mapa';
@@ -60,9 +58,39 @@ function markupGlifo(icono: GlifoIcono, color: string): string {
       `stroke="${color}" stroke-width="${GROSOR_TRAZO_ICONO}" stroke-linecap="round" stroke-linejoin="round">${icono}</svg>`
     );
   }
-  return renderToStaticMarkup(
-    createElement(icono, { size: TAMANO_ICONO, color, strokeWidth: GROSOR_TRAZO_ICONO }),
+  const { nodo, clase } = nodoIconoLucide(icono);
+  const hijos = nodo
+    .map(([etiqueta, atributos]) => `<${etiqueta}${atributosSvg(atributos)}></${etiqueta}>`)
+    .join('');
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${TAMANO_ICONO}" height="${TAMANO_ICONO}" viewBox="0 0 24 24" fill="none" ` +
+    `stroke="${color}" stroke-width="${GROSOR_TRAZO_ICONO}" stroke-linecap="round" stroke-linejoin="round" class="${escaparAtributo(clase)}" aria-hidden="true">${hijos}</svg>`
   );
+}
+
+type NodoIcono = ReadonlyArray<readonly [string, Record<string, string | number>]>;
+
+// Sin react-dom/server: este módulo llega al grafo de Server Components
+// (estado-retorno → planificacion → accesos-capas → iconos-mapa) y Next
+// rechaza ese import ahí. Un ícono de lucide-react es un forwardRef cuyo
+// render devuelve `<Icon iconNode={...}>` sin hooks, así que se lee la
+// geometría directamente y se serializa a SVG.
+function nodoIconoLucide(icono: LucideIcon): { nodo: NodoIcono; clase: string } {
+  type Elemento = { props?: { iconNode?: NodoIcono; className?: string } };
+  const render = (icono as unknown as { render?: (props: object, ref: null) => Elemento }).render;
+  const props = render?.({}, null)?.props;
+  if (!props?.iconNode) throw new Error('Ícono lucide sin iconNode');
+  return { nodo: props.iconNode, clase: ['lucide', props.className].filter(Boolean).join(' ') };
+}
+
+const escaparAtributo = (valor: string) =>
+  valor.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+function atributosSvg(atributos: Record<string, string | number>): string {
+  return Object.entries(atributos)
+    .filter(([nombre]) => nombre !== 'key')
+    .map(([nombre, valor]) => ` ${nombre.replace(/[A-Z]/g, (l) => `-${l.toLowerCase()}`)}="${escaparAtributo(String(valor))}"`)
+    .join('');
 }
 
 /** Standalone SVG string shared by MapLibre images and inline legend markers. */

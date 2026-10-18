@@ -433,3 +433,42 @@ describe('construirBaseUrl / agregarApiKey — switch por API key', () => {
     expect(new URL(url).searchParams.get('apikey')).toBe('clave-secreta')
   })
 })
+
+describe('reservarCupo — rol consumidor', () => {
+  it('lanza RolConsumidorError antes de reservar y la request nunca sale', async () => {
+    const { crearControladorCupo } = await import('./cupo-om')
+    const { ejecutarConReintentos } = await import('./cliente-http')
+    const { RolConsumidorError } = await import('./rol-entorno')
+    const previo = process.env.RIESGO_DATOS_ROL
+    process.env.RIESGO_DATOS_ROL = 'consumidor'
+    try {
+      await expect(
+        reservarCupo({ host: 'api', peso: 1, ahora: new Date('2026-10-18T00:00:00Z') }),
+      ).rejects.toBeInstanceOf(RolConsumidorError)
+
+      const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 }))
+      await expect(
+        ejecutarConReintentos({
+          url: 'https://api.open-meteo.com/v1/forecast',
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+          parsearPayload: (json: unknown) => json,
+          cupo: crearControladorCupo({ host: 'api', peso: 1 }),
+        }),
+      ).rejects.toBeInstanceOf(RolConsumidorError)
+      expect(fetchImpl).not.toHaveBeenCalled()
+    } finally {
+      if (previo === undefined) delete process.env.RIESGO_DATOS_ROL
+      else process.env.RIESGO_DATOS_ROL = previo
+    }
+  })
+
+  it('en rol productor explícito reserva normalmente', async () => {
+    const r = await reservarCupo({
+      host: 'test-host-rol',
+      peso: 1,
+      ahora: new Date('2026-10-18T00:00:00Z'),
+      entorno: { RIESGO_DATOS_ROL: 'productor' },
+    })
+    expect(r.ok).toBe(true)
+  })
+})

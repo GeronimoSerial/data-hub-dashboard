@@ -29,6 +29,7 @@ import {
   obtenerPronosticoConDiagnostico as pronosticoFloodConDiagnostico,
 } from '../providers/flood'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
+import { empaquetarRefsPorPuntoGrilla } from '../providers/grilla-modelo'
 import type { HazardForecastPunto } from '../tipos-hazard'
 import {
   adquirirLease,
@@ -81,6 +82,15 @@ export type ResultadoEjecucionSyncPronosticoCaudal =
       ok: false
       motivo: 'lease_perdido_durante_ejecucion'
       resultado: ResultadoSyncPronosticoCaudal
+    }
+  // Como sync-ensemble (cuota Open-Meteo C2): si alguna celda ECMWF o punto
+  // de río quedó sin dato, el job-run queda 'fallido' (nunca 'completado' con
+  // cobertura parcial). Las filas obtenidas igual se persisten.
+  | {
+      ok: false
+      motivo: 'cobertura_parcial'
+      resultado: ResultadoSyncPronosticoCaudal
+      puntosSinDato: number
     }
 
 const TIPO_JOB = 'sync-hazard-pronostico-caudal'
@@ -346,12 +356,11 @@ async function ejecutarCuerpoDelJob(ctx: {
   // el lease se pierde, no seguimos escribiendo filas de `hazard_forecast`.
   const tandas: Array<{ provider: ProveedorConDiagnostico; refs: string[]; esCeldas: boolean }> =
     []
-  for (let indice = 0; indice < celdas.length; indice += RENOVAR_LEASE_CADA_N_CELDAS) {
-    tandas.push({
-      provider: ecmwfProvider,
-      refs: celdas.slice(indice, indice + RENOVAR_LEASE_CADA_N_CELDAS),
-      esCeldas: true,
-    })
+  // Cuota Open-Meteo (C1): las tandas ECMWF agrupan puntos de grilla de
+  // 0,25° completos (hasta 25 puntos, un request) para que el provider pida
+  // cada punto una sola vez y replique la serie a todas sus celdas.
+  for (const refs of empaquetarRefsPorPuntoGrilla(celdas, RENOVAR_LEASE_CADA_N_CELDAS)) {
+    tandas.push({ provider: ecmwfProvider, refs, esCeldas: true })
   }
   for (let indice = 0; indice < puntosRio.length; indice += RENOVAR_LEASE_CADA_N_CELDAS) {
     tandas.push({
@@ -434,6 +443,20 @@ async function ejecutarCuerpoDelJob(ctx: {
 
   await actualizarSalud(db, ecmwfProvider.nombreProveedor, erroresEcmwf, ahoraIso)
   await actualizarSalud(db, floodProvider.nombreProveedor, erroresFlood, ahoraIso)
+
+  const puntosSinDato = Object.keys(erroresEcmwf).length + Object.keys(erroresFlood).length
+  if (puntosSinDato > 0) {
+    const total = celdasConsultadas + puntosRioConsultados
+    await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'fallido',
+      contadores: { llamadas: resultado.llamadasRealizadas, filas: filasInsertadas, puntosSinDato },
+      errorSaneado: `cobertura_parcial: ${puntosSinDato} de ${total} celdas/puntos sin dato`,
+      ahora,
+    })
+    return { ok: false, motivo: 'cobertura_parcial', resultado, puntosSinDato }
+  }
 
   await publicarResultado({
     jobRunId: lease.jobRunId,

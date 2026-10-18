@@ -20,6 +20,7 @@ import type {
   NivelPeligroCelda,
 } from '../peligro/nivel'
 import type { ClimatologiaObservada } from './lluvia-observada'
+import type { ExposicionHorizonteV04 } from './exposicion-v04'
 
 export type { HorizontePeligro, NivelCaudalPunto, NivelPeligro, NivelPeligroCelda }
 
@@ -33,7 +34,9 @@ export interface PuertoPeligro {
     horizontes: readonly HorizontePeligro[]
     asOf: string
   }): Promise<NivelPeligroCelda[]>
-  obtenerNivelCaudal(params: { puntoId: string; asOf: string }): Promise<NivelCaudalPunto | null>
+  // `horizonteHoras` (reglas v0.4, F6): máximo pronosticado en (0, h]; sin él,
+  // el caudal "actual" de v0.3 (igual para los tres horizontes).
+  obtenerNivelCaudal(params: { puntoId: string; asOf: string; horizonteHoras?: HorizontePeligro }): Promise<NivelCaudalPunto | null>
 }
 
 // Lluvia observada estimada por satélite (IMERG, la implementa E3a). Puede no
@@ -117,6 +120,10 @@ export interface IndicadoresSusceptibilidad {
   cueAnexo: string
   indicadores: Record<string, number>
   version: string
+  // Reglas v0.4 (F1): profundidad de inundación fluvial JRC RP100 (m) en la
+  // escuela. Fuera del Record a propósito: v0.3 promedia el Record y no debe
+  // cambiar. undefined = el adapter no la cargó; null = sin dato (nunca 0).
+  profundidadFluvialRp100M?: number | null
 }
 
 export interface PuertoSusceptibilidad {
@@ -141,6 +148,10 @@ export interface ResumenHistorial {
   duracionTotalHoras: number
   accesoInterrumpidoCantidad: number
   antecedentes: readonly AntecedenteHistorial[]
+  // Reglas v0.4 (F2): false = el sistema no tiene NINGÚN parte cargado, así que
+  // 0 antecedentes no es un dato sino una ausencia. undefined = desconocido
+  // (se trata como disponible, comportamiento de v0.3).
+  fuenteDisponible?: boolean
 }
 
 export interface PuertoHistorial {
@@ -184,6 +195,10 @@ export interface EvidenciaRioPrefectura {
   // Criterio que hizo a la escuela "expuesta" (trazabilidad del factor). Los
   // criterios basados en DEM empiezan con 'dem_estimado' (exposición estimada).
   criterioExposicion: string
+  // Reglas v0.4 (F3): alcance del agua posible por horizonte. Con reglas v0.4
+  // el adapter devuelve la lectura aunque el terreno no sea alcanzable en
+  // ningún horizonte (la zona modelada decide su piso por probabilidad).
+  exposicionV04?: Record<HorizontePeligro, ExposicionHorizonteV04>
 }
 
 // Escuela vinculada a un tramo para la que la evidencia del río NO puede

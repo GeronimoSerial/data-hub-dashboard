@@ -28,6 +28,7 @@ const AHORA_D = new Date('2026-10-16T12:00:00.000Z')
 const AHORA_E = new Date('2026-10-17T12:00:00.000Z')
 const AHORA_F = new Date('2026-10-18T12:00:00.000Z')
 const AHORA_G = new Date('2026-10-19T12:00:00.000Z')
+const AHORA_H = new Date('2026-10-20T12:00:00.000Z')
 
 const CSV_SUBSET = [
   'Dataset: x',
@@ -261,6 +262,48 @@ describe('ejecutarCalculoClimatologiaImerg (descarga diaria IMERG)', () => {
 
     const filas = await getDb().select().from(hazardClimatology).where(eq(hazardClimatology.geometryRef, CELDA_A))
     expect(filas.length).toBeGreaterThan(0)
-    expect(filas.every((fila) => fila.version === VERSION_CLIMATOLOGIA_IMERG)).toBe(true)
+    expect(filas.every((fila) => fila.version === `${VERSION_CLIMATOLOGIA_IMERG}-2001-2010`)).toBe(true)
+  })
+
+  // Regresión (auditoría 2026-10-18): el período crece a medida que se bajan
+  // años (2001-2010, luego 2001-2014...) y con una sola versión el reductor del
+  // motor (agrupa por versión) mezclaba percentiles de períodos distintos.
+  it('al crecer el período escribe otra versión y el motor no mezcla percentiles de períodos distintos', async () => {
+    // beforeEach vacía la serie: se vuelve a guardar 2001-2010 (lluvia 1) más
+    // 2011-2014 (lluvia 5); las filas 2001-2010 del test anterior siguen en la tabla.
+    for (let anio = 2001; anio <= 2014; anio++) {
+      await guardarAnioSerie(getDb(), {
+        celdaEra5: claveSerieImerg(CELDA_A),
+        anio,
+        lat: -27.4,
+        lon: -58.8,
+        valores: new Array(diasDelAnio(anio)).fill(anio <= 2010 ? 1 : 5),
+        descargadoEn: AHORA_H.toISOString(),
+      })
+    }
+    const { fetchImpl } = crearFetchFalso()
+
+    // Sin presupuesto de descarga: sólo recalcula umbrales con la serie guardada.
+    await ejecutarCalculoClimatologiaImerg({
+      ahora: AHORA_H,
+      diasPorCorrida: 0,
+      earthdataToken: TOKEN,
+      fetchImpl,
+      periodoDesde: '2001-01-01',
+      periodoHasta: '2014-12-31',
+    })
+
+    const filas = await getDb().select().from(hazardClimatology).where(eq(hazardClimatology.geometryRef, CELDA_A))
+    const versiones = new Set(filas.map((fila) => `${fila.version}|${fila.periodoDesde}|${fila.periodoHasta}`))
+    expect(versiones).toEqual(
+      new Set([
+        `${VERSION_CLIMATOLOGIA_IMERG}-2001-2010|2001-01-01|2010-12-31`,
+        `${VERSION_CLIMATOLOGIA_IMERG}-2001-2014|2001-01-01|2014-12-31`,
+      ]),
+    )
+
+    const { reducirClimatologiaObservada } = await import('../motor/adaptadores/lluvia')
+    const elegida = reducirClimatologiaObservada(filas).get(CELDA_A)?.[24]
+    expect(elegida).toEqual({ p90: 5, p95: 5, p99: 5, version: `${VERSION_CLIMATOLOGIA_IMERG}-2001-2014` })
   })
 })

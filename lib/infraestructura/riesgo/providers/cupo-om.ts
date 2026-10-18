@@ -24,6 +24,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { omCupoContador, omCupoCooldown } from '@/lib/db/schema'
+import { asegurarProductorOpenMeteo } from './rol-entorno'
 
 export type VentanaCupo = 'minuto' | 'hora' | 'dia' | 'mes'
 const VENTANAS: readonly VentanaCupo[] = ['minuto', 'hora', 'dia', 'mes']
@@ -208,6 +209,15 @@ export const MOTIVOS_CUPO_SIN_RED: ReadonlySet<string> = new Set([
 ])
 
 /**
+ * Motivos que cortan el loop de lotes de un provider: los de
+ * `MOTIVOS_CUPO_SIN_RED` más `rate_limited`. Tras un 429 la cuenta queda en
+ * cooldown (ver cliente-http.ts), así que los lotes que faltan chocarían
+ * igual; se marcan como no consultados sin tocar la red ni reservar cupo.
+ * A diferencia de los otros, `rate_limited` SÍ disparó un request real.
+ */
+export const MOTIVOS_CORTAN_LOTES: ReadonlySet<string> = new Set([...MOTIVOS_CUPO_SIN_RED, 'rate_limited'])
+
+/**
  * Guarda contra un peso de request que NINGUNA espera puede satisfacer: el
  * límite de cada ventana se evalúa completo por request (no se "consume a
  * medias" esperando), así que si `peso` por sí solo ya supera el límite de
@@ -346,7 +356,12 @@ export async function reservarCupo(params: {
   apiKeyPresente?: boolean
   esperar?: (ms: number) => Promise<void>
   esperaMaximaMs?: number
+  /** Entorno para resolver el rol (default `process.env`). */
+  entorno?: Record<string, string | undefined>
 }): Promise<ResultadoReservaCupo> {
+  // Choke point definitivo: ningún cliente Open-Meteo reserva cupo (y por lo
+  // tanto no hace la request) en un entorno consumidor.
+  asegurarProductorOpenMeteo(params.entorno)
   const db = params.db ?? getDb()
   const esperar = params.esperar ?? esperarReal
   const esperaMaximaMs = params.esperaMaximaMs ?? 65_000

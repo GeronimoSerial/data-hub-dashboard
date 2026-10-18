@@ -1,0 +1,52 @@
+name: Operar réplica de riesgo Open-Meteo
+on:
+  workflow_dispatch:
+    inputs:
+      operacion:
+        type: choice
+        options: [inspeccionar, configurar, ejecutar, estado]
+        default: inspeccionar
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: riesgo-om-operacion
+  cancel-in-progress: false
+jobs:
+  operar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar conexiones configuradas antes de modificar servidores
+        if: inputs.operacion == 'configurar'
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          RIESGO_SOURCE_DATABASE_URL: ${{ secrets.RIESGO_SOURCE_DATABASE_URL }}
+        run: python3 scripts/configurar-riesgo-om-operacion.py validar
+      - name: Retirar productores Open-Meteo systemd de staging y dev
+        if: inputs.operacion == 'configurar'
+        env:
+          SSH_KEY: ${{ secrets.RADAR_CONSUMERS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.RADAR_CONSUMERS_KNOWN_HOSTS }}
+          STAGING_HOST: ${{ secrets.RADAR_STAGING_SSH_HOST }}
+          DEV_HOST: ${{ secrets.RADAR_DEV_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          test -n "$STAGING_HOST" && test -n "$DEV_HOST"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/riesgo_om_key
+          chmod 600 ~/.ssh/riesgo_om_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          trap 'rm -f ~/.ssh/riesgo_om_key' EXIT
+          ssh -i ~/.ssh/riesgo_om_key -o BatchMode=yes -o StrictHostKeyChecking=yes -- "$STAGING_HOST" \
+            'sudo -n sh -s -- j3zm0co4bi9iy0c70nv3vinf' < deploy/systemd/ops1/desactivar-productores-riesgo-om.sh
+          ssh -i ~/.ssh/riesgo_om_key -o BatchMode=yes -o StrictHostKeyChecking=yes -- "$DEV_HOST" \
+            'sudo -n sh -s -- grg5ycm7js8dk9lkzkktt7l7' < deploy/systemd/ops1/desactivar-productores-riesgo-om.sh
+      - name: Operar consumidores en Coolify
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          RIESGO_SOURCE_DATABASE_URL: ${{ secrets.RIESGO_SOURCE_DATABASE_URL }}
+          OPERACION: ${{ inputs.operacion }}
+        run: python3 scripts/configurar-riesgo-om-operacion.py "$OPERACION"

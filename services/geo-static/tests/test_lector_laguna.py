@@ -52,3 +52,48 @@ def test_distancia_altura_y_junto_laguna_sobre_geotiff_sintetico(tmp_path):
     assert medicion["altura_sobre_agua_m"] == pytest.approx(1.5)
     assert medicion["junto_laguna"] is True
     assert fuera == {"distancia_agua_m": None, "altura_sobre_agua_m": None, "junto_laguna": None}
+
+
+def test_agua_entre_300_y_1000_m_informa_distancia_y_altura_sin_marcar_laguna(tmp_path):
+    # El criterio de exposicion del motor (rio-prefectura.ts) mira agua hasta
+    # 1000 m; con el radio de 300 m de junto_laguna esas escuelas quedaban en null.
+    gsw = np.zeros((FILAS, COLS), dtype=np.uint8)
+    gsw[:, :23] = 90
+    dem = np.full((FILAS, COLS), 10.0, dtype=np.float32)
+    dem[48:53, 28:33] = 14.0
+    ruta_gsw, ruta_dem = tmp_path / "gsw.tif", tmp_path / "dem.tif"
+    _escribir_tif(ruta_gsw, gsw, "uint8", 255)
+    _escribir_tif(ruta_dem, dem, "float32", -9999.0)
+
+    # Escuela en (fila 50, col 30): agua mas cercana en la columna 22, 8 pixeles.
+    lon, lat = OESTE + 30.5 * PASO, NORTE - 50.5 * PASO
+    lector = LectorLaguna(ruta_gsw, ruta_dem)
+    try:
+        medicion = lector.medir(lon, lat)
+    finally:
+        lector.cerrar()
+
+    mx, _ = metros_por_grado(lat)
+    assert 300 < 8 * PASO * mx < 1000
+    assert medicion["distancia_agua_m"] == pytest.approx(8 * PASO * mx, rel=1e-6)
+    assert medicion["altura_sobre_agua_m"] == pytest.approx(4.0)
+    assert medicion["junto_laguna"] is False
+
+
+def test_agua_a_mas_de_1000_m_queda_sin_distancia(tmp_path):
+    gsw = np.zeros((FILAS, COLS), dtype=np.uint8)
+    gsw[:, :5] = 90
+    dem = np.full((FILAS, COLS), 10.0, dtype=np.float32)
+    ruta_gsw, ruta_dem = tmp_path / "gsw.tif", tmp_path / "dem.tif"
+    _escribir_tif(ruta_gsw, gsw, "uint8", 255)
+    _escribir_tif(ruta_dem, dem, "float32", -9999.0)
+
+    # Escuela en la columna 20: agua a 16 pixeles (~1.6 km).
+    lon, lat = OESTE + 20.5 * PASO, NORTE - 50.5 * PASO
+    lector = LectorLaguna(ruta_gsw, ruta_dem)
+    try:
+        medicion = lector.medir(lon, lat)
+    finally:
+        lector.cerrar()
+
+    assert medicion == {"distancia_agua_m": None, "altura_sobre_agua_m": None, "junto_laguna": False}
