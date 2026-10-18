@@ -1086,6 +1086,10 @@ export async function POST(request: Request) {
         )
       }
     }
+    // Solo nombre y mensaje: nunca el cuerpo de la request ni datos del parte.
+    console.error('[problematicas/parte] POST failed', {
+      error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+    })
     return Response.json({ error: 'No se pudo guardar la actualización' }, { status: 500 })
   }
 

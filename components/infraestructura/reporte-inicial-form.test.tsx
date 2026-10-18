@@ -1456,7 +1456,7 @@ describe('foto del reporte en el primer paso (T5)', () => {
     fireEvent.click(hoja.getAllByRole('radio')[0])
     fireEvent.click(hoja.getByRole('button', { name: 'Confirmar' }))
     expect(await screen.findByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeInTheDocument()
-    process.stdout.write('\nDBGT before '+Date.now()%100000+'\n'); const el = await selectorFotos(); process.stdout.write('\nDBGT found '+Date.now()%100000+' '+el.isConnected+' '+(document.querySelector('[role=dialog]')?.textContent ?? 'nodialog').slice(0,400)+'\n')
+    const el = await selectorFotos()
     expect(el).toBeInTheDocument()
   })
 

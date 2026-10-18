@@ -38,6 +38,10 @@ const raceHook = vi.hoisted(() => ({
   parteId: null as string | null,
 }))
 
+// Hook de test para simular un error inesperado en el camino de escritura y
+// verificar que el catch final de POST lo registra y responde 500 genérico.
+const failHook = vi.hoisted(() => ({ armed: false }))
+
 vi.mock('@/lib/infraestructura/motivos', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   const listarMotivosReal = actual.listarMotivos as (...args: unknown[]) => Promise<unknown>
@@ -87,6 +91,21 @@ vi.mock('@/lib/infraestructura/motivos', async (importOriginal) => {
           })
       }
       return listarMotivosReal(...args)
+    },
+  }
+})
+
+vi.mock('@/lib/db/reintento', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  const conReintentoReal = actual.conReintentoPorBloqueo as (...args: unknown[]) => Promise<unknown>
+  return {
+    ...actual,
+    conReintentoPorBloqueo: async (...args: unknown[]) => {
+      if (failHook.armed) {
+        failHook.armed = false
+        throw new Error('boom-test-r1')
+      }
+      return conReintentoReal(...args)
     },
   }
 })
@@ -142,6 +161,8 @@ const CUE_V = '1801605-67'
 // CUE exclusivos del cierre de la evacuación preventiva (T8).
 const CUE_W = '1801605-68'
 const CUE_X = '1801605-69'
+// CUE exclusivo del test de error inesperado (500 genérico + log).
+const CUE_ERROR_INESPERADO = '1801605-70'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -162,6 +183,7 @@ beforeAll(async () => {
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
     CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U, CUE_V, CUE_W, CUE_X,
+    CUE_ERROR_INESPERADO,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -363,6 +385,24 @@ describe('POST /api/problematicas/parte', () => {
     }))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('Cada sección elegida debe incluir al menos un alumno')
+  })
+
+  it('ante un error inesperado responde 500 genérico y lo registra en el log sin exponerlo al cliente', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    failHook.armed = true
+    try {
+      const res = await POST(postReq({
+        cue: CUE_ERROR_INESPERADO, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+        afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [seccionId(CUE_ERROR_INESPERADO, '10')] }],
+      }))
+      expect(res.status).toBe(500)
+      expect(await res.json()).toEqual({ error: 'No se pudo guardar la actualización' })
+      expect(spy).toHaveBeenCalledWith(expect.stringContaining('[problematicas/parte]'), expect.anything())
+      expect(JSON.stringify(spy.mock.calls)).toContain('boom-test-r1')
+    } finally {
+      failHook.armed = false
+      spy.mockRestore()
+    }
   })
 
   it('el primer POST crea el parte con el corteId del corte vigente y un movimiento reporte_inicial', async () => {
