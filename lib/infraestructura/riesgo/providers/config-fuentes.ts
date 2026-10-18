@@ -116,6 +116,18 @@ export const CONFIG_FUENTES = {
     envPresupuestoMes: 'E8_PRESUPUESTO_USD_MES', // origen: lib/infraestructura/briefing-ia/generar-briefing-asistido.ts:93
     envCostoMaximoLlamada: 'E8_COSTO_MAXIMO_USD_LLAMADA', // origen: lib/infraestructura/briefing-ia/generar-briefing-asistido.ts:98
   },
+
+  // ---------------------------------------------------------------------
+  // INA A5 (alturas Prefectura e historia diaria; API pública sin autenticación)
+  // ---------------------------------------------------------------------
+  inaA5: {
+    baseUrl: 'https://alerta.ina.gob.ar/a5', // origen: lib/infraestructura/hidrometria/ina/cliente-a5.ts (crearClienteA5)
+    timeoutMs: 30_000, // origen: lib/infraestructura/hidrometria/ina/cliente-a5.ts (respuestas de hasta ~4.000 filas)
+    reintentos: 2, // origen: lib/infraestructura/hidrometria/ina/cliente-a5.ts
+    ventanaDias: 3_650, // origen: lib/infraestructura/hidrometria/ina/sync-ina-serie-diaria.ts (≈3.650 filas por solicitud)
+    solapeIncrementalDias: 7, // origen: lib/infraestructura/hidrometria/ina/sync-ina-serie-diaria.ts
+    maxSolicitudesPorCorrida: 300, // origen: lib/infraestructura/hidrometria/ina/sync-ina-serie-diaria.ts (backfill 18 estaciones ≈ 200)
+  },
 } as const
 
 export type ConfigFuentes = typeof CONFIG_FUENTES

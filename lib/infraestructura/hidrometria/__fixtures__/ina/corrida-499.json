@@ -1,0 +1,187 @@
+{
+ "id": 1232623,
+ "forecast_date": "2026-10-16T12:00:00.000Z",
+ "series": [
+  {
+   "series_table": "series",
+   "series_id": 34863,
+   "cor_id": 1232623,
+   "pronosticos": [
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 6.16,
+     "qualifier": "main"
+    },
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 5.74,
+     "qualifier": "p10"
+    },
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 6.58,
+     "qualifier": "p90"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 3.99,
+     "qualifier": "main"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 3.31,
+     "qualifier": "p10"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 4.33,
+     "qualifier": "p90"
+    }
+   ],
+   "tipo": "puntual",
+   "metadata": null
+  },
+  {
+   "series_table": "series",
+   "series_id": 34866,
+   "cor_id": 1232623,
+   "pronosticos": [
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 5.07,
+     "qualifier": "main"
+    },
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 4.68,
+     "qualifier": "p10"
+    },
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 5.44,
+     "qualifier": "p90"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 5.53,
+     "qualifier": "main"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 5.04,
+     "qualifier": "p10"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 5.92,
+     "qualifier": "p90"
+    }
+   ],
+   "tipo": "puntual",
+   "metadata": null
+  },
+  {
+   "series_table": "series",
+   "series_id": 34881,
+   "cor_id": 1232623,
+   "pronosticos": [
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 2.24,
+     "qualifier": "main"
+    },
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 2.03,
+     "qualifier": "p10"
+    },
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 2.45,
+     "qualifier": "p90"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 1.75,
+     "qualifier": "main"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 1.28,
+     "qualifier": "p10"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 2.19,
+     "qualifier": "p90"
+    }
+   ],
+   "tipo": "puntual",
+   "metadata": null
+  },
+  {
+   "series_table": "series",
+   "series_id": 35471,
+   "cor_id": 1232623,
+   "pronosticos": [
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 0.72,
+     "qualifier": "main"
+    },
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 0.27,
+     "qualifier": "p10"
+    },
+    {
+     "timestart": "2026-10-18T03:00:00.000Z",
+     "timeend": "2026-10-18T03:00:00.000Z",
+     "valor": 1.15,
+     "qualifier": "p90"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 0.76,
+     "qualifier": "main"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 0.25,
+     "qualifier": "p10"
+    },
+    {
+     "timestart": "2026-10-25T03:00:00.000Z",
+     "timeend": "2026-10-25T03:00:00.000Z",
+     "valor": 1.25,
+     "qualifier": "p90"
+    }
+   ],
+   "tipo": "puntual",
+   "metadata": null
+  }
+ ],
+ "cal_id": 499
+}

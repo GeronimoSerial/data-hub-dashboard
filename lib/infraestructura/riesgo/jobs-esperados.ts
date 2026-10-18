@@ -50,6 +50,14 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
   // Running in production every 6 h (calcular-riesgo, sync-pronostico-caudal, sync-ensemble)
   // and hourly (situacion-corte), the cadences of their deploy/systemd/ops1 timers.
   { nombre: 'calcular-riesgo', tipo: 'calcular-riesgo-v0', intervaloMinutos: 360, habilitado: true },
+  // Motor v0.4 en modo candidato (odd/tasks/motor-v0-4.md): no programado
+  // hasta decidir su ejecución; nunca publica el puntero vigente.
+  {
+    nombre: 'calcular-riesgo-v04-candidato',
+    tipo: 'calcular-riesgo-v04-candidato',
+    intervaloMinutos: 360,
+    habilitado: false,
+  },
   {
     nombre: 'sync-pronostico-caudal',
     tipo: 'sync-hazard-pronostico-caudal',
@@ -84,5 +92,26 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     tipo: 'importar-exposicion-rio-dem',
     intervaloMinutos: 1440,
     habilitado: true,
+  },
+  // Motor v0.4 (T2): importación manual del CSV de altimetría; no programada.
+  {
+    nombre: 'importar-altimetria-v04',
+    tipo: 'importar-altimetria-v04',
+    intervaloMinutos: 1440,
+    habilitado: false,
+  },
+  // Motor v0.4 (T3): serie diaria histórica INA A5; no programada.
+  {
+    nombre: 'sync-ina-serie-diaria',
+    tipo: 'sync-ina-serie-diaria',
+    intervaloMinutos: 1440,
+    habilitado: false,
+  },
+  // Motor v0.4 (T4): última corrida INA 499/289 (plan: 4 consultas/día); no programada.
+  {
+    nombre: 'sync-ina-pronostico',
+    tipo: 'sync-ina-pronostico',
+    intervaloMinutos: 360,
+    habilitado: false,
   },
 ]

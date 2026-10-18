@@ -27,6 +27,8 @@ export type FilaSusceptibilidadEstatica = typeof infraSusceptibilidadEstatica.$i
 export interface OpcionesAdapterSusceptibilidad {
   // Punto de inyección sólo para tests: por defecto consulta la DB real.
   cargarFilas?: () => Promise<FilaSusceptibilidadEstatica[]>
+  // Reglas v0.4 (F1): informar además la profundidad fluvial JRC RP100 (m).
+  conProfundidadFluvial?: boolean
 }
 
 // Claves del Record alineadas con el catálogo/CSV de G1 (snake_case).
@@ -132,6 +134,11 @@ export function crearAdapterSusceptibilidad(
       for (const campo of CAMPOS_PELIGRO) {
         const valor = valorDeCampo(fila, campo)
         if (valor !== null) indicadores[campo] = valor
+      }
+      if (opciones.conProfundidadFluvial) {
+        const profundidadFluvialRp100M = fila.profundidadRp100M ?? null
+        if (Object.keys(indicadores).length === 0 && profundidadFluvialRp100M === null) return null
+        return { cueAnexo, indicadores, version: fila.versionJob, profundidadFluvialRp100M }
       }
       // Catálogo vacío = sin evidencia (mismo camino que null, ver T-H3).
       if (Object.keys(indicadores).length === 0) return null

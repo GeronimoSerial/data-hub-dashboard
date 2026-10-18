@@ -12,6 +12,7 @@ import {
   obtenerNivelCaudal as obtenerNivelCaudalReal,
   obtenerNivelesPeligro,
 } from '../../peligro/nivel'
+import type { ReglasMotor } from '../config'
 import type {
   HorizontePeligro,
   NivelCaudalPunto,
@@ -19,7 +20,9 @@ import type {
   PuertoPeligro,
 } from '../puertos'
 
-export function crearAdapterPeligro(): PuertoPeligro {
+// `reglas: 'v0.4'` activa F5 (acumulado por ventana), F6 (caudal en la
+// ventana del horizonte) y la edad máxima del ensemble (F8).
+export function crearAdapterPeligro(opciones: { reglas?: ReglasMotor } = {}): PuertoPeligro {
   return {
     async obtenerNivelesCelda(params: {
       geometryRef: string
@@ -30,10 +33,18 @@ export function crearAdapterPeligro(): PuertoPeligro {
         geometryRefs: [params.geometryRef],
         horizontes: [...params.horizontes],
         ahora: new Date(params.asOf),
+        ...(opciones.reglas ? { reglas: opciones.reglas } : {}),
       })
     },
 
-    async obtenerNivelCaudal(params: { puntoId: string; asOf: string }): Promise<NivelCaudalPunto | null> {
+    async obtenerNivelCaudal(params: {
+      puntoId: string
+      asOf: string
+      horizonteHoras?: HorizontePeligro
+    }): Promise<NivelCaudalPunto | null> {
+      if (opciones.reglas === 'v0.4') {
+        return obtenerNivelCaudalReal(params.puntoId, { ahora: new Date(params.asOf), reglas: 'v0.4', horizonteHoras: params.horizonteHoras })
+      }
       return obtenerNivelCaudalReal(params.puntoId, { ahora: new Date(params.asOf) })
     },
   }

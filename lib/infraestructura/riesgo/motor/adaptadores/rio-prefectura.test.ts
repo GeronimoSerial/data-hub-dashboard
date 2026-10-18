@@ -317,3 +317,104 @@ describe('resolverEvidenciaRio — exposición dinámica por DEM (estimada)', ()
     expect(ev).toMatchObject({ disponibilidad: 'no_aplica', estacionId: 'pna-ituzaingo' })
   })
 })
+
+// Reglas v0.4 (F3): exposición por terreno contra el agua posible.
+describe('resolverEvidenciaRio con reglas v0.4', () => {
+  const V04 = { reglas: 'v0.4' as const }
+  const ASOF_V04 = '2026-10-18T02:15:04.000Z'
+  const LECTURA_V04 = '2026-10-17T15:00:00.000Z'
+
+  it('Paso de los Libres sólo por ruta RP100: v0.3 la expone, v0.4 no le da piso en ningún horizonte', () => {
+    const d = datos({
+      susceptibilidadPorCue: new Map([[CUE, { ...SIN_EXPOSICION, claseRio: 'sin_riesgo' }]]),
+      rutaProfundidadMaxMPorCue: new Map([[CUE, 0.76]]),
+      lecturas: [lectura({ medidaEn: LECTURA_V04 })],
+    })
+    expect(vigente(resolverEvidenciaRio(d, CUE, ASOF_V04))?.criterioExposicion).toBe('ruta_rp100=0.8m')
+    const v04 = vigente(resolverEvidenciaRio(d, CUE, ASOF_V04, V04))!
+    expect(v04.estado).toBe('evacuacion')
+    expect(v04.criterioExposicion).toBe('no_alcanzable_v0.4')
+    for (const h of [24, 72, 240] as const) expect(v04.exposicionV04![h]).toMatchObject({ criterio: 'no_evaluable', alcance: 'ninguno' })
+  })
+
+  // Casco de Ituzaingó: 17 m sobre el agua, marcado por la celda WRI.
+  function ituzaingo(): DatosRio {
+    const VECINA = 'vecina-ribera'
+    return {
+      localidadPorCue: new Map([[CUE, 'ITUZAINGO'], [VECINA, 'ITUZAINGO']]),
+      susceptibilidadPorCue: new Map([[CUE, { ...SIN_EXPOSICION, claseRio: 'sin_riesgo', peligroInundacionFluvial: 0.9 }]]),
+      distanciaRioKmPorCue: new Map(),
+      lecturas: [lectura({ estacionId: 'pna-ituzaingo', lecturaM: 4.1, alertaM: 4, evacuacionM: 5, medidaEn: LECTURA_V04 })],
+      coordenadasPorCue: new Map([[CUE, { lat: -27.58, lon: -56.68 }]]),
+      demPorCue: new Map([
+        [CUE, { sueloM: 72, nivelRioDemM: 55, distanciaRioM: 600 }],
+        [VECINA, { sueloM: 56, nivelRioDemM: 55, distanciaRioM: 100 }],
+      ]),
+      medianaPorEstacion: new Map([['pna-ituzaingo', 1.5]]),
+    }
+  }
+
+  it('Ituzaingó con celda WRI pero 17 m sobre el agua: alerta sin alcance (v0.3 la exponía)', () => {
+    expect(vigente(resolverEvidenciaRio(ituzaingo(), CUE, ASOF_V04))?.criterioExposicion).toMatch(/^peligro_fluvial/)
+    const v04 = vigente(resolverEvidenciaRio(ituzaingo(), CUE, ASOF_V04, V04))!
+    expect(v04.estado).toBe('alerta')
+    expect(v04.exposicionV04![240]).toMatchObject({ criterio: 'dem_agua_posible', alcance: 'ninguno' })
+    expect(v04.exposicionV04![240].margenM!).toBeLessThan(-10)
+  })
+
+  it('el escenario de subida de la estación del tramo entra al agua posible por horizonte', () => {
+    const d = ituzaingo()
+    d.demPorCue!.set(CUE, { sueloM: 60, nivelRioDemM: 55, distanciaRioM: 600 })
+    const escenarios = new Map([
+      ['pna-ituzaingo', {
+        estacionId: 'pna-ituzaingo', h0M: 4.1, fechaH0: '2026-10-17', tasaCortaM: 0.3, tasaMediaM: 0.3, ondaM: null, estacionAguasArriba: null,
+        porHorizonte: {
+          24: { analogosP90M: 0.1, tendenciaCortaM: 0.3, tendenciaMediaM: 0.3, ondaM: 0, posibleM: 0.3, decide: 'tendencia' as const },
+          72: { analogosP90M: 0.2, tendenciaCortaM: 0.9, tendenciaMediaM: 0.9, ondaM: 0, posibleM: 0.9, decide: 'tendencia' as const },
+          240: { analogosP90M: 0.5, tendenciaCortaM: 3, tendenciaMediaM: 3, ondaM: 0, posibleM: 3, decide: 'tendencia' as const },
+        },
+      }],
+    ])
+    const v04 = vigente(resolverEvidenciaRio(d, CUE, ASOF_V04, { ...V04, escenarios }))!
+    // agua actual 55 + 2,6 = 57,6; margen = 57,6 + subida + 2 − 60.
+    expect([24, 72, 240].map((h) => v04.exposicionV04![h as 24].alcance)).toEqual(['reducido', 'completo', 'completo'])
+    expect(v04.exposicionV04![240].subida?.decide).toBe('tendencia')
+  })
+
+  it('vecinas a 100 m con terreno parecido quedan con el mismo alcance aunque una celda gruesa las separe', () => {
+    const A = 'cue-a'
+    const B = 'cue-b'
+    const d: DatosRio = {
+      localidadPorCue: new Map([[A, 'ITUZAINGO'], [B, 'ITUZAINGO']]),
+      susceptibilidadPorCue: new Map([
+        [A, { ...SIN_EXPOSICION, claseRio: 'alto' }],
+        [B, { ...SIN_EXPOSICION, claseRio: 'sin_riesgo' }],
+      ]),
+      distanciaRioKmPorCue: new Map(),
+      lecturas: [lectura({ estacionId: 'pna-ituzaingo', lecturaM: 5.2, alertaM: 4, evacuacionM: 5, medidaEn: LECTURA_V04 })],
+      coordenadasPorCue: new Map([[A, { lat: -27.58, lon: -56.68 }], [B, { lat: -27.5809, lon: -56.68 }]]),
+      demPorCue: new Map([
+        [A, { sueloM: 63.1, nivelRioDemM: 55, distanciaRioM: 700 }],
+        [B, { sueloM: 63.3, nivelRioDemM: 55, distanciaRioM: 780 }],
+      ]),
+      medianaPorEstacion: new Map([['pna-ituzaingo', 1.5]]),
+    }
+    const a = vigente(resolverEvidenciaRio(d, A, ASOF_V04, V04))!
+    const b = vigente(resolverEvidenciaRio(d, B, ASOF_V04, V04))!
+    for (const h of [24, 72, 240] as const) expect(a.exposicionV04![h].alcance).toBe(b.exposicionV04![h].alcance)
+    // v0.3: A expuesta por la celda JRC, B no.
+    expect(vigente(resolverEvidenciaRio(d, A, ASOF_V04))).toBeDefined()
+    expect(resolverEvidenciaRio(d, B, ASOF_V04)).toBeNull()
+  })
+
+  it('sin lectura vigente: sin_dato si algún horizonte alcanza, null si ninguno', () => {
+    const d = ituzaingo()
+    d.lecturas = []
+    // DEM evaluable sin nivel actual: posiblemente expuesta, nunca "no expuesta" por omisión.
+    expect(resolverEvidenciaRio(d, CUE, ASOF_V04, V04)).toMatchObject({ disponibilidad: 'sin_dato' })
+    d.demPorCue!.delete(CUE)
+    expect(resolverEvidenciaRio(d, CUE, ASOF_V04, V04)).toBeNull()
+    d.susceptibilidadPorCue.set(CUE, { ...SIN_EXPOSICION, claseRio: 'alto' })
+    expect(resolverEvidenciaRio(d, CUE, ASOF_V04, V04)).toMatchObject({ disponibilidad: 'sin_dato' })
+  })
+})

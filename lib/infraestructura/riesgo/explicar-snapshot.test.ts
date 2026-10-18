@@ -226,4 +226,51 @@ describe('explicarSnapshot', () => {
 
     expect(resultado.situacionActual).toEqual(['Otra señal: viento fuerte sostenido.'])
   })
+
+  it('explica el factor río v0.4 (superación del terreno) sin romper altura_rio', () => {
+    const rioV04: FactorMotor = {
+      tipo: 'amenaza',
+      fuente: 'rio-v04',
+      variable: 'superacion_terreno',
+      valor: 0.42,
+      unidad: 'probabilidad',
+      contribucion: 10.5,
+      explicacion:
+        'Rio v0.4: P superacion del terreno 0.42 a 72h; conservador 0.55; metodo analogos-v2+transferencia-km version superacion-terreno-v1; mapeo rio-v04-mapeo-provisorio-1; piso ninguno',
+      observadoEn: '2026-10-12T12:00:00.000Z',
+    }
+    const resultado = explicarSnapshot(SNAPSHOT_ALTO, [rioV04, FACTOR_RIO])
+
+    expect(resultado.situacionActual).toEqual([
+      expect.stringContaining('Altura del río: 4,03 m'),
+      'Río: probabilidad 42 % de que el agua supere el terreno de la escuela en las próximas 72 h (escenario conservador 55 %).',
+    ])
+  })
+})
+
+// Reglas v0.4 (F3): el factor río conserva el prefijo legible y agrega el
+// detalle de exposición; el río no alcanzable no marca zona expuesta.
+describe('explicarSnapshot con factores río de reglas v0.4', () => {
+  it('río alcanzable: mismo texto de evidencia y zona expuesta', () => {
+    const factor: FactorMotor = {
+      ...FACTOR_RIO,
+      explicacion: `${FACTOR_RIO.explicacion!.replace('clase_rio=alto', 'exposicion_v0.4')}; exposicion v0.4 a 72h: criterio dem_agua_posible; alcance completo; margen 0.4m (suelo 57m, agua posible 55.4m = dem 52 + anomalia 3.1 + subida 0.3 por analogos [analogos_p90 0.3, tendencia 0 a 0 m/dia, onda 0]; margen_error 2m; banda 2m)`,
+    }
+    const r = explicarSnapshot(SNAPSHOT_ALTO, [factor])
+    expect(r.situacionActual[0]).toContain('Río Paraná en Ituzaingó')
+    expect(r.zonaExpuesta).not.toBeNull()
+  })
+
+  it('río no alcanzable: sin evidencia ni zona expuesta, visible en el detalle técnico', () => {
+    const factor: FactorMotor = {
+      ...FACTOR_RIO,
+      unidad: 'no_alcanzable',
+      contribucion: 0,
+      explicacion: 'Rio parana en pna-ituzaingo: 4.03m, estado evacuacion (alerta 3.5m, evacuacion 4m), tendencia crece; terreno no alcanzable: exposicion v0.4 a 72h: criterio dem_agua_posible; alcance ninguno; margen -12.4m',
+    }
+    const r = explicarSnapshot({ ...SNAPSHOT_ALTO, nivelRiesgo: 'bajo' }, [factor])
+    expect(r.situacionActual).toEqual([])
+    expect(r.zonaExpuesta).toBeNull()
+    expect(r.detalleTecnico[0].texto).toContain('terreno no alcanzable')
+  })
 })

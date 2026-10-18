@@ -133,3 +133,98 @@ export const AGRAVANTES_ACCESO = {
   // SOLO de esta dimensión: no le resta su rol en historial/vulnerabilidad.
   accesoInterrumpido: 15,
 } as const
+
+// --- Motor v0.4: factor río probabilístico (T8, odd/tasks/motor-v0-4.md) ---
+// PROVISORIO, PENDIENTE DE DECISIÓN DEL USUARIO. Sólo lo usa el job candidato
+// (jobs/calcular-riesgo-v04.ts) mientras MOTOR_VERSION siga en motor-v0.3.
+// - Componente río = 100 × P(superación del terreno, cota principal) con el
+//   peso PESOS_AMENAZA.rioPrefectura (misma redistribución: si falta, no es 0).
+// - Los pisos observados de v0.3 (PISO_*_POR_ESTADO_RIO) se mantienen.
+// - Pisos probabilísticos de riesgo: sólo suben, nunca bajan.
+export const RIO_V04_MAPEO_VERSION = 'rio-v04-mapeo-provisorio-1'
+export const UMBRAL_P_ALTO_V04 = 0.5
+export const UMBRAL_P_MODERADO_V04 = 0.2
+export const PISO_RIESGO_P_ALTO_V04 = UMBRAL_ALTO
+export const PISO_RIESGO_P_MODERADO_V04 = UMBRAL_MODERADO
+
+// --- Reglas v0.4 (T10, docs/motor-v0.4/auditoria-v03.md) ---
+// Selector explícito de reglas del cálculo compartido. El job operativo usa
+// 'v0.3' (resultado idéntico byte a byte a motor-v0.3); el candidato usa
+// 'v0.4', que corrige los defectos de la auditoría del 2026-10-18. Al promover,
+// 'v0.4' pasa a ser la única regla y se retira 'v0.3' (motor único).
+export type ReglasMotor = 'v0.3' | 'v0.4'
+export const REGLAS_V04_VERSION = 'reglas-v0.4-1'
+// Versión que informa el resultado calculado con reglas v0.4 (la de la corrida
+// candidata); MOTOR_VERSION sigue siendo la del operativo hasta la promoción.
+export const MODELO_VERSION_V04 = 'motor-v0.4'
+
+// F1 — Susceptibilidad v0.4: SÓLO profundidad fluvial JRC RP100 (m), escala
+// lineal hasta el tope (profundidad ≥ tope = 100). Nunca se mezcla con calor,
+// viento ni pluvial (magnitudes y unidades distintas: el promedio de v0.3
+// mezclaba metros con grados-día y saturaba en 100 para todas las escuelas).
+// JRC (90 m) en lugar de WRI (~1 km): misma fuente que `clase_rio` (respaldo de
+// exposición) y 12× más resolución. Nulo → sin dato, nunca 0.
+export const TOPE_PROFUNDIDAD_FLUVIAL_V04_M = 1
+
+// F2 — Historial v0.4: si el sistema no tiene NINGÚN parte cargado, el
+// historial es ausente (su peso se redistribuye), no un 0 real. Combinación
+// que no puede borrar la amenaza: riesgo = amenaza × (BASE + (1 − BASE)·V/100).
+// Con V desconocida (ni historial ni susceptibilidad) el factor es 1: un dato
+// faltante nunca baja el riesgo. Los pisos por río siguen aplicándose.
+export const BASE_COMBINACION_V04 = 0.5
+
+// F3 — Exposición v0.4: terreno de la escuela contra el agua POSIBLE dentro
+// del horizonte (decisión del usuario 2026-10-18), no sólo la existente.
+// Zona modelada (superación del terreno v0.4; T10b, mismo margen y banda que
+// la zona DEM): umbral = cota_conservadora − MARGEN_ERROR_DEM_V04_M; piso
+// completo si P(máx nivel sitio ≥ umbral) ≥ UMBRAL_ALCANZABLE_V04 o la
+// tendencia llega al umbral; un nivel menor si sólo llega a umbral − BANDA;
+// si no, sin piso. Los pisos probabilísticos usan la cota SIN margen.
+// Resto con DEM evaluable:
+//   agua_posible(h) = nivel_rio_dem + anomalía_actual + subida_posible(h)
+//   margen = agua_posible + MARGEN_ERROR_DEM_V04_M − suelo
+//   margen ≥ 0 → piso completo; −BANDA ≤ margen < 0 → piso un nivel menor;
+//   margen < −BANDA → sin piso.
+// MARGEN_ERROR_DEM: el nivel de agua DEM está sesgado 1,6–3,7 m abajo frente
+// a cero INA + mediana de 365 días (auditoría 2026-10-18); 2 m cubre el sesgo
+// típico y la banda de 2 m llega al máximo medido con piso reducido.
+export const UMBRAL_ALCANZABLE_V04 = 0.05
+export const DISTANCIA_DATOS_DEM_V04_M = 2000
+export const MARGEN_ERROR_DEM_V04_M = 2
+export const BANDA_EXPOSICION_V04_M = 2
+// Piso un nivel menor (banda): evacuación → alerta (amenaza 50, riesgo 25);
+// alerta → sin piso.
+export const PISO_AMENAZA_REDUCIDO_V04 = { normal: null, alerta: null, evacuacion: 50 } as const
+export const PISO_RIESGO_REDUCIDO_V04 = { normal: null, alerta: null, evacuacion: 25 } as const
+
+// Escenarios de subida posible por estación (F3):
+// - análogos: p90 de la subida máxima en la ventana (analogos-v2, serie A5);
+// - tendencia ("si se mantiene esta tendencia"): tasa diaria media de los
+//   máximos diarios de Prefectura en la ventana media × días del horizonte;
+//   nunca negativa. La ventana corta sólo se informa.
+// - onda aguas arriba (Paraná aguas abajo de Corrientes, h ≥ 72): lo que subió
+//   de más la estación inmediatamente aguas arriba en la ventana media, acotado.
+//   Es un proxy de propagación, no un tránsito hidráulico.
+// subida_posible = max(análogos, tendencia + onda).
+export const VENTANA_TENDENCIA_CORTA_DIAS = 2
+export const VENTANA_TENDENCIA_MEDIA_DIAS = 5
+// Saltos diarios mayores se descartan como lecturas espurias (Empedrado tuvo
+// picos de 12–13 m sobre ~5 m); el Uruguay real sube hasta ~1–2 m/día.
+export const SALTO_MAX_DIARIO_M = 2.5
+export const EDAD_MAX_LECTURA_TENDENCIA_DIAS = 2
+export const ONDA_MAX_V04_M = 1
+export const DIAS_POR_HORIZONTE_V04 = { 24: 1, 72: 3, 240: 10 } as const
+
+// F5 — Precipitación determinística v0.4: el pronóstico horario se acumula en
+// la ventana (h − 24, h] antes de compararlo con percentiles DIARIOS (v0.3
+// comparaba un solo valor horario). La ventana exige cubrir al menos estas
+// horas (suma de `paso_horas`); si no, no hay pronóstico para ese horizonte.
+// Sin climatología, el umbral provisorio (definido sobre lo acumulado en el
+// horizonte) recibe lo acumulado en (0, h].
+export const COBERTURA_MIN_VENTANA_V04_HORAS = 18
+// F8 — Ensemble v0.4: además de no usar corridas posteriores a asOf (regla
+// as-of que ya aplica a ambas reglas), una corrida de más de estas horas no se
+// usa y el horizonte cae al determinístico.
+export const EDAD_MAX_ENSEMBLE_V04_HORAS = 36
+// F6 — Caudal v0.4: máximo del pronóstico dentro de la ventana (0, h] de la
+// corrida más reciente, en lugar del horizonte más chico para los tres.
