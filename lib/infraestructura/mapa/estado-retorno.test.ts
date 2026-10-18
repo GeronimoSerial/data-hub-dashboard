@@ -90,7 +90,7 @@ describe('estado-retorno', () => {
         seleccionCue: '1800001-00',
         horizonte: 24,
         variable: 'viento',
-        vista: 'inundacion',
+        vista: 'historial',
         origen: 'mapa',
       })
 
@@ -103,7 +103,7 @@ describe('estado-retorno', () => {
       expect(recuperado.origen).toBe('mapa')
       expect(recuperado.horizonte).toBe(24)
       expect(recuperado.variable).toBe('viento')
-      expect(recuperado.vista).toBe('inundacion')
+      expect(recuperado.vista).toBe('historial')
       expect(recuperado.tieneFiltrosEnUrl).toBe(true)
       expect(recuperado.filtrosParciales).toEqual({
         q: 'Escuela 12',
@@ -133,6 +133,27 @@ describe('estado-retorno', () => {
       expect(recuperado.horizonte).toBeNull()
       expect(recuperado.variable).toBeNull()
       expect(recuperado.vista).toBeNull()
+    })
+  })
+
+  describe('vista de Planificación heredada', () => {
+    it('lleva vista=inundacion de la URL a Riesgo hoy', () => {
+      const recuperado = parsearContextoMapaDeQuery(new URLSearchParams('vista=inundacion'), '#planificacion', { radarHabilitado: false })
+      expect(recuperado.vista).toBe('riesgo')
+    })
+
+    it('lleva un snapshot guardado con Inundación a Riesgo hoy y usa Riesgo hoy si falta', () => {
+      const storage = crearStorageMemoria()
+      const base = {
+        version: 1, origen: 'mapa', tab: 'planificacion', ultimaPestanaMapa: 'planificacion',
+        filtros: FILTROS_MAPA_VACIOS, seleccionCue: null, previewAbierto: false, camara: null, basemap: 'positron',
+        capasVisibles: CAPAS_VISIBLES_DEFAULT, horasLluvia: 24, horizonteSeleccionado: 24, variableRadar: 'lluvia',
+        departamentoSeleccionado: null, departamentoRadarId: null,
+      }
+      storage.setItem(STORAGE_KEY_RETORNO_MAPA, JSON.stringify({ ...base, vistaPlanificacion: 'inundacion' }))
+      expect(leerSnapshotRetornoMapa(storage)?.vistaPlanificacion).toBe('riesgo')
+      storage.setItem(STORAGE_KEY_RETORNO_MAPA, JSON.stringify(base))
+      expect(leerSnapshotRetornoMapa(storage)?.vistaPlanificacion).toBe('riesgo')
     })
   })
 
@@ -178,7 +199,7 @@ describe('estado-retorno', () => {
         horasLluvia: 24,
         horizonteSeleccionado: 24,
         variableRadar: 'viento',
-        vistaPlanificacion: 'inundacion',
+        vistaPlanificacion: 'historial',
         departamentoSeleccionado: 'Goya',
         departamentoRadarId: '18001',
       }

@@ -33,7 +33,7 @@ export async function sembrarMotorBase(periodoId: string) {
     {
       id: RUN_VIGENTE,
       periodoId,
-      modeloVersion: 'riesgo-v0',
+      modeloVersion: 'motor-v0.4',
       iniciadoEn: '2026-01-01T00:00:00Z',
       publicadoEn: PUBLICADO_EN,
       estado: 'vigente',

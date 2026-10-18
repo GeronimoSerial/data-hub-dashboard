@@ -9,6 +9,7 @@ import {
   infraRiskSnapshot,
 } from '@/lib/db/schema'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { factorCrecida } from '@/lib/infraestructura/riesgo/__fixtures__/crecida-rio'
 import {
   mockAcceso,
   RUN_VIGENTE as RUN,
@@ -64,7 +65,7 @@ async function sembrarFixture() {
   await db.insert(infraRiskRun).values({
     id: RUN,
     periodoId: PERIODO,
-    modeloVersion: 'riesgo-v0',
+    modeloVersion: 'motor-v0.4',
     iniciadoEn: '2026-01-01T00:00:00Z',
     publicadoEn: '2026-01-02T00:00:00Z',
     estado: 'vigente',
@@ -136,6 +137,35 @@ function req(query = '') {
 }
 
 describe('GET /api/infraestructura/riesgo/escuela/[cueAnexo]', () => {
+  it('muestra la referencia del estudio para la ficha real aunque el snapshot sea v0.3', async () => {
+    await getDb().update(infraRiskSnapshot).set({ cueAnexo: '1800818-00' })
+    await getDb().insert(infraRiskFactor).values({
+      id: 'fac-rio-v03', snapshotId: SNAPSHOT_72, tipo: 'amenaza', fuente: 'rio-prefectura', variable: 'altura_rio',
+      valor: 4.8, unidad: 'm', contribucion: 10, peso: 1, explicacion: 'Rio parana en pna-ituzaingo: 4.8m, estado evacuacion',
+    })
+    mockAcceso({ ok: true, user: USER })
+    const body = await (await GET(req(), ctx('1800818-00'))).json()
+    expect(body.snapshot.nivelRiesgo).toBe('muy_alto')
+    expect(body.crecidaRio).toMatchObject({ origen: 'estudio_v04', alturaActualM: 4.8, alturaCriticaM: 15.47 })
+  })
+
+  it('conserva el antecedente histórico aunque no haya una evaluación vigente de la escuela', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const body = await (await GET(req(), ctx('1800818-00'))).json()
+    expect(body.snapshot).toBeNull()
+    expect(body.crecidaRio).toMatchObject({ origen: 'estudio_v04', alturaActualM: null, antecedente: { nivelM: 3.6 } })
+  })
+
+  it('publica la referencia de crecida del mismo snapshot vigente', async () => {
+    await getDb().insert(infraRiskFactor).values({ id: 'fac-crecida', snapshotId: SNAPSHOT_72, peso: 0, ...factorCrecida() })
+    mockAcceso({ ok: true, user: USER })
+    const body = await (await GET(req(), ctx(CUE))).json()
+    expect(body.crecidaRio).toMatchObject({
+      estacion: 'Paso de los Libres', alturaCriticaM: 14.66, subidaDesdeActualM: 5.2,
+      antecedente: { nivelM: 11.28, distanciaAguaM: null },
+    })
+  })
+
   it('rechaza sin sesión con 401', async () => {
     mockAcceso({ ok: false, status: 401 })
     const res = await GET(req(), ctx(CUE))
@@ -176,7 +206,7 @@ describe('GET /api/infraestructura/riesgo/escuela/[cueAnexo]', () => {
     await db.insert(infraRiskRun).values({
       id: 'run-preparando',
       periodoId: PERIODO,
-      modeloVersion: 'riesgo-v0',
+      modeloVersion: 'motor-v0.4',
       iniciadoEn: '2026-01-01T00:00:00Z',
       publicadoEn: null,
       estado: 'preparando',

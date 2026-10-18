@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, TEXTO_CONFIRMAR_CATEGORIA, type AfectacionBorrador } from './afectacion-campos'
 import { SEVERIDAD_CRITERIOS } from '@/lib/infraestructura/severidad'
@@ -30,7 +30,9 @@ function renderCamposQuePaso({
 }
 
 afterEach(() => {
-  document.body.innerHTML = ''
+  // Desmonta los árboles de React: vaciar el DOM deja trabajo pendiente del
+  // scheduler que corre después de cerrar jsdom (window is not defined).
+  cleanup()
 })
 
 describe('CamposAQuienAfecta — selector legado', () => {
@@ -261,10 +263,12 @@ describe('CamposAQuienAfecta — recomendación de gravedad por alcance (T4a)', 
   function renderAlcance({
     motivo,
     severidad,
+    secciones = [TURNOS_FIXTURE[0].niveles[0].secciones[0].geSectionId],
     onChange = vi.fn(),
   }: {
     motivo: string
     severidad: AfectacionBorrador['severidad']
+    secciones?: number[]
     onChange?: (siguiente: AfectacionBorrador) => void
   }) {
     const borrador: AfectacionBorrador = {
@@ -273,7 +277,7 @@ describe('CamposAQuienAfecta — recomendación de gravedad por alcance (T4a)', 
       motivo,
       severidad,
       alcanceEstablecimiento: 'algunas',
-      secciones: [TURNOS_FIXTURE[0].niveles[0].secciones[0].geSectionId],
+      secciones,
     }
     render(
       <CamposAQuienAfecta
@@ -344,13 +348,15 @@ describe('CamposAQuienAfecta — recomendación de gravedad por alcance (T4a)', 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('subir a Crítica exige justificarla antes de aplicarla', () => {
-    const { onChange } = renderAlcance({ motivo: 'Tormenta severa', severidad: 'Media' })
+  it('subir a Crítica sugerida por el alcance no pide justificación', () => {
+    // Con todas las secciones ya elegidas, "Toda la escuela" da el alcance que el servidor también usa.
+    const todas = TURNOS_FIXTURE.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones.map((s) => s.geSectionId)))
+    const { onChange } = renderAlcance({ motivo: 'Tormenta severa', severidad: 'Media', secciones: todas })
 
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cambiar a Crítica' }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('¿Por qué es crítica?')
-    expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ severidad: 'Crítica' }))
+    expect(screen.queryByText('¿Por qué es crítica?')).not.toBeInTheDocument()
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ severidad: 'Crítica' }))
   })
 })

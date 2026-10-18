@@ -64,7 +64,7 @@ ver [docs/motor-v0.4/promocion.md](../../motor-v0.4/promocion.md).
 | sync-imerg | `*/30 * * * *` | 300 s | `sync-hazard-imerg` | cada 30 min |
 | sync-ina-pronostico | `50 1,7,13,19 * * *` | 600 s | — (no escribe `infra_job_run`) | Motor v0.4: última corrida INA 499/289, antes de `calcular-riesgo`. Frescura por salud de fuente; estado `sin_trazabilidad` |
 | sync-ina-serie-diaria | `10 6 * * *` | 1800 s | — (no escribe `infra_job_run`) | Motor v0.4: serie diaria INA A5 (backfill la primera vez, luego incremental). Frescura por salud de fuente |
-| calcular-riesgo | `15 2,8,14,20 * * *` | no registrado | `calcular-riesgo-v0` | cada 6 h. Desde T11 corre Motor v0.4 (`motor-v0.4`); `RIESGO_REGLAS_MOTOR=v0.3` es el rollback de un ciclo |
+| calcular-riesgo | `15 2,8,14,20 * * *` | no registrado | `calcular-riesgo-v0` | cada 6 h. Motor integral v0.4 (`motor-v0.4`) en todos los entornos; la variable antigua v0.3 ya no cambia la versión operativa |
 | climatologia-caudal / climatologia-precipitacion | — | — | `calcular-hazard-climatologia-caudal` / `calculo-climatologia` | **deshabilitadas** (sólo corrida manual); el configurador de v0.4 las desactiva si siguen activas |
 | sync-pronostico-caudal | `0 2,8,14,20 * * *` | no registrado | `sync-hazard-pronostico-caudal` | cada 6 h |
 | sync-ensemble | `5,35 2,8,14,20 * * *` | no registrado | `sync-hazard-ensemble` | cada 6 h. La ejecución de `:35` es el reintento del mismo bloque: si la de `:05` completó, es un no-op (`ya_completado`, sin llamadas); si terminó `cobertura_parcial`, pide sólo las celdas sin filas |

@@ -4,8 +4,7 @@
 // (infra_risk_run.modeloVersion) para que "mismos inputs/misma versión →
 // mismo score" sea verificable después de que la configuración cambie.
 // PROMOCIÓN (T11, docs/motor-v0.4/promocion.md): motor-v0.4 es el motor
-// operativo. MOTOR_VERSION_V03 sólo identifica los runs del rollback de un
-// ciclo (RIESGO_REGLAS_MOTOR=v0.3); se retira tras verificar la promoción.
+// operativo. MOTOR_VERSION_V03 sólo identifica cálculos históricos de comparación.
 export const MOTOR_VERSION = 'motor-v0.4'
 export const MOTOR_VERSION_V03 = 'motor-v0.3'
 
@@ -153,9 +152,8 @@ export const PISO_RIESGO_P_MODERADO_V04 = UMBRAL_MODERADO
 
 // --- Reglas v0.4 (T10, docs/motor-v0.4/auditoria-v03.md) ---
 // Selector explícito de reglas del cálculo compartido. Desde la promoción
-// (T11) el job operativo usa 'v0.4' (corrige los defectos de la auditoría del
-// 2026-10-18); 'v0.3' (idéntico byte a byte a motor-v0.3) queda sólo como
-// rollback de un ciclo vía RIESGO_REGLAS_MOTOR (flags.ts) y luego se retira.
+// (T11) el job operativo usa exclusivamente 'v0.4'. 'v0.3' se conserva para
+// comparaciones históricas del núcleo puro, sin publicación operativa.
 export type ReglasMotor = 'v0.3' | 'v0.4'
 export const REGLAS_V04_VERSION = 'reglas-v0.4-3'
 // Alias histórico de MOTOR_VERSION (antes de T11 identificaba la corrida

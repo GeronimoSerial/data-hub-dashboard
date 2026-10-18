@@ -27,7 +27,7 @@ async function insertarRun(valores: Partial<typeof infraRiskRun.$inferInsert> = 
     .values({
       id,
       periodoId,
-      modeloVersion: 'motor-v0.3',
+      modeloVersion: 'motor-v0.4',
       iniciadoEn: INSTANTE,
       publicadoEn: null,
       estado: 'preparando',
@@ -87,13 +87,13 @@ describe('publicarRunOperativo', () => {
     expect((await leerRun(candidato))?.estado).toBe('preparando')
   })
 
-  it('acepta las dos versiones operativas: motor-v0.4 (promovida) y motor-v0.3 (rollback de un ciclo)', async () => {
+  it('publica únicamente v0.4 y rechaza volver a publicar v0.3', async () => {
     const v04 = await insertarRun({ modeloVersion: 'motor-v0.4' })
     expect(await publicarRunOperativo({ runId: v04, cobertura: {} })).toEqual({ publicado: true })
     expect(await idVigente()).toBe(v04)
     const v03 = await insertarRun({ modeloVersion: 'motor-v0.3' })
-    expect(await publicarRunOperativo({ runId: v03, cobertura: {} })).toEqual({ publicado: true })
-    expect(await idVigente()).toBe(v03)
+    expect(await publicarRunOperativo({ runId: v03, cobertura: {} })).toEqual({ publicado: false, motivo: 'version_no_operativa' })
+    expect(await idVigente()).toBe(v04)
   })
 
   it('rechaza un run operativo de una versión que no es operativa', async () => {
@@ -122,6 +122,17 @@ describe('publicarRunOperativo', () => {
 })
 
 describe('restricción infra_risk_run_candidato_no_vigente', () => {
+  it('conserva las corridas históricas v0.3 pero impide volverlas vigentes desde SQL', async () => {
+    const historico = await insertarRun({ modeloVersion: 'motor-v0.3', estado: 'vencido' })
+    const vigente = await insertarRun()
+    await publicarRunOperativo({ runId: vigente, cobertura: {} })
+    const error = await getDb().update(infraRiskRun).set({ modeloVersion: 'motor-v0.3' })
+      .where(eq(infraRiskRun.id, vigente)).then(() => null, (e: unknown) => e)
+    expect(textoDeError(error)).toContain('infra_risk_run_vigente_solo_v04')
+    expect((await leerRun(vigente))?.modeloVersion).toBe('motor-v0.4')
+    expect((await leerRun(historico))?.estado).toBe('vencido')
+  })
+
   it('las filas existentes leen modo operativo por defecto', async () => {
     const id = await insertarRun()
     expect((await leerRun(id))?.modo).toBe('operativo')

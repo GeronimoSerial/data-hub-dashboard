@@ -1,0 +1,476 @@
+{
+  "checked_at_utc": "2026-10-17T23:31:42.040084+00:00",
+  "scope": "87 CUE activos de siete localidades; 84 con coordenadas. La cobertura no deduplica sedes físicas.",
+  "padron": "data/natalidad/localizaciones-geo-2025-10-02.json",
+  "query_bbox_epsg4326": [
+    -59.2,
+    -28.0,
+    -56.2,
+    -27.0
+  ],
+  "national30": {
+    "zip_total_bytes": 48541449,
+    "raster_total_bytes": 66365455,
+    "sample_status": {
+      "valor_leido": 84,
+      "sin_coordenadas": 3
+    },
+    "vertical_reference_from_publisher": "SRVN16; verificar compatibilidad con cero de escala INA antes de comparar cotas",
+    "precision_note": "Valores de píxel; no cotas de piso verificadas ni exactitud local comprobada.",
+    "files": [
+      {
+        "file": "2757-27.img",
+        "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=51da3a2b00bba089828559bbade73da1",
+        "zip_file": "services/geo-static/.data/viabilidad-altimetria-2026-10-17/ign-mdear/2757-27.zip",
+        "zip_bytes": 551683,
+        "sha256": "aaa7421d07194baee9448770524023cab75b760d3e6ab8ff397fc191fff80f3a",
+        "zip_crc_ok": true,
+        "raster_bytes": 2512208,
+        "raster_sha256": "90959c70292feceea313420d32c4ac8b0db70e38c25a2cd45a4616dfbb3be0f5",
+        "driver": "HFA",
+        "horizontal_crs": "EPSG:4326",
+        "width": 1855,
+        "height": 1237,
+        "resolution": [
+          0.00026949458523585214,
+          0.00026949458523585214
+        ],
+        "bounds": [
+          -57.49992452434949,
+          -27.666757049564602,
+          -57.000012068736986,
+          -27.333392247627852
+        ],
+        "nodata": -9999.0,
+        "dtype": "float32",
+        "embedded_units": null,
+        "tags": {}
+      },
+      {
+        "file": "2757-25.img",
+        "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=9b73fb245941e9a9d292640ca86da060",
+        "zip_file": "services/geo-static/.data/viabilidad-altimetria-2026-10-17/ign-mdear/2757-25.zip",
+        "zip_bytes": 7074853,
+        "sha256": "8b7e540eb09c579601ceadfe75224d3ac0ce98fc5710b0f2cfac6f038c451ca5",
+        "zip_crc_ok": true,
+        "raster_bytes": 9251328,
+        "raster_sha256": "94dd62a081dc82a44fc7f8afc4cb2948d87ee3d9edfb99fd59a2fb1072fd19b1",
+        "driver": "HFA",
+        "horizontal_crs": "EPSG:4326",
+        "width": 1856,
+        "height": 1238,
+        "resolution": [
+          0.0002694945852358525,
+          0.00026949458523585555
+        ],
+        "bounds": [
+          -58.50001893015974,
+          -27.666757049564605,
+          -57.999836979962,
+          -27.333122753042616
+        ],
+        "nodata": -999999.0,
+        "dtype": "float32",
+        "embedded_units": null,
+        "tags": {
+          "DataType": "Generic"
+        }
+      },
+      {
+        "file": "2757-19.img",
+        "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=a607abc7f0f3ed472e94b6cfc0645bc9",
+        "zip_file": "services/geo-static/.data/viabilidad-altimetria-2026-10-17/ign-mdear/2757-19.zip",
+        "zip_bytes": 7130868,
+        "sha256": "ddcbe358b8877bdc974d7f3e0dbbec2d1607e1e429a500af91433c9fdcf280a7",
+        "zip_crc_ok": true,
+        "raster_bytes": 9249218,
+        "raster_sha256": "e69613914f342879acdd0627b1861287d74a372d267863ed98aae2a5552cb73c",
+        "driver": "HFA",
+        "horizontal_crs": "EPSG:4326",
+        "width": 1856,
+        "height": 1238,
+        "resolution": [
+          0.0002694945852358525,
+          0.0002694945852358527
+        ],
+        "bounds": [
+          -58.50001893015974,
+          -27.33339224762785,
+          -57.999836979962,
+          -26.999757951105863
+        ],
+        "nodata": -999999.0,
+        "dtype": "float32",
+        "embedded_units": null,
+        "tags": {
+          "DataType": "Generic"
+        }
+      },
+      {
+        "file": "2760-24.img",
+        "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=6557ee83603bdb75676062af1b0eb3ac",
+        "zip_file": "services/geo-static/.data/viabilidad-altimetria-2026-10-17/ign-mdear/2760-24.zip",
+        "zip_bytes": 7290607,
+        "sha256": "2b6fb73cb665ba616fe270c0518f3358a5ce37f091e9ad418eba2db0d48b1b49",
+        "zip_crc_ok": true,
+        "raster_bytes": 9251879,
+        "raster_sha256": "661f0114c345d46a2dd0035de3371df460b97aea12de29bacac130560a0e747e",
+        "driver": "HFA",
+        "horizontal_crs": "EPSG:4326",
+        "width": 1857,
+        "height": 1238,
+        "resolution": [
+          0.0002694945852358546,
+          0.0002694945852358527
+        ],
+        "bounds": [
+          -59.00020088035749,
+          -27.33339224762785,
+          -58.49974943557451,
+          -26.999757951105863
+        ],
+        "nodata": -999999.0,
+        "dtype": "float32",
+        "embedded_units": null,
+        "tags": {
+          "DataType": "Generic"
+        }
+      },
+      {
+        "file": "2760-30.img",
+        "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=98769dbde48c2c58dbad35a3bb68583f",
+        "zip_file": "services/geo-static/.data/viabilidad-altimetria-2026-10-17/ign-mdear/2760-30.zip",
+        "zip_bytes": 7125268,
+        "sha256": "c662932754f0f59ce42cdfeca9e89c599943228d7090a8f4c2c12892f9deae0f",
+        "zip_crc_ok": true,
+        "raster_bytes": 9251454,
+        "raster_sha256": "9aec4b798a8e933db519e5ca5fb4b2add538fc794362ca15234f0055533c57d6",
+        "driver": "HFA",
+        "horizontal_crs": "EPSG:4326",
+        "width": 1857,
+        "height": 1238,
+        "resolution": [
+          0.0002694945852358546,
+          0.00026949458523585555
+        ],
+        "bounds": [
+          -59.00020088035749,
+          -27.666757049564605,
+          -58.49974943557451,
+          -27.333122753042616
+        ],
+        "nodata": -999999.0,
+        "dtype": "float32",
+        "embedded_units": null,
+        "tags": {
+          "DataType": "Generic"
+        }
+      },
+      {
+        "file": "2757-28.img",
+        "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=d91c75d189d973981e367b7f15dab21d",
+        "zip_file": "services/geo-static/.data/viabilidad-altimetria-2026-10-17/ign-mdear/2757-28.zip",
+        "zip_bytes": 6249646,
+        "sha256": "ddd1d5c568b27d1704bfa6f6711808c8100d8da75b405b46f5b1156cc7315bed",
+        "zip_crc_ok": true,
+        "raster_bytes": 8960942,
+        "raster_sha256": "43703c8cf7000a4df4f05c31222fa2e7ce06a0476f3698c0366209e603bb2b03",
+        "driver": "HFA",
+        "horizontal_crs": "EPSG:4326",
+        "width": 1856,
+        "height": 1238,
+        "resolution": [
+          0.0002694945852358525,
+          0.00026949458523585555
+        ],
+        "bounds": [
+          -57.000012068736964,
+          -27.666757049564605,
+          -56.49983011853922,
+          -27.333122753042616
+        ],
+        "nodata": -999999.0,
+        "dtype": "float32",
+        "embedded_units": null,
+        "tags": {
+          "DataType": "Generic"
+        }
+      },
+      {
+        "file": "2757-29.img",
+        "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=ac89d520d833b190d1165bb61ddd4b0f",
+        "zip_file": "services/geo-static/.data/viabilidad-altimetria-2026-10-17/ign-mdear/2757-29.zip",
+        "zip_bytes": 5779101,
+        "sha256": "7e325542fdb3ae12318b47692c878d24298088867b3b48abe3b3ba1fdd639219",
+        "zip_crc_ok": true,
+        "raster_bytes": 8637097,
+        "raster_sha256": "80ca6def283002c35167866a2464bdbb27fb57b569d334978b30d5f04797dacd",
+        "driver": "HFA",
+        "horizontal_crs": "EPSG:4326",
+        "width": 1856,
+        "height": 1238,
+        "resolution": [
+          0.0002694945852358563,
+          0.00026949458523585555
+        ],
+        "bounds": [
+          -56.500099613124455,
+          -27.666757049564605,
+          -55.999917662926705,
+          -27.333122753042616
+        ],
+        "nodata": -999999.0,
+        "dtype": "float32",
+        "embedded_units": null,
+        "tags": {
+          "DataType": "Generic"
+        }
+      },
+      {
+        "file": "2760-29.img",
+        "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=2c1b249810c6069ccda175479eebf947",
+        "zip_file": "services/geo-static/.data/viabilidad-altimetria-2026-10-17/ign-mdear/2760-29.zip",
+        "zip_bytes": 7339423,
+        "sha256": "39dc38b10e6a14efe96f76caa04bfe5e70d7825d5f6e067a77b720ec61e88bb8",
+        "zip_crc_ok": true,
+        "raster_bytes": 9251329,
+        "raster_sha256": "83a579dce978bb32133d35f52932363943f0653883d2c7ad280abd2733160885",
+        "driver": "HFA",
+        "horizontal_crs": "EPSG:4326",
+        "width": 1856,
+        "height": 1238,
+        "resolution": [
+          0.0002694945852358563,
+          0.00026949458523585555
+        ],
+        "bounds": [
+          -59.500113335970006,
+          -27.666757049564605,
+          -58.99993138577226,
+          -27.333122753042616
+        ],
+        "nodata": -999999.0,
+        "dtype": "float32",
+        "embedded_units": null,
+        "tags": {
+          "DataType": "Generic"
+        }
+      }
+    ]
+  },
+  "mdt5": {
+    "catalogue_total_features": 46,
+    "schools_in_catalogue": 55,
+    "selected_files_count": 7,
+    "by_locality": {
+      "ITA IBATE": 14,
+      "RAMADA PASO": 3,
+      "ITATI": 11,
+      "APIPE GRANDE": 2,
+      "ITUZAINGO": 25
+    },
+    "access_status": "7/7 enlaces comprobados redirigen a página de solicitud; no rasters recibidos",
+    "response_time": "No confirmado",
+    "volume": "No confirmado"
+  },
+  "mdt50cm": {
+    "catalogue_total_features": 1,
+    "schools_in_catalogue": 0
+  },
+  "fabdem": {
+    "publisher": "University of Bristol",
+    "license": "CC BY-NC-SA 4.0",
+    "regional_archive": "S30W060-S20W050_FABDEM_V1-2.zip",
+    "published_archive_bytes": 2135111799,
+    "access_status": "Conexiones reiniciadas desde este entorno con requests y curl; no raster obtenido; no prueba indisponibilidad global"
+  },
+  "download_checks": [
+    {
+      "layer": "mdt_5m",
+      "file": "2757-27-1-d.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=10&gid=9ceda46d30b82f83a3288817bcf801d6",
+      "final_url": "https://www.ign.gob.ar/NuestrasActividades/Geodesia/ModeloDigitalElevaciones/faq#30",
+      "http": 200,
+      "type": "text/html; charset=utf-8",
+      "length": "15886",
+      "disposition": null,
+      "zip_signature": false
+    },
+    {
+      "layer": "mdt_5m",
+      "file": "2757-25-1-b.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=10&gid=884a448f76fd2272f767addb25a6dfdd",
+      "final_url": "https://www.ign.gob.ar/NuestrasActividades/Geodesia/ModeloDigitalElevaciones/faq#30",
+      "http": 200,
+      "type": "text/html; charset=utf-8",
+      "length": "15881",
+      "disposition": null,
+      "zip_signature": false
+    },
+    {
+      "layer": "mdt_5m",
+      "file": "2757-19-3-d.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=10&gid=b8fa438714ebd2318c021768ee388772",
+      "final_url": "https://www.ign.gob.ar/NuestrasActividades/Geodesia/ModeloDigitalElevaciones/faq#30",
+      "http": 200,
+      "type": "text/html; charset=utf-8",
+      "length": "15885",
+      "disposition": null,
+      "zip_signature": false
+    },
+    {
+      "layer": "mdt_5m",
+      "file": "2757-28-1-c.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=10&gid=4daff43adf1c05f0e53c0db215f19c0b",
+      "final_url": "https://www.ign.gob.ar/NuestrasActividades/Geodesia/ModeloDigitalElevaciones/faq#30",
+      "http": 200,
+      "type": "text/html; charset=utf-8",
+      "length": "15884",
+      "disposition": null,
+      "zip_signature": false
+    },
+    {
+      "layer": "mdt_5m",
+      "file": "2757-28-4-a.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=10&gid=89fa5238571a1e0e79df731c259f6b34",
+      "final_url": "https://www.ign.gob.ar/NuestrasActividades/Geodesia/ModeloDigitalElevaciones/faq#30",
+      "http": 200,
+      "type": "text/html; charset=utf-8",
+      "length": "15884",
+      "disposition": null,
+      "zip_signature": false
+    },
+    {
+      "layer": "mdt_5m",
+      "file": "2757-28-4-c.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=10&gid=f8a8ab82fcc219f694d356f6c5125e61",
+      "final_url": "https://www.ign.gob.ar/NuestrasActividades/Geodesia/ModeloDigitalElevaciones/faq#30",
+      "http": 200,
+      "type": "text/html; charset=utf-8",
+      "length": "15884",
+      "disposition": null,
+      "zip_signature": false
+    },
+    {
+      "layer": "mdt_5m",
+      "file": "2757-19-4-c.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=10&gid=7589f5bc5bf634bd79dedf8054b3610e",
+      "final_url": "https://www.ign.gob.ar/NuestrasActividades/Geodesia/ModeloDigitalElevaciones/faq#30",
+      "http": 200,
+      "type": "text/html; charset=utf-8",
+      "length": "15888",
+      "disposition": null,
+      "zip_signature": false
+    },
+    {
+      "layer": "mde_v2_30m",
+      "file": "2757-27.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=51da3a2b00bba089828559bbade73da1",
+      "final_url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=51da3a2b00bba089828559bbade73da1",
+      "http": 200,
+      "type": "application/octet-stream",
+      "length": "551683",
+      "disposition": "attachment; filename=\"2757-27.zip\"",
+      "zip_signature": true
+    },
+    {
+      "layer": "mde_v2_30m",
+      "file": "2757-25.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=9b73fb245941e9a9d292640ca86da060",
+      "final_url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=9b73fb245941e9a9d292640ca86da060",
+      "http": 200,
+      "type": "application/octet-stream",
+      "length": "7074853",
+      "disposition": "attachment; filename=\"2757-25.zip\"",
+      "zip_signature": true
+    },
+    {
+      "layer": "mde_v2_30m",
+      "file": "2757-19.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=a607abc7f0f3ed472e94b6cfc0645bc9",
+      "final_url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=a607abc7f0f3ed472e94b6cfc0645bc9",
+      "http": 200,
+      "type": "application/octet-stream",
+      "length": "7130868",
+      "disposition": "attachment; filename=\"2757-19.zip\"",
+      "zip_signature": true
+    },
+    {
+      "layer": "mde_v2_30m",
+      "file": "2760-24.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=6557ee83603bdb75676062af1b0eb3ac",
+      "final_url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=6557ee83603bdb75676062af1b0eb3ac",
+      "http": 200,
+      "type": "application/octet-stream",
+      "length": "7290607",
+      "disposition": "attachment; filename=\"2760-24.zip\"",
+      "zip_signature": true
+    },
+    {
+      "layer": "mde_v2_30m",
+      "file": "2760-30.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=98769dbde48c2c58dbad35a3bb68583f",
+      "final_url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=98769dbde48c2c58dbad35a3bb68583f",
+      "http": 200,
+      "type": "application/octet-stream",
+      "length": "7125268",
+      "disposition": "attachment; filename=\"2760-30.zip\"",
+      "zip_signature": true
+    },
+    {
+      "layer": "mde_v2_30m",
+      "file": "2757-28.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=d91c75d189d973981e367b7f15dab21d",
+      "final_url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=d91c75d189d973981e367b7f15dab21d",
+      "http": 200,
+      "type": "application/octet-stream",
+      "length": "6249646",
+      "disposition": "attachment; filename=\"2757-28.zip\"",
+      "zip_signature": true
+    },
+    {
+      "layer": "mde_v2_30m",
+      "file": "2757-29.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=ac89d520d833b190d1165bb61ddd4b0f",
+      "final_url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=ac89d520d833b190d1165bb61ddd4b0f",
+      "http": 200,
+      "type": "application/octet-stream",
+      "length": "5779101",
+      "disposition": "attachment; filename=\"2757-29.zip\"",
+      "zip_signature": true
+    },
+    {
+      "layer": "mde_v2_30m",
+      "file": "2760-29.img",
+      "url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=2c1b249810c6069ccda175479eebf947",
+      "final_url": "https://dnsg.ign.gob.ar/apps/mapas-geodesia/mde_mapa_geoserver_descarga.php?pid=7&gid=2c1b249810c6069ccda175479eebf947",
+      "http": 200,
+      "type": "application/octet-stream",
+      "length": "7339423",
+      "disposition": "attachment; filename=\"2760-29.zip\"",
+      "zip_signature": true
+    }
+  ],
+  "catalogue_query": {
+    "endpoint": "https://wms.ign.gob.ar/geoserver/modelos-digitales-elevaciones/wfs",
+    "common_parameters": {
+      "service": "WFS",
+      "version": "1.0.0",
+      "request": "GetFeature",
+      "outputFormat": "application/json",
+      "srsName": "EPSG:4326",
+      "bbox": "-59.2,-28.0,-56.2,-27.0,EPSG:4326",
+      "maxFeatures": 500
+    },
+    "typeNames": [
+      "modelos-digitales-elevaciones:mdt_5m",
+      "modelos-digitales-elevaciones:mde_v2_30m",
+      "modelos-digitales-elevaciones:mdt_50cm",
+      "modelos-digitales-elevaciones:mdt_externos"
+    ],
+    "saved_snapshots": [
+      "catalogo-mdt5.geojson",
+      "catalogo-mdear30.geojson"
+    ]
+  }
+}

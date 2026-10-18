@@ -1,0 +1,71 @@
+{
+  "fecha": "2026-10-18T16:17:13.376Z",
+  "entornos": [
+    {
+      "base": "hub_prod",
+      "run": {
+        "id": "35d77e75-2018-45fa-8d82-c1e986328d81",
+        "modelo_version": "motor-v0.4"
+      },
+      "snapshot": {
+        "cantidad": 6003,
+        "con_detalle": 6003,
+        "hash": "89a0564350de1a0d6fbbb31eaf46ed18"
+      },
+      "factor": {
+        "cantidad": 45417,
+        "hash": "67be87568c0aedd4e41a65436d0c69c8"
+      },
+      "proteccionValidada": true,
+      "totales": {
+        "corridas": 20,
+        "snapshots": 120060,
+        "factores": 813761
+      }
+    },
+    {
+      "base": "hub_staging",
+      "run": {
+        "id": "35d77e75-2018-45fa-8d82-c1e986328d81",
+        "modelo_version": "motor-v0.4"
+      },
+      "snapshot": {
+        "cantidad": 6003,
+        "con_detalle": 6003,
+        "hash": "89a0564350de1a0d6fbbb31eaf46ed18"
+      },
+      "factor": {
+        "cantidad": 45417,
+        "hash": "67be87568c0aedd4e41a65436d0c69c8"
+      },
+      "proteccionValidada": true,
+      "totales": {
+        "corridas": 3,
+        "snapshots": 18009,
+        "factores": 127363
+      }
+    },
+    {
+      "base": "hub_dev",
+      "run": {
+        "id": "35d77e75-2018-45fa-8d82-c1e986328d81",
+        "modelo_version": "motor-v0.4"
+      },
+      "snapshot": {
+        "cantidad": 6003,
+        "con_detalle": 6003,
+        "hash": "89a0564350de1a0d6fbbb31eaf46ed18"
+      },
+      "factor": {
+        "cantidad": 45417,
+        "hash": "67be87568c0aedd4e41a65436d0c69c8"
+      },
+      "proteccionValidada": true,
+      "totales": {
+        "corridas": 3,
+        "snapshots": 18009,
+        "factores": 127363
+      }
+    }
+  ]
+}

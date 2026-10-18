@@ -15,10 +15,7 @@ import type { calcularFilasEscuela as CalcularFilasEscuela, crearPuertosConCache
 
 usarDbTemporal('calcular-riesgo-')
 
-// Rollback de un ciclo (RIESGO_REGLAS_MOTOR=v0.3, docs/motor-v0.4/promocion.md):
-// este archivo fija el flag para verificar que el job operativo con reglas v0.3
-// se comporta exactamente como el motor-v0.3 previo a la promoción. El camino
-// v0.4 (default) se prueba en calcular-riesgo-operativo-v04.test.ts.
+// La variable antigua no debe cambiar el cálculo operativo v0.4.
 const reglasOriginales = process.env.RIESGO_REGLAS_MOTOR
 
 beforeAll(async () => {
@@ -117,22 +114,19 @@ describe('calcularYPublicarRiesgo', () => {
     const vigentes = await db.select().from(infraRiskRun).where(eq(infraRiskRun.estado, 'vigente'))
     expect(vigentes).toHaveLength(1)
     expect(vigentes[0]?.id).toBe(resultado.runId)
-    expect(vigentes[0]?.modeloVersion).toBe('motor-v0.3')
+    expect(vigentes[0]?.modeloVersion).toBe('motor-v0.4')
     expect(vigentes[0]?.cobertura).toEqual({ procesadas: 9, conEvidencia: 6, sinEvidencia: 3 })
     expect(vigentes[0]?.modo).toBe('operativo')
-    // Byte a byte como motor-v0.3: sin metadatos v0.4 ni detalle por escuela.
-    expect(vigentes[0]?.metadatos).toBeNull()
+    expect(vigentes[0]?.metadatos).toMatchObject({ reglas: 'v0.4' })
 
     const snapshots = await db
       .select()
       .from(infraRiskSnapshot)
       .where(eq(infraRiskSnapshot.runId, resultado.runId))
     expect(snapshots).toHaveLength(9)
-    for (const snapshot of snapshots) expect(snapshot.resultadoV04).toBeNull()
+    for (const snapshot of snapshots) expect(snapshot.resultadoV04).not.toBeNull()
 
-    // Golden v0.3: cada fila coincide con el cálculo compartido con reglas
-    // v0.3 por defecto, que es exactamente lo que escribía el job antes de la
-    // promoción (ids aparte).
+    // El job conserva el cálculo compartido, además del detalle probabilístico.
     const puertosGolden = crearPuertosConCache(crearPuertosFake(escenario()))
     for (const snapshot of snapshots) {
       const { snapshot: esperado } = await calcularFilasEscuela({
@@ -141,6 +135,7 @@ describe('calcularYPublicarRiesgo', () => {
         horizonte: snapshot.horizonteHoras as 24 | 72 | 240,
         asOf: ahora.toISOString(),
         puertos: puertosGolden,
+        reglas: 'v0.4',
       })
       const { id: _a, ...restoReal } = snapshot
       const { id: _b, ...restoEsperado } = esperado

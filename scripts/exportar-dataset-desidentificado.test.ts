@@ -137,7 +137,7 @@ async function sembrarSnapshots(): Promise<void> {
     {
       id: RUN_ID,
       periodoId: PERIODO_ENOS_2026_2027_ID,
-      modeloVersion: 'riesgo-v0',
+      modeloVersion: 'motor-v0.4',
       iniciadoEn: T,
       publicadoEn: '2026-09-27T10:05:00.000Z',
       estado: 'vigente',

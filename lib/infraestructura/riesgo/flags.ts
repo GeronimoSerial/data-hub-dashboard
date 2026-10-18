@@ -57,12 +57,10 @@ export function situacionEnabled(): boolean {
   return esTrue(process.env.SITUACION_ENABLED)
 }
 
-// Reglas del job operativo calcular-riesgo (T11, docs/motor-v0.4/promocion.md):
-// 'v0.4' por defecto (motor promovido); sólo el valor exacto 'v0.3' activa el
-// rollback de un ciclo a motor-v0.3. Cualquier otro valor cae a 'v0.4'. Flag
-// transitorio: se retira tras verificar la promoción.
+// La versión operativa es única en todos los entornos. Una variable antigua
+// RIESGO_REGLAS_MOTOR no puede reactivar reglas históricas.
 export function riesgoReglasMotor(): ReglasMotor {
-  return process.env.RIESGO_REGLAS_MOTOR?.trim() === 'v0.3' ? 'v0.3' : 'v0.4'
+  return 'v0.4'
 }
 
 /** Enumera los flags operativos mostrados en /admin/operacion. */
