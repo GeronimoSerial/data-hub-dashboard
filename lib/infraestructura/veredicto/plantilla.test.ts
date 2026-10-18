@@ -50,4 +50,19 @@ describe('textoPlantilla', () => {
       'Sin datos suficientes para evaluar el día.',
     )
   })
+
+  it('describes affected schools when there is no hydro signal', () => {
+    const texto = textoPlantilla({
+      ...base,
+      ambito: 'departamento:GOYA',
+      nivel: 'sin_senal',
+      traza: [],
+      metricas: [
+        { id: 'escuelas.sin_clases', valor: 2, unidad: 'escuelas', etiqueta: 'Escuelas sin clases normales', fuenteUrl: 'x' },
+        { id: 'alumnos.sin_clases', valor: 150, unidad: 'alumnos', etiqueta: 'Alumnos sin clases', fuenteUrl: 'x' },
+      ],
+      fuentesAusentes: [],
+    })
+    expect(texto).toBe('Escuelas sin clases normales: 2. Alumnos sin clases: 150.')
+  })
 })

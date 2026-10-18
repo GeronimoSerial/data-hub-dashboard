@@ -138,6 +138,12 @@ describe('VistaPreviaEscuela', () => {
     rerender(<VistaPreviaEscuela {...props} distanciaLocalidad={{ nombre: 'Goya', km: 12.4 }} />)
     expect(screen.queryByTestId('preview-aislamiento')).toBeNull()
     expect(screen.getByTestId('preview-distancia-localidad')).toHaveTextContent('12 km por caminoGoya')
+
+    rerender(<VistaPreviaEscuela {...props} distanciaLocalidad={{ nombre: 'Goya', km: 12.4, superficie: 'ripio' }} />)
+    expect(screen.getByTestId('preview-distancia-localidad')).toHaveTextContent('12 km por camino de ripioGoya')
+
+    rerender(<VistaPreviaEscuela {...props} distanciaLocalidad={{ nombre: 'Goya', km: 12.4, superficie: 'ripio', desglose: '8 km pavimentado · 4,4 km de ripio' }} />)
+    expect(screen.getByTestId('preview-distancia-localidad')).toHaveTextContent('12 km por caminoGoya8 km pavimentado · 4,4 km de ripio')
   })
 
   it('muestra alumnos afectados sobre la matrícula y su porcentaje', () => {

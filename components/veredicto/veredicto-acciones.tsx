@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 const RUTA_ENLACES = '/api/infraestructura/veredictos/enlaces'
@@ -49,15 +48,16 @@ export function VeredictoAcciones() {
 
   return (
     <div className="veredicto-acciones">
-      <Button type="button" variant="secondary" size="sm" onClick={copiarEnlace}>
-        Copiar enlace para autoridades
-      </Button>
-      <a href={RUTA_PDF} download className="ui-button ui-button--secondary ui-button--sm">
-        Descargar PDF
+      <button type="button" className="veredicto-acciones__boton" onClick={copiarEnlace} aria-label="Copiar enlace para autoridades">
+        Copiar enlace
+      </button>
+      <a href={RUTA_PDF} download className="veredicto-acciones__boton" aria-label="Descargar PDF">
+        PDF
       </a>
-      <Button type="button" variant="secondary" size="sm" onClick={revocarEnlaces}>
-        Revocar enlaces de hoy
-      </Button>
+      <span className="veredicto-acciones__separador" aria-hidden="true" />
+      <button type="button" className="veredicto-acciones__boton veredicto-acciones__boton--peligro" onClick={revocarEnlaces} aria-label="Revocar enlaces de hoy">
+        Revocar enlaces
+      </button>
       <p aria-live="polite" className="veredicto-acciones__estado">
         {estado}
       </p>

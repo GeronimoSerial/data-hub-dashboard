@@ -22,7 +22,7 @@ import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { BorradoresPendientes } from '@/components/infraestructura/borradores/borradores-pendientes'
 import { GaleriaEvidencia } from '@/components/infraestructura/fotos/galeria-evidencia'
-import { VistaPreviaEscuela } from './vista-previa-escuela'
+import { VistaPreviaEscuela, type VistaPreviaEscuelaProps } from './vista-previa-escuela'
 import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
 
 interface FichaEscuelaPanelProps {
@@ -42,7 +42,7 @@ interface FichaEscuelaPanelProps {
   onQuitarSeleccion?: () => void
   extraVistaPrevia?: ReactNode
   aislamiento?: NivelAislamientoMapa | null
-  distanciaLocalidad?: { nombre: string | null; km: number } | null
+  distanciaLocalidad?: VistaPreviaEscuelaProps['distanciaLocalidad']
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')

@@ -258,3 +258,11 @@
   height: 100%;
   background: var(--danger-ink);
 }
+
+/* Km per surface wraps under the distance as its own line. */
+.desglose {
+  flex-basis: 100%;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  font-weight: 400;
+}

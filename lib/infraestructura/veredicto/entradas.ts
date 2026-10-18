@@ -27,6 +27,8 @@ import {
   type LluviaPronosticadaDia,
 } from './pronostico'
 import { construirMetricasAmbito, type MetricaVeredicto } from './metricas'
+import { impactoVacio, metricasImpacto, sumarImpacto } from './impacto'
+import { impactoEsNovedad, type Impacto } from './orden'
 import type { Db } from './repositorio'
 import { leerRiosDia, type RioDia } from './rios'
 import type { MotivoSaludFuente, SaludFuentes } from './salud-fuentes'
@@ -129,6 +131,8 @@ export async function calcularDia(
   db: Db,
   { fecha, tipoDia }: VentanaDia,
   salud?: SaludFuentes,
+  /** Current educational impact per normalized department; only used for today. */
+  impactoActual?: Map<string, Impacto>,
 ): Promise<ItemDia[]> {
   await cargarReferencias()
   const noDisponible = (fuente: keyof SaludFuentes): boolean =>
@@ -217,8 +221,22 @@ export async function calcularDia(
           Object.entries(salud).map(([fuente, estado]) => [fuente, estado.motivo]),
         ) as Record<FuenteVeredicto, MotivoSaludFuente>)
 
+  // The impact is a snapshot of now: it only describes today, never past or forecast days.
+  const impacto = esHoy ? (impactoActual ?? new Map<string, Impacto>()) : new Map<string, Impacto>()
+  const impactoDe = (ambito: string): Impacto | undefined =>
+    ambito === 'provincia'
+      ? impacto.size > 0
+        ? sumarImpacto(impacto.values())
+        : undefined
+      : impacto.get(ambito.slice('departamento:'.length))
+
   return resultados
-    .filter((resultado) => resultado.ambito === 'provincia' || resultado.conSenal)
+    .filter(
+      (resultado) =>
+        resultado.ambito === 'provincia' ||
+        resultado.conSenal ||
+        impactoEsNovedad(impactoDe(resultado.ambito) ?? impactoVacio()),
+    )
     .map((resultado) => {
       const l24 = lluvia24.find((entrada) => entrada.ambito === resultado.ambito)
       const l72 = lluvia72.find((entrada) => entrada.ambito === resultado.ambito)
@@ -232,6 +250,8 @@ export async function calcularDia(
         lluviaPronosticada,
         smn,
       })
+      const impactoAmbito = impactoDe(resultado.ambito)
+      if (impactoAmbito) metricas.push(...metricasImpacto(impactoAmbito))
       return {
         fecha,
         tipoDia,

@@ -19,11 +19,16 @@ CAMPOS = ['uuid', 'name', 'command', 'frequency', 'timeout', 'enabled']
 # Estado deseado por job de scripts/jobs.mjs. `crear` = datos completos si la
 # tarea no existe; el resto de las claves se comparan y se corrigen con PATCH.
 # Todo job no listado acá queda como está.
+def comando(job):
+    # Mismo formato que el resto de las tareas de producción en Coolify.
+    return 'sh -c "cd /app && node scripts/jobs.mjs ' + job + '"'
+
+
 DESEADO = {
-    'sync-ina-serie-diaria': {'frequency': '10 6 * * *', 'enabled': True,
+    'sync-ina-serie-diaria': {'frequency': '10 6 * * *', 'enabled': True, 'command': comando('sync-ina-serie-diaria'),
                               'crear': {'timeout': 1800}},
     # Antes de calcular-riesgo (`15 2,8,14,20 * * *`).
-    'sync-ina-pronostico': {'frequency': '50 1,7,13,19 * * *', 'enabled': True,
+    'sync-ina-pronostico': {'frequency': '50 1,7,13,19 * * *', 'enabled': True, 'command': comando('sync-ina-pronostico'),
                             'crear': {'timeout': 600}},
     'sync-radar-meteo': {'frequency': '27 3,9,15,21 * * *'},
     'climatologia-caudal': {'enabled': False},
@@ -53,9 +58,13 @@ def tasks(uuid):
 
 def job_de(task):
     # Coincidencia exacta del job: 'sync-radar-meteo' no debe tocar otro job.
-    partes = (task.get('command') or '').split()
-    if len(partes) >= 3 and partes[-2].endswith('jobs.mjs'):
-        return partes[-1]
+    # Acepta variantes del comando de Coolify ('node scripts/jobs.mjs x',
+    # 'node /app/scripts/jobs.mjs x', 'sh -c "... jobs.mjs x"'): toma el token
+    # siguiente a jobs.mjs, sin comillas.
+    partes = (task.get('command') or '').replace('"', ' ').replace("'", ' ').split()
+    for i, parte in enumerate(partes[:-1]):
+        if parte.endswith('jobs.mjs'):
+            return partes[i + 1]
     return None
 
 
@@ -74,7 +83,7 @@ def planificar(existentes):
         campos = {k: v for k, v in deseado.items() if k != 'crear'}
         if not actuales:
             if 'crear' in deseado:
-                datos = {'name': job, 'command': 'node scripts/jobs.mjs ' + job, **campos, **deseado['crear']}
+                datos = {'name': job, 'command': comando(job), **campos, **deseado['crear']}
                 plan.append(('crear', None, datos))
             continue
         for task in actuales:
@@ -97,12 +106,28 @@ def imprimir_plan(plan, existentes):
 
 
 def operar(op):
-    if op not in ['inspeccionar', 'configurar', 'estado']:
+    if op not in ['inspeccionar', 'configurar', 'estado', 'listar', 'ejecutar-riesgo', 'estado-riesgo']:
         raise ValueError('Operación desconocida')
     uuid = app_uuid()
     validar_destino(uuid)
     prefix = '/applications/' + uuid
     existentes = tasks(uuid)
+    if op in ['ejecutar-riesgo', 'estado-riesgo']:
+        # Dispara (o consulta) la tarea programada calcular-riesgo dentro del
+        # contenedor de producción; su lease por bloque de 6 h evita duplicar.
+        task = next(t for t in existentes if job_de(t) == 'calcular-riesgo')
+        if op == 'ejecutar-riesgo':
+            api(prefix + '/scheduled-tasks/' + task['uuid'] + '/execute', 'POST')
+            print('calcular-riesgo solicitado')
+        response = api(prefix + '/scheduled-tasks/' + task['uuid'] + '/executions')
+        rows = response if isinstance(response, list) else response.get('data', [])
+        print('calcular-riesgo', json.dumps([{k: r.get(k) for k in ['uuid', 'status', 'started_at', 'finished_at']} for r in rows[:3]]))
+        return
+    if op == 'listar':
+        # Sólo lectura: todas las tareas programadas de producción.
+        for t in existentes:
+            print(json.dumps({k: t.get(k) for k in CAMPOS}, ensure_ascii=False))
+        return
     if op == 'estado':
         print(json.dumps([{k: t.get(k) for k in CAMPOS} for t in existentes if job_de(t) in DESEADO], ensure_ascii=False))
         for task in existentes:

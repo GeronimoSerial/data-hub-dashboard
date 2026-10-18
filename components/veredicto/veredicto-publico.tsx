@@ -1,10 +1,10 @@
-// Vista pública del veredicto diario, pensada para lectura no técnica.
-// Sin 'use client': es segura para renderizar en servidor.
-import type { DtoVeredicto, MetricaDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
+// Public view of the daily verdict, for non technical readers. No 'use client':
+// safe to render on the server. Same reading as the modal: headline, one line
+// per department ordered by severity, quiet departments in one line.
+import type { DtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import type { EventoTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
-import { nombreFuente } from '@/lib/infraestructura/veredicto/metricas'
 import { etiquetaNivel, nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
-import { describirAguaArriba } from '@/lib/infraestructura/veredicto/traza-texto'
+import { lecturaDelDia } from '@/lib/infraestructura/veredicto/resumen'
 
 const ETIQUETA_TIPO_DIA: Record<string, string> = {
   observado: 'Observado',
@@ -12,21 +12,62 @@ const ETIQUETA_TIPO_DIA: Record<string, string> = {
   pronostico: 'Pronóstico',
 }
 
-const AMBITO_PROVINCIA = 'provincia'
-
 function fechaCorta(fecha: string): string {
   const [, mes, dia] = fecha.split('-')
   return `${dia}/${mes}`
 }
 
-function fuentesUnicas(veredictos: DtoVeredicto[]): { etiqueta: string; url: string }[] {
-  const vistas = new Map<string, string>()
-  for (const v of veredictos) {
-    for (const m of v.metricas as MetricaDtoVeredicto[]) {
-      if (m.fuenteUrl && !vistas.has(m.fuenteUrl)) vistas.set(m.fuenteUrl, nombreFuente(m.fuenteUrl))
-    }
-  }
-  return [...vistas].map(([url, etiqueta]) => ({ etiqueta, url }))
+function Dia({ fecha, delDia, eventos }: { fecha: string; delDia: DtoVeredicto[]; eventos: EventoTerreno[] }) {
+  const { provincia, titular, lineas, sinNovedad } = lecturaDelDia(delDia)
+  const tipo = provincia?.tipoDia ?? delDia[0]?.tipoDia ?? ''
+  return (
+    <section className="veredicto-publico__dia">
+      <header className="veredicto-dia__encabezado">
+        <h2>
+          {fechaCorta(fecha)} — {ETIQUETA_TIPO_DIA[tipo] ?? tipo}
+        </h2>
+        {provincia ? <span className="veredicto-publico__nivel">{etiquetaNivel(provincia.nivel)}</span> : null}
+      </header>
+      {titular ? <p className="veredicto-dia__titular">{titular}</p> : null}
+      {lineas.length > 0 ? (
+        <ul className="veredicto-lineas">
+          {lineas.map((linea) => (
+            <li key={linea.veredicto.id} className="veredicto-linea" data-nivel={linea.veredicto.nivel}>
+              <div className="veredicto-linea__cabeza">
+                <strong>{linea.nombre}</strong>
+                <span className="veredicto-publico__nivel">{etiquetaNivel(linea.veredicto.nivel)}</span>
+              </div>
+              <p className="veredicto-linea__texto">{linea.texto}</p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {sinNovedad.length > 0 ? (
+        <p className="veredicto-dia__quietos">
+          {lineas.length === 0 ? 'Sin novedades en ningún departamento.' : `Sin novedades: ${sinNovedad.join(', ')}.`}
+        </p>
+      ) : null}
+      {eventos.length > 0 ? (
+        <div className="veredicto-seccion">
+          <h3>Confirmado en terreno</h3>
+          <ul>
+            {eventos.map((e) => (
+              <li key={e.id} className="veredicto-evento">
+                <strong>{e.titulo}</strong>
+                <span>
+                  {e.lugar} ({nombreDepartamento(e.departamento)}) · {e.fechaTexto} · {e.confianzaTexto}
+                </span>
+                <a href={e.fuente.url} target="_blank" rel="noopener noreferrer">
+                  {e.fuente.medio}
+                  {e.fuente.fecha ? `, ${e.fuente.fecha}` : ''}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  )
 }
 
 export function VeredictoPublico({
@@ -50,86 +91,21 @@ export function VeredictoPublico({
         <p className="veredicto-publico__aviso" role="note">
           No es un aviso oficial. Consulte al SMN, a Prefectura Naval y a Defensa Civil.
         </p>
+        {veredictos.some((v) => v.fuente === 'ia') && (
+          <p className="veredicto-procedencia">Resúmenes generados con IA · pueden contener errores</p>
+        )}
         {enCalibracion && (
-          <p className="veredicto-publico__aviso">
-            En calibración: los criterios de este veredicto todavía se están ajustando.
-          </p>
+          <p className="veredicto-procedencia">En calibración: los criterios de este veredicto todavía se están ajustando.</p>
         )}
 
-        {fechas.map((fecha) => {
-          const del = porFecha.get(fecha) ?? []
-          const provincia = del.find((v) => v.ambito === AMBITO_PROVINCIA)
-          const departamentos = del.filter((v) => v.ambito !== AMBITO_PROVINCIA)
-          const tipo = del[0]?.tipoDia ?? ''
-          return (
-            <section key={fecha} className="veredicto-publico__dia">
-              <h2>
-                {fechaCorta(fecha)} — {ETIQUETA_TIPO_DIA[tipo] ?? tipo}
-              </h2>
-              {provincia && (
-                <div className="veredicto-publico__provincia">
-                  <p>
-                    <strong>Provincia: {etiquetaNivel(provincia.nivel)}</strong>
-                  </p>
-                  {provincia.texto && <p>{provincia.texto}</p>}
-                  {provincia.aguasArriba?.length > 0 && (
-                    <p>
-                      Aguas arriba (contexto, no modifica el nivel):{' '}
-                      {provincia.aguasArriba.map(describirAguaArriba).join('; ')}
-                    </p>
-                  )}
-                </div>
-              )}
-              {departamentos.map((d) => (
-                <div key={d.id} className="veredicto-publico__departamento">
-                  <p>
-                    <strong>
-                      {nombreDepartamento(d.ambito)}: {etiquetaNivel(d.nivel)}
-                    </strong>
-                  </p>
-                  {d.texto && <p>{d.texto}</p>}
-                </div>
-              ))}
-              <div className="veredicto-seccion">
-                <h3>Confirmado en terreno (no modifica el nivel)</h3>
-                {eventos.filter((e) => e.fecha === fecha).length === 0 ? (
-                  <p className="veredicto-seccion__vacio">Sin eventos confirmados con fuente verificable para este día.</p>
-                ) : (
-                  <ul>
-                    {eventos
-                      .filter((e) => e.fecha === fecha)
-                      .map((e) => (
-                        <li key={e.id} className="veredicto-evento">
-                          <strong>{e.titulo}</strong>
-                          <span>
-                            {e.lugar} ({nombreDepartamento(e.departamento)}) · {e.fechaTexto}
-                          </span>
-                          <span className="badge veredicto-nivel">{e.confianzaTexto}</span>
-                          <a href={e.fuente.url} target="_blank" rel="noopener noreferrer">
-                            {e.fuente.medio}
-                            {e.fuente.fecha ? `, ${e.fuente.fecha}` : ''}
-                          </a>
-                        </li>
-                      ))}
-                  </ul>
-                )}
-              </div>
-            </section>
-          )
-        })}
-
-        <section className="veredicto-publico__fuentes">
-          <h2>Fuentes</h2>
-          <ul>
-            {fuentesUnicas(veredictos).map((f) => (
-              <li key={f.url}>
-                <a href={f.url} target="_blank" rel="noopener noreferrer">
-                  {f.etiqueta}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </section>
+        {fechas.map((fecha) => (
+          <Dia
+            key={fecha}
+            fecha={fecha}
+            delDia={porFecha.get(fecha) ?? []}
+            eventos={eventos.filter((e) => e.fecha === fecha)}
+          />
+        ))}
       </div>
     </article>
   )
