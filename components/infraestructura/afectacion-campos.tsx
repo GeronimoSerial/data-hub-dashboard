@@ -134,6 +134,14 @@ export function AvisosConsistencia({
   onAplicar?: (sugerencia: Sugerencia) => void
 }): JSX.Element | null {
   const [descartadas, setDescartadas] = useState<Record<string, string>>({})
+  // Una regla que deja de cumplirse olvida su descarte: si vuelve a cumplirse, se muestra.
+  const codigosActivos = reglas.map((regla) => regla.codigo).join('\n')
+  const [codigosPrevios, setCodigosPrevios] = useState(codigosActivos)
+  if (codigosActivos !== codigosPrevios) {
+    setCodigosPrevios(codigosActivos)
+    const activas = new Set(reglas.map((regla) => regla.codigo))
+    setDescartadas((actual) => Object.fromEntries(Object.entries(actual).filter(([codigo]) => activas.has(codigo))))
+  }
   const visibles = reglas.filter((regla) => campos.includes(regla.campo) && descartadas[regla.codigo] !== (regla.firma ?? ''))
   if (visibles.length === 0) return null
   return (

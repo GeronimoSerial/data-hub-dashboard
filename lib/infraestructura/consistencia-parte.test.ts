@@ -248,10 +248,15 @@ describe('advertencias accionables (T10)', () => {
     expect(critica.find((a) => a.codigo === 'critica-seccion-unica')?.sugerencia).toBeUndefined()
   })
 
-  it('cada advertencia lleva la firma de las respuestas que la produjeron', () => {
-    const a = evaluar({ motivoId: 'inundacion', edificio: 'habitual' }).advertencias.find((r) => r.codigo === 'inundacion-habitual')
-    const b = evaluar({ motivoId: 'inundacion', edificio: 'habitual', clases: 'suspendido' }).advertencias.find((r) => r.codigo === 'inundacion-habitual')
-    expect(a?.firma).toBeTruthy()
-    expect(a?.firma).not.toBe(b?.firma)
+  it('la firma de una advertencia sólo cambia con las respuestas que la regla lee', () => {
+    const firma = (cambios: Partial<RespuestasConsistencia>) =>
+      evaluar({ motivoId: 'inundacion', edificio: 'habitual', ...cambios }).advertencias.find((r) => r.codigo === 'inundacion-habitual')?.firma
+
+    const original = firma({})
+    expect(original).toBeTruthy()
+    expect(firma({ clases: 'suspendido' })).toBe(original)
+    expect(firma({ asistenciaBrinda: true })).toBe(original)
+    expect(firma({ vigencia: { modo: 'ahora' } })).toBe(original)
+    expect(firma({ motivoId: 'tormenta-severa' })).toBeUndefined()
   })
 })

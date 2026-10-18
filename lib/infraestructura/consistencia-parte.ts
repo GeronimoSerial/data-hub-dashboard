@@ -275,14 +275,33 @@ function aRegla(definicion: DefinicionRegla, firma: string): Regla {
   }
 }
 
+// Evalúa una regla registrando las respuestas que lee. La firma sólo incluye
+// esas: cambiar otra respuesta no debe volver a mostrar un aviso descartado.
+function evaluarRegla(definicion: DefinicionRegla, respuestas: RespuestasConsistencia, ahora: Date): Regla | null {
+  const leidas = new Set<keyof RespuestasConsistencia>()
+  const registro = new Proxy(respuestas, {
+    get(objetivo, clave, receptor) {
+      leidas.add(clave as keyof RespuestasConsistencia)
+      return Reflect.get(objetivo, clave, receptor)
+    },
+  })
+  if (!definicion.cuando(registro, ahora)) return null
+  const firma = JSON.stringify([...leidas].sort().map((clave) => [clave, respuestas[clave]]))
+  return aRegla(definicion, firma)
+}
+
 export function evaluarConsistenciaParte(
   respuestas: RespuestasConsistencia,
   ahora: Date = new Date(),
 ): ResultadoConsistencia {
-  const firma = JSON.stringify(respuestas)
+  const aplicables = (definiciones: DefinicionRegla[]) =>
+    definiciones.flatMap((d) => {
+      const regla = evaluarRegla(d, respuestas, ahora)
+      return regla ? [regla] : []
+    })
   return {
-    bloqueos: BLOQUEOS.filter((d) => d.cuando(respuestas, ahora)).map((d) => aRegla(d, firma)),
-    advertencias: ADVERTENCIAS.filter((d) => d.cuando(respuestas, ahora)).map((d) => aRegla(d, firma)),
+    bloqueos: aplicables(BLOQUEOS),
+    advertencias: aplicables(ADVERTENCIAS),
   }
 }
 
