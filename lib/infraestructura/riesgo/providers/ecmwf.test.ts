@@ -101,6 +101,17 @@ describe('crearProviderEcmwf', () => {
     expect(muestra.validoEn.endsWith('Z')).toBe(true)
   })
 
+  it('pide forecast_hours=264 (no forecast_days) para cubrir 240 h desde cualquier hora de ingesta', async () => {
+    const fetchImpl = fetchOk(fixtureJson)
+    const provider = crearProviderEcmwf({ fetchImpl: fetchImpl as unknown as typeof fetch })
+
+    await provider.obtenerPronostico({ geometryRefs: [GEOMETRY], ahora: AHORA })
+
+    const url = fetchImpl.mock.calls[0][0] as string
+    expect(url).toContain('forecast_hours=264')
+    expect(url).not.toContain('forecast_days')
+  })
+
   it('diagnóstico: un fetch que rechaza deja la celda en erroresPorCelda y puntos vacío', async () => {
     const fetchImpl = vi.fn(async () => {
       throw new Error('boom de red')
