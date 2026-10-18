@@ -934,7 +934,7 @@ export async function POST(request: Request) {
         input.rigeDesde,
       )
 
-      const diff = diffParte(antes, despues)
+      const diff = diffParte(antes, despues, { seccionesEstablecimiento: secciones.map((s) => s.geSectionId) })
       const motivoPorId = new Map(afectacionesActuales.map((a) => [a.id, a.motivo]))
       diff.afectacionesConfirmadas = input.afectacionesConfirmadas.map((id) => ({ afectacionId: id, motivo: motivoPorId.get(id) ?? '' }))
       const solucionadas = new Set(input.afectacionesSolucionadas.map((s) => s.id))

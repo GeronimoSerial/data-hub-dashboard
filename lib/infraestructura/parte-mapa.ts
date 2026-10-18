@@ -31,6 +31,7 @@ import type {
   EstadoServicioGeneral,
   ServicioAlcance,
 } from './trayectoria-tipos'
+import { esModalidadAsistenciaPedagogica } from './trayectoria-tipos'
 import { enriquecerEscuela } from './mapa/enriquecer'
 import type { EscuelaMapaEnriquecida } from './mapa/tipos'
 import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
@@ -733,7 +734,7 @@ function esAsistenciaPedagogica(valor: unknown): valor is AsistenciaPedagogica {
   if (typeof valor !== 'object' || valor === null) return false
   const asistencia = valor as { brinda?: unknown; modalidades?: unknown }
   if (typeof asistencia.brinda !== 'boolean' || !Array.isArray(asistencia.modalidades)) return false
-  return asistencia.modalidades.every((modalidad: unknown) => modalidad === 'Clase virtual' || modalidad === 'Cuadernillo')
+  return asistencia.modalidades.every(esModalidadAsistenciaPedagogica)
 }
 
 function parsearAsistenciaPedagogica(valor: unknown): AsistenciaPedagogica | null {

@@ -95,20 +95,22 @@ describe('derivarClases', () => {
 
 describe('derivarApoyo', () => {
   it('con clases normales no corresponde', () => {
-    expect(derivarApoyo('normal', { brinda: true, modalidades: ['Cuadernillo'] })).toBeNull()
+    expect(derivarApoyo('normal', { brinda: true, modalidades: ['Cuadernillos impresos'] })).toBeNull()
   })
   it('sin clases y sin dato → sin_dato', () => expect(derivarApoyo('sin', null)).toBe('sin_dato'))
   it('ambas modalidades → ambos', () => {
-    expect(derivarApoyo('sin', { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] })).toBe('ambos')
+    expect(derivarApoyo('sin', { brinda: true, modalidades: ['Asistencia virtual', 'Cuadernillos impresos'] })).toBe('ambos')
   })
   it('sólo modalidad virtual → virtual', () => {
-    expect(derivarApoyo('sin', { brinda: true, modalidades: ['Clase virtual'] })).toBe('virtual')
+    expect(derivarApoyo('sin', { brinda: true, modalidades: ['Asistencia virtual'] })).toBe('virtual')
   })
   it('sólo modalidad cuadernillo → cuadernillo', () => {
-    expect(derivarApoyo('sin', { brinda: true, modalidades: ['Cuadernillo'] })).toBe('cuadernillo')
+    expect(derivarApoyo('sin', { brinda: true, modalidades: ['Cuadernillos impresos'] })).toBe('cuadernillo')
+    expect(derivarApoyo('sin', { brinda: true, modalidades: ['Cuadernillos digitales'] })).toBe('cuadernillo')
+    expect(derivarApoyo('sin', { brinda: true, modalidades: ['Otras propuestas'] })).toBe('brinda')
   })
   it('brinda false → no', () => {
-    expect(derivarApoyo('sin', { brinda: false, modalidades: ['Clase virtual'] })).toBe('no')
+    expect(derivarApoyo('sin', { brinda: false, modalidades: ['Asistencia virtual'] })).toBe('no')
   })
   it('brinda true sin modalidades → brinda', () => {
     expect(derivarApoyo('sin', { brinda: true, modalidades: [] })).toBe('brinda')
@@ -182,7 +184,7 @@ describe('enriquecerEscuela', () => {
     expect(enriquecerEscuela(original, {
       niveles: ['Primario', 'Inicial', 'Primario'],
       alumnos: 42,
-      asistencia: { brinda: true, modalidades: ['Cuadernillo'] },
+      asistencia: { brinda: true, modalidades: ['Cuadernillos impresos'] },
       situacionesHistoricas: 7,
       solucionadasRecientes: 3,
     }, ahora)).toMatchObject({

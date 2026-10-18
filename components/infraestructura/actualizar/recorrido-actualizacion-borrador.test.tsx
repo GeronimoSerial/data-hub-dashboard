@@ -183,13 +183,13 @@ describe('RecorridoActualizacion: borrador local', () => {
         enviado = true
         return new Response(JSON.stringify({ ok: true, movimientoId: 'm1' }), { status: 201 })
       }
-      const datos = { ...base, parte: { ...base.parte, asistenciaPedagogica: enviado ? { brinda: true, modalidades: ['Cuadernillo'] } : null } }
+      const datos = { ...base, parte: { ...base.parte, asistenciaPedagogica: enviado ? { brinda: true, modalidades: ['Cuadernillos impresos'] } : null } }
       return new Response(JSON.stringify(url.includes('/historial') ? { ok: true, movimientos: [] } : datos), { status: 200 })
     }))
     montar(); await irAlResumen()
     await waitFor(async () => expect(await leerBorradorGuardado()).not.toBeNull())
     elegirAsistencia('Sí')
-    await elegirModalidades(userEvent.setup(), 'Cuadernillo')
+    await elegirModalidades(userEvent.setup(), 'Cuadernillos impresos')
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await screen.findByText('Parte actualizado')
     await waitFor(async () => expect(await leerBorradorGuardado()).toBeNull())

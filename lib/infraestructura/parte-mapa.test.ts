@@ -596,7 +596,7 @@ describe('listarEscuelasMapaEnriquecidas', () => {
     await sembrarEscuelaPadron({ cue, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.4, lon: -58.4 })
     const parteId = await crearParte(cue)
     await crearAfectacion({ parteId, secciones: [] })
-    await getDb().update(infraParte).set({ estadoEstablecimiento: 'evacuado', asistenciaPedagogica: JSON.stringify({ brinda: true, modalidades: ['Cuadernillo'] }) }).where(eq(infraParte.id, parteId))
+    await getDb().update(infraParte).set({ estadoEstablecimiento: 'evacuado', asistenciaPedagogica: JSON.stringify({ brinda: true, modalidades: ['Cuadernillos impresos'] }) }).where(eq(infraParte.id, parteId))
 
     const resultado = await listarEscuelasMapaEnriquecidas({ cueAnexo: cue })
 

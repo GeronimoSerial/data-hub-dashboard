@@ -115,6 +115,8 @@ export const ETIQUETA_ESTABLECIMIENTO: Record<EstadoEstablecimiento, string> = {
   parcial: 'Uso parcial',
   evacuado: 'Evacuado',
   centro_evacuados: 'Usado como centro de evacuados',
+  // Todo el edificio sin clases sin estar evacuado (p. ej. sin agua ni energía).
+  sin_clases: 'Sin clases',
 }
 
 // La provincia entera trabaja en un solo huso; fijarlo evita que el parte se

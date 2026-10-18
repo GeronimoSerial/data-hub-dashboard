@@ -21,13 +21,15 @@ export interface ValorClasesEdificio {
 }
 
 const INTERRUMPE_TODO: EstadoEstablecimiento[] = ['evacuado', 'centro_evacuados']
+// Estados del edificio que dejan a toda la escuela sin clases.
+const SUSPENDE_CLASES: EstadoEstablecimiento[] = ['evacuado', 'sin_clases']
 const ESTADOS_EDIFICIO = Object.keys(ETIQUETA_ESTABLECIMIENTO) as EstadoEstablecimiento[]
 
-// Elegir "evacuado" suspende las clases (ver aplicarEdificio): el bloqueo se
-// evalúa con esa consecuencia, no con la respuesta de clases vigente.
+// Elegir "evacuado" o "sin clases" suspende las clases (ver aplicarEdificio):
+// el bloqueo se evalúa con esa consecuencia, no con la respuesta vigente.
 function bloqueoEdificio(respuestas: RespuestasConsistencia | undefined, estado: string): Regla | null {
   if (!respuestas) return null
-  const implicita = estado === 'evacuado' ? { ...respuestas, clases: 'suspendido' as const } : respuestas
+  const implicita = SUSPENDE_CLASES.includes(estado as EstadoEstablecimiento) ? { ...respuestas, clases: 'suspendido' as const } : respuestas
   return bloqueoOpcion(implicita, 'edificio', estado)
 }
 
@@ -101,6 +103,7 @@ export function CamposClasesEdificio({
   const [hojaHabitual, setHojaHabitual] = useState(false)
   const [decisiones, setDecisiones] = useState<Record<string, 'solucionada' | 'sigue'>>({})
   const evacuado = valor.estadoEstablecimiento === 'evacuado'
+  const sinClases = valor.estadoEstablecimiento === 'sin_clases'
   const saleDeEvacuacion = estadoActual !== undefined && INTERRUMPE_TODO.includes(estadoActual)
   // Al salir de una evacuación con afectaciones activas, el bloqueo de habitual
   // lo decide la hoja: cada afectación se marca solucionada o sigue activa.
@@ -125,8 +128,8 @@ export function CamposClasesEdificio({
   const avisosClasesSueltos = avisosSinOpcion(advertencias, 'clases', respuestas?.clases, ['normal', 'suspendido'])
 
   function aplicarEdificio(estado: EstadoEstablecimiento) {
-    // Evacuado ⇒ sin clases: la combinación contraria es imposible.
-    onCambiar({ estadoEstablecimiento: estado, servicioEstado: estado === 'evacuado' ? 'suspendido' : valor.servicioEstado })
+    // Evacuado o sin clases ⇒ clases suspendidas: la combinación contraria es imposible.
+    onCambiar({ estadoEstablecimiento: estado, servicioEstado: SUSPENDE_CLASES.includes(estado) ? 'suspendido' : valor.servicioEstado })
   }
 
   function elegirEdificio(estado: EstadoEstablecimiento) {
@@ -182,7 +185,7 @@ export function CamposClasesEdificio({
                   onChange={() => {
                     if (bloqueoClases(respuestas, estado) === null) onCambiar({ ...valor, servicioEstado: estado })
                   }}
-                  disabled={disabled || evacuado || bloqueoClases(respuestas, estado) !== null}
+                  disabled={disabled || evacuado || sinClases || bloqueoClases(respuestas, estado) !== null}
                   aria-labelledby={`etiqueta-clases-${estado}`}
                   aria-describedby={bloqueoClases(respuestas, estado) ? `bloqueo-clases-${estado}` : undefined}
                   label={<span id={`etiqueta-clases-${estado}`}>{ETIQUETA_CLASES[estado]}</span>}
@@ -199,6 +202,7 @@ export function CamposClasesEdificio({
           <AvisosConsistencia reglas={avisosClasesSueltos} campos={['clases']} onAplicar={aplicarSugerencia} />
         </div>
         {evacuado ? <p className="afectacion-campos__espera">El edificio está evacuado</p> : null}
+        {sinClases ? <p className="afectacion-campos__espera">El edificio está sin clases</p> : null}
         {alcanceAlgunas && valor.servicioEstado === 'suspendido' ? (
           <p className="afectacion-campos__espera">Se suspenden las clases solo en las secciones seleccionadas</p>
         ) : null}

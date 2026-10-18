@@ -201,6 +201,33 @@ describe('GET /api/problematicas/parte/historial', () => {
     }
   })
 
+  it('después de solucionar la última situación, el historial del parte sigue disponible', async () => {
+    const antes = await (await GET(getReq(CUE_A))).json()
+    const estado = await (await GETParte(getReq(CUE_A))).json()
+    const ids: string[] = estado.afectaciones.map((a: { id: string }) => a.id)
+    expect(ids.length).toBeGreaterThan(0)
+
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    const solucion = await POST(
+      postParte({
+        cue: CUE_A,
+        idempotencyKey: crypto.randomUUID(),
+        rigeDesde: new Date().toISOString(),
+        estadoEstablecimiento: { estado: 'habitual' },
+        servicioEducativo: { estado: 'normal', alcance: { tipo: 'establecimiento' } },
+        afectacionesSolucionadas: ids.map((id) => ({ id })),
+      }),
+    )
+    expect(solucion.status).toBe(201)
+    expect((await (await GETParte(getReq(CUE_A))).json()).afectaciones).toEqual([])
+
+    const res = await GET(getReq(CUE_A))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.movimientos).toHaveLength(antes.movimientos.length + 1)
+    expect(body.movimientos[0].cambios.join(' ')).toMatch(/Se solucionó/)
+  })
+
   it('setea Cache-Control privado', async () => {
     const res = await GET(getReq(CUE_A))
     expect(res.headers.get('cache-control')).toBe('private, no-store')

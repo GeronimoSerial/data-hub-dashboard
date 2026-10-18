@@ -124,6 +124,8 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
   const rigeServicio = formatearMomento(rigeDesdeDelServicio(datos.servicio?.alcanceVigente))
   const rigeEstablecimiento = formatearMomento(datos.parte?.estadoEstablecimientoRigeDesde)
   const ultimaActualizacion = formatearMomento(datos.ultimaActualizacion)
+  // El historial pertenece al parte: sigue disponible aunque ya no haya situación en seguimiento.
+  const hayParte = Boolean(datos.periodo && datos.parte)
 
   return (
     <div className="estado-actual">
@@ -180,22 +182,26 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
         )}
       </section>
 
-      {(ultimaActualizacion || !sinSituacion) && (
+      {(ultimaActualizacion || !sinSituacion || hayParte) && (
         <footer className="estado-actual-pie">
           {ultimaActualizacion && (
             <p className="estado-actual-pie__actualizacion">Última actualización: {ultimaActualizacion}</p>
           )}
-          {!sinSituacion && (
+          {(!sinSituacion || hayParte) && (
             <div className="estado-actual-acciones">
-              <a
-                className="ui-button ui-button--default estado-actual-acciones__principal"
-                href={enlaceCon('/problematicas/parte/actualizar', cue)}
-              >
-                Actualizar el parte
-              </a>
-              <Button type="button" variant="secondary" aria-haspopup="dialog" onClick={() => setHistorialAbierto(true)}>
-                Ver historial
-              </Button>
+              {!sinSituacion && (
+                <a
+                  className="ui-button ui-button--default estado-actual-acciones__principal"
+                  href={enlaceCon('/problematicas/parte/actualizar', cue)}
+                >
+                  Actualizar el parte
+                </a>
+              )}
+              {hayParte && (
+                <Button type="button" variant="secondary" aria-haspopup="dialog" onClick={() => setHistorialAbierto(true)}>
+                  Ver historial
+                </Button>
+              )}
             </div>
           )}
         </footer>

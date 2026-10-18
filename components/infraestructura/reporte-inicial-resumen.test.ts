@@ -116,10 +116,10 @@ describe('armarResumen', () => {
 
   it('resume la asistencia pedagógica con el mismo par de etiqueta y valor', () => {
     const sinAsistencia = armarResumen({ ...base, asistenciaPedagogica: { brinda: false, modalidades: [] } })
-    const conAsistencia = armarResumen({ ...base, asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] } })
+    const conAsistencia = armarResumen({ ...base, asistenciaPedagogica: { brinda: true, modalidades: ['Asistencia virtual', 'Cuadernillos impresos'] } })
 
     expect(sinAsistencia.at(-1)).toEqual({ etiqueta: 'Asistencia pedagógica', valor: 'No' })
-    expect(conAsistencia.at(-1)).toEqual({ etiqueta: 'Asistencia pedagógica', valor: 'Sí (Clase virtual, Cuadernillo)' })
+    expect(conAsistencia.at(-1)).toEqual({ etiqueta: 'Asistencia pedagógica', valor: 'Sí (Asistencia virtual, Cuadernillos impresos)' })
   })
 
   // Vocabulario prohibido por spec §5.4.

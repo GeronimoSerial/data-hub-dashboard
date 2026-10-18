@@ -251,13 +251,13 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarEstadoEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
-    await elegirModalidades(userEvent.setup(), 'Clase virtual')
+    await elegirModalidades(userEvent.setup(), 'Asistencia virtual')
     continuar()
     continuar()
     fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
     await waitFor(() => {
       const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-      expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Clase virtual'] })
+      expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Asistencia virtual'] })
     })
   })
 
@@ -272,7 +272,7 @@ describe('ReporteInicialForm', () => {
     const desplegable = screen.getByRole('combobox', { name: '¿De qué tipo?' })
     expect(desplegable).toHaveAttribute('aria-expanded', 'false')
     expect(desplegable).toHaveTextContent('Seleccione una o más opciones')
-    expect(screen.queryByRole('checkbox', { name: 'Clase virtual' })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: 'Asistencia virtual' })).toBeNull()
     expect(screen.queryByText('¿De qué forma?')).toBeNull()
   })
 
@@ -284,8 +284,8 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarEstadoEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
-    await elegirModalidades(userEvent.setup(), 'Clase virtual', 'Cuadernillo')
-    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toHaveTextContent('Clase virtual, Cuadernillo')
+    await elegirModalidades(userEvent.setup(), 'Asistencia virtual', 'Cuadernillos impresos')
+    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toHaveTextContent('Asistencia virtual, Cuadernillos impresos')
   })
 
   it('se abre, marca y cierra con el teclado', async () => {
@@ -302,13 +302,13 @@ describe('ReporteInicialForm', () => {
     await user.keyboard('{Enter}')
     expect(desplegable).toHaveAttribute('aria-expanded', 'true')
     await user.keyboard('{ArrowDown}{Enter}')
-    expect(screen.getByRole('option', { name: 'Cuadernillo' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: 'Cuadernillos digitales' })).toHaveAttribute('aria-selected', 'true')
     await user.keyboard('{ArrowUp}')
     await user.keyboard(' ')
-    expect(screen.getByRole('option', { name: 'Clase virtual' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: 'Asistencia virtual' })).toHaveAttribute('aria-selected', 'true')
     await user.keyboard('{Escape}')
     expect(desplegable).toHaveAttribute('aria-expanded', 'false')
-    expect(desplegable).toHaveTextContent('Cuadernillo, Clase virtual')
+    expect(desplegable).toHaveTextContent('Cuadernillos digitales, Asistencia virtual')
   })
 
   it('exige al menos una modalidad cuando se elige Sí', () => {
@@ -404,6 +404,7 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     continuar()
     completarAQuienAfecta('alumnos')
+    continuar()
     continuar()
     expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
     expect(screen.getByText('¿Desde cuándo no pueden llegar?')).toBeInTheDocument()
@@ -682,30 +683,38 @@ describe('ReporteInicialForm', () => {
     await screen.findByText(MENSAJE_REPORTE_EXITOSO)
   })
 
-  it('un problema de alumnos salta clases y edificio y numera sus pasos de 1 a 4', () => {
+  it('un problema de alumnos pregunta sólo la asistencia pedagógica en el paso 3 y numera sus pasos de 1 a 5', () => {
     renderFormulario()
 
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
     confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     continuar()
-    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 2 de 5')).toBeInTheDocument()
     // El paso 2 de alumnos ya no incluye "desde cuándo".
     expect(screen.queryByText('¿Desde cuándo no pueden llegar?')).toBeNull()
     completarAQuienAfecta('alumnos')
     continuar()
 
-    expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
-    expect(screen.getByText('¿Desde cuándo no pueden llegar?')).toBeInTheDocument()
+    expect(screen.getByText('Paso 3 de 5')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Asistencia pedagógica' })).toBeInTheDocument()
+    expect(screen.getByText('¿Se brinda asistencia pedagógica?')).toBeInTheDocument()
     expect(screen.queryByText('¿Cómo está el edificio?')).toBeNull()
     expect(screen.queryByText('No, se suspendieron')).toBeNull()
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
     continuar()
 
-    expect(screen.getByText('Paso 4 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 4 de 5')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
+    expect(screen.getByText('¿Desde cuándo no pueden llegar?')).toBeInTheDocument()
+    continuar()
+
+    expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+    const resumen = resumenConfirmacion()
+    expect(within(resumen).getByText('Asistencia pedagógica')).toBeInTheDocument()
   })
 
   it('al recomendar cambiar a establecimiento vuelve al paso 1 para elegir el motivo', () => {
@@ -1169,7 +1178,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
     })
-    expect(await screen.findByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(await screen.findByText('Paso 2 de 5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
   })
 
@@ -1235,11 +1244,11 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
       expect(screen.getByRole('button', { name: /guardar situación/i })).toBeInTheDocument()
     })
 
-    it('alumnos: el paso 4 viejo (Confirmar) pasa al paso 5 nuevo, que es el 4 de 4', async () => {
+    it('alumnos: el paso 4 viejo (Confirmar) pasa al paso 5 nuevo, que es el 5 de 5', async () => {
       sembrarBorradorWizard({ paso: 4, categoria: 'alumnos' })
       await restaurar()
 
-      expect(screen.getByText('Paso 4 de 4')).toBeInTheDocument()
+      expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
     })
 
@@ -1247,7 +1256,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
       sembrarBorradorWizard({ paso: 2, categoria: 'alumnos' })
       await restaurar()
 
-      expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+      expect(screen.getByText('Paso 2 de 5')).toBeInTheDocument()
       expect(screen.queryByText('¿Desde cuándo no pueden llegar?')).toBeNull()
     })
 
@@ -1259,11 +1268,11 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
       expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
     })
 
-    it('un borrador nuevo de alumnos en el paso 4 es el 3 de 4', async () => {
+    it('un borrador nuevo de alumnos en el paso 4 es el 4 de 5', async () => {
       sembrarBorradorWizard({ paso: 4, version: 2, categoria: 'alumnos' })
       await restaurar()
 
-      expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
+      expect(screen.getByText('Paso 4 de 5')).toBeInTheDocument()
       expect(screen.getByText('¿Desde cuándo no pueden llegar?')).toBeInTheDocument()
     })
 

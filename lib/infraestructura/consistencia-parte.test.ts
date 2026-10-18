@@ -199,11 +199,34 @@ describe('advertencias accionables (T10)', () => {
       valor: 'parcial',
       etiqueta: 'Cambiar a Uso parcial',
     })
-    const suspendidas = evaluar({ edificio: 'habitual', clases: 'suspendido', motivoId: 'sin-energia-o-agua' }).advertencias
+    const suspendidas = evaluar({ edificio: 'habitual', clases: 'suspendido', motivoId: 'inundacion' }).advertencias
     expect(suspendidas.find((a) => a.codigo === 'habitual-clases-suspendidas')?.sugerencia).toEqual({
       campo: 'clases',
       valor: 'normal',
       etiqueta: 'Cambiar a Clases normales',
+    })
+  })
+
+  it('sin energía o agua con el edificio sin clases y clases suspendidas es consistente', () => {
+    const r = evaluar({ motivoId: 'sin-energia-o-agua', edificio: 'sin_clases', clases: 'suspendido' })
+    expect(r.bloqueos.filter((b) => b.campo === 'edificio' || b.campo === 'clases')).toEqual([])
+    expect(r.advertencias.filter((a) => a.campo === 'edificio' || a.campo === 'clases')).toEqual([])
+  })
+
+  it('sin energía o agua con clases suspendidas sugiere el edificio sin clases', () => {
+    const SIN_CLASES = { campo: 'edificio', valor: 'sin_clases', etiqueta: 'Cambiar a Sin clases' }
+    const habitual = evaluar({ motivoId: 'sin-energia-o-agua', edificio: 'habitual', clases: 'suspendido' }).advertencias
+    expect(habitual.find((a) => a.codigo === 'habitual-clases-suspendidas')?.sugerencia).toEqual(SIN_CLASES)
+    const evacuado = evaluar({ motivoId: 'sin-energia-o-agua', edificio: 'evacuado', clases: 'suspendido' }).advertencias
+    expect(evacuado.find((a) => a.codigo === 'sin-energia-evacuado')?.sugerencia).toEqual(SIN_CLASES)
+  })
+
+  it('el edificio sin clases con clases normales advierte y sugiere suspenderlas', () => {
+    const r = evaluar({ edificio: 'sin_clases', clases: 'normal' }).advertencias
+    expect(r.find((a) => a.codigo === 'sin-clases-clases-normales')?.sugerencia).toEqual({
+      campo: 'clases',
+      valor: 'suspendido',
+      etiqueta: 'Cambiar a Clases suspendidas',
     })
   })
 
