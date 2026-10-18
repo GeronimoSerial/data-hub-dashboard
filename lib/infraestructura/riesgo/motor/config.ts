@@ -153,7 +153,7 @@ export const PISO_RIESGO_P_MODERADO_V04 = UMBRAL_MODERADO
 // 'v0.4', que corrige los defectos de la auditoría del 2026-10-18. Al promover,
 // 'v0.4' pasa a ser la única regla y se retira 'v0.3' (motor único).
 export type ReglasMotor = 'v0.3' | 'v0.4'
-export const REGLAS_V04_VERSION = 'reglas-v0.4-1'
+export const REGLAS_V04_VERSION = 'reglas-v0.4-2'
 // Versión que informa el resultado calculado con reglas v0.4 (la de la corrida
 // candidata); MOTOR_VERSION sigue siendo la del operativo hasta la promoción.
 export const MODELO_VERSION_V04 = 'motor-v0.4'
@@ -196,6 +196,17 @@ export const BANDA_EXPOSICION_V04_M = 2
 // alerta → sin piso.
 export const PISO_AMENAZA_REDUCIDO_V04 = { normal: null, alerta: null, evacuacion: 50 } as const
 export const PISO_RIESGO_REDUCIDO_V04 = { normal: null, alerta: null, evacuacion: 25 } as const
+
+// T10c — Referencia estable del nivel (motor/referencia-nivel.ts): la anomalía
+// v0.4 se mide contra la mediana de la serie A5 en una ventana FIJA (no
+// deriva con el año previo), con al menos 10 años de ≥ 300 días. Sin serie
+// suficiente se usa la mediana de 365 días, marcada `referencia_inestable`.
+// Con cero efectivo calibrado, el DEM es río sólo si su agua está a ≤
+// TOLERANCIA_RIO_CERO_EFECTIVO_V04_M de a + b·referencia (lagunas fuera).
+export const VENTANA_REFERENCIA_LARGA_V04 = { desde: '1991-01-01', hasta: '2020-12-31' } as const
+export const ANIOS_COMPLETOS_REFERENCIA_V04 = 10
+export const DIAS_ANIO_COMPLETO_V04 = 300
+export const TOLERANCIA_RIO_CERO_EFECTIVO_V04_M = 3
 
 // Escenarios de subida posible por estación (F3):
 // - análogos: p90 de la subida máxima en la ventana (analogos-v2, serie A5);

@@ -41,6 +41,7 @@ import { ultimaFilaConservadoraPorCue } from './susceptibilidad'
 import type { ReglasMotor } from '../config'
 import type { EscenarioSubidaEstacion } from '../escenarios-subida'
 import { evaluarExposicionV04 } from '../exposicion-v04'
+import { CEROS_EFECTIVOS_V04, type ReferenciaNivelEstacion } from '../referencia-nivel'
 
 // Valores numéricos pueden llegar como string desde pg (numeric/doublePrecision).
 type Numerico = number | string | null
@@ -106,11 +107,14 @@ export interface DependenciasAdapterRioPrefectura {
   reglas?: ReglasMotor
   // Reglas v0.4: escenarios de subida por estación (análogos, tendencia, onda).
   escenarios?: ReadonlyMap<string, EscenarioSubidaEstacion>
+  // Reglas v0.4 (T10c): mediana de largo plazo y récord por estación (serie A5).
+  referencias?: ReadonlyMap<string, ReferenciaNivelEstacion>
 }
 
 export type OpcionesEvidenciaRio = {
   reglas?: ReglasMotor
   escenarios?: ReadonlyMap<string, EscenarioSubidaEstacion>
+  referencias?: ReadonlyMap<string, ReferenciaNivelEstacion>
 }
 
 // Convierte a número; null, vacío o NaN quedan como null.
@@ -215,7 +219,7 @@ export function resolverEvidenciaRio(
   asOf: string,
   opciones: OpcionesEvidenciaRio = {},
 ): EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null {
-  if (opciones.reglas === 'v0.4') return resolverEvidenciaRioV04(datos, cueAnexo, asOf, opciones.escenarios)
+  if (opciones.reglas === 'v0.4') return resolverEvidenciaRioV04(datos, cueAnexo, asOf, opciones.escenarios, opciones.referencias)
   const localidad = datos.localidadPorCue.get(cueAnexo)
   if (!localidad) return null
 
@@ -291,11 +295,56 @@ function lecturaOficial(datos: DatosRio, estacionId: string, asOf: string, asOfM
 // sólo `clase_rio` JRC queda como respaldo no evaluable. Con lectura vigente la
 // evidencia se devuelve aunque ningún horizonte alcance: el cálculo decide (la
 // zona modelada usa la probabilidad; el resto registra un factor sin peso).
+// Referencia v0.4 de una estación (T10c): mediana de largo plazo; sin ella, la
+// mediana de 365 días marcada como inestable.
+function referenciaV04(
+  datos: DatosRio,
+  referencias: ReadonlyMap<string, ReferenciaNivelEstacion> | undefined,
+  estacionId: string,
+): { medianaM: number; inestable: boolean } | null {
+  const larga = referencias?.get(estacionId)?.medianaLargoPlazoM ?? null
+  if (larga !== null) return { medianaM: larga, inestable: false }
+  const corta = datos.medianaPorEstacion?.get(estacionId)
+  return corta === undefined || corta === null ? null : { medianaM: corta, inestable: true }
+}
+
+function lecturaVigenteM(datos: DatosRio, estacionId: string, asOf: string, asOfMs: number): number | null {
+  const ultima = ultimaLectura(datos, estacionId, asOfMs)
+  return ultima === null || !lecturaVigente(ultima.medidaEn, asOf) ? null : num(ultima.lecturaM)
+}
+
+// Anomalía interpolada v0.4; inestable si alguna estación usada no tiene
+// referencia de largo plazo.
+function anomaliaV04(
+  datos: DatosRio,
+  referencias: ReadonlyMap<string, ReferenciaNivelEstacion> | undefined,
+  cueAnexo: string,
+  rio: 'parana' | 'uruguay',
+  asOf: string,
+  asOfMs: number,
+): { anomaliaM: number; inestable: boolean } | null {
+  const coordenadas = datos.coordenadasPorCue?.get(cueAnexo)
+  if (!coordenadas) return null
+  const inestables = new Set<string>()
+  const estaciones: EstacionAnomalia[] = obtenerEstacionesPrefectura().filter(
+    (e) => e.rol === 'corrientes' && e.rio === rio && e.coordenadas !== null,
+  ).map((e) => {
+    const ref = referenciaV04(datos, referencias, e.estacionId)
+    const h = lecturaVigenteM(datos, e.estacionId, asOf, asOfMs)
+    if (ref?.inestable) inestables.add(e.estacionId)
+    return { estacionId: e.estacionId, lat: e.coordenadas!.lat, lon: e.coordenadas!.lon, anomaliaM: ref && h !== null ? h - ref.medianaM : null }
+  })
+  const r = anomaliaInterpolada(coordenadas, estaciones)
+  if (!r) return null
+  return { anomaliaM: r.anomaliaM, inestable: inestables.has(r.desde) || (r.t > 0 && inestables.has(r.hasta)) }
+}
+
 function resolverEvidenciaRioV04(
   datos: DatosRio,
   cueAnexo: string,
   asOf: string,
   escenarios: ReadonlyMap<string, EscenarioSubidaEstacion> | undefined,
+  referencias: ReadonlyMap<string, ReferenciaNivelEstacion> | undefined,
 ): EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null {
   const localidad = datos.localidadPorCue.get(cueAnexo)
   if (!localidad) return null
@@ -305,10 +354,16 @@ function resolverEvidenciaRioV04(
   if (Number.isNaN(asOfMs)) return null
   const base = { cueAnexo, estacionId: tramo.estacionId, rio: tramo.rio }
 
+  const anomalia = anomaliaV04(datos, referencias, cueAnexo, tramo.rio, asOf, asOfMs)
   const exposicion = evaluarExposicionV04({
     dem: datos.demPorCue?.get(cueAnexo) ?? null,
     nivelRioTramoM: nivelRioDelTramo(datos, tramo.estacionId),
-    anomaliaM: anomaliaInterpoladaEscuela(datos, cueAnexo, tramo.rio, asOf, asOfMs),
+    anomaliaM: anomalia?.anomaliaM ?? null,
+    referencia: anomalia?.inestable ? 'mediana_365_inestable' : 'largo_plazo',
+    h0M: lecturaVigenteM(datos, tramo.estacionId, asOf, asOfMs),
+    ceroEfectivo: CEROS_EFECTIVOS_V04[tramo.estacionId] ?? null,
+    hReferenciaM: referenciaV04(datos, referencias, tramo.estacionId)?.medianaM ?? null,
+    record: referencias?.get(tramo.estacionId)?.record ?? null,
     represaAguasArriba: obtenerEstacionesConRepresa().has(tramo.estacionId),
     claseRio: datos.susceptibilidadPorCue.get(cueAnexo)?.claseRio ?? null,
     escenario: escenarios?.get(tramo.estacionId) ?? null,
@@ -453,7 +508,7 @@ export function crearAdapterRioPrefectura(
   deps: DependenciasAdapterRioPrefectura = {},
 ): PuertoRioPrefectura {
   const cargarDatos = deps.cargarDatos ?? cargarDatosRioDesdeDb
-  const opciones: OpcionesEvidenciaRio = { reglas: deps.reglas, escenarios: deps.escenarios }
+  const opciones: OpcionesEvidenciaRio = { reglas: deps.reglas, escenarios: deps.escenarios, referencias: deps.referencias }
   let cache: Promise<DatosRio> | null = null
 
   function cargar(): Promise<DatosRio> {
