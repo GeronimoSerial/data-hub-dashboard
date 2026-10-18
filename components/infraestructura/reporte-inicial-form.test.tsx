@@ -1432,6 +1432,12 @@ describe('foto del reporte en el primer paso (T5)', () => {
     expect(estaOculto(picker)).toBe(true)
     expect(within(resumenConfirmacion()).getByText('Fotos adjuntas')).toBeInTheDocument()
     expect(within(resumenConfirmacion()).getByText('2')).toBeInTheDocument()
+    // El guardado del borrador termina en segundo plano copiándolo a
+    // localStorage: esperarlo aquí evita que esa escritura tardía sobreviva al
+    // afterEach y le abra el aviso "Tiene un parte sin enviar" al test siguiente.
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem(`parte-nuevo:draft:${props.cue}`) ?? 'null')).toMatchObject({ paso: 5 })
+    })
   })
 
   it('con severidad Crítica recomienda adjuntar una foto, sin hacerla obligatoria', async () => {
@@ -1450,7 +1456,8 @@ describe('foto del reporte en el primer paso (T5)', () => {
     fireEvent.click(hoja.getAllByRole('radio')[0])
     fireEvent.click(hoja.getByRole('button', { name: 'Confirmar' }))
     expect(await screen.findByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeInTheDocument()
-    expect(await selectorFotos()).toBeInTheDocument()
+    process.stdout.write('\nDBGT before '+Date.now()%100000+'\n'); const el = await selectorFotos(); process.stdout.write('\nDBGT found '+Date.now()%100000+' '+el.isConnected+' '+(document.querySelector('[role=dialog]')?.textContent ?? 'nodialog').slice(0,400)+'\n')
+    expect(el).toBeInTheDocument()
   })
 
   it('sin fotos habilitadas no recomienda adjuntar una foto aunque la severidad sea Crítica', async () => {
