@@ -1,0 +1,26 @@
+name: Operar Scheduled Tasks de Motor v0.4 (producción)
+on:
+  workflow_dispatch:
+    inputs:
+      operacion:
+        type: choice
+        options: [inspeccionar, configurar, estado]
+        default: inspeccionar
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: riesgo-v04-operacion
+  cancel-in-progress: false
+jobs:
+  operar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Operar Scheduled Tasks de producción en Coolify
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_PROD_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          OPERACION: ${{ inputs.operacion }}
+        run: python3 scripts/configurar-riesgo-v04-operacion.py "$OPERACION"
