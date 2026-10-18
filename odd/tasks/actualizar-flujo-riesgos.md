@@ -106,3 +106,9 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - R8: route inline (1 new doc, passive documentation). No tests; structural check only: mermaid fence balanced (7 blocks opened, 7 closed, no `;` or `#` in the diagram), every referenced path verified with `rg --files`/`test -e`.
   - Doc: `docs/flujos/actualizar-parte.md` (sequence diagram, layer table, wizard steps, zona horaria, 5 UX proposals marked as not implemented). Language: Spanish, matching `docs/`.
   - commit: see git log (docs(parte): map actualizar flow and UX proposals)
+
+## Closure (2026-10-18)
+- `npx tsc --noEmit`: exit 0.
+- Full `npx vitest run` under `timeout 580`: did not finish (exit 124). 36 files reported failures, almost all in unrelated areas (riesgo, hidrometria, scripts, mapas), with 5-16 s durations, i.e. per-test timeouts under machine load (other worktrees were running vitest concurrently).
+- Touched-area files that failed in the full run, re-run in isolation: `timeout 300 npx vitest run components/infraestructura/reporte-inicial-form.test.tsx components/infraestructura/actualizar lib/infraestructura/parte-mapa-nivel-jur.test.ts lib/infraestructura/impacto.test.ts lib/infraestructura/identidad.test.ts`: 11 files, 181 tests passed.
+- Pending: a clean full-suite run on an idle machine (or CI).
