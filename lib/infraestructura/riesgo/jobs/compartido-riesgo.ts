@@ -17,6 +17,7 @@ import { crearAdapterPeligro } from '../motor/adaptadores/peligro'
 import { crearAdapterSusceptibilidad } from '../motor/adaptadores/susceptibilidad'
 import { crearAdapterTerritorio } from '../motor/adaptadores/territorio'
 import { calcularRiesgoEscuela } from '../motor/calculo'
+import type { ReglasMotor } from '../motor/config'
 import type { EvidenciaRioProbabilistica, ResultadoRiesgoEscuela } from '../motor/tipos'
 import type {
   HorizontePeligro,
@@ -64,14 +65,21 @@ export async function insertarEnChunks<TSchema extends SQLiteTable>(
 
 export const HORIZONTES: readonly HorizontePeligro[] = [24, 72, 240] as const
 
-export function construirPuertosReales(): PuertosMotor {
+export type OpcionesPuertosReales = {
+  // 'v0.3' (por defecto) arma exactamente los adapters del operativo; 'v0.4'
+  // les pide además los insumos que necesitan las reglas v0.4 (T10).
+  reglas?: ReglasMotor
+}
+
+export function construirPuertosReales(opciones: OpcionesPuertosReales = {}): PuertosMotor {
+  const v04 = opciones.reglas === 'v0.4'
   return {
     peligro: crearAdapterPeligro(),
     lluviaObservada: crearAdapterLluvia(),
     territorio: crearAdapterTerritorio(),
     aislamiento: crearAdapterAislamiento(),
-    susceptibilidad: crearAdapterSusceptibilidad(),
-    historial: crearAdapterHistorial(),
+    susceptibilidad: crearAdapterSusceptibilidad(v04 ? { conProfundidadFluvial: true } : {}),
+    historial: crearAdapterHistorial(v04 ? { informarFuente: true } : {}),
     exposicion: crearAdapterExposicion(),
     rioPrefectura: crearAdapterRioPrefectura(),
   }
@@ -205,6 +213,7 @@ export async function calcularFilasEscuela(params: {
   asOf: string
   puertos: PuertosMotor
   rioProbabilistico?: EvidenciaRioProbabilistica | null
+  reglas?: ReglasMotor
   extraSnapshot?: Partial<FilaSnapshot>
 }): Promise<{ resultado: ResultadoRiesgoEscuela; snapshot: FilaSnapshot; factores: FilaFactor[] }> {
   const { runId, cueAnexo, horizonte, asOf, puertos } = params
@@ -214,6 +223,7 @@ export async function calcularFilasEscuela(params: {
     asOf,
     puertos,
     rioProbabilistico: params.rioProbabilistico,
+    reglas: params.reglas,
   })
   const snapshotId = randomUUID()
   const snapshot: FilaSnapshot = {

@@ -4,10 +4,12 @@
 // adapters: recibe `PuertosMotor` por inyección.
 import type { HorizontePeligro, NivelPeligro, PuertosMotor, ResumenHistorial } from './puertos'
 import {
+  BASE_COMBINACION_V04,
   CONFIANZA_MEDIA_MAX_FALTANTES,
   HISTORIAL_TOPE_ACCESO_INTERRUMPIDO,
   HISTORIAL_TOPE_CANTIDAD,
   HISTORIAL_TOPE_DURACION_HORAS,
+  MODELO_VERSION_V04,
   MOTOR_VERSION,
   NIVEL_PELIGRO_A_NUMERO,
   PESOS_AMENAZA,
@@ -16,13 +18,16 @@ import {
   PISO_RIESGO_POR_ESTADO_RIO,
   PISO_RIESGO_P_ALTO_V04,
   PISO_RIESGO_P_MODERADO_V04,
+  REGLAS_V04_VERSION,
   RIO_V04_MAPEO_VERSION,
+  TOPE_PROFUNDIDAD_FLUVIAL_V04_M,
   UMBRAL_ALTO,
   UMBRAL_MODERADO,
   UMBRAL_MUY_ALTO,
   UMBRAL_P_ALTO_V04,
   UMBRAL_P_MODERADO_V04,
   VENTANA_HISTORIAL_DIAS,
+  type ReglasMotor,
 } from './config'
 import type {
   Confianza,
@@ -139,8 +144,12 @@ export async function calcularRiesgoEscuela(params: {
   // Motor v0.4 (T8): P de superación del terreno para este horizonte. Si
   // falta o `principal` es null, el cálculo es exactamente el de v0.3.
   rioProbabilistico?: EvidenciaRioProbabilistica | null
+  // Reglas del cálculo (T10). Por defecto 'v0.3': el job operativo no cambia.
+  reglas?: ReglasMotor
 }): Promise<ResultadoRiesgoEscuela> {
   const { cueAnexo, horizonte, asOf, puertos } = params
+  const v04 = params.reglas === 'v0.4'
+  const modeloVersion = v04 ? `${MODELO_VERSION_V04}+${REGLAS_V04_VERSION}` : MOTOR_VERSION
   const rioProb =
     params.rioProbabilistico != null && params.rioProbabilistico.principal !== null
       ? { ...params.rioProbabilistico, principal: params.rioProbabilistico.principal }
@@ -179,7 +188,7 @@ export async function calcularRiesgoEscuela(params: {
         confianza: 'baja',
         explicacion: 'Sin perfil territorial valido: no se evaluo el riesgo de acceso',
       },
-      modeloVersion: MOTOR_VERSION,
+      modeloVersion,
       calculadoEn: asOf,
       validoHasta: asOf,
     }
@@ -371,8 +380,9 @@ export async function calcularRiesgoEscuela(params: {
       ? Math.max(scoreAmenazaPonderado, pisoAmenazaRio)
       : scoreAmenazaPonderado
 
-  // PASO 3a - Historial (SIEMPRE presente: un resumen con 0 confirmadas es un
-  // dato real, nunca una ausencia).
+  // PASO 3a - Historial (v0.3: SIEMPRE presente, un resumen con 0 confirmadas
+  // es un dato real). Reglas v0.4 (F2): si el sistema no tiene ningún parte
+  // cargado, 0 antecedentes es una ausencia: no entra y cuenta como faltante.
   const resumen = await puertos.historial.obtenerResumen({
     cueAnexo,
     asOf,
@@ -396,12 +406,16 @@ export async function calcularRiesgoEscuela(params: {
     explicacion: `${cantidadConfirmadas} antecedente(s) confirmado(s) en ${VENTANA_HISTORIAL_DIAS} dias, ${duracionTotalHoras}h totales, ${accesoInterrumpidoCantidad} con acceso interrumpido`,
     observadoEn: asOf,
   }
-  factores.push(factorHistorial)
-  componentesVulnerabilidad.push({
-    factor: factorHistorial,
-    valorNumerico: scoreHistorialCrudo,
-    pesoBase: PESOS_VULNERABILIDAD.historial,
-  })
+  if (v04 && resumen.fuenteDisponible === false) {
+    cantidadFaltantes += 1
+  } else {
+    factores.push(factorHistorial)
+    componentesVulnerabilidad.push({
+      factor: factorHistorial,
+      valorNumerico: scoreHistorialCrudo,
+      pesoBase: PESOS_VULNERABILIDAD.historial,
+    })
+  }
 
   // PASO 3b - Aislamiento OSM. YA NO es un componente de vulnerabilidad (salió
   // de componentesVulnerabilidad / PESOS_VULNERABILIDAD en este batch): pasa a
@@ -421,7 +435,26 @@ export async function calcularRiesgoEscuela(params: {
   // camino que `null` (ver T-H3 en calculo.test.ts).
   const indicadores = await puertos.susceptibilidad.obtenerIndicadores(cueAnexo)
   let susceptibilidadPresente = false
-  if (indicadores !== null && Object.keys(indicadores.indicadores).length > 0) {
+  // Reglas v0.4 (F1): sólo profundidad fluvial JRC RP100, escalada por el tope
+  // en metros; nunca mezclada con calor/viento/pluvial. Nula → sin dato.
+  const profundidadM = indicadores?.profundidadFluvialRp100M ?? null
+  if (v04 && indicadores !== null && profundidadM !== null) {
+    const valorNumerico = clamp0a100(redondear2((profundidadM / TOPE_PROFUNDIDAD_FLUVIAL_V04_M) * 100))
+    const factor: FactorRiesgo = {
+      tipo: 'vulnerabilidad',
+      fuente: 'susceptibilidad-jrc',
+      variable: 'profundidad_fluvial_rp100',
+      valor: profundidadM,
+      unidad: 'm',
+      contribucion: 0,
+      peso: 0,
+      explicacion: `Profundidad de inundacion fluvial JRC RP100 ${profundidadM} m (tope ${TOPE_PROFUNDIDAD_FLUVIAL_V04_M} m = 100; puntaje ${valorNumerico}; version ${indicadores.version})`,
+      observadoEn: asOf,
+    }
+    factores.push(factor)
+    componentesVulnerabilidad.push({ factor, valorNumerico, pesoBase: PESOS_VULNERABILIDAD.susceptibilidad })
+    susceptibilidadPresente = true
+  } else if (!v04 && indicadores !== null && Object.keys(indicadores.indicadores).length > 0) {
     const valores = Object.values(indicadores.indicadores)
     const valorNumerico = clamp0a100(
       (valores.reduce((acc, valor) => acc + valor, 0) / valores.length) * 100,
@@ -469,7 +502,8 @@ export async function calcularRiesgoEscuela(params: {
     observadoEn: asOf,
   })
 
-  // Historial siempre presente => suma de pesos > 0 => nunca null.
+  // v0.3: historial siempre presente => suma de pesos > 0 => nunca null.
+  // v0.4: null si faltan historial y susceptibilidad (vulnerabilidad desconocida).
   const scoreVulnerabilidad = cerrarDimension(componentesVulnerabilidad)
 
   // PASO 4 - Evidencia válida y score de riesgo. La vulnerabilidad nunca
@@ -477,8 +511,10 @@ export async function calcularRiesgoEscuela(params: {
   const evidenciaValida = scoreAmenaza !== null
   let scoreRiesgo: number | null = null
   let nivelRiesgo: NivelRiesgo | null = null
-  if (evidenciaValida && scoreVulnerabilidad !== null) {
-    scoreRiesgo = clamp0a100(Math.round((scoreAmenaza * scoreVulnerabilidad) / 100))
+  if (evidenciaValida && (scoreVulnerabilidad !== null || v04)) {
+    scoreRiesgo = v04
+      ? clamp0a100(Math.round(scoreAmenaza * factorVulnerabilidadV04(scoreVulnerabilidad)))
+      : clamp0a100(Math.round((scoreAmenaza * (scoreVulnerabilidad as number)) / 100))
     const crudo = scoreRiesgo
     if (pisoRiesgoRio !== null) scoreRiesgo = Math.max(scoreRiesgo, pisoRiesgoRio)
     const pisoProb = pisoProbabilistico(rioProb)
@@ -558,10 +594,17 @@ export async function calcularRiesgoEscuela(params: {
     },
     urgenciaVerificacion: { horasDesdeUltimaVerificacion: null },
     riesgoAcceso,
-    modeloVersion: MOTOR_VERSION,
+    modeloVersion,
     calculadoEn: asOf,
     validoHasta: validoHastaMasTemprano(validecesPeligro, asOf),
   }
+}
+
+// Reglas v0.4 (F2): la vulnerabilidad modula la amenaza sin poder anularla.
+// Desconocida (null) → 1: un faltante nunca baja el riesgo.
+function factorVulnerabilidadV04(scoreVulnerabilidad: number | null): number {
+  if (scoreVulnerabilidad === null) return 1
+  return BASE_COMBINACION_V04 + (1 - BASE_COMBINACION_V04) * (scoreVulnerabilidad / 100)
 }
 
 // Pisos de riesgo por probabilidad (motor v0.4, provisorios en config.ts).

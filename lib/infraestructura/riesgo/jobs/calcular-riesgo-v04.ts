@@ -155,7 +155,8 @@ export async function calcularRiesgoCandidatoV04(params?: {
       }),
     )
 
-    const puertos = crearPuertosConCache(params?.puertos ?? construirPuertosReales())
+    // Reglas v0.4 (T10): el candidato corrige los defectos auditados de v0.3.
+    const puertos = crearPuertosConCache(params?.puertos ?? construirPuertosReales({ reglas: 'v0.4' }))
     const sinUbicacion = new Set(padron.filter((e) => e.motivoUbicacion !== null).map((e) => e.cueAnexo))
     for (let inicio = 0; inicio < resultados.length; inicio += TAMANO_CHUNK_INSERCION) {
       const filasSnapshot: (typeof infraRiskSnapshot.$inferInsert)[] = []
@@ -172,6 +173,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
           asOf,
           puertos,
           rioProbabilistico: rioProbabilisticoDe(r),
+          reglas: 'v0.4',
           extraSnapshot: { resultadoV04: r as unknown as Record<string, unknown> },
         })
         filasSnapshot.push(snapshot)

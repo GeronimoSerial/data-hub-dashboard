@@ -146,3 +146,29 @@ export const UMBRAL_P_ALTO_V04 = 0.5
 export const UMBRAL_P_MODERADO_V04 = 0.2
 export const PISO_RIESGO_P_ALTO_V04 = UMBRAL_ALTO
 export const PISO_RIESGO_P_MODERADO_V04 = UMBRAL_MODERADO
+
+// --- Reglas v0.4 (T10, docs/motor-v0.4/auditoria-v03.md) ---
+// Selector explícito de reglas del cálculo compartido. El job operativo usa
+// 'v0.3' (resultado idéntico byte a byte a motor-v0.3); el candidato usa
+// 'v0.4', que corrige los defectos de la auditoría del 2026-10-18. Al promover,
+// 'v0.4' pasa a ser la única regla y se retira 'v0.3' (motor único).
+export type ReglasMotor = 'v0.3' | 'v0.4'
+export const REGLAS_V04_VERSION = 'reglas-v0.4-1'
+// Versión que informa el resultado calculado con reglas v0.4 (la de la corrida
+// candidata); MOTOR_VERSION sigue siendo la del operativo hasta la promoción.
+export const MODELO_VERSION_V04 = 'motor-v0.4'
+
+// F1 — Susceptibilidad v0.4: SÓLO profundidad fluvial JRC RP100 (m), escala
+// lineal hasta el tope (profundidad ≥ tope = 100). Nunca se mezcla con calor,
+// viento ni pluvial (magnitudes y unidades distintas: el promedio de v0.3
+// mezclaba metros con grados-día y saturaba en 100 para todas las escuelas).
+// JRC (90 m) en lugar de WRI (~1 km): misma fuente que `clase_rio` (respaldo de
+// exposición) y 12× más resolución. Nulo → sin dato, nunca 0.
+export const TOPE_PROFUNDIDAD_FLUVIAL_V04_M = 1
+
+// F2 — Historial v0.4: si el sistema no tiene NINGÚN parte cargado, el
+// historial es ausente (su peso se redistribuye), no un 0 real. Combinación
+// que no puede borrar la amenaza: riesgo = amenaza × (BASE + (1 − BASE)·V/100).
+// Con V desconocida (ni historial ni susceptibilidad) el factor es 1: un dato
+// faltante nunca baja el riesgo. Los pisos por río siguen aplicándose.
+export const BASE_COMBINACION_V04 = 0.5

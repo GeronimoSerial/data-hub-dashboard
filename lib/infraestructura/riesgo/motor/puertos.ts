@@ -117,6 +117,10 @@ export interface IndicadoresSusceptibilidad {
   cueAnexo: string
   indicadores: Record<string, number>
   version: string
+  // Reglas v0.4 (F1): profundidad de inundación fluvial JRC RP100 (m) en la
+  // escuela. Fuera del Record a propósito: v0.3 promedia el Record y no debe
+  // cambiar. undefined = el adapter no la cargó; null = sin dato (nunca 0).
+  profundidadFluvialRp100M?: number | null
 }
 
 export interface PuertoSusceptibilidad {
@@ -141,6 +145,10 @@ export interface ResumenHistorial {
   duracionTotalHoras: number
   accesoInterrumpidoCantidad: number
   antecedentes: readonly AntecedenteHistorial[]
+  // Reglas v0.4 (F2): false = el sistema no tiene NINGÚN parte cargado, así que
+  // 0 antecedentes no es un dato sino una ausencia. undefined = desconocido
+  // (se trata como disponible, comportamiento de v0.3).
+  fuenteDisponible?: boolean
 }
 
 export interface PuertoHistorial {

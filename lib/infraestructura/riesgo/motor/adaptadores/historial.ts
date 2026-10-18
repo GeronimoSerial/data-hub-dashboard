@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, lte, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraAfectacion, infraParte } from '@/lib/db/schema'
 import type { AntecedenteHistorial, PuertoHistorial, ResumenHistorial } from '../puertos'
@@ -6,7 +6,22 @@ import type { AntecedenteHistorial, PuertoHistorial, ResumenHistorial } from '..
 const MS_POR_HORA = 1000 * 60 * 60
 const MS_POR_DIA = MS_POR_HORA * 24
 
-export function crearAdapterHistorial(): PuertoHistorial {
+// `informarFuente` (reglas v0.4, F2): agrega `fuenteDisponible`, false si el
+// sistema no tenía NINGÚN parte creado hasta asOf (una consulta por asOf).
+export function crearAdapterHistorial(opciones: { informarFuente?: boolean } = {}): PuertoHistorial {
+  const fuentePorAsOf = new Map<string, Promise<boolean>>()
+  function hayPartes(asOf: string): Promise<boolean> {
+    let pendiente = fuentePorAsOf.get(asOf)
+    if (pendiente === undefined) {
+      pendiente = getDb()
+        .select({ n: sql<number>`count(*)` })
+        .from(infraParte)
+        .where(lte(infraParte.creadaEn, asOf))
+        .then((filas) => Number(filas[0]?.n ?? 0) > 0)
+      fuentePorAsOf.set(asOf, pendiente)
+    }
+    return pendiente
+  }
   return {
     async obtenerResumen({ cueAnexo, asOf, ventanaDias }): Promise<ResumenHistorial> {
       const db = getDb()
@@ -54,13 +69,15 @@ export function crearAdapterHistorial(): PuertoHistorial {
         })
       }
 
-      return {
+      const resumen: ResumenHistorial = {
         cueAnexo,
         cantidadConfirmadas: antecedentes.length,
         duracionTotalHoras,
         accesoInterrumpidoCantidad: antecedentes.filter((a) => a.accesoInterrumpido).length,
         antecedentes,
       }
+      if (opciones.informarFuente) resumen.fuenteDisponible = await hayPartes(asOf)
+      return resumen
     },
   }
 }

@@ -174,6 +174,28 @@ describe('calcularRiesgoCandidatoV04', () => {
     expect((await vigentes()).map((v) => v.id)).toEqual([runOperativoId])
   })
 
+  it('calcula con reglas v0.4: sin partes en el sistema el historial no es un 0', async () => {
+    const ahora = new Date('2026-10-21T00:10:00.000Z')
+    const base = puertosConPerfil([CON_COORD_A.cueAnexo])
+    const puertos: PuertosMotor = {
+      ...base,
+      historial: {
+        obtenerResumen: async ({ cueAnexo }) => ({
+          cueAnexo, cantidadConfirmadas: 0, duracionTotalHoras: 0, accesoInterrumpidoCantidad: 0, antecedentes: [], fuenteDisponible: false,
+        }),
+      },
+    }
+    const r = await calcularRiesgoCandidatoV04Real({ ahora, padron: padronFake([CON_COORD_A]), puertos })
+    if (!r.ejecutado) throw new Error('unreachable')
+    const snaps = await snapshotsDe(r.runId)
+    expect(snaps).toHaveLength(3)
+    for (const s of snaps) {
+      const factores = await getDb().select().from(infraRiskFactor).where(eq(infraRiskFactor.snapshotId, s.id))
+      expect(factores.some((f) => f.fuente === 'historial')).toBe(false)
+      expect(s.scoreRiesgo).not.toBeNull()
+    }
+  })
+
   it('reintentar en el mismo bloque no duplica corrida ni filas', async () => {
     const ahora = new Date('2026-10-17T19:45:00.000Z')
     const resultado = await calcularRiesgoCandidatoV04({ ahora, padron: padronFake(PADRON) })
