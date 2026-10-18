@@ -26,6 +26,7 @@ Implementar Motor v0.4 según `Motor v0.4/PLAN_IMPLEMENTACION.md`, `CONTRATOS.md
 - Partes escolares descartados como insumo (2026-10-17).
 - Sin cota de piso por ahora: el evento de edificio se publica como **superación del terreno**, nunca como agua dentro del edificio (2026-10-17).
 - Entrega: `feature-branch-chain` — tracker `GeronimoSerial/motor-v0.4`, PRs encadenados hacia el tracker, merge final a `dev` (2026-10-17).
+- Criterio de exposición (2026-10-18): el piso por alerta/evacuación sólo se aplica si el terreno de la escuela es alcanzable por el agua posible en el horizonte (no sólo la existente). Aceptado que ~105 de 149 escuelas hoy en riesgo bajen.
 - El motor no cambia el frontend: su único efecto visible es más o menos escuelas en riesgo, vía los campos `nivel`/score existentes (2026-10-17).
 - Motor único: v0.4 contiene el cálculo de v0.3 y lo reemplaza; sólo sustituye el factor río (hoy igual en los tres horizontes) por el factor probabilístico donde sea estimable, y conserva el factor río de v0.3 donde no. Al promover, `MOTOR_VERSION` pasa a `motor-v0.4` y se retira la ruta de río de v0.3; no quedan dos motores (2026-10-17).
 - Fuentes geográficas adicionales: hidrografía IGN WFS (licencia Ley 27.275 art. 2) como principal para nombre/régimen de cruces; esteros no permanentes de IDE Corrientes `Cuerpo_de_Agua`; `redvialprovincial` (DPV) para tipo de calzada (2026-10-17).
@@ -59,6 +60,8 @@ Código, migraciones aditivas, pruebas y docs en las ramas del chain. Sin push, 
 - [x] T5b `analogos-v2`: vecinos más cercanos (sin abstención por nivel extremo salvo distancia máxima), parámetros elegidos sólo con datos anteriores a 1990, evaluación del período reservado incluyendo abstenciones; v1 queda para comparación.
 - [x] T8 (U7, redefinida) Integrar el factor río probabilístico en `calcularRiesgoEscuela` (cálculo v0.3 completo en el job candidato), proyectar a `nivel`/score existentes por horizonte, fallback al factor río v0.3 donde no sea estimable; sin cambios de frontend ni rutas.
 - [x] T9 (U8) Informe de evaluación: calibración de excedencia de alerta/evacuación por estación, cobertura, abstenciones, escuelas que suben/bajan de nivel frente a v0.3; procedimiento de promoción y retiro de la ruta v0.3 (sin promover).
+
+- [ ] T10 Corrección de defectos de v0.3 dentro del motor único (auditorías 2026-10-18, `docs/motor-v0.4/auditoria-v03.md`), aplicada sólo con reglas `v0.4` (el job operativo conserva v0.3 hasta la promoción): F1 susceptibilidad sólo fluvial normalizada; F2 historial ausente sin partes + combinación que no anula; F3 exposición por terreno contra **agua posible en el horizonte** (zona modelada: P conservadora; resto: nivel DEM + anomalía actual + subida p90 de análogos de la estación + margen de error DEM), transición gradual, capas gruesas sólo como respaldo no evaluable, ruta RP100 fuera de la exposición (pasa a acceso); F5 lluvia determinística acumulada por ventana; F6 caudal dentro de la ventana del horizonte; F7 confianza con faltantes reales; F8 ensemble filtrado por `asOf`; F9 climatología IMERG por período. Fuera: tramo por geometría (los tramos los aprueba el usuario), `tiene_alternativa_sin_cruce` nulo en OSM v4 (job geo-static de otro agente), falla del job de climatología de caudal (panel estado-datos).
 
 ## Slices (feature-branch-chain)
 
@@ -95,4 +98,4 @@ Tracker: `GeronimoSerial/motor-v0.4` (base `origin/dev` f07002f7). Cada tarea = 
 
 ## Próximo paso
 
-Decisiones del usuario: (1) umbrales del piso probabilístico (provisorios 0,5/0,2; sensibilidad baja en el asOf evaluado) y versión de mapeo definitiva; (2) promover o no según las condiciones de `docs/motor-v0.4/evaluacion-u8.md` (reproducciones retrospectivas en crecidas, filtro de picos A5, umbral de Empedrado, brechas de datum/defensas, dos semanas de paralelo). Luego: PRs encadenados 01→08 hacia el tracker `GeronimoSerial/motor-v0.4` (push/PR a pedido del usuario).
+T10 en `motor-v0.4/09-correccion-v03` (writer Opus high).
