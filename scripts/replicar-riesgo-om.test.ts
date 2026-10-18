@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { replicarRiesgoOm, validarDestinosRiesgoOm } from './lib/replicacion-riesgo-om.mjs'
@@ -37,7 +41,7 @@ async function serie(db: PGlite, celda: string, descargado: string) {
     [celda, 2024, JSON.stringify([1.5, null, 0]), descargado])
 }
 async function filas(db: PGlite, tabla: string, orden = 'id') {
-  return (await db.query(`SELECT * FROM ${tabla} ORDER BY ${orden}`)).rows
+  return (await db.query<Record<string, unknown>>(`SELECT * FROM ${tabla} ORDER BY ${orden}`)).rows
 }
 
 describe('réplica riesgo Open-Meteo', () => {
@@ -139,3 +143,37 @@ it.each([
   expect(() => validarDestinosRiesgoOm(source, target)).toThrow(/requiere origen/)
 })
 
+
+it('valida la operación Coolify con API simulada y la sintaxis del retirador systemd', () => {
+  expect(() => execFileSync('python3', ['-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_riesgo_om_operacion.py'],
+    { stdio: 'pipe', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } })).not.toThrow()
+  expect(() => execFileSync('sh', ['-n', 'deploy/systemd/ops1/desactivar-productores-riesgo-om.sh'])).not.toThrow()
+})
+
+it('retira sólo los timers productores Open-Meteo del consumidor indicado', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'riesgo-om-systemd-'))
+  const log = join(dir, 'commands')
+  const envFile = join(dir, 'ops.env')
+  try {
+    const script = readFileSync('deploy/systemd/ops1/desactivar-productores-riesgo-om.sh', 'utf8')
+      .replaceAll('/etc/enos-ops1/enos-ops1.env', envFile)
+    writeFileSync(join(dir, 'retirar.sh'), script)
+    for (const name of ['systemctl', 'rm']) {
+      writeFileSync(join(dir, name), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$RIESGO_TEST_LOG"\n', { mode: 0o755 })
+    }
+    const env = { ...process.env, PATH: dir + ':' + process.env.PATH, RIESGO_TEST_LOG: log }
+    writeFileSync(envFile, 'CONTENEDOR_PREFIJO=grg5ycm7js8dk9lkzkktt7l7-\n')
+    execFileSync('sh', [join(dir, 'retirar.sh'), 'grg5ycm7js8dk9lkzkktt7l7'], { env })
+    const commands = readFileSync(log, 'utf8')
+    for (const job of ['sync-pronostico-caudal', 'sync-ensemble', 'sync-seasonal', 'climatologia-precipitacion', 'climatologia-caudal']) {
+      expect(commands).toContain(`disable --now enos-ops1-${job}.timer`)
+      expect(commands).toContain(`stop enos-ops1@${job}.service`)
+    }
+    expect(commands).not.toMatch(/radar|imerg|smn/)
+    writeFileSync(log, '')
+    writeFileSync(envFile, 'CONTENEDOR_PREFIJO=pts681lz0kazhs1dph8wjaxt-\n')
+    expect(() => execFileSync('sh', [join(dir, 'retirar.sh'), 'grg5ycm7js8dk9lkzkktt7l7'], { env, stdio: 'pipe' })).toThrow()
+    expect(readFileSync(log, 'utf8')).not.toContain('disable')
+    expect(() => execFileSync('sh', [join(dir, 'retirar.sh'), 'pts681lz0kazhs1dph8wjaxt'], { env, stdio: 'pipe' })).toThrow()
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

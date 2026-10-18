@@ -57,7 +57,7 @@ los servidores (prohibido acceder); el script `inspeccionar` lo lista.
 
 - [x] T1 Rol de entorno + guard en jobs.mjs + JOBS_ESPERADOS por rol (inline; 3 archivos acoplados, contexto ya cargado).
 - [x] T2 Réplica incremental desde hub_prod con tests PGlite + doc `docs/riesgo-om-replicacion.md`.
-- [ ] T3 Ops: retirador systemd, configurador Coolify, workflow manual, runbook, doc `docs/riesgo-om-operacion.md`.
+- [x] T3 Ops: retirador systemd, configurador Coolify, workflow manual, runbook, doc `docs/riesgo-om-operacion.md`.
 
 ## Evidencia
 
