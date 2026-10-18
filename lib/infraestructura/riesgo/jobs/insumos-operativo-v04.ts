@@ -22,6 +22,11 @@ export type MotivoDegradacionV04 =
   | 'altimetria_no_disponible'
   | 'terreno_no_disponible'
   | 'serie_ina_desactualizada'
+  // Se agregan al terminar el bucle de escuelas (ver calcular-riesgo.ts): al
+  // menos una celda usó la ingesta previa de respaldo, o al menos una escuela
+  // quedó sin dato de peligro a 240 h.
+  | 'peligro_240h_respaldo'
+  | 'peligro_240h_sin_dato'
 
 export type InsumosOperativoV04 = {
   rio: InsumosRioV04

@@ -173,6 +173,16 @@ describe('listarPartesVigentes', () => {
     expect(partes[0].servicio).toBe('parcial')
   })
 
+  it('reporta servicio parcial con situaciones de alumnos sin establecimiento, igual que la ficha', async () => {
+    const parteId = await crearParte('CUE-10')
+    await crearAfectacion({ parteId, categoria: 'alumnos', motivo: 'Corte de ruta', secciones: [1001] })
+    await crearServicioAlcance({ parteId, tipo: 'turno', referenciaId: 'MAÑANA', estado: 'suspendido' })
+
+    const { partes } = await listarPartesVigentes({ cueAnexo: 'CUE-10' })
+    expect(partes).toHaveLength(1)
+    expect(partes[0].servicio).toBe('parcial')
+  })
+
   it('trae ambas categorías cuando la escuela tiene afectaciones de las dos', async () => {
     const parteId = await crearParte('CUE-4')
     await crearAfectacion({ parteId, categoria: 'establecimiento', secciones: [401] })
@@ -479,7 +489,7 @@ describe('listarEscuelasMapaEnriquecidas', () => {
     expect(resultado.escuelas[0]).toMatchObject({ clases: 'normal', gravedad: 0 })
   })
 
-  it('ignora edificio y servicio heredados con una única situación abierta de alumnos', async () => {
+  it('ignora el edificio heredado pero aplica el servicio con una única situación abierta de alumnos', async () => {
     const cue = 'MAPA-ENRIQ-SOLO-ALUMNOS'
     const seccionId = 98761
     const alumnoId = 98761001
@@ -501,9 +511,9 @@ describe('listarEscuelasMapaEnriquecidas', () => {
     const resultado = await listarEscuelasMapaEnriquecidas({ cueAnexo: cue })
     const { partes, indicadores } = await listarPartesVigentes({ cueAnexo: cue })
 
-    expect(resultado.escuelas[0]).toMatchObject({ clases: 'normal', gravedad: 3 })
-    expect(partes[0]).toMatchObject({ estadoEstablecimiento: 'habitual', servicio: 'normal', alumnosAlcanzados: 1 })
-    expect(indicadores).toMatchObject({ evacuadas: 0, conServicioSuspendido: 0, alumnosAlcanzados: 1 })
+    expect(resultado.escuelas[0]).toMatchObject({ clases: 'sin', gravedad: 3 })
+    expect(partes[0]).toMatchObject({ estadoEstablecimiento: 'habitual', servicio: 'suspendido', alumnosAlcanzados: 1 })
+    expect(indicadores).toMatchObject({ evacuadas: 0, conServicioSuspendido: 1, alumnosAlcanzados: 1 })
   })
 
   it('cuenta todas las situaciones históricas por escuela y deja en cero las que no tienen', async () => {

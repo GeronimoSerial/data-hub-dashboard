@@ -95,7 +95,8 @@ export async function calcularYPublicarRiesgo(params?: {
   // escenarios del río, así que se arman después de preparar sus insumos;
   // el territorio (lista de CUEs) es el mismo en ambos casos.
   const puertosBase = params?.puertos ?? construirPuertosReales({ reglas })
-  let puertos = crearPuertosConCache(puertosBase)
+  const observadoPeligro: ObservacionPeligro240 = { respaldo: false, sinDato: false }
+  let puertos = observarPeligro240(crearPuertosConCache(puertosBase), observadoPeligro)
   const db = getDb()
 
   // `runId` se asigna recién después de insertar la fila 'preparando'. Se
@@ -158,10 +159,13 @@ export async function calcularYPublicarRiesgo(params?: {
       })
       if (!params?.puertos) {
         const { escenarios, referencias, maximosEscala } = v04.rio
-        puertos = crearPuertosConCache({
-          ...construirPuertosReales({ reglas: 'v0.4', escenariosSubida: escenarios }),
-          rioPrefectura: crearAdapterRioPrefectura({ reglas: 'v0.4', escenarios, referencias, maximosEscala }),
-        })
+        puertos = observarPeligro240(
+          crearPuertosConCache({
+            ...construirPuertosReales({ reglas: 'v0.4', escenariosSubida: escenarios }),
+            rioPrefectura: crearAdapterRioPrefectura({ reglas: 'v0.4', escenarios, referencias, maximosEscala }),
+          }),
+          observadoPeligro,
+        )
       }
     }
     let conRioProbabilistico = 0
@@ -245,6 +249,12 @@ export async function calcularYPublicarRiesgo(params?: {
     // (vencer el vigente anterior + publicar este run). El índice único
     // parcial infra_risk_run_vigente_unico (ver schema.ts) impone a nivel DB
     // que nunca haya dos vigentes a la vez.
+    // Degradación de peligro a 240 h, observada al consultar cada celda. Se
+    // suma a `degradacion` antes de escribir metadatos y de contar insumos.
+    if (v04) {
+      if (observadoPeligro.respaldo) v04.degradacion.push('peligro_240h_respaldo')
+      if (observadoPeligro.sinDato) v04.degradacion.push('peligro_240h_sin_dato')
+    }
     // Metadatos v0.4: insumos y degradación de la corrida (la cobertura
     // conserva las 3 claves que lee el frontend).
     if (v04) {
@@ -298,6 +308,28 @@ export async function calcularYPublicarRiesgo(params?: {
       ahora,
     })
     throw error
+  }
+}
+
+type ObservacionPeligro240 = { respaldo: boolean; sinDato: boolean }
+
+// Envuelve el puerto de peligro para registrar, sin cambiar lo que devuelve, si
+// alguna consulta a 240 h usó la ingesta de respaldo o terminó en sin_dato.
+function observarPeligro240(puertos: PuertosMotor, observado: ObservacionPeligro240): PuertosMotor {
+  return {
+    ...puertos,
+    peligro: {
+      ...puertos.peligro,
+      async obtenerNivelesCelda(params) {
+        const niveles = await puertos.peligro.obtenerNivelesCelda(params)
+        if (!params.horizontes.includes(240)) return niveles
+        // Igual que el núcleo, un nivel ausente cuenta como sin dato.
+        const nivel240 = niveles.find((nivel) => nivel.horizonteHoras === 240)
+        if (nivel240?.respaldoIngestaPrevia) observado.respaldo = true
+        if (nivel240 === undefined || nivel240.nivel === 'sin_dato') observado.sinDato = true
+        return niveles
+      },
+    },
   }
 }
 

@@ -44,6 +44,8 @@ El run nunca se cae porque falte un insumo de v0.4. Cada falta queda registrada 
 | `altimetria_no_disponible` | no hay versión de altimetría importada o no se pudo leer | la superación del terreno queda `no_estimable` con motivo; se usa el río v0.3 |
 | `terreno_no_disponible` | falló la carga de catálogo A5, tramos o series | ninguna escuela tiene río probabilístico; se usa el río v0.3 |
 | `serie_ina_desactualizada` | la última fila de una estación (INA + Prefectura) tiene más de 3 días | esa estación no alimenta v0.4 en esta corrida; queda listada en `metadatos.insumos.estacionesDesactualizadas` |
+| `peligro_240h_respaldo` | la ingesta más reciente no cubría la ventana (216, 240] y se usó la ingesta previa (máximo 18 h de antigüedad) | la celda usa esa ingesta; el dato sigue siendo válido |
+| `peligro_240h_sin_dato` | alguna escuela quedó con peligro `sin_dato` a 240 h | esa escuela no tiene peligro meteorológico a 240 h en la corrida |
 
 ## Configurar las Scheduled Tasks de producción
 
