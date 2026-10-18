@@ -13,6 +13,7 @@ import {
   infraSituacionCorte,
 } from '@/lib/db/schema'
 import { PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
+import { MOTOR_VERSION } from '@/lib/infraestructura/riesgo/motor/config'
 
 type Db = ReturnType<typeof getDb>
 
@@ -37,7 +38,7 @@ export async function insertarRunVigente(
   await db.insert(infraRiskRun).values({
     id,
     periodoId: PERIODO_ENOS_2026_2027_ID,
-    modeloVersion: 'riesgo-v0',
+    modeloVersion: MOTOR_VERSION,
     iniciadoEn: '2026-09-27T10:00:00.000Z',
     publicadoEn: '2026-09-27T10:05:00.000Z',
     estado: 'vigente',
