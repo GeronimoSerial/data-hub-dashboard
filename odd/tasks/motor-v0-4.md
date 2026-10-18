@@ -26,6 +26,9 @@ Implementar Motor v0.4 según `Motor v0.4/PLAN_IMPLEMENTACION.md`, `CONTRATOS.md
 - Partes escolares descartados como insumo (2026-10-17).
 - Sin cota de piso por ahora: el evento de edificio se publica como **superación del terreno**, nunca como agua dentro del edificio (2026-10-17).
 - Entrega: `feature-branch-chain` — tracker `GeronimoSerial/motor-v0.4`, PRs encadenados hacia el tracker, merge final a `dev` (2026-10-17).
+- El motor no cambia el frontend: su único efecto visible es más o menos escuelas en riesgo, vía los campos `nivel`/score existentes (2026-10-17).
+- Motor único: v0.4 contiene el cálculo de v0.3 y lo reemplaza; sólo sustituye el factor río (hoy igual en los tres horizontes) por el factor probabilístico donde sea estimable, y conserva el factor río de v0.3 donde no. Al promover, `MOTOR_VERSION` pasa a `motor-v0.4` y se retira la ruta de río de v0.3; no quedan dos motores (2026-10-17).
+- Fuentes geográficas adicionales: hidrografía IGN WFS (licencia Ley 27.275 art. 2) como principal para nombre/régimen de cruces; esteros no permanentes de IDE Corrientes `Cuerpo_de_Agua`; `redvialprovincial` (DPV) para tipo de calzada (2026-10-17).
 
 ## Alcance autorizado
 
@@ -53,8 +56,9 @@ Código, migraciones aditivas, pruebas y docs en las ramas del chain. Sin push, 
 - [x] T5 (U4) Modelo temporal por estación: distribución empírica condicional del máximo en 24/72/240 h (análogos históricos, trayectorias conjuntas entre estaciones), evaluación retrospectiva por años excluidos.
 - [ ] T6 (U5) Transferencia por km de río entre estaciones con cero y P(superación del terreno) principal y conservadora, sólo tramos aprobados del cauce principal; resto `no_estimable` con motivo.
 - [ ] T7 (U6) Contexto de acceso: cruces por tipo de curso, vados sobre río aforado; `interrupcionEducativa` `no_estimable` con motivo hasta tener umbrales.
-- [ ] T8 (U7) Vista candidata: API `app/api/infraestructura/riesgo/candidato/` y admin, sin tocar rutas operativas.
-- [ ] T9 (U8) Informe de evaluación: calibración de excedencia de alerta/evacuación por estación, cobertura, abstenciones, comparación con v0.3; condiciones de promoción (sin promover).
+- [ ] T5b `analogos-v2`: vecinos más cercanos (sin abstención por nivel extremo salvo distancia máxima), parámetros elegidos sólo con datos anteriores a 1990, evaluación del período reservado incluyendo abstenciones; v1 queda para comparación.
+- [ ] T8 (U7, redefinida) Integrar el factor río probabilístico en `calcularRiesgoEscuela` (cálculo v0.3 completo en el job candidato), proyectar a `nivel`/score existentes por horizonte, fallback al factor río v0.3 donde no sea estimable; sin cambios de frontend ni rutas.
+- [ ] T9 (U8) Informe de evaluación: calibración de excedencia de alerta/evacuación por estación, cobertura, abstenciones, escuelas que suben/bajan de nivel frente a v0.3; procedimiento de promoción y retiro de la ruta v0.3 (sin promover).
 
 ## Slices (feature-branch-chain)
 
@@ -66,7 +70,7 @@ Tracker: `GeronimoSerial/motor-v0.4` (base `origin/dev` f07002f7). Cada tarea = 
 | 02 | `motor-v0.4/02-altimetria` | T2 | 7180d65d |
 | 03 | `motor-v0.4/03-ina-catalogo-serie` | T3 | 0139e672 |
 | 04 | `motor-v0.4/04-ina-pronosticos` | T4 | 9d803fb2 |
-| 05 | `motor-v0.4/05-modelo-temporal` | T5 | — |
+| 05 | `motor-v0.4/05-modelo-temporal` | T5, T5b | 14557cd2 |
 
 ## Progreso y evidencia
 
@@ -82,4 +86,4 @@ Tracker: `GeronimoSerial/motor-v0.4` (base `origin/dev` f07002f7). Cada tarea = 
 
 ## Próximo paso
 
-T6 (U5, transferencia por km de río y P(superación del terreno)) en `motor-v0.4/06-…` desde `motor-v0.4/05-modelo-temporal`; antes, decidir la regla de abstención en crecida de `analogos-v1`.
+T5b en `motor-v0.4/05-modelo-temporal` (regla de abstención en crecida resuelta como decisión técnica: vecinos más cercanos con distancia máxima; donde siga sin estimarse, T8 usa el factor río v0.3, que ya aplica pisos por estado alerta/evacuación). Luego T6.
