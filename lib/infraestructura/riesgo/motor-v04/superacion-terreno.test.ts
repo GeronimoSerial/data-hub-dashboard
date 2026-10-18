@@ -7,6 +7,7 @@ import {
   estimarSuperacionTerreno,
   fechaLocal,
   fusionarLecturaActual,
+  probabilidadesSobreCotas,
   trayectoriasSitio,
 } from './superacion-terreno'
 import { ubicarEscuelaEnRio, type EstacionTransferencia } from './transferencia-nivel'
@@ -122,6 +123,18 @@ describe('estimarSuperacionTerreno', () => {
     const r = estimarSuperacionTerreno({ ubicacion: { estado: 'no_estimable', motivo: 'sin_cero_escala' }, ensamble: null, altimetria: altimetria(46, 45) })
     expect(r[240].principal).toMatchObject({ estado: 'no_estimable', motivos: ['sin_cero_escala'] })
     expect(r[240].conservador.motivos).toEqual(['sin_cero_escala'])
+  })
+})
+
+describe('probabilidadesSobreCotas', () => {
+  it('coincide con la P exacta del ensamble para la misma cota y una cota menor nunca baja P', () => {
+    const ps = probabilidadesSobreCotas({ ubicacion, ensamble: ensamble(), cotasM: [45, 43] })!
+    const exacta = estimarSuperacionTerreno({ ubicacion, ensamble: ensamble(), altimetria: altimetria(45, 45) })
+    for (const h of [24, 72, 240] as const) {
+      expect(ps[h][0]).toBe(exacta[h].conservador.probabilidad)
+      expect(ps[h][1]).toBeGreaterThanOrEqual(ps[h][0])
+    }
+    expect(probabilidadesSobreCotas({ ubicacion, ensamble: null, cotasM: [45] })).toBeNull()
   })
 })
 

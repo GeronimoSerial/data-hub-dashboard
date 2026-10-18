@@ -84,4 +84,9 @@ export interface EvidenciaRioProbabilistica {
   // (nivel por transferencia km con h0 de Prefectura + tendencia + onda) contra
   // la cota conservadora. Sólo decide si aplica el piso observado.
   tendencia?: { alcanza: boolean; nivelSitioM: number; cotaM: number; subidaM: number } | null
+  // Reglas v0.4 (T10b): P(máximo del nivel en el sitio ≥ cota conservadora −
+  // MARGEN_ERROR_DEM_V04_M) y ≥ (cota − margen − BANDA_EXPOSICION_V04_M), con
+  // el mismo ensamble. Sólo decide el piso observado (mismo margen que la
+  // zona DEM); los pisos probabilísticos usan la cota sin margen.
+  alcanceMargen?: { cotaConservadoraM: number; pUmbral: number; pBanda: number } | null
 }

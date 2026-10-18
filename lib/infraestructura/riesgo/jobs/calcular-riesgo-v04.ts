@@ -24,6 +24,7 @@ import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import type { PuertosMotor } from '../motor/puertos'
 import type { EvidenciaRioProbabilistica } from '../motor/tipos'
+import { BANDA_EXPOSICION_V04_M, MARGEN_ERROR_DEM_V04_M } from '../motor/config'
 import { calcularFilasEscuela, construirPuertosReales, crearPuertosConCache, insertarEnChunks } from './compartido-riesgo'
 import { adquirirLease, inicioDeBloqueUtc, publicarResultado, renovarLease } from '../job-run'
 import { CONFIG_V04, HORIZONTES_V04, MOTOR_V04_VERSION, hashCanonico } from '../motor-v04/config'
@@ -36,6 +37,7 @@ import {
   estacionesDelEnsamble,
   estimarSuperacionTerreno,
   fechaLocal,
+  probabilidadesSobreCotas,
   type EventoTerreno,
   type UbicacionNoEstimable,
 } from '../motor-v04/superacion-terreno'
@@ -46,6 +48,8 @@ import { construirEscenariosSubida, tendenciaEnSitio, type AlcanceTendencia } fr
 import type { EscenarioSubidaEstacion } from '../motor/escenarios-subida'
 import type { AltimetriaPorCue } from '../motor-v04/altimetria-adaptador'
 import type { EscuelaPadronV04 } from '../motor-v04/padron'
+
+type AlcanceMargen = NonNullable<EvidenciaRioProbabilistica['alcanceMargen']>
 
 const TIPO_JOB = 'calcular-riesgo-v04-candidato'
 const VERSION_JOB = 'v1'
@@ -106,7 +110,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
     const escenarios = terreno
       ? construirEscenariosSubida({ asOf, series: terreno.series, lecturas: terreno.lecturasPrefectura })
       : new Map<string, EscenarioSubidaEstacion>()
-    const { superacion, tendencias } = estimarSuperacionPorEscuela({ padron, terreno, altimetria, asOf, escenarios })
+    const { superacion, tendencias, alcancesMargen } = estimarSuperacionPorEscuela({ padron, terreno, altimetria, asOf, escenarios })
 
     const [periodo] = await db.select().from(infraPeriodo).where(eq(infraPeriodo.estado, 'vigente')).limit(1)
     if (!periodo) {
@@ -180,7 +184,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
           horizonte: r.horizonteHoras,
           asOf,
           puertos,
-          rioProbabilistico: rioProbabilisticoDe(r, tendencias.get(r.cueAnexo)?.[r.horizonteHoras] ?? null),
+          rioProbabilistico: rioProbabilisticoDe(r, tendencias.get(r.cueAnexo)?.[r.horizonteHoras] ?? null, alcancesMargen.get(r.cueAnexo)?.[r.horizonteHoras] ?? null),
           reglas: 'v0.4',
           extraSnapshot: { resultadoV04: r as unknown as Record<string, unknown> },
         })
@@ -252,7 +256,11 @@ function estimarSuperacionPorEscuela(params: {
   altimetria: AltimetriaPorCue | null
   asOf: string
   escenarios: ReadonlyMap<string, EscenarioSubidaEstacion>
-}): { superacion: Map<string, Record<number, EventoTerreno>>; tendencias: Map<string, Record<number, AlcanceTendencia> | null> } {
+}): {
+  superacion: Map<string, Record<number, EventoTerreno>>
+  tendencias: Map<string, Record<number, AlcanceTendencia> | null>
+  alcancesMargen: Map<string, Record<number, AlcanceMargen>>
+} {
   const { terreno } = params
   const asOfFecha = fechaLocal(params.asOf)
   const series = new Map([...(terreno?.series ?? [])].map(([id, filas]) => [id, crearSerieDiaria(filas)]))
@@ -269,6 +277,7 @@ function estimarSuperacionPorEscuela(params: {
   }
   const salida = new Map<string, Record<number, EventoTerreno>>()
   const tendencias = new Map<string, Record<number, AlcanceTendencia> | null>()
+  const alcancesMargen = new Map<string, Record<number, AlcanceMargen>>()
   for (const escuela of params.padron) {
     const altimetria = params.altimetria?.porCue.get(escuela.cueAnexo) ?? null
     const geo = terreno?.escuelas.get(escuela.cueAnexo)
@@ -290,13 +299,27 @@ function estimarSuperacionPorEscuela(params: {
       escuela.cueAnexo,
       ubicacion.estado === 'ubicada' && cotaConservadora !== null ? tendenciaEnSitio(ubicacion, params.escenarios, cotaConservadora) : null,
     )
+    // Mismo margen de error vertical y banda que la zona DEM (T10b).
+    if (cotaConservadora !== null) {
+      const umbral = cotaConservadora - MARGEN_ERROR_DEM_V04_M
+      const ps = probabilidadesSobreCotas({ ubicacion, ensamble, cotasM: [umbral, umbral - BANDA_EXPOSICION_V04_M] })
+      if (ps !== null) {
+        const porH = {} as Record<number, AlcanceMargen>
+        for (const [h, [pUmbral, pBanda]] of Object.entries(ps)) porH[Number(h)] = { cotaConservadoraM: cotaConservadora, pUmbral, pBanda }
+        alcancesMargen.set(escuela.cueAnexo, porH)
+      }
+    }
   }
-  return { superacion: salida, tendencias }
+  return { superacion: salida, tendencias, alcancesMargen }
 }
 
 // Evidencia probabilística para el motor único: sólo si la superación con cota
 // principal es `modelada`; si no, null y el cálculo usa el río de v0.3.
-function rioProbabilisticoDe(r: ResultadoEscuelaV04, tendencia: AlcanceTendencia | null): EvidenciaRioProbabilistica | null {
+function rioProbabilisticoDe(
+  r: ResultadoEscuelaV04,
+  tendencia: AlcanceTendencia | null,
+  alcanceMargen: AlcanceMargen | null,
+): EvidenciaRioProbabilistica | null {
   const { principal, conservador } = r.superacionTerreno
   if (principal.estado !== 'modelada' || principal.probabilidad === null) return null
   return {
@@ -307,6 +330,7 @@ function rioProbabilisticoDe(r: ResultadoEscuelaV04, tendencia: AlcanceTendencia
     version: principal.version ?? 'desconocida',
     diagnostico: principal.diagnostico,
     tendencia,
+    alcanceMargen,
   }
 }
 

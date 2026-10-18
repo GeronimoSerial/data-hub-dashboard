@@ -137,6 +137,29 @@ export function estimarSuperacionTerreno(params: {
   return salida
 }
 
+/**
+ * P(máximo del nivel en el sitio dentro de la ventana ≥ cota) para varias cotas
+ * arbitrarias (p. ej. cota conservadora − margen de error vertical), con el
+ * mismo ensamble y la misma transferencia km que `estimarSuperacionTerreno`.
+ * null si la ubicación o el ensamble no permiten trayectorias.
+ */
+export function probabilidadesSobreCotas(params: {
+  ubicacion: UbicacionRio | UbicacionNoEstimable
+  ensamble: EnsambleConjunto | null
+  cotasM: readonly number[]
+}): Record<HorizonteV04, number[]> | null {
+  const { ubicacion: u } = params
+  if (u.estado !== 'ubicada' || params.ensamble === null) return null
+  const tray = trayectoriasSitio(u, params.ensamble)
+  if (!('niveles' in tray)) return null
+  const salida = {} as Record<HorizonteV04, number[]>
+  for (const h of HORIZONTES_V04) {
+    const maximos = tray.niveles.map((n) => Math.max(...n.slice(0, DIAS_HORIZONTE[h])))
+    salida[h] = params.cotasM.map((c) => maximos.filter((m) => m >= c).length / maximos.length)
+  }
+  return salida
+}
+
 // Huso fijo UTC-3, igual que la serie diaria A5 (T3).
 const DESFASE_LOCAL_MS = 3 * 3600 * 1000
 

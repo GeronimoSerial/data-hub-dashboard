@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { crearPuertosFake, type EscenarioFake } from './__fixtures__/puertos-fake'
 import { calcularRiesgoEscuela } from './calculo'
+import type { EvidenciaRioProbabilistica } from './tipos'
 import type { IndicadoresSusceptibilidad, NivelPeligroCelda, PuertosMotor, ResumenHistorial } from './puertos'
 
 const CUE = 'CUE-V04'
@@ -248,20 +249,58 @@ describe('reglas v0.4 — F3 pisos por río según alcance', () => {
       ventanaHoras: 24 as const,
       metodo: 'analogos-v2+transferencia-km',
       version: 'superacion-terreno-v1',
-      tendencia: { alcanza: alcanzaTendencia, nivelSitioM: 48.2, cotaM: 48, subidaM: 0.36 },
+      tendencia: { alcanza: alcanzaTendencia, nivelSitioM: alcanzaTendencia ? 48.2 : 41, cotaM: 48, subidaM: 0.36 },
     })
     const bajo = await calcularH(p, 24, prob(0.02))
     expect(bajo.scoreRiesgo).toBeLessThan(25)
-    expect(bajo.factores.find((f) => f.fuente === 'rio-v04')!.explicacion).toContain('alcance_observado no')
+    expect(bajo.factores.find((f) => f.fuente === 'rio-v04')!.explicacion).toContain('alcance_observado ninguno')
     const pCons = await calcularH(p, 24, prob(0.06))
     expect(pCons.scoreRiesgo).toBe(50)
-    expect(pCons.factores.find((f) => f.fuente === 'rio-v04')!.explicacion).toContain('alcance_observado p_conservador 0.06 >= 0.05')
+    expect(pCons.factores.find((f) => f.fuente === 'rio-v04')!.explicacion).toContain('alcance_observado completo: p_umbral 0.06 >= 0.05')
     const tendencia = await calcularH(p, 24, prob(0, true))
     expect(tendencia.scoreRiesgo).toBe(50)
-    expect(tendencia.factores.find((f) => f.fuente === 'rio-v04')!.explicacion).toContain('alcance_observado tendencia nivel_sitio 48.2m >= cota 48m')
+    expect(tendencia.factores.find((f) => f.fuente === 'rio-v04')!.explicacion).toContain('alcance_observado completo: tendencia nivel_sitio 48.2m >= umbral 46m')
     // Con reglas v0.3 el piso observado se aplica igual aunque P sea 0.
     const v03 = await calcularRiesgoEscuela({ cueAnexo: CUE, horizonte: 24, asOf: AS_OF, puertos: p, rioProbabilistico: prob(0.02) })
     expect(v03.scoreRiesgo).toBeGreaterThanOrEqual(50)
+  })
+
+  it('zona modelada: mismo margen de error vertical y banda que la zona DEM', async () => {
+    const p = conRio('evacuacion', { 24: 'ninguno', 72: 'ninguno', 240: 'ninguno' })
+    // Nivel máximo posible en el sitio 46.5 m (tendencia); P exacta 0.
+    const prob = (cotaM: number, extra: Partial<EvidenciaRioProbabilistica> = {}): EvidenciaRioProbabilistica => ({
+      principal: 0,
+      conservador: 0,
+      ventanaHoras: 24,
+      metodo: 'analogos-v2+transferencia-km',
+      version: 'superacion-terreno-v1',
+      tendencia: { alcanza: false, nivelSitioM: 46.5, cotaM, subidaM: 0.3 },
+      ...extra,
+    })
+    const rio = (r: Awaited<ReturnType<typeof calcularH>>) => r.factores.find((f) => f.fuente === 'rio-v04')!.explicacion
+    // 1,5 m sobre el máximo posible → dentro del margen de 2 m → piso completo.
+    const completo = await calcularH(p, 24, prob(48))
+    expect(completo.scoreRiesgo).toBe(50)
+    expect(rio(completo)).toContain('alcance_observado completo: tendencia nivel_sitio 46.5m >= umbral 46m')
+    expect(rio(completo)).toContain('cota_conservadora 48m; margen_error 2m; banda 2m')
+    // 3 m sobre el máximo → banda → piso un nivel menor (evacuación → moderado).
+    const reducido = await calcularH(p, 24, prob(49.5))
+    expect(reducido.scoreRiesgo).toBe(25)
+    expect(reducido.nivelRiesgo).toBe('moderado')
+    expect(rio(reducido)).toContain('alcance_observado reducido')
+    // 5 m sobre el máximo → sin piso.
+    const ninguno = await calcularH(p, 24, prob(51.5))
+    expect(ninguno.scoreRiesgo).toBeLessThan(25)
+    expect(rio(ninguno)).toContain('alcance_observado ninguno')
+    // La probabilidad del ensamble contra cota − margen también decide.
+    const porP = await calcularH(p, 24, prob(51.5, { alcanceMargen: { cotaConservadoraM: 51.5, pUmbral: 0.1, pBanda: 0.3 } }))
+    expect(porP.scoreRiesgo).toBe(50)
+    expect(rio(porP)).toContain('alcance_observado completo: p_umbral 0.1 >= 0.05')
+    const porBanda = await calcularH(p, 24, prob(51.5, { alcanceMargen: { cotaConservadoraM: 51.5, pUmbral: 0.01, pBanda: 0.2 } }))
+    expect(porBanda.scoreRiesgo).toBe(25)
+    // Pisos probabilísticos: contra el terreno SIN margen (sin cambios).
+    const alto = await calcularH(p, 24, prob(60, { principal: 0.6, conservador: 0.7 }))
+    expect(alto.nivelRiesgo).toBe('alto')
   })
 })
 

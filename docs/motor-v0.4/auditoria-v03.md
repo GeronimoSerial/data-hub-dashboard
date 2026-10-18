@@ -236,13 +236,39 @@ Goya 34 → 42 de 65, Esquina 30 → 38 de 39) a costa de 1,5–2× falsas alarm
 
 ### Limitaciones
 
-- La zona modelada no tiene margen de error vertical: decide con la cota
-  conservadora y la probabilidad, por eso Corrientes y Goya bajan más de lo que
-  anticipaba el criterio DEM (> 3 m sobre el agua). Datum de ceros INA
-  supuesto (SRVN71 frente a SRVN16) sin verificar.
+- Zona modelada con margen (T10b, decisión del usuario 2026-10-18): ver
+  "T10b" abajo. Datum de ceros INA supuesto (SRVN71 frente a SRVN16) sin
+  verificar.
 - En prod la serie diaria A5 todavía no se ingesta (T3 no desplegado): el job
   candidato tendría análogos `s/d` y sólo tendencia y onda.
 - Sin historia de lecturas de Prefectura, el backtest de tendencia usa A5.
+
+## T10b — Margen de error vertical en la zona modelada
+
+Mismo margen (`MARGEN_ERROR_DEM_V04_M` = 2 m) y banda (`BANDA_EXPOSICION_V04_M`
+= 2 m) que la zona DEM, constantes únicas en `motor/config.ts`.
+umbral = cota_conservadora − margen. Piso observado completo si
+`P(máx nivel sitio ≥ umbral) ≥ 0,05` o la tendencia llega al umbral; un nivel
+menor (evacuación → moderado; alerta → ninguno) si sólo llega a umbral − banda;
+si no, ninguno. Los pisos probabilísticos (T8) siguen contra la cota sin margen.
+Explicación: `alcance_observado <completo|reducido|ninguno>: <criterio> (cota_conservadora …m; margen_error 2m; banda 2m; umbral …m; umbral_banda …m)`.
+
+Re-evaluación (mismo harness, asOf 2026-10-18T02:15:04Z), bajo / moderado / alto / muy alto:
+
+| h | v0.4 T10 | v0.4 T10b |
+|---|---|---|
+| 24 | 1.988 / 1 / 7 / 5 | 1.961 / 20 / 15 / 5 |
+| 72 | 1.985 / 0 / 7 / 9 | 1.939 / 39 / 14 / 9 |
+| 240 | 1.976 / 6 / 7 / 12 | 1.906 / 66 / 17 / 12 |
+
+- De las 149 quedan 40 / 60 / 84 (antes 13 / 15 / 22). 24 h: Goya 22, Paso de
+  la Patria 11, Puerto Boca 5, General Alvear 1, Apipé Grande 1. 240 h: Goya 51,
+  Corrientes 13, Paso de la Patria 12, Puerto Boca 5, Itatí, General Alvear y
+  Apipé Grande 1.
+- Entran 0 / 2 / 11 (antes 0 / 1 / 3).
+- Pares vecinos ≤ 150 m divergentes: 12 / 16 / 25 (antes 4 / 4 / 15); el
+  piso reducido agrega escalones moderado/bajo en bordes de la banda.
+- Alcance en la zona modelada a 24 h: completo 28, reducido 47, ninguno 381.
 
 ## Fuera de T10
 

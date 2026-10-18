@@ -175,9 +175,12 @@ export const BASE_COMBINACION_V04 = 0.5
 
 // F3 — Exposición v0.4: terreno de la escuela contra el agua POSIBLE dentro
 // del horizonte (decisión del usuario 2026-10-18), no sólo la existente.
-// Zona modelada (superación del terreno v0.4): el piso observado se aplica si
-// P_conservador(h) ≥ UMBRAL_ALCANZABLE_V04 o si el escenario de tendencia
-// alcanza la cota conservadora. Resto con DEM evaluable:
+// Zona modelada (superación del terreno v0.4; T10b, mismo margen y banda que
+// la zona DEM): umbral = cota_conservadora − MARGEN_ERROR_DEM_V04_M; piso
+// completo si P(máx nivel sitio ≥ umbral) ≥ UMBRAL_ALCANZABLE_V04 o la
+// tendencia llega al umbral; un nivel menor si sólo llega a umbral − BANDA;
+// si no, sin piso. Los pisos probabilísticos usan la cota SIN margen.
+// Resto con DEM evaluable:
 //   agua_posible(h) = nivel_rio_dem + anomalía_actual + subida_posible(h)
 //   margen = agua_posible + MARGEN_ERROR_DEM_V04_M − suelo
 //   margen ≥ 0 → piso completo; −BANDA ≤ margen < 0 → piso un nivel menor;

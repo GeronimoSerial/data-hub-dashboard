@@ -24,6 +24,8 @@ import {
   RIO_V04_MAPEO_VERSION,
   TOPE_PROFUNDIDAD_FLUVIAL_V04_M,
   UMBRAL_ALCANZABLE_V04,
+  MARGEN_ERROR_DEM_V04_M,
+  BANDA_EXPOSICION_V04_M,
   UMBRAL_ALTO,
   UMBRAL_MODERADO,
   UMBRAL_MUY_ALTO,
@@ -410,7 +412,7 @@ export async function calcularRiesgoEscuela(params: {
   const nivelPiso: 'completo' | 'reducido' | 'ninguno' =
     rio === null ? 'ninguno'
     : !v04 ? 'completo'
-    : rioProb !== null ? (alcanceModelado!.alcanza ? 'completo' : 'ninguno')
+    : rioProb !== null ? alcanceModelado!.nivel
     : alcanceV04
   const pisoAmenazaRio =
     rio === null || nivelPiso === 'ninguno' ? null
@@ -681,20 +683,39 @@ function explicacionRioV04(
   return alcance === undefined ? base : `${base}; alcance_observado ${alcance}`
 }
 
-// Reglas v0.4 (F3), zona modelada: el agua es alcanzable si P conservadora
-// (o la principal si la conservadora no se modeló) llega al umbral, o si el
-// escenario de tendencia alcanza la cota conservadora en el sitio.
-function alcanceObservadoModelado(rioProb: EvidenciaRioProbabilistica): { alcanza: boolean; texto: string } {
-  const p = rioProb.conservador ?? rioProb.principal
-  if (p !== null && p >= UMBRAL_ALCANZABLE_V04) {
-    return { alcanza: true, texto: `p_conservador ${p} >= ${UMBRAL_ALCANZABLE_V04}` }
+// Reglas v0.4 (F3 + T10b), zona modelada: mismo margen de error vertical y
+// banda que la zona DEM. umbral = cota_conservadora − MARGEN_ERROR_DEM_V04_M.
+//   completo: P(máx ≥ umbral) ≥ UMBRAL_ALCANZABLE o tendencia ≥ umbral;
+//   reducido: lo mismo contra umbral − BANDA (piso un nivel menor);
+//   ninguno: el resto.
+// Sin `alcanceMargen` (cota conservadora sin P con margen) se usa la P exacta
+// (conservadora o principal) para ambos umbrales.
+function alcanceObservadoModelado(rioProb: EvidenciaRioProbabilistica): { nivel: 'completo' | 'reducido' | 'ninguno'; texto: string } {
+  const pExacta = rioProb.conservador ?? rioProb.principal
+  const pUmbral = rioProb.alcanceMargen ? rioProb.alcanceMargen.pUmbral : pExacta
+  const pBanda = rioProb.alcanceMargen ? rioProb.alcanceMargen.pBanda : pExacta
+  const t = rioProb.tendencia ?? null
+  const cota = rioProb.alcanceMargen?.cotaConservadoraM ?? t?.cotaM ?? null
+  const redondear = (x: number) => Math.round(x * 100) / 100
+  const umbral = cota === null ? null : redondear(cota - MARGEN_ERROR_DEM_V04_M)
+  const umbralBanda = umbral === null ? null : redondear(umbral - BANDA_EXPOSICION_V04_M)
+  const contexto = `cota_conservadora ${cota ?? 's/d'}m; margen_error ${MARGEN_ERROR_DEM_V04_M}m; banda ${BANDA_EXPOSICION_V04_M}m; umbral ${umbral ?? 's/d'}m; umbral_banda ${umbralBanda ?? 's/d'}m`
+  const tendenciaTexto = t ? `tendencia nivel_sitio ${t.nivelSitioM}m` : 'sin tendencia'
+  const alcanzaP = (p: number | null) => p !== null && p >= UMBRAL_ALCANZABLE_V04
+  if (alcanzaP(pUmbral)) {
+    return { nivel: 'completo', texto: `completo: p_umbral ${pUmbral} >= ${UMBRAL_ALCANZABLE_V04} (${contexto})` }
   }
-  const t = rioProb.tendencia
-  if (t?.alcanza) {
-    return { alcanza: true, texto: `tendencia nivel_sitio ${t.nivelSitioM}m >= cota ${t.cotaM}m (subida ${t.subidaM}m)` }
+  if (t && umbral !== null && t.nivelSitioM >= umbral) {
+    return { nivel: 'completo', texto: `completo: ${tendenciaTexto} >= umbral ${umbral}m (subida ${t.subidaM}m; ${contexto})` }
+  }
+  if (alcanzaP(pBanda)) {
+    return { nivel: 'reducido', texto: `reducido: p_banda ${pBanda} >= ${UMBRAL_ALCANZABLE_V04} (p_umbral ${pUmbral}; ${contexto})` }
+  }
+  if (t && umbralBanda !== null && t.nivelSitioM >= umbralBanda) {
+    return { nivel: 'reducido', texto: `reducido: ${tendenciaTexto} >= umbral_banda ${umbralBanda}m (subida ${t.subidaM}m; ${contexto})` }
   }
   return {
-    alcanza: false,
-    texto: `no (p_conservador ${p ?? 's/d'} < ${UMBRAL_ALCANZABLE_V04}${t ? `; tendencia nivel_sitio ${t.nivelSitioM}m < cota ${t.cotaM}m` : '; sin tendencia'})`,
+    nivel: 'ninguno',
+    texto: `ninguno (p_umbral ${pUmbral ?? 's/d'}, p_banda ${pBanda ?? 's/d'} < ${UMBRAL_ALCANZABLE_V04}; ${tendenciaTexto}; ${contexto})`,
   }
 }
