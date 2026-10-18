@@ -169,6 +169,13 @@
       "when": 1792186700412,
       "tag": "0023_prefectura_entregas",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792293711464,
+      "tag": "0024_acceso_osm_edificio",
+      "breakpoints": true
     }
   ]
 }

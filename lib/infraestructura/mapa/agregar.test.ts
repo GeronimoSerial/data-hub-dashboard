@@ -117,7 +117,7 @@ describe('agrupar', () => {
       escuela({ cueAnexo: 'esquina-1', departamento: 'Esquina', gravedad: 3, clases: 'normal' }),
     ]
     const filtros: FiltrosMapa = {
-      q: '', departamentos: ['Goya', 'Capital'], niveles: ['Primario'], direcciones: [], gravedades: [],
+      q: '', departamentos: ['Goya', 'Capital'], direcciones: [], gravedades: [],
       clases: ['sin', 'parcial', 'evacuado'], apoyo: [], sinActualizar: false, solucionadasRecientes: false,
     }
     const filtradas = filtrarEscuelas(padron, filtros)

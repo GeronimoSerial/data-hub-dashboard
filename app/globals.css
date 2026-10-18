@@ -2399,8 +2399,7 @@ time {
   border-radius: 50%;
 }
 .map-leyenda__muestra--neutra {
-  background: var(--page);
-  border: 1.5px solid var(--ink-faint);
+  background: #dcd8d3;
 }
 .map-leyenda__muestra--rombo {
   border-radius: 0;
@@ -5630,7 +5629,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--card);
-  box-shadow: var(--e-float);
 }
 .map-filtros-mas-grupo { display: grid; gap: var(--s-2); }
 .map-filtros-mas-titulo {
@@ -5697,6 +5695,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .filtros-chip--activo:hover { border-color: var(--ink); }
 .filtros-chip svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+/* Long selections (e.g. a Dirección name) truncate so the chip width stays bounded. */
+.filtros-chip__texto { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; }
 .filtros-chip-grupo--activo .filtros-chip { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .filtros-chip__quitar {
   display: inline-flex;
@@ -5724,7 +5724,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-radius: var(--r-md);
   background: var(--page);
   color: var(--ink);
-  box-shadow: var(--e-float);
 }
 .filtros-opcion {
   display: flex;
@@ -6917,3 +6916,104 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   font-weight: 700;
   text-transform: none;
 }
+
+/* Map zoom controls (T4): hub-styled buttons instead of the MapLibre default. */
+.map-zoom-controles {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+[data-radar-activo="true"] .map-zoom-controles { top: 52px; }
+.map-zoom-boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.map-zoom-boton:hover { background: color-mix(in srgb, var(--ink) 6%, var(--card)); border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
+.map-zoom-boton:active { transform: translateY(1px); }
+.map-zoom-boton:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.map-zoom-provincia { padding: 0 10px; margin-top: 4px; }
+@media (max-width: 720px) { .map-zoom-provincia span { display: none; } }
+
+/* River station chip in the legend: mirrors the map chip (T5). */
+/* River station card (click on a Prefectura pin or chip). */
+.tarjeta-estacion { min-width: 16rem; display: grid; gap: var(--s-2); outline: none; }
+.tarjeta-estacion:focus-visible { box-shadow: var(--e-float), 0 0 0 2px var(--ink-faint); }
+.tarjeta-estacion__cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-2); }
+.tarjeta-estacion__titulo { margin: 0; font-size: 1rem; font-weight: 500; line-height: 1.2; }
+.tarjeta-estacion__sub { margin: 0; color: var(--ink-soft); font-size: 0.75rem; }
+.tarjeta-estacion__estado {
+  flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 500;
+  background: var(--line-soft); color: var(--ink);
+}
+.tarjeta-estacion[data-estado='normal'] .tarjeta-estacion__estado { background: var(--ok-tint); color: var(--ok); }
+.tarjeta-estacion[data-estado='alerta'] .tarjeta-estacion__estado { background: var(--warn-tint); color: var(--warn); }
+.tarjeta-estacion[data-estado='evacuacion'] .tarjeta-estacion__estado { background: var(--danger); color: #fff; }
+.tarjeta-estacion__cifras { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2); }
+.tarjeta-estacion__cifra { padding: var(--s-2); border-radius: var(--r-sm); background: var(--line-soft); }
+.tarjeta-estacion__cifra--alerta, .tarjeta-estacion__cifra--evacuacion { background: var(--card); box-shadow: inset 0 0 0 1px var(--line), inset 0 2px 0 var(--warn); }
+.tarjeta-estacion__cifra--evacuacion { box-shadow: inset 0 0 0 1px var(--line), inset 0 2px 0 var(--danger-mark); }
+.tarjeta-estacion__cifra dt { font-size: 0.75rem; color: var(--ink-soft); }
+.tarjeta-estacion__cifra--alerta dt { color: var(--warn); }
+.tarjeta-estacion__cifra--evacuacion dt { color: var(--danger-ink); }
+.tarjeta-estacion__cifra dd { margin: 2px 0 0; font-size: 1.375rem; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tarjeta-estacion__cifra--actual-normal { background: var(--ok-tint); }
+.tarjeta-estacion__cifra--actual-alerta { background: var(--warn-tint); box-shadow: inset 0 0 0 1.5px var(--warn); }
+.tarjeta-estacion__cifra--actual-evacuacion { background: var(--danger-tint); box-shadow: inset 0 0 0 1.5px var(--danger-mark); }
+.tarjeta-estacion__cifra--actual-normal dd { color: var(--ok); }
+.tarjeta-estacion__cifra--actual-alerta dd { color: var(--warn); }
+.tarjeta-estacion__cifra--actual-evacuacion dd { color: var(--danger-ink); }
+.tarjeta-estacion__cifra dd.tarjeta-estacion__exceso { margin-top: 2px; font-size: 0.6875rem; line-height: 1.2; white-space: normal; }
+.tarjeta-estacion__unidad { font-size: 0.8125rem; color: var(--ink-soft); }
+.tarjeta-estacion__hora { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
+.tarjeta-estacion__aviso { color: var(--warn); }
+.tarjeta-estacion__grafico { margin: 0; display: grid; gap: 2px; }
+.tarjeta-estacion__grafico svg { display: block; overflow: visible; }
+.tarjeta-estacion__linea { fill: none; stroke: var(--ink); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+.tarjeta-estacion__punto { fill: var(--ink); stroke: var(--card); stroke-width: 1.5; }
+.tarjeta-estacion__umbral--alerta, .tarjeta-estacion__umbral--evacuacion { stroke-width: 1; stroke-dasharray: 3 3; }
+.tarjeta-estacion__umbral--alerta { stroke: var(--warn); }
+.tarjeta-estacion__umbral--evacuacion { stroke: var(--danger-mark); }
+.tarjeta-estacion__umbral-texto { font-size: 10px; font-weight: 600; paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
+.tarjeta-estacion__umbral-texto--alerta { fill: var(--warn); }
+.tarjeta-estacion__umbral-texto--evacuacion { fill: var(--danger-mark); }
+.tarjeta-estacion__datos { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2) var(--s-3); border-top: 1px solid var(--line-soft); padding-top: var(--s-2); }
+.tarjeta-estacion__datos dt { color: var(--ink-soft); font-size: 0.75rem; }
+.tarjeta-estacion__datos dd { margin: 0; font-size: 0.8125rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.tarjeta-lluvia { min-width: 15rem; display: grid; gap: var(--s-2); }
+.tarjeta-lluvia__clase { flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; background: var(--line-soft); color: var(--ink-soft); }
+.tarjeta-lluvia__cifra { margin: 0; font-size: 2rem; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+.tarjeta-lluvia__decimal { font-size: 1.25rem; }
+.tarjeta-lluvia__escala { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+.tarjeta-lluvia__escala span { height: 6px; border-radius: 2px; opacity: 0.35; }
+.tarjeta-lluvia__escala span[data-activa] { opacity: 1; height: 10px; margin-top: -2px; box-shadow: 0 0 0 1.5px var(--card), 0 0 0 2.5px var(--ink); }
+.tarjeta-lluvia__escala-ejes { display: flex; justify-content: space-between; margin-top: -4px; color: var(--ink-soft); font-size: 0.6875rem; font-variant-numeric: tabular-nums; }
+.tarjeta-lluvia__aviso { margin: 0; padding: var(--s-2); border-radius: var(--r-sm); background: var(--warn-tint); color: var(--warn); font-size: 0.75rem; }
+.tarjeta-lluvia__fuente { display: flex; align-items: center; gap: var(--s-2); border-top: 1px solid var(--line-soft); padding-top: var(--s-2); }
+.tarjeta-lluvia__fuente-nombre { margin: 0; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.02em; }
+.tarjeta-cruce { min-width: 16rem; }
+.tarjeta-cruce__clase { flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; color: #fff; background: var(--ink-soft); }
+.tarjeta-cruce[data-clase='puente'] .tarjeta-cruce__clase { background: var(--ok); }
+.tarjeta-cruce[data-clase='vado'] .tarjeta-cruce__clase,
+.tarjeta-cruce[data-clase='vado_probable'] .tarjeta-cruce__clase { background: var(--warn); }
+.tarjeta-cruce__descripcion { margin: 0; font-size: 0.8125rem; }
+.tarjeta-cruce__ruta { display: grid; gap: 2px; border-top: 1px solid var(--line-soft); padding-top: var(--s-2); }
+.tarjeta-cruce__escuela { margin: 0; font-size: 0.8125rem; font-weight: 500; }

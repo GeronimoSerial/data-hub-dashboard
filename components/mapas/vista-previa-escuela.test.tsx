@@ -125,6 +125,21 @@ describe('VistaPreviaEscuela', () => {
     expect(screen.queryByText('Afecta al establecimiento')).toBeNull()
   })
 
+  it('muestra el nivel de aislamiento solo cuando la escuela tiene dato', () => {
+    const props = {
+      escuela: crearEscuelaBase(),
+      urlFichaCompleta: '/mapas/infraestructura/escuelas/1800123-00',
+      onCerrarVistaPrevia: vi.fn(),
+      onQuitarSeleccion: vi.fn(),
+    }
+    const { rerender } = render(<VistaPreviaEscuela {...props} aislamiento={3} />)
+    expect(screen.getByTestId('preview-aislamiento')).toHaveTextContent('AislamientoAlta')
+
+    rerender(<VistaPreviaEscuela {...props} distanciaLocalidad={{ nombre: 'Goya', km: 12.4 }} />)
+    expect(screen.queryByTestId('preview-aislamiento')).toBeNull()
+    expect(screen.getByTestId('preview-distancia-localidad')).toHaveTextContent('12 km por caminoGoya')
+  })
+
   it('muestra alumnos afectados sobre la matrícula y su porcentaje', () => {
     const escuela = { ...crearEscuelaBase(), clases: 'sin' as const, alumnosSinClases: 124 }
 

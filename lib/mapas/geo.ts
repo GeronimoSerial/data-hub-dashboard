@@ -125,3 +125,19 @@ export function distanciaMinimaAlContorno(
   }
   return minimo
 }
+
+/** Bounding box `[[oeste, sur], [este, norte]]` of a Polygon/MultiPolygon, or null when empty. */
+export function bboxGeometria(geom: Polygon | MultiPolygon | null): [Punto, Punto] | null {
+  if (!geom) return null
+  const poligonos = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates
+  let oeste = Infinity, sur = Infinity, este = -Infinity, norte = -Infinity
+  for (const anillos of poligonos) {
+    for (const [lon, lat] of anillos[0] ?? []) {
+      if (lon < oeste) oeste = lon
+      if (lon > este) este = lon
+      if (lat < sur) sur = lat
+      if (lat > norte) norte = lat
+    }
+  }
+  return Number.isFinite(oeste) ? [[oeste, sur], [este, norte]] : null
+}

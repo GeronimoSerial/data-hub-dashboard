@@ -1516,6 +1516,14 @@ export type CruceAccesoOsm = {
   lon: number
   lat: number
   clasificacion: 'puente' | 'vado' | 'vado_probable' | 'sin_evidencia'
+  // OSM `name` of the crossed waterway; absent in rows imported before it existed.
+  nombreCurso?: string | null
+  // Bridge `bridge:name`/`name` for bridge crossings; absent in older rows.
+  nombrePuente?: string | null
+  // OSM `waterway` value of the crossed waterway (river, stream, canal...); absent in older rows.
+  tipoCurso?: string | null
+  // true for intermittent=yes or seasonal=yes, false only when tagged `no`, null when unknown.
+  intermitente?: boolean | null
 }
 
 export type RutaGeoJson = {
@@ -1523,10 +1531,28 @@ export type RutaGeoJson = {
   coordinates: Array<[number, number]>
 }
 
+/** Metres of the access route by surface (geo-static job v4, 2026-10-17 run onwards). */
+export type SuperficiesAcceso = {
+  pavimentado: number
+  ripio: number
+  tierra: number
+}
+
 export type ViaPrincipalAcceso = {
   nombre: string | null
   tipo: string
   pavimentada: boolean
+}
+
+// Huella OSM del edificio escolar asociada por el job geo-static
+// (`edificio_escolar.py`). `poligono` null con `asociacion: 'ambigua'` = varios
+// candidatos empatados; la coordenada de la escuela nunca se toca.
+export type EdificioOsm = {
+  asociacion: 'dentro' | 'nombre' | 'cercania' | 'ambigua'
+  distanciaM: number | null
+  osmId: number | string | null
+  poligono: { type: 'Polygon' | 'MultiPolygon'; coordinates: unknown } | null
+  candidatos: number
 }
 
 // Geometría OSM usada por el cálculo de aislamiento (ruta escuela → localidad
@@ -1537,11 +1563,12 @@ export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
   cueAnexo: text('cue_anexo').notNull(),
   versionJob: text('version_job').notNull(),
   ruta: jsonb('ruta').$type<RutaGeoJson>(),        // GeoJSON LineString | null
-  cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion}]
+  cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion, nombreCurso?, nombrePuente?}]
   viaPrincipal: text('via_principal'),
   destinoNombre: text('destino_nombre'),
   distanciaDestinoM: real('distancia_destino_m'),
   motivoSinGeometria: text('motivo_sin_geometria'),
+  edificio: jsonb('edificio').$type<EdificioOsm>(),  // huella del edificio | null (extractos previos)
   fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
   licencia: text('licencia').notNull(),
   importadoEn: text('importado_en').notNull(),

@@ -62,6 +62,7 @@ function filaGeometria(
     viaPrincipal: null,
     destinoNombre: null,
     distanciaDestinoM: null,
+    edificio: null,
     fechaExtractoOsm: '2026-01-01',
     licencia: 'ODbL-1.0',
     importadoEn: '2026-01-01T00:00:00Z',
@@ -276,6 +277,7 @@ describe('construirRespuestaGeometria', () => {
       motivo: 'sin_conexion_red',
       fechaExtractoOsm: '2026-01-01',
       licencia: 'ODbL-1.0',
+      edificio: null,
     })
     expect(respuesta).not.toHaveProperty('atribucion')
   })
@@ -321,8 +323,22 @@ describe('construirRespuestaGeometria', () => {
       viaPrincipal: null,
       destino: null,
       distanciaKm: null,
+      superficies: null,
+      edificio: null,
     })
     expect(respuesta).not.toHaveProperty('atribucion')
+  })
+
+  it('expone la huella del edificio aun cuando la fila no tiene ruta', () => {
+    const edificio = {
+      asociacion: 'dentro' as const,
+      distanciaM: 0,
+      osmId: 123,
+      poligono: { type: 'Polygon' as const, coordinates: [[[-60.5, -31.7], [-60.49, -31.7], [-60.49, -31.69], [-60.5, -31.7]]] },
+      candidatos: 1,
+    }
+    const sinRuta = construirRespuestaGeometria('CUE-1', filaGeometria({ cueAnexo: 'CUE-1', versionJob: '5', edificio }))
+    expect(sinRuta.edificio).toEqual(edificio)
   })
 
   it('incluye la vía principal, el destino y la distancia convertida a kilómetros', () => {
@@ -344,6 +360,25 @@ describe('construirRespuestaGeometria', () => {
       destino: { nombre: 'Saladas' },
       distanciaKm: 14,
     })
+  })
+
+  it('expone las superficies guardadas en el JSON de vía principal y null si faltan', () => {
+    const superficies = { pavimentado: 8000, ripio: 3000, tierra: 1400 }
+    const conSuperficies = construirRespuestaGeometria('CUE-1', filaGeometria({
+      cueAnexo: 'CUE-1',
+      versionJob: '4',
+      ruta: { type: 'LineString', coordinates: [[-60.5, -31.7]] },
+      viaPrincipal: JSON.stringify({ nombre: null, tipo: 'track', pavimentada: false, superficies }),
+    }))
+    expect(conSuperficies).toMatchObject({ superficies, viaPrincipal: { tipo: 'track', pavimentada: false } })
+
+    const sinSuperficies = construirRespuestaGeometria('CUE-1', filaGeometria({
+      cueAnexo: 'CUE-1',
+      versionJob: '4',
+      ruta: { type: 'LineString', coordinates: [[-60.5, -31.7]] },
+      viaPrincipal: JSON.stringify({ nombre: null, tipo: 'track', pavimentada: false }),
+    }))
+    expect(sinSuperficies).toMatchObject({ superficies: null })
   })
 
   it('expone null en los datos de vía y destino para una fila vieja', () => {

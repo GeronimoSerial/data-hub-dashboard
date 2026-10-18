@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { formatearFechaLocal } from '@/components/mapas/capa-estaciones-rio'
+import { LogoNasa } from '@/components/mapas/logo-nasa'
+import { haceCuanto } from '@/components/mapas/tarjeta-estacion-rio'
 
 export type HorasLluvia = 24 | 72
 
@@ -53,7 +55,9 @@ const REGIONES_INTERES: ReadonlyArray<{ lon: [number, number]; lat: [number, num
 ]
 const ANCHO_TRANSICION = 0.4
 
-const ID_HIT = 'lluvia-observada-hit'
+// Exported so other map handlers can read the cell under a click (e.g. the water crossing card).
+export const ID_CAPA_LLUVIA_HIT = 'lluvia-observada-hit'
+const ID_HIT = ID_CAPA_LLUVIA_HIT
 
 /** 1 dentro de las regiones de interés; cae linealmente a 0 a 0,4° fuera de ellas. */
 function factorRegion(lon: number, lat: number): number {
@@ -141,10 +145,6 @@ function urlDeGrilla(grilla: GrillaLluvia): string | null {
   } catch {
     return null
   }
-}
-
-function formatoMm(valor: number): string {
-  return `${valor.toFixed(1).replace('.', ',')} mm`
 }
 
 type ClicLluvia = { lon: number; lat: number; propiedades: PropiedadesCelda }
@@ -247,7 +247,7 @@ function CapaLluviaObservadaActiva({
             id="lluvia-observada-raster"
             type="raster"
             beforeId={beforeId}
-            paint={{ 'raster-opacity': 0.65, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }}
+            paint={{ 'raster-opacity': 0.35, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }}
           />
         </Source>
       )}
@@ -255,23 +255,77 @@ function CapaLluviaObservadaActiva({
         <Layer id={ID_HIT} type="fill" beforeId={beforeId} paint={{ 'fill-opacity': 0 }} />
       </Source>
       {clic && !sinPopup && (
-        <Popup longitude={clic.lon} latitude={clic.lat} anchor="bottom" onClose={() => setClic(null)} closeOnClick={false}>
-          <div className="map-popup">
-            <p className="map-popup-title">Lluvia observada {horas} h: {formatoMm(clic.propiedades.acumuladoMm)}</p>
-            {respuesta.desde && respuesta.hasta && (
-              <p className="map-popup-row">
-                Ventana: {formatearFechaLocal(respuesta.desde)}–{formatearFechaLocal(respuesta.hasta)}
-              </p>
-            )}
-            {clic.propiedades.parcial && (
-              <p className="map-popup-row">
-                Ventana incompleta: {clic.propiedades.granulos}/{clic.propiedades.esperados} gránulos (cobertura{' '}
-                {Math.round(clic.propiedades.cobertura)} %) — el valor puede subestimar la lluvia.
-              </p>
-            )}
-          </div>
+        <Popup longitude={clic.lon} latitude={clic.lat} anchor="bottom" maxWidth="320px" onClose={() => setClic(null)} closeOnClick={false}>
+          <TarjetaLluvia horas={horas} desde={respuesta.desde} hasta={respuesta.hasta} celda={clic.propiedades} />
         </Popup>
       )}
     </>
+  )
+}
+
+function TarjetaLluvia({
+  horas,
+  desde,
+  hasta,
+  celda,
+}: {
+  horas: HorasLluvia
+  desde: string | null
+  hasta: string | null
+  celda: PropiedadesCelda
+}) {
+  const clase = celda.acumuladoMm >= 1 ? claseDe(celda.acumuladoMm) : null
+  const indice = clase ? CLASES_LLUVIA.indexOf(clase) : -1
+  const [entero, decimal] = celda.acumuladoMm.toFixed(1).split('.')
+
+  return (
+    <div className="map-popup tarjeta-lluvia">
+      <div className="tarjeta-estacion__cabecera">
+        <div>
+          <h3 className="tarjeta-estacion__titulo">Lluvia observada</h3>
+          <p className="tarjeta-estacion__sub">Acumulado de las últimas {horas} h</p>
+        </div>
+        <span className="tarjeta-lluvia__clase" style={clase ? { background: clase.color, color: indice >= 3 ? '#fff' : '#0b2540' } : undefined}>
+          {clase ? clase.etiqueta : 'Menos de 1 mm'}
+        </span>
+      </div>
+
+      <p className="tarjeta-lluvia__cifra">
+        {entero}
+        <span className="tarjeta-lluvia__decimal">,{decimal}</span>
+        <span className="tarjeta-estacion__unidad"> mm</span>
+      </p>
+
+      <div className="tarjeta-lluvia__escala" aria-hidden="true">
+        {CLASES_LLUVIA.map((c, i) => (
+          <span key={c.desde} style={{ background: c.color }} data-activa={i === indice || undefined} />
+        ))}
+      </div>
+      <div className="tarjeta-lluvia__escala-ejes" aria-hidden="true">
+        <span>1</span><span>150+ mm</span>
+      </div>
+
+      {desde && hasta && (
+        <p className="tarjeta-estacion__hora">
+          <time dateTime={hasta}>Actualizado {haceCuanto(hasta, new Date())}</time>
+          {' · '}
+          {formatearFechaLocal(desde)} – {formatearFechaLocal(hasta)}
+        </p>
+      )}
+
+      {celda.parcial && (
+        <p className="tarjeta-lluvia__aviso">
+          Faltan pasadas del satélite en esta ventana ({Math.round(celda.cobertura)} % cubierto): la lluvia real puede ser mayor.
+        </p>
+      )}
+
+      <div className="tarjeta-lluvia__fuente">
+        <LogoNasa size={26} />
+        <div>
+          <p className="tarjeta-lluvia__fuente-nombre">NASA IMERG</p>
+          <p className="tarjeta-estacion__sub">Constelación de satélites NASA · JAXA</p>
+        </div>
+      </div>
+    </div>
   )
 }
