@@ -160,10 +160,14 @@ function respuestasDeConsistencia(datos: {
 const PASO_DESDE_CUANDO: Paso = 4
 const PASO_CONFIRMAR: Paso = 5
 
-// Alumnos no pregunta por clases ni edificio: su recorrido salta el paso 3,
-// y el indicador "Paso X de N" cuenta sólo los pasos que realmente recorre.
-function pasosDe(categoria: AfectacionBorrador['categoria']): Paso[] {
-  return categoria === 'alumnos' ? [1, 2, 4, 5] : [1, 2, 3, 4, 5]
+// Alumnos no pregunta por clases ni edificio, pero sí por la asistencia
+// pedagógica: su paso 3 muestra sólo esa pregunta.
+function pasosDe(_categoria: AfectacionBorrador['categoria']): Paso[] {
+  return [1, 2, 3, 4, 5]
+}
+
+function tituloPaso(paso: Paso, categoria: AfectacionBorrador['categoria']): string {
+  return paso === 3 && categoria === 'alumnos' ? 'Asistencia pedagógica' : PASOS[paso - 1]
 }
 
 // Borrador de sesión (#32): F5 no debería empezar el asistente de cero. La
@@ -606,11 +610,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       })
     }
     limpiarVinculoVerificacion()
-    // indicePaso, no paso - 1: con pasosDe([1,2,4]) para categoría
-    // 'alumnos', paso puede ser 4 sin que exista un paso 3 real en el
-    // historial — indicePaso ya cuenta correctamente cuántas entradas
-    // de historial se empujaron (ver pasos/indicePaso más arriba en el
-    // componente).
+    // indicePaso cuenta cuántas entradas de historial se empujaron (ver
+    // pasos/indicePaso más arriba en el componente).
     colapsarHistorial(indicePaso)
     // The queue entry is gone after a successful send: drop its last known
     // state too, or the next report starts with the button stuck on "Guardando…".
@@ -787,8 +788,10 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     }
     if (actual === 3) {
       const faltantes: string[] = []
-      if (servicioEstado === '') faltantes.push('Indique si hay clases.')
-      if (estadoEstablecimiento === '') faltantes.push(MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO)
+      if (afectacion.categoria !== 'alumnos') {
+        if (servicioEstado === '') faltantes.push('Indique si hay clases.')
+        if (estadoEstablecimiento === '') faltantes.push(MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO)
+      }
       if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) {
         faltantes.push('Elija al menos una modalidad de asistencia pedagógica.')
       }
@@ -904,7 +907,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           },
     estadoEstablecimiento: afectacion.categoria === 'alumnos' ? '' : estadoEstablecimiento,
     rigeDesde: resolverVigencia(vigencia) ?? new Date().toISOString(),
-    ...(afectacion.categoria === 'alumnos' || asistenciaBrinda === ''
+    ...(asistenciaBrinda === ''
       ? {}
       : { asistenciaPedagogica: { brinda: asistenciaBrinda === 'si', modalidades: modalidadesAsistencia } }),
     fotosAdjuntas: cantidadFotos,
@@ -941,7 +944,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       {borradorPendiente ? null : (
         <>
       <h3 id="asistente-paso-titulo" className="asistente__titulo asistente__titulo--paso">
-        {PASOS[paso - 1]}
+        {tituloPaso(paso, afectacion.categoria)}
       </h3>
       <div className="asistente__progreso">
         <p className="asistente__contador">
@@ -956,7 +959,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
               }`}
               aria-current={numero === paso ? 'step' : undefined}
             >
-              <span className="asistente__paso-texto">{PASOS[numero - 1]}</span>
+              <span className="asistente__paso-texto">{tituloPaso(numero, afectacion.categoria)}</span>
             </li>
           ))}
         </ol>
@@ -1021,6 +1024,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
 
         {paso === 3 && (
           <>
+            {afectacion.categoria !== 'alumnos' && (
             <CamposClasesEdificio
               valor={{ servicioEstado, estadoEstablecimiento }}
               onCambiar={(x) => {
@@ -1041,6 +1045,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
               }}
               disabled={enviando}
             />
+            )}
 
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
               <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
