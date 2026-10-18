@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type FilaDiaria, PARAMETROS_ANALOGOS_V1, crearSerieDiaria } from './analogos'
-import { type RegistroEvaluacion, agruparEpisodios, evaluarEstacion, metricasBrier } from './evaluacion'
+import { type RegistroEvaluacion, agruparEpisodios, evaluarEstacion, metricasBrier, metricasCompletas } from './evaluacion'
 
 function sinusoide(desde: string, hasta: string, futuro?: (fecha: string) => number | null): FilaDiaria[] {
   const filas: FilaDiaria[] = []
@@ -31,6 +31,24 @@ describe('metricasBrier', () => {
   it('skill nulo si la referencia es perfecta (nunca 0 ni infinito)', () => {
     const m = metricasBrier([{ fecha: '2000-01-01', p: 0.2, pClimatologia: 0, pPersistencia: 0, observado: 0 }])
     expect(m.bssClimatologia).toBeNull()
+  })
+})
+
+describe('metricasCompletas', () => {
+  it('puntúa las abstenciones con la climatología y mide la cobertura de positivos', () => {
+    const puntuados: RegistroEvaluacion[] = [
+      { fecha: '2000-01-01', p: 0.8, pClimatologia: 0.5, pPersistencia: 1, observado: 1 },
+      { fecha: '2000-01-08', p: 0, pClimatologia: 0.5, pPersistencia: 0, observado: 0 },
+    ]
+    const abstenidos = [{ fecha: '2000-01-15', pClimatologia: 0.2, observado: 1 as const }]
+    const m = metricasCompletas(puntuados, abstenidos)
+    expect(m.n).toBe(3)
+    expect(m.abstenciones).toBe(1)
+    expect(m.brierCompleto).toBeCloseTo((0.04 + 0 + 0.64) / 3)
+    expect(m.bssClimatologiaCompleto).toBeCloseTo(1 - (0.04 + 0.64) / 3 / ((0.25 + 0.25 + 0.64) / 3))
+    expect(m.positivos).toBe(2)
+    expect(m.positivosConPronostico).toBe(1)
+    expect(m.pMediaPositivos).toBeCloseTo(0.8)
   })
 })
 

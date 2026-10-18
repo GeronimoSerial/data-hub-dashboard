@@ -14,6 +14,7 @@
 // 24/72/240 h comparten miembros, por eso P(24) ≤ P(72) ≤ P(240).
 
 export const MODELO_TEMPORAL_VERSION = 'analogos-v1'
+export type VersionModeloTemporal = 'analogos-v1' | 'analogos-v2'
 
 export type ParametrosAnalogos = {
   /** Edad máxima, en días, de la última lectura para usarla como nivel actual. */
@@ -42,7 +43,7 @@ export const PARAMETROS_ANALOGOS_V1: ParametrosAnalogos = {
 
 export const DIAS_HORIZONTE = { 24: 1, 72: 3, 240: 10 } as const
 export type HorizonteHoras = keyof typeof DIAS_HORIZONTE
-const DIAS_MAX = 10
+export const DIAS_MAX = 10
 const DIA_MS = 86_400_000
 
 export type FilaDiaria = { fecha: string; valorM: number }
@@ -54,8 +55,8 @@ export type SerieDiaria = {
   readonly diaDelAnio: Int16Array
 }
 
-const indiceDia = (fecha: string) => Math.floor(Date.parse(`${fecha}T00:00:00Z`) / DIA_MS)
-const fechaDeIndice = (i: number) => new Date(i * DIA_MS).toISOString().slice(0, 10)
+export const indiceDia = (fecha: string) => Math.floor(Date.parse(`${fecha}T00:00:00Z`) / DIA_MS)
+export const fechaDeIndice = (i: number) => new Date(i * DIA_MS).toISOString().slice(0, 10)
 
 export function crearSerieDiaria(filas: readonly FilaDiaria[]): SerieDiaria {
   if (filas.length === 0) return { inicio: 0, valores: new Float64Array(0), diaDelAnio: new Int16Array(0) }
@@ -80,7 +81,7 @@ export function recortarSerie(serie: SerieDiaria, fecha: string): SerieDiaria {
   return { inicio: serie.inicio, valores: serie.valores.subarray(0, fin), diaDelAnio: serie.diaDelAnio.subarray(0, fin) }
 }
 
-function valor(serie: SerieDiaria, i: number): number {
+export function valor(serie: SerieDiaria, i: number): number {
   return i >= 0 && i < serie.valores.length ? serie.valores[i] : Number.NaN
 }
 
@@ -92,7 +93,7 @@ function claseTendencia(serie: SerieDiaria, i: number, p: ParametrosAnalogos): C
   return t > p.umbralTendenciaM ? 'sube' : t < -p.umbralTendenciaM ? 'baja' : 'estable'
 }
 
-function distanciaEstacional(a: number, b: number): number {
+export function distanciaEstacional(a: number, b: number): number {
   const d = Math.abs(a - b)
   return Math.min(d, 365 - d)
 }
@@ -110,7 +111,7 @@ export function estadoActual(serie: SerieDiaria, asOf: string, p: ParametrosAnal
 }
 
 /** Incrementos Δ1..ΔL desde el índice i; null si falta algún día. */
-function incrementos(serie: SerieDiaria, i: number, largo: number): number[] | null {
+export function incrementos(serie: SerieDiaria, i: number, largo: number): number[] | null {
   const base = valor(serie, i)
   if (Number.isNaN(base)) return null
   const delta: number[] = []
@@ -122,11 +123,11 @@ function incrementos(serie: SerieDiaria, i: number, largo: number): number[] | n
   return delta
 }
 
-export type MotivoNoEstimable = 'nivel_actual_no_disponible' | 'analogos_insuficientes'
+export type MotivoNoEstimable = 'nivel_actual_no_disponible' | 'analogos_insuficientes' | 'analogos_lejanos'
 
 export type EnsambleEstimado = {
   estado: 'estimado'
-  version: typeof MODELO_TEMPORAL_VERSION
+  version: VersionModeloTemporal
   asOf: string
   fechaNivel: string
   h0M: number
@@ -138,11 +139,15 @@ export type EnsambleEstimado = {
    */
   trayectorias: number[][]
   desfaseDias: number
+  /** Sólo `analogos-v2`: distancia de nivel usada y si h0 supera lo visto en la época. */
+  diagnostico?: DiagnosticoAnalogos
 }
+
+export type DiagnosticoAnalogos = { distanciaMaxNivelM: number; fueraDeRangoHistorico: boolean }
 
 export type EnsambleNoEstimable = {
   estado: 'no_estimable'
-  version: typeof MODELO_TEMPORAL_VERSION
+  version: VersionModeloTemporal
   asOf: string
   motivo: MotivoNoEstimable
   analogos: number
@@ -210,7 +215,7 @@ export function cuantilesMaximo(e: Pick<EnsambleEstimado, 'trayectorias' | 'desf
 }
 
 export type MiembrosEstacion =
-  | (Omit<EnsambleEstimado, 'version' | 'asOf'> & { miembrosDescartados: number })
+  | (Omit<EnsambleEstimado, 'version' | 'asOf' | 'diagnostico'> & { miembrosDescartados: number })
   | { estado: 'no_estimable'; motivo: 'nivel_actual_no_disponible' | 'sin_miembros_completos'; miembrosDescartados: number }
 
 export type EnsambleConjunto = { referencia: ResultadoAnalogos; estaciones: Record<string, MiembrosEstacion> }
@@ -218,7 +223,8 @@ export type EnsambleConjunto = { referencia: ResultadoAnalogos; estaciones: Reco
 /**
  * Ensamble conjunto: las fechas análogas las elige la estación de referencia y
  * cada otra estación aporta su propio Δ en esas MISMAS fechas, conservando la
- * dependencia entre estaciones (T6 interpola miembro a miembro). Una fecha sin
+ * dependencia entre estaciones (T6 interpola miembro a miembro). `estimar`
+ * permite elegir la versión del modelo que fija las fechas (v1 por omisión). Una fecha sin
  * ventana completa en una estación elimina ese miembro sólo en esa estación.
  */
 export function ensambleConjunto(
@@ -226,8 +232,9 @@ export function ensambleConjunto(
   otras: Record<string, SerieDiaria>,
   asOf: string,
   p: ParametrosAnalogos = PARAMETROS_ANALOGOS_V1,
+  estimar: (serie: SerieDiaria, asOf: string) => ResultadoAnalogos = (serie, fecha) => estimarAnalogos(serie, fecha, p),
 ): EnsambleConjunto {
-  const ref = estimarAnalogos(referencia, asOf, p)
+  const ref = estimar(referencia, asOf)
   const estaciones: Record<string, MiembrosEstacion> = {}
   if (ref.estado !== 'estimado') return { referencia: ref, estaciones }
   for (const [id, completa] of Object.entries(otras)) {

@@ -120,7 +120,7 @@ Lectura: BSS = 1,000 con 0 positivos (Itá Ibaté, Empedrado 24/72 h) es degener
 
 ### Hallazgo principal: abstención en crecidas
 
-La abstención es baja en total (2–8 %), pero **se concentra en niveles extremos**, donde hay pocos análogos: en Corrientes 35 fechas abstenidas tuvieron máximo ≥ alerta en 240 h, frente a 54 positivos puntuados (≈ 39 % de las fechas con excedencia quedan sin pronóstico); Goya 37 vs 214, Paso de la Patria 51 vs 43, Paso de los Libres 66 vs 139. El BSS de la tabla mide el modelo sólo donde se pronunció. Antes de publicar probabilidades en crecida (T6/T8) hace falta una regla para niveles fuera de rango (banda proporcional al nivel, ampliar ventana estacional con mínimo de análogos, o abstención explícita `analogos_insuficientes` en la escuela). Decisión de producto pendiente.
+La abstención es baja en total (2–8 %), pero **se concentra en niveles extremos**, donde hay pocos análogos: en Corrientes 35 fechas abstenidas tuvieron máximo ≥ alerta en 240 h, frente a 54 positivos puntuados (≈ 39 % de las fechas con excedencia quedan sin pronóstico); Goya 37 vs 214, Paso de la Patria 51 vs 43, Paso de los Libres 66 vs 139. El BSS de la tabla mide el modelo sólo donde se pronunció. Antes de publicar probabilidades en crecida (T6/T8) hace falta una regla para niveles fuera de rango (banda proporcional al nivel, ampliar ventana estacional con mínimo de análogos, o abstención explícita `analogos_insuficientes` en la escuela). Resuelto con `analogos-v2` (sección siguiente).
 
 ### Sensibilidad
 
@@ -135,6 +135,91 @@ BSS climatológico medio entre las 12 estaciones (promedio simple, incluye filas
 | tol 0,3 · ±45 d | 0,81 / 0,63 / 0,47 | 0,29 / 0,70 / 0,37 | 0,89 / 0,76 / 0,50 | 0,87 / 0,69 / 0,43 |
 
 Los promedios de 24 h de evacuación dependen de muy pocos eventos y varían mucho. Con 240 h, una banda más ancha (0,5 m o ±45 d) mejora levemente en ambos períodos; no se cambió v1 para no ajustar sobre el retenido. Una `analogos-v2` debería fijarse con validación sólo en datos previos a 1990.
+
+## analogos-v2: vecinos más cercanos
+
+`lib/infraestructura/riesgo/motor-v04/hidrologia/analogos-v2.ts`. Resuelve el hallazgo anterior: v1 se abstiene justo en crecida porque exige |h(d) − h0| ≤ 0,3 m y la misma clase de tendencia, y a niveles extremos no hay 30 análogos así. v1 se conserva sin cambios de comportamiento para comparar; la versión se elige con la función (`estimarAnalogos` / `estimarAnalogosV2`, `ensambleConjunto` / `ensambleConjuntoV2`).
+
+- Candidatos: los mismos que v1 (ventana estacional ±30 d, ventana futura completa, d + desfase + 10 < asOf; sólo pasado).
+- Distancia, en metros: `|h(d) − h0| + 1·|τ(d) − τ0| + 0,005·|doy(d) − doy0|`, con τ = h(t) − h(t − 3 d). Un día de época vale 5 mm (30 días = 0,15 m). Si τ0 no existe se omite el término.
+- Miembros: los K = 20 más cercanos; empates por fecha ascendente. Cada uno aporta h0 + Δj, como en v1, así que P(24) ≤ P(72) ≤ P(240) y el ensamble conjunto usa las mismas fechas en todas las estaciones.
+- Abstención: `nivel_actual_no_disponible` (igual que v1), `analogos_insuficientes` si hay menos de K candidatos y `analogos_lejanos` si algún miembro está a más de 6 m en nivel.
+- Diagnóstico por estimación: `distanciaMaxNivelM` (la mayor |h(d) − h0| entre los miembros) y `fueraDeRangoHistorico` (h0 por encima de todo nivel visto en la época). Son avisos: no cambian la probabilidad.
+
+### Elección de parámetros (sólo 1960–1989)
+
+Fechas semanales 1960-01-06 → 1989-12-27, cada una con toda la historia anterior. Criterio: BSS completo contra climatología (abstenciones puntuadas con la climatología, ver abajo), promedio simple de estaciones × umbral × horizonte con al menos un positivo. Grilla: K ∈ {15, 20, 30, 40, 50}, tope ∈ {0,5, 1, 1,5, 2, 2,5, 3, 4, 6, 100} m, peso de tendencia ∈ {0,5, 1, 2}, peso estacional ∈ {0,002, 0,005, 0,01} m/día (76 combinaciones, no factorial completa).
+
+| Variante (1960–1989) | BSS completo medio | BSS completo 240 h | positivos alerta 240 h con pronóstico | abstención |
+|---|---|---|---|---|
+| v1 | 0,15 | 0,14 | 54 % | 9,7 % |
+| K 40 · tope 1 m · 1 · 0,01 (punto de partida) | 0,39 | 0,34 | 79 % | 2,9 % |
+| K 30 · tope 1,5 m · 1 · 0,005 | 0,58 | 0,49 | 92 % | 0,9 % |
+| K 20 · tope 3 m · 1 · 0,005 | 0,77 | 0,63 | 99,5 % | 0,1 % |
+| **K 20 · tope 6 m · 1 · 0,005 (v2)** | **0,80** | **0,64** | **100 %** | **0,1 %** |
+| K 20 · sin tope · 1 · 0,005 | 0,80 | 0,64 | 100 % | 0,1 % |
+
+El resultado mejora en forma monótona al subir el tope: en 1960–1989 abstenerse por distancia nunca le ganó a la climatología. Se fijó 6 m, el menor tope de la meseta (ninguna abstención por distancia en el período de ajuste), como red de seguridad contra datos fuera de escala más que como límite modelado. K 20 y 15 quedan casi empatados; pesos de tendencia 0,5–1 y estacional 0,002–0,005 dan lo mismo a dos decimales. Parámetros congelados antes de correr 1990–2026.
+
+### Evaluación retenida (1990-01-03 → 2026-10-06, semanal)
+
+"Completo" puntúa cada abstención con la probabilidad climatológica, así que abstenerse no puede esconder un evento perdido. "Con pronóstico" cuenta, entre las fechas cuyo máximo alcanzó el umbral en la ventana, las que recibieron probabilidad del modelo; "p media" es la probabilidad media que recibieron. Positivos = fechas, no episodios.
+
+Promedio de estaciones con positivos (12 en alerta; positivos con pronóstico sobre el total):
+
+| Umbral · h | BSS clim v1 / v2 | BSS pers v1 / v2 | BSS clim completo v1 / v2 | Con pronóstico v1 / v2 |
+|---|---|---|---|---|
+| alerta 24 | 0,87 / 0,91 | 0,49 / 0,44 | 0,34 / 0,91 | 473 / 813 · 813 / 813 |
+| alerta 72 | 0,72 / 0,81 | 0,28 / 0,31 | 0,32 / 0,81 | 560 / 909 · 909 / 909 |
+| alerta 240 | 0,47 / 0,63 | 0,17 / 0,20 | 0,27 / 0,63 | 851 / 1.217 · 1.217 / 1.217 |
+| evacuación 24 | 0,79 / 0,90 | 0,21 / 0,45 | 0,19 / 0,90 | 96 / 323 · 323 / 323 |
+| evacuación 72 | 0,62 / 0,74 | 0,19 / 0,32 | 0,17 / 0,74 | 133 / 372 · 372 / 372 |
+| evacuación 240 | 0,35 / 0,53 | 0,11 / 0,15 | 0,14 / 0,53 | 269 / 526 · 526 / 526 |
+
+Alerta, 240 h, por estación:
+
+| Estación | BSS clim v1 / v2 | BSS pers v1 / v2 | abst v1 / v2 | positivos | con pronóstico v1 / v2 | p media positivos v1 / v2 | BSS clim completo v1 / v2 |
+|---|---|---|---|---|---|---|---|
+| Ituzaingó | 0,46 / 0,59 | 0,07 / 0,05 | 2 % / 0 % | 78 | 55 / 78 | 0,52 / 0,66 | 0,34 / 0,59 |
+| Itá Ibaté | 0,01 / 0,41 | 0,00 / 0,34 | 4 % / 0 % | 9 | 3 / 9 | 0,01 / 0,40 | 0,00 / 0,41 |
+| Itatí | 0,34 / 0,59 | 0,11 / 0,13 | 4 % / 0 % | 69 | 35 / 69 | 0,41 / 0,68 | 0,18 / 0,59 |
+| Paso de la Patria | 0,55 / 0,73 | 0,27 / 0,17 | 7 % / 0 % | 94 | 43 / 94 | 0,53 / 0,75 | 0,27 / 0,73 |
+| Corrientes | 0,56 / 0,72 | 0,16 / 0,15 | 4 % / 0 % | 89 | 54 / 89 | 0,58 / 0,74 | 0,35 / 0,72 |
+| Empedrado | 1,00 / 0,85 | — / 0,23 | 8 % / 0 % | 5 | 0 / 5 | — / 0,92 | 0,00 / 0,85 |
+| Bella Vista | 0,52 / 0,72 | 0,07 / 0,14 | 4 % / 0 % | 85 | 50 / 85 | 0,56 / 0,73 | 0,31 / 0,72 |
+| Goya | 0,73 / 0,76 | 0,27 / 0,25 | 3 % / 0 % | 251 | 214 / 251 | 0,77 / 0,81 | 0,63 / 0,76 |
+| Esquina | 0,81 / 0,82 | 0,39 / 0,35 | 3 % / 0 % | 199 | 181 / 199 | 0,83 / 0,85 | 0,75 / 0,82 |
+| Santo Tomé | 0,05 / 0,28 | 0,11 / 0,14 | 7 % / 0 % | 84 | 53 / 84 | 0,10 / 0,34 | 0,03 / 0,28 |
+| Paso de los Libres | 0,40 / 0,53 | 0,26 / 0,23 | 7 % / 0 % | 205 | 139 / 205 | 0,47 / 0,62 | 0,28 / 0,53 |
+| Monte Caseros | 0,16 / 0,51 | 0,15 / 0,18 | 6 % / 0 % | 49 | 24 / 49 | 0,14 / 0,48 | 0,08 / 0,51 |
+
+Evacuación, 240 h, por estación:
+
+| Estación | BSS clim v1 / v2 | BSS pers v1 / v2 | abst v1 / v2 | positivos | con pronóstico v1 / v2 | p media positivos v1 / v2 | BSS clim completo v1 / v2 |
+|---|---|---|---|---|---|---|---|
+| Ituzaingó | 0,24 / 0,53 | 0,05 / 0,07 | 2 % / 0 % | 42 | 23 / 42 | 0,26 / 0,57 | 0,13 / 0,53 |
+| Itá Ibaté | 0,00 / -0,24 | -0,01 / -0,24 | 4 % / 0 % | 2 | 1 / 2 | 0,00 / 0,10 | 0,00 / -0,24 |
+| Itatí | 0,11 / 0,54 | 0,10 / 0,20 | 4 % / 0 % | 34 | 13 / 34 | 0,13 / 0,57 | 0,04 / 0,54 |
+| Paso de la Patria | 0,40 / 0,64 | 0,05 / 0,04 | 7 % / 0 % | 49 | 16 / 49 | 0,38 / 0,69 | 0,14 / 0,64 |
+| Corrientes | 0,27 / 0,71 | 0,05 / 0,23 | 4 % / 0 % | 46 | 17 / 46 | 0,32 / 0,71 | 0,10 / 0,71 |
+| Empedrado | 1,00 / 0,76 | — / 0,68 | 8 % / 0 % | 4 | 0 / 4 | — / 0,59 | 0,00 / 0,76 |
+| Bella Vista | 0,53 / 0,69 | 0,14 / 0,11 | 4 % / 0 % | 26 | 9 / 26 | 0,60 / 0,76 | 0,19 / 0,69 |
+| Goya | 0,66 / 0,73 | 0,35 / 0,11 | 3 % / 0 % | 74 | 42 / 74 | 0,72 / 0,83 | 0,38 / 0,73 |
+| Esquina | 0,65 / 0,71 | 0,27 / 0,22 | 3 % / 0 % | 65 | 48 / 65 | 0,69 / 0,74 | 0,49 / 0,71 |
+| Santo Tomé | 0,02 / 0,28 | 0,04 / 0,09 | 7 % / 0 % | 46 | 25 / 46 | 0,05 / 0,32 | 0,01 / 0,28 |
+| Paso de los Libres | 0,29 / 0,56 | 0,14 / 0,21 | 7 % / 0 % | 111 | 62 / 111 | 0,35 / 0,62 | 0,17 / 0,56 |
+| Monte Caseros | 0,06 / 0,43 | 0,07 / 0,11 | 6 % / 0 % | 27 | 13 / 27 | 0,05 / 0,42 | 0,03 / 0,43 |
+
+IC 95 % (bootstrap por años, 200 remuestreos) del BSS clim de v2 en alerta 240 h: Corrientes [0,60, 0,78] (21 episodios), Goya [0,69, 0,81] (38), Paso de los Libres [0,46, 0,58] (49).
+
+Lectura:
+
+- v2 da pronóstico a todas las fechas con excedencia (v1 dejaba sin pronóstico 30–70 % de los positivos de evacuación) y además mejora el BSS en las fechas que v1 sí puntuaba. Las únicas abstenciones de v2 son por nivel actual vencido.
+- Contra persistencia la ventaja es chica (0,15–0,45) y en Goya evacuación 240 h baja de 0,35 a 0,11: en crecida sostenida "el río sigue arriba" es una referencia difícil.
+- Itá Ibaté evacuación (2 positivos) da BSS negativo; Empedrado (4–5 positivos) mantiene la advertencia sobre umbral y escala de T5. Muestras de evacuación chicas: leer por estación con cautela.
+- Recomendación: `analogos-v2` como versión por omisión desde T6 (mejor BSS completo y cobertura total de positivos en el período retenido, en ambos umbrales y los tres horizontes).
+
+Limitaciones: el criterio de ajuste usa la climatología como penalidad de abstención, lo que favorece no abstenerse; con h0 fuera del rango histórico v2 traslada incrementos de niveles más bajos (señalado por `fueraDeRangoHistorico`, frecuencia no medida en esta evaluación); la evaluación es semanal y sobre lecturas diarias, no picos horarios.
 
 ## Reversión
 

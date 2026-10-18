@@ -1,4 +1,4 @@
-// Evaluación retrospectiva sin fuga del modelo `analogos-v1`. Módulo puro.
+// Evaluación retrospectiva sin fuga de los modelos `analogos-v1`/`analogos-v2`. Módulo puro.
 //
 // Para cada fecha de evaluación t el modelo y la climatología sólo ven la
 // serie recortada hasta t (vista sin copia: lo posterior no existe para ellos);
@@ -9,6 +9,7 @@ import {
   DIAS_HORIZONTE,
   type HorizonteHoras,
   type ParametrosAnalogos,
+  type ResultadoAnalogos,
   type SerieDiaria,
   estimarAnalogos,
   probabilidadExcedencia,
@@ -32,8 +33,12 @@ export type RegistroEvaluacion = {
   observado: 0 | 1
 }
 
+/** Fecha abstenida: se conserva para puntuarla con la climatología. */
+export type RegistroAbstencion = { fecha: string; pClimatologia: number; observado: 0 | 1 }
+
 export type EvaluacionEstacion = {
   registros: Record<NombreUmbral, Record<HorizonteHoras, RegistroEvaluacion[]>>
+  abstenidos: Record<NombreUmbral, Record<HorizonteHoras, RegistroAbstencion[]>>
   /** Fechas con ventana observada completa de 240 h (base de la abstención). */
   fechasConObservacion: number
   abstenciones: number
@@ -74,9 +79,12 @@ export function evaluarEstacion(
   fechas: readonly string[],
   umbrales: Umbrales,
   p: ParametrosAnalogos,
+  /** Modelo a evaluar; v1 con `p` por omisión. `p` fija además la ventana de la climatología. */
+  estimar: (pasado: SerieDiaria, fecha: string) => ResultadoAnalogos = (pasado, fecha) => estimarAnalogos(pasado, fecha, p),
 ): EvaluacionEstacion {
-  const vacio = () => ({ 24: [], 72: [], 240: [] }) as Record<HorizonteHoras, RegistroEvaluacion[]>
-  const registros = { alerta: vacio(), evacuacion: vacio() }
+  const vacio = <T>() => ({ 24: [], 72: [], 240: [] }) as Record<HorizonteHoras, T[]>
+  const registros = { alerta: vacio<RegistroEvaluacion>(), evacuacion: vacio<RegistroEvaluacion>() }
+  const abstenidos = { alerta: vacio<RegistroAbstencion>(), evacuacion: vacio<RegistroAbstencion>() }
   const motivosAbstencion: Record<string, number> = {}
   let fechasConObservacion = 0
   let abstenciones = 0
@@ -87,13 +95,20 @@ export function evaluarEstacion(
     if (max240 === null) continue
     fechasConObservacion++
     const pasado = recortarSerie(serie, fecha)
-    const r = estimarAnalogos(pasado, fecha, p)
+    const r = estimar(pasado, fecha)
     if (r.estado !== 'estimado') {
       abstenciones++
       motivosAbstencion[r.motivo] = (motivosAbstencion[r.motivo] ?? 0) + 1
       for (const nombre of ['alerta', 'evacuacion'] as const) {
         const u = umbrales[nombre]
-        if (u !== null && max240 >= u) abstencionesConExcedencia[nombre]++
+        if (u === null) continue
+        if (max240 >= u) abstencionesConExcedencia[nombre]++
+        for (const h of HORIZONTES) {
+          const pClimatologia = climatologia(pasado, iAsOf, DIAS_HORIZONTE[h], u, p)
+          if (pClimatologia === null) continue
+          const obs = maximoObservado(serie, iAsOf, DIAS_HORIZONTE[h]) as number
+          abstenidos[nombre][h].push({ fecha, pClimatologia, observado: obs >= u ? 1 : 0 })
+        }
       }
       continue
     }
@@ -116,7 +131,7 @@ export function evaluarEstacion(
       }
     }
   }
-  return { registros, fechasConObservacion, abstenciones, abstencionesConExcedencia, motivosAbstencion }
+  return { registros, abstenidos, fechasConObservacion, abstenciones, abstencionesConExcedencia, motivosAbstencion }
 }
 
 export type BinConfiabilidad = { desde: number; hasta: number; n: number; pMedia: number | null; frecuenciaObservada: number | null }
@@ -154,6 +169,38 @@ export function metricasBrier(registros: readonly RegistroEvaluacion[], bins = 1
     bssClimatologia: skill(bs, bsClim),
     bssPersistencia: skill(bs, bsPers),
     confiabilidad,
+  }
+}
+
+export type MetricasCompletas = {
+  /** Fechas puntuadas más abstenidas (con climatología disponible). */
+  n: number
+  abstenciones: number
+  /** Brier con las abstenciones puntuadas con la climatología: abstenerse no oculta fallas. */
+  brierCompleto: number | null
+  bssClimatologiaCompleto: number | null
+  positivos: number
+  /** Positivos (el máximo alcanzó el umbral) que recibieron pronóstico. */
+  positivosConPronostico: number
+  /** Probabilidad media asignada a los positivos con pronóstico. */
+  pMediaPositivos: number | null
+}
+
+export function metricasCompletas(registros: readonly RegistroEvaluacion[], abstenidos: readonly RegistroAbstencion[]): MetricasCompletas {
+  const todos = [
+    ...registros.map((r) => ({ p: r.p, clim: r.pClimatologia, o: r.observado })),
+    ...abstenidos.map((r) => ({ p: r.pClimatologia, clim: r.pClimatologia, o: r.observado })),
+  ]
+  const brierCompleto = media(todos.map((x) => (x.p - x.o) ** 2))
+  const positivosPuntuados = registros.filter((r) => r.observado === 1)
+  return {
+    n: todos.length,
+    abstenciones: abstenidos.length,
+    brierCompleto,
+    bssClimatologiaCompleto: skill(brierCompleto, media(todos.map((x) => (x.clim - x.o) ** 2))),
+    positivos: todos.filter((x) => x.o === 1).length,
+    positivosConPronostico: positivosPuntuados.length,
+    pMediaPositivos: media(positivosPuntuados.map((r) => r.p)),
   }
 }
 
