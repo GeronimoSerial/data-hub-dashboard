@@ -20,25 +20,28 @@ export type JobEsperado = {
 }
 
 export const JOBS_ESPERADOS: readonly JobEsperado[] = [
-  { nombre: 'sync-radar-meteo', tipo: 'sync-radar-meteo', intervaloMinutos: 180, habilitado: true },
+  // Coolify `27 3,9,15,21 * * *`: alineado a la actualización de los modelos globales (6 h).
+  { nombre: 'sync-radar-meteo', tipo: 'sync-radar-meteo', intervaloMinutos: 360, habilitado: true },
   { nombre: 'sync-radar-ensemble', tipo: 'sync-radar-ensemble', intervaloMinutos: 360, habilitado: true },
   { nombre: 'sync-smn-alertas', tipo: 'sync-smn-alertas', intervaloMinutos: 15, habilitado: true },
   // verificar-radar-meteo no llama a adquirirLease: no escribe infra_job_run.
   { nombre: 'verificar-radar-meteo', tipo: null, intervaloMinutos: 1440, habilitado: true },
   // Coolify `*/30 * * * *`.
   { nombre: 'sync-imerg', tipo: 'sync-hazard-imerg', intervaloMinutos: 30, habilitado: true },
-  // Coolify `41 21-23 * * *` and `43 21-23 * * *`: three resumable attempts every day.
+  // Sin programar desde 2026-10-18 (docs/datos/cuota-open-meteo.md): la climatología de
+  // caudal ya está cargada y ERA5 se reemplaza por IMERG; ambos jobs quedan para reejecución
+  // manual.
   {
     nombre: 'climatologia-caudal',
     tipo: 'calcular-hazard-climatologia-caudal',
     intervaloMinutos: 1440,
-    habilitado: true,
+    habilitado: false,
   },
   {
     nombre: 'climatologia-precipitacion',
     tipo: 'calculo-climatologia',
     intervaloMinutos: 1440,
-    habilitado: true,
+    habilitado: false,
   },
   // Coolify Scheduled Task `20 4 * * *` (ver runbook-scheduler.md).
   {

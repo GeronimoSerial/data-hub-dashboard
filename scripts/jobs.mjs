@@ -383,6 +383,9 @@ async function correrSyncImerg() {
   return ejecutarSyncImerg({ earthdataToken: process.env.EARTHDATA_TOKEN })
 }
 
+// climatologia-precipitacion (ERA5) y climatologia-caudal no están programadas
+// desde el 2026-10-18 (paquete "Cuota Open-Meteo", docs/datos/cuota-open-meteo.md):
+// el despacho queda sólo para corridas manuales.
 async function correrCalculoClimatologia() {
   if (!(await jobsActivos())) return flagDeshabilitado('climatologia-precipitacion')
   const { ejecutarCalculoClimatologia } = await import(

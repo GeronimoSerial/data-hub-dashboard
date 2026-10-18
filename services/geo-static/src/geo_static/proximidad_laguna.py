@@ -15,6 +15,13 @@ import numpy as np
 # Radio (metros) alrededor de la escuela donde se busca agua.
 RADIO_BUSQUEDA_M = 300
 
+# Radio (metros) extendido para informar distancia_agua_m y altura_sobre_agua_m
+# cuando no hay agua dentro de RADIO_BUSQUEDA_M. El criterio de exposicion del
+# motor (DISTANCIA_AGUA_MAX_M en lib/infraestructura/riesgo/motor/rio-prefectura.ts)
+# mira agua hasta 1000 m; con solo 300 m esas escuelas quedaban en null. No
+# cambia junto_laguna, que sigue decidiendose con RADIO_BUSQUEDA_M.
+RADIO_DISTANCIA_AGUA_M = 1000
+
 # Radio (metros) alrededor de la escuela cuyo DEM representa el terreno de la escuela.
 RADIO_ESCUELA_M = 50
 

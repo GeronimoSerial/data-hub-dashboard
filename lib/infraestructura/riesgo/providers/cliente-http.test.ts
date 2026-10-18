@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ejecutarConReintentos } from './cliente-http'
+import { COOLDOWN_429_SIN_RETRY_AFTER_MS, ejecutarConReintentos } from './cliente-http'
 import type { ControladorCupoOM, ResultadoReservaCupo } from './cupo-om'
 
 function respuestaOk(body: unknown) {
@@ -297,18 +297,45 @@ describe('ejecutarConReintentos — integración con OM-cupo', () => {
     expect(reservar).toHaveBeenCalledTimes(2)
   })
 
-  it('429 SIN Retry-After no registra cooldown (no sabemos cuánto durar)', async () => {
-    const { cupo, registrar429 } = controladorCupoFake({ ok: true, esperoMs: 0 })
+  it('429 SIN Retry-After con cupo registra un cooldown de 60 s y no reintenta', async () => {
+    const { cupo, reservar, registrar429 } = controladorCupoFake({ ok: true, esperoMs: 0 })
     const fetchImpl = vi.fn(async () => new Response('rate limited', { status: 429 }))
-    await ejecutarConReintentos({
+    const r = await ejecutarConReintentos({
       url: 'https://example.test',
       fetchImpl: fetchImpl as unknown as typeof fetch,
       cupo,
-      maxIntentos: 1,
+      maxIntentos: 3,
       backoffBaseMs: 1,
       backoffMaxMs: 1,
       parsearPayload: (json) => json,
     })
-    expect(registrar429).not.toHaveBeenCalled()
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.motivo).toBe('rate_limited')
+    // Un único request real: el 429 no se reintenta ni reserva más cupo.
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(reservar).toHaveBeenCalledTimes(1)
+    expect(registrar429).toHaveBeenCalledWith(COOLDOWN_429_SIN_RETRY_AFTER_MS)
+    expect(COOLDOWN_429_SIN_RETRY_AFTER_MS).toBe(60_000)
+  })
+
+  it('429 con Retry-After y cupo tampoco reintenta: el cooldown persistido frena los lotes siguientes', async () => {
+    const { cupo, reservar, registrar429 } = controladorCupoFake({ ok: true, esperoMs: 0 })
+    const fetchImpl = vi.fn(
+      async () => new Response('rate limited', { status: 429, headers: { 'retry-after': '5' } }),
+    )
+    const r = await ejecutarConReintentos({
+      url: 'https://example.test',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      cupo,
+      maxIntentos: 3,
+      backoffBaseMs: 1,
+      backoffMaxMs: 1,
+      parsearPayload: (json) => json,
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.motivo).toBe('rate_limited')
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(reservar).toHaveBeenCalledTimes(1)
+    expect(registrar429).toHaveBeenCalledWith(5_000)
   })
 })

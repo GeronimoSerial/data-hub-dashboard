@@ -29,6 +29,7 @@ import {
   obtenerPronosticoConDiagnostico as pronosticoFloodConDiagnostico,
 } from '../providers/flood'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
+import { empaquetarRefsPorPuntoGrilla } from '../providers/grilla-modelo'
 import type { HazardForecastPunto } from '../tipos-hazard'
 import {
   adquirirLease,
@@ -346,12 +347,11 @@ async function ejecutarCuerpoDelJob(ctx: {
   // el lease se pierde, no seguimos escribiendo filas de `hazard_forecast`.
   const tandas: Array<{ provider: ProveedorConDiagnostico; refs: string[]; esCeldas: boolean }> =
     []
-  for (let indice = 0; indice < celdas.length; indice += RENOVAR_LEASE_CADA_N_CELDAS) {
-    tandas.push({
-      provider: ecmwfProvider,
-      refs: celdas.slice(indice, indice + RENOVAR_LEASE_CADA_N_CELDAS),
-      esCeldas: true,
-    })
+  // Cuota Open-Meteo (C1): las tandas ECMWF agrupan puntos de grilla de
+  // 0,25° completos (hasta 25 puntos, un request) para que el provider pida
+  // cada punto una sola vez y replique la serie a todas sus celdas.
+  for (const refs of empaquetarRefsPorPuntoGrilla(celdas, RENOVAR_LEASE_CADA_N_CELDAS)) {
+    tandas.push({ provider: ecmwfProvider, refs, esCeldas: true })
   }
   for (let indice = 0; indice < puntosRio.length; indice += RENOVAR_LEASE_CADA_N_CELDAS) {
     tandas.push({

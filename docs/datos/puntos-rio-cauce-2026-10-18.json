@@ -1,0 +1,86 @@
+{
+ "datasetId": "puntos-rio",
+ "nombre": "Puntos de consulta de caudal",
+ "revision": "cauce-ign-glofas-2026-10-18",
+ "fuente": "IGN WFS ign:areas_de_aguas_continentales_BH140 (cauce) + Open-Meteo Flood API / GloFAS (validación de celda); cabeceras Georef",
+ "licencia": "IGN: atribución al Instituto Geográfico Nacional (términos del geoservicio sin verificar); GloFAS/Copernicus vía Open-Meteo: CC BY 4.0",
+ "fechaFuente": "2026-10-18T00:00:00.000Z",
+ "formato": "array",
+ "clave": "id",
+ "datos": [
+  {
+   "id": "parana-ituzaingo",
+   "lat": -27.4947,
+   "lon": -56.754,
+   "rio": "parana",
+   "criterio": "Punto sobre el cauce del río (Paraná, polígono IGN BH140 'areas_de_aguas_continentales') a 12.03 km de la cabecera Ituzaingó (Georef). Celda GloFAS 0.05° -27.475,-56.775: caudal medio sep-2026 12962.5 m³/s vs 11496.5 m³/s del punto anterior (-27.49,-56.8, a 0.79 km del cauce y 15.36 km de la ciudad). Regla: celda del cauce principal (>= 90% del caudal del punto anterior) más cercana a la ciudad; coordenada en el centro del cruce del cauce dentro de esa celda.",
+   "localidad": "Ituzaingó"
+  },
+  {
+   "id": "parana-corrientes-paso-patria",
+   "lat": -27.4633,
+   "lon": -58.8594,
+   "rio": "parana",
+   "criterio": "Punto sobre el cauce del río (Paraná, polígono IGN BH140 'areas_de_aguas_continentales') a 1.97 km de la cabecera Corrientes (Georef). Celda GloFAS 0.05° -27.475,-58.875: caudal medio sep-2026 13710.2 m³/s vs 14097.3 m³/s del punto anterior (-27.4692,-58.9306, a 5.13 km del cauce y 9.01 km de la ciudad). Regla: celda del cauce principal (>= 90% del caudal del punto anterior) más cercana a la ciudad; coordenada en el centro del cruce del cauce dentro de esa celda.",
+   "localidad": "Corrientes / Paso de la Patria"
+  },
+  {
+   "id": "parana-bella-vista",
+   "lat": -28.4948,
+   "lon": -59.0532,
+   "rio": "parana",
+   "criterio": "Punto sobre el cauce del río (Paraná, polígono IGN BH140 'areas_de_aguas_continentales') a 1.63 km de la cabecera Bella Vista (Georef). Celda GloFAS 0.05° -28.475,-59.075: caudal medio sep-2026 14069.8 m³/s vs 14081.5 m³/s del punto anterior (-28.3069,-59.1387, a 3.08 km del cauce y 24.13 km de la ciudad). Regla: celda del cauce principal (>= 90% del caudal del punto anterior) más cercana a la ciudad; coordenada en el centro del cruce del cauce dentro de esa celda.",
+   "localidad": "Bella Vista"
+  },
+  {
+   "id": "parana-goya",
+   "lat": -29.0911,
+   "lon": -59.2673,
+   "rio": "parana",
+   "criterio": "Punto sobre el cauce del río (Paraná, polígono IGN BH140 'areas_de_aguas_continentales') a 5.49 km de la cabecera Goya (Georef). Celda GloFAS 0.05° -29.075,-59.275: caudal medio sep-2026 14012.0 m³/s vs 14018.1 m³/s del punto anterior (-29.0382,-59.2649, a 2.27 km del cauce y 11.34 km de la ciudad). Regla: celda del cauce principal (>= 90% del caudal del punto anterior) más cercana a la ciudad; coordenada en el centro del cruce del cauce dentro de esa celda.",
+   "localidad": "Goya"
+  },
+  {
+   "id": "parana-esquina",
+   "lat": -29.985,
+   "lon": -59.624,
+   "rio": "parana",
+   "criterio": "Punto sobre el cauce del río (Paraná, polígono IGN BH140 'areas_de_aguas_continentales') a 9.68 km de la cabecera Esquina (Georef). Celda GloFAS 0.05° -29.975,-59.625: caudal medio sep-2026 14026.7 m³/s vs 14019.5 m³/s del punto anterior (-30.0022,-59.6314, a 0 km del cauce y 9.91 km de la ciudad). Regla: celda del cauce principal (>= 90% del caudal del punto anterior) más cercana a la ciudad; coordenada en el centro del cruce del cauce dentro de esa celda.",
+   "localidad": "Esquina"
+  },
+  {
+   "id": "uruguay-santo-tome",
+   "lat": -28.4989,
+   "lon": -56.0013,
+   "rio": "uruguay",
+   "criterio": "Punto sobre el cauce del río (Uruguay, polígono IGN BH140 'areas_de_aguas_continentales') a 6.54 km de la cabecera Santo Tomé (Georef). Celda GloFAS 0.05° -28.475,-56.025: caudal medio sep-2026 7729.7 m³/s vs 7895.7 m³/s del punto anterior (-28.6511,-56.1459, a 4.02 km del cauce y 15.64 km de la ciudad). Regla: celda del cauce principal (>= 90% del caudal del punto anterior) más cercana a la ciudad; coordenada en el centro del cruce del cauce dentro de esa celda.",
+   "localidad": "Santo Tomé"
+  },
+  {
+   "id": "uruguay-paso-de-los-libres",
+   "lat": -29.6982,
+   "lon": -57.0757,
+   "rio": "uruguay",
+   "criterio": "Punto sobre el cauce del río (Uruguay, polígono IGN BH140 'areas_de_aguas_continentales') a 1.96 km de la cabecera Paso de los Libres (Georef). Celda GloFAS 0.05° -29.675,-57.075: caudal medio sep-2026 9105.1 m³/s vs 9112.3 m³/s del punto anterior (-29.5061,-56.9866, a 8.17 km del cauce y 24.98 km de la ciudad). Regla: celda del cauce principal (>= 90% del caudal del punto anterior) más cercana a la ciudad; coordenada en el centro del cruce del cauce dentro de esa celda.",
+   "localidad": "Paso de los Libres"
+  },
+  {
+   "id": "uruguay-monte-caseros",
+   "lat": -30.2086,
+   "lon": -57.6555,
+   "rio": "uruguay",
+   "criterio": "Punto sobre el cauce del río (Uruguay, polígono IGN BH140 'areas_de_aguas_continentales') a 5.18 km de la cabecera Monte Caseros (Georef). Celda GloFAS 0.05° -30.225,-57.675: caudal medio sep-2026 9323.1 m³/s vs 9053.2 m³/s del punto anterior (-30.0639,-57.5389, a 7.95 km del cauce y 22.39 km de la ciudad). Regla: celda del cauce principal (>= 90% del caudal del punto anterior) más cercana a la ciudad; coordenada en el centro del cruce del cauce dentro de esa celda.",
+   "localidad": "Monte Caseros"
+  }
+ ],
+ "metadatos": {
+  "reemplaza": "41de1aafe26a792b48fd289fb845d500edf5a4e8a0d1c83ae6e8aae023474c83",
+  "motivo": "Los puntos anteriores eran la celda de caudal máximo de un barrido de 0.1° y quedaban a 0.8-8.2 km del cauce real y 9-25 km de la ciudad; infra_geo_rio medía distancia escuela-punto como si fuera distancia al río.",
+  "evidencia": "docs/datos/puntos-rio-cauce-2026-10-18.md",
+  "publicar_requiere": [
+   "recalcular infra_geo_rio (job asociacion-rio)",
+   "climatologia de caudal con version nueva (celdas GloFAS cambian)",
+   "decision del motor sobre el criterio punto_rio <= 3 km"
+  ]
+ }
+}

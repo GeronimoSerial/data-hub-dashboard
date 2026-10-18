@@ -6,8 +6,7 @@ const porNombre = new Map(JOBS_ESPERADOS.map((job) => [job.nombre, job]))
 describe('JOBS_ESPERADOS', () => {
   it.each([
     ['sync-imerg', 30],
-    ['climatologia-caudal', 1440],
-    ['climatologia-precipitacion', 1440],
+    ['sync-radar-meteo', 360],
     ['climatologia-imerg', 1440],
     ['calcular-riesgo', 360],
     ['sync-pronostico-caudal', 360],
@@ -23,7 +22,7 @@ describe('JOBS_ESPERADOS', () => {
   })
 
   it('sólo deja sin programar los jobs que producción no corre', () => {
-    expect(JOBS_ESPERADOS.filter((job) => !job.habilitado).map((job) => job.nombre).sort()).toEqual(['calcular-riesgo-v04-candidato', 'episodios-derivados', 'importar-altimetria-v04', 'sync-ina-pronostico', 'sync-ina-serie-diaria', 'sync-seasonal'])
+    expect(JOBS_ESPERADOS.filter((job) => !job.habilitado).map((job) => job.nombre).sort()).toEqual(['calcular-riesgo-v04-candidato', 'climatologia-caudal', 'climatologia-precipitacion', 'episodios-derivados', 'importar-altimetria-v04', 'sync-ina-pronostico', 'sync-ina-serie-diaria', 'sync-seasonal'])
   })
 
   it('declara el candidato v0.4 con su propio tipo de lease, sin programar', () => {
