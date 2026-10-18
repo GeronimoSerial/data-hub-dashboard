@@ -82,7 +82,8 @@ import {
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import { CAPA_ESTACIONES_RIO_ID, CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
 import { CAPA_EVENTOS_REPORTADOS_ID, CapaEventosReportados, type ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
-import { CapaLluviaObservada, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
+import { CapaLluviaObservada, ID_CAPA_LLUVIA_HIT, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
+import { TarjetaCruceAgua } from '@/components/mapas/tarjeta-cruce-agua'
 import {
   CapasAccesosTerritoriales,
   CAPA_CRUCES_ACCESO_ID,
@@ -114,7 +115,6 @@ import {
   construirCrucesAcceso,
   construirRutaAcceso,
   ETIQUETAS_CRUCE,
-  DESCRIPCIONES_CRUCE,
   iconosAccesosMapa,
   claseInundacion,
   type ClasificacionCruce,
@@ -501,15 +501,19 @@ const ETIQUETA_ICONO_ESTADO: Record<IconoPunto, string> = {
 // Popup del cruce de agua clickeado: misma forma (anclado al `lngLat` del
 // evento) que el del departamento. Guarda la CLASE del cruce, no su texto: la
 // etiqueta sale de `ETIQUETAS_CRUCE`, la única fuente de verdad del dominio.
-type InfoCruceClic = { lng: number; lat: number; clasificacion: ClasificacionCruce }
+type InfoCruceClic = {
+  lng: number
+  lat: number
+  clasificacion: ClasificacionCruce
+  // Position in the route's `cruces` (set by `construirCrucesAcceso`); null if absent.
+  indice: number | null
+  nombreCurso: string | null
+  nombrePuente: string | null
+  // IMERG cell under the crossing when the observed-rain layer is on.
+  lluvia: { mm: number; horas: HorasLluvia } | null
+}
 
 const OFFSET_POPUP_DEPARTAMENTO: [number, number] = [0, -12]
-const PROPS_POPUP_INFO = {
-  closeButton: false,
-  closeOnClick: false,
-  offset: OFFSET_POPUP_DEPARTAMENTO,
-  className: 'mapa-tooltip mapa-tooltip-departamento',
-}
 
 // Las capas territoriales adicionales arrancan apagadas. La ruta de acceso
 // aparece automáticamente al seleccionar una escuela.
@@ -1430,6 +1434,13 @@ export default function MapInfraestructuraPage(props: {
       // (`clasificacion`); una clase desconocida o ausente se muestra como
       // "sin puente registrado", que es lo que significa no tener dato.
       const clase = cruceClic.properties?.clasificacion
+      const indice = Number(cruceClic.properties?.indice)
+      const texto = (valor: unknown) => (typeof valor === 'string' && valor !== '' && valor !== 'null' ? valor : null)
+      // The rain layer only exists while it is visible; its hit polygons carry the cell total.
+      const celdaLluvia = mapaGl?.getLayer?.(ID_CAPA_LLUVIA_HIT)
+        ? mapaGl.queryRenderedFeatures?.(event.point, { layers: [ID_CAPA_LLUVIA_HIT] })?.[0]
+        : undefined
+      const mm = Number(celdaLluvia?.properties?.acumuladoMm)
       setCruceInfoClic({
         lng: event.lngLat.lng,
         lat: event.lngLat.lat,
@@ -1437,6 +1448,10 @@ export default function MapInfraestructuraPage(props: {
           typeof clase === 'string' && clase in ETIQUETAS_CRUCE
             ? (clase as ClasificacionCruce)
             : 'sin_evidencia',
+        indice: Number.isInteger(indice) && indice >= 0 ? indice : null,
+        nombreCurso: texto(cruceClic.properties?.nombreCurso),
+        nombrePuente: texto(cruceClic.properties?.nombrePuente),
+        lluvia: celdaLluvia && Number.isFinite(mm) ? { mm, horas: horasLluvia } : null,
       })
       return
     }
@@ -1496,6 +1511,7 @@ export default function MapInfraestructuraPage(props: {
     departamentoSeleccionado,
     departamentosRaw,
     setCruceInfoClic,
+    horasLluvia,
     setSeleccionCue,
     setPuntosVisibles,
     setDepartamentoSeleccionado,
@@ -2069,25 +2085,31 @@ export default function MapInfraestructuraPage(props: {
           />
 
           {/* Popup del CRUCE DE AGUA clickeado sobre la ruta (ver `handleClick`).
-              Mismo componente y estilo que el del departamento: un dato
-              puntual que se lee sin cambiar de modo. La etiqueta sale de
-              `ETIQUETAS_CRUCE`; para "Sin puente registrado" se aclara que la
-              ausencia del tag en OSM no prueba que el puente no exista. */}
-          {cruceInfoClic && (() => {
-            const etiqueta = ETIQUETAS_CRUCE[cruceInfoClic.clasificacion]
-            return (
-              <Popup
-                longitude={cruceInfoClic.lng}
-                latitude={cruceInfoClic.lat}
-                {...PROPS_POPUP_INFO}
-              >
-                <p>
-                  <strong>Cruce de agua: {etiqueta}</strong>
-                  {' — '}{DESCRIPCIONES_CRUCE[cruceInfoClic.clasificacion]}
-                </p>
-              </Popup>
-            )
-          })()}
+              Tarjeta con el estilo de la estación de río: clase del cruce,
+              contexto de la ruta de la escuela seleccionada y, si la capa
+              está prendida, la lluvia IMERG en ese punto. Nunca dice si hoy
+              se puede pasar. */}
+          {cruceInfoClic && (
+            <Popup
+              longitude={cruceInfoClic.lng}
+              latitude={cruceInfoClic.lat}
+              anchor="bottom"
+              maxWidth="340px"
+              closeButton={false}
+              closeOnClick={false}
+              offset={OFFSET_POPUP_DEPARTAMENTO}
+            >
+              <TarjetaCruceAgua
+                clasificacion={cruceInfoClic.clasificacion}
+                nombreCurso={cruceInfoClic.nombreCurso}
+                nombrePuente={cruceInfoClic.nombrePuente}
+                indice={cruceInfoClic.indice}
+                escuela={escuelaSeleccionada}
+                geometria={geometria}
+                lluvia={capasVisibles.lluviaObservada ? cruceInfoClic.lluvia : null}
+              />
+            </Popup>
+          )}
 
           {/* V2 (hallazgo 5): realce de foco de la escuela seleccionada, sea
               por el buscador o por la ficha abierta. Un pin DOM (MapPin) en el

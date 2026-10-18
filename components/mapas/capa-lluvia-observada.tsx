@@ -55,7 +55,9 @@ const REGIONES_INTERES: ReadonlyArray<{ lon: [number, number]; lat: [number, num
 ]
 const ANCHO_TRANSICION = 0.4
 
-const ID_HIT = 'lluvia-observada-hit'
+// Exported so other map handlers can read the cell under a click (e.g. the water crossing card).
+export const ID_CAPA_LLUVIA_HIT = 'lluvia-observada-hit'
+const ID_HIT = ID_CAPA_LLUVIA_HIT
 
 /** 1 dentro de las regiones de interés; cae linealmente a 0 a 0,4° fuera de ellas. */
 function factorRegion(lon: number, lat: number): number {

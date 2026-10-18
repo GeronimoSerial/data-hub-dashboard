@@ -6935,3 +6935,11 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .tarjeta-lluvia__aviso { margin: 0; padding: var(--s-2); border-radius: var(--r-sm); background: var(--warn-tint); color: var(--warn); font-size: 0.75rem; }
 .tarjeta-lluvia__fuente { display: flex; align-items: center; gap: var(--s-2); border-top: 1px solid var(--line-soft); padding-top: var(--s-2); }
 .tarjeta-lluvia__fuente-nombre { margin: 0; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.02em; }
+.tarjeta-cruce { min-width: 16rem; }
+.tarjeta-cruce__clase { flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; color: #fff; background: var(--ink-soft); }
+.tarjeta-cruce[data-clase='puente'] .tarjeta-cruce__clase { background: var(--ok); }
+.tarjeta-cruce[data-clase='vado'] .tarjeta-cruce__clase,
+.tarjeta-cruce[data-clase='vado_probable'] .tarjeta-cruce__clase { background: var(--warn); }
+.tarjeta-cruce__descripcion { margin: 0; font-size: 0.8125rem; }
+.tarjeta-cruce__ruta { display: grid; gap: 2px; border-top: 1px solid var(--line-soft); padding-top: var(--s-2); }
+.tarjeta-cruce__escuela { margin: 0; font-size: 0.8125rem; font-weight: 500; }
