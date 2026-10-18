@@ -60,3 +60,54 @@ motores; ver `evaluacion-u8.md`).
 - En v0.4 el historial ausente cuenta como faltante; la susceptibilidad ya no
   puede saturar (sólo profundidad), y la nula cuenta como faltante.
 - Sólo v0.4: aplicarlo a v0.3 cambiaría su confianza publicada hoy.
+
+### F3 — Exposición: terreno contra el agua posible en el horizonte (D3)
+
+Decisión del usuario (2026-10-18): el piso por alerta/evacuación sólo se aplica
+si el terreno de la escuela es alcanzable por el agua **posible** dentro del
+horizonte, no sólo por la existente. Código: `motor/exposicion-v04.ts`,
+`motor/escenarios-subida.ts`, `motor-v04/escenarios-estacion.ts`,
+`adaptadores/rio-prefectura.ts` (`resolverEvidenciaRioV04`).
+
+**Subida posible por estación** (`subida_posible(h) = max(análogos, tendencia + onda)`):
+
+| Escenario | Fuente | Regla |
+|---|---|---|
+| Análogos | Serie diaria INA A5 (sólo historia) | p90 de (máximo en la ventana − nivel actual) entre los 20 vecinos de `analogos-v2`; nunca negativa. Sin análogos → no aporta (marcado `s/d`). |
+| Tendencia ("si se mantiene esta tendencia") | Lecturas de Prefectura (`hidro_lectura`, máximo por día local ≤ asOf) | Tasa media diaria de la ventana **media de 5 días** × 1/3/10 días; nunca negativa (bajante o plano = 0). Se informa también la ventana corta de 2 días. Variaciones de más de 2,5 m/día se descartan como lecturas espurias (Empedrado tuvo picos de 12–13 m) y el día del salto no cuenta como nivel actual. Exige lectura de ≤ 2 días y cubrir la mitad de la ventana. |
+| Onda aguas arriba | Prefectura de la estación inmediata aguas arriba (Paraná aguas abajo de Corrientes: Empedrado←Corrientes, Bella Vista←Empedrado, Goya←Bella Vista, Esquina←Goya) | Lo que subió de más la estación de arriba en la ventana media, acotado a [0, 1 m], sumado desde 72 h. Proxy simple de propagación, no tránsito hidráulico. |
+
+**Zona modelada** (superación del terreno v0.4 `modelada`): el piso observado se
+aplica si `P_conservador(h) ≥ 0,05` (`UMBRAL_ALCANZABLE_V04`; la principal si la
+conservadora no se modeló) **o** si el escenario de tendencia alcanza la cota
+conservadora en el sitio (nivel por transferencia km con el nivel actual de
+Prefectura de cada estación + tendencia + onda). Los pisos probabilísticos de T8
+siguen igual.
+
+**Resto con DEM evaluable** (suelo y agua a ≤ 2 km, no embalse, el agua es el
+río: |nivel DEM − nivel del tramo| ≤ 3 m):
+
+```
+agua_posible(h) = nivel_rio_dem + anomalía_actual + subida_posible(h)
+margen = agua_posible + 2 m − suelo
+margen ≥ 0        → piso completo
+−2 m ≤ margen < 0 → piso un nivel menor (evacuación → moderado; alerta → sin piso)
+margen < −2 m     → sin piso ni componente río
+```
+
+- Margen de error DEM 2 m (`MARGEN_ERROR_DEM_V04_M`): el agua DEM está sesgada
+  1,6–3,7 m abajo frente a cero INA + mediana; 2 m cubre el sesgo típico y la
+  banda de 2 m (`BANDA_EXPOSICION_V04_M`) llega al máximo medido con piso reducido.
+- Se elimina el corte duro de 500 m: el alcance del dato (2 km) más la prueba de
+  terreno deciden.
+- **No evaluable** (sin DEM, sin agua a ≤ 2 km o el agua no es el río): respaldo
+  sólo con `clase_rio` JRC 90 m, con confianza degradada. Ni WRI, ni ruta, ni
+  agua GSW, ni punto de río, ni cercanía a la estación.
+- La ruta RP100 sale de la exposición (sigue en la dimensión de acceso, que
+  nunca se mezcla en el score).
+- Con lectura vigente, la evidencia se devuelve aunque ningún horizonte alcance;
+  el cálculo registra entonces un factor `altura_rio` con unidad `no_alcanzable`,
+  peso 0 y sin texto de "escuela expuesta".
+- La explicación del factor tiene formato fijo:
+  `exposicion v0.4 a <h>h: criterio <c>; alcance <a>; margen <m>m (suelo …, agua posible … = dem … + anomalia … + subida … por <analogos|tendencia|tendencia+onda> [analogos_p90 …, tendencia … a … m/dia, onda …]; margen_error 2m; banda 2m)`.
+  En la zona modelada el factor `rio-v04` agrega `alcance_observado <criterio>`.

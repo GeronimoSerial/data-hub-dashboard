@@ -15,12 +15,15 @@ import {
   PESOS_AMENAZA,
   PESOS_VULNERABILIDAD,
   PISO_AMENAZA_POR_ESTADO_RIO,
+  PISO_AMENAZA_REDUCIDO_V04,
   PISO_RIESGO_POR_ESTADO_RIO,
+  PISO_RIESGO_REDUCIDO_V04,
   PISO_RIESGO_P_ALTO_V04,
   PISO_RIESGO_P_MODERADO_V04,
   REGLAS_V04_VERSION,
   RIO_V04_MAPEO_VERSION,
   TOPE_PROFUNDIDAD_FLUVIAL_V04_M,
+  UMBRAL_ALCANZABLE_V04,
   UMBRAL_ALTO,
   UMBRAL_MODERADO,
   UMBRAL_MUY_ALTO,
@@ -39,6 +42,7 @@ import type {
 import { calcularRiesgoAcceso, type ResultadoRiesgoAcceso } from './riesgo-acceso'
 import { valorAmenazaRio } from './rio-prefectura'
 import { valorLluviaObservada } from './lluvia-observada'
+import { explicacionExposicionV04 } from './exposicion-v04'
 
 const clamp0a100 = (valor: number): number => Math.min(100, Math.max(0, valor))
 const redondear2 = (valor: number): number => Math.round(valor * 100) / 100
@@ -333,23 +337,48 @@ export async function calcularRiesgoEscuela(params: {
     })
     if (evidenciaRio.disponibilidad === 'sin_dato') cantidadFaltantes += 1
   }
+  // Reglas v0.4 (F3): alcance del agua posible en ESTE horizonte. Sin
+  // exposición v0.4 (adapter v0.3 o fakes) el río no alcanza.
+  const expoV04 = v04 && rio !== null ? (rio.exposicionV04?.[horizonte] ?? null) : null
+  const alcanceV04 = expoV04?.alcance ?? 'ninguno'
   if (rio !== null && rioProb === null) {
     const valorNumerico = valorAmenazaRio(rio)
     const tendencia =
       rio.variacionM === null ? 's/d' : rio.variacionM > 0 ? 'crece' : rio.variacionM < 0 ? 'baja' : 'estac'
-    const factor: FactorRiesgo = {
-      tipo: 'amenaza',
-      fuente: 'rio-prefectura',
-      variable: 'altura_rio',
-      valor: rio.lecturaM,
-      unidad: 'm',
-      contribucion: 0,
-      peso: 0,
-      explicacion: `Rio ${rio.rio} en ${rio.estacionId}: ${rio.lecturaM}m, estado ${rio.estado} (alerta ${rio.alertaM ?? 's/d'}m, evacuacion ${rio.evacuacionM ?? 's/d'}m), tendencia ${tendencia}; escuela expuesta por ${rio.criterioExposicion}${rio.criterioExposicion.startsWith('dem_estimado') ? ' (estimado)' : ''}`,
-      observadoEn: rio.medidaEn,
+    const lectura = `Rio ${rio.rio} en ${rio.estacionId}: ${rio.lecturaM}m, estado ${rio.estado} (alerta ${rio.alertaM ?? 's/d'}m, evacuacion ${rio.evacuacionM ?? 's/d'}m), tendencia ${tendencia}`
+    const detalleV04 = expoV04 === null ? `exposicion v0.4 a ${horizonte}h: sin evaluacion` : explicacionExposicionV04(expoV04, horizonte)
+    if (v04 && alcanceV04 === 'ninguno') {
+      // Informativo: la lectura existe pero el agua posible no alcanza el
+      // terreno; no entra a la amenaza ni fija piso.
+      factores.push({
+        tipo: 'amenaza',
+        fuente: 'rio-prefectura',
+        variable: 'altura_rio',
+        valor: rio.lecturaM,
+        unidad: 'no_alcanzable',
+        contribucion: 0,
+        peso: 0,
+        explicacion: `${lectura}; terreno no alcanzable: ${detalleV04}`,
+        observadoEn: rio.medidaEn,
+      })
+    } else {
+      const factor: FactorRiesgo = {
+        tipo: 'amenaza',
+        fuente: 'rio-prefectura',
+        variable: 'altura_rio',
+        valor: rio.lecturaM,
+        unidad: 'm',
+        contribucion: 0,
+        peso: 0,
+        explicacion: v04
+          ? `${lectura}; escuela expuesta por ${rio.criterioExposicion}; ${detalleV04}`
+          : `${lectura}; escuela expuesta por ${rio.criterioExposicion}${rio.criterioExposicion.startsWith('dem_estimado') ? ' (estimado)' : ''}`,
+        observadoEn: rio.medidaEn,
+      }
+      factores.push(factor)
+      componentesAmenaza.push({ factor, valorNumerico, pesoBase: PESOS_AMENAZA.rioPrefectura })
+      if (expoV04?.confianzaBaja) cantidadFaltantes += 1
     }
-    factores.push(factor)
-    componentesAmenaza.push({ factor, valorNumerico, pesoBase: PESOS_AMENAZA.rioPrefectura })
   }
   let factorRioV04: FactorRiesgo | null = null
   if (rioProb !== null) {
@@ -371,8 +400,23 @@ export async function calcularRiesgoEscuela(params: {
       pesoBase: PESOS_AMENAZA.rioPrefectura,
     })
   }
-  const pisoAmenazaRio = rio === null ? null : PISO_AMENAZA_POR_ESTADO_RIO[rio.estado]
-  const pisoRiesgoRio = rio === null ? null : PISO_RIESGO_POR_ESTADO_RIO[rio.estado]
+  // Pisos observados. v0.3: toda escuela con evidencia. v0.4: zona modelada →
+  // sólo si el agua es alcanzable (P conservadora o tendencia); resto → según
+  // el alcance del horizonte (completo, reducido un nivel, ninguno).
+  const alcanceModelado = v04 && rioProb !== null ? alcanceObservadoModelado(rioProb) : null
+  const nivelPiso: 'completo' | 'reducido' | 'ninguno' =
+    rio === null ? 'ninguno'
+    : !v04 ? 'completo'
+    : rioProb !== null ? (alcanceModelado!.alcanza ? 'completo' : 'ninguno')
+    : alcanceV04
+  const pisoAmenazaRio =
+    rio === null || nivelPiso === 'ninguno' ? null
+    : nivelPiso === 'completo' ? PISO_AMENAZA_POR_ESTADO_RIO[rio.estado]
+    : PISO_AMENAZA_REDUCIDO_V04[rio.estado]
+  const pisoRiesgoRio =
+    rio === null || nivelPiso === 'ninguno' ? null
+    : nivelPiso === 'completo' ? PISO_RIESGO_POR_ESTADO_RIO[rio.estado]
+    : PISO_RIESGO_REDUCIDO_V04[rio.estado]
 
   const scoreAmenazaPonderado = cerrarDimension(componentesAmenaza)
   const scoreAmenaza =
@@ -527,13 +571,13 @@ export async function calcularRiesgoEscuela(params: {
           : pisoRiesgoRio !== null && scoreRiesgo === pisoRiesgoRio
             ? `observado_${rio?.estado}`
             : (pisoProb?.etiqueta ?? 'ninguno')
-      factorRioV04.explicacion = explicacionRioV04(rioProb, horizonte, piso)
+      factorRioV04.explicacion = explicacionRioV04(rioProb, horizonte, piso, alcanceModelado?.texto)
     }
     nivelRiesgo = clasificarNivel(scoreRiesgo)
   }
 
   if (factorRioV04 !== null && rioProb !== null && factorRioV04.explicacion === '') {
-    factorRioV04.explicacion = explicacionRioV04(rioProb, horizonte, 'ninguno')
+    factorRioV04.explicacion = explicacionRioV04(rioProb, horizonte, 'ninguno', alcanceModelado?.texto)
   }
 
   // PASO 5 - Confianza.
@@ -628,6 +672,26 @@ function explicacionRioV04(
   rioProb: EvidenciaRioProbabilistica,
   horizonte: HorizontePeligro,
   piso: string,
+  alcance?: string,
 ): string {
-  return `Rio v0.4: P superacion del terreno ${rioProb.principal} a ${horizonte}h; conservador ${rioProb.conservador ?? 's/d'}; metodo ${rioProb.metodo} version ${rioProb.version}; mapeo ${RIO_V04_MAPEO_VERSION}; piso ${piso}`
+  const base = `Rio v0.4: P superacion del terreno ${rioProb.principal} a ${horizonte}h; conservador ${rioProb.conservador ?? 's/d'}; metodo ${rioProb.metodo} version ${rioProb.version}; mapeo ${RIO_V04_MAPEO_VERSION}; piso ${piso}`
+  return alcance === undefined ? base : `${base}; alcance_observado ${alcance}`
+}
+
+// Reglas v0.4 (F3), zona modelada: el agua es alcanzable si P conservadora
+// (o la principal si la conservadora no se modeló) llega al umbral, o si el
+// escenario de tendencia alcanza la cota conservadora en el sitio.
+function alcanceObservadoModelado(rioProb: EvidenciaRioProbabilistica): { alcanza: boolean; texto: string } {
+  const p = rioProb.conservador ?? rioProb.principal
+  if (p !== null && p >= UMBRAL_ALCANZABLE_V04) {
+    return { alcanza: true, texto: `p_conservador ${p} >= ${UMBRAL_ALCANZABLE_V04}` }
+  }
+  const t = rioProb.tendencia
+  if (t?.alcanza) {
+    return { alcanza: true, texto: `tendencia nivel_sitio ${t.nivelSitioM}m >= cota ${t.cotaM}m (subida ${t.subidaM}m)` }
+  }
+  return {
+    alcanza: false,
+    texto: `no (p_conservador ${p ?? 's/d'} < ${UMBRAL_ALCANZABLE_V04}${t ? `; tendencia nivel_sitio ${t.nivelSitioM}m < cota ${t.cotaM}m` : '; sin tendencia'})`,
+  }
 }

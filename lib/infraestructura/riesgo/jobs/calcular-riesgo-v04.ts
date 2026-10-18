@@ -42,6 +42,8 @@ import {
 import { tramoDeLocalidad, ubicarEscuelaEnRio, type UbicacionRio } from '../motor-v04/transferencia-nivel'
 import { crearSerieDiaria, type EnsambleConjunto } from '../motor-v04/hidrologia/analogos'
 import { ensambleConjuntoV2 } from '../motor-v04/hidrologia/analogos-v2'
+import { construirEscenariosSubida, tendenciaEnSitio, type AlcanceTendencia } from '../motor-v04/escenarios-estacion'
+import type { EscenarioSubidaEstacion } from '../motor/escenarios-subida'
 import type { AltimetriaPorCue } from '../motor-v04/altimetria-adaptador'
 import type { EscuelaPadronV04 } from '../motor-v04/padron'
 
@@ -99,7 +101,12 @@ export async function calcularRiesgoCandidatoV04(params?: {
 
     // Insumos de superación del terreno (T6): null = no pudieron cargarse.
     const terreno = await (params?.terreno ?? crearAdapterTerrenoV04()).cargar(padron.map((e) => e.cueAnexo), asOf)
-    const superacion = estimarSuperacionPorEscuela({ padron, terreno, altimetria, asOf })
+    // Escenarios de subida por estación (reglas v0.4, F3): análogos A5 +
+    // tendencia y onda de las lecturas de Prefectura.
+    const escenarios = terreno
+      ? construirEscenariosSubida({ asOf, series: terreno.series, lecturas: terreno.lecturasPrefectura })
+      : new Map<string, EscenarioSubidaEstacion>()
+    const { superacion, tendencias } = estimarSuperacionPorEscuela({ padron, terreno, altimetria, asOf, escenarios })
 
     const [periodo] = await db.select().from(infraPeriodo).where(eq(infraPeriodo.estado, 'vigente')).limit(1)
     if (!periodo) {
@@ -128,6 +135,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
         altimetriaVersion: altimetria?.version ?? null,
         catalogoA5Version: terreno?.catalogoVersion ?? null,
         tramosVersion: terreno?.tramosVersion ?? null,
+        escenariosSubida: Object.fromEntries([...escenarios].map(([id, e]) => [id, e.porHorizonte])),
         ultimaFechaSerie: terreno ? Object.fromEntries([...terreno.series].map(([id, f]) => [id, f.at(-1)?.fecha ?? null])) : null,
       }),
       estadoCalibracionEscolar: 'pendiente',
@@ -156,7 +164,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
     )
 
     // Reglas v0.4 (T10): el candidato corrige los defectos auditados de v0.3.
-    const puertos = crearPuertosConCache(params?.puertos ?? construirPuertosReales({ reglas: 'v0.4' }))
+    const puertos = crearPuertosConCache(params?.puertos ?? construirPuertosReales({ reglas: 'v0.4', escenariosSubida: escenarios }))
     const sinUbicacion = new Set(padron.filter((e) => e.motivoUbicacion !== null).map((e) => e.cueAnexo))
     for (let inicio = 0; inicio < resultados.length; inicio += TAMANO_CHUNK_INSERCION) {
       const filasSnapshot: (typeof infraRiskSnapshot.$inferInsert)[] = []
@@ -172,7 +180,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
           horizonte: r.horizonteHoras,
           asOf,
           puertos,
-          rioProbabilistico: rioProbabilisticoDe(r),
+          rioProbabilistico: rioProbabilisticoDe(r, tendencias.get(r.cueAnexo)?.[r.horizonteHoras] ?? null),
           reglas: 'v0.4',
           extraSnapshot: { resultadoV04: r as unknown as Record<string, unknown> },
         })
@@ -204,6 +212,8 @@ export async function calcularRiesgoCandidatoV04(params?: {
         procesadas: resultados.length,
         totalPadron: cobertura.totalPadron,
         conAltimetria,
+        estacionesConEscenario: escenarios.size,
+        estacionesConTendencia: [...escenarios.values()].filter((e) => e.tasaMediaM !== null).length,
         conSuperacionTerreno: new Set(resultados.filter((r) => r.superacionTerreno.conservador.estado === 'modelada').map((r) => r.cueAnexo)).size,
       },
       ahora,
@@ -241,7 +251,8 @@ function estimarSuperacionPorEscuela(params: {
   terreno: InsumosTerrenoV04 | null
   altimetria: AltimetriaPorCue | null
   asOf: string
-}): Map<string, Record<number, EventoTerreno>> {
+  escenarios: ReadonlyMap<string, EscenarioSubidaEstacion>
+}): { superacion: Map<string, Record<number, EventoTerreno>>; tendencias: Map<string, Record<number, AlcanceTendencia> | null> } {
   const { terreno } = params
   const asOfFecha = fechaLocal(params.asOf)
   const series = new Map([...(terreno?.series ?? [])].map(([id, filas]) => [id, crearSerieDiaria(filas)]))
@@ -257,6 +268,7 @@ function estimarSuperacionPorEscuela(params: {
     return ensambles.get(clave) ?? null
   }
   const salida = new Map<string, Record<number, EventoTerreno>>()
+  const tendencias = new Map<string, Record<number, AlcanceTendencia> | null>()
   for (const escuela of params.padron) {
     const altimetria = params.altimetria?.porCue.get(escuela.cueAnexo) ?? null
     const geo = terreno?.escuelas.get(escuela.cueAnexo)
@@ -272,13 +284,19 @@ function estimarSuperacionPorEscuela(params: {
         })
     const ensamble = ubicacion.estado === 'ubicada' ? ensambleDe(ubicacion) : null
     salida.set(escuela.cueAnexo, estimarSuperacionTerreno({ ubicacion, ensamble, altimetria }))
+    // Escenario "si se mantiene esta tendencia" contra la cota conservadora.
+    const cotaConservadora = altimetria?.estado === 'candidata' ? altimetria.cotaConservadoraM : null
+    tendencias.set(
+      escuela.cueAnexo,
+      ubicacion.estado === 'ubicada' && cotaConservadora !== null ? tendenciaEnSitio(ubicacion, params.escenarios, cotaConservadora) : null,
+    )
   }
-  return salida
+  return { superacion: salida, tendencias }
 }
 
 // Evidencia probabilística para el motor único: sólo si la superación con cota
 // principal es `modelada`; si no, null y el cálculo usa el río de v0.3.
-function rioProbabilisticoDe(r: ResultadoEscuelaV04): EvidenciaRioProbabilistica | null {
+function rioProbabilisticoDe(r: ResultadoEscuelaV04, tendencia: AlcanceTendencia | null): EvidenciaRioProbabilistica | null {
   const { principal, conservador } = r.superacionTerreno
   if (principal.estado !== 'modelada' || principal.probabilidad === null) return null
   return {
@@ -288,6 +306,7 @@ function rioProbabilisticoDe(r: ResultadoEscuelaV04): EvidenciaRioProbabilistica
     metodo: principal.metodo ?? 'desconocido',
     version: principal.version ?? 'desconocida',
     diagnostico: principal.diagnostico,
+    tendencia,
   }
 }
 

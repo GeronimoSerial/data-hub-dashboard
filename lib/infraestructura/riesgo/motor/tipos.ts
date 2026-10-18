@@ -80,4 +80,8 @@ export interface EvidenciaRioProbabilistica {
   metodo: string
   version: string
   diagnostico?: Record<string, number | string | boolean | null>
+  // Reglas v0.4 (F3): escenario "si se mantiene esta tendencia" en el sitio
+  // (nivel por transferencia km con h0 de Prefectura + tendencia + onda) contra
+  // la cota conservadora. Sólo decide si aplica el piso observado.
+  tendencia?: { alcanza: boolean; nivelSitioM: number; cotaM: number; subidaM: number } | null
 }

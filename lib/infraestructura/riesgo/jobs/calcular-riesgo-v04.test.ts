@@ -304,6 +304,9 @@ describe('calcularRiesgoCandidatoV04', () => {
         // Localidad del tramo Corrientes, pero aguas arriba de la estación.
         [FUERA.cueAnexo, { localidad: 'CORRIENTES', lat: -27.3, lon: -58.85 }],
       ]),
+      // Lecturas de Prefectura (nivel actual y tendencia de las reglas v0.4).
+      lecturasRecientes: async (estacionId) =>
+        !['pna-corrientes', 'pna-empedrado'].includes(estacionId) ? [] : [0, 1, 2, 3, 4, 5].map((i) => ({ medidaEn: new Date(Date.parse('2026-10-14T15:00:00Z') + i * 86_400_000).toISOString(), lecturaM: (estacionId === 'pna-corrientes' ? 5 : 4.5) + 0.1 * i })),
     })
     const cota = { cotaPrincipalM: 46, cotaConservadoraM: 45.5 }
     const altimetria: PuertoAltimetriaV04 = {
@@ -349,8 +352,13 @@ describe('calcularRiesgoCandidatoV04', () => {
       const v04 = factores.filter((f) => f.fuente === 'rio-v04')
       expect(v04).toHaveLength(s.cueAnexo === DENTRO.cueAnexo ? 1 : 0)
       if (v04[0]) expect(v04[0]).toMatchObject({ variable: 'superacion_terreno', unidad: 'probabilidad' })
+      // Reglas v0.4: el piso observado de la zona modelada declara su alcance.
+      if (v04[0]) expect(v04[0].explicacion).toContain('alcance_observado')
     }
     for (const s of snaps.filter((x) => x.cueAnexo === SIN.cueAnexo)) expect(s.nivelRiesgo).toBeNull()
+    // Escenarios de subida (F3): análogos A5 + tendencia de Prefectura por estación.
+    const [job] = await getDb().select().from(infraJobRun).where(and(eq(infraJobRun.tipo, 'calcular-riesgo-v04-candidato'), eq(infraJobRun.claveIdempotente, '2026-10-19T12:00:00.000Z')))
+    expect(job?.contadores).toMatchObject({ estacionesConEscenario: 2, estacionesConTendencia: 2 })
     const [run] = await getDb().select().from(infraRiskRun).where(eq(infraRiskRun.id, resultado.runId))
     const { cobertura } = esquemaMetadatosRunV04.parse(run?.metadatos)
     expect(cobertura.abstencionesPorMotivo.fuera_de_tramo_interpolable).toBe(6)

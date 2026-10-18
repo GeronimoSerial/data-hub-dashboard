@@ -17,6 +17,7 @@ import { crearEjecutorSql } from '../../ge-db'
 import type { FilaDiaria } from './hidrologia/analogos'
 import { fechaLocal, fusionarLecturaActual } from './superacion-terreno'
 import type { EstacionTransferencia, TramoAprobado } from './transferencia-nivel'
+import type { LecturaPrefectura } from '../motor/escenarios-subida'
 
 export type EscuelaGeoV04 = { localidad: string | null; lat: number; lon: number }
 
@@ -26,8 +27,14 @@ export type InsumosTerrenoV04 = {
   estaciones: EstacionTransferencia[]
   tramos: TramoAprobado[]
   escuelas: Map<string, EscuelaGeoV04>
-  /** Serie diaria ≤ asOf (fecha local) con la lectura de Prefectura fusionada. */
+  /**
+   * Serie diaria ≤ asOf (fecha local) con la lectura de Prefectura fusionada,
+   * de TODAS las estaciones del catálogo (las interpolables alimentan la
+   * transferencia; todas, los análogos de subida de las reglas v0.4).
+   */
   series: Map<string, FilaDiaria[]>
+  /** Lecturas de Prefectura de los últimos días ≤ asOf (nivel actual y tendencia, F3). */
+  lecturasPrefectura: Map<string, LecturaPrefectura[]>
 }
 
 export interface PuertoTerrenoV04 {
@@ -45,7 +52,12 @@ export type DependenciasTerrenoV04 = {
   escuelas?: (cues: string[]) => Promise<Map<string, EscuelaGeoV04>>
   serie?: (estacionId: string, asOfFecha: string) => Promise<FilaDiaria[]>
   ultimaLectura?: (estacionId: string, asOf: string) => Promise<{ fecha: string; valorM: number } | null>
+  lecturasRecientes?: (estacionId: string, asOf: string) => Promise<LecturaPrefectura[]>
 }
+
+// Días de lecturas de Prefectura que se cargan para la tendencia (ventana
+// media de 5 días + edad máxima de 2 días + margen).
+const DIAS_LECTURAS_TENDENCIA = 10
 
 const referenciasDesdeDb = async (): Promise<ReferenciasTerreno> => {
   await cargarReferencias()
@@ -98,11 +110,32 @@ const ultimaLecturaDesdeDb = async (estacionId: string, asOf: string) => {
   return valida ? { fecha: fechaLocal(valida.medidaEn), valorM: valida.lecturaM as number } : null
 }
 
+// Lecturas de los últimos DIAS_LECTURAS_TENDENCIA días ≤ asOf. Igual que
+// ultimaLecturaDesdeDb, el rango se filtra en memoria para no depender del
+// formato textual de `medida_en`; las inconsistentes viajan marcadas.
+const lecturasRecientesDesdeDb = async (estacionId: string, asOf: string): Promise<LecturaPrefectura[]> => {
+  const hasta = Date.parse(asOf)
+  const desde = hasta - DIAS_LECTURAS_TENDENCIA * 86_400_000
+  const filas = await getDb()
+    .select({ lecturaM: hidroLectura.lecturaM, medidaEn: hidroLectura.medidaEn, inconsistente: hidroLectura.inconsistente })
+    .from(hidroLectura)
+    .where(eq(hidroLectura.estacionId, estacionId))
+    .orderBy(desc(hidroLectura.medidaEn))
+    .limit(400)
+  return filas
+    .filter((f) => {
+      const ms = Date.parse(f.medidaEn)
+      return Number.isFinite(ms) && ms >= desde && ms <= hasta
+    })
+    .map((f) => ({ medidaEn: f.medidaEn, lecturaM: f.lecturaM, inconsistente: f.inconsistente }))
+}
+
 export function crearAdapterTerrenoV04(deps: DependenciasTerrenoV04 = {}): PuertoTerrenoV04 {
   const referencias = deps.referencias ?? referenciasDesdeDb
   const escuelas = deps.escuelas ?? escuelasDesdeDb
   const serie = deps.serie ?? serieDesdeDb
   const ultimaLectura = deps.ultimaLectura ?? ultimaLecturaDesdeDb
+  const lecturasRecientes = deps.lecturasRecientes ?? lecturasRecientesDesdeDb
   return {
     async cargar(cues, asOf) {
       try {
@@ -115,11 +148,16 @@ export function crearAdapterTerrenoV04(deps: DependenciasTerrenoV04 = {}): Puert
           coordenadas: refs.coordenadas.get(e.estacionId) ?? null,
         }))
         const asOfFecha = fechaLocal(asOf)
-        const interpolables = estaciones.filter((e) => e.rio === 'parana' && e.ceroM !== null && e.kmRio !== null)
         const series = new Map<string, FilaDiaria[]>()
-        for (const e of interpolables) {
-          const [filas, lectura] = await Promise.all([serie(e.estacionId, asOfFecha), ultimaLectura(e.estacionId, asOf)])
+        const lecturasPrefectura = new Map<string, LecturaPrefectura[]>()
+        for (const e of estaciones) {
+          const [filas, lectura, recientes] = await Promise.all([
+            serie(e.estacionId, asOfFecha),
+            ultimaLectura(e.estacionId, asOf),
+            lecturasRecientes(e.estacionId, asOf),
+          ])
           series.set(e.estacionId, fusionarLecturaActual(filas, lectura, asOfFecha))
+          lecturasPrefectura.set(e.estacionId, recientes)
         }
         return {
           catalogoVersion: CATALOGO_A5_VERSION,
@@ -128,6 +166,7 @@ export function crearAdapterTerrenoV04(deps: DependenciasTerrenoV04 = {}): Puert
           tramos: refs.tramos,
           escuelas: await escuelas(cues),
           series,
+          lecturasPrefectura,
         }
       } catch {
         return null

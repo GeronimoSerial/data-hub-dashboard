@@ -152,3 +152,115 @@ describe('reglas por defecto', () => {
     expect(await calcular(p)).toEqual(await calcular(p, 'v0.3'))
   })
 })
+
+// F3 — exposición contra el agua posible del horizonte.
+describe('reglas v0.4 — F3 pisos por río según alcance', () => {
+  type Alcance = 'completo' | 'reducido' | 'ninguno'
+  function expo(alcance: Alcance, criterio: 'dem_agua_posible' | 'jrc_respaldo' = 'dem_agua_posible') {
+    return {
+      criterio,
+      alcance,
+      margenM: alcance === 'completo' ? 0.5 : alcance === 'reducido' ? -1 : -9,
+      sueloM: 60,
+      nivelRioDemM: 55,
+      anomaliaM: 1.5,
+      aguaPosibleM: 57.5,
+      subida: { analogosP90M: 1, tendenciaCortaM: 0.2, tendenciaMediaM: 0.4, ondaM: 0, posibleM: 1, decide: 'analogos' as const, tasaMediaM: 0.04 },
+      confianzaBaja: criterio === 'jrc_respaldo',
+      detalle: 'test',
+    }
+  }
+  function conRio(estado: 'alerta' | 'evacuacion', porH: { 24: Alcance; 72: Alcance; 240: Alcance }, criterio?: 'jrc_respaldo'): PuertosMotor {
+    return {
+      ...puertosCon(escenario({ susceptibilidad: { [CUE]: susceptibilidadReal(0) }, caudal: {}, peligro: { [GEOM]: ([24, 72, 240] as const).map((h) => ({ ...celda('verde'), horizonteHoras: h })) } })),
+      rioPrefectura: {
+        obtenerEvidencia: async () => ({
+          cueAnexo: CUE,
+          estacionId: 'pna-corrientes',
+          rio: 'parana' as const,
+          lecturaM: 6.77,
+          alertaM: estado === 'alerta' ? 6.5 : 6,
+          evacuacionM: estado === 'alerta' ? 7 : 6.5,
+          variacionM: 0.02,
+          medidaEn: '2026-10-17T15:00:00.000Z',
+          estado,
+          criterioExposicion: 'exposicion_v0.4',
+          exposicionV04: { 24: expo(porH[24], criterio), 72: expo(porH[72], criterio), 240: expo(porH[240], criterio) },
+        }),
+      },
+    }
+  }
+  const calcularH = (p: PuertosMotor, horizonte: 24 | 72 | 240, rioProbabilistico?: Parameters<typeof calcularRiesgoEscuela>[0]['rioProbabilistico']) =>
+    calcularRiesgoEscuela({ cueAnexo: CUE, horizonte, asOf: AS_OF, puertos: p, reglas: 'v0.4', rioProbabilistico })
+
+  it('alcance completo aplica el piso observado entero', async () => {
+    const r = await calcularH(conRio('alerta', { 24: 'completo', 72: 'completo', 240: 'completo' }), 24)
+    expect(r.scoreRiesgo).toBe(25)
+    const f = r.factores.find((x) => x.variable === 'altura_rio')!
+    expect(f.contribucion).toBeGreaterThan(0)
+    expect(f.explicacion).toContain('escuela expuesta por exposicion_v0.4')
+    expect(f.explicacion).toContain('exposicion v0.4 a 24h: criterio dem_agua_posible; alcance completo; margen 0.5m')
+  })
+
+  it('banda: evacuación baja a piso moderado; alerta queda sin piso', async () => {
+    const evac = await calcularH(conRio('evacuacion', { 24: 'reducido', 72: 'reducido', 240: 'reducido' }), 24)
+    expect(evac.scoreRiesgo).toBe(25)
+    expect(evac.scoreAmenaza).toBeGreaterThanOrEqual(50)
+    const alerta = await calcularH(conRio('alerta', { 24: 'reducido', 72: 'reducido', 240: 'reducido' }), 24)
+    expect(alerta.scoreRiesgo).toBeLessThan(25)
+  })
+
+  it('terreno no alcanzable: ni piso ni componente; queda un factor informativo sin peso', async () => {
+    const r = await calcularH(conRio('evacuacion', { 24: 'ninguno', 72: 'ninguno', 240: 'ninguno' }), 24)
+    expect(r.scoreRiesgo).toBeLessThan(25)
+    const f = r.factores.find((x) => x.variable === 'altura_rio')!
+    expect(f).toMatchObject({ unidad: 'no_alcanzable', peso: 0, contribucion: 0 })
+    expect(f.explicacion).not.toContain('escuela expuesta')
+    expect(f.explicacion).toContain('alcance ninguno')
+  })
+
+  it('los horizontes difieren según el alcance de cada uno', async () => {
+    const p = conRio('evacuacion', { 24: 'ninguno', 72: 'reducido', 240: 'completo' })
+    const [a, b, c] = await Promise.all([calcularH(p, 24), calcularH(p, 72), calcularH(p, 240)])
+    expect([a.nivelRiesgo, b.nivelRiesgo, c.nivelRiesgo]).toEqual(['bajo', 'moderado', 'alto'])
+  })
+
+  it('respaldo JRC aplica el piso con confianza degradada', async () => {
+    const completar = (p: PuertosMotor): PuertosMotor => ({
+      ...p,
+      historial: { obtenerResumen: async () => ({ ...SIN_PARTES, fuenteDisponible: true }) },
+      lluviaObservada: { obtenerAcumulado: async () => ({ geometryRef: GEOM, acumuladoMm24h: 0, acumuladoMm72h: 0, observadoEn: AS_OF }) },
+    })
+    const todos = { 24: 'completo', 72: 'completo', 240: 'completo' } as const
+    const dem = await calcularH(completar(conRio('alerta', todos)), 24)
+    const jrc = await calcularH(completar(conRio('alerta', todos, 'jrc_respaldo')), 24)
+    expect(jrc.scoreRiesgo).toBe(25)
+    expect(dem.confianza).toBe('media')
+    expect(jrc.confianza).toBe('baja')
+    expect(jrc.factores.find((f) => f.variable === 'altura_rio')!.explicacion).toContain('(confianza baja)')
+  })
+
+  it('zona modelada: el piso observado exige P conservadora alcanzable o tendencia que alcance la cota', async () => {
+    const p = conRio('evacuacion', { 24: 'ninguno', 72: 'ninguno', 240: 'ninguno' })
+    const prob = (conservador: number, alcanzaTendencia = false) => ({
+      principal: 0,
+      conservador,
+      ventanaHoras: 24 as const,
+      metodo: 'analogos-v2+transferencia-km',
+      version: 'superacion-terreno-v1',
+      tendencia: { alcanza: alcanzaTendencia, nivelSitioM: 48.2, cotaM: 48, subidaM: 0.36 },
+    })
+    const bajo = await calcularH(p, 24, prob(0.02))
+    expect(bajo.scoreRiesgo).toBeLessThan(25)
+    expect(bajo.factores.find((f) => f.fuente === 'rio-v04')!.explicacion).toContain('alcance_observado no')
+    const pCons = await calcularH(p, 24, prob(0.06))
+    expect(pCons.scoreRiesgo).toBe(50)
+    expect(pCons.factores.find((f) => f.fuente === 'rio-v04')!.explicacion).toContain('alcance_observado p_conservador 0.06 >= 0.05')
+    const tendencia = await calcularH(p, 24, prob(0, true))
+    expect(tendencia.scoreRiesgo).toBe(50)
+    expect(tendencia.factores.find((f) => f.fuente === 'rio-v04')!.explicacion).toContain('alcance_observado tendencia nivel_sitio 48.2m >= cota 48m')
+    // Con reglas v0.3 el piso observado se aplica igual aunque P sea 0.
+    const v03 = await calcularRiesgoEscuela({ cueAnexo: CUE, horizonte: 24, asOf: AS_OF, puertos: p, rioProbabilistico: prob(0.02) })
+    expect(v03.scoreRiesgo).toBeGreaterThanOrEqual(50)
+  })
+})

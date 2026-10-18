@@ -18,6 +18,7 @@ import { crearAdapterSusceptibilidad } from '../motor/adaptadores/susceptibilida
 import { crearAdapterTerritorio } from '../motor/adaptadores/territorio'
 import { calcularRiesgoEscuela } from '../motor/calculo'
 import type { ReglasMotor } from '../motor/config'
+import type { EscenarioSubidaEstacion } from '../motor/escenarios-subida'
 import type { EvidenciaRioProbabilistica, ResultadoRiesgoEscuela } from '../motor/tipos'
 import type {
   HorizontePeligro,
@@ -69,6 +70,8 @@ export type OpcionesPuertosReales = {
   // 'v0.3' (por defecto) arma exactamente los adapters del operativo; 'v0.4'
   // les pide además los insumos que necesitan las reglas v0.4 (T10).
   reglas?: ReglasMotor
+  // Reglas v0.4 (F3): escenarios de subida por estación para la exposición.
+  escenariosSubida?: ReadonlyMap<string, EscenarioSubidaEstacion>
 }
 
 export function construirPuertosReales(opciones: OpcionesPuertosReales = {}): PuertosMotor {
@@ -81,7 +84,7 @@ export function construirPuertosReales(opciones: OpcionesPuertosReales = {}): Pu
     susceptibilidad: crearAdapterSusceptibilidad(v04 ? { conProfundidadFluvial: true } : {}),
     historial: crearAdapterHistorial(v04 ? { informarFuente: true } : {}),
     exposicion: crearAdapterExposicion(),
-    rioPrefectura: crearAdapterRioPrefectura(),
+    rioPrefectura: crearAdapterRioPrefectura(v04 ? { reglas: 'v0.4', escenarios: opciones.escenariosSubida } : {}),
   }
 }
 

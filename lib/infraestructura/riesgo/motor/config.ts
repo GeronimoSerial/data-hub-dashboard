@@ -172,3 +172,42 @@ export const TOPE_PROFUNDIDAD_FLUVIAL_V04_M = 1
 // Con V desconocida (ni historial ni susceptibilidad) el factor es 1: un dato
 // faltante nunca baja el riesgo. Los pisos por río siguen aplicándose.
 export const BASE_COMBINACION_V04 = 0.5
+
+// F3 — Exposición v0.4: terreno de la escuela contra el agua POSIBLE dentro
+// del horizonte (decisión del usuario 2026-10-18), no sólo la existente.
+// Zona modelada (superación del terreno v0.4): el piso observado se aplica si
+// P_conservador(h) ≥ UMBRAL_ALCANZABLE_V04 o si el escenario de tendencia
+// alcanza la cota conservadora. Resto con DEM evaluable:
+//   agua_posible(h) = nivel_rio_dem + anomalía_actual + subida_posible(h)
+//   margen = agua_posible + MARGEN_ERROR_DEM_V04_M − suelo
+//   margen ≥ 0 → piso completo; −BANDA ≤ margen < 0 → piso un nivel menor;
+//   margen < −BANDA → sin piso.
+// MARGEN_ERROR_DEM: el nivel de agua DEM está sesgado 1,6–3,7 m abajo frente
+// a cero INA + mediana de 365 días (auditoría 2026-10-18); 2 m cubre el sesgo
+// típico y la banda de 2 m llega al máximo medido con piso reducido.
+export const UMBRAL_ALCANZABLE_V04 = 0.05
+export const DISTANCIA_DATOS_DEM_V04_M = 2000
+export const MARGEN_ERROR_DEM_V04_M = 2
+export const BANDA_EXPOSICION_V04_M = 2
+// Piso un nivel menor (banda): evacuación → alerta (amenaza 50, riesgo 25);
+// alerta → sin piso.
+export const PISO_AMENAZA_REDUCIDO_V04 = { normal: null, alerta: null, evacuacion: 50 } as const
+export const PISO_RIESGO_REDUCIDO_V04 = { normal: null, alerta: null, evacuacion: 25 } as const
+
+// Escenarios de subida posible por estación (F3):
+// - análogos: p90 de la subida máxima en la ventana (analogos-v2, serie A5);
+// - tendencia ("si se mantiene esta tendencia"): tasa diaria media de los
+//   máximos diarios de Prefectura en la ventana media × días del horizonte;
+//   nunca negativa. La ventana corta sólo se informa.
+// - onda aguas arriba (Paraná aguas abajo de Corrientes, h ≥ 72): lo que subió
+//   de más la estación inmediatamente aguas arriba en la ventana media, acotado.
+//   Es un proxy de propagación, no un tránsito hidráulico.
+// subida_posible = max(análogos, tendencia + onda).
+export const VENTANA_TENDENCIA_CORTA_DIAS = 2
+export const VENTANA_TENDENCIA_MEDIA_DIAS = 5
+// Saltos diarios mayores se descartan como lecturas espurias (Empedrado tuvo
+// picos de 12–13 m sobre ~5 m); el Uruguay real sube hasta ~1–2 m/día.
+export const SALTO_MAX_DIARIO_M = 2.5
+export const EDAD_MAX_LECTURA_TENDENCIA_DIAS = 2
+export const ONDA_MAX_V04_M = 1
+export const DIAS_POR_HORIZONTE_V04 = { 24: 1, 72: 3, 240: 10 } as const

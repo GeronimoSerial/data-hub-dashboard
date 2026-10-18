@@ -20,6 +20,7 @@ import type {
   NivelPeligroCelda,
 } from '../peligro/nivel'
 import type { ClimatologiaObservada } from './lluvia-observada'
+import type { ExposicionHorizonteV04 } from './exposicion-v04'
 
 export type { HorizontePeligro, NivelCaudalPunto, NivelPeligro, NivelPeligroCelda }
 
@@ -192,6 +193,10 @@ export interface EvidenciaRioPrefectura {
   // Criterio que hizo a la escuela "expuesta" (trazabilidad del factor). Los
   // criterios basados en DEM empiezan con 'dem_estimado' (exposición estimada).
   criterioExposicion: string
+  // Reglas v0.4 (F3): alcance del agua posible por horizonte. Con reglas v0.4
+  // el adapter devuelve la lectura aunque el terreno no sea alcanzable en
+  // ningún horizonte (la zona modelada decide su piso por probabilidad).
+  exposicionV04?: Record<HorizontePeligro, ExposicionHorizonteV04>
 }
 
 // Escuela vinculada a un tramo para la que la evidencia del río NO puede
