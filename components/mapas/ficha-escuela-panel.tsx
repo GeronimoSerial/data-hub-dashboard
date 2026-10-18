@@ -42,6 +42,7 @@ interface FichaEscuelaPanelProps {
   onQuitarSeleccion?: () => void
   extraVistaPrevia?: ReactNode
   aislamiento?: NivelAislamientoMapa | null
+  distanciaLocalidad?: { nombre: string | null; km: number } | null
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -114,6 +115,7 @@ export function FichaEscuelaPanel({
   onQuitarSeleccion,
   extraVistaPrevia = null,
   aislamiento = null,
+  distanciaLocalidad = null,
 }: FichaEscuelaPanelProps) {
   const { estado, historial } = useFichaParte(escuela.cueAnexo)
   const tituloRef = useRef<HTMLHeadingElement>(null)
@@ -191,6 +193,7 @@ export function FichaEscuelaPanel({
         onQuitarSeleccion={onQuitarSeleccion ?? (() => {})}
         extra={extraVistaPrevia}
         aislamiento={aislamiento}
+        distanciaLocalidad={distanciaLocalidad}
         onAbrirFichaCompleta={onAbrirFichaCompleta}
         cargandoParte={estado.fase === 'cargando'}
       />

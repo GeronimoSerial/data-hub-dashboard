@@ -2308,6 +2308,9 @@ export default function MapInfraestructuraPage(props: {
                 onQuitarSeleccion={quitarSeleccion}
                 extraVistaPrevia={radarActivo ? <PronosticoEscuelaBloque cueAnexo={escuelaSeleccionada.cueAnexo} /> : null}
                 aislamiento={territorio?.aislamiento?.escuelas[escuelaSeleccionada.cueAnexo]?.nivel ?? null}
+                distanciaLocalidad={geometria?.disponible && typeof geometria.distanciaKm === 'number'
+                  ? { nombre: geometria.destino?.nombre ?? null, km: geometria.distanciaKm }
+                  : null}
               />
         </aside>
       )}

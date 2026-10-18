@@ -45,7 +45,7 @@ function distanciaKm(ruta: RutaGeoJson): number | null {
   return distancia
 }
 
-function etiquetaKm(distancia: number): string {
+export function etiquetaKm(distancia: number): string {
   const kilometros = Math.max(1, distancia)
   const formato = kilometros < 10 ? FORMATO_KM_DECIMAL : FORMATO_KM_ENTERO
   return `${formato.format(kilometros)} km`

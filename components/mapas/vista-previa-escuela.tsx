@@ -14,6 +14,7 @@ import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { DESCRIPCIONES_AISLAMIENTO } from '@/lib/mapas/accesos-capas'
+import { etiquetaKm } from '@/lib/infraestructura/mapa/acceso'
 import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
 import styles from './vista-previa-escuela.module.css'
 
@@ -32,6 +33,8 @@ export interface VistaPreviaEscuelaProps {
   extra?: ReactNode
   /** Static OSM access isolation level; omitted when the school has no row. */
   aislamiento?: NivelAislamientoMapa | null
+  /** Road distance to the town the access route ends at; omitted while unknown. */
+  distanciaLocalidad?: { nombre: string | null; km: number } | null
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -61,6 +64,7 @@ export function VistaPreviaEscuela({
   cargandoParte = false,
   extra = null,
   aislamiento = null,
+  distanciaLocalidad = null,
 }: VistaPreviaEscuelaProps) {
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const sinUbicacion =
@@ -263,6 +267,15 @@ export function VistaPreviaEscuela({
               title={DESCRIPCIONES_AISLAMIENTO[aislamiento].detalle}
             >
               {DESCRIPCIONES_AISLAMIENTO[aislamiento].nombre}
+            </dd>
+          </div>
+        )}
+        {distanciaLocalidad && (
+          <div data-testid="preview-distancia-localidad">
+            <dt>Hasta la localidad</dt>
+            <dd>
+              {etiquetaKm(distanciaLocalidad.km)} por camino
+              {distanciaLocalidad.nombre && <span className={styles.atenuado}>{distanciaLocalidad.nombre}</span>}
             </dd>
           </div>
         )}

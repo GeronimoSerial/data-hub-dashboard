@@ -135,8 +135,9 @@ describe('VistaPreviaEscuela', () => {
     const { rerender } = render(<VistaPreviaEscuela {...props} aislamiento={3} />)
     expect(screen.getByTestId('preview-aislamiento')).toHaveTextContent('AislamientoAlta')
 
-    rerender(<VistaPreviaEscuela {...props} />)
+    rerender(<VistaPreviaEscuela {...props} distanciaLocalidad={{ nombre: 'Goya', km: 12.4 }} />)
     expect(screen.queryByTestId('preview-aislamiento')).toBeNull()
+    expect(screen.getByTestId('preview-distancia-localidad')).toHaveTextContent('12 km por caminoGoya')
   })
 
   it('muestra alumnos afectados sobre la matrícula y su porcentaje', () => {
