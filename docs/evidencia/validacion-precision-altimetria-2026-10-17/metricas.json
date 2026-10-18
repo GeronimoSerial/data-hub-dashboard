@@ -1,0 +1,773 @@
+{
+  "fecha_utc": "2026-10-17T23:53:07Z",
+  "padron_csv": "docs/evidencia/altimetria-2026-10-17/provincial/cobertura-y-muestras.csv",
+  "padron_csv_sha256": "816aa9153b35fd6fb53189327a1428d9d44fd129a89326733ce53dd74f94fa77",
+  "denominadores": {
+    "padron": 2005,
+    "con_coordenadas": 2001,
+    "ubicaciones_unicas": 1957
+  },
+  "advertencia": "Se separan diferencias crudas SRVN16 menos EGM2008 y armonizadas aproximadamente mediante grillas. Ninguna es error verdadero ni cota de piso.",
+  "metricas_diferencias": {
+    "provincial": {
+      "delta_pixel_ign_menos_cop_m": {
+        "n": 2001,
+        "media": 1.3810189622931455,
+        "desvio_poblacional": 1.6208119740246631,
+        "mediana": 1.3407285339355468,
+        "mad_diferencias": 0.9771828796386757,
+        "media_absoluta_diferencia": 1.713465074307939,
+        "raiz_media_cuadrados_diferencias": 2.129376629287304,
+        "p05": -1.24281143798828,
+        "p95": 3.916566528320317,
+        "p90_abs": 3.388452929687503,
+        "max_abs": 9.548810766601576,
+        "abs_gt_1m": 1323,
+        "abs_gt_2m": 708,
+        "abs_gt_5m": 38
+      },
+      "delta_p10_ign_menos_cop_m": {
+        "n": 2001,
+        "media": 1.7884105732892526,
+        "desvio_poblacional": 1.181280243368858,
+        "mediana": 1.7611640930175696,
+        "mad_diferencias": 0.7498359680175639,
+        "media_absoluta_diferencia": 1.8504077479578387,
+        "raiz_media_cuadrados_diferencias": 2.1433234454991577,
+        "p05": -0.07397422790527486,
+        "p95": 3.7010185241699247,
+        "p90_abs": 3.2779647827148324,
+        "max_abs": 7.055744934082043,
+        "abs_gt_1m": 1547,
+        "abs_gt_2m": 843,
+        "abs_gt_5m": 17
+      },
+      "delta_p10_ign_menos_cop_armonizado_m": {
+        "n": 2001,
+        "media": 1.9595403175074952,
+        "desvio_poblacional": 1.1558832176484866,
+        "mediana": 1.9368127183292998,
+        "mad_diferencias": 0.7276979626349558,
+        "media_absoluta_diferencia": 2.000645650849078,
+        "raiz_media_cuadrados_diferencias": 2.275052585937036,
+        "p05": 0.1227532299787697,
+        "p95": 3.813408589039227,
+        "p90_abs": 3.3943555574051487,
+        "max_abs": 7.120357570688469,
+        "abs_gt_1m": 1629,
+        "abs_gt_2m": 956,
+        "abs_gt_5m": 19
+      }
+    },
+    "corredor_por_localidad_actual": {
+      "delta_pixel_ign_menos_cop_m": {
+        "n": 86,
+        "media": 1.0839745772960576,
+        "desvio_poblacional": 1.3025981210125432,
+        "mediana": 1.084309759521485,
+        "mad_diferencias": 0.9888777709960941,
+        "media_absoluta_diferencia": 1.3582931393645525,
+        "raiz_media_cuadrados_diferencias": 1.6946276136926297,
+        "p05": -1.0368327178955106,
+        "p95": 3.068242648315426,
+        "p90_abs": 2.956012725830078,
+        "max_abs": 3.6251801513671893,
+        "abs_gt_1m": 51,
+        "abs_gt_2m": 20,
+        "abs_gt_5m": 0
+      },
+      "delta_p10_ign_menos_cop_m": {
+        "n": 86,
+        "media": 1.4843274759691816,
+        "desvio_poblacional": 1.1803913668694996,
+        "mediana": 1.2902025222778306,
+        "mad_diferencias": 0.7895309448242145,
+        "media_absoluta_diferencia": 1.5761258413625325,
+        "raiz_media_cuadrados_diferencias": 1.8964577071205901,
+        "p05": -0.2762704849243178,
+        "p95": 3.462868690490726,
+        "p90_abs": 2.9471635818481445,
+        "max_abs": 4.47062530517578,
+        "abs_gt_1m": 57,
+        "abs_gt_2m": 29,
+        "abs_gt_5m": 0
+      },
+      "delta_p10_ign_menos_cop_armonizado_m": {
+        "n": 86,
+        "media": 1.5633544681414488,
+        "desvio_poblacional": 1.2055040571703377,
+        "mediana": 1.3327652609978387,
+        "mad_diferencias": 0.7838185242731015,
+        "media_absoluta_diferencia": 1.6496868721380173,
+        "raiz_media_cuadrados_diferencias": 1.9741624109763551,
+        "p05": -0.2274313165892785,
+        "p95": 3.462777505362329,
+        "p90_abs": 3.0093559531114877,
+        "max_abs": 4.531859355558389,
+        "abs_gt_1m": 60,
+        "abs_gt_2m": 29,
+        "abs_gt_5m": 0
+      }
+    },
+    "provincia_sin_alertas_coordenadas": {
+      "delta_pixel_ign_menos_cop_m": {
+        "n": 1994,
+        "media": 1.3772841828724085,
+        "desvio_poblacional": 1.6199702110845873,
+        "mediana": 1.3275632812500007,
+        "mad_diferencias": 0.9745779785156259,
+        "media_absoluta_diferencia": 1.7102432724090852,
+        "raiz_media_cuadrados_diferencias": 2.126314935561513,
+        "p05": -1.2529229260253891,
+        "p95": 3.8949855545043945,
+        "p90_abs": 3.3876389361572294,
+        "max_abs": 9.548810766601576,
+        "abs_gt_1m": 1317,
+        "abs_gt_2m": 703,
+        "abs_gt_5m": 38
+      },
+      "delta_p10_ign_menos_cop_m": {
+        "n": 1994,
+        "media": 1.7838512991711035,
+        "desvio_poblacional": 1.1772357665734445,
+        "mediana": 1.7599294662475558,
+        "mad_diferencias": 0.7488256454467788,
+        "media_absoluta_diferencia": 1.8460661168801509,
+        "raiz_media_cuadrados_diferencias": 2.137290225414929,
+        "p05": -0.07576078414917081,
+        "p95": 3.698052368164064,
+        "p90_abs": 3.271184921264643,
+        "max_abs": 7.055744934082043,
+        "abs_gt_1m": 1540,
+        "abs_gt_2m": 838,
+        "abs_gt_5m": 15
+      },
+      "delta_p10_ign_menos_cop_armonizado_m": {
+        "n": 1994,
+        "media": 1.9547577459979706,
+        "desvio_poblacional": 1.1515912028862756,
+        "mediana": 1.9291297313567561,
+        "mad_diferencias": 0.7290544386804427,
+        "media_absoluta_diferencia": 1.996007380910963,
+        "raiz_media_cuadrados_diferencias": 2.2687529931890174,
+        "p05": 0.11888586827244463,
+        "p95": 3.8029371223730593,
+        "p90_abs": 3.3895791219665403,
+        "max_abs": 7.120357570688469,
+        "abs_gt_1m": 1622,
+        "abs_gt_2m": 951,
+        "abs_gt_5m": 17
+      }
+    },
+    "ubicaciones_unicas": {
+      "delta_pixel_ign_menos_cop_m": {
+        "n": 1957,
+        "media": 1.3840369438128504,
+        "desvio_poblacional": 1.6253250670630612,
+        "mediana": 1.3411118652343816,
+        "mad_diferencias": 0.9813389770507825,
+        "media_absoluta_diferencia": 1.7177607640223047,
+        "raiz_media_cuadrados_diferencias": 2.1347692698421437,
+        "p05": -1.248589431152342,
+        "p95": 3.917315616455081,
+        "p90_abs": 3.388772050781256,
+        "max_abs": 9.548810766601576,
+        "abs_gt_1m": 1295,
+        "abs_gt_2m": 695,
+        "abs_gt_5m": 38
+      },
+      "delta_p10_ign_menos_cop_m": {
+        "n": 1957,
+        "media": 1.7889842198585817,
+        "desvio_poblacional": 1.1822903319083762,
+        "mediana": 1.7611640930175696,
+        "mad_diferencias": 0.750594329833973,
+        "media_absoluta_diferencia": 1.8501734156113958,
+        "raiz_media_cuadrados_diferencias": 2.144358871044452,
+        "p05": -0.08037277221679623,
+        "p95": 3.701885681152344,
+        "p90_abs": 3.2808615112304613,
+        "max_abs": 7.055744934082043,
+        "abs_gt_1m": 1511,
+        "abs_gt_2m": 824,
+        "abs_gt_5m": 17
+      },
+      "delta_p10_ign_menos_cop_armonizado_m": {
+        "n": 1957,
+        "media": 1.9603214483822473,
+        "desvio_poblacional": 1.1569600831936977,
+        "mediana": 1.9368127183292998,
+        "mad_diferencias": 0.7276979626349558,
+        "media_absoluta_diferencia": 2.000313734881103,
+        "raiz_media_cuadrados_diferencias": 2.2762725704737203,
+        "p05": 0.11129596338279557,
+        "p95": 3.8151151995926424,
+        "p90_abs": 3.4014006182441263,
+        "max_abs": 7.120357570688469,
+        "abs_gt_1m": 1592,
+        "abs_gt_2m": 936,
+        "abs_gt_5m": 19
+      }
+    }
+  },
+  "variacion_espacial_50m": {
+    "ign": {
+      "n": 2001,
+      "mediana_p90_menos_p10_50m": 1.2456817626953125,
+      "p90_p90_menos_p10_50m": 2.6459716796875057,
+      "rango_gt_2m": 421,
+      "rango_gt_5m": 19
+    },
+    "cop": {
+      "n": 2001,
+      "mediana_p90_menos_p10_50m": 2.0347656249999986,
+      "p90_p90_menos_p10_50m": 3.8894195556640625,
+      "rango_gt_2m": 1027,
+      "rango_gt_5m": 77
+    }
+  },
+  "armonizacion_vertical": {
+    "formula": "H_SRVN16_aprox = H_EGM2008 + N_EGM2008 - N_GEOIDE-Ar16",
+    "grillas": "grillas-proj.geojson",
+    "control_implementacion": {
+      "lon": -58.833112,
+      "lat": -27.489013,
+      "H_EGM2008_prueba_m": 100,
+      "N_EGM2008_m": 18.785730391314164,
+      "N_GEOIDE_Ar16_m": 18.999553161742277,
+      "H_SRVN16_manual_m": 99.78617722957189,
+      "H_SRVN16_PROJ_m": 99.78617722957188,
+      "diferencia_manual_PROJ_m": 1.4210854715202004e-14,
+      "pipeline_PROJ": "+proj=pipeline +step +proj=unitconvert +xy_in=deg +xy_out=rad +step +proj=vgridshift +grids=/home/gero/orca/workspaces/data-hub-dashboard/refactor/services/geo-static/.data/validacion-precision-altimetria-2026-10-17/us_nga_egm08_25.tif +multiplier=1 +step +proj=vgridshift +grids=/home/gero/orca/workspaces/data-hub-dashboard/refactor/services/geo-static/.data/validacion-precision-altimetria-2026-10-17/ar_ign_GEOIDE-Ar16.tif +multiplier=-1 +step +proj=unitconvert +xy_in=rad +xy_out=deg",
+      "nota": "Control de implementación/signo, no control geodésico independiente. No transforma época/marco horizontal WGS84-G1150 a POSGAR07."
+    },
+    "offsets_m": {
+      "n": 2001,
+      "media": -0.17113254027623492,
+      "desvio_poblacional": 0.11596382355925548,
+      "mediana": -0.19410345701050957,
+      "mad_diferencias": 0.035849122381584664,
+      "media_absoluta_diferencia": 0.19165336844382688,
+      "raiz_media_cuadrados_diferencias": 0.20672192606465167,
+      "p05": -0.3421005910158108,
+      "p95": -0.010244779145121896,
+      "p90_abs": 0.28480446344986277,
+      "max_abs": 0.529019033938031,
+      "abs_gt_1m": 0,
+      "abs_gt_2m": 0,
+      "abs_gt_5m": 0
+    }
+  },
+  "copernicus_sources": [
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S28_00_W060_00_DEM/Copernicus_DSM_COG_10_S28_00_W060_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S28_00_W060_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -60.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -26.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S28_00_W060_00_DEM.json",
+      "cache_sha256": "fc862fa30fad893e8c5223c2e9ff4e492726a7beb76b9fc94c063e928d98cee1"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S31_00_W060_00_DEM/Copernicus_DSM_COG_10_S31_00_W060_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S31_00_W060_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -60.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -29.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S31_00_W060_00_DEM.json",
+      "cache_sha256": "0ee1b5620acfad07c4d97fe758f73c895c604831fcdb0e2faac96352866d1e65"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S30_00_W060_00_DEM/Copernicus_DSM_COG_10_S30_00_W060_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S30_00_W060_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -60.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -28.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S30_00_W060_00_DEM.json",
+      "cache_sha256": "facef592e7d9d73bf0935d301f9811d86049d220d1535a3ee7b24ca3a61c38a2"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S29_00_W060_00_DEM/Copernicus_DSM_COG_10_S29_00_W060_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S29_00_W060_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -60.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -27.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S29_00_W060_00_DEM.json",
+      "cache_sha256": "65aa72ea6ebe45bba0ce3df28708eb704ead6ddfbf75b738511dd3bbd6396978"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S31_00_W059_00_DEM/Copernicus_DSM_COG_10_S31_00_W059_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S31_00_W059_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -59.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -29.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S31_00_W059_00_DEM.json",
+      "cache_sha256": "5eaacb8c7a96aaa0f971f0292e81ee9729e207d9d1cb30efd8d7995b7a6e6b9e"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S31_00_W058_00_DEM/Copernicus_DSM_COG_10_S31_00_W058_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S31_00_W058_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -58.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -29.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S31_00_W058_00_DEM.json",
+      "cache_sha256": "2fdc38b0f27ab585858cdde9aa6795b7724a3876aa40c43d930f0db9a7db4df8"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S28_00_W058_00_DEM/Copernicus_DSM_COG_10_S28_00_W058_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S28_00_W058_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -58.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -26.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S28_00_W058_00_DEM.json",
+      "cache_sha256": "1e151b811962d33a21147e5504cee2ec3d8193e9387bc049db33e83840491d0a"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S30_00_W059_00_DEM/Copernicus_DSM_COG_10_S30_00_W059_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S30_00_W059_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -59.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -28.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S30_00_W059_00_DEM.json",
+      "cache_sha256": "6051c1bedb9eb9f1e6b8b9a6ab585348c8b3865a7495bafb3db7cd9752ee2c68"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S29_00_W058_00_DEM/Copernicus_DSM_COG_10_S29_00_W058_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S29_00_W058_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -58.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -27.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S29_00_W058_00_DEM.json",
+      "cache_sha256": "5e18c2943ad83c6fbd480bd5c2d44c97712ee7a1ceddf48f1ebe3727b72996b8"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S28_00_W057_00_DEM/Copernicus_DSM_COG_10_S28_00_W057_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S28_00_W057_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -57.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -26.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S28_00_W057_00_DEM.json",
+      "cache_sha256": "66ea6b964fc5d1b3b7531e3b367f0f4501960587a0e387551bad6ad5b6fc1c55"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S30_00_W057_00_DEM/Copernicus_DSM_COG_10_S30_00_W057_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S30_00_W057_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -57.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -28.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S30_00_W057_00_DEM.json",
+      "cache_sha256": "a3293c673ac979243b0104e95f359d08b95b90cbc2dd06b13783515dff15af47"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S29_00_W057_00_DEM/Copernicus_DSM_COG_10_S29_00_W057_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S29_00_W057_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -57.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -27.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S29_00_W057_00_DEM.json",
+      "cache_sha256": "fac02f553c403de75c5139cfb3dc299bdff4038bba7ea7ef048fd5b70234b146"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S29_00_W056_00_DEM/Copernicus_DSM_COG_10_S29_00_W056_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S29_00_W056_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -56.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -27.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S29_00_W056_00_DEM.json",
+      "cache_sha256": "528c5ba055a7f8b5a760eca82f863c861a98464f1f158656dfa8e81561d8ca6d"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S28_00_W056_00_DEM/Copernicus_DSM_COG_10_S28_00_W056_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S28_00_W056_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -56.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -26.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S28_00_W056_00_DEM.json",
+      "cache_sha256": "0e2dab231f690f8ad14fad292099f336e2a09b1e6b2f5aad30718c9d49c28305"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S29_00_W059_00_DEM/Copernicus_DSM_COG_10_S29_00_W059_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S29_00_W059_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -59.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -27.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S29_00_W059_00_DEM.json",
+      "cache_sha256": "82b31085d92b856bbc6265310a95d7464ab7efa5610f2b68b81a93552b1939b2"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S28_00_W059_00_DEM/Copernicus_DSM_COG_10_S28_00_W059_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S28_00_W059_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -59.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -26.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S28_00_W059_00_DEM.json",
+      "cache_sha256": "149655118d708f1356570f5d3a4d193503a0baa6751e20ee7d20b31dcd8f11a3"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S30_00_W058_00_DEM/Copernicus_DSM_COG_10_S30_00_W058_00_DEM.tif",
+      "tile": "Copernicus_DSM_COG_10_S30_00_W058_00_DEM",
+      "sampling": "native pixel centers, 50 m Haversine disk",
+      "metadata": {
+        "crs": "EPSG:4326",
+        "transform": [
+          0.0002777777777777778,
+          0.0,
+          -58.00013888888889,
+          0.0,
+          -0.0002777777777777778,
+          -28.999861111111112,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "shape": [
+          3600,
+          3600
+        ],
+        "nodata": null,
+        "tags": {
+          "AREA_OR_POINT": "Point"
+        },
+        "dtype": "float32"
+      },
+      "cache_file": "services/geo-static/.data/validacion-precision-altimetria-2026-10-17/Copernicus_DSM_COG_10_S30_00_W058_00_DEM.json",
+      "cache_sha256": "afb5eb6f23e2d1e45000d10d92154251054b017b890e254b8bd4a476acc42ceb"
+    }
+  ]
+}

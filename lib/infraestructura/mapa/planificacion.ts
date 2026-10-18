@@ -1,24 +1,34 @@
-import { claseInundacion } from '@/lib/mapas/accesos-capas'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
 import type { EscuelaMapaEnriquecida } from './tipos'
 
-export type VistaPlanificacion = 'aisladas' | 'inundacion' | 'historial'
+/** `riesgo` es el pronóstico del motor; las demás son vistas estructurales con niveles propios. */
+export type VistaPlanificacion = 'riesgo' | 'aisladas' | 'historial'
+export type VistaEstructural = Exclude<VistaPlanificacion, 'riesgo'>
 export type NivelPlanificacion = 0 | 1 | 2 | 3
 
-export const VISTAS_PLANIFICACION: VistaPlanificacion[] = ['aisladas', 'inundacion', 'historial']
+export const VISTAS_PLANIFICACION: VistaPlanificacion[] = ['riesgo', 'aisladas', 'historial']
+export const VISTAS_ESTRUCTURALES: VistaEstructural[] = ['aisladas', 'historial']
+export const VISTA_PLANIFICACION_DEFAULT: VistaPlanificacion = 'riesgo'
 
 export const ETIQUETA_VISTA: Record<VistaPlanificacion, string> = {
-  aisladas: 'Escuelas aisladas',
-  inundacion: 'Inundación',
+  riesgo: 'Riesgo hoy',
+  aisladas: 'Aislamiento',
   historial: 'Historial',
 }
 
-export const TITULO_LEYENDA_VISTA: Record<VistaPlanificacion, string> = {
+export const TITULO_LEYENDA_VISTA: Record<VistaEstructural, string> = {
   aisladas: 'Aislamiento',
-  inundacion: 'Exposición a inundación',
   historial: 'Veces con situaciones',
+}
+
+/** Lee una vista guardada en URL o snapshot. La vieja vista `inundacion` se reemplazó por Riesgo hoy. */
+export function parsearVistaPlanificacion(raw: unknown): VistaPlanificacion | null {
+  if (raw === 'inundacion') return 'riesgo'
+  return typeof raw === 'string' && (VISTAS_PLANIFICACION as readonly string[]).includes(raw)
+    ? (raw as VistaPlanificacion)
+    : null
 }
 
 export const ETIQUETA_NIVEL_PLAN: Record<NivelPlanificacion, string> = {
@@ -28,7 +38,6 @@ export const ETIQUETA_NIVEL_PLAN: Record<NivelPlanificacion, string> = {
   3: 'Alto',
 }
 
-export const ETIQUETA_JUNTO_LAGUNA = 'Junto a laguna'
 /** Azul del marcador de laguna: anillo sobre el punto de riesgo, o punto propio si no hay clase de río. */
 export const COLOR_JUNTO_LAGUNA = '#2563eb'
 
@@ -37,7 +46,7 @@ export const UMBRALES_HISTORIAL = { bajo: 1, medio: 3, alto: 5 } as const
 
 export function nivelPlanificacion(
   escuela: Pick<EscuelaMapaEnriquecida, 'cueAnexo' | 'situacionesHistoricas'>,
-  vista: VistaPlanificacion,
+  vista: VistaEstructural,
   datos: { territorio: TerritorioMapa | null },
 ): NivelPlanificacion {
   if (vista === 'historial') {
@@ -47,59 +56,27 @@ export function nivelPlanificacion(
     return 0
   }
 
-  if (vista === 'aisladas') {
-    const nivel = datos.territorio?.aislamiento?.escuelas[escuela.cueAnexo]?.nivel
-    // Nulo y Bajo no se dibujan ni se listan: sólo Medio y Alto son escuelas aisladas.
-    return nivel === 2 || nivel === 3 ? nivel : 0
-  }
-
-  const claseRio = datos.territorio?.susceptibilidad?.escuelas[escuela.cueAnexo]?.claseRio
-  switch (claseInundacion(claseRio)) {
-    case 'bajo': return 1
-    case 'medio': return 2
-    case 'alto': return 3
-    default: return 0
-  }
-}
-
-/** Junto a laguna sólo aplica a Exposición a inundación; en las demás vistas siempre es false. */
-export function juntoLagunaPlanificacion(
-  cueAnexo: string,
-  vista: VistaPlanificacion,
-  datos: { territorio: TerritorioMapa | null },
-): boolean {
-  return vista === 'inundacion' && datos.territorio?.susceptibilidad?.escuelas[cueAnexo]?.juntoLaguna === true
-}
-
-export function cuesJuntoLagunaPlanificacion(
-  escuelas: ReadonlyArray<Pick<EscuelaMapaEnriquecida, 'cueAnexo'>>,
-  vista: VistaPlanificacion,
-  datos: { territorio: TerritorioMapa | null },
-): ReadonlySet<string> {
-  return new Set(escuelas
-    .filter((escuela) => juntoLagunaPlanificacion(escuela.cueAnexo, vista, datos))
-    .map((escuela) => escuela.cueAnexo))
+  const nivel = datos.territorio?.aislamiento?.escuelas[escuela.cueAnexo]?.nivel
+  // Nulo y Bajo no se dibujan ni se listan: sólo Medio y Alto son escuelas aisladas.
+  return nivel === 2 || nivel === 3 ? nivel : 0
 }
 
 export interface EscuelaPrioridad {
   escuela: EscuelaMapaEnriquecida
-  /** Nivel 0 con `juntoLaguna` es una escuela sólo marcada por laguna (sin clase de río). */
   nivel: NivelPlanificacion
-  juntoLaguna: boolean
 }
 
 export function prioridadPlanificacion(
   escuelas: EscuelaMapaEnriquecida[],
-  vista: VistaPlanificacion,
+  vista: VistaEstructural,
   datos: { territorio: TerritorioMapa | null },
 ): EscuelaPrioridad[] {
   return escuelas
     .map((escuela): EscuelaPrioridad => ({
       escuela,
       nivel: nivelPlanificacion(escuela, vista, datos),
-      juntoLaguna: juntoLagunaPlanificacion(escuela.cueAnexo, vista, datos),
     }))
-    .filter((item) => item.nivel > 0 || item.juntoLaguna)
+    .filter((item) => item.nivel > 0)
     .sort((a, b) => b.nivel - a.nivel
       || (vista === 'historial'
         ? b.escuela.situacionesHistoricas - a.escuela.situacionesHistoricas
@@ -107,25 +84,19 @@ export function prioridadPlanificacion(
       || a.escuela.nombre.localeCompare(b.escuela.nombre, 'es'))
 }
 
-export function textoPrioridad(item: EscuelaPrioridad, vista: VistaPlanificacion): string {
-  if (vista !== 'historial') {
-    return [
-      item.nivel > 0 ? ETIQUETA_NIVEL_PLAN[item.nivel] : null,
-      item.juntoLaguna ? ETIQUETA_JUNTO_LAGUNA : null,
-    ].filter((etiqueta) => etiqueta !== null).join(' · ')
-  }
+export function textoPrioridad(item: EscuelaPrioridad, vista: VistaEstructural): string {
+  if (vista !== 'historial') return ETIQUETA_NIVEL_PLAN[item.nivel]
   const cantidad = item.escuela.situacionesHistoricas
   return `${cantidad} ${cantidad === 1 ? 'situación' : 'situaciones'}`
 }
 
-export function colorPrioridad(item: Pick<EscuelaPrioridad, 'nivel' | 'juntoLaguna'>): string {
-  return item.nivel === 0 ? COLOR_JUNTO_LAGUNA : colorNivelPlan(item.nivel)
+export function colorPrioridad(item: Pick<EscuelaPrioridad, 'nivel'>): string {
+  return colorNivelPlan(item.nivel)
 }
 
-/** Niveles que la leyenda lista. Exposición a inundación muestra sólo Alto/Medio/Bajo: sin riesgo y sin dato no se dibujan ni se listan. */
-export function nivelesLeyendaPlanificacion(vista: VistaPlanificacion): readonly NivelPlanificacion[] {
-  if (vista === 'aisladas') return [3, 2]
-  return vista === 'inundacion' ? [3, 2, 1] : [3, 2, 1, 0]
+/** Niveles que la leyenda lista. Aislamiento sólo dibuja Alto y Medio. */
+export function nivelesLeyendaPlanificacion(vista: VistaEstructural): readonly NivelPlanificacion[] {
+  return vista === 'aisladas' ? [3, 2] : [3, 2, 1, 0]
 }
 
 export function colorNivelPlan(nivel: NivelPlanificacion): string {
@@ -139,7 +110,7 @@ export function colorNivelPlan(nivel: NivelPlanificacion): string {
 
 export function coloresPlanificacion(
   escuelas: EscuelaMapaEnriquecida[],
-  vista: VistaPlanificacion,
+  vista: VistaEstructural,
   datos: { territorio: TerritorioMapa | null },
 ): Map<string, string> {
   return new Map(escuelas.flatMap((escuela) => {

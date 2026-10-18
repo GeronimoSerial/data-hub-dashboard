@@ -101,19 +101,18 @@ describe('listarFlagsOperativas', () => {
   })
 })
 
-// Flag de rollback de un ciclo (docs/motor-v0.4/promocion.md): v0.4 por
-// defecto; sólo el valor exacto 'v0.3' vuelve a las reglas anteriores.
+// Las variables históricas no pueden cambiar la única versión operativa.
 describe('riesgoReglasMotor', () => {
   it('devuelve "v0.4" sin la variable seteada', () => {
     delete process.env.RIESGO_REGLAS_MOTOR
     expect(riesgoReglasMotor()).toBe('v0.4')
   })
 
-  it('devuelve "v0.3" con el valor exacto "v0.3" (espacios tolerados)', () => {
+  it('ignora la antigua selección de v0.3', () => {
     process.env.RIESGO_REGLAS_MOTOR = 'v0.3'
-    expect(riesgoReglasMotor()).toBe('v0.3')
+    expect(riesgoReglasMotor()).toBe('v0.4')
     process.env.RIESGO_REGLAS_MOTOR = ' v0.3 '
-    expect(riesgoReglasMotor()).toBe('v0.3')
+    expect(riesgoReglasMotor()).toBe('v0.4')
   })
 
   it('devuelve "v0.4" con un valor inválido o "v0.4"', () => {
@@ -125,6 +124,6 @@ describe('riesgoReglasMotor', () => {
 
   it('figura en listarFlagsOperativas con su valor efectivo', () => {
     process.env.RIESGO_REGLAS_MOTOR = 'v0.3'
-    expect(listarFlagsOperativas().find(({ nombre }) => nombre === 'RIESGO_REGLAS_MOTOR')?.valor).toBe('v0.3')
+    expect(listarFlagsOperativas().find(({ nombre }) => nombre === 'RIESGO_REGLAS_MOTOR')?.valor).toBe('v0.4')
   })
 })

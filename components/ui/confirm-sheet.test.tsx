@@ -37,6 +37,30 @@ describe('ConfirmSheet', () => {
     expect(onCancelar).toHaveBeenCalled()
   })
 
+  it('un press fuera del panel no cierra ni cancela', () => {
+    const onCancelar = vi.fn()
+    const onCerrar = vi.fn()
+    render(
+      <ConfirmSheet
+        open
+        titulo="T"
+        confirmarLabel="Sí"
+        onConfirmar={() => {}}
+        onCancelar={onCancelar}
+        onCerrar={onCerrar}
+      />,
+    )
+    const fondo = document.body
+    fireEvent.pointerDown(fondo)
+    fireEvent.mouseDown(fondo)
+    fireEvent.pointerUp(fondo)
+    fireEvent.mouseUp(fondo)
+    fireEvent.click(fondo)
+    expect(onCerrar).not.toHaveBeenCalled()
+    expect(onCancelar).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Sí' })).toBeInTheDocument()
+  })
+
   it('respeta confirmarDeshabilitado', () => {
     render(<ConfirmSheet open titulo="T" confirmarLabel="Sí" confirmarDeshabilitado onConfirmar={() => {}} onCancelar={() => {}} />)
     expect(screen.getByRole('button', { name: 'Sí' })).toBeDisabled()

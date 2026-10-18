@@ -30,7 +30,7 @@ import {
   ETIQUETA_NIVEL_PLAN,
   nivelPlanificacion,
   TITULO_LEYENDA_VISTA,
-  VISTAS_PLANIFICACION,
+  VISTAS_ESTRUCTURALES,
 } from '@/lib/infraestructura/mapa/planificacion'
 import type { EscuelaFichaEnriquecida } from '@/lib/infraestructura/parte-mapa'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -241,7 +241,7 @@ export function FichaEscuelaPagina({
 
   const planificacion = useMemo(
     () =>
-      VISTAS_PLANIFICACION.map((vista) => ({
+      VISTAS_ESTRUCTURALES.map((vista) => ({
         etiquetaVista: TITULO_LEYENDA_VISTA[vista],
         etiquetaNivel:
           vista === 'historial'
@@ -557,6 +557,12 @@ export function FichaEscuelaPagina({
         </div>
 
         <aside id="territorio" className={styles.column} aria-label="Territorio y clima">
+          <section className={styles.section} aria-labelledby="titulo-riesgo">
+            <h3 id="titulo-riesgo" className={styles.sectionTitleSmall}>
+              Riesgo de la escuela
+            </h3>
+            <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={72} planificacion={planificacion} />
+          </section>
           <section className={styles.climaCard} aria-labelledby="titulo-clima">
             <div className={styles.sectionHeader}>
               <h3 id="titulo-clima" className={styles.sectionTitleSmall}>
@@ -640,13 +646,6 @@ export function FichaEscuelaPagina({
                 <dd>{novedadRelativa ?? 'Sin datos'}</dd>
               </div>
             </dl>
-          </section>
-
-          <section className={styles.section} aria-labelledby="titulo-riesgo">
-            <h3 id="titulo-riesgo" className={styles.sectionTitleSmall}>
-              Riesgo de la escuela
-            </h3>
-            <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={72} planificacion={planificacion} />
           </section>
         </aside>
       </div>

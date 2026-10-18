@@ -5,6 +5,7 @@ import { infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schem
 import { ensureSeeded } from '@/lib/db/seed'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { presentarCrecida, presentarReferenciaEstudio } from '@/lib/infraestructura/riesgo/presentacion-crecida'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -66,7 +67,8 @@ export async function GET(request: Request, ctx: Ctx) {
 
   // Una escuela sin evaluación vigente es un estado válido, no un 404.
   if (!snapshot) {
-    return Response.json({ snapshot: null, factores: [] }, { status: 200, headers })
+    const crecidaRio = presentarReferenciaEstudio(parsedCue.data, [])
+    return Response.json({ snapshot: null, factores: [], ...(crecidaRio ? { crecidaRio } : {}) }, { status: 200, headers })
   }
 
   // Un snapshot tiene pocos factores; no se pagina.
@@ -98,6 +100,8 @@ export async function GET(request: Request, ctx: Ctx) {
         validoHasta: snapshot.validoHasta,
       },
       factores,
+      crecidaRio: presentarCrecida(snapshot.cueAnexo, factores, snapshot.calculadoEn)
+        ?? presentarReferenciaEstudio(snapshot.cueAnexo, factores),
     },
     { status: 200, headers },
   )

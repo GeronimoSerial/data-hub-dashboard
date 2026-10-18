@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import { RiesgoEscuela } from './riesgo-escuela'
+import { PRESENTACION_CRECIDA } from '@/lib/infraestructura/riesgo/__fixtures__/crecida-rio'
 
 const CUE = '1801605-04'
 
@@ -47,6 +48,78 @@ describe('RiesgoEscuela', () => {
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
+  })
+
+  it('muestra el antecedente y la crecida adicional fuera del detalle técnico', async () => {
+    fetchMock.mockResolvedValue(jsonOk({ snapshot: snapshot('bajo'), factores: [], crecidaRio: PRESENTACION_CRECIDA }))
+    render(<RiesgoEscuela cueAnexo={CUE} horizonte={72} planificacion={null} />)
+    const bloque = await screen.findByRole('region', { name: 'Referencia de crecida del río' })
+    expect(bloque).toHaveTextContent('11,28 m')
+    expect(bloque).toHaveTextContent('130 m de la escuela')
+    expect(bloque).toHaveTextContent('Imagen satelital del 29/11/2023')
+    expect(bloque).toHaveTextContent('En 2023, con el río a 11,28 m, el agua quedó a unos 130 m de la escuela.')
+    expect(bloque).toHaveTextContent('Última lectura del río')
+    expect(bloque).toHaveTextContent('Nivel necesario para llegar al terreno')
+    expect(bloque).toHaveTextContent('14,66 m')
+    expect(bloque).toHaveTextContent('+3,38 m')
+    expect(within(bloque).getByRole('figure', { name: 'Comparación de alturas del río' })).toBeInTheDocument()
+    expect(bloque).toHaveTextContent('5,20 m')
+    expect(within(bloque).getByText(/Desde la última lectura faltan/)).not.toBeVisible()
+    expect(within(bloque).getByText('Cómo se estima')).toBeVisible()
+    expect(bloque.closest('details')).toBeNull()
+  })
+
+  it.each([
+    [24, 0, 'las próximas 24 horas es menos del 1 %'],
+    [72, 28, 'las próximas 72 horas es aproximadamente del 28 %'],
+    [240, 100, 'los próximos 10 días es más del 99 %'],
+  ] as const)('explica la probabilidad del umbral para el horizonte %s sin confundirla con el score', async (horizonte, probabilidad, texto) => {
+    fetchMock.mockResolvedValue(jsonOk({ snapshot: snapshot('alto', horizonte), factores: [], crecidaRio: {
+      ...PRESENTACION_CRECIDA, probabilidadesPorHorizonte: { 24: null, 72: null, 240: null, [horizonte]: probabilidad },
+    } }))
+    render(<RiesgoEscuela cueAnexo={CUE} horizonte={horizonte} planificacion={null} />)
+    const bloque = await screen.findByRole('region', { name: 'Referencia de crecida del río' })
+    expect(bloque).toHaveTextContent(`Según la evolución prevista del río, la probabilidad estimada de que el agua llegue al terreno de la escuela en ${texto}.`)
+    expect(bloque).not.toHaveTextContent('50 %')
+  })
+
+  it('aclara cuando no hay probabilidad para el horizonte elegido', async () => {
+    fetchMock.mockResolvedValue(jsonOk({ snapshot: snapshot('alto'), factores: [], crecidaRio: {
+      ...PRESENTACION_CRECIDA, probabilidadesPorHorizonte: { 24: 12, 72: null, 240: 40 },
+    } }))
+    render(<RiesgoEscuela cueAnexo={CUE} horizonte={72} planificacion={null} />)
+    const bloque = await screen.findByRole('region', { name: 'Referencia de crecida del río' })
+    expect(bloque).toHaveTextContent('todavía no se puede estimar la probabilidad')
+    expect(bloque).not.toHaveTextContent('12 %')
+    expect(bloque).not.toHaveTextContent('40 %')
+  })
+
+  it('explica el umbral ya alcanzado sin mostrar crecidas negativas', async () => {
+    fetchMock.mockResolvedValue(jsonOk({ snapshot: snapshot('alto'), factores: [], crecidaRio: {
+      ...PRESENTACION_CRECIDA, subidaDesdeActualM: -1, defensaCostera: true,
+      antecedente: { ...PRESENTACION_CRECIDA.antecedente!, distanciaAguaM: null, subidaHastaUmbralM: 0 },
+    } }))
+    render(<RiesgoEscuela cueAnexo={CUE} horizonte={72} planificacion={null} />)
+    const bloque = await screen.findByRole('region', { name: 'Referencia de crecida del río' })
+    expect(bloque).toHaveTextContent('no alcanzó el terreno de la escuela')
+    expect(bloque).toHaveTextContent('aunque la imagen mostró el terreno seco')
+    expect(bloque).toHaveTextContent('ya alcanza el nivel estimado')
+    expect(bloque).toHaveTextContent('Hay una defensa costera')
+    expect(bloque).not.toHaveTextContent('-1')
+  })
+
+  it('oculta la referencia anterior mientras cambia de escuela u horizonte', async () => {
+    let resolver!: (respuesta: Response) => void
+    fetchMock.mockResolvedValueOnce(jsonOk({ snapshot: snapshot('bajo'), factores: [], crecidaRio: PRESENTACION_CRECIDA }))
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => { resolver = resolve }))
+    const { rerender } = render(<RiesgoEscuela cueAnexo={CUE} horizonte={72} planificacion={null} />)
+    await screen.findByRole('region', { name: 'Referencia de crecida del río' })
+    rerender(<RiesgoEscuela cueAnexo="otra-escuela" horizonte={24} planificacion={null} />)
+    expect(screen.queryByRole('region', { name: 'Referencia de crecida del río' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando riesgo actual')
+    resolver(jsonOk({ snapshot: snapshot('bajo', 24), factores: [], crecidaRio: null }))
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+    expect(screen.queryByRole('region', { name: 'Referencia de crecida del río' })).not.toBeInTheDocument()
   })
 
   it('muestra el nivel, la conclusion y la zona expuesta de Ituzaingo y pide el horizonte 72', async () => {

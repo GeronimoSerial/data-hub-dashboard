@@ -10,6 +10,7 @@ import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/i
 import { FiltrosChips } from '@/components/mapas/filtros-chips'
 import { PanelEstadisticas } from '@/components/mapas/panel-estadisticas'
 import { MetodologiaMapa } from '@/components/mapas/metodologia/metodologia-mapa'
+import { VistaExportar } from '@/components/mapas/exportar/vista-exportar'
 import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
 import type { EscuelaMapaPadron } from '@/lib/infraestructura/parte-mapa'
 import {
@@ -73,7 +74,7 @@ export function InfraestructuraMapClient(props: {
     [padron, escuelasFiltradas],
   )
   const [ultimaPestanaMapa, setUltimaPestanaMapa] = React.useState<
-    Exclude<PestanaMapa, 'estadisticas' | 'metodologia'>
+    Exclude<PestanaMapa, 'estadisticas' | 'metodologia' | 'exportar'>
   >('actual')
 
   // Mismo patrón que AdminPage (components/admin-page.tsx:1841-1857): estado
@@ -127,7 +128,7 @@ export function InfraestructuraMapClient(props: {
   function seleccionarEscuela(cueAnexo: string) {
     const escuela = buscarEscuelaEnPadron(cueAnexo)
     if (!escuela) return
-    if (tab === 'estadisticas' || tab === 'metodologia') {
+    if (tab === 'estadisticas' || tab === 'metodologia' || tab === 'exportar') {
       onTab(ultimaPestanaMapa || 'actual')
     }
     seleccionarEscuelaRef.current?.(escuela)
@@ -222,7 +223,7 @@ export function InfraestructuraMapClient(props: {
     revealTab(active)
   }, [tab, revealTab])
 
-  const mapaVisible = tab !== 'estadisticas' && tab !== 'metodologia'
+  const mapaVisible = tab !== 'estadisticas' && tab !== 'metodologia' && tab !== 'exportar'
   if (mapaVisible && tab !== ultimaPestanaMapa) {
     setUltimaPestanaMapa(tab)
   }
@@ -291,6 +292,9 @@ export function InfraestructuraMapClient(props: {
               <TabsTab value="metodologia" className={styles.tabTrigger}>
                 Metodología
               </TabsTab>
+              <TabsTab value="exportar" className={styles.tabTrigger}>
+                Exportar
+              </TabsTab>
             </TabsList>
           </div>
         </Tabs>
@@ -346,6 +350,15 @@ export function InfraestructuraMapClient(props: {
             data-testid="pestana-metodologia"
           >
             <MetodologiaMapa />
+          </div>
+        )}
+
+        {tab === 'exportar' && (
+          <div
+            className="mapa-pestana-panel mapa-pestana-panel--scroll"
+            data-testid="pestana-exportar"
+          >
+            <VistaExportar />
           </div>
         )}
 

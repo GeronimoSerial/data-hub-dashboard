@@ -15,7 +15,9 @@ import {
   type AfectacionBorrador,
 } from '@/components/infraestructura/afectacion-campos'
 import {
+  alcanceDeSecciones,
   evaluarConsistenciaParte,
+  severidadSugeridaPorAlcance,
   type AlcanceSecciones,
   type CampoConsistencia,
   type RespuestasConsistencia,
@@ -501,6 +503,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       return
     }
 
+    // El servidor rechaza una justificación que no corresponde: sólo se envía si
+    // la sugerida efectiva (con el alcance elegido) deja Crítica sin respaldo.
+    const justificacionRequerida = requiereJustificacionCritica(afectacion.severidad as Severidad, sugeridaDeAfectacion(afectacion))
     const datosEnvio = {
       cue,
       rigeDesde,
@@ -508,8 +513,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         {
           motivo: afectacion.motivo,
           severidad: afectacion.severidad as Severidad,
-          justificacionCritica: afectacion.justificacionCritica || undefined,
-          justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle || undefined,
+          justificacionCritica: justificacionRequerida ? afectacion.justificacionCritica || undefined : undefined,
+          justificacionCriticaDetalle: justificacionRequerida ? afectacion.justificacionCriticaDetalle || undefined : undefined,
           descripcion: afectacion.descripcion.trim() || undefined,
           secciones: afectacion.secciones,
           alumnos: afectacion.alumnos.length > 0 ? afectacion.alumnos : undefined,
@@ -753,6 +758,13 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   })
   const consistencia = evaluarConsistenciaParte(respuestasConsistencia)
 
+  // Gravedad sugerida con el alcance real de las secciones elegidas: la misma que
+  // usa el servidor para decidir si la justificación de Crítica hace falta.
+  function sugeridaDeAfectacion(a: AfectacionBorrador): Severidad | null {
+    const motivoId = motivos.find((m) => m.nombre === a.motivo)?.id ?? null
+    return severidadSugeridaPorAlcance(motivoId, alcanceDeSecciones(a.secciones, aplanarSecciones(turnos).map((s) => s.geSectionId)))
+  }
+
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
   // paso está completo. Se evalúa en el momento de avanzar, no mientras
   // escribe: un error que aparece antes de que el director termine de
@@ -763,7 +775,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       .map((regla) => regla.mensaje)
     if (bloqueosDelPaso.length > 0) return bloqueosDelPaso.join(' ')
     if (actual === 1) {
-      const sugerida = motivos.find((m) => m.nombre === afectacion.motivo)?.severidadSugerida ?? null
+      const sugerida = sugeridaDeAfectacion(afectacion)
       const completo = afectacion.categoria !== '' && afectacion.motivo !== '' && gravedadCompleta(afectacion, sugerida)
       if (
         !completo &&
@@ -972,7 +984,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             avisos={consistencia.advertencias}
             onChange={(siguiente) => {
               cambiarAfectacion(siguiente)
-              const sugerida = motivos.find((motivo) => motivo.nombre === siguiente.motivo)?.severidadSugerida ?? null
+              const sugerida = sugeridaDeAfectacion(siguiente)
               if (error === MENSAJE_FALTA_QUE_PASO && siguiente.categoria !== '' && siguiente.motivo !== '' && gravedadCompleta(siguiente, sugerida)) {
                 setError(null)
               }

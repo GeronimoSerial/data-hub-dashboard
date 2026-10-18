@@ -16,6 +16,12 @@ vi.mock('@/lib/infraestructura/parte/registrar-sync', () => ({
   alEnviarEnSegundoPlano: (callback: (clave: string) => void) => { syncMocks.callback = callback; return vi.fn() },
 }))
 
+const fotosMocks = vi.hoisted(() => ({ preparar: vi.fn(), declarar: vi.fn() }))
+vi.mock('@/lib/infraestructura/fotos/flujo-formulario', () => ({
+  prepararFotosFormulario: fotosMocks.preparar,
+  declararFotosFormulario: fotosMocks.declarar,
+}))
+
 const CUE = '1801605-41'
 const CLAVE = `parte-actualizar:draft:${CUE}`
 const DRAFT_ID = `parte-actualizacion:${CUE}`
@@ -35,6 +41,27 @@ function stub(ids = ['a', 'b']) {
     if (init?.method === 'POST') return new Response(JSON.stringify({ ok: true, movimientoId: 'm1' }), { status: 201 })
     const datos = { ...base, afectaciones: base.afectaciones.filter((situacion) => ids.includes(situacion.id)) }
     return new Response(JSON.stringify(url.includes('/historial') ? { ok: true, movimientos: [] } : datos), { status: 200 })
+  }))
+}
+function stubConFotos() {
+  vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:miniatura'), revokeObjectURL: vi.fn() })
+  fotosMocks.preparar.mockImplementation(async (_draftId: string, fotos: Array<{ attachmentId: string }>) => {
+    const almacen = await abrirAlmacenParte()
+    for (const { attachmentId } of fotos) {
+      await almacen.guardarArchivo(`${attachmentId}:optimizada`, new Blob(['optimizada'], { type: 'image/jpeg' }))
+      await almacen.guardarArchivo(`${attachmentId}:miniatura`, new Blob(['miniatura'], { type: 'image/jpeg' }))
+    }
+    return {
+      preparadas: fotos.map(({ attachmentId }) => ({
+        attachmentId, bytesOptimizado: 9, bytesMiniatura: 9, optimizadaContentType: 'image/jpeg', miniaturaContentType: 'image/jpeg',
+      })),
+      errores: [],
+    }
+  })
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes('/borradores/config')) return new Response(JSON.stringify({ borradoresSync: false, fotos: true, mapaBorradores: false }), { status: 200 })
+    if (init?.method === 'POST') return new Response(JSON.stringify({ ok: true, movimientoId: 'm1' }), { status: 201 })
+    return new Response(JSON.stringify(url.includes('/historial') ? { ok: true, movimientos: [] } : base), { status: 200 })
   }))
 }
 function montar(cue = CUE) { return render(<RecorridoActualizacion cue={cue} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />) }
@@ -203,5 +230,45 @@ describe('RecorridoActualizacion: borrador local', () => {
     window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
     const preguntaNueva = await screen.findByRole('group', { name: '¿Hay algo nuevo?' })
     expect(within(preguntaNueva).getByRole('radio', { name: 'No' })).toBeInTheDocument()
+  })
+
+  it('guarda las referencias de las fotos y las muestra al remontar sin volver a pedirlas', async () => {
+    stubConFotos(); montar()
+    fireEvent.change(await screen.findByLabelText('Agregar fotos'), { target: { files: [new File(['a'], 'aula-1.jpg', { type: 'image/jpeg' })] } })
+    await waitFor(async () => expect((await leerBorradorGuardado())?.datos).toMatchObject({ referenciasFotos: [expect.any(String)] }))
+    cleanup(); montar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+    const fotosDelParte = await screen.findByRole('region', { name: 'Fotos del parte' })
+    expect(within(fotosDelParte).getByText('1 de 3 fotos')).toBeInTheDocument()
+    expect(within(fotosDelParte).getByRole('img', { name: 'Foto 1' })).toBeInTheDocument()
+    expect(within(fotosDelParte).getByLabelText('Agregar más fotos')).toBeInTheDocument()
+    expect(fotosMocks.preparar).toHaveBeenCalledTimes(1)
+  })
+
+  it('quitar una foto restaurada actualiza el borrador: la lista del picker es la única fuente', async () => {
+    stubConFotos(); montar()
+    fireEvent.change(await screen.findByLabelText('Agregar fotos'), { target: { files: [new File(['a'], 'aula-1.jpg', { type: 'image/jpeg' })] } })
+    await waitFor(async () => expect((await leerBorradorGuardado())?.datos).toMatchObject({ referenciasFotos: [expect.any(String)] }))
+    cleanup(); montar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+    const fotosDelParte = await screen.findByRole('region', { name: 'Fotos del parte' })
+    fireEvent.click(within(fotosDelParte).getByRole('button', { name: 'Quitar Foto 1' }))
+    expect(within(fotosDelParte).getByText('0 de 3 fotos')).toBeInTheDocument()
+    await waitFor(async () => expect((await leerBorradorGuardado())?.datos).toMatchObject({ referenciasFotos: [] }))
+  })
+
+  it('avisa y descarta de la lista las fotos que ya no están en este dispositivo', async () => {
+    stubConFotos()
+    localStorage.setItem(CLAVE, JSON.stringify({
+      generacion: 'g-perdida', etapa: { revisar: 0 },
+      recorrido: { respuestas: { b: { tipo: 'sigue' } }, nueva: null, clasesEdificio: null },
+      asistenciaPedagogica: { brinda: '', modalidades: [] }, idsSituaciones: ['a', 'b'], referenciasFotos: ['perdida'],
+    }))
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+    const fotosDelReporte = await screen.findByRole('region', { name: 'Fotos del reporte' })
+    expect(within(fotosDelReporte).getByText('0 de 3 fotos')).toBeInTheDocument()
+    expect(screen.getByText(/Algunas fotos ya no están disponibles en este dispositivo/)).toBeInTheDocument()
+    await waitFor(async () => expect((await leerBorradorGuardado())?.datos).toMatchObject({ referenciasFotos: [] }))
   })
 })
