@@ -110,14 +110,20 @@ function parsearGeometryRef(geometryRef: string): { lat: number; lon: number } {
   return { lat, lon }
 }
 
-const FORECAST_DAYS = 10
+// Horizonte en HORAS, no en días: `forecast_days=10` termina a las 00 UTC del
+// día 10, y como el horizonte se mide desde nuestra hora de ingesta, las
+// corridas de 06/12/18 UTC no llegaban a los 240 h del peligro. 264 h = 240 h
+// + 24 h de margen, sea cual sea la hora de ingesta.
+export const FORECAST_HOURS = 264
+// Días equivalentes para `pesoLlamada`: 264 h = 11 días (peso 1 hasta 14 días).
+const DIAS_PESO_ECMWF = Math.ceil(FORECAST_HOURS / 24)
 
 function construirUrlLote(celdas: CeldaEcmwf[], apiKey: string | undefined): string {
   return construirUrlLoteOpenMeteo({
     subdominio: 'api',
     ruta: RUTA,
     puntos: celdas,
-    queryExtra: `&hourly=${VARIABLES_HOURLY.join(',')}&forecast_days=${FORECAST_DAYS}&timezone=UTC`,
+    queryExtra: `&hourly=${VARIABLES_HOURLY.join(',')}&forecast_hours=${FORECAST_HOURS}&timezone=UTC`,
     apiKey,
   })
 }
@@ -234,7 +240,7 @@ export function crearProviderEcmwf(opts?: {
       const peso = pesoLlamada({
         ubicaciones: representantes.length,
         variables: VARIABLES_HOURLY.length,
-        dias: FORECAST_DAYS,
+        dias: DIAS_PESO_ECMWF,
       })
       const cupo = opts?.controladorCupoFactory?.(peso)
       const resultado = await ejecutarConReintentos<PayloadEcmwfElemento[]>({

@@ -15,6 +15,7 @@ import { nivelDesdeUmbralProvisorio } from './umbrales-provisorios'
 import {
   COBERTURA_MIN_VENTANA_V04_HORAS,
   EDAD_MAX_ENSEMBLE_V04_HORAS,
+  EDAD_MAX_INGESTA_RESPALDO_V04_HORAS,
   type ReglasMotor,
 } from '../motor/config'
 
@@ -36,6 +37,10 @@ export interface NivelPeligroCelda {
   probabilidadP99: number | null
   precipitacionMm: number | null
   percentilReferencia: 'P90' | 'P95' | 'P99' | null
+  // Sólo v0.4 (F5): true cuando la ventana salió de la ingesta previa de
+  // respaldo porque la más reciente no cubría la ventana. Opcional: ausente en
+  // el resto de los casos.
+  respaldoIngestaPrevia?: true
   emitidoEn: string
   validoHasta: string
   versionRegla: string
@@ -324,6 +329,38 @@ function acumularVentana(
   return { valor, corridaEn: ultima.corridaEn, validoEn: ultima.validoEn }
 }
 
+/**
+ * Reglas v0.4 (F5) con respaldo: prueba la ingesta más reciente y, si su
+ * ventana no cubre `coberturaMin`, la ingesta previa más reciente que sí la
+ * cubra, siempre que tenga como mucho EDAD_MAX_INGESTA_RESPALDO_V04_HORAS
+ * respecto de `ahora`. Las ingestas se recorren de la más nueva a la más vieja
+ * y se corta al primer exceso de edad. El resultado de respaldo se marca.
+ */
+function acumularVentanaConRespaldo(
+  filas: FilaPronostico[],
+  desde: number,
+  hasta: number,
+  coberturaMin: number,
+  ahora: Date,
+): { valor: number; corridaEn: string; validoEn: string; respaldoIngestaPrevia?: true } | null {
+  const corridas = [...new Set(filas.map((f) => f.corridaEn))].sort(
+    (a, b) => Date.parse(b) - Date.parse(a),
+  )
+  const edadMaxMs = EDAD_MAX_INGESTA_RESPALDO_V04_HORAS * 3_600_000
+  for (const [indice, corrida] of corridas.entries()) {
+    if (indice > 0 && ahora.getTime() - Date.parse(corrida) > edadMaxMs) return null
+    const acumulado = acumularVentana(
+      filas.filter((f) => f.corridaEn === corrida),
+      desde,
+      hasta,
+      coberturaMin,
+    )
+    if (acumulado === null) continue
+    return indice === 0 ? acumulado : { ...acumulado, respaldoIngestaPrevia: true }
+  }
+  return null
+}
+
 // As-of (F8, ambas reglas): sin `ahora` toda corrida vale (lectura del
 // momento); con `ahora` sólo las emitidas hasta ese instante. Reglas v0.4
 // descartan además las corridas de más de EDAD_MAX_ENSEMBLE_V04_HORAS.
@@ -503,8 +540,20 @@ function calcularNivelCeldaSync(
   const pronostico =
     reglas === 'v0.4'
       ? umbralesEfectivos !== null
-        ? acumularVentana(filasPronostico ?? [], horizonte - 24, horizonte, COBERTURA_MIN_VENTANA_V04_HORAS)
-        : acumularVentana(filasPronostico ?? [], 0, horizonte, horizonte - (24 - COBERTURA_MIN_VENTANA_V04_HORAS))
+        ? acumularVentanaConRespaldo(
+            filasPronostico ?? [],
+            horizonte - 24,
+            horizonte,
+            COBERTURA_MIN_VENTANA_V04_HORAS,
+            ahora,
+          )
+        : acumularVentanaConRespaldo(
+            filasPronostico ?? [],
+            0,
+            horizonte,
+            horizonte - (24 - COBERTURA_MIN_VENTANA_V04_HORAS),
+            ahora,
+          )
       : candidato !== null &&
           !(tolerancia !== undefined && Math.abs(candidato.horizonteHoras - horizonte) > tolerancia)
         ? candidato
@@ -527,6 +576,7 @@ function calcularNivelCeldaSync(
       probabilidadP99: null,
       precipitacionMm: pronostico.valor,
       percentilReferencia,
+      ...('respaldoIngestaPrevia' in pronostico && pronostico.respaldoIngestaPrevia ? { respaldoIngestaPrevia: true as const } : {}),
       emitidoEn: pronostico.corridaEn,
       validoHasta: pronostico.validoEn,
       versionRegla: VERSION_REGLA_PELIGRO,
@@ -548,6 +598,7 @@ function calcularNivelCeldaSync(
       probabilidadP99: null,
       precipitacionMm: pronostico.valor,
       percentilReferencia: null,
+      ...('respaldoIngestaPrevia' in pronostico && pronostico.respaldoIngestaPrevia ? { respaldoIngestaPrevia: true as const } : {}),
       emitidoEn: pronostico.corridaEn,
       validoHasta: pronostico.validoEn,
       versionRegla: VERSION_REGLA_PELIGRO,

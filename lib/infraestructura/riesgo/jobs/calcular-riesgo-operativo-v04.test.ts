@@ -8,7 +8,7 @@ import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import { crearPuertosFake } from '../motor/__fixtures__/puertos-fake'
-import type { PuertosMotor } from '../motor/puertos'
+import type { NivelPeligro, NivelPeligroCelda, PuertosMotor } from '../motor/puertos'
 import type { PuertoAltimetriaV04 } from '../motor-v04/altimetria-adaptador'
 import type { EscuelaPadronV04, PuertoPadronV04 } from '../motor-v04/padron'
 import type { InsumosTerrenoV04, PuertoTerrenoV04 } from '../motor-v04/terreno-adaptador'
@@ -39,13 +39,33 @@ const PADRON: EscuelaPadronV04[] = [
   { cueAnexo: CUE_SIN_COORD, motivoUbicacion: 'sin_coordenadas' },
 ]
 
-function puertos(): PuertosMotor {
+function puertos(peligro: Record<string, NivelPeligroCelda[]> = {}): PuertosMotor {
   const cues = [CUE_A, CUE_B]
   return crearPuertosFake({
     territorio: Object.fromEntries(cues.map((c) => [c, { cueAnexo: c, geometryRef: `g-${c}`, departamento: 'Capital', puntoRioId: null, motivoExclusion: null }])),
     lluvia24h: Object.fromEntries(cues.map((c) => [`g-${c}`, 40])),
     lluvia72h: Object.fromEntries(cues.map((c) => [`g-${c}`, 90])),
+    peligro,
   })
+}
+
+// Nivel de peligro a 240 h tal como lo entrega el motor (emitido antes de `ahora`).
+function nivel240(geometryRef: string, nivel: NivelPeligro, extra: Partial<NivelPeligroCelda> = {}): NivelPeligroCelda {
+  return {
+    geometryRef,
+    horizonteHoras: 240,
+    nivel,
+    base: nivel === 'sin_dato' ? 'sin_dato' : 'deterministico',
+    metodo: nivel === 'sin_dato' ? 'sin_dato' : 'percentiles',
+    probabilidadP95: null,
+    probabilidadP99: null,
+    precipitacionMm: nivel === 'sin_dato' ? null : 12,
+    percentilReferencia: null,
+    emitidoEn: '2026-10-17T18:00:00.000Z',
+    validoHasta: '2026-10-27T00:00:00.000Z',
+    versionRegla: 'peligro-v0.2',
+    ...extra,
+  }
 }
 
 const padron = (escuelas: EscuelaPadronV04[] | null): PuertoPadronV04 => ({ listarPadron: async () => escuelas })
@@ -149,6 +169,56 @@ describe('calcularYPublicarRiesgo con Motor v0.4 operativo', () => {
     // Sin padrón el universo sigue siendo el de perfiles: mismas 2 escuelas.
     const snapshots = await snapshotsDe(resultado.runId)
     expect(new Set(snapshots.map((s) => s.cueAnexo))).toEqual(new Set([CUE_A, CUE_B]))
+  })
+
+  it('sin dato de peligro a 240 h en alguna escuela lo informa en degradacion y en insumosDegradados', async () => {
+    const resultado = await calcularYPublicarRiesgo({
+      ahora: new Date('2026-10-18T00:30:00.000Z'),
+      puertos: puertos(),
+      padron: padron(PADRON),
+      altimetria: sinAltimetria,
+      terreno: terrenoFijo(terrenoConSerie('2026-10-17')),
+    })
+    if (!resultado.ejecutado) throw new Error('debió ejecutarse')
+    const run = await runDe(resultado.runId)
+    const metadatos = run?.metadatos as MetadatosOperativo
+    expect(metadatos.degradacion).toContain('peligro_240h_sin_dato')
+    expect(metadatos.degradacion).not.toContain('peligro_240h_respaldo')
+    expect(metadatos.degradacion.length).toBeGreaterThan(0)
+  })
+
+  it('una celda que usó la ingesta de respaldo a 240 h lo informa en degradacion', async () => {
+    const resultado = await calcularYPublicarRiesgo({
+      ahora: new Date('2026-10-18T00:30:00.000Z'),
+      puertos: puertos({
+        [`g-${CUE_A}`]: [nivel240(`g-${CUE_A}`, 'amarillo', { respaldoIngestaPrevia: true })],
+        [`g-${CUE_B}`]: [nivel240(`g-${CUE_B}`, 'verde')],
+      }),
+      padron: padron(PADRON),
+      altimetria: sinAltimetria,
+      terreno: terrenoFijo(terrenoConSerie('2026-10-17')),
+    })
+    if (!resultado.ejecutado) throw new Error('debió ejecutarse')
+    const metadatos = (await runDe(resultado.runId))?.metadatos as MetadatosOperativo
+    expect(metadatos.degradacion).toContain('peligro_240h_respaldo')
+    expect(metadatos.degradacion).not.toContain('peligro_240h_sin_dato')
+  })
+
+  it('con peligro a 240 h completo y sin respaldo no informa motivos de peligro', async () => {
+    const resultado = await calcularYPublicarRiesgo({
+      ahora: new Date('2026-10-18T00:30:00.000Z'),
+      puertos: puertos({
+        [`g-${CUE_A}`]: [nivel240(`g-${CUE_A}`, 'amarillo')],
+        [`g-${CUE_B}`]: [nivel240(`g-${CUE_B}`, 'verde')],
+      }),
+      padron: padron(PADRON),
+      altimetria: sinAltimetria,
+      terreno: terrenoFijo(terrenoConSerie('2026-10-17')),
+    })
+    if (!resultado.ejecutado) throw new Error('debió ejecutarse')
+    const metadatos = (await runDe(resultado.runId))?.metadatos as MetadatosOperativo
+    expect(metadatos.degradacion).not.toContain('peligro_240h_respaldo')
+    expect(metadatos.degradacion).not.toContain('peligro_240h_sin_dato')
   })
 
   it('RIESGO_REGLAS_MOTOR=v0.3 vuelve al operativo motor-v0.3 sin detalle v0.4', async () => {
