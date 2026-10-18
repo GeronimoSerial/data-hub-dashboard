@@ -1,0 +1,100 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "url": "https://cdn.proj.org/ar_ign_GEOIDE-Ar16.tif",
+        "name": "ar_ign_GEOIDE-Ar16.tif",
+        "area_of_use": "Argentina - onshore",
+        "type": "VERTICAL_OFFSET_GEOGRAPHIC_TO_VERTICAL",
+        "source_crs_code": "EPSG:5342",
+        "source_crs_name": "POSGAR 2007",
+        "target_crs_code": "EPSG:9255",
+        "target_crs_name": "SRVN16 height",
+        "source": "Instituto Geogr\u00e1fico Nacional (IGN)",
+        "source_country": "Argentina",
+        "source_id": "ar_ign",
+        "source_url": "https://www.ign.gob.ar",
+        "description": "POSGAR 2007 (EPSG:5342) to SRVN16 height (EPSG:9255)",
+        "file_size": 6422288,
+        "sha256sum": "5781d63c97f1348a6a4a3adf68dd98f2b9b0430271a0ce45d8e0b002394875a6",
+        "version_added": "1.15"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -76.0,
+              -57.00074
+            ],
+            [
+              -52.016187,
+              -57.00074
+            ],
+            [
+              -52.016187,
+              -20.016667
+            ],
+            [
+              -76.0,
+              -20.016667
+            ],
+            [
+              -76.0,
+              -57.00074
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "url": "https://cdn.proj.org/us_nga_egm08_25.tif",
+        "name": "us_nga_egm08_25.tif",
+        "area_of_use": "World",
+        "type": "VERTICAL_OFFSET_GEOGRAPHIC_TO_VERTICAL",
+        "source_crs_code": "EPSG:4979",
+        "source_crs_name": "WGS 84",
+        "target_crs_code": "EPSG:3855",
+        "target_crs_name": "EGM2008 height",
+        "source": "US National Geospatial Intelligence Agency (NGA)",
+        "source_country": "USA",
+        "source_id": "us_nga",
+        "source_url": "http://earth-info.nga.mil/",
+        "description": "WGS 84 (EPSG:4979) to EGM2008 height (EPSG:3855)",
+        "file_size": 80585622,
+        "sha256sum": "4191d471eefebf24091b56dbc604353cb3b8cf8cc70e448bb9ae56a272bef17a"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -180.0,
+              -90.0
+            ],
+            [
+              179.9583333,
+              -90.0
+            ],
+            [
+              179.9583333,
+              90.0
+            ],
+            [
+              -180.0,
+              90.0
+            ],
+            [
+              -180.0,
+              -90.0
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

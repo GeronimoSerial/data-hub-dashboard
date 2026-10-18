@@ -305,12 +305,31 @@ export function MetodologiaMapa() {
       <section id="aislamiento">
         <h2>4 · Aislamiento vial</h2>
         <p className="question">¿Qué tan difícil es llegar a la escuela por camino desde la red pavimentada?</p>
+        <div id="metodologia-aislamiento">
+          <h3>En pocas palabras</h3>
+          <p>Para cada escuela se mide qué tan lejos queda, <b>por camino</b>, de la localidad urbana más cercana: una localidad de 2.000 habitantes o más según el listado de localidades del INDEC (servicio Georef). La distancia se calcula sobre la red de caminos de OpenStreetMap, no en línea recta.</p>
+          <ul>
+            <li><b>Distancia a la localidad urbana:</b> kilómetros de la ruta más conveniente desde la escuela hasta esa localidad.</li>
+            <li><b>Kilómetros de tierra:</b> tramos de esa ruta sin pavimentar (tierra o ripio).</li>
+            <li><b>Cruces de agua:</b> cada arroyo o río que cruza la ruta se clasifica como <b>puente</b> o como <b>vado sin puente</b>. Un vado puede quedar cortado con lluvia.</li>
+            <li><b>Camino alternativo:</b> si existe otra ruta que evita esos cruces de agua (o que llega por pavimento).</li>
+          </ul>
+          <p>Con esas medidas se asigna un nivel de 0 a 3. Se evalúa en orden y la primera regla que se cumple define el nivel:</p>
+          <ol className="steps">
+            <li>Hay al menos un vado sin puente en la ruta: nivel <b>3</b>, o nivel <b>2</b> si existe un camino alternativo que lo evita.</li>
+            <li>La localidad urbana queda a más de 30 km por camino: nivel <b>3</b>.</li>
+            <li>La ruta tiene 15 km o más de tierra y no hay alternativa pavimentada: nivel <b>2</b>.</li>
+            <li>Sin vados, la red pavimentada a 2 km o menos, la localidad a 10 km o menos y no más de 2 km de tierra: nivel <b>0</b>.</li>
+            <li>Cualquier otro caso: nivel <b>1</b>.</li>
+          </ol>
+          <p>En Planificación se listan como <b>escuelas aisladas</b> las de nivel medio (2) y alto (3).</p>
+        </div>
         <h3>Fuente</h3>
         <p>Red vial de <span className="term" tabIndex={0} data-def="OpenStreetMap: cartografía colaborativa abierta. Incluye tipo de vía, superficie, puentes y vados.">OpenStreetMap</span>, extracto del 26/09/2026, con tipo de vía, superficie, puentes, vados y cursos de agua. Se recalcula cuando se actualiza el extracto (versión 4 del cálculo).</p>
         <h3>Método</h3>
         <ol className="steps">
           <li>La red se convierte en un grafo. Cada tramo recibe un <b>costo</b> = longitud × factor según tipo de vía; los tramos de tierra o ripio (salvo huellas) multiplican el factor por 1,5.</li>
-          <li>Se busca la ruta de menor costo desde la escuela hasta la red pavimentada y hasta la localidad cabecera.</li>
+          <li>Se busca la ruta de menor costo desde la escuela hasta la red pavimentada y hasta la localidad urbana más cercana (2.000 habitantes o más).</li>
           <li>Sobre esa ruta se miden la distancia real, los kilómetros sin pavimentar (sin contar el último kilómetro urbano) y los cruces de agua.</li>
           <li>Cada cruce de agua se clasifica como puente, vado (marcado en OSM o a menos de 25 m), <b>vado probable</b> (sin puente ni túnel, sobre camino de tierra) o sin evidencia.</li>
           <li>Un árbol de decisión asigna un nivel de 0 a 3.</li>

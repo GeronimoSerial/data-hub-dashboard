@@ -1,0 +1,33 @@
+{
+  "url": "https://www.ign.gob.ar/archivos/Informe_MDE-Ar_v2.1_30m.pdf",
+  "sha256": "e6422a3818d9e0bcefb1978868f51c9b86b8aabd4f72837016b5ea3e3f6554a9",
+  "bytes": 12607516,
+  "pagina_pdf_y_impresa": 28,
+  "figura": 25,
+  "version_en_figura": "MDE-Ar v2.1",
+  "provincia": "Corrientes",
+  "total": {
+    "n": 1572,
+    "mu_m": -1.96,
+    "sigma_m": 2.46,
+    "mediana_M_m": -1.6,
+    "min_m": -19.46,
+    "max_m": 12.03
+  },
+  "filtrada": {
+    "n": 1510,
+    "descartados": 62,
+    "mu_m": -1.62,
+    "sigma_m": 1.55,
+    "mediana_M_m": -1.55,
+    "min_m": -7.98,
+    "max_m": 4.01
+  },
+  "transcripcion": "Verificada visualmente con render de p.28; valores de la figura, no recalculados desde puntos.",
+  "limites": {
+    "signo": "No se localizó definición algebraica inequívoca en el informe. No aplicar corrección del sesgo por signo supuesto.",
+    "descarte": "La figura informa 62 descartados pero no se localizó regla explícita del descarte en el texto.",
+    "sigma": "No se localizó convención poblacional/muestral. No se deriva RMSE.",
+    "independencia": "Evaluación publicada por productor. No certifica holdout independiente de ajustes/filtrados ni a escuelas."
+  }
+}

@@ -249,7 +249,7 @@ describe('GET /api/infraestructura/radar', () => {
     expect(body.corte).toEqual({
       runId: RUN_VIGENTE,
       publicadoEn: PUBLICADO_EN,
-      modeloVersion: 'riesgo-v0',
+      modeloVersion: 'motor-v0.4',
     })
     expect(body.cobertura).toEqual({
       procesadas: 5,

@@ -723,6 +723,21 @@ describe('POST /api/problematicas/parte — justificación de Crítica', () => {
     expect(filas.length).toBe(1)
   })
 
+  it('acepta Crítica sin justificación cuando todas las secciones suben la sugerida a Crítica', async () => {
+    const res = await POST(postReq(base(CUE_O, {
+      motivo: 'Tormenta severa',
+      severidad: 'Crítica',
+      secciones: [seccionId(CUE_O, '10'), seccionId(CUE_O, '20')],
+    })))
+    expect(res.status).toBe(201)
+  })
+
+  it('con sólo algunas secciones, Crítica sobre Tormenta severa sigue exigiendo justificación', async () => {
+    const res = await POST(postReq(base(CUE_O, { motivo: 'Tormenta severa', severidad: 'Crítica' })))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Indique por qué la situación es crítica')
+  })
+
   it('no pide justificación cuando el motivo ya sugiere Crítica', async () => {
     const res = await POST(postReq({
       cue: CUE_P, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),

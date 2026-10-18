@@ -1,0 +1,29 @@
+{
+  "checked_at_utc": "2026-10-17T23:37:27.877633+00:00",
+  "results": [
+    {
+      "layer": "mde_v2_30m",
+      "features": 121,
+      "bytes": 72616,
+      "url": "https://wms.ign.gob.ar/geoserver/modelos-digitales-elevaciones/wfs?service=WFS&version=1.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A4326&bbox=-60%2C-31%2C-55.3%2C-26.5%2CEPSG%3A4326&maxFeatures=5000&typeName=modelos-digitales-elevaciones%3Amde_v2_30m"
+    },
+    {
+      "layer": "mdt_5m",
+      "features": 46,
+      "bytes": 3041731,
+      "url": "https://wms.ign.gob.ar/geoserver/modelos-digitales-elevaciones/wfs?service=WFS&version=1.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A4326&bbox=-60%2C-31%2C-55.3%2C-26.5%2CEPSG%3A4326&maxFeatures=5000&typeName=modelos-digitales-elevaciones%3Amdt_5m"
+    },
+    {
+      "layer": "mdt_50cm",
+      "features": 4,
+      "bytes": 152715,
+      "url": "https://wms.ign.gob.ar/geoserver/modelos-digitales-elevaciones/wfs?service=WFS&version=1.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A4326&bbox=-60%2C-31%2C-55.3%2C-26.5%2CEPSG%3A4326&maxFeatures=5000&typeName=modelos-digitales-elevaciones%3Amdt_50cm"
+    },
+    {
+      "layer": "mdt_externos",
+      "features": 0,
+      "bytes": 147,
+      "url": "https://wms.ign.gob.ar/geoserver/modelos-digitales-elevaciones/wfs?service=WFS&version=1.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A4326&bbox=-60%2C-31%2C-55.3%2C-26.5%2CEPSG%3A4326&maxFeatures=5000&typeName=modelos-digitales-elevaciones%3Amdt_externos"
+    }
+  ]
+}

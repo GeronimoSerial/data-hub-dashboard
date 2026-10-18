@@ -134,14 +134,22 @@ describe('enriquecerEscuela', () => {
     }, ahora)).toMatchObject({ clases: 'normal', apoyo: null, alumnosSinClases: 0 })
   })
 
-  it('ignora el edificio y el servicio del parte cuando sólo hay situaciones de alumnos', () => {
+  it('ignora el edificio pero no el servicio cuando sólo hay situaciones de alumnos', () => {
     const original = escuela({ parte: parte({
-      estadoEstablecimiento: 'evacuado', servicio: 'suspendido', categoria: 'alumnos',
+      estadoEstablecimiento: 'evacuado', servicio: 'parcial', categoria: 'alumnos',
     }) })
 
     expect(enriquecerEscuela(original, {
       niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1, solucionadasRecientes: 0,
-    }, ahora)).toMatchObject({ clases: 'normal', apoyo: null, alumnosSinClases: 0 })
+    }, ahora)).toMatchObject({ clases: 'parcial', apoyo: 'sin_dato', alumnosSinClases: 0 })
+  })
+
+  it('muestra funcionamiento parcial con situaciones de alumnos, igual que la ficha', () => {
+    const original = escuela({ parte: parte({ servicio: 'parcial', categoria: 'alumnos' }) })
+
+    expect(enriquecerEscuela(original, {
+      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1, solucionadasRecientes: 0,
+    }, ahora).clases).toBe('parcial')
   })
 
   it('conserva evacuado cuando hay una situación abierta de establecimiento', () => {

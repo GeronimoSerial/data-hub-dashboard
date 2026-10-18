@@ -8,6 +8,8 @@ import {
   type SnapshotMotor,
 } from '@/lib/infraestructura/riesgo/explicar-snapshot'
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
+import type { PresentacionCrecida } from '@/lib/infraestructura/riesgo/presentacion-crecida'
+import { ReferenciaCrecida } from './referencia-crecida'
 
 type Planificacion = { etiquetaVista: string; etiquetaNivel: string }[]
 
@@ -17,12 +19,12 @@ export type RiesgoEscuelaProps = {
   planificacion: Planificacion | null
 }
 
-type RespuestaRiesgo = { snapshot: SnapshotMotor | null; factores: FactorMotor[] }
+type RespuestaRiesgo = { snapshot: SnapshotMotor | null; factores: FactorMotor[]; crecidaRio?: PresentacionCrecida | null }
 
 type EstadoRiesgo =
   | { fase: 'cargando' }
   | { fase: 'error'; clave: string }
-  | { fase: 'listo'; clave: string; explicacion: ExplicacionSnapshot }
+  | { fase: 'listo'; clave: string; explicacion: ExplicacionSnapshot; crecidaRio: PresentacionCrecida | null }
 
 export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscuelaProps): JSX.Element {
   const clave = `${cueAnexo}|${horizonte}`
@@ -41,7 +43,7 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
         if (!respuesta.ok) throw new Error('no se pudo obtener el riesgo')
         const cuerpo = (await respuesta.json()) as RespuestaRiesgo
         const explicacion = explicarSnapshot(cuerpo.snapshot, cuerpo.factores ?? [])
-        if (vigente) setEstado({ fase: 'listo', clave: `${cueAnexo}|${horizonte}`, explicacion })
+        if (vigente) setEstado({ fase: 'listo', clave: `${cueAnexo}|${horizonte}`, explicacion, crecidaRio: cuerpo.crecidaRio ?? null })
       } catch {
         if (vigente) setEstado({ fase: 'error', clave: `${cueAnexo}|${horizonte}` })
       }
@@ -55,6 +57,7 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
 
   return (
     <section className="riesgo-escuela" aria-label="Riesgo de la escuela">
+      {estado.fase === 'listo' && estado.crecidaRio && <ReferenciaCrecida crecida={estado.crecidaRio} horizonte={horizonte} />}
       <div className="riesgo-escuela__bloque" data-testid="riesgo-escuela-actual">
         <div className="riesgo-escuela__encabezado">
           <h3 className="riesgo-escuela__titulo">Riesgo por el clima</h3>

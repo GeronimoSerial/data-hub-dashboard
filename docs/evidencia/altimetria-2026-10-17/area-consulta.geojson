@@ -1,0 +1,40 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Corredor piloto Paraná superior",
+        "crs": "EPSG:4326",
+        "proposito": "consulta disponibilidad altimetría escolar"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -59.2,
+              -28.0
+            ],
+            [
+              -56.2,
+              -28.0
+            ],
+            [
+              -56.2,
+              -27.0
+            ],
+            [
+              -59.2,
+              -27.0
+            ],
+            [
+              -59.2,
+              -28.0
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

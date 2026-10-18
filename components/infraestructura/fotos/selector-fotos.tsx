@@ -3,27 +3,35 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent, type JSX } from 'react'
 import { MAX_FOTOS_POR_ENVIO } from '@/lib/infraestructura/reportes-offline-contratos'
 import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
+import type { FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 import styles from './selector-fotos.module.css'
 
-interface FotoSeleccionada {
+export interface FotoSeleccionada {
   id: string
-  archivo: File
+  nombre: string
+  /** Object URL of a thumbnail; the owner of the entry revokes it. */
   vistaPrevia: string
+  /** Original picked on this device. Photos restored from a draft have none. */
+  original?: Blob
+  /** Prepared metadata of a restored photo, so the form does not process it again. */
+  preparada?: FotoPreparada
 }
 
 export interface SelectorFotosProps {
   /** Selected original files are returned as Blob references; no bytes are copied or uploaded. */
   onChange: (fotos: readonly Blob[]) => void
-  onItemsChange?: (fotos: readonly { attachmentId: string; original: Blob }[]) => void
+  /** Lista controlada: el padre es la única fuente de las fotos elegidas. Sin ella, el selector la mantiene. */
+  fotos?: readonly FotoSeleccionada[]
+  onFotosChange?: (fotos: readonly FotoSeleccionada[]) => void
   disabled?: boolean
 }
 
-export function SelectorFotos({ onChange, onItemsChange, disabled = false }: SelectorFotosProps): JSX.Element | null {
+export function SelectorFotos({ onChange, fotos: fotosControladas, onFotosChange, disabled = false }: SelectorFotosProps): JSX.Element | null {
   const inputId = useId()
   const helpId = useId()
-  const fotosRef = useRef<FotoSeleccionada[]>([])
   const objectUrls = useRef(new Set<string>())
-  const [fotos, setFotos] = useState<FotoSeleccionada[]>([])
+  const [internas, setInternas] = useState<readonly FotoSeleccionada[]>([])
+  const fotos = fotosControladas ?? internas
   const [mensaje, setMensaje] = useState('')
   const [enabled, setEnabled] = useState(false)
   const disponibles = MAX_FOTOS_POR_ENVIO - fotos.length
@@ -41,6 +49,12 @@ export function SelectorFotos({ onChange, onItemsChange, disabled = false }: Sel
     return () => { active = false }
   }, [])
 
+  function emitir(siguientes: readonly FotoSeleccionada[]) {
+    if (fotosControladas === undefined) setInternas(siguientes)
+    onFotosChange?.(siguientes)
+    onChange(siguientes.flatMap((foto) => (foto.original ? [foto.original] : [])))
+  }
+
   function manejarSeleccion(event: ChangeEvent<HTMLInputElement>) {
     const seleccionados = Array.from(event.currentTarget.files ?? [])
     event.currentTarget.value = ''
@@ -49,16 +63,11 @@ export function SelectorFotos({ onChange, onItemsChange, disabled = false }: Sel
     const rechazadosPorFormato = seleccionados.length - imagenes.length
     const agregables = imagenes.slice(0, disponibles)
     const omitidos = seleccionados.length - agregables.length
-    const siguientes = [...fotos, ...agregables.map((archivo) => {
+    emitir([...fotos, ...agregables.map((archivo) => {
       const vistaPrevia = URL.createObjectURL(archivo)
       objectUrls.current.add(vistaPrevia)
-      return { id: crypto.randomUUID(), archivo, vistaPrevia }
-    })]
-
-    fotosRef.current = siguientes
-    setFotos(siguientes)
-    onChange(siguientes.map(({ archivo }) => archivo))
-    onItemsChange?.(siguientes.map(({ id, archivo }) => ({ attachmentId: id, original: archivo })))
+      return { id: crypto.randomUUID(), nombre: archivo.name, vistaPrevia, original: archivo }
+    })])
 
     const avisos: string[] = []
     if (omitidos > rechazadosPorFormato) {
@@ -71,22 +80,17 @@ export function SelectorFotos({ onChange, onItemsChange, disabled = false }: Sel
   }
 
   function quitarFoto(foto: FotoSeleccionada) {
-    const siguientes = fotosRef.current.filter(({ id }) => id !== foto.id)
-    URL.revokeObjectURL(foto.vistaPrevia)
-    objectUrls.current.delete(foto.vistaPrevia)
-    fotosRef.current = siguientes
-    setFotos(siguientes)
-    onChange(siguientes.map(({ archivo }) => archivo))
-    onItemsChange?.(siguientes.map(({ id, archivo }) => ({ attachmentId: id, original: archivo })))
+    if (objectUrls.current.delete(foto.vistaPrevia)) URL.revokeObjectURL(foto.vistaPrevia)
+    emitir(fotos.filter(({ id }) => id !== foto.id))
     setMensaje('')
   }
 
   if (!enabled) return null
 
   return (
-    <section className={styles.picker} aria-label="Fotos del reporte">
+    <section className={styles.picker} aria-label={fotos.length > 0 ? 'Fotos del parte' : 'Fotos del reporte'}>
       <div className={styles.encabezado}>
-        <label className={styles.etiqueta} htmlFor={inputId}>Agregar fotos</label>
+        <label className={styles.etiqueta} htmlFor={inputId}>{fotos.length > 0 ? 'Agregar más fotos' : 'Agregar fotos'}</label>
         <span className={styles.contador}>{fotos.length} de {MAX_FOTOS_POR_ENVIO} fotos</span>
       </div>
       <p className={styles.ayuda} id={helpId}>Elegí hasta tres imágenes para adjuntar al reporte.</p>
@@ -107,15 +111,15 @@ export function SelectorFotos({ onChange, onItemsChange, disabled = false }: Sel
         <ul className={styles.lista} aria-label="Fotos seleccionadas">
           {fotos.map((foto) => (
             <li className={styles.foto} key={foto.id}>
-              {/* The original File is used only to make a local preview. */}
+              {/* The thumbnail is a local preview; no original bytes are uploaded from here. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className={styles.vistaPrevia} src={foto.vistaPrevia} alt={foto.archivo.name} />
-              <span className={styles.nombre} title={foto.archivo.name}>{foto.archivo.name}</span>
+              <img className={styles.vistaPrevia} src={foto.vistaPrevia} alt={foto.nombre} />
+              <span className={styles.nombre} title={foto.nombre}>{foto.nombre}</span>
               <button
                 className={styles.quitar}
                 type="button"
                 disabled={disabled}
-                aria-label={`Quitar ${foto.archivo.name}`}
+                aria-label={`Quitar ${foto.nombre}`}
                 onClick={() => quitarFoto(foto)}
               >
                 Quitar

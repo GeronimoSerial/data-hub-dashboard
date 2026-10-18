@@ -1,0 +1,39 @@
+{
+  "consultas": [
+    {
+      "url": "https://wms.ign.gob.ar/geoserver/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=ign%3Anivelacion_alta_precision&outputFormat=application%2Fjson&srsName=EPSG%3A4326&bbox=-60%2C-31%2C-55.3%2C-26.5%2CEPSG%3A4326&maxFeatures=10000",
+      "features_bbox": 1741,
+      "cache_sha256": "2d266a645eeedac9e7a250b74012e3d0d8b9390d7fd98146f044e7e7267d26c4"
+    },
+    {
+      "url": "https://wms.ign.gob.ar/geoserver/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=ign%3Anivelacion_precision&outputFormat=application%2Fjson&srsName=EPSG%3A4326&bbox=-60%2C-31%2C-55.3%2C-26.5%2CEPSG%3A4326&maxFeatures=10000",
+      "features_bbox": 353,
+      "cache_sha256": "718ab9bf39ad39d56953d532495a9cf1672d72ea79c2d6900893955c0f904260"
+    },
+    {
+      "url": "https://wms.ign.gob.ar/geoserver/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=ign%3Anivelacion_topografica&outputFormat=application%2Fjson&srsName=EPSG%3A4326&bbox=-60%2C-31%2C-55.3%2C-26.5%2CEPSG%3A4326&maxFeatures=10000",
+      "features_bbox": 269,
+      "cache_sha256": "8c30323b64110d58ec47164f9f50de7f9bdd827b4221b8e5be4fb2e4d8d4014b"
+    }
+  ],
+  "marcas_dentro_departamentos": 1343,
+  "limite_departamentos_sha256": "0dbcfe6ad67d4ad2fb2a077681730062ae100164821fce4577529e0aa3b56b98",
+  "tipo_marca": {
+    "Chapa pilar": 1246,
+    "Chapa exterior": 10,
+    "Ménsula": 2,
+    "Bulón bajo": 1,
+    "null": 84
+  },
+  "estado": {
+    "null": 528,
+    "Destruido": 99,
+    "Sin Novedad": 709,
+    "Inclinado": 4,
+    "Inaccesible": 3
+  },
+  "escuelas_con_marca_a_menos_de_50m": 6,
+  "escuelas_con_marca_a_menos_de_100m": 41,
+  "escuelas_con_marca_a_menos_de_1000m": 661,
+  "nota": "Proximidad a marca no mide piso ni error DEM: faltan reducción marca-suelo, calidad planimétrica por punto, control de estado y fecha; independencia del ajuste del DEM no acreditada."
+}

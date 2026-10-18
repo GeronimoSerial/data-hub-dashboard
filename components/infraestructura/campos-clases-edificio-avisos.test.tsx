@@ -73,13 +73,24 @@ describe('CamposClasesEdificio: advertencias accionables (T10)', () => {
     expect(screen.queryByText(MENSAJE_HABITUAL)).not.toBeInTheDocument()
   })
 
-  it('"Está bien así" oculta la advertencia y vuelve si cambian las respuestas', () => {
+  it('"Está bien así" se mantiene al cambiar un campo que la regla no lee', () => {
     render(<ConReglas inicial={inicial} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Está bien así' }))
     expect(screen.queryByText(MENSAJE_HABITUAL)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('radio', { name: 'No, se suspendieron' }))
+    expect(screen.queryByText(MENSAJE_HABITUAL)).not.toBeInTheDocument()
+  })
+
+  it('"Está bien así" vuelve si la regla deja de cumplirse y luego vuelve a cumplirse', () => {
+    render(<ConReglas inicial={inicial} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Está bien así' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Uso parcial' }))
+    expect(screen.queryByText(MENSAJE_HABITUAL)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
     expect(screen.getByText(MENSAJE_HABITUAL)).toBeInTheDocument()
   })
 })
