@@ -6,8 +6,7 @@ const porNombre = new Map(JOBS_ESPERADOS.map((job) => [job.nombre, job]))
 describe('JOBS_ESPERADOS', () => {
   it.each([
     ['sync-imerg', 30],
-    ['climatologia-caudal', 1440],
-    ['climatologia-precipitacion', 1440],
+    ['sync-radar-meteo', 360],
     ['climatologia-imerg', 1440],
     ['calcular-riesgo', 360],
     ['sync-pronostico-caudal', 360],
@@ -23,6 +22,6 @@ describe('JOBS_ESPERADOS', () => {
   })
 
   it('sólo deja sin programar los jobs que producción no corre', () => {
-    expect(JOBS_ESPERADOS.filter((job) => !job.habilitado).map((job) => job.nombre).sort()).toEqual(['episodios-derivados', 'sync-seasonal'])
+    expect(JOBS_ESPERADOS.filter((job) => !job.habilitado).map((job) => job.nombre).sort()).toEqual(['climatologia-caudal', 'climatologia-precipitacion', 'episodios-derivados', 'sync-seasonal'])
   })
 })
