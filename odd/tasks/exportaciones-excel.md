@@ -25,7 +25,13 @@ Staff need school lists (afectadas, sin clases, con clases, asistidas, en riesgo
   - Afectada = `escuela.parte !== undefined` (the enriched type has no `estado`). Asistidas = apoyo in {virtual, cuadernillo, ambos, brinda}, the same set as the map's "brinda" filter.
   - en-riesgo takes its data from `ContextoExportacionEscuelas.riesgoPorCue`, built with `riesgoPorCueDesdeRadar(puntos, escuelas, horizonte)`. T3 must load the radar points for the horizon and pass that map in.
   - "Dirección" column = `nivelJurisdiccionalNombre`. The type has no postal address field.
-- [ ] T3 — `app/api/infraestructura/exportar/route.ts`: GET `?tipo=&departamento=&direccion=…`, auth + role scope, returns xlsx with Content-Disposition (`lib/archivo.ts`). Tests.
+- [x] T3 — `app/api/infraestructura/exportar/route.ts`: GET `?tipo=&departamento=&direccion=…`, auth + role scope, returns xlsx with Content-Disposition (`lib/archivo.ts`). Tests.
+  - Evidence: RED observed for both `lib/exportaciones/solicitud.test.ts` (module missing) and `app/api/infraestructura/exportar/route.test.ts` (route missing). GREEN: `pnpm vitest run lib/exportaciones app/api/infraestructura/exportar` → 4 files, 33 passed. `pnpm tsc --noEmit -p .` → exit 0. `pnpm eslint lib/exportaciones app/api/infraestructura/exportar` → exit 0.
+  - Files: `lib/exportaciones/solicitud.ts` (`parsearSolicitudExportacion`, `etiquetasFiltros`, `nombreArchivoExportacion`), route, both tests. Changes left uncommitted.
+  - Query params: `tipo` (required), the map's filter params via `parsearContextoMapaDeQuery` (`q`, `depto`/`departamento`, `direccion`, `severidad`/`gravedad`, `clases`, `apoyo`, `sinActualizar`, `solucionadasRecientes`), `horizonte` (24|72|240, default 72; invalid → 400).
+  - Status codes: 401 no session, 403 role without scope, 400 bad `tipo` or `horizonte`, 500 when the radar fails for en-riesgo. Scope is passed to `listarEscuelasMapaEnriquecidas(filtrosDeAlcance(alcance))`.
+  - Deviation: `radar/route.ts` has no reusable loader; its snapshot query lives inline in `GET`. T3 calls that `GET` handler internally with `?horizonte=` and reads `puntos`, so no SQL is copied. Extracting a `cargarPuntosRadar(horizonte)` into `lib/infraestructura` would be cleaner; that touches a file outside this task's surface.
+  - Deviation: the auth/scope steps are repeated inline from `mapa-ruta.ts`, which is outside this task's surface and returns JSON only.
 - [ ] T4 — Download control on `/mapas/infraestructura` that exports with the active filters.
 
 ## Acceptance criteria
@@ -48,4 +54,4 @@ Strategy: ask-on-risk. Forecast ~700 authored lines → chain decision asked whe
   - Deviation: builder returns `Promise<ArrayBuffer>` (exceljs global `Buffer` typing rejects Node `Buffer`).
 
 ## Next step
-T2.
+T4.
