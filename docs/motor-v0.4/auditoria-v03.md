@@ -157,6 +157,93 @@ margen < −2 m     → sin piso ni componente río
   valor por percentil; si el período más reciente estuviera incompleto podría
   completar con el anterior. Hoy ambos períodos están completos (387 celdas × 3).
 
+## Evaluación (replay del run vigente con reglas v0.4)
+
+Harness local no versionado: código de esta rama al asOf del run vigente
+`75273aab` (2026-10-18T02:15:04Z); prod leída en sesión
+`default_transaction_read_only` (sólo SELECT); series A5 de T5 ≤ asOf (las del
+Uruguay sólo Santo Tomé, Paso de los Libres y Monte Caseros: el resto sin
+análogos); altimetría del CSV como en T9. Reglas v0.3 reproducen prod en
+6.003/6.003 filas (nivel y score).
+
+### Niveles por horizonte (bajo / moderado / alto / muy alto)
+
+| h | v0.3 (prod) | v0.4 sólo análogos | v0.4 + tendencia | v0.4 final (+ onda) |
+|---|---|---|---|---|
+| 24 | 1.852 / 121 / 28 / 0 | 1.988 / 1 / 7 / 5 | 1.988 / 1 / 7 / 5 | 1.988 / 1 / 7 / 5 |
+| 72 | 1.852 / 121 / 28 / 0 | 1.987 / 1 / 8 / 5 | 1.987 / 0 / 5 / 9 | 1.985 / 0 / 7 / 9 |
+| 240 | 1.852 / 121 / 28 / 0 | 1.987 / 1 / 8 / 5 | 1.977 / 5 / 7 / 12 | 1.976 / 6 / 7 / 12 |
+
+- De las 149 escuelas hoy en riesgo quedan 13 (24 h), 15 (72 h) y 22 (240 h).
+  A 24 h: Paso de la Patria 11, General Alvear 1, Apipé Grande 1. A 240 h:
+  Paso de la Patria 12, Goya 3, Corrientes 2, Puerto Boca 2, Itatí 1, General
+  Alvear 1, Apipé Grande 1.
+- Por qué bajan (24 h): 113 están en la zona modelada con `P_conservador = 0`
+  y la tendencia no alcanza la cota conservadora (cota − nivel en el sitio:
+  mediana 3,2 m; 25 a ≤ 2 m, 62 a ≤ 4 m); 20 por DEM con margen < −2 m
+  (mediana del margen de las 33 evaluadas por DEM: −4,6 m); 7 en la banda con
+  alerta (sin piso); 3 no evaluables sin `clase_rio` JRC.
+- Entran: 0 (24 h), 1 (72 h: 1800185-00 Esquina, piso probabilístico de T8),
+  3 (240 h: la anterior y 2 de Paso de la Patria por tendencia que alcanza el
+  terreno DEM).
+- Lo que agrega cada escenario (escuelas no bajas): a 240 h la tendencia suma
+  10 y la onda 1; a 72 h la onda suma 2; a 24 h ninguno.
+- `muy_alto` aparece (5–12 escuelas de Paso de la Patria): evacuación con
+  terreno alcanzable y profundidad JRC ≥ 1 m (V = 100 → riesgo = amenaza).
+- Vecinas a ≤ 150 m (1.388 pares): divergen 35 en v0.3; 4 (24 h), 4 (72 h) y
+  15 (240 h) en v0.4 (las de 240 h, en bordes de la zona modelada y de la
+  tendencia).
+- Ituzaingó: 7 `alto` → 0 (29 bajo en los tres horizontes). Paso de los Libres:
+  4 `alto` → 0.
+
+### Subida posible por estación al asOf (m)
+
+| Estación | h0 | tasa corta / media (m/día) | onda | 72 h: p90 · tendencia · final | 240 h: p90 · tendencia · final |
+|---|---|---|---|---|---|
+| Ituzaingó | 4,92 | 0,09 / 0,22 | — | 0,26 · 0,67 · 0,67 | 0,26 · 2,22 · 2,22 |
+| Itá Ibaté | 6,82 | 0,21 / 0,41 | — | 0,42 · 1,22 · 1,22 | 0,57 · 4,05 · 4,05 |
+| Itatí | 7,87 | 0,38 / 0,45 | — | 0,45 · 1,35 · 1,35 | 0,50 · 4,50 · 4,50 |
+| Paso de la Patria | 7,18 | 0,47 / 0,40 | — | 0,44 · 1,20 · 1,20 | 0,58 · 4,00 · 4,00 |
+| Corrientes | 6,77 | 0,35 / 0,33 | — | 0,41 · 0,98 · 0,98 | 0,53 · 3,27 · 3,27 |
+| Empedrado | 5,67 | 0,24 / 0,18 | 0,58 | 0,39 · 0,55 · 1,13 | 0,46 · 1,82 · 2,40 |
+| Bella Vista | 5,75 | 0,21 / 0,17 | 0,04 | 0,38 · 0,52 · 0,56 | 0,46 · 1,73 · 1,77 |
+| Goya | 5,22 | 0,16 / 0,13 | 0,19 | 0,24 · 0,38 · 0,57 | 0,33 · 1,25 · 1,44 |
+| Esquina | 4,33 | 0,06 / 0,07 | 0,23 | 0,23 · 0,20 · 0,43 | 0,59 · 0,68 · 0,91 |
+| Santo Tomé | 10,74 | −0,13 / −0,11 | — | 0,38 · 0 · 0,38 | 5,83 · 0 · 5,83 |
+| Paso de los Libres | 9,46 | 0 / 0,03 | — | 0,78 · 0,08 · 0,78 | 2,26 · 0,28 · 2,26 |
+| Monte Caseros | 7,13 | 0,02 / 0,02 | — | 0,58 · 0,06 · 0,58 | 2,07 · 0,20 · 2,07 |
+| Mocoretá | 8,66 | 0,21 / 0,21 | — | s/d · 0,62 · 0,62 | s/d · 2,05 · 2,05 |
+
+Garruchos y Bompland bajan (subida 0); Alvear, La Cruz y Yapeyú casi planos
+(0,3–0,35 m a 240 h, sin análogos).
+
+### Backtest a umbral de alerta (1990 → 2026-10, semanal, sólo h0 < alerta)
+
+Sólo datos ≤ cada fecha; la tendencia usa la serie diaria A5 como sustituto de
+Prefectura. Aciertos / falsas alarmas sobre los positivos observados.
+
+| Estación (alerta) | h | positivos | p90 análogos | max(p90, tendencia) | + onda |
+|---|---|---|---|---|---|
+| Corrientes (6,5 m) | 72 | 12 | 10 / 8 | 10 / 12 | 10 / 12 |
+| Corrientes | 240 | 34 | 18 / 44 | 21 / 84 | 21 / 84 |
+| Goya (5,2 m) | 72 | 21 | 16 / 23 | 16 / 31 | 18 / 39 |
+| Goya | 240 | 65 | 34 / 73 | 42 / 125 | 42 / 134 |
+| Esquina (5,0 m) | 72 | 10 | 9 / 19 | 9 / 23 | 10 / 36 |
+| Esquina | 240 | 39 | 30 / 63 | 34 / 96 | 38 / 112 |
+
+La tendencia y la onda suben la detección a 240 h (Corrientes 18 → 21 de 34,
+Goya 34 → 42 de 65, Esquina 30 → 38 de 39) a costa de 1,5–2× falsas alarmas.
+
+### Limitaciones
+
+- La zona modelada no tiene margen de error vertical: decide con la cota
+  conservadora y la probabilidad, por eso Corrientes y Goya bajan más de lo que
+  anticipaba el criterio DEM (> 3 m sobre el agua). Datum de ceros INA
+  supuesto (SRVN71 frente a SRVN16) sin verificar.
+- En prod la serie diaria A5 todavía no se ingesta (T3 no desplegado): el job
+  candidato tendría análogos `s/d` y sólo tendencia y onda.
+- Sin historia de lecturas de Prefectura, el backtest de tendencia usa A5.
+
 ## Fuera de T10
 
 - Tramo por geometría: los tramos los aprueba el usuario (`tramos-prefectura`).
