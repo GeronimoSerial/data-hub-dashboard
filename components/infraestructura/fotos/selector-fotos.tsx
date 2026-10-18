@@ -84,9 +84,9 @@ export function SelectorFotos({ onChange, onItemsChange, disabled = false }: Sel
   if (!enabled) return null
 
   return (
-    <section className={styles.picker} aria-label="Fotos del reporte">
+    <section className={styles.picker} aria-label={fotos.length > 0 ? 'Fotos del parte' : 'Fotos del reporte'}>
       <div className={styles.encabezado}>
-        <label className={styles.etiqueta} htmlFor={inputId}>Agregar fotos</label>
+        <label className={styles.etiqueta} htmlFor={inputId}>{fotos.length > 0 ? 'Agregar más fotos' : 'Agregar fotos'}</label>
         <span className={styles.contador}>{fotos.length} de {MAX_FOTOS_POR_ENVIO} fotos</span>
       </div>
       <p className={styles.ayuda} id={helpId}>Elegí hasta tres imágenes para adjuntar al reporte.</p>

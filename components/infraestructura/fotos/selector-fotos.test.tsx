@@ -75,6 +75,6 @@ describe('SelectorFotos', () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining([expect.any(Blob), expect.any(Blob), expect.any(Blob)]))
     expect(onChange.mock.lastCall?.[0]).toHaveLength(3)
     expect(screen.getByRole('status')).toHaveTextContent('Se pueden agregar hasta 3 fotos. Se omitieron 1.')
-    expect(screen.getByLabelText('Agregar fotos')).toBeDisabled()
+    expect(screen.getByLabelText('Agregar más fotos')).toBeDisabled()
   })
 })
