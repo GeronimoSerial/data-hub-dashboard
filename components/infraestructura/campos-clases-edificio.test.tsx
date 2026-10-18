@@ -84,6 +84,14 @@ describe('CamposClasesEdificio', () => {
     expect(screen.getByRole('radio', { name: 'Sí, con normalidad' })).toBeDisabled()
     expect(screen.getByText('El edificio está evacuado')).toBeInTheDocument()
   })
+  it('Sin clases fuerza "No, se suspendieron" y bloquea la pregunta de clases', () => {
+    render(<Controlado />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, con normalidad' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin clases' }))
+    expect(v()).toEqual({ servicioEstado: 'suspendido', estadoEstablecimiento: 'sin_clases' })
+    expect(screen.getByRole('radio', { name: 'Sí, con normalidad' })).toBeDisabled()
+    expect(screen.getByText('El edificio está sin clases')).toBeInTheDocument()
+  })
   it('con alcance parcial, evacuar pide confirmación; cancelar no aplica', () => {
     const onInterrumpir = vi.fn()
     render(<Controlado alcanceParcial onInterrumpir={onInterrumpir} />)

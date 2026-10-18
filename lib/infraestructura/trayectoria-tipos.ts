@@ -16,7 +16,7 @@ export type { Severidad, Categoria }
 
 // --- Enums / uniones (mismos nombres que CONTRACT.md) ---
 
-export type EstadoEstablecimiento = 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados'
+export type EstadoEstablecimiento = 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados' | 'sin_clases'
 export type ModalidadAsistenciaPedagogica = 'Clase virtual' | 'Cuadernillo'
 export interface AsistenciaPedagogica {
   brinda: boolean

@@ -52,7 +52,7 @@ const cueSchema = z
 // Deben coincidir exactamente con EstadoEstablecimiento / ServicioEstado en
 // trayectoria-tipos.ts. No se importan esos tipos porque Zod necesita los
 // valores en tiempo de ejecución, no sólo el tipo.
-const ESTADOS_ESTABLECIMIENTO = ['habitual', 'parcial', 'evacuado', 'centro_evacuados'] as const
+const ESTADOS_ESTABLECIMIENTO = ['habitual', 'parcial', 'evacuado', 'centro_evacuados', 'sin_clases'] as const
 const ESTADOS_SERVICIO = ['normal', 'suspendido'] as const
 const asistenciaPedagogicaSchema = z.object({
   brinda: z.boolean(),
@@ -174,6 +174,10 @@ export const parteActualizacionInputSchema = z
   .refine(
     (data) => !(data.estadoEstablecimiento?.estado === 'evacuado' && data.servicioEducativo?.estado === 'normal'),
     { message: 'Con el edificio evacuado no puede haber clases con normalidad' },
+  )
+  .refine(
+    (data) => !(data.estadoEstablecimiento?.estado === 'sin_clases' && data.servicioEducativo?.estado === 'normal'),
+    { message: 'Con el edificio sin clases no puede haber clases con normalidad' },
   )
 
 export type ParteActualizacionInput = z.infer<typeof parteActualizacionInputSchema>

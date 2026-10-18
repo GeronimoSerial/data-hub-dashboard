@@ -10,7 +10,7 @@ import type { Regla } from './consistencia-parte'
 // normal en el mismo envío. Una afectación confirmada como activa no bloquea,
 // pero deja una advertencia en línea.
 
-export type EstadoEdificioActivo = 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados'
+export type EstadoEdificioActivo = 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados' | 'sin_clases'
 export type ServicioActivo = 'normal' | 'parcial' | 'suspendido'
 
 export interface EntradaCambioAHabitual {

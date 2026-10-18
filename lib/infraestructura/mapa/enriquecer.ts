@@ -20,6 +20,7 @@ export function derivarClases(
 ): EstadoClases {
   if (estado === 'evacuado') return 'evacuado'
   if (estado === 'centro_evacuados') return 'centro'
+  if (estado === 'sin_clases') return 'sin'
   if (servicio === 'suspendido') return 'sin'
   if (servicio === 'parcial') return 'parcial'
   return 'normal'

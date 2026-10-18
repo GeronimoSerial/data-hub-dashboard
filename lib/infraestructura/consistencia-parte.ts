@@ -7,7 +7,7 @@ import { SEVERIDADES, type Severidad } from './validacion'
 // lo usan el asistente de carga (para deshabilitar opciones y mostrar avisos)
 // y la ruta del servidor (para rechazar combinaciones bloqueadas con 400).
 
-export type EstadoEdificioConsistencia = 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados'
+export type EstadoEdificioConsistencia = 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados' | 'sin_clases'
 export type EstadoClasesConsistencia = 'normal' | 'suspendido'
 export type AlcanceSecciones = { tipo: 'toda' } | { tipo: 'algunas'; secciones: number }
 
@@ -96,6 +96,7 @@ interface DefinicionRegla {
 
 const CAMBIAR_A_PARCIAL: Sugerencia = { campo: 'edificio', valor: 'parcial', etiqueta: 'Cambiar a Uso parcial' }
 const CLASES_SUSPENDIDAS: Sugerencia = { campo: 'clases', valor: 'suspendido', etiqueta: 'Cambiar a Clases suspendidas' }
+const CAMBIAR_A_SIN_CLASES: Sugerencia = { campo: 'edificio', valor: 'sin_clases', etiqueta: 'Cambiar a Sin clases' }
 
 const BLOQUEOS: DefinicionRegla[] = [
   {
@@ -155,7 +156,7 @@ const ADVERTENCIAS: DefinicionRegla[] = [
     codigo: 'sin-energia-evacuado',
     campo: 'edificio',
     mensaje: 'Sin energía o agua el edificio rara vez queda evacuado. Verifique el estado del edificio.',
-    sugerencia: CAMBIAR_A_PARCIAL,
+    sugerencia: CAMBIAR_A_SIN_CLASES,
     cuando: (r) => r.motivoId === MOTIVO.sinEnergia && r.edificio === 'evacuado',
   },
   {
@@ -184,7 +185,22 @@ const ADVERTENCIAS: DefinicionRegla[] = [
     campo: 'clases',
     mensaje: 'El edificio figura habitual pero las clases están suspendidas. Verifique ambas respuestas.',
     sugerencia: { campo: 'clases', valor: 'normal', etiqueta: 'Cambiar a Clases normales' },
-    cuando: (r) => r.edificio === 'habitual' && r.clases === 'suspendido',
+    cuando: (r) => r.motivoId !== MOTIVO.sinEnergia && r.edificio === 'habitual' && r.clases === 'suspendido',
+  },
+  {
+    // Sin energía o agua con clases suspendidas: el estado que lo describe es "Sin clases".
+    codigo: 'habitual-clases-suspendidas',
+    campo: 'clases',
+    mensaje: 'El edificio figura habitual pero las clases están suspendidas. Si falta energía o agua en toda la escuela, indique que el edificio está sin clases.',
+    sugerencia: CAMBIAR_A_SIN_CLASES,
+    cuando: (r) => r.motivoId === MOTIVO.sinEnergia && r.edificio === 'habitual' && r.clases === 'suspendido',
+  },
+  {
+    codigo: 'sin-clases-clases-normales',
+    campo: 'clases',
+    mensaje: 'Con el edificio sin clases, las clases no pueden ser normales. Verifique la respuesta.',
+    sugerencia: CLASES_SUSPENDIDAS,
+    cuando: (r) => r.edificio === 'sin_clases' && r.clases === 'normal',
   },
   {
     codigo: 'centro-clases-normales',

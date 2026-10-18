@@ -118,6 +118,7 @@ const ESTADO_ESTABLECIMIENTO_TEXTO: Record<EstadoEstablecimiento, string> = {
   parcial: 'parcial',
   evacuado: 'evacuado',
   centro_evacuados: 'centro de evacuados',
+  sin_clases: 'sin clases',
 }
 
 /** Título compartido por el resumen de carga, la línea de tiempo y el historial. */

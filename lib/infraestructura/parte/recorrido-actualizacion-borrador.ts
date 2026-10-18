@@ -43,7 +43,7 @@ function esClasesEdificio(valor: unknown): boolean {
   if (typeof valor !== 'object' || valor === null) return false
   const clases = valor as Record<string, unknown>
   return ['normal', 'suspendido'].includes(String(clases.servicioEstado)) &&
-    ['habitual', 'parcial', 'evacuado', 'centro_evacuados'].includes(String(clases.estadoEstablecimiento)) &&
+    ['habitual', 'parcial', 'evacuado', 'centro_evacuados', 'sin_clases'].includes(String(clases.estadoEstablecimiento)) &&
     typeof clases.confirmarInterrupcionTotal === 'boolean'
 }
 

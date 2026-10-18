@@ -114,7 +114,7 @@ describe('servicioEducativoInputSchema', () => {
 
 describe('estadoEstablecimientoInputSchema', () => {
   it('acepta los tres estados de la spec §11', () => {
-    for (const estado of ['habitual', 'parcial', 'evacuado', 'centro_evacuados']) {
+    for (const estado of ['habitual', 'parcial', 'evacuado', 'centro_evacuados', 'sin_clases']) {
       expect(estadoEstablecimientoInputSchema.safeParse({ estado }).success).toBe(true)
     }
   })
@@ -150,6 +150,15 @@ describe('parseParteActualizacionInput', () => {
       servicioEducativo: { estado: 'normal', alcance: { tipo: 'establecimiento' } },
     })
     expect(r).toEqual({ ok: false, error: 'Con el edificio evacuado no puede haber clases con normalidad' })
+  })
+
+  it('rechaza edificio sin clases con clases normales', () => {
+    const r = parseParteActualizacionInput({
+      cue: '1801605-41', idempotencyKey: 'k', rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'sin_clases' },
+      servicioEducativo: { estado: 'normal', alcance: { tipo: 'establecimiento' } },
+    })
+    expect(r).toEqual({ ok: false, error: 'Con el edificio sin clases no puede haber clases con normalidad' })
   })
 
   it('centro de evacuados con clases normales sigue siendo válido', () => {
