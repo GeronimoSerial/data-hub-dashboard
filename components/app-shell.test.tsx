@@ -65,13 +65,6 @@ describe('AppShell', () => {
     expect(document.querySelector('header.app-header')).not.toHaveClass('app-header--mapa')
   })
 
-  it('muestra Exportaciones en la navegación solo con sesión', () => {
-    const { rerender } = render(<AppShell initialUser={null}>Contenido</AppShell>)
-    expect(screen.queryByRole('link', { name: 'Exportaciones' })).not.toBeInTheDocument()
-    rerender(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
-    expect(screen.getByRole('link', { name: 'Exportaciones' })).toHaveAttribute('href', '/exportaciones')
-  })
-
   it('muestra Centro de Situación al personal cuando el flag está activo', async () => {
     render(<AppShell initialUser={{ name: 'Editora', role: 'editor' }} situacionEnabled>Contenido</AppShell>)
     fireEvent.click(screen.getByRole('button', { name: 'Menú de cuenta' }))

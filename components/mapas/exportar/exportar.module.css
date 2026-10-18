@@ -1,0 +1,83 @@
+.vista {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.campo {
+  flex: 1 1 11rem;
+  min-width: 0;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-left: auto;
+}
+
+.limpiar {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.conteo {
+  margin: var(--s-3) 0 var(--s-2);
+  font-weight: 600;
+}
+
+.nota {
+  margin: 0 0 var(--s-2);
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+.error {
+  margin: var(--s-2) 0 0;
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--danger-ink);
+}
+
+.tablaWrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-small);
+}
+
+.tabla th,
+.tabla td {
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tabla th {
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

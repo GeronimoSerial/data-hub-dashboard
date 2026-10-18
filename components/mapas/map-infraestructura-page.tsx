@@ -627,8 +627,8 @@ function extraerEscuelasConCoordenadas(escuelas: EscuelaMapaPadron[]) {
 export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
   escuelasMapa: EscuelasMapaPadronResultado | null
-  pestana: Exclude<PestanaMapa, 'estadisticas' | 'capas' | 'metodologia'>
-  panel?: Exclude<PestanaMapa, 'estadisticas' | 'metodologia'>
+  pestana: Exclude<PestanaMapa, 'estadisticas' | 'capas' | 'metodologia' | 'exportar'>
+  panel?: Exclude<PestanaMapa, 'estadisticas' | 'metodologia' | 'exportar'>
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean

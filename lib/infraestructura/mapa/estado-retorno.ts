@@ -35,7 +35,7 @@ export interface EstadoCamaraMapa {
   pitch?: number
 }
 
-export type PestanaConMapa = Exclude<PestanaMapa, 'estadisticas' | 'metodologia'>
+export type PestanaConMapa = Exclude<PestanaMapa, 'estadisticas' | 'metodologia' | 'exportar'>
 
 export interface SnapshotRetornoMapa {
   version: 1
@@ -87,6 +87,7 @@ const PESTANAS_VALIDAS: readonly PestanaMapa[] = [
   'estadisticas',
   'capas',
   'metodologia',
+  'exportar',
 ]
 
 const PESTANAS_MAPA_VALIDAS: readonly PestanaConMapa[] = [
