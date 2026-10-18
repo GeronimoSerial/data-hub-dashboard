@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { JOBS_ESPERADOS } from './jobs-esperados'
+import { JOBS_ESPERADOS, JOBS_ESPERADOS_PRODUCTOR, jobsEsperadosParaRol } from './jobs-esperados'
+import { JOBS_OPEN_METEO } from './providers/rol-entorno'
 
 const porNombre = new Map(JOBS_ESPERADOS.map((job) => [job.nombre, job]))
 
@@ -32,5 +33,20 @@ describe('JOBS_ESPERADOS', () => {
       intervaloMinutos: 360,
       habilitado: false,
     })
+  })
+})
+
+describe('jobsEsperadosParaRol', () => {
+  it('en rol consumidor no espera corridas de los productores Open-Meteo', () => {
+    const consumidor = jobsEsperadosParaRol('consumidor')
+    for (const nombre of JOBS_OPEN_METEO) {
+      expect(consumidor.find((job) => job.nombre === nombre)?.habilitado ?? false).toBe(false)
+    }
+    expect(consumidor.find((job) => job.nombre === 'sync-imerg')).toMatchObject({ habilitado: true })
+    expect(consumidor.map((job) => job.nombre)).toEqual(JOBS_ESPERADOS.map((job) => job.nombre))
+  })
+
+  it('en rol productor conserva la lista declarada', () => {
+    expect(jobsEsperadosParaRol('productor')).toEqual(JOBS_ESPERADOS_PRODUCTOR)
   })
 })

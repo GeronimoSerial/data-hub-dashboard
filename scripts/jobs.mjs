@@ -465,6 +465,14 @@ export async function correrJob(nombre, opts) {
     return flagDeshabilitado(nombre)
   }
 
+  // Staging/dev no gastan cupo Open-Meteo: replican desde hub_prod
+  // (scripts/replicar-riesgo-om.mjs). Antes de migrar o cargar el productor.
+  const { JOBS_OPEN_METEO, rolEntorno } = await import('../lib/infraestructura/riesgo/providers/rol-entorno.ts')
+  if (JOBS_OPEN_METEO.includes(nombre) && rolEntorno() === 'consumidor') {
+    console.warn(`[jobs] "${nombre}" no ejecutado: entorno consumidor (RIESGO_DATOS_ROL)`)
+    return { ejecutado: false, motivo: 'rol_consumidor' }
+  }
+
   if (['sync-radar-meteo', 'verificar-radar-meteo', 'sync-radar-ensemble'].includes(nombre) &&
     process.env.RADAR_SYNC_ENABLED === 'false') {
     console.warn(`[jobs] "${nombre}" no ejecutado: RADAR_SYNC_ENABLED=false`)
@@ -566,6 +574,7 @@ export function codigoSalida(nombreJob, resultado) {
   // No-ops idempotentes / gating: éxito silencioso.
   if (
     motivo === 'flag_deshabilitado' ||
+    motivo === 'rol_consumidor' ||
     motivo === 'ya_completado' ||
     motivo === 'en_progreso_vigente' ||
     motivo === 'lease_no_disponible'

@@ -8,6 +8,8 @@
 // `nombre` para la mayoría de los jobs (ver TIPO_JOB en cada job). `tipo: null`
 // marca un job que no escribe `infra_job_run` (no es verificable por esa vía).
 
+import { JOBS_OPEN_METEO, rolEntorno, type RolEntorno } from './providers/rol-entorno'
+
 export const TOLERANCIA_ATRASO_JOB = 2
 
 export type JobEsperado = {
@@ -19,7 +21,7 @@ export type JobEsperado = {
   habilitado: boolean
 }
 
-export const JOBS_ESPERADOS: readonly JobEsperado[] = [
+export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
   // Coolify `27 3,9,15,21 * * *`: alineado a la actualización de los modelos globales (6 h).
   { nombre: 'sync-radar-meteo', tipo: 'sync-radar-meteo', intervaloMinutos: 360, habilitado: true },
   { nombre: 'sync-radar-ensemble', tipo: 'sync-radar-ensemble', intervaloMinutos: 360, habilitado: true },
@@ -118,3 +120,16 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     habilitado: false,
   },
 ]
+
+// En staging/dev (rol consumidor) los productores Open-Meteo no corren: sus
+// datos llegan por réplica (docs/riesgo-om-replicacion.md). Se reportan como
+// `no_programado` en lugar de `sin_corridas`/`atrasado`.
+export function jobsEsperadosParaRol(rol: RolEntorno): readonly JobEsperado[] {
+  if (rol === 'productor') return JOBS_ESPERADOS_PRODUCTOR
+  return JOBS_ESPERADOS_PRODUCTOR.map((job) =>
+    JOBS_OPEN_METEO.includes(job.nombre) ? { ...job, habilitado: false } : job,
+  )
+}
+
+// Rol leído al cargar el módulo: el entorno del proceso no cambia en ejecución.
+export const JOBS_ESPERADOS: readonly JobEsperado[] = jobsEsperadosParaRol(rolEntorno())

@@ -85,8 +85,8 @@ Unidades en `deploy/systemd/ops1/`. Estado en staging al 2026-10-13:
 | `enos-ops1-sync-smn-alertas.timer` | activo | `*:07/15` | sync-smn-alertas |
 | `enos-ops1-verificar-radar-meteo.timer` | activo | `*-*-* 11:30:00` | verificar-radar-meteo |
 | `enos-ops1-sync-imerg.timer` | deshabilitado | `*-*-* *:00:00` | sync-imerg (instalado por error; revertido) |
-| `enos-ops1-climatologia-precipitacion.timer` | deshabilitado | `*-*-01 06:40:00` | climatologia-precipitacion (cuota Open-Meteo compartida con producción) |
-| `enos-ops1-climatologia-caudal.timer` | deshabilitado | `*-*-01 06:40:00` | climatologia-caudal (cuota Open-Meteo compartida con producción) |
+| `enos-ops1-climatologia-precipitacion.timer` | deshabilitado | `*-*-01 06:40:00` | climatologia-precipitacion (cuota Open-Meteo compartida con producción; reemplazado por `replicar-riesgo-om`, ver abajo) |
+| `enos-ops1-climatologia-caudal.timer` | deshabilitado | `*-*-01 06:40:00` | climatologia-caudal (cuota Open-Meteo compartida con producción; reemplazado por `replicar-riesgo-om`, ver abajo) |
 | `enos-ops1-sync-prefectura-alturas.timer` | no habilitado (no instalado en el host) | `*:17` | sync-prefectura-alturas; el archivo está en el repo, pendiente de decisión |
 
 Los demás timers del repo (`calcular-riesgo`, `situacion-corte`,
@@ -276,7 +276,7 @@ La UI del Centro de Situación (E5) marca el corte como "desactualizado" con
 ## Credenciales de red por job
 
 - `sync-imerg` requiere `EARTHDATA_TOKEN`; sin esa variable se registra como fuente no disponible.
-- `sync-pronostico-caudal`, `sync-ensemble`, `sync-seasonal`, `sync-radar-meteo`, `sync-radar-ensemble` y ambas climatologías (manuales) consultan Open-Meteo; `OPEN_METEO_API_KEY` habilita cuota paga si corresponde. Presupuesto diario: [docs/datos/cuota-open-meteo.md](../../datos/cuota-open-meteo.md).
+- `sync-pronostico-caudal`, `sync-ensemble`, `sync-seasonal`, `sync-radar-meteo`, `sync-radar-ensemble` y ambas climatologías (manuales) consultan Open-Meteo; `OPEN_METEO_API_KEY` habilita cuota paga si corresponde. Presupuesto diario: [docs/datos/cuota-open-meteo.md](../../datos/cuota-open-meteo.md). Sólo en producción: en rol consumidor (`RIESGO_DATOS_ROL`, inferido para `hub_staging`/`hub_dev`) `jobs.mjs` los responde con `rol_consumidor` sin llamar a la API.
 - `sync-smn-alertas` consulta el feed CAP oficial del SMN; no consume cupo Open-Meteo.
 - `geo-perfiles`, `asociacion-rio`, `calcular-riesgo`, `episodios-derivados` y `situacion-corte` son derivados locales; no requieren credenciales de red.
 
@@ -382,3 +382,17 @@ La [operación de réplica del radar](../../radar-operacion.md) reemplaza los tr
 productores del radar en staging/dev por copias desde `hub_prod`. Hasta ejecutar
 manualmente `radar-operacion.yml` con `configurar`, la instalación existente sigue
 vigente. No reinstalar los tres timers radar en consumidores después de migrar.
+
+## Migración pendiente: riesgo Open-Meteo producido sólo en producción
+
+Open-Meteo cuenta el cupo gratuito por IP y staging/dev comparten la IP de
+salida con producción. Desde este cambio, en rol consumidor `jobs.mjs` no
+ejecuta `sync-pronostico-caudal`, `sync-ensemble`, `sync-seasonal`,
+`climatologia-precipitacion`, `climatologia-caudal` ni los tres del radar
+(`{"ejecutado":false,"motivo":"rol_consumidor"}`, exit `0`), y la salud los
+marca `no_programado`. Sus datos llegan con `replicar-riesgo-om`
+([réplica](../../riesgo-om-replicacion.md), [operación](../../riesgo-om-operacion.md)).
+Hasta ejecutar manualmente `riesgo-om-operacion.yml` con `configurar`, los
+timers o tareas existentes quedan instalados pero no gastan cupo una vez
+desplegado el código (el rol se infiere de la base). No reinstalar esos timers
+en consumidores después de migrar.
