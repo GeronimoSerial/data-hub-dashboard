@@ -4,7 +4,7 @@
 import { useSyncExternalStore } from 'react'
 import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIVEL_PLAN, nivelesLeyendaPlanificacion, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
+import { colorNivelPlan, ETIQUETA_NIVEL_PLAN, nivelesLeyendaPlanificacion, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
@@ -18,7 +18,7 @@ type RegistroEventosLeyenda = Pick<ResumenEventosReportados, 'actualizadoAl'>
 type PropsLeyendaMapa =
   | { pestana: 'actual' }
   | { pestana: 'radar'; horizonte: HorizonteMotor }
-  | { pestana: 'planificacion'; vista: VistaPlanificacion }
+  | { pestana: 'planificacion'; vista: VistaPlanificacion; horizonte?: HorizonteMotor }
   | { pestana: 'estadisticas' }
 
 // Mismo SVG que rasteriza el mapa, a tamaño de leyenda (16 px, escala 1).
@@ -164,6 +164,10 @@ function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObs
 }
 
 function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
+  // Riesgo hoy de Planificación comparte la escala del motor con el Radar.
+  if (props.pestana === 'planificacion' && props.vista === 'riesgo') {
+    return <ReferenciasRiesgo props={{ pestana: 'radar', horizonte: props.horizonte ?? 24 }} />
+  }
   if (props.pestana === 'radar') {
     const niveles = [
       ['muy_alto', ETIQUETA_NIVEL_RIESGO.muy_alto],
@@ -193,7 +197,7 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
     )
   }
 
-  if (props.pestana === 'planificacion') {
+  if (props.pestana === 'planificacion' && props.vista !== 'riesgo') {
     const niveles = nivelesLeyendaPlanificacion(props.vista)
 
     return (
@@ -210,12 +214,6 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
               <span>{ETIQUETA_NIVEL_PLAN[nivel]}</span>
             </li>
           ))}
-          {props.vista === 'inundacion' && (
-            <li className="map-leyenda__elemento" key="junto-laguna">
-              <span aria-hidden="true" className="map-leyenda__muestra" style={{ backgroundColor: COLOR_JUNTO_LAGUNA }} />
-              <span>{ETIQUETA_JUNTO_LAGUNA}</span>
-            </li>
-          )}
         </ul>
       </>
     )

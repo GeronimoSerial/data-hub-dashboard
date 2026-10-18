@@ -64,7 +64,7 @@ async function sembrarFixture() {
   await db.insert(infraRiskRun).values({
     id: RUN,
     periodoId: PERIODO,
-    modeloVersion: 'riesgo-v0',
+    modeloVersion: 'motor-v0.4',
     iniciadoEn: '2026-01-01T00:00:00Z',
     publicadoEn: '2026-01-02T00:00:00Z',
     estado: 'vigente',
@@ -166,7 +166,7 @@ describe('GET /api/infraestructura/riesgo/[snapshotId]', () => {
     await db.insert(infraRiskRun).values({
       id: 'run-preparando',
       periodoId: PERIODO,
-      modeloVersion: 'riesgo-v0',
+      modeloVersion: 'motor-v0.4',
       iniciadoEn: '2026-01-01T00:00:00Z',
       publicadoEn: null,
       estado: 'preparando',

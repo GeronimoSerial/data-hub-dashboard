@@ -1,0 +1,40 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Consulta altimetría padrón provincial Corrientes",
+        "nota": "Rectángulo de búsqueda, no delimitación de cobertura ni pedido de todo el rectángulo",
+        "crs": "EPSG:4326"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -60,
+              -31
+            ],
+            [
+              -55.3,
+              -31
+            ],
+            [
+              -55.3,
+              -26.5
+            ],
+            [
+              -60,
+              -26.5
+            ],
+            [
+              -60,
+              -31
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -132,7 +132,7 @@ describe('GET /api/infraestructura/riesgo', () => {
     expect(body.totalPages).toBe(1)
     expect(body.runVigente).toEqual({
       id: RUN_VIGENTE,
-      modeloVersion: 'riesgo-v0',
+      modeloVersion: 'motor-v0.4',
       publicadoEn: PUBLICADO_EN,
     })
 

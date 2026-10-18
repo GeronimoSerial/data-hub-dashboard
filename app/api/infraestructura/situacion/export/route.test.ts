@@ -61,7 +61,7 @@ describe('GET /api/infraestructura/situacion/export', () => {
       await db.insert(infraRiskRun).values({
         id: randomUUID(),
         periodoId: PERIODO_ENOS_2026_2027_ID,
-        modeloVersion: 'riesgo-v0',
+        modeloVersion: 'motor-v0.4',
         iniciadoEn: '2026-09-27T10:00:00.000Z',
         publicadoEn: '2026-09-27T10:05:00.000Z',
         estado: 'vigente',

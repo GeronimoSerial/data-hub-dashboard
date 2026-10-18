@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, within } from '@testing-library/react'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
-import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, VISTAS_PLANIFICACION } from '@/lib/infraestructura/mapa/planificacion'
+import { colorNivelPlan, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, VISTAS_ESTRUCTURALES } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo } from '@/lib/infraestructura/mapa/radar'
 
 function colorCss(color: string): string {
@@ -19,7 +19,7 @@ describe('LeyendaMapa · contenedor único', () => {
   it.each(['actual', 'radar', 'planificacion'] as const)('renderiza un único aside.map-leyenda en la pestaña %s', (pestana) => {
     const props = pestana === 'radar'
       ? { pestana, horizonte: 72 as const }
-      : pestana === 'planificacion' ? { pestana, vista: 'inundacion' as const } : { pestana }
+      : pestana === 'planificacion' ? { pestana, vista: 'aisladas' as const } : { pestana }
     const { container } = render(<LeyendaMapa {...props} estacionesRio eventosReportados lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
 
     expect(container.querySelectorAll('aside')).toHaveLength(1)
@@ -176,20 +176,20 @@ describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
   })
 
   it('muestra título y escala de cada vista de Planificación', () => {
-    for (const vista of VISTAS_PLANIFICACION) {
+    for (const vista of VISTAS_ESTRUCTURALES) {
       const { container, unmount } = render(<LeyendaMapa pestana="planificacion" vista={vista} />)
       const muestras = Array.from(container.querySelectorAll('.map-leyenda__muestra')) as HTMLElement[]
 
       expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent(TITULO_LEYENDA_VISTA[vista])
-      // Inundación no lista Nulo (sí "Junto a laguna"); Aisladas sólo lista Alto y Medio; Historial lista los cuatro.
-      const niveles = vista === 'inundacion' ? [3, 2, 1] as const : vista === 'aisladas' ? [3, 2] as const : [3, 2, 1, 0] as const
+      // Aisladas sólo lista Alto y Medio; Historial lista los cuatro.
+      const niveles = vista === 'aisladas' ? [3, 2] as const : [3, 2, 1, 0] as const
       const etiquetas = niveles.map((nivel) => ETIQUETA_NIVEL_PLAN[nivel])
       expect(Array.from(container.querySelectorAll('.map-leyenda__fila li')).map((item) => item.textContent)).toEqual(
-        vista === 'inundacion' ? [...etiquetas, ETIQUETA_JUNTO_LAGUNA] : etiquetas,
+        etiquetas,
       )
       expect(muestras.map((muestra) => muestra.style.backgroundColor)).toEqual([
         ...niveles.filter((nivel) => nivel > 0).map((nivel) => colorCss(colorNivelPlan(nivel))),
-        ...(vista === 'inundacion' ? [colorCss(COLOR_JUNTO_LAGUNA)] : vista === 'historial' ? [''] : []),
+        ...(vista === 'historial' ? [''] : []),
       ])
       if (vista === 'historial') expect(muestras[3]).toHaveClass('map-leyenda__muestra--neutra')
       expect(container.querySelector('p')).toBeNull()
@@ -251,5 +251,14 @@ describe('LeyendaMapa · posición', () => {
     expect(regla).not.toMatch(/transform:\s*translateX\(-50%\)/)
     expect(regla).toMatch(/max-height:\s*min\(45vh,\s*26rem\)/)
     expect(regla).toMatch(/overscroll-behavior:\s*contain/)
+  })
+
+  it('en Riesgo hoy de Planificación usa la escala del motor con el horizonte elegido', () => {
+    const { container } = render(<LeyendaMapa pestana="planificacion" vista="riesgo" horizonte={240} />)
+    expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent('Riesgo actual (hoy) · 10 días')
+    const muestras = Array.from(container.querySelectorAll('.map-leyenda__muestra')) as HTMLElement[]
+    expect(muestras.map((muestra) => muestra.style.backgroundColor)).toEqual(
+      (['muy_alto', 'alto', 'moderado'] as const).map((nivel) => colorCss(colorRiesgo(nivel))),
+    )
   })
 })

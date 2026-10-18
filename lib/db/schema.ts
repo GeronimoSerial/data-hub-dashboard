@@ -893,6 +893,7 @@ export const infraRiskRun = pgTable(
     // corrida candidata no puede ocupar el puntero vigente.
     check('infra_risk_run_modo_check', sql`${t.modo} IN ('operativo', 'candidato')`),
     check('infra_risk_run_candidato_no_vigente', sql`${t.modo} <> 'candidato' OR ${t.estado} <> 'vigente'`),
+    check('infra_risk_run_vigente_solo_v04', sql`${t.estado} <> 'vigente' OR ${t.modeloVersion} = 'motor-v0.4'`),
   ],
 )
 

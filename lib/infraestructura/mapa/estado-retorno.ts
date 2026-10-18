@@ -13,7 +13,8 @@ import {
 import { gravedadDeSeveridad } from './gravedad'
 import { resolverPestana } from './pestanas'
 import {
-  VISTAS_PLANIFICACION,
+  parsearVistaPlanificacion,
+  VISTA_PLANIFICACION_DEFAULT,
   type VistaPlanificacion,
 } from './planificacion'
 import type { HorizonteMotor } from './radar'
@@ -172,12 +173,6 @@ function parsearVariableRadar(raw: string | null | undefined): VariableRadarUI |
     : null
 }
 
-function parsearVistaPlanificacion(raw: string | null | undefined): VistaPlanificacion | null {
-  if (!raw) return null
-  return (VISTAS_PLANIFICACION as readonly string[]).includes(raw)
-    ? (raw as VistaPlanificacion)
-    : null
-}
 
 export function validarRutaRetornoInterna(
   ruta: string | null | undefined,
@@ -275,7 +270,7 @@ export function serializarContextoMapaEnQuery(input: {
   if (input.variable && input.variable !== 'lluvia') {
     params.set('variable', input.variable)
   }
-  if (input.vista && input.vista !== 'aisladas') {
+  if (input.vista && input.vista !== VISTA_PLANIFICACION_DEFAULT) {
     params.set('vista', input.vista)
   }
 
@@ -584,11 +579,7 @@ export function leerSnapshotRetornoMapa(
       ? (obj.variableRadar as VariableRadarUI)
       : 'lluvia'
 
-    const vistaPlanificacion: VistaPlanificacion = (
-      VISTAS_PLANIFICACION as readonly string[]
-    ).includes(obj.vistaPlanificacion as string)
-      ? (obj.vistaPlanificacion as VistaPlanificacion)
-      : 'aisladas'
+    const vistaPlanificacion: VistaPlanificacion = parsearVistaPlanificacion(obj.vistaPlanificacion) ?? VISTA_PLANIFICACION_DEFAULT
 
     return {
       version: 1,
