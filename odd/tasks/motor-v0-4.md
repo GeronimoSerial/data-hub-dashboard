@@ -72,7 +72,8 @@ Tracker: `GeronimoSerial/motor-v0.4` (base `origin/dev` f07002f7). Cada tarea = 
 | 04 | `motor-v0.4/04-ina-pronosticos` | T4 | 9d803fb2 |
 | 05 | `motor-v0.4/05-modelo-temporal` | T5, T5b | 14557cd2, e464feb6 |
 | 06 | `motor-v0.4/06-transferencia-terreno` | T6 | 12015ca0 |
-| 07 | `motor-v0.4/07-integracion-v03` | T8 | — |
+| 07 | `motor-v0.4/07-integracion-v03` | T8 | 3a9a825f |
+| 08 | `motor-v0.4/08-evaluacion` | T9 | — |
 
 ## Progreso y evidencia
 
