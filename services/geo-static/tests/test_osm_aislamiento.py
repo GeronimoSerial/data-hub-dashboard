@@ -1324,6 +1324,10 @@ def _preparar_job(monkeypatch, tmp_path, pbf_path):
     # sin poligonos no se excluye nada y sin sedes se usa el proxy).
     monkeypatch.setattr(job, "DEPARTAMENTOS_GEOJSON_PATH", tmp_path / "no-existe.geojson")
     monkeypatch.setattr(job, "CABECERAS_PATH", tmp_path / "no-existe.json")
+    # Sin poligonos escolares: el pbf falso no es legible por pyrosm.
+    import geo_static.edificio_escolar as edificio_mod
+
+    monkeypatch.setattr(edificio_mod, "cargar_poligonos_escolares", lambda *a, **k: [])
 
     import osmnx as ox
 
