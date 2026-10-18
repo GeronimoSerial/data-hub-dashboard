@@ -18,7 +18,8 @@
 // - Un fallo de lote no tumba al resto: sus celdas van a `erroresPorCelda` y se
 //   siguen procesando los demás lotes.
 import { z } from 'zod'
-import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import { construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import { crearColaLotesPorPuntoGrilla, destinoDeRespuesta } from './grilla-modelo'
 import { isoUtc, parsearTimestampUtc } from './timestamps'
 import { ejecutarConReintentos } from './cliente-http'
 import { apiKeyDesdeEntorno, limiteVentana, MOTIVOS_CORTAN_LOTES, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
@@ -161,7 +162,13 @@ const hourlyEnsembleSchema = z
 
 // Un objeto por ubicación. Con una sola coordenada Open-Meteo responde un
 // objeto suelto; con varias, un array de estos objetos en el orden pedido.
-const payloadEnsembleElementoSchema = z.object({ hourly: hourlyEnsembleSchema })
+// `latitude`/`longitude` (punto de grilla usado) sólo verifican la
+// deduplicación por punto (ver grilla-modelo.ts).
+const payloadEnsembleElementoSchema = z.object({
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  hourly: hourlyEnsembleSchema,
+})
 
 type PayloadEnsembleElemento = z.infer<typeof payloadEnsembleElementoSchema>
 
@@ -296,69 +303,70 @@ export async function obtenerProbabilidadesEnsemble(params: {
   const erroresPorCelda: Record<string, string> = {}
   let llamadasRealizadas = 0
 
-  const lotes = agruparEnLotes(geometryRefsConCoordenada, TAMANO_LOTE_COORDENADAS_ENSEMBLE)
-
+  // Cuota Open-Meteo (C1): un request por punto de grilla de 0,25°. Los 51
+  // miembros del representante se replican a cada celda del punto ANTES de
+  // calcular probabilidades: cada celda conserva su propio umbral.
+  const cola = crearColaLotesPorPuntoGrilla(geometryRefsConCoordenada, TAMANO_LOTE_COORDENADAS_ENSEMBLE)
   let ubicacionesLoteAnterior = 0
 
-  for (let indiceLote = 0; indiceLote < lotes.length; indiceLote++) {
-    const lote = lotes[indiceLote]
+  for (let lote = cola.siguiente(); lote !== undefined; lote = cola.siguiente()) {
+    const representantes = lote.map((grupo) => grupo.celdas[0])
     if (controladorCupoFactory && ubicacionesLoteAnterior > 0) {
       await esperar(esperaEntreLotesEnsembleMs(ubicacionesLoteAnterior, Boolean(apiKey)))
     }
-    const peso = pesoLoteEnsemble(lote.length)
-    const cupo = controladorCupoFactory?.(peso)
+    const cupo = controladorCupoFactory?.(pesoLoteEnsemble(representantes.length))
     const resultado = await ejecutarConReintentos<PayloadEnsembleElemento[]>({
-      url: construirUrlLote(lote, apiKey),
+      url: construirUrlLote(representantes, apiKey),
       fetchImpl,
       cupo,
-      parsearPayload: crearParserLote(payloadEnsembleElementoSchema, lote.length),
+      parsearPayload: crearParserLote(payloadEnsembleElementoSchema, representantes.length),
     })
 
     if (!resultado.ok) {
       const detalle = `${resultado.motivo}: ${resultado.detalle}`
       if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) {
         llamadasRealizadas += 1
-        ubicacionesLoteAnterior = lote.length
+        ubicacionesLoteAnterior = representantes.length
       }
+      for (const grupo of lote) for (const celda of grupo.celdas) erroresPorCelda[celda.geometryRef] = detalle
       if (MOTIVOS_CORTAN_LOTES.has(resultado.motivo)) {
         // Ver mismo razonamiento que ecmwf.ts: cupo agotado en ventana
         // larga, host en cooldown o 429 afecta a todos los lotes restantes
         // por igual.
-        for (const loteRestante of lotes.slice(indiceLote + 1)) {
-          for (const celda of loteRestante) erroresPorCelda[celda.geometryRef] = detalle
-        }
-        for (const celda of lote) erroresPorCelda[celda.geometryRef] = detalle
+        for (const celda of cola.vaciar()) erroresPorCelda[celda.geometryRef] = detalle
         break
-      }
-      for (const celda of lote) {
-        erroresPorCelda[celda.geometryRef] = detalle
       }
       continue
     }
 
     llamadasRealizadas += 1
-    ubicacionesLoteAnterior = lote.length
+    ubicacionesLoteAnterior = representantes.length
 
     // El array de respuesta viene en el mismo orden que las coordenadas
     // enviadas: se empareja por índice, no por el lat/lon de la respuesta.
-    lote.forEach((celda, indice) => {
-      const umbralP95 = umbralP95PorCelda.get(celda.geometryRef)
-      const umbralP99 = umbralP99PorCelda.get(celda.geometryRef)
-      if (umbralP95 === undefined || umbralP99 === undefined) {
-        erroresPorCelda[celda.geometryRef] = 'sin_climatologia'
-        return
-      }
+    lote.forEach((grupo, indice) => {
+      const elemento = resultado.datos[indice]
+      const { destino, reencolar } = destinoDeRespuesta(grupo, elemento)
+      if (reencolar) cola.reencolarMiembros(grupo)
+      for (const celda of destino) {
+        const umbralP95 = umbralP95PorCelda.get(celda.geometryRef)
+        const umbralP99 = umbralP99PorCelda.get(celda.geometryRef)
+        if (umbralP95 === undefined || umbralP99 === undefined) {
+          erroresPorCelda[celda.geometryRef] = 'sin_climatologia'
+          continue
+        }
 
-      puntos.push(
-        ...puntosDeCeldaEnsemble({
-          geometryRef: celda.geometryRef,
-          hourly: resultado.datos[indice].hourly,
-          corridaEn,
-          acumuladoHoras,
-          umbralP95,
-          umbralP99,
-        }),
-      )
+        puntos.push(
+          ...puntosDeCeldaEnsemble({
+            geometryRef: celda.geometryRef,
+            hourly: elemento.hourly,
+            corridaEn,
+            acumuladoHoras,
+            umbralP95,
+            umbralP99,
+          }),
+        )
+      }
     })
   }
 

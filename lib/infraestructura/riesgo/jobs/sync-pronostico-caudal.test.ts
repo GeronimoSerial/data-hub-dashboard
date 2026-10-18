@@ -189,9 +189,11 @@ describe('ejecutarSyncPronosticoCaudal', () => {
 // una renovación necesitamos > 25 celdas, así que en esta suite insertamos 60
 // perfiles extra (total 63 con las 3 base) y las limpiamos en el afterAll para
 // no alterar los conteos de los tests que ya existían.
+// Separadas 0,5° para que cada celda caiga en su propio punto de grilla de
+// 0,25° (las tandas ECMWF se arman por punto, ver grilla-modelo.ts).
 const CELDAS_EXTRA = Array.from({ length: 60 }, (_, indice) => ({
   cueAnexo: `199000${indice + 1}-00`,
-  geometryRef: `-30.${String(indice).padStart(2, '0')}_-60.0`,
+  geometryRef: `${(-30 - indice * 0.5).toFixed(1)}_-60.0`,
 }))
 
 type RenovarLeaseParamsTest = {

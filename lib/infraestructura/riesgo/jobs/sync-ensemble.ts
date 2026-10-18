@@ -34,6 +34,7 @@ import {
 import { TAMANO_LOTE_COORDENADAS_ENSEMBLE } from '../providers/ensemble'
 import type { obtenerProbabilidadesEnsemble as obtenerProbabilidadesEnsembleReal } from '../providers/ensemble'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
+import { empaquetarRefsPorPuntoGrilla } from '../providers/grilla-modelo'
 import {
   adquirirLease,
   claveIdempotenteDeBloque6h,
@@ -103,24 +104,15 @@ const MUESTRA_CLIMATOLOGIA = 'todos_los_dias'
 // Percentiles que se leen de climatología: p90 sólo define la completitud IMERG.
 const PERCENTILES_UMBRAL = ['p90', 'p95', 'p99'] as const
 
-// Tamaño de tanda del job. Alineado con el lote interno de coordenadas del
-// provider (`TAMANO_LOTE_COORDENADAS_ENSEMBLE`): cada invocación al provider
-// corresponde a una request HTTP, y entre tanda y tanda se renueva el lease
-// (mismo concepto que sync-pronostico-caudal.ts, que renueva cada 25 celdas
-// procesadas). No es un límite de red propio del job: el provider ya agrupa
-// las coordenadas por request; acá la tanda marca cuándo renovar.
-const TAMANO_TANDA_CELDAS = TAMANO_LOTE_COORDENADAS_ENSEMBLE
+// Tamaño de tanda del job, en PUNTOS DE GRILLA de 0,25° (cuota Open-Meteo,
+// C1). Alineado con el lote interno de coordenadas del provider
+// (`TAMANO_LOTE_COORDENADAS_ENSEMBLE`): cada tanda lleva puntos completos
+// (todas sus celdas), el provider pide cada punto una vez (un request por
+// tanda) y entre tanda y tanda se renueva el lease (mismo concepto que
+// sync-pronostico-caudal.ts).
+const PUNTOS_GRILLA_POR_TANDA = TAMANO_LOTE_COORDENADAS_ENSEMBLE
 
 type Db = ReturnType<typeof getDb>
-
-// Reconstruye la coordenada del centro de la celda desde `geometryRef`. El
-// formato es `"${lat}_${lon}"` con un decimal cada uno (ver `celdaDeCoordenada`
-// en ../celda.ts), así que esto recupera la lat/lon exacta que el provider
-// necesita sin volver a leer la coordenada cruda de cada escuela.
-function coordenadaDeCelda(geometryRef: string): { lat: number; lon: number } {
-  const [lat, lon] = geometryRef.split('_').map(Number)
-  return { lat, lon }
-}
 
 // Umbrales de climatología por celda, con la misma regla que nivel.ts: la
 // climatología IMERG se usa cuando está completa para la celda (p90, p95 y p99);
@@ -337,11 +329,6 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
     .map((fila) => fila.geometryRef)
     .filter((ref): ref is string => ref !== null)
 
-  const celdasConCoordenada = celdas.map((geometryRef) => ({
-    geometryRef,
-    ...coordenadaDeCelda(geometryRef),
-  }))
-
   const { p95: umbralP95PorCelda, p99: umbralP99PorCelda } = await cargarUmbralesPorCelda(db)
 
   const renovar = params?.renovarLease ?? renovarLeaseReal
@@ -370,9 +357,9 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
   let llamadasRealizadas = 0
   let leasePerdido = false
 
-  const totalCeldas = celdasConCoordenada.length
-  for (let indice = 0; indice < totalCeldas; indice += TAMANO_TANDA_CELDAS) {
-    const tanda = celdasConCoordenada.slice(indice, indice + TAMANO_TANDA_CELDAS)
+  const tandas = empaquetarRefsPorPuntoGrilla(celdas, PUNTOS_GRILLA_POR_TANDA)
+  for (let indiceTanda = 0; indiceTanda < tandas.length; indiceTanda++) {
+    const tanda = tandas[indiceTanda]
 
     let diagnostico: {
       puntos: PuntoEnsembleProbabilistico[]
@@ -381,7 +368,7 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
     }
     try {
       const resultadoPuerto = await puerto.obtenerProbabilidades({
-        geometryRefs: tanda.map((celda) => celda.geometryRef),
+        geometryRefs: tanda,
         asOf: corridaEn,
         umbralesP95Mm: umbralP95PorCelda,
         umbralesP99Mm: umbralP99PorCelda,
@@ -396,8 +383,8 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
       // tumbar el job: se traduce a error en todas sus celdas y se sigue.
       const mensaje = error instanceof Error ? error.message : String(error)
       const errores: Record<string, string> = {}
-      for (const celda of tanda) {
-        errores[celda.geometryRef] = `proveedor_throw: ${mensaje}`
+      for (const geometryRef of tanda) {
+        errores[geometryRef] = `proveedor_throw: ${mensaje}`
       }
       diagnostico = { puntos: [], erroresPorCelda: errores, llamadasRealizadas: 0 }
     }
@@ -412,7 +399,7 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
 
     // La última tanda ya no tiene trabajo posterior que proteger: no renovamos
     // después de ella.
-    if (indice + TAMANO_TANDA_CELDAS >= totalCeldas) continue
+    if (indiceTanda >= tandas.length - 1) continue
 
     // Fencing: renovamos SÓLO si seguimos siendo el owner. Si devuelve `false`,
     // otro proceso recuperó el lease: cortamos el loop sin consultar ni

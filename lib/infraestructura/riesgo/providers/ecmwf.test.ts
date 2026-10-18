@@ -219,4 +219,67 @@ describe('crearProviderEcmwf', () => {
     expect(Object.keys(erroresPorCelda)).toHaveLength(120)
     expect(Object.values(erroresPorCelda).every((detalle) => detalle.startsWith('rate_limited'))).toBe(true)
   })
+  it('consulta una sola vez cada punto de grilla de 0,25° y replica la serie a sus celdas', async () => {
+    // Tres celdas de 0,1° en el punto -27.5_-58.75 y una en -28_-58.
+    const fetchImpl = vi.fn(async (url: string) => {
+      const latitudes = (new URL(url).searchParams.get('latitude') ?? '').split(',').map(Number)
+      const longitudes = longitudesDeUrl(url)
+      const cuerpo = longitudes.map((lon, indice) => ({
+        latitude: Math.round(latitudes[indice] * 4) / 4,
+        longitude: Math.round(lon * 4) / 4,
+        hourly: { ...payloadEcmwfParaLongitudes([lon])[0].hourly },
+      }))
+      return new Response(JSON.stringify(cuerpo), { status: 200 })
+    })
+    const provider = crearProviderEcmwf({ fetchImpl: fetchImpl as unknown as typeof fetch })
+
+    const celdas = ['-27.4_-58.8', '-28.0_-58.0', '-27.5_-58.7', '-27.6_-58.8']
+    const { puntos, erroresPorCelda, llamadasRealizadas, celdasPorLlamada } =
+      await provider.obtenerPronosticoConDiagnostico({ geometryRefs: celdas, ahora: AHORA })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(longitudesDeUrl(fetchImpl.mock.calls[0][0])).toEqual([-58.8, -58])
+    expect(llamadasRealizadas).toBe(1)
+    expect(celdasPorLlamada).toEqual([2])
+    expect(erroresPorCelda).toEqual({})
+
+    // Misma forma y contenido por celda que si se hubiera pedido cada una: la
+    // del representante, con su propio geometryRef.
+    const filasDe = (ref: string) =>
+      puntos.filter((p) => p.geometryRef === ref).map(({ geometryRef: _ref, ...resto }) => resto)
+    expect(filasDe('-27.4_-58.8')).toHaveLength(10)
+    expect(filasDe('-27.5_-58.7')).toEqual(filasDe('-27.4_-58.8'))
+    expect(filasDe('-27.6_-58.8')).toEqual(filasDe('-27.4_-58.8'))
+    expect(precipitacionPorRef(puntos).get('-28.0_-58.0')).toEqual([-58, -58])
+  })
+
+  it('si Open-Meteo devuelve otro punto para el representante, consulta al resto por separado', async () => {
+    let llamada = 0
+    const fetchImpl = vi.fn(async (url: string) => {
+      llamada++
+      const longitudes = longitudesDeUrl(url)
+      const cuerpo = payloadEcmwfParaLongitudes(longitudes).map((elemento) => ({
+        ...elemento,
+        // 1ra llamada: el punto devuelto no es -27.5_-58.75 (cell_selection=land).
+        latitude: llamada === 1 ? -27.75 : 999,
+        longitude: -58.75,
+      }))
+      return new Response(JSON.stringify(cuerpo), { status: 200 })
+    })
+    const provider = crearProviderEcmwf({ fetchImpl: fetchImpl as unknown as typeof fetch })
+
+    const { puntos, erroresPorCelda, llamadasRealizadas } = await provider.obtenerPronosticoConDiagnostico({
+      geometryRefs: ['-27.4_-58.8', '-27.5_-58.7', '-27.6_-58.75'],
+      ahora: AHORA,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(longitudesDeUrl(fetchImpl.mock.calls[1][0])).toEqual([-58.7, -58.75])
+    expect(llamadasRealizadas).toBe(2)
+    expect(erroresPorCelda).toEqual({})
+    const precip = precipitacionPorRef(puntos)
+    expect(precip.get('-27.4_-58.8')).toEqual([-58.8, -58.8])
+    expect(precip.get('-27.5_-58.7')).toEqual([-58.7, -58.7])
+    expect(precip.get('-27.6_-58.75')).toEqual([-58.75, -58.75])
+  })
 })

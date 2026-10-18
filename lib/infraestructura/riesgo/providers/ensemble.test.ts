@@ -332,4 +332,48 @@ describe('obtenerProbabilidadesEnsemble', () => {
     expect(esperar.mock.calls.map(([ms]) => ms)).toEqual([12_750, 12_750])
     expect(esperaEntreLotesEnsembleMs(20, false)).toBe(12_750)
   })
+  it('pide cada punto de grilla una vez y calcula la probabilidad de cada celda con su propio umbral', async () => {
+    const fetchImpl = fetchJsonPorUrl((url) =>
+      payloadEnsembleParaLongitudes(longitudesDeUrl(url).map(() => 10)).map((elemento) => ({
+        ...elemento,
+        latitude: -27.5,
+        longitude: -58.75,
+      })),
+    )
+    // Tres celdas de 0,1° en el mismo punto -27.5_-58.75 con umbrales distintos.
+    const celdas = ['-27.4_-58.8', '-27.5_-58.7', '-27.6_-58.8'].map((geometryRef) => {
+      const [lat, lon] = geometryRef.split('_').map(Number)
+      return { geometryRef, lat, lon }
+    })
+    const umbralP95PorCelda = new Map([
+      ['-27.4_-58.8', 5],
+      ['-27.5_-58.7', 15],
+      ['-27.6_-58.8', 5],
+    ])
+    const umbralP99PorCelda = new Map([
+      ['-27.4_-58.8', 20],
+      ['-27.5_-58.7', 20],
+      ['-27.6_-58.8', 9],
+    ])
+
+    const { puntos, erroresPorCelda, llamadasRealizadas } = await obtenerProbabilidadesEnsemble({
+      geometryRefsConCoordenada: celdas,
+      corridaEn: CORRIDA_EN,
+      acumuladoHoras: 24,
+      umbralP95PorCelda,
+      umbralP99PorCelda,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(longitudesDeUrl(fetchImpl.mock.calls[0][0])).toEqual([-58.8])
+    expect(llamadasRealizadas).toBe(1)
+    expect(erroresPorCelda).toEqual({})
+    const porRef = new Map(puntos.map((punto) => [punto.geometryRef, punto]))
+    expect(porRef.size).toBe(3)
+    // Acumulado de 24 h = 10 mm en los 51 miembros.
+    expect(porRef.get('-27.4_-58.8')).toMatchObject({ probabilidadP95: 1, probabilidadP99: 0 })
+    expect(porRef.get('-27.5_-58.7')).toMatchObject({ probabilidadP95: 0, probabilidadP99: 0 })
+    expect(porRef.get('-27.6_-58.8')).toMatchObject({ probabilidadP95: 1, probabilidadP99: 1 })
+  })
 })

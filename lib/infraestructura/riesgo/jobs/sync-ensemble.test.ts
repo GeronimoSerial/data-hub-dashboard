@@ -273,9 +273,11 @@ describe('ejecutarSyncEnsemble — celda sin climatología', () => {
 // `TAMANO_TANDA_CELDAS` es 20 en la implementación. Para forzar más de una
 // renovación necesitamos > 40 celdas, así que insertamos 60 perfiles extra
 // (total 63 con las 3 base) y los limpiamos en el afterAll.
+// Separadas 0,5° para que cada celda caiga en su propio punto de grilla de
+// 0,25° (las tandas se arman por punto, ver grilla-modelo.ts).
 const CELDAS_EXTRA = Array.from({ length: 60 }, (_, indice) => ({
   cueAnexo: `199000${indice + 1}-00`,
-  geometryRef: `${(-31 - indice * 0.1).toFixed(1)}_-60.0`,
+  geometryRef: `${(-31 - indice * 0.5).toFixed(1)}_-60.0`,
 }))
 
 type RenovarLeaseParamsTest = {
