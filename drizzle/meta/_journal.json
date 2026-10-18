@@ -148,6 +148,13 @@
       "when": 1792110490103,
       "tag": "0020_infra_adjuntos_fotograficos",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792287739815,
+      "tag": "0021_acceso_osm_edificio",
+      "breakpoints": true
     }
   ]
 }

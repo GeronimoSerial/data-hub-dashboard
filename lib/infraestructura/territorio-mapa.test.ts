@@ -62,6 +62,7 @@ function filaGeometria(
     viaPrincipal: null,
     destinoNombre: null,
     distanciaDestinoM: null,
+    edificio: null,
     fechaExtractoOsm: '2026-01-01',
     licencia: 'ODbL-1.0',
     importadoEn: '2026-01-01T00:00:00Z',
@@ -276,6 +277,7 @@ describe('construirRespuestaGeometria', () => {
       motivo: 'sin_conexion_red',
       fechaExtractoOsm: '2026-01-01',
       licencia: 'ODbL-1.0',
+      edificio: null,
     })
     expect(respuesta).not.toHaveProperty('atribucion')
   })
@@ -322,8 +324,21 @@ describe('construirRespuestaGeometria', () => {
       destino: null,
       distanciaKm: null,
       superficies: null,
+      edificio: null,
     })
     expect(respuesta).not.toHaveProperty('atribucion')
+  })
+
+  it('expone la huella del edificio aun cuando la fila no tiene ruta', () => {
+    const edificio = {
+      asociacion: 'dentro' as const,
+      distanciaM: 0,
+      osmId: 123,
+      poligono: { type: 'Polygon' as const, coordinates: [[[-60.5, -31.7], [-60.49, -31.7], [-60.49, -31.69], [-60.5, -31.7]]] },
+      candidatos: 1,
+    }
+    const sinRuta = construirRespuestaGeometria('CUE-1', filaGeometria({ cueAnexo: 'CUE-1', versionJob: '5', edificio }))
+    expect(sinRuta.edificio).toEqual(edificio)
   })
 
   it('incluye la vía principal, el destino y la distancia convertida a kilómetros', () => {

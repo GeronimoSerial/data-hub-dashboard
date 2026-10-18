@@ -438,6 +438,26 @@ export function construirRutaAcceso(
   }
 }
 
+// Huella OSM del edificio escolar, coloreada con el estado de la escuela. Null
+// cuando no hay polígono (extracto previo, sin candidato o asociación ambigua).
+export function construirEdificioEscuela(
+  g: GeometriaAccesoRespuesta | null,
+  color: string,
+): GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon, { color: string }> | null {
+  const poligono = g?.edificio?.poligono
+  if (!poligono || !Array.isArray(poligono.coordinates) || poligono.coordinates.length === 0) return null
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: poligono.type, coordinates: poligono.coordinates } as GeoJSON.Polygon | GeoJSON.MultiPolygon,
+        properties: { color },
+      },
+    ],
+  }
+}
+
 // Cruces de agua clasificados sobre la ruta. Colección vacía cuando la
 // geometría no está disponible.
 export function construirCrucesAcceso(

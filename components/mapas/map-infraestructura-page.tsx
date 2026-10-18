@@ -114,6 +114,7 @@ import {
 import {
   construirCrucesAcceso,
   construirRutaAcceso,
+  construirEdificioEscuela,
   ETIQUETAS_CRUCE,
   iconosAccesosMapa,
   claseInundacion,
@@ -137,7 +138,7 @@ import { filtrarDepartamentoMapa, indicadoresDePartes } from '@/lib/infraestruct
 import { useTotalesMapa } from '@/lib/infraestructura/use-totales-mapa'
 import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
 import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
-import { construirEscuelasMapaFeatureCollection } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
+import { COLOR_SIN_AFECTACION, construirEscuelasMapaFeatureCollection } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import {
@@ -1298,6 +1299,17 @@ export default function MapInfraestructuraPage(props: {
 
   const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
   const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
+  // La huella del edificio toma el mismo color que el pin de la escuela elegida.
+  const colorEscuelaRuta = useMemo(() => {
+    if (cueRuta === null) return COLOR_SIN_AFECTACION
+    return colorPorCue.get(cueRuta)
+      ?? featureCollectionPadron.features.find((f) => f.properties.cueAnexo === cueRuta)?.properties.color
+      ?? COLOR_SIN_AFECTACION
+  }, [cueRuta, colorPorCue, featureCollectionPadron])
+  const edificioGeojson = useMemo(
+    () => construirEdificioEscuela(geometria, colorEscuelaRuta),
+    [geometria, colorEscuelaRuta],
+  )
 
   // V2 (hallazgo 5): realce de foco. Cubre tanto la escuela elegida en el
   // buscador (`escuelaResaltada`) como la de la ficha abierta
@@ -1803,6 +1815,7 @@ export default function MapInfraestructuraPage(props: {
               puntosInundacion={null}
               ruta={rutaGeojson}
               cruces={crucesGeojson}
+              edificio={edificioGeojson}
               visibles={CAPAS_ACCESOS_OCULTAS}
               iconosListos={iconosClusterListos}
               oscuro={mode === 'dark'}

@@ -7,6 +7,7 @@ import type {
 import {
   claseInundacion,
   construirCrucesAcceso,
+  construirEdificioEscuela,
   construirPuntosAislamiento,
   construirPuntosInundacion,
   construirRutaAcceso,
@@ -208,6 +209,26 @@ describe('construirRutaAcceso', () => {
   it('devuelve null cuando no está disponible', () => {
     expect(construirRutaAcceso(null)).toBeNull()
     expect(construirRutaAcceso({ cueAnexo: 'A', disponible: false })).toBeNull()
+  })
+})
+
+describe('construirEdificioEscuela', () => {
+  const poligono = { type: 'Polygon' as const, coordinates: [[[-58.8, -27.4], [-58.79, -27.4], [-58.79, -27.39], [-58.8, -27.4]]] }
+  const edificio = { asociacion: 'dentro' as const, distanciaM: 0, osmId: 1, poligono, candidatos: 1 }
+
+  it('copia el polígono y le pone el color de la escuela', () => {
+    const resultado = construirEdificioEscuela({ cueAnexo: 'A', disponible: true, edificio }, '#b91c1c')
+    expect(resultado?.features).toHaveLength(1)
+    expect(resultado?.features[0].geometry).toEqual(poligono)
+    expect(resultado?.features[0].properties.color).toBe('#b91c1c')
+  })
+
+  it('devuelve null sin polígono (extracto previo o asociación ambigua)', () => {
+    expect(construirEdificioEscuela(null, '#000')).toBeNull()
+    expect(construirEdificioEscuela({ cueAnexo: 'A', disponible: false }, '#000')).toBeNull()
+    expect(
+      construirEdificioEscuela({ cueAnexo: 'A', disponible: true, edificio: { ...edificio, asociacion: 'ambigua', poligono: null } }, '#000'),
+    ).toBeNull()
   })
 })
 

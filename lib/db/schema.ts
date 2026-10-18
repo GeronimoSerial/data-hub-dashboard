@@ -1534,6 +1534,17 @@ export type ViaPrincipalAcceso = {
   pavimentada: boolean
 }
 
+// Huella OSM del edificio escolar asociada por el job geo-static
+// (`edificio_escolar.py`). `poligono` null con `asociacion: 'ambigua'` = varios
+// candidatos empatados; la coordenada de la escuela nunca se toca.
+export type EdificioOsm = {
+  asociacion: 'dentro' | 'nombre' | 'cercania' | 'ambigua'
+  distanciaM: number | null
+  osmId: number | string | null
+  poligono: { type: 'Polygon' | 'MultiPolygon'; coordinates: unknown } | null
+  candidatos: number
+}
+
 // Geometría OSM usada por el cálculo de aislamiento (ruta escuela → localidad
 // urbana cercana y cruces de agua clasificados). Es contexto territorial
 // derivado de OpenStreetMap: NUNCA un pronóstico ni el estado confirmado del
@@ -1547,6 +1558,7 @@ export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
   destinoNombre: text('destino_nombre'),
   distanciaDestinoM: real('distancia_destino_m'),
   motivoSinGeometria: text('motivo_sin_geometria'),
+  edificio: jsonb('edificio').$type<EdificioOsm>(),  // huella del edificio | null (extractos previos)
   fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
   licencia: text('licencia').notNull(),
   importadoEn: text('importado_en').notNull(),

@@ -272,6 +272,8 @@ function mapearFilaGeometria(fila) {
     destinoNombre: fila.destino?.nombre ?? null,
     distanciaDestinoM: fila.distancia_destino_m ?? null,
     motivoSinGeometria: fila.motivo_sin_geometria,
+    // Extracts produced before the job associated building footprints omit it.
+    edificio: fila.edificio ?? null,
     fechaExtractoOsm: fila.fecha_extracto_osm,
     licencia: fila.licencia,
     importadoEn: new Date().toISOString(),
@@ -325,6 +327,18 @@ const viaPrincipalGeometriaSchema = z.string().nullable().superRefine((valor, co
   }
 })
 
+const edificioGeometriaSchema = z
+  .object({
+    asociacion: z.enum(['dentro', 'nombre', 'cercania', 'ambigua']),
+    distanciaM: z.number().finite().nonnegative().nullable(),
+    osmId: z.union([z.number(), z.string()]).nullable(),
+    poligono: z
+      .object({ type: z.enum(['Polygon', 'MultiPolygon']), coordinates: z.array(z.any()).min(1) })
+      .nullable(),
+    candidatos: z.number().int().nonnegative(),
+  })
+  .nullable()
+
 /** Esquema de una fila de geometria ya mapeada (camelCase). Refuerza ademas la
  * regla de negocio: sin ruta (`ruta` null) el job debe declarar el motivo. */
 const schemaFilaGeometria = z
@@ -337,6 +351,7 @@ const schemaFilaGeometria = z
     destinoNombre: z.string().min(1).nullable(),
     distanciaDestinoM: z.number().finite().nonnegative().nullable(),
     motivoSinGeometria: z.string().nullable(),
+    edificio: edificioGeometriaSchema,
     fechaExtractoOsm: fechaIsoSchema,
     licencia: z.string().min(1, 'licencia no puede estar vacia'),
     importadoEn: z.string(),
@@ -356,6 +371,7 @@ const setGeometriaExcluido = {
   destinoNombre: sql`excluded.destino_nombre`,
   distanciaDestinoM: sql`excluded.distancia_destino_m`,
   motivoSinGeometria: sql`excluded.motivo_sin_geometria`,
+  edificio: sql`excluded.edificio`,
   fechaExtractoOsm: sql`excluded.fecha_extracto_osm`,
   licencia: sql`excluded.licencia`,
   importadoEn: sql`excluded.importado_en`,
