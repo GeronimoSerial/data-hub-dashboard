@@ -4,7 +4,7 @@ on:
     inputs:
       operacion:
         type: choice
-        options: [inspeccionar, configurar, estado]
+        options: [inspeccionar, configurar, estado, listar, ejecutar-riesgo, estado-riesgo]
         default: inspeccionar
         required: true
 permissions:

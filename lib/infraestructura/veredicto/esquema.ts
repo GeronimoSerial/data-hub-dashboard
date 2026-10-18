@@ -1,26 +1,39 @@
-// Esquema de salida estructurada del veredicto diario asistido por IA (spec §8.2).
-// El campo 'factores' de la spec se omite a propósito: la traza ya lleva los
-// factores presentes, así que el modelo no necesita devolverlos.
-// 'nivel' tampoco va en la salida: lo calcula el código.
+// Structured output of the AI daily verdict: per day, one provincial headline
+// plus one line per department. 'nivel' is never part of the output: rules
+// decide it. Rows stored by older prompts are not re-validated; the UI reads
+// them through resumen.ts.
 
 import { z } from 'zod'
 
-const esquemaFraseVeredicto = z.object({
-  texto: z.string().min(1).max(400),
-  refs: z.array(z.string()).max(6),
+export const MAX_TITULAR = 140
+export const MAX_LINEA_DEPARTAMENTO = 220
+
+const esquemaTitular = z.object({
+  texto: z.string().min(1).max(MAX_TITULAR),
+  // Generous on purpose: one extra ref must not discard the whole response.
+  refs: z.array(z.string()).max(12),
+})
+
+const esquemaLinea = z.object({
+  ambito: z.string(),
+  texto: z.string().min(1).max(MAX_LINEA_DEPARTAMENTO),
+  refs: z.array(z.string()).max(12),
 })
 
 export const esquemaSalidaVeredicto = z.object({
-  veredictos: z
+  dias: z
     .array(
       z.object({
         fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        ambito: z.string(),
-        frases: z.array(esquemaFraseVeredicto).min(2).max(3),
+        titular: esquemaTitular,
+        departamentos: z.array(esquemaLinea).max(25),
       }),
     )
     .min(1)
-    .max(40),
+    .max(11),
 })
 
 export type SalidaVeredictoIA = z.infer<typeof esquemaSalidaVeredicto>
+export type DiaSalidaVeredicto = SalidaVeredictoIA['dias'][number]
+/** A citable sentence: the headline or a department line. */
+export type FraseVeredicto = { texto: string; refs: string[] }
