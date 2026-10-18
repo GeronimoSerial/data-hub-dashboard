@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { MOTIVOS_SEED } from './motivos'
 import {
+  alcanceDeSecciones,
   bloqueoOpcion,
   evaluarConsistenciaParte,
   severidadSugeridaPorAlcance,
@@ -163,6 +164,18 @@ describe('bloqueoOpcion', () => {
   it('no reporta como bloqueo de la opción un bloqueo que ya existía con las respuestas actuales', () => {
     const respuestas = { ...base, edificio: 'evacuado' as const, clases: 'normal' as const }
     expect(bloqueoOpcion(respuestas, 'motivo', 'tormenta-severa', AHORA)).toBeNull()
+  })
+})
+
+describe('alcanceDeSecciones', () => {
+  it('es toda la escuela sólo cuando las secciones elegidas cubren todas las del CUE', () => {
+    expect(alcanceDeSecciones([10, 20], [10, 20])).toEqual({ tipo: 'toda' })
+    expect(alcanceDeSecciones([20, 10], [10, 20])).toEqual({ tipo: 'toda' })
+    expect(alcanceDeSecciones([10], [10, 20])).toEqual({ tipo: 'algunas', secciones: 1 })
+  })
+
+  it('sin secciones elegidas no hay alcance', () => {
+    expect(alcanceDeSecciones([], [10, 20])).toBeNull()
   })
 })
 

@@ -30,6 +30,7 @@ import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import { validarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
 import { primerBloqueoParte } from '@/lib/infraestructura/consistencia-parte-servidor'
+import { alcanceDeSecciones, severidadSugeridaPorAlcance } from '@/lib/infraestructura/consistencia-parte'
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
 import { diffParte, esDiffVacio, type DiffParte } from '@/lib/infraestructura/movimiento-diff'
 import {
@@ -471,14 +472,6 @@ export async function POST(request: Request) {
     if (!resuelto.ok) {
       return Response.json({ error: resuelto.error }, { status: 400 })
     }
-    const sugerida = motivos.find((m) => m.nombre === entrada.motivo)?.severidadSugerida ?? null
-    const justificada = validarJustificacionCritica({
-      severidad: entrada.severidad,
-      sugerida,
-      justificacion: entrada.justificacionCritica,
-      detalle: entrada.justificacionCriticaDetalle,
-    })
-    if (!justificada.ok) return jsonError(justificada.error, 400)
     const permitido = validarAlumnosPermitidos(resuelto.categoria, entrada.alumnos)
     if (!permitido.ok) {
       return Response.json({ error: permitido.error }, { status: 400 })
@@ -511,11 +504,25 @@ export async function POST(request: Request) {
   const seccionesCueSet = new Set(secciones.map((s) => s.geSectionId))
   const turnosCueSet = new Set(secciones.map((s) => s.turno))
   const seccionInvalida = (ids: number[]) => ids.some((id) => !seccionesCueSet.has(id))
+  // La sugerida depende del alcance real (todas las secciones del CUE), igual
+  // que en el formulario: sólo así cliente y servidor exigen lo mismo.
+  const todasLasSecciones = secciones.map((s) => s.geSectionId)
 
   for (const { input: entrada } of nuevasConCategoria) {
     if (seccionInvalida(entrada.secciones)) {
       return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
     }
+    const sugerida = severidadSugeridaPorAlcance(
+      motivos.find((m) => m.nombre === entrada.motivo)?.id ?? null,
+      alcanceDeSecciones(entrada.secciones, todasLasSecciones),
+    )
+    const justificada = validarJustificacionCritica({
+      severidad: entrada.severidad,
+      sugerida,
+      justificacion: entrada.justificacionCritica,
+      detalle: entrada.justificacionCriticaDetalle,
+    })
+    if (!justificada.ok) return jsonError(justificada.error, 400)
   }
   for (const modificacion of input.afectacionesModificadas) {
     if (modificacion.secciones && seccionInvalida(modificacion.secciones)) {
@@ -603,7 +610,16 @@ export async function POST(request: Request) {
     for (const modificacion of input.afectacionesModificadas) {
       if (modificacion.severidad === undefined) continue
       const fila = existentesPorId.get(modificacion.id)
-      const sugerida = motivos.find((m) => m.nombre === fila?.motivo)?.severidadSugerida ?? null
+      // Sin secciones en el cambio, el alcance es el que la afectación ya tiene.
+      const seccionesActuales = modificacion.secciones ?? (await db
+        .select({ geSectionId: infraAfectacionSeccion.geSectionId })
+        .from(infraAfectacionSeccion)
+        .where(eq(infraAfectacionSeccion.afectacionId, modificacion.id))
+      ).map((s) => s.geSectionId)
+      const sugerida = severidadSugeridaPorAlcance(
+        motivos.find((m) => m.nombre === fila?.motivo)?.id ?? null,
+        alcanceDeSecciones(seccionesActuales, todasLasSecciones),
+      )
       const justificada = validarJustificacionCritica({
         severidad: modificacion.severidad,
         sugerida,

@@ -22,7 +22,7 @@ import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
 import { AvisosRedSeguridad } from '@/components/infraestructura/aviso-red-seguridad'
 import { evaluarRedesSeguridad } from '@/lib/infraestructura/red-seguridad'
-import { severidadSugeridaPorAlcance, type CampoConsistencia, type Regla, type Sugerencia } from '@/lib/infraestructura/consistencia-parte'
+import { alcanceDeSecciones, severidadSugeridaPorAlcance, type CampoConsistencia, type Regla, type Sugerencia } from '@/lib/infraestructura/consistencia-parte'
 
 export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
   establecimiento:
@@ -366,7 +366,12 @@ export function CamposAQuienAfecta({
       : `${cantidadSecciones} secciones seleccionadas`
 
   const motivoElegido = motivos.find((m) => m.nombre === borrador.motivo)
-  const sugeridaCatalogo = motivoElegido?.severidadSugerida ?? null
+  // Sugerida efectiva: la del motivo subida por el alcance real (todas las secciones
+  // del CUE). Es la misma que usa el servidor para exigir la justificación.
+  const sugeridaEfectiva = severidadSugeridaPorAlcance(
+    motivoElegido?.id ?? null,
+    alcanceDeSecciones(borrador.secciones, seccionesDisponibles.map((s) => s.geSectionId)),
+  )
   const razonCriticaValida = razonCritica !== '' && (razonCritica !== 'otro' || detalleCritica.trim() !== '')
 
   /*
@@ -386,11 +391,11 @@ export function CamposAQuienAfecta({
     }
   }
 
-  // Subir a Crítica sin una sugerencia de catálogo que la respalde exige la misma
-  // justificación que en el paso 1; se pide aquí antes de aplicarla.
+  // Subir a Crítica sin una sugerencia (del motivo o del alcance) que la respalde
+  // exige la misma justificación que en el paso 1; se pide aquí antes de aplicarla.
   function cambiarGravedadRecomendada(severidad: Severidad) {
     setRecomendacion(null)
-    if (requiereJustificacionCritica(severidad, sugeridaCatalogo)) {
+    if (requiereJustificacionCritica(severidad, sugeridaEfectiva)) {
       setRazonCritica('')
       setDetalleCritica('')
       setJustificandoCritica(true)

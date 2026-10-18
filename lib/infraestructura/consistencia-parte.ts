@@ -323,3 +323,13 @@ export function severidadSugeridaPorAlcance(
   const indice = SEVERIDADES.indexOf(base)
   return SEVERIDADES[Math.min(indice + 1, SEVERIDADES.length - 1)] ?? base
 }
+
+// Alcance a partir de las secciones elegidas: "toda la escuela" sólo cuando
+// cubren todas las secciones del CUE, sin importar cómo se eligieron. Lo usan
+// cliente y servidor para que la misma selección dé la misma sugerida.
+export function alcanceDeSecciones(seccionIds: number[], todasLasSecciones: number[]): AlcanceSecciones | null {
+  if (seccionIds.length === 0) return null
+  const elegidas = new Set(seccionIds)
+  if (todasLasSecciones.length > 0 && todasLasSecciones.every((id) => elegidas.has(id))) return { tipo: 'toda' }
+  return { tipo: 'algunas', secciones: seccionIds.length }
+}
