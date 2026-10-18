@@ -48,16 +48,24 @@ con código `1`. Antes, aplicar las migraciones `0016_lluvia_estacion` y `0017_h
 
 ## Producción (Coolify)
 
-Tareas configuradas en Coolify sobre la aplicación de producción:
+Tareas configuradas en Coolify sobre la aplicación de producción. Los cambios de
+Motor v0.4 operativo (filas INA, `sync-radar-meteo` y climatologías) los aplica
+el workflow manual `riesgo-v04-operacion.yml`
+(`scripts/configurar-riesgo-v04-operacion.py`: `inspeccionar` muestra el diff,
+`configurar` lo aplica de forma idempotente, `estado` muestra las ejecuciones);
+ver [docs/motor-v0.4/promocion.md](../../motor-v0.4/promocion.md).
 
 | Job (nombre de despacho) | Cron | Timeout | `infra_job_run.tipo` | Notas |
 |---|---|---|---|---|
 | sync-radar-ensemble | `55 3,9,15,21 * * *` | no registrado | `sync-radar-ensemble` | cada 6 h |
-| sync-radar-meteo | `27 3,9,15,21 * * *` | no registrado | `sync-radar-meteo` | cada 6 h (antes `27 */3`; los modelos se actualizan cada 6 h). Salud `open-meteo-radar` con TTL 420 min |
+| sync-radar-meteo | `27 3,9,15,21 * * *` | no registrado | `sync-radar-meteo` | cada 6 h (antes `27 */3`; los modelos se actualizan cada 6 h). Salud `open-meteo-radar` con TTL 420 min. El configurador de v0.4 fija este cron |
 | sync-smn-alertas | `7-59/15 * * * *` | no registrado | `sync-smn-alertas` | cada 15 min |
 | verificar-radar-meteo | `30 11 * * *` | no registrado | — (no escribe `infra_job_run`) | diario; estado `sin_trazabilidad` |
 | sync-imerg | `*/30 * * * *` | 300 s | `sync-hazard-imerg` | cada 30 min |
-| calcular-riesgo | `15 2,8,14,20 * * *` | no registrado | `calcular-riesgo-v0` | cada 6 h |
+| sync-ina-pronostico | `50 1,7,13,19 * * *` | 600 s | — (no escribe `infra_job_run`) | Motor v0.4: última corrida INA 499/289, antes de `calcular-riesgo`. Frescura por salud de fuente; estado `sin_trazabilidad` |
+| sync-ina-serie-diaria | `10 6 * * *` | 1800 s | — (no escribe `infra_job_run`) | Motor v0.4: serie diaria INA A5 (backfill la primera vez, luego incremental). Frescura por salud de fuente |
+| calcular-riesgo | `15 2,8,14,20 * * *` | no registrado | `calcular-riesgo-v0` | cada 6 h. Desde T11 corre Motor v0.4 (`motor-v0.4`); `RIESGO_REGLAS_MOTOR=v0.3` es el rollback de un ciclo |
+| climatologia-caudal / climatologia-precipitacion | — | — | `calcular-hazard-climatologia-caudal` / `calculo-climatologia` | **deshabilitadas** (sólo corrida manual); el configurador de v0.4 las desactiva si siguen activas |
 | sync-pronostico-caudal | `0 2,8,14,20 * * *` | no registrado | `sync-hazard-pronostico-caudal` | cada 6 h |
 | sync-ensemble | `5,35 2,8,14,20 * * *` | no registrado | `sync-hazard-ensemble` | cada 6 h. La ejecución de `:35` es el reintento del mismo bloque: si la de `:05` completó, es un no-op (`ya_completado`, sin llamadas); si terminó `cobertura_parcial`, pide sólo las celdas sin filas |
 | situacion-corte | `20 * * * *` | no registrado | `situacion-corte-v1` | cada hora |
