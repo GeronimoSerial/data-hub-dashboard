@@ -38,6 +38,17 @@ export function respuestasDeSituacion(datos: DatosSituacionConsistencia): Respue
   }
 }
 
+// Situación nueva: misma exención que el servidor (consistencia-parte-servidor),
+// alumnos no pregunta por edificio ni clases.
+export function respuestasNuevaDeActualizacion(datos: DatosSituacionConsistencia): RespuestasConsistencia {
+  const esAlumnos = datos.categoria === 'alumnos'
+  return respuestasDeSituacion({
+    ...datos,
+    clases: esAlumnos ? null : datos.clases,
+    edificio: esAlumnos ? null : datos.edificio,
+  })
+}
+
 // Mensajes de bloqueo de una situación que esta actualización toca. La
 // descripción sólo se exige en situaciones nuevas: las existentes no la
 // editan aquí.

@@ -19,7 +19,7 @@ import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb
 import { confirmarFormulario, eliminarBorradorFormulario, guardarBorradorFormulario, guardarClaveEnvioFormulario, leerBorradorFormulario, leerConfirmacionFormulario, limpiarFormularioConfirmado, olvidarClaveEnvioFormulario, type BorradorFormulario } from '@/lib/infraestructura/parte/borrador-formulario'
 import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
 import { claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
-import { alcanceDe, mensajesDeBloqueo, respuestasDeSituacion } from '@/components/infraestructura/actualizar/consistencia-actualizacion'
+import { alcanceDe, mensajesDeBloqueo, respuestasDeSituacion, respuestasNuevaDeActualizacion } from '@/components/infraestructura/actualizar/consistencia-actualizacion'
 import { evaluarCambioAHabitual } from '@/lib/infraestructura/consistencia-estado-activo'
 import { bloqueoOpcion } from '@/lib/infraestructura/consistencia-parte'
 import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
@@ -712,8 +712,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       }), { descripcion: false })
     }),
     ...(recorrido.nueva
-      ? mensajesDeBloqueo(respuestasDeSituacion({
-        categoria: null,
+      ? mensajesDeBloqueo(respuestasNuevaDeActualizacion({
+        categoria: motivos.find((motivo) => motivo.nombre === recorrido.nueva?.motivo)?.categoria ?? null,
         motivoId: motivoIdDe(recorrido.nueva.motivo),
         severidad: recorrido.nueva.severidad,
         justificacionCritica: recorrido.nueva.justificacionCritica ?? null,

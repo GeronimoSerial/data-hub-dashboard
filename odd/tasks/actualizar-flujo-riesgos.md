@@ -22,6 +22,7 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - [ ] R2c Client date math (vigencia-chips.tsx, reporte-inicial-form.tsx) uses browser-local Date; align with Buenos Aires via lib/infraestructura/zona-horaria.ts.
 - [x] R4 Idempotency: lookup inside the transaction; detect unique violations by driver error code, not message regex.
 - [x] R5 Single source of consistency rules shared by client and server.
+- [x] R5b Client 'nueva' evaluation passes the afectación category so the alumnos exemption matches the server.
 - [ ] R6 A3 follow-up: banner dismissals must not reset across `reporte-inicial-form` steps.
 - [ ] R7 Extract route domain logic into a use case + repository (behavior-preserving), dedupe JSON mapping and motivo lookups.
 - [ ] R8 A5: Mermaid flow map + UX proposal doc.
@@ -79,3 +80,9 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
   - Pending, outside surfaces: `recorrido-actualizacion.tsx` builds the "nueva" respuestas without categoria, so an alumnos afectación evaluated with `evacuado` + `clases normal` can block on the client only. Fix needs `recorrido-actualizacion.tsx` in surfaces (pass `categoria` from motivo). Also `consistencia-estado-activo.ts` holds a separate rule set (`evaluarCambioAHabitual`) not in the surfaces.
   - `npx tsc --noEmit`: exit 0
   - `timeout 300 npx vitest run components/infraestructura/actualizar lib/infraestructura/consistencia-parte app/api/problematicas/parte`: 20 files, 242 tests passed
+- R5b: route inline (2 production files + parity test; mechanical). Test-first: `lib/infraestructura/consistencia-parte-paridad.test.ts` new cases `alumnos con edificio evacuado y clases normales` and `alumnos con centro de evacuados y clases suspendidas` RED (`TypeError: respuestasNuevaDeActualizacion is not a function`) before the change.
+  - Changed: `consistencia-actualizacion.ts` adds `respuestasNuevaDeActualizacion` (applies the server's alumnos exemption: clases/edificio null). `recorrido-actualizacion.tsx` builds the "nueva" evaluation with `categoria` = motivo's category from the `motivos` prop (same source as the server) and uses the new helper.
+  - Not covered by a component test: the motivo lookup wiring inside `recorrido-actualizacion.tsx`; the parity test covers the rule.
+  - `npx tsc --noEmit`: exit 0
+  - `timeout 300 npx vitest run components/infraestructura/actualizar lib/infraestructura/consistencia-parte app/api/problematicas/parte`: 20 files, 244 tests passed
+  - commit: see git log (fix(parte): apply alumnos exemption to client nueva evaluation)

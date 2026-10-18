@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mensajesDeBloqueo, respuestasDeSituacion } from '@/components/infraestructura/actualizar/consistencia-actualizacion'
+import { mensajesDeBloqueo, respuestasDeSituacion, respuestasNuevaDeActualizacion } from '@/components/infraestructura/actualizar/consistencia-actualizacion'
 import { evaluarConsistenciaParte, type EstadoClasesConsistencia, type EstadoEdificioConsistencia, type RespuestasConsistencia } from './consistencia-parte'
 import { primerBloqueoParte } from './consistencia-parte-servidor'
 import type { Severidad } from './validacion'
@@ -58,9 +58,43 @@ function verdictoServidor(caso: Caso): string | null {
   return regla?.mensaje ?? null
 }
 
+// Alumnos: el servidor anula edificio, clases y asistencia de la afectación nueva;
+// la nueva evaluada en el cliente tiene que aplicar la misma exención.
+const CASOS_ALUMNOS: Caso[] = [
+  { nombre: 'alumnos con edificio evacuado y clases normales', motivoId: 'anegamiento', edificio: 'evacuado', clases: 'normal', severidad: 'Alta', descripcion: '', seccionesCantidad: 2 },
+  { nombre: 'alumnos con centro de evacuados y clases suspendidas', motivoId: 'anegamiento', edificio: 'centro_evacuados', clases: 'suspendido', severidad: 'Crítica', descripcion: '', seccionesCantidad: 2 },
+]
+
+function verdictoClienteAlumnos(caso: Caso): string | null {
+  const respuestas: RespuestasConsistencia = respuestasNuevaDeActualizacion({
+    categoria: 'alumnos',
+    motivoId: caso.motivoId,
+    severidad: caso.severidad,
+    descripcion: caso.descripcion,
+    alcance: { tipo: 'algunas', secciones: caso.seccionesCantidad },
+    clases: caso.clases,
+    edificio: caso.edificio,
+  })
+  return mensajesDeBloqueo(respuestas, { descripcion: true })[0] ?? null
+}
+
+function verdictoServidorAlumnos(caso: Caso): string | null {
+  const regla = primerBloqueoParte(
+    [{ categoria: 'alumnos', motivoId: caso.motivoId, severidad: caso.severidad, descripcion: caso.descripcion, seccionesCantidad: caso.seccionesCantidad }],
+    { estadoEstablecimiento: caso.edificio, servicioEstado: caso.clases, asistenciaBrinda: true },
+    new Date(2026, 9, 17, 12, 0, 0),
+  )
+  return regla?.mensaje ?? null
+}
+
 describe('paridad cliente/servidor de bloqueos', () => {
   it.each(CASOS)('$nombre: cliente y servidor dan el mismo veredicto', (caso) => {
     expect(verdictoCliente(caso)).toBe(verdictoServidor(caso))
+  })
+
+  it.each(CASOS_ALUMNOS)('$nombre: la exención de alumnos es la del servidor', (caso) => {
+    expect(verdictoServidorAlumnos(caso)).toBeNull()
+    expect(verdictoClienteAlumnos(caso)).toBe(verdictoServidorAlumnos(caso))
   })
 
   it('el veredicto compartido es el primer bloqueo del módulo común', () => {
