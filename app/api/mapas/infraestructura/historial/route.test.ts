@@ -135,4 +135,31 @@ describe('GET /api/mapas/infraestructura/historial', () => {
     const body = await res.json()
     expect(body.movimientos).toEqual([])
   })
+
+  it('devuelve 404 cuando director_nivel consulta el historial de una escuela fuera de su alcance', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({
+      id: 'u-dir',
+      role: 'director_nivel',
+      banned: false,
+      nivelJurIds: [99],
+      accesoRecursos: 'todos',
+      recursoIds: [],
+    })
+    const res = await GET(req(CUE))
+    expect(res.status).toBe(404)
+  })
+
+  it('devuelve 403 cuando director_nivel no tiene niveles asignados', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({
+      id: 'u-dir-vacio',
+      role: 'director_nivel',
+      banned: false,
+      nivelJurIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
+    })
+    const res = await GET(req(CUE))
+    expect(res.status).toBe(403)
+  })
 })
+

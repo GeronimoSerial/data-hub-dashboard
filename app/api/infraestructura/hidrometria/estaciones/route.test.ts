@@ -99,6 +99,8 @@ describe('GET /api/infraestructura/hidrometria/estaciones', () => {
       lectura: null,
       estado: 'sin_dato',
       lecturaVencida: false,
+      estadoUltimaLectura: 'sin_dato',
+      horasDesdeLectura: null,
       tendencia: 'sin_dato',
     })
   })
@@ -126,5 +128,26 @@ describe('GET /api/infraestructura/hidrometria/estaciones', () => {
       medidaEn: '2026-10-13T15:00:00.000Z',
       inconsistente: false,
     })
+  })
+
+  it('expone el estado de la última lectura vencida sin cambiar estado', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-14T17:00:00.000Z'))
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    await getDb()
+      .insert(hidroLectura)
+      .values([filaLectura('l-vieja', ESTACION, 6.4, '2026-10-13T15:00:00.000Z')])
+
+    mockAcceso({ ok: true, user: USER })
+    const res = await llamar()
+    const { estaciones } = await res.json()
+    const estacion = estaciones.find((e: { estacionId: string }) => e.estacionId === ESTACION)
+
+    expect(estacion.estado).toBe('sin_dato')
+    expect(estacion.lecturaVencida).toBe(true)
+    expect(estacion.estadoUltimaLectura).toBe('evacuacion')
+    expect(estacion.horasDesdeLectura).toBe(26)
   })
 })

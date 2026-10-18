@@ -205,3 +205,38 @@ describe('reducirClimatologiaObservada — contrato con climatologia-imerg', () 
     expect(m.get('c1')?.[72]).toMatchObject({ p90: 40, p95: 60, p99: 90 })
   })
 })
+
+// Reglas v0.4 (F9): prod tiene dos períodos (2001–2010 y 2001–2014) bajo la
+// misma versión `climatologia-imerg-v1`; no se mezclan percentiles entre ellos.
+describe('reducirClimatologiaObservada por período (reglas v0.4)', () => {
+  const fila = (periodoHasta: string, percentil: string, valor: number, calculadoEn: string) => ({
+    geometryRef: 'c1',
+    variable: 'precipitacion_diaria',
+    percentil,
+    muestra: 'todos_los_dias',
+    valor,
+    version: 'climatologia-imerg-v1',
+    calculadoEn,
+    periodoDesde: '2001-01-01',
+    periodoHasta,
+  })
+  const viejo = [fila('2010-12-31', 'p90', 10, '2026-10-16T04:20:00Z'), fila('2010-12-31', 'p95', 20, '2026-10-16T04:20:00Z'), fila('2010-12-31', 'p99', 30, '2026-10-16T04:20:00Z')]
+
+  it('v0.3 agrupa ambos períodos en una clave y mezcla percentiles', () => {
+    const m = reducirClimatologiaObservada([...viejo, fila('2014-12-31', 'p90', 11, '2026-10-17T04:20:00Z'), fila('2014-12-31', 'p95', 21, '2026-10-17T04:20:00Z')])
+    expect(m.get('c1')?.[24]).toMatchObject({ p90: 11, p95: 21, p99: 30 })
+  })
+
+  it('por período: un período incompleto no presta percentiles; gana el período completo más reciente', () => {
+    const incompleto = reducirClimatologiaObservada(
+      [...viejo, fila('2014-12-31', 'p90', 11, '2026-10-17T04:20:00Z'), fila('2014-12-31', 'p95', 21, '2026-10-17T04:20:00Z')],
+      { porPeriodo: true },
+    )
+    expect(incompleto.get('c1')?.[24]).toMatchObject({ p90: 10, p95: 20, p99: 30 })
+    const completo = reducirClimatologiaObservada(
+      [...viejo, fila('2014-12-31', 'p90', 11, '2026-10-17T04:20:00Z'), fila('2014-12-31', 'p95', 21, '2026-10-17T04:20:00Z'), fila('2014-12-31', 'p99', 31, '2026-10-17T04:20:00Z')],
+      { porPeriodo: true },
+    )
+    expect(completo.get('c1')?.[24]).toMatchObject({ p90: 11, p95: 21, p99: 31, version: 'climatologia-imerg-v1' })
+  })
+})

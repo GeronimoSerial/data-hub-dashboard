@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
-import { EscuelaForecastCard } from './escuela-card'
+import { PronosticoEscuelaBloque } from './escuela-card'
 
 describe('tarjeta de pronóstico puntual', () => {
   afterEach(() => { cleanup(); vi.unstubAllGlobals() })
@@ -24,14 +24,14 @@ describe('tarjeta de pronóstico puntual', () => {
         frescura: { edadMinutos: 12 }, contextoEnsamble: { probabilidad25: 0.38 },
       }),
     }))
-    const { container } = render(<EscuelaForecastCard cueAnexo="180000100" nombre="Escuela Rural" onClose={() => undefined} />)
-    await waitFor(() => expect(screen.getByText('Escuela Rural')).toBeInTheDocument())
+    const { container } = render(<PronosticoEscuelaBloque cueAnexo="180000100" />)
+    await waitFor(() => expect(screen.getByText(/Ráfaga máxima/)).toBeInTheDocument())
     expect(screen.getByText(/Ráfaga máxima: 34 km\/h/)).toBeInTheDocument()
-    expect(screen.getByText('42,1 mm')).toBeInTheDocument()
-    expect(screen.getByText('0,8 mm')).toBeInTheDocument()
-    expect(screen.getByText('2,3 mm')).toBeInTheDocument()
+    expect(screen.getByText('42,1')).toBeInTheDocument()
+    expect(screen.getByText('0,8')).toBeInTheDocument()
+    expect(screen.getByText('2,3')).toBeInTheDocument()
     expect(screen.getByText('—')).toBeInTheDocument()
-    expect(container.querySelectorAll('.radar-escuela-dias > span')).toHaveLength(7)
+    expect(container.querySelectorAll('.pronostico-escuela__dias > span')).toHaveLength(7)
     expect(screen.getByText(/Probabilidad de más de 25 mm: 38 %/)).toBeInTheDocument()
     expect(container.textContent).not.toMatch(/P≥25|ensamble/i)
   })
@@ -45,7 +45,7 @@ describe('tarjeta de pronóstico puntual', () => {
         dias: [],
       }),
     }))
-    render(<EscuelaForecastCard cueAnexo="180000100" nombre="Escuela Rural" onClose={() => undefined} />)
+    render(<PronosticoEscuelaBloque cueAnexo="180000100" />)
     expect(await screen.findByText('Sin lluvia prevista en 48 h')).toBeInTheDocument()
     expect(screen.queryByLabelText('Lluvia por hora, próximas 48 horas')).toBeNull()
     expect(screen.queryByText(/Actualizado hace|hace — min/)).not.toBeInTheDocument()
@@ -59,8 +59,8 @@ describe('tarjeta de pronóstico puntual', () => {
         horas: [], dias: [], contextoEnsamble: { probabilidad25: 0.04 },
       }),
     }))
-    render(<EscuelaForecastCard cueAnexo="180000100" nombre="Escuela Rural" onClose={() => undefined} />)
-    await waitFor(() => expect(screen.getByText('Escuela Rural')).toBeInTheDocument())
+    render(<PronosticoEscuelaBloque cueAnexo="180000100" />)
+    await waitFor(() => expect(screen.getByText(/Ráfaga máxima/)).toBeInTheDocument())
     expect(screen.queryByText(/P≥25 mm en el departamento/)).not.toBeInTheDocument()
   })
 })

@@ -20,7 +20,9 @@ import {
   infraAislamientoOsm,
   infraSusceptibilidadEstatica,
   type CruceAccesoOsm,
+  type EdificioOsm,
   type RutaGeoJson,
+  type SuperficiesAcceso,
   type ViaPrincipalAcceso,
 } from '@/lib/db/schema'
 import {
@@ -81,7 +83,10 @@ export interface TerritorioMapa {
   }
 }
 
-export type FilaGeometriaAcceso = typeof infraAccesoOsmGeometria.$inferSelect
+// `edificio` is optional so rows built before the footprint column keep type-checking.
+export type FilaGeometriaAcceso = Omit<typeof infraAccesoOsmGeometria.$inferSelect, 'edificio'> & {
+  edificio?: EdificioOsm | null
+}
 
 export interface GeometriaAccesoRespuesta {
   cueAnexo: string
@@ -96,6 +101,23 @@ export interface GeometriaAccesoRespuesta {
   viaPrincipal?: ViaPrincipalAcceso | null
   destino?: { nombre: string } | null
   distanciaKm?: number | null
+  superficies?: SuperficiesAcceso | null
+  /** Huella OSM del edificio; null en extractos previos o sin candidato. */
+  edificio?: EdificioOsm | null
+}
+
+// Older rows have no `superficies` inside the via_principal JSON: null, never zeros.
+function parsearSuperficies(valor: string | null): SuperficiesAcceso | null {
+  if (valor === null) return null
+  try {
+    const sup = (JSON.parse(valor) as { superficies?: Record<string, unknown> } | null)?.superficies
+    if (!sup) return null
+    const { pavimentado, ripio, tierra } = sup
+    if (![pavimentado, ripio, tierra].every((m) => typeof m === 'number' && Number.isFinite(m) && m >= 0)) return null
+    return { pavimentado: pavimentado as number, ripio: ripio as number, tierra: tierra as number }
+  } catch {
+    return null
+  }
 }
 
 function parsearViaPrincipal(valor: string | null): ViaPrincipalAcceso | null {
@@ -320,6 +342,8 @@ export function construirRespuestaGeometria(
       motivo: fila.motivoSinGeometria ?? 'sin_geometria',
       fechaExtractoOsm: fila.fechaExtractoOsm,
       licencia: fila.licencia,
+      // La huella no depende de la ruta: una escuela sin ruta puede tener edificio.
+      edificio: fila.edificio ?? null,
     }
   }
 
@@ -342,6 +366,8 @@ export function construirRespuestaGeometria(
     viaPrincipal: parsearViaPrincipal(fila.viaPrincipal),
     destino: fila.destinoNombre ? { nombre: fila.destinoNombre } : null,
     distanciaKm: fila.distanciaDestinoM === null ? null : fila.distanciaDestinoM / 1000,
+    superficies: parsearSuperficies(fila.viaPrincipal),
+    edificio: fila.edificio ?? null,
   }
 }
 

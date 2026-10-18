@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import Link from 'next/link'
 import { BookMinus, BookX, ChevronDown, Clock, DoorOpen, House, X } from 'lucide-react'
 import { EstadoActualSeveridad, TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
 import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
@@ -21,6 +22,8 @@ import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { BorradoresPendientes } from '@/components/infraestructura/borradores/borradores-pendientes'
 import { GaleriaEvidencia } from '@/components/infraestructura/fotos/galeria-evidencia'
+import { VistaPreviaEscuela } from './vista-previa-escuela'
+import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
 
 interface FichaEscuelaPanelProps {
   escuela: EscuelaMapaEnriquecida
@@ -34,6 +37,12 @@ interface FichaEscuelaPanelProps {
   /** Mismo nivel que la lista de Planificación para la vista activa. */
   planificacion?: { etiquetaVista: string; etiquetaNivel: string }[] | null
   borradoresServerCount?: number | null
+  urlFichaCompleta?: string
+  onAbrirFichaCompleta?: () => void
+  onQuitarSeleccion?: () => void
+  extraVistaPrevia?: ReactNode
+  aislamiento?: NivelAislamientoMapa | null
+  distanciaLocalidad?: { nombre: string | null; km: number } | null
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -101,6 +110,12 @@ export function FichaEscuelaPanel({
   horizonteRiesgo = 72,
   planificacion = null,
   borradoresServerCount = null,
+  urlFichaCompleta,
+  onAbrirFichaCompleta,
+  onQuitarSeleccion,
+  extraVistaPrevia = null,
+  aislamiento = null,
+  distanciaLocalidad = null,
 }: FichaEscuelaPanelProps) {
   const { estado, historial } = useFichaParte(escuela.cueAnexo)
   const tituloRef = useRef<HTMLHeadingElement>(null)
@@ -127,6 +142,63 @@ export function FichaEscuelaPanel({
     window.addEventListener('keydown', alPresionarTecla)
     return () => window.removeEventListener('keydown', alPresionarTecla)
   }, [onCerrar])
+
+  if (urlFichaCompleta) {
+    return (
+      <VistaPreviaEscuela
+        escuela={{
+          ...escuela,
+          parte: datos?.parte
+            ? {
+                parteId: datos.parte.id,
+                cueAnexo: escuela.cueAnexo,
+                nombre: escuela.nombre,
+                departamento: escuela.departamento,
+                localidad: escuela.localidad,
+                lat: escuela.lat,
+                lon: escuela.lon,
+                servicio:
+                  datos?.servicio?.estadoGeneral ??
+                  escuela.parte?.servicio ??
+                  (escuela.clases === 'normal'
+                    ? 'normal'
+                    : escuela.clases === 'parcial'
+                    ? 'parcial'
+                    : 'suspendido'),
+                estadoEstablecimiento: datos.parte.estadoEstablecimiento,
+                peorSeveridad: severidad ?? 'Baja',
+                categorias: Array.from(
+                  new Set(afectaciones.map((a) => a.categoria)),
+                ) as import('@/lib/infraestructura/categorias').CategoriaAfectacion[],
+                afectaciones: afectaciones.map((a) => ({
+                  id: a.id,
+                  motivo: a.motivo,
+                  categoria: a.categoria,
+                  severidad: a.severidad,
+                  descripcion: a.descripcion,
+                  rigeDesde: a.rigeDesde,
+                  creadaEn: a.creadaEn,
+                })),
+                seccionesAlcanzadas: afectaciones.reduce((acc, a) => acc + (a.totales.secciones ?? 0), 0),
+                alumnosDelHecho: afectaciones.reduce((acc, a) => acc + (a.totales.alumnos ?? 0), 0),
+                alumnosAlcanzados: escuela.alumnos,
+                rigeDesde: datos.parte.actualizadaEn,
+                actualizadaEn: datos.parte.actualizadaEn,
+              }
+            : undefined,
+          ubicacionDisponible: escuela.lat !== null && escuela.lon !== null,
+        }}
+        urlFichaCompleta={urlFichaCompleta}
+        onCerrarVistaPrevia={onCerrar}
+        onQuitarSeleccion={onQuitarSeleccion ?? (() => {})}
+        extra={extraVistaPrevia}
+        aislamiento={aislamiento}
+        distanciaLocalidad={distanciaLocalidad}
+        onAbrirFichaCompleta={onAbrirFichaCompleta}
+        cargandoParte={estado.fase === 'cargando'}
+      />
+    )
+  }
 
   return (
     <section className="map-ficha-escuela" aria-label={`Ficha de ${escuela.nombre}`}>
@@ -255,9 +327,31 @@ export function FichaEscuelaPanel({
         <SeccionPeligro cueAnexo={escuela.cueAnexo} localidad={escuela.localidad} />
       </div>
 
+      {urlFichaCompleta && (
+        <Link
+          className="ui-button ui-button--default ui-button--sm"
+          href={urlFichaCompleta}
+          onClick={onAbrirFichaCompleta}
+          data-testid="abrir-ficha-completa"
+        >
+          Abrir ficha completa
+        </Link>
+      )}
+
       <a className="ui-button ui-button--secondary ui-button--sm" href={`/infraestructura/cargar?cue=${encodeURIComponent(escuela.cueAnexo)}`}>
         {escuela.gravedad > 0 ? 'Actualizar el parte' : 'Cargar una situación'}
       </a>
+
+      {onQuitarSeleccion && (
+        <button
+          type="button"
+          className="map-ficha-escuela__link"
+          onClick={onQuitarSeleccion}
+          data-testid="preview-quitar-seleccion"
+        >
+          Quitar selección
+        </button>
+      )}
     </section>
   )
 }

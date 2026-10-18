@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as React from 'react'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FiltrosChips } from './filtros-chips'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -58,16 +58,23 @@ function FiltrosControlados({ escuelas, onSeleccionar }: {
 
 let anchoContenedor = 500
 const anchosMedicion: Record<string, number> = {
-  departamentos: 100, niveles: 70, gravedades: 85, clases: 75,
+  departamentos: 100, gravedades: 85, clases: 75,
   apoyo: 150, direcciones: 110, sinActualizar: 115, solucionadasRecientes: 205, mas: 115,
 }
 const observadores: ResizeObserverCallback[] = []
 
 class ResizeObserverControlado {
-  constructor(callback: ResizeObserverCallback) { observadores.push(callback) }
+  private readonly callback: ResizeObserverCallback
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    observadores.push(callback)
+  }
   observe() {}
   unobserve() {}
-  disconnect() {}
+  disconnect() {
+    const indice = observadores.indexOf(this.callback)
+    if (indice >= 0) observadores.splice(indice, 1)
+  }
 }
 
 function dispararResize() {
@@ -99,15 +106,16 @@ afterEach(() => {
   vi.unstubAllGlobals()
   anchoContenedor = 500
   observadores.length = 0
+  anchosMedicion.departamentos = 100
 })
 
 describe('FiltrosChips', () => {
-  it('deja Departamento, Nivel, Gravedad y Clases en el grupo de chips en línea', () => {
+  it('deja Departamento, Gravedad y Clases en el grupo de chips en línea', () => {
     renderFiltros()
     const principales = document.querySelector<HTMLElement>('.filtros-chips-principales')
     if (principales === null) throw new Error('No se encontró el grupo de chips principales')
     expect(within(principales).getAllByRole('button').map((boton) => boton.textContent?.trim())).toEqual([
-      'Departamento', 'Nivel', 'Gravedad', 'Clases',
+      'Departamento', 'Gravedad', 'Clases',
     ])
   })
 
@@ -177,7 +185,7 @@ describe('FiltrosChips', () => {
     const regla = readFileSync('app/globals.css', 'utf8').match(/\.map-filtros-medicion\s*\{[^}]*\}/)?.[0]
     expect(regla).toMatch(/visibility:\s*hidden/)
     expect(regla).toMatch(/position:\s*absolute/)
-    expect(fila?.querySelectorAll('[data-medicion-filtro]')).toHaveLength(9)
+    expect(fila?.querySelectorAll('[data-medicion-filtro]')).toHaveLength(8)
     expect(screen.getAllByRole('button', { name: 'Departamento' })).toHaveLength(1)
     expect(css).toMatch(/\.mapa-pestanas-barra \.filtros-chips-principales\s*\{[^}]*flex-wrap:\s*nowrap/)
   })
@@ -186,7 +194,7 @@ describe('FiltrosChips', () => {
     anchoContenedor = 1200
     renderFiltros()
     dispararResize()
-    expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip-grupo')).toHaveLength(6)
+    expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip-grupo')).toHaveLength(5)
     expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip--interruptor')).toHaveLength(2)
     expect(screen.queryByRole('button', { name: /Más filtros/ })).not.toBeInTheDocument()
   })
@@ -224,7 +232,7 @@ describe('FiltrosChips', () => {
     dispararResize()
     const boton = screen.getByRole('button', { name: 'Más filtros, 1 activos' })
     expect(boton).toHaveClass('filtros-chip', 'filtros-chip--activo')
-    expect(boton.querySelector('svg')).toBeInTheDocument()
+    expect(boton.querySelector('svg')).toBeNull()
     expect(boton).toHaveTextContent('1')
     anchoContenedor = 2000
     rerender(<FiltrosChips escuelas={padronEjemplo} filtros={filtros} onChange={vi.fn()} />)
@@ -297,23 +305,57 @@ describe('FiltrosChips', () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...filtros, direcciones: [] })
   })
 
-  it('elegir Primario en Nivel filtra y muestra el chip activo con su ×', async () => {
+  it('elegir Esquina en Departamento filtra por ese departamento', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     renderFiltros(FILTROS_MAPA_VACIOS, onChange)
 
-    await user.click(getChip(/Nivel/))
-    await user.click(screen.getByRole('checkbox', { name: /Primario/ }))
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ niveles: ['Primario'] }))
+    await user.click(getChip(/Departamento/))
+    await user.click(screen.getByRole('checkbox', { name: /Esquina/ }))
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ departamentos: ['Esquina'] }))
+  })
+
+  it('no cambia el ancho del chip mientras su popover está abierto y muestra la elección al cerrarlo', async () => {
+    const user = userEvent.setup()
+    render(<FiltrosControlados escuelas={padronEjemplo} onSeleccionar={vi.fn()} />)
+
+    await user.click(getChip('Departamento'))
+    await user.click(screen.getByRole('checkbox', { name: /Esquina/ }))
+    // The bar is right-aligned, so a wider chip would drag the open list sideways.
+    expect(getChip('Departamento')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Quitar filtro Departamento' })).not.toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    expect(getChip('Departamento: Esquina')).toBeInTheDocument()
+  })
+
+  it('mantiene los chips en línea mientras un popover está abierto y vuelve a medir al cerrarlo', async () => {
+    const user = userEvent.setup()
+    anchoContenedor = 1200
+    renderFiltros()
+    dispararResize()
+    const nombresEnLinea = () => within(document.querySelector<HTMLElement>('.filtros-chips-principales')!)
+      .getAllByRole('button').map((boton) => boton.textContent?.trim())
+    const antes = nombresEnLinea()
+
+    await user.click(getChip('Departamento'))
+    // A selection widens the chip; the line must not re-flow under the open popover.
+    anchosMedicion.departamentos = 600
+    dispararResize()
+    expect(nombresEnLinea()).toEqual(antes)
+    expect(screen.getByRole('dialog', { name: 'Departamento' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    expect(nombresEnLinea()).not.toEqual(antes)
   })
 
   it('la × de un chip activo limpia sólo ese filtro', async () => {
     const user = userEvent.setup()
-    const filtros = { ...FILTROS_MAPA_VACIOS, niveles: ['Primario'], departamentos: ['Goya'] }
+    const filtros: FiltrosMapa = { ...FILTROS_MAPA_VACIOS, gravedades: [4], departamentos: ['Goya'] }
     const { onChange } = renderFiltros(filtros, vi.fn())
 
-    await user.click(getChip('Quitar filtro Nivel'))
-    expect(onChange).toHaveBeenLastCalledWith({ ...filtros, niveles: [] })
+    await user.click(getChip('Quitar filtro Gravedad'))
+    expect(onChange).toHaveBeenLastCalledWith({ ...filtros, gravedades: [] })
   })
 
   it('Limpiar filtros aparece sólo con algún filtro activo', async () => {
@@ -339,10 +381,10 @@ describe('FiltrosChips', () => {
   it('cada opción muestra cuántas escuelas tiene', async () => {
     const user = userEvent.setup()
     renderFiltros()
-    await user.click(getChip(/Nivel/))
+    await user.click(getChip(/Departamento/))
 
-    const primario = screen.getByRole('checkbox', { name: /Primario/ })
-    expect(primario).toHaveAccessibleName(/Primario.*2/)
+    const goya = screen.getByRole('checkbox', { name: /Goya/ })
+    expect(goya).toHaveAccessibleName(/Goya.*3/)
   })
 
   it('muestra las etiquetas canónicas de gravedad y estado de clases', async () => {
@@ -378,9 +420,9 @@ describe('FiltrosChips', () => {
   it('renderiza cada opción del popover con el Checkbox del sistema', async () => {
     const user = userEvent.setup()
     renderFiltros()
-    await user.click(getChip(/Nivel/))
+    await user.click(getChip(/Departamento/))
 
-    const popover = screen.getByRole('dialog', { name: 'Nivel' })
+    const popover = screen.getByRole('dialog', { name: 'Departamento' })
     const opciones = within(popover).getAllByRole('checkbox')
     const filas = popover.querySelectorAll(':scope > label.filtros-opcion.ui-checkbox')
     const inputsSueltos = [...popover.querySelectorAll('input[type="checkbox"]')]
@@ -393,33 +435,23 @@ describe('FiltrosChips', () => {
     expect(inputsSueltos).toHaveLength(0)
   })
 
-  it('muestra un estado vacío en Nivel cuando el padrón no trae niveles', async () => {
-    const user = userEvent.setup()
-    const escuelasSinNiveles = [escuela({ niveles: [] })]
-    render(<FiltrosChips escuelas={escuelasSinNiveles} filtros={FILTROS_MAPA_VACIOS} onChange={vi.fn()} />)
-
-    await user.click(getChip('Nivel'))
-
-    expect(screen.getByText('No hay niveles cargados en el padrón.')).toBeInTheDocument()
-  })
-
   it('Esc cierra el popover y devuelve el foco al chip', async () => {
     const user = userEvent.setup()
     renderFiltros()
-    const chip = getChip(/Nivel/)
+    const chip = getChip(/Departamento/)
     await user.click(chip)
-    const opcion = screen.getByRole('checkbox', { name: /Inicial/ })
-    expect(opcion).toHaveFocus()
+    const opcion = within(screen.getByRole('dialog', { name: 'Departamento' })).getAllByRole('checkbox')[0]
+    await waitFor(() => expect(opcion).toHaveFocus())
 
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Nivel' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Departamento' })).not.toBeInTheDocument()
     expect(chip).toHaveFocus()
   })
 
   it('muestra el valor de un chip activo o la cantidad de opciones elegidas', () => {
-    const filtros = { ...FILTROS_MAPA_VACIOS, niveles: ['Primario'], departamentos: ['Goya', 'Esquina'] }
+    const filtros: FiltrosMapa = { ...FILTROS_MAPA_VACIOS, gravedades: [4], departamentos: ['Goya', 'Esquina'] }
     renderFiltros(filtros)
-    expect(getChip(/Nivel: Primario/)).toBeInTheDocument()
+    expect(getChip(/^Gravedad: /)).toBeInTheDocument()
     expect(getChip(/Departamento: 2 elegidos/)).toBeInTheDocument()
   })
 
@@ -572,8 +604,8 @@ describe('FiltrosChips', () => {
 
   it('respeta los demás filtros activos al sugerir escuelas', async () => {
     const primario = escuelaTatacua
-    const secundario = escuela({ cueAnexo: '1800088-00', nombre: 'Escuela Secundaria Tatacuá', niveles: ['Secundario'] })
-    render(<FiltrosChips escuelas={[primario, secundario]} filtros={{ ...FILTROS_MAPA_VACIOS, niveles: ['Secundario'], q: 'tatacua' }} onChange={vi.fn()} onSeleccionar={vi.fn()} />)
+    const secundario = escuela({ cueAnexo: '1800088-00', nombre: 'Escuela Secundaria Tatacuá', departamento: 'Goya' })
+    render(<FiltrosChips escuelas={[primario, secundario]} filtros={{ ...FILTROS_MAPA_VACIOS, departamentos: ['Goya'], q: 'tatacua' }} onChange={vi.fn()} onSeleccionar={vi.fn()} />)
     expect(screen.getByRole('option')).toHaveTextContent('1800088-00')
     expect(screen.queryByText('1800087-00')).not.toBeInTheDocument()
   })
@@ -581,7 +613,7 @@ describe('FiltrosChips', () => {
   it('abre y cierra el panel de filtros con Escape o clic fuera', async () => {
     const user = userEvent.setup()
     anchoContenedor = 130
-    renderFiltros({ ...FILTROS_MAPA_VACIOS, niveles: ['Primario'], sinActualizar: true })
+    renderFiltros({ ...FILTROS_MAPA_VACIOS, departamentos: ['Goya'], sinActualizar: true })
     dispararResize()
     const boton = screen.getByRole('button', { name: 'Filtros, 2 activos' })
     await user.click(boton)

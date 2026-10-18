@@ -12,6 +12,7 @@ import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { listarEscuelasMapa } from '@/lib/infraestructura/parte-mapa'
+import { clasificarNivel } from '@/lib/infraestructura/riesgo/motor/calculo'
 import { calcularMatriculaCondicionadaPorAcceso } from '@/lib/infraestructura/riesgo/kpi-acceso'
 import {
   agregarNivelPorDepartamento,
@@ -290,6 +291,7 @@ export async function GET(request: Request) {
       horizonteHoras: infraRiskSnapshot.horizonteHoras,
       nivelRiesgo: infraRiskSnapshot.nivelRiesgo,
       nivelAmenaza: infraRiskSnapshot.nivelAmenaza,
+      scoreVulnerabilidad: infraRiskSnapshot.scoreVulnerabilidad,
       confianza: infraRiskSnapshot.confianza,
       nivelRiesgoAcceso: infraRiskSnapshot.nivelRiesgoAcceso,
       exposicionMatricula: infraRiskSnapshot.exposicionMatricula,
@@ -311,6 +313,9 @@ export async function GET(request: Request) {
     nivelRiesgo: snapshot.nivelRiesgo,
     // Amenaza sola (I-7): visible aunque la prioridad quede atenuada.
     nivelAmenaza: snapshot.nivelAmenaza,
+    // Vulnerabilidad de la escuela (antecedentes y terreno), con el mismo mapeo de niveles:
+    // explica por qué una amenaza fuerte puede dar un riesgo bajo.
+    nivelVulnerabilidad: snapshot.scoreVulnerabilidad === null ? null : clasificarNivel(snapshot.scoreVulnerabilidad),
     confianza: snapshot.confianza,
     nivelRiesgoAcceso: snapshot.nivelRiesgoAcceso,
     // Para contar escuelas por riesgo actual en cada departamento (veredicto diario).

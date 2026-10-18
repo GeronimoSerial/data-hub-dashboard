@@ -104,14 +104,13 @@ describe('PanelEstadisticas', () => {
     const situacion = container.querySelector<HTMLElement>('.map-sitact')!
     const estadisticas = container.querySelector<HTMLElement>('.map-est')!
 
-    for (const [etiquetaActual, etiquetaEstadistica] of [
-      ['Escuelas con situaciones abiertas', 'Escuelas con situaciones abiertas'],
-      ['Sin clases', 'Sin clases'],
-      ['Alumnos sin clases', 'Alumnos sin clases'],
-      ['Sin actualizar', 'Sin actualizar'],
-    ]) {
-      expect(leerNumeroKpi(etiquetaEstadistica, estadisticas)).toBe(leerNumeroKpi(etiquetaActual, situacion))
-    }
+    const valorActual = (etiqueta: string) => within(situacion).getByText(etiqueta, { selector: '.map-sitact__kpi span' }).nextElementSibling?.textContent
+    expect(leerNumeroKpi('Sin clases', estadisticas)).toBe(valorActual('Escuelas sin clases'))
+    expect(leerNumeroKpi('Alumnos sin clases', estadisticas)).toBe(valorActual('Alumnos sin clases'))
+    expect(within(situacion).getByText(/con situaciones abiertas$/, { selector: '.map-sitact__kpi small' }))
+      .toHaveTextContent(`De ${leerNumeroKpi('Escuelas con situaciones abiertas', estadisticas)} con situaciones abiertas`)
+    expect(within(situacion).getByText('Sin actualizar', { selector: 'dt' }).nextElementSibling?.textContent)
+      .toBe(leerNumeroKpi('Sin actualizar', estadisticas))
   })
 
   it('al agrupar por nivel cambia la primera columna y duplica escuelas con varios niveles', async () => {

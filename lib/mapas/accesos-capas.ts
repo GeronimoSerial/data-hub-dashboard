@@ -1,8 +1,8 @@
 // Capas estáticas de accesos y amenaza para el mapa de infraestructura.
 //
-// Módulo PURO (sin React y sin acceso a red): sólo paletas, íconos rasterizables
-// y constructores de GeoJSON. Toda la semántica de las capas es de CONTEXTO, no
-// de pronóstico:
+// Módulo sin acceso a red: sólo paletas, íconos rasterizables (glifos Lucide
+// rasterizados a string) y constructores de GeoJSON. Toda la semántica de las
+// capas es de CONTEXTO, no de pronóstico:
 //  - Aislamiento OSM: índice estático 0..3 derivado de OpenStreetMap (red vial y
 //    cruces de agua). NO es un pronóstico ni el estado confirmado del edificio.
 //    "sin conexión a la red OSM" (fila ausente) no es lo mismo que aislamiento 0.
@@ -18,7 +18,10 @@ import type {
   NivelAislamientoMapa,
   TerritorioMapa,
 } from '@/lib/infraestructura/territorio-mapa'
+import { CircleQuestionMark, Droplets, Route, RouteOff, WavesHorizontal } from 'lucide-react'
 import { construirSvgIcono } from './iconos-mapa'
+import { coloresMapa } from './colores-mapa'
+import type { GlifoIcono } from './insignias-mapa'
 
 // ---------------------------------------------------------------------------
 // Clases y paletas
@@ -226,128 +229,55 @@ export function iconoAislamiento(nivel: NivelAislamientoMapa): string {
     : ID_ICONO_AISLAMIENTO[nivel]
 }
 
-// Paths copiados tal cual de `lucide-react` v1.34.0 (route.mjs, route-off.mjs,
-// droplets.mjs, waves-horizontal.mjs, circle-question-mark.mjs). Se duplican
-// como string porque `map.addImage` necesita un SVG standalone, no un
-// componente React; los paths son la única copia desacoplada.
-const PATH_AISLAMIENTO =
-  '<circle cx="6" cy="19" r="3" />' +
-  '<path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" />' +
-  '<circle cx="18" cy="5" r="3" />'
-
-const PATH_AISLAMIENTO_OFF =
-  '<circle cx="6" cy="19" r="3" />' +
-  '<path d="M9 19h8.5c.4 0 .9-.1 1.3-.2" />' +
-  '<path d="M5.2 5.2A3.5 3.53 0 0 0 6.5 12H12" />' +
-  '<path d="m2 2 20 20" />' +
-  '<path d="M21 15.3a3.5 3.5 0 0 0-3.3-3.3" />' +
-  '<path d="M15 5h-4.3" />' +
-  '<circle cx="18" cy="5" r="3" />'
-
-const PATH_INUNDACION =
-  '<path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z" />' +
-  '<path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97" />'
-
+// Glifos Lucide reales (Route, RouteOff, Droplets, WavesHorizontal,
+// CircleQuestionMark) rasterizados con el mismo estilo que el resto del mapa.
 // Puente: dibujo propio autoexplicativo (tablero + arco + dos pilares), sólo
-// trazo.
-const PATH_CRUCE_PUENTE =
+// trazo; Lucide no tiene un puente.
+const GLIFO_CRUCE_PUENTE =
   '<path d="M3 15h18" />' +
   '<path d="M5 15a7 7 0 0 1 14 0" />' +
   '<path d="M5 15v5" />' +
   '<path d="M19 15v5" />'
-
-// Olas (Waves): trazos copiados de `waves-horizontal.mjs` de lucide-react v1.34.0.
-const PATH_CRUCE_VADO =
-  '<path d="M2 12q2.5 2 5 0t5 0 5 0 5 0" />' +
-  '<path d="M2 19q2.5 2 5 0t5 0 5 0 5 0" />' +
-  '<path d="M2 5q2.5 2 5 0t5 0 5 0 5 0" />'
-
-// Ayuda (CircleHelp): trazos copiados de `circle-question-mark.mjs` de lucide-react v1.34.0.
-// Se omite el círculo de Lucide para evitar un anillo doble; el badge ya aporta el contorno.
-const PATH_CRUCE_SIN_EVIDENCIA =
-  '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />' +
-  '<path d="M12 17h.01" />'
 
 // Colores de los tokens semánticos de `app/globals.css` para el tema claro.
 const COLOR_CRUCE_PUENTE = '#356f23' // --ok
 const COLOR_CRUCE_VADO = '#b45f04' // --warn
 const COLOR_CRUCE_SIN_EVIDENCIA = '#5f5e5c' // --ink-soft
 
-export const SVG_ICONO_AISLAMIENTO_0 = construirSvgIcono(
-  PATH_AISLAMIENTO,
-  PALETA_TONAL_AISLAMIENTO[0],
-  '#1c1c1c',
-)
-export const SVG_ICONO_AISLAMIENTO_1 = construirSvgIcono(
-  PATH_AISLAMIENTO,
-  PALETA_TONAL_AISLAMIENTO[1],
-  '#1c1c1c',
-)
-export const SVG_ICONO_AISLAMIENTO_2 = construirSvgIcono(
-  PATH_AISLAMIENTO,
-  PALETA_TONAL_AISLAMIENTO[2],
-  '#ffffff',
-)
-export const SVG_ICONO_AISLAMIENTO_3 = construirSvgIcono(
-  PATH_AISLAMIENTO,
-  PALETA_TONAL_AISLAMIENTO[3],
-  '#ffffff',
-)
-export const SVG_ICONO_AISLAMIENTO_SIN_DATOS = construirSvgIcono(
-  PATH_AISLAMIENTO_OFF,
-  '#ffffff',
-  '#6b7280',
-  '#9ca3af',
-)
+const TINTA = '#1c1c1c'
+const BLANCO = '#ffffff'
 
-export const SVG_ICONO_INUNDACION_BAJA = construirSvgIcono(
-  PATH_INUNDACION,
-  PALETA_TONAL_INUNDACION.bajo,
-  '#1c1c1c',
-)
-export const SVG_ICONO_INUNDACION_MEDIA = construirSvgIcono(
-  PATH_INUNDACION,
-  PALETA_TONAL_INUNDACION.medio,
-  '#1c1c1c',
-)
-export const SVG_ICONO_INUNDACION_ALTA = construirSvgIcono(
-  PATH_INUNDACION,
-  PALETA_TONAL_INUNDACION.alto,
-  '#ffffff',
-)
+/** Íconos de accesos para el tema pedido: sólo cambia el halo. */
+export function iconosAccesosMapa(oscuro = false): ReadonlyArray<{ id: string; svg: string }> {
+  const halo = coloresMapa(oscuro).contornoIcono
+  const icono = (glifo: GlifoIcono, fondo: string, colorGlifo: string) =>
+    construirSvgIcono(glifo, fondo, colorGlifo, { halo })
+  return [
+    { id: ID_ICONO_AISLAMIENTO[0], svg: icono(Route, PALETA_TONAL_AISLAMIENTO[0], TINTA) },
+    { id: ID_ICONO_AISLAMIENTO[1], svg: icono(Route, PALETA_TONAL_AISLAMIENTO[1], TINTA) },
+    { id: ID_ICONO_AISLAMIENTO[2], svg: icono(Route, PALETA_TONAL_AISLAMIENTO[2], BLANCO) },
+    { id: ID_ICONO_AISLAMIENTO[3], svg: icono(Route, PALETA_TONAL_AISLAMIENTO[3], BLANCO) },
+    { id: ID_ICONO_AISLAMIENTO_SIN_DATOS, svg: icono(RouteOff, COLOR_AISLAMIENTO_SIN_DATOS, TINTA) },
+    { id: ID_ICONO_INUNDACION.bajo, svg: icono(Droplets, PALETA_TONAL_INUNDACION.bajo, TINTA) },
+    { id: ID_ICONO_INUNDACION.medio, svg: icono(Droplets, PALETA_TONAL_INUNDACION.medio, TINTA) },
+    { id: ID_ICONO_INUNDACION.alto, svg: icono(Droplets, PALETA_TONAL_INUNDACION.alto, BLANCO) },
+    { id: ID_ICONO_CRUCE.puente, svg: icono(GLIFO_CRUCE_PUENTE, COLOR_CRUCE_PUENTE, BLANCO) },
+    { id: ID_ICONO_CRUCE.vado, svg: icono(WavesHorizontal, COLOR_CRUCE_VADO, BLANCO) },
+    { id: ID_ICONO_CRUCE.sin_evidencia, svg: icono(CircleQuestionMark, COLOR_CRUCE_SIN_EVIDENCIA, BLANCO) },
+  ]
+}
 
-export const SVG_ICONO_CRUCE_PUENTE = construirSvgIcono(
-  PATH_CRUCE_PUENTE,
-  '#ffffff',
-  COLOR_CRUCE_PUENTE,
-  COLOR_CRUCE_PUENTE,
-)
-export const SVG_ICONO_CRUCE_VADO = construirSvgIcono(
-  PATH_CRUCE_VADO,
-  '#ffffff',
-  COLOR_CRUCE_VADO,
-  COLOR_CRUCE_VADO,
-)
-export const SVG_ICONO_CRUCE_SIN_EVIDENCIA = construirSvgIcono(
-  PATH_CRUCE_SIN_EVIDENCIA,
-  '#ffffff',
-  COLOR_CRUCE_SIN_EVIDENCIA,
-  COLOR_CRUCE_SIN_EVIDENCIA,
-)
+export const ICONOS_ACCESOS_MAPA = iconosAccesosMapa(false)
 
-export const ICONOS_ACCESOS_MAPA: ReadonlyArray<{ id: string; svg: string }> = [
-  { id: ID_ICONO_AISLAMIENTO[0], svg: SVG_ICONO_AISLAMIENTO_0 },
-  { id: ID_ICONO_AISLAMIENTO[1], svg: SVG_ICONO_AISLAMIENTO_1 },
-  { id: ID_ICONO_AISLAMIENTO[2], svg: SVG_ICONO_AISLAMIENTO_2 },
-  { id: ID_ICONO_AISLAMIENTO[3], svg: SVG_ICONO_AISLAMIENTO_3 },
-  { id: ID_ICONO_AISLAMIENTO_SIN_DATOS, svg: SVG_ICONO_AISLAMIENTO_SIN_DATOS },
-  { id: ID_ICONO_INUNDACION.bajo, svg: SVG_ICONO_INUNDACION_BAJA },
-  { id: ID_ICONO_INUNDACION.medio, svg: SVG_ICONO_INUNDACION_MEDIA },
-  { id: ID_ICONO_INUNDACION.alto, svg: SVG_ICONO_INUNDACION_ALTA },
-  { id: ID_ICONO_CRUCE.puente, svg: SVG_ICONO_CRUCE_PUENTE },
-  { id: ID_ICONO_CRUCE.vado, svg: SVG_ICONO_CRUCE_VADO },
-  { id: ID_ICONO_CRUCE.sin_evidencia, svg: SVG_ICONO_CRUCE_SIN_EVIDENCIA },
-]
+const svgDe = (id: string) => ICONOS_ACCESOS_MAPA.find((icono) => icono.id === id)!.svg
+export const SVG_ICONO_CRUCE_PUENTE = svgDe(ID_ICONO_CRUCE.puente)
+export const SVG_ICONO_CRUCE_VADO = svgDe(ID_ICONO_CRUCE.vado)
+export const SVG_ICONO_CRUCE_SIN_EVIDENCIA = svgDe(ID_ICONO_CRUCE.sin_evidencia)
+export const SVG_ICONO_AISLAMIENTO_0 = svgDe(ID_ICONO_AISLAMIENTO[0])
+export const SVG_ICONO_AISLAMIENTO_1 = svgDe(ID_ICONO_AISLAMIENTO[1])
+export const SVG_ICONO_AISLAMIENTO_2 = svgDe(ID_ICONO_AISLAMIENTO[2])
+export const SVG_ICONO_AISLAMIENTO_3 = svgDe(ID_ICONO_AISLAMIENTO[3])
+export const SVG_ICONO_AISLAMIENTO_SIN_DATOS = svgDe(ID_ICONO_AISLAMIENTO_SIN_DATOS)
 
 // ---------------------------------------------------------------------------
 // Constructores de GeoJSON
@@ -369,6 +299,12 @@ export interface CruceAccesoProps {
   clasificacion: ClasificacionCruce
   icono: string
   etiqueta: string
+  // Position of the crossing in `GeometriaAccesoRespuesta.cruces`.
+  indice: number
+  nombreCurso: string | null
+  nombrePuente: string | null
+  tipoCurso: string | null
+  intermitente: boolean | null
 }
 
 export interface ResumenCobertura {
@@ -502,6 +438,26 @@ export function construirRutaAcceso(
   }
 }
 
+// Huella OSM del edificio escolar, coloreada con el estado de la escuela. Null
+// cuando no hay polígono (extracto previo, sin candidato o asociación ambigua).
+export function construirEdificioEscuela(
+  g: GeometriaAccesoRespuesta | null,
+  color: string,
+): GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon, { color: string }> | null {
+  const poligono = g?.edificio?.poligono
+  if (!poligono || !Array.isArray(poligono.coordinates) || poligono.coordinates.length === 0) return null
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: poligono.type, coordinates: poligono.coordinates } as GeoJSON.Polygon | GeoJSON.MultiPolygon,
+        properties: { color },
+      },
+    ],
+  }
+}
+
 // Cruces de agua clasificados sobre la ruta. Colección vacía cuando la
 // geometría no está disponible.
 export function construirCrucesAcceso(
@@ -512,13 +468,18 @@ export function construirCrucesAcceso(
   }
 
   const features = g.cruces.map(
-    (cruce): GeoJSON.Feature<GeoJSON.Point, CruceAccesoProps> => ({
+    (cruce, indice): GeoJSON.Feature<GeoJSON.Point, CruceAccesoProps> => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [cruce.lon, cruce.lat] },
       properties: {
         clasificacion: cruce.clasificacion,
         icono: ID_ICONO_CRUCE[cruce.clasificacion],
         etiqueta: ETIQUETAS_CRUCE[cruce.clasificacion],
+        indice,
+        nombreCurso: cruce.nombreCurso ?? null,
+        nombrePuente: cruce.nombrePuente ?? null,
+        tipoCurso: cruce.tipoCurso ?? null,
+        intermitente: cruce.intermitente ?? null,
       },
     }),
   )

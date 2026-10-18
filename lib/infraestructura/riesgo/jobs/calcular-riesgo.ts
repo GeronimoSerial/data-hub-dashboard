@@ -14,37 +14,38 @@
 //    la ÚNICA que decide qué run es el vigente.
 // Una escuela/horizonte que falla no debería tumbar el job; el manejo de
 // errores global re-publica el infra_job_run como 'fallido' antes de re-lanzar.
+//
+// Motor v0.4 promovido (T11, docs/motor-v0.4/promocion.md): por defecto el run
+// es `motor-v0.4` con reglas v0.4, río probabilístico donde la superación del
+// terreno es `modelada` (insumos-operativo-v04.ts) y `resultado_v04` por fila.
+// El universo NO cambia: sólo escuelas con perfil (listarCuesConPerfil), igual
+// que motor-v0.3. RIESGO_REGLAS_MOTOR=v0.3 (flags.ts) es el rollback de un
+// ciclo: run `motor-v0.3` idéntico byte a byte al previo a la promoción.
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
-import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
-import { crearAdapterAislamiento } from '../motor/adaptadores/aislamiento'
-import { crearAdapterExposicion } from '../motor/adaptadores/exposicion'
+import { MOTOR_VERSION, MOTOR_VERSION_V03, REGLAS_V04_VERSION, type ReglasMotor } from '../motor/config'
 import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
-import { crearAdapterHistorial } from '../motor/adaptadores/historial'
-import { crearAdapterLluvia } from '../motor/adaptadores/lluvia'
-import { crearAdapterPeligro } from '../motor/adaptadores/peligro'
-import { crearAdapterSusceptibilidad } from '../motor/adaptadores/susceptibilidad'
-import { crearAdapterTerritorio } from '../motor/adaptadores/territorio'
-import { calcularRiesgoEscuela } from '../motor/calculo'
-import { MOTOR_VERSION } from '../motor/config'
-import type {
-  HorizontePeligro,
-  IndicadoresSusceptibilidad,
-  LluviaObservadaCelda,
-  IndiceAislamiento,
-  NivelCaudalPunto,
-  NivelPeligroCelda,
-  PerfilTerritorio,
-  PuertosMotor,
-  EvidenciaRioNoDisponible,
-  EvidenciaRioPrefectura,
-  ResumenExposicion,
-  ResumenHistorial,
-} from '../motor/puertos'
+import { riesgoReglasMotor } from '../flags'
+import { crearAdapterAltimetriaV04, type PuertoAltimetriaV04 } from '../motor-v04/altimetria-adaptador'
+import { CONFIG_V04, hashCanonico, type HorizonteV04 } from '../motor-v04/config'
+import { crearAdapterPadronV04, type PuertoPadronV04 } from '../motor-v04/padron'
+import { construirResultadoPendienteV04 } from '../motor-v04/resultado'
+import { crearAdapterTerrenoV04, type PuertoTerrenoV04 } from '../motor-v04/terreno-adaptador'
+import { prepararInsumosOperativoV04, rioProbabilisticoDe, type InsumosOperativoV04 } from './insumos-operativo-v04'
+import type { PuertosMotor } from '../motor/puertos'
 import { adquirirLease, inicioDeBloqueUtc, publicarResultado, renovarLease } from '../job-run'
+import { publicarRunOperativo } from '../publicar-run'
+import {
+  HORIZONTES,
+  TAMANO_CHUNK_INSERCION,
+  calcularFilasEscuela,
+  construirPuertosReales,
+  crearPuertosConCache,
+  insertarEnChunks,
+} from './compartido-riesgo'
 
 const TIPO_JOB = 'calcular-riesgo-v0'
 const VERSION_JOB = 'v1'
@@ -57,173 +58,20 @@ const DURACION_LEASE_MS = 15 * 60 * 1000
 // Escuelas por lote de inserción bulk.
 const TAMANO_LOTE = 200
 
-// SQLite limita la cantidad de variables ("binds") por sentencia
-// (SQLITE_MAX_VARIABLE_NUMBER; 32766 en builds recientes, 999 en viejos). Un
-// único INSERT de un lote completo (TAMANO_LOTE=200 escuelas x 3 horizontes x
-// hasta ~8 factores/snapshot con más fuentes reales conectadas) puede superarlo
-// y reventar el job. Por eso cada lote se sub-trocea en INSERTs más chicos:
-// infraRiskFactor tiene 11 columnas, así que 500 filas = 5500 binds, holgado.
-const TAMANO_CHUNK_INSERCION = 500
-
-type DbMotor = ReturnType<typeof getDb>
-
-// Inserta `filas` en `tabla` partiéndolas en chunks de a lo sumo
-// `tamanoChunk`, para no exceder el límite de binds de SQLite.
-async function insertarEnChunks<TSchema extends SQLiteTable>(
-  db: DbMotor,
-  tabla: TSchema,
-  filas: TSchema['$inferInsert'][],
-  tamanoChunk: number,
-): Promise<void> {
-  for (let inicio = 0; inicio < filas.length; inicio += tamanoChunk) {
-    const chunk = filas.slice(inicio, inicio + tamanoChunk)
-    // Cada chunk es un INSERT único de filas con ids ya generados (nunca se
-    // regeneran entre intentos): si SQLITE_BUSY interrumpe el statement no
-    // queda nada escrito, así que reintentar el mismo INSERT es seguro. El
-    // run sigue 'preparando' durante todo este loop, invisible para
-    // lectores, así que un reintento acá no afecta la publicación atómica.
-    if (chunk.length > 0) await conReintentoPorBloqueo(() => db.insert(tabla).values(chunk))
-  }
-}
-
-const HORIZONTES: readonly HorizontePeligro[] = [24, 72, 240] as const
-
 export type ResultadoJobCalcularRiesgo =
   | { ejecutado: true; runId: string; escuelasProcesadas: number; conEvidencia: number; sinEvidencia: number }
   | { ejecutado: false; motivo: 'en_progreso_vigente' | 'ya_completado' | 'cobertura_insuficiente' }
 
-function construirPuertosReales(): PuertosMotor {
-  return {
-    peligro: crearAdapterPeligro(),
-    lluviaObservada: crearAdapterLluvia(),
-    territorio: crearAdapterTerritorio(),
-    aislamiento: crearAdapterAislamiento(),
-    susceptibilidad: crearAdapterSusceptibilidad(),
-    historial: crearAdapterHistorial(),
-    exposicion: crearAdapterExposicion(),
-    rioPrefectura: crearAdapterRioPrefectura(),
-  }
-}
-
-// Cacheo por corrida de las consultas que NO dependen del horizonte. El núcleo
-// calcularRiesgoEscuela se invoca una vez por (escuela, horizonte) y, para cada
-// horizonte, vuelve a pedir exactamente los mismos datos: el perfil territorial
-// (dato estático por escuela), el peligro de celda, el caudal del punto, la
-// lluvia observada, el historial, el aislamiento, la susceptibilidad y la
-// exposición. Ninguno de esos puertos recibe el horizonte como parámetro y
-// `asOf` es constante en toda la corrida, así que memoizar por su clave natural
-// (cueAnexo / geometryRef / puntoId) no cambia el resultado observable, sólo
-// evita repetir la misma consulta 3 veces (una por horizonte) y una vez por
-// cada escuela que comparte celda.
-//
-// obtenerNivelesCelda se trata aparte: el núcleo pide un horizonte por vez
-// (`horizontes: [h]`). Acá se pide la lista completa de horizontes UNA vez por
-// geometryRef y se filtra en memoria el horizonte solicitado, en vez de golpear
-// el puerto por cada horizonte y por cada escuela que comparte la misma celda.
-function crearPuertosConCache(puertos: PuertosMotor): PuertosMotor {
-  const perfiles = new Map<string, Promise<PerfilTerritorio | null>>()
-  const nivelesCelda = new Map<string, Promise<NivelPeligroCelda[]>>()
-  const nivelesCaudal = new Map<string, Promise<NivelCaudalPunto | null>>()
-  const lluvia = new Map<string, Promise<LluviaObservadaCelda>>()
-  const historiales = new Map<string, Promise<ResumenHistorial>>()
-  const aislamientos = new Map<string, Promise<IndiceAislamiento | null>>()
-  const susceptibilidades = new Map<string, Promise<IndicadoresSusceptibilidad | null>>()
-  const exposiciones = new Map<string, Promise<ResumenExposicion | null>>()
-  const evidenciasRio = new Map<string, Promise<EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null>>()
-
-  function memoizar<K, V>(
-    cache: Map<K, Promise<V>>,
-    clave: K,
-    producir: () => Promise<V>,
-  ): Promise<V> {
-    const cacheado = cache.get(clave)
-    if (cacheado !== undefined) return cacheado
-    const promesa = producir()
-    cache.set(clave, promesa)
-    return promesa
-  }
-
-  return {
-    peligro: {
-      obtenerNivelesCelda(params) {
-        const promesa = memoizar(nivelesCelda, params.geometryRef, () =>
-          puertos.peligro.obtenerNivelesCelda({
-            geometryRef: params.geometryRef,
-            horizontes: HORIZONTES,
-            asOf: params.asOf,
-          }),
-        )
-        // El array cacheado es el conjunto completo de horizontes; cada
-        // llamador recibe una vista filtrada a los horizontes que pidió, igual
-        // que devolvería el puerto subyacente.
-        return promesa.then((todos) =>
-          todos.filter((nivel) => params.horizontes.includes(nivel.horizonteHoras)),
-        )
-      },
-      obtenerNivelCaudal(params) {
-        return memoizar(nivelesCaudal, params.puntoId, () =>
-          puertos.peligro.obtenerNivelCaudal(params),
-        )
-      },
-    },
-    lluviaObservada: {
-      obtenerAcumulado(params) {
-        return memoizar(lluvia, params.geometryRef, () =>
-          puertos.lluviaObservada.obtenerAcumulado(params),
-        )
-      },
-    },
-    territorio: {
-      obtenerPerfil(cueAnexo) {
-        return memoizar(perfiles, cueAnexo, () => puertos.territorio.obtenerPerfil(cueAnexo))
-      },
-      listarCuesConPerfil() {
-        return puertos.territorio.listarCuesConPerfil()
-      },
-    },
-    aislamiento: {
-      obtenerIndice(cueAnexo) {
-        return memoizar(aislamientos, cueAnexo, () => puertos.aislamiento.obtenerIndice(cueAnexo))
-      },
-    },
-    susceptibilidad: {
-      obtenerIndicadores(cueAnexo) {
-        return memoizar(susceptibilidades, cueAnexo, () =>
-          puertos.susceptibilidad.obtenerIndicadores(cueAnexo),
-        )
-      },
-    },
-    historial: {
-      obtenerResumen(params) {
-        return memoizar(historiales, params.cueAnexo, () =>
-          puertos.historial.obtenerResumen(params),
-        )
-      },
-    },
-    exposicion: {
-      obtenerResumen(params) {
-        return memoizar(exposiciones, params.cueAnexo, () =>
-          puertos.exposicion.obtenerResumen(params),
-        )
-      },
-    },
-    ...(puertos.rioPrefectura
-      ? {
-          rioPrefectura: {
-            obtenerEvidencia(params: { cueAnexo: string; asOf: string }) {
-              const puerto = puertos.rioPrefectura!
-              return memoizar(evidenciasRio, params.cueAnexo, () => puerto.obtenerEvidencia(params))
-            },
-          },
-        }
-      : {}),
-  }
-}
-
 export async function calcularYPublicarRiesgo(params?: {
   ahora?: Date
   puertos?: PuertosMotor
+  // Insumos v0.4 inyectables (tests); por defecto, los adapters reales.
+  padron?: PuertoPadronV04
+  altimetria?: PuertoAltimetriaV04
+  terreno?: PuertoTerrenoV04
 }): Promise<ResultadoJobCalcularRiesgo> {
+  const reglas: ReglasMotor = riesgoReglasMotor()
+  const modeloVersion = reglas === 'v0.4' ? MOTOR_VERSION : MOTOR_VERSION_V03
   const ahora = params?.ahora ?? new Date()
   const asOf = ahora.toISOString()
   const claveIdempotente = inicioDeBloqueUtc(ahora).toISOString()
@@ -244,8 +92,11 @@ export async function calcularYPublicarRiesgo(params?: {
   const { jobRunId, leaseOwner } = lease
   // Los puertos se envuelven una única vez por corrida: el cacheo debe vivir
   // todo el bucle (escuelas x horizontes) para eliminar las repeticiones, no
-  // reiniciarse por lote.
-  const puertos = crearPuertosConCache(params?.puertos ?? construirPuertosReales())
+  // reiniciarse por lote. Con reglas v0.4 los puertos reales necesitan los
+  // escenarios del río, así que se arman después de preparar sus insumos;
+  // el territorio (lista de CUEs) es el mismo en ambos casos.
+  const puertosBase = params?.puertos ?? construirPuertosReales({ reglas })
+  let puertos = crearPuertosConCache(puertosBase)
   const db = getDb()
 
   // `runId` se asigna recién después de insertar la fila 'preparando'. Se
@@ -285,16 +136,36 @@ export async function calcularYPublicarRiesgo(params?: {
       db.insert(infraRiskRun).values({
         id: idRun,
         periodoId: periodo.id,
-        modeloVersion: MOTOR_VERSION,
+        modeloVersion,
         iniciadoEn: asOf,
         publicadoEn: null,
         estado: 'preparando',
+        modo: 'operativo',
         cobertura: null,
         creadaEn: asOf,
       }),
     )
 
     const cueAnexos = await puertos.territorio.listarCuesConPerfil()
+
+    let v04: InsumosOperativoV04 | null = null
+    if (reglas === 'v0.4') {
+      v04 = await prepararInsumosOperativoV04({
+        cueAnexos,
+        asOf,
+        padron: params?.padron ?? crearAdapterPadronV04(),
+        altimetria: params?.altimetria ?? crearAdapterAltimetriaV04(),
+        terreno: params?.terreno ?? crearAdapterTerrenoV04(),
+      })
+      if (!params?.puertos) {
+        const { escenarios, referencias, maximosEscala } = v04.rio
+        puertos = crearPuertosConCache({
+          ...construirPuertosReales({ reglas: 'v0.4', escenariosSubida: escenarios }),
+          rioPrefectura: crearAdapterRioPrefectura({ reglas: 'v0.4', escenarios, referencias, maximosEscala }),
+        })
+      }
+    }
+    let conRioProbabilistico = 0
 
     const filasSnapshot: (typeof infraRiskSnapshot.$inferInsert)[] = []
     const filasFactor: (typeof infraRiskFactor.$inferInsert)[] = []
@@ -309,45 +180,22 @@ export async function calcularYPublicarRiesgo(params?: {
 
       for (const cueAnexo of lote) {
         for (const horizonte of HORIZONTES) {
-          const resultado = await calcularRiesgoEscuela({ cueAnexo, horizonte, asOf, puertos })
-          const snapshotId = randomUUID()
-
-          filasSnapshot.push({
-            id: snapshotId,
+          const detalle = v04 ? detalleV04(v04, cueAnexo, horizonte as HorizonteV04, asOf) : null
+          if (detalle?.rioProbabilistico) conRioProbabilistico += 1
+          const { resultado, snapshot, factores } = await calcularFilasEscuela({
             runId: idRun,
             cueAnexo,
-            horizonteHoras: horizonte,
-            evidenciaValida: resultado.evidenciaValida,
-            scoreRiesgo: resultado.scoreRiesgo,
-            nivelRiesgo: resultado.nivelRiesgo,
-            scoreAmenaza: resultado.scoreAmenaza,
-            nivelAmenaza: resultado.nivelAmenaza,
-            scoreVulnerabilidad: resultado.scoreVulnerabilidad,
-            confianza: resultado.confianza,
-            scoreRiesgoAcceso: resultado.riesgoAcceso.score,
-            nivelRiesgoAcceso: resultado.riesgoAcceso.nivel,
-            confianzaAcceso: resultado.riesgoAcceso.confianza,
-            exposicionMatricula: resultado.exposicion.matricula,
-            exposicionSecciones: resultado.exposicion.secciones,
-            calculadoEn: resultado.calculadoEn,
-            validoHasta: resultado.validoHasta,
+            horizonte,
+            asOf,
+            puertos,
+            ...(detalle && {
+              reglas: 'v0.4' as const,
+              rioProbabilistico: detalle.rioProbabilistico,
+              extraSnapshot: { resultadoV04: detalle.resultado as unknown as Record<string, unknown> },
+            }),
           })
-
-          for (const factor of resultado.factores) {
-            filasFactor.push({
-              id: randomUUID(),
-              snapshotId,
-              tipo: factor.tipo,
-              fuente: factor.fuente,
-              variable: factor.variable,
-              valor: factor.valor,
-              unidad: factor.unidad,
-              contribucion: factor.contribucion,
-              peso: factor.peso,
-              explicacion: factor.explicacion,
-              observadoEn: factor.observadoEn,
-            })
-          }
+          filasSnapshot.push(snapshot)
+          filasFactor.push(...factores)
 
           // Contadores por snapshot (una escuela cuenta una vez por horizonte),
           // no por escuela.
@@ -392,37 +240,37 @@ export async function calcularYPublicarRiesgo(params?: {
 
     // PUBLICACIÓN ATÓMICA POR RUN: los datos (snapshots/factores) ya estaban
     // escritos desde el bucle pero ETIQUETADOS a un run en 'preparando',
-    // invisible para cualquier lector que filtre por vigente. Esta transacción
-    // corta es la ÚNICA que cambia qué run es el vigente, y el índice único
+    // invisible para cualquier lector que filtre por vigente. El publicador
+    // explícito (publicar-run.ts) es el ÚNICO que cambia qué run es el
+    // vigente: valida modo y versión en servidor y corre la transacción corta
+    // (vencer el vigente anterior + publicar este run). El índice único
     // parcial infra_risk_run_vigente_unico (ver schema.ts) impone a nivel DB
-    // que nunca haya dos vigentes a la vez. Sólo estas 2 actualizaciones: los
-    // inserts masivos ya se hicieron fuera de la transacción. Reintento
-    // seguro ante SQLITE_BUSY: la transacción se revierte entera si falla a
-    // mitad de camino, y repetir las mismas 2 actualizaciones desde cero
-    // produce el mismo estado final (vencer el vigente anterior + publicar
-    // este run), sin duplicar ni saltear ninguna.
-    await conReintentoPorBloqueo(() =>
-      db.transaction(async (tx) => {
-        await tx
-          .update(infraRiskRun)
-          .set({ estado: 'vencido' })
-          .where(eq(infraRiskRun.estado, 'vigente'))
-        await tx
-          .update(infraRiskRun)
-          .set({
-            estado: 'vigente',
-            publicadoEn: new Date().toISOString(),
-            cobertura: { procesadas, conEvidencia, sinEvidencia },
-          })
-          .where(eq(infraRiskRun.id, idRun))
-      }),
-    )
+    // que nunca haya dos vigentes a la vez.
+    // Metadatos v0.4: insumos y degradación de la corrida (la cobertura
+    // conserva las 3 claves que lee el frontend). El rollback v0.3 no escribe
+    // metadatos, igual que motor-v0.3.
+    if (v04) {
+      const metadatos = metadatosOperativoV04(v04, { modeloVersion, asOf, conRioProbabilistico })
+      await conReintentoPorBloqueo(() => db.update(infraRiskRun).set({ metadatos }).where(eq(infraRiskRun.id, idRun)))
+    }
+
+    const publicacion = await publicarRunOperativo({
+      runId: idRun,
+      cobertura: { procesadas, conEvidencia, sinEvidencia },
+    })
+    // Este job siempre crea runs operativos de una versión operativa; un rechazo es un
+    // error de programación y se trata como falla (el catch marca 'fallido').
+    if (!publicacion.publicado) {
+      throw new Error(`calcular-riesgo: publicación rechazada (${publicacion.motivo})`)
+    }
 
     await publicarResultado({
       jobRunId,
       leaseOwner,
       estado: 'completado',
-      contadores: { procesadas, conEvidencia, sinEvidencia },
+      contadores: v04
+        ? { procesadas, conEvidencia, sinEvidencia, conRioProbabilistico, insumosDegradados: v04.degradacion.length }
+        : { procesadas, conEvidencia, sinEvidencia },
       ahora,
     })
 
@@ -452,5 +300,57 @@ export async function calcularYPublicarRiesgo(params?: {
       ahora,
     })
     throw error
+  }
+}
+
+// Resultado v0.4 de una escuela del universo operativo y su evidencia
+// probabilística (null ⇒ el cálculo usa el río de v0.3).
+function detalleV04(v04: InsumosOperativoV04, cueAnexo: string, horizonte: HorizonteV04, asOf: string) {
+  const escuela = v04.escuelas.get(cueAnexo) ?? { cueAnexo, motivoUbicacion: null }
+  const resultado = construirResultadoPendienteV04({
+    escuela,
+    horizonteHoras: horizonte,
+    asOf,
+    modo: 'operativo',
+    superacionTerreno: v04.rio.superacion.get(cueAnexo)?.[horizonte],
+  })
+  const rioProbabilistico = rioProbabilisticoDe(
+    resultado,
+    v04.rio.tendencias.get(cueAnexo)?.[horizonte] ?? null,
+    v04.rio.alcancesMargen.get(cueAnexo)?.[horizonte] ?? null,
+  )
+  return { resultado, rioProbabilistico }
+}
+
+function metadatosOperativoV04(
+  v04: InsumosOperativoV04,
+  ctx: { modeloVersion: string; asOf: string; conRioProbabilistico: number },
+): Record<string, unknown> {
+  const { terreno, escenarios, referencias, descartadasPorEstacion } = v04.rio
+  return {
+    modeloVersion: ctx.modeloVersion,
+    modo: 'operativo',
+    reglas: 'v0.4',
+    reglasVersion: REGLAS_V04_VERSION,
+    asOf: ctx.asOf,
+    configHash: hashCanonico(CONFIG_V04),
+    insumosHash: hashCanonico({
+      altimetriaVersion: v04.altimetria?.version ?? null,
+      catalogoA5Version: terreno?.catalogoVersion ?? null,
+      tramosVersion: terreno?.tramosVersion ?? null,
+      escenariosSubida: Object.fromEntries([...escenarios].map(([id, e]) => [id, e.porHorizonte])),
+      referenciasNivel: Object.fromEntries(referencias),
+      descartadasDepuracion: Object.fromEntries(descartadasPorEstacion),
+    }),
+    degradacion: v04.degradacion,
+    insumos: {
+      altimetriaVersion: v04.altimetria?.version ?? null,
+      catalogoA5Version: terreno?.catalogoVersion ?? null,
+      estacionesConSerie: terreno?.series.size ?? 0,
+      estacionesDesactualizadas: v04.estacionesDesactualizadas,
+      ultimaFechaSerie: terreno ? Object.fromEntries([...terreno.series].map(([id, f]) => [id, f.at(-1)?.fecha ?? null])) : null,
+      estacionesConEscenario: escenarios.size,
+      conRioProbabilistico: ctx.conRioProbabilistico,
+    },
   }
 }

@@ -252,7 +252,7 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
 
       {enlaceCreado && (
         <div style={{ marginBottom: '1rem' }}>
-          <p style={{ margin: '0 0 0.25rem', color: 'var(--ink-soft)', fontSize: '0.875rem' }}>
+          <p style={{ margin: '0 0 0.25rem', color: 'var(--ink-soft)', fontSize: 'var(--t-small)' }}>
             Enlace público (se muestra una sola vez; copialo ahora):
           </p>
           <div style={{ display: 'flex', gap: '0.5rem' }}>

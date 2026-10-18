@@ -8,6 +8,8 @@
 // `nombre` para la mayoría de los jobs (ver TIPO_JOB en cada job). `tipo: null`
 // marca un job que no escribe `infra_job_run` (no es verificable por esa vía).
 
+import { JOBS_OPEN_METEO, rolEntorno, type RolEntorno } from './providers/rol-entorno'
+
 export const TOLERANCIA_ATRASO_JOB = 2
 
 export type JobEsperado = {
@@ -19,26 +21,29 @@ export type JobEsperado = {
   habilitado: boolean
 }
 
-export const JOBS_ESPERADOS: readonly JobEsperado[] = [
-  { nombre: 'sync-radar-meteo', tipo: 'sync-radar-meteo', intervaloMinutos: 180, habilitado: true },
+export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
+  // Coolify `27 3,9,15,21 * * *`: alineado a la actualización de los modelos globales (6 h).
+  { nombre: 'sync-radar-meteo', tipo: 'sync-radar-meteo', intervaloMinutos: 360, habilitado: true },
   { nombre: 'sync-radar-ensemble', tipo: 'sync-radar-ensemble', intervaloMinutos: 360, habilitado: true },
   { nombre: 'sync-smn-alertas', tipo: 'sync-smn-alertas', intervaloMinutos: 15, habilitado: true },
   // verificar-radar-meteo no llama a adquirirLease: no escribe infra_job_run.
   { nombre: 'verificar-radar-meteo', tipo: null, intervaloMinutos: 1440, habilitado: true },
   // Coolify `*/30 * * * *`.
   { nombre: 'sync-imerg', tipo: 'sync-hazard-imerg', intervaloMinutos: 30, habilitado: true },
-  // Coolify `41 21-23 * * *` and `43 21-23 * * *`: three resumable attempts every day.
+  // Sin programar desde 2026-10-18 (docs/datos/cuota-open-meteo.md): la climatología de
+  // caudal ya está cargada y ERA5 se reemplaza por IMERG; ambos jobs quedan para reejecución
+  // manual.
   {
     nombre: 'climatologia-caudal',
     tipo: 'calcular-hazard-climatologia-caudal',
     intervaloMinutos: 1440,
-    habilitado: true,
+    habilitado: false,
   },
   {
     nombre: 'climatologia-precipitacion',
     tipo: 'calculo-climatologia',
     intervaloMinutos: 1440,
-    habilitado: true,
+    habilitado: false,
   },
   // Coolify Scheduled Task `20 4 * * *` (ver runbook-scheduler.md).
   {
@@ -50,6 +55,9 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
   // Running in production every 6 h (calcular-riesgo, sync-pronostico-caudal, sync-ensemble)
   // and hourly (situacion-corte), the cadences of their deploy/systemd/ops1 timers.
   { nombre: 'calcular-riesgo', tipo: 'calcular-riesgo-v0', intervaloMinutos: 360, habilitado: true },
+  // Desde T11 (docs/motor-v0.4/promocion.md) calcular-riesgo corre Motor v0.4;
+  // el job calcular-riesgo-v04-candidato queda sólo para corridas manuales de
+  // evaluación y no se espera ni se programa.
   {
     nombre: 'sync-pronostico-caudal',
     tipo: 'sync-hazard-pronostico-caudal',
@@ -85,4 +93,32 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     intervaloMinutos: 1440,
     habilitado: true,
   },
+  // Motor v0.4 (T2): importación manual del CSV de altimetría; no programada.
+  {
+    nombre: 'importar-altimetria-v04',
+    tipo: 'importar-altimetria-v04',
+    intervaloMinutos: 1440,
+    habilitado: false,
+  },
+  // Insumos de Motor v0.4 operativo (T11). Coolify `10 6 * * *` (serie diaria
+  // INA A5) y `50 1,7,13,19 * * *` (pronóstico INA 499/289, antes de
+  // calcular-riesgo). No escriben infra_job_run: su frescura se vigila por la
+  // salud de fuente (actualizarSaludFuente). INA no comparte cupo por IP, así
+  // que staging/dev (rol consumidor) también los corren en lugar de replicar
+  // hidro_serie_diaria / hidro_ina_*: no están en JOBS_OPEN_METEO.
+  { nombre: 'sync-ina-serie-diaria', tipo: null, intervaloMinutos: 1440, habilitado: true },
+  { nombre: 'sync-ina-pronostico', tipo: null, intervaloMinutos: 360, habilitado: true },
 ]
+
+// En staging/dev (rol consumidor) los productores Open-Meteo no corren: sus
+// datos llegan por réplica (docs/riesgo-om-replicacion.md). Se reportan como
+// `no_programado` en lugar de `sin_corridas`/`atrasado`.
+export function jobsEsperadosParaRol(rol: RolEntorno): readonly JobEsperado[] {
+  if (rol === 'productor') return JOBS_ESPERADOS_PRODUCTOR
+  return JOBS_ESPERADOS_PRODUCTOR.map((job) =>
+    JOBS_OPEN_METEO.includes(job.nombre) ? { ...job, habilitado: false } : job,
+  )
+}
+
+// Rol leído al cargar el módulo: el entorno del proceso no cambia en ejecución.
+export const JOBS_ESPERADOS: readonly JobEsperado[] = jobsEsperadosParaRol(rolEntorno())

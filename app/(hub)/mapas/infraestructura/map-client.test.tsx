@@ -94,12 +94,12 @@ afterEach(() => {
 })
 
 describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
-  it('muestra cuatro chips en línea y Más filtros con asistencia y switches', async () => {
+  it('muestra tres chips en línea y Más filtros con asistencia y switches', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     const principales = document.querySelector<HTMLElement>('.filtros-chips-principales')
     if (!principales) throw new Error('No se encontró el grupo de chips principales')
     expect(within(principales).getAllByRole('button').map((boton) => boton.textContent?.trim())).toEqual([
-      'Departamento', 'Nivel', 'Gravedad', 'Clases',
+      'Departamento', 'Gravedad', 'Clases',
     ])
 
     await userEvent.click(screen.getByRole('button', { name: 'Más filtros' }))
@@ -128,8 +128,8 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(pestaña.querySelector('.map-sitact__pill')).toHaveTextContent('2')
     expect(pestaña.querySelector('.map-sitact__pill')).toHaveClass('ui-tabs-tab__contador')
 
-    await userEvent.click(chipPrincipal('Nivel'))
-    await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
+    await userEvent.click(chipPrincipal('Departamento'))
+    await userEvent.click(screen.getByRole('checkbox', { name: /Goya/ }))
 
     const pestañaFiltrada = screen.getByRole('tab', { name: 'Situación actual, 1 escuela con situaciones abiertas' })
     expect(pestañaFiltrada.querySelector('.map-sitact__pill')).toHaveTextContent('1')
@@ -171,26 +171,26 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
   it('pasa los filtros activos a la sección de evolución', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
-    await userEvent.click(chipPrincipal('Nivel'))
-    await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
+    await userEvent.click(chipPrincipal('Departamento'))
+    await userEvent.click(screen.getByRole('checkbox', { name: /Goya/ }))
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
 
     expect(screen.getByTestId('mock-evolucion')).toHaveAttribute(
       'data-filtros',
-      expect.stringContaining('"niveles":["Primario"]'),
+      expect.stringContaining('"departamentos":["Goya"]'),
     )
   })
 
-  it('filtra las escuelas del mapa por nivel, conserva el mapa montado y permite limpiar', async () => {
+  it('filtra las escuelas del mapa por departamento, conserva el mapa montado y permite limpiar', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     const mapa = await screen.findByTestId('mock-mapa')
     expect(mapa).toHaveAttribute('data-escuelas', '4')
     expect(montajesMapa.total).toBe(1)
 
-    await userEvent.click(chipPrincipal('Nivel'))
-    await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
-    expect(mapa).toHaveAttribute('data-escuelas', '3')
-    expect(mapa).toHaveAttribute('data-cues', '180001-00,180003-00,1800087-00')
+    await userEvent.click(chipPrincipal('Departamento'))
+    await userEvent.click(screen.getByRole('checkbox', { name: /Goya/ }))
+    expect(mapa).toHaveAttribute('data-escuelas', '1')
+    expect(mapa).toHaveAttribute('data-cues', '180002-00')
     expect(montajesMapa.total).toBe(1)
 
     await userEvent.click(screen.getByRole('button', { name: 'Más filtros' }))
@@ -392,4 +392,78 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
       'true',
     )
   })
+
+  it('agrupa visualmente modos operativos, capas y vistas de referencia dentro del contenedor de pestañas', () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
+
+    const tablist = screen.getByRole('tablist', {
+      name: 'Modos y vistas del mapa de infraestructura',
+    })
+    expect(tablist).toBeInTheDocument()
+    expect(tablist.parentElement).toHaveAttribute('data-overflow')
+    expect(screen.getByRole('tab', { name: 'Capas' })).toHaveAttribute('data-cluster-start', 'true')
+    expect(screen.getByRole('tab', { name: 'Estadísticas' })).toHaveAttribute(
+      'data-cluster-start',
+      'true',
+    )
+    expect(screen.getByRole('tab', { name: 'Planificación' })).not.toHaveAttribute(
+      'data-cluster-start',
+    )
+  })
+
+  it('revealTab usa scrollTo smooth en modo normal y auto cuando prefers-reduced-motion: reduce está activo', async () => {
+    let reduceMotion = false
+    const matchMediaOriginal = window.matchMedia
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('prefers-reduced-motion: reduce') ? reduceMotion : false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+
+    try {
+      render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+      const tablist = screen.getByRole('tablist', {
+        name: 'Modos y vistas del mapa de infraestructura',
+      })
+      const scrollToSpy = vi.fn()
+      tablist.scrollTo = scrollToSpy
+      Object.defineProperty(tablist, 'clientWidth', { value: 180, configurable: true })
+      Object.defineProperty(tablist, 'scrollLeft', { value: 0, configurable: true })
+
+      const tabMetodologia = screen.getByRole('tab', { name: 'Metodología' })
+      Object.defineProperty(tabMetodologia, 'offsetLeft', { value: 320, configurable: true })
+      Object.defineProperty(tabMetodologia, 'offsetWidth', { value: 110, configurable: true })
+
+      // Modo normal: behavior 'smooth'
+      reduceMotion = false
+      await userEvent.click(tabMetodologia)
+      expect(scrollToSpy).toHaveBeenLastCalledWith({ left: 270, behavior: 'smooth' })
+
+      // Modo movimiento reducido: behavior 'auto'
+      scrollToSpy.mockClear()
+      reduceMotion = true
+      const tabEstadisticas = screen.getByRole('tab', { name: 'Estadísticas' })
+      Object.defineProperty(tabEstadisticas, 'offsetLeft', { value: 220, configurable: true })
+      Object.defineProperty(tabEstadisticas, 'offsetWidth', { value: 100, configurable: true })
+      await userEvent.click(tabEstadisticas)
+      expect(scrollToSpy).toHaveBeenLastCalledWith({ left: 160, behavior: 'auto' })
+    } finally {
+      window.matchMedia = matchMediaOriginal
+    }
+  })
+
+  it('selecciona automáticamente la escuela indicada en ?cue= al montar o retornar al mapa (incluyendo escuelas sin ubicación)', () => {
+    window.history.pushState({}, '', '/mapas/infraestructura?cue=180004-00&origen=mapa')
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+
+    expect(registroSeleccion.escuelasSeleccionadas).toHaveLength(1)
+    expect(registroSeleccion.escuelasSeleccionadas[0].cueAnexo).toBe('180004-00')
+    expect(registroSeleccion.escuelasSeleccionadas[0].lat).toBeNull()
+  })
 })
+

@@ -7,14 +7,12 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type RefObject,
 } from 'react'
 import MapGL, {
   AttributionControl,
   Layer,
   Marker,
-  NavigationControl,
   Popup,
   Source,
   type MapLayerMouseEvent,
@@ -29,8 +27,8 @@ import type {
   MapGeoJSONFeature,
   SymbolLayerSpecification,
 } from 'maplibre-gl'
-import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson'
-import type { Map as MapLibreMap, PaddingOptions } from 'maplibre-gl'
+import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
+import type { PaddingOptions } from 'maplibre-gl'
 import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 // V8: MapLibre trae sus cadenas de UI (tooltips de controles, aria-labels) en
 // inglés por defecto. `locale` acepta la tabla `{ clave: texto }` de
@@ -47,13 +45,7 @@ const LOCALE_MAPLIBRE_ES: Record<string, string> = {
   'Popup.Close': 'Cerrar',
 }
 import {
-  BookMinus,
-  BookX,
-  Clock,
-  DoorOpen,
-  House,
   MapPin,
-  type LucideIcon,
 } from 'lucide-react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
@@ -67,6 +59,9 @@ import { Button } from '@/components/ui/button'
 import { VeredictoModal } from '@/components/veredicto/veredicto-modal'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
+import { ControlesZoom } from '@/components/mapas/controles-zoom'
+import { bboxGeometria } from '@/lib/mapas/geo'
+import { aquietarBasemap } from '@/lib/mapas/basemap-sereno'
 import { horaActualizacion, PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
 import { PanelRadar } from '@/components/mapas/panel-radar'
 import { PanelPlanificacion } from '@/components/mapas/panel-planificacion'
@@ -76,20 +71,26 @@ import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
+  construirUrlFichaEscuela,
+  guardarSnapshotRetornoMapa,
+  type EstadoCamaraMapa,
+} from '@/lib/infraestructura/mapa/estado-retorno'
+import {
   type CapaAccesos,
   type CapaRadar,
 } from '@/components/mapas/layer-control'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import { CAPA_ESTACIONES_RIO_ID, CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
-import { SeccionEventosReportados } from '@/components/mapas/seccion-eventos-reportados'
 import { CAPA_EVENTOS_REPORTADOS_ID, CapaEventosReportados, type ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
-import { CapaLluviaObservada, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
+import { CapaLluviaObservada, ID_CAPA_LLUVIA_HIT, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
+import { TarjetaCruceAgua } from '@/components/mapas/tarjeta-cruce-agua'
 import {
   CapasAccesosTerritoriales,
   CAPA_CRUCES_ACCESO_ID,
   bboxRuta,
 } from '@/components/mapas/capas-accesos'
 import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
+import { PronosticoEscuelaBloque } from '@/components/mapas/radar-meteo/escuela-card'
 import type { VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
 import { agruparAlertas } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
 import { useResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
@@ -113,9 +114,9 @@ import {
 import {
   construirCrucesAcceso,
   construirRutaAcceso,
+  construirEdificioEscuela,
   ETIQUETAS_CRUCE,
-  DESCRIPCIONES_CRUCE,
-  ICONOS_ACCESOS_MAPA,
+  iconosAccesosMapa,
   claseInundacion,
   type ClasificacionCruce,
 } from '@/lib/mapas/accesos-capas'
@@ -136,13 +137,11 @@ import { filtrarDepartamentoMapa, indicadoresDePartes } from '@/lib/infraestruct
 import { useTotalesMapa } from '@/lib/infraestructura/use-totales-mapa'
 import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
 import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
-import { construirEscuelasMapaFeatureCollection } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
+import { COLOR_SIN_AFECTACION, construirEscuelasMapaFeatureCollection } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import {
   circlePaintEscuelasSinReporte,
-  colorBordeSinReporte,
-  colorEscuelaSinReporte,
   iconoPunto,
   radioEscuelaSinReporte,
   radioPunto,
@@ -163,7 +162,9 @@ import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-pu
 import { mantenerPopupsVisibles } from '@/components/mapas/popups-visibles'
 import { puntosRiesgoSobreSituacion, soloConDatoOJuntoLaguna } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
-  ICONOS_CLUSTER_MAPA,
+  iconosClusterMapa,
+  idImagenBadgeEstado,
+  OFFSET_BADGE_ESQUINA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
   ID_IMAGEN_CLUSTER_EVACUADO,
   ID_IMAGEN_ESCUELA_ALTA,
@@ -172,8 +173,10 @@ import {
   ID_IMAGEN_ESCUELA_MEDIA,
   ID_IMAGEN_ESCUELA_SOLUCIONADA,
 } from '@/lib/mapas/iconos-mapa'
+import { COLORES_MAPA_CLARO, coloresMapa } from '@/lib/mapas/colores-mapa'
+import { registrarImagenesSvg } from '@/lib/mapas/insignias-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
+import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
 ensureMapWorker()
 
@@ -187,6 +190,7 @@ const CAPA_PARTES_ID = 'infra-partes'
 // Los clusters de supercluster tienen ids propios para distinguir el click
 // de un agregado del click de una escuela.
 const CAPA_PARTES_CLUSTER_ID = 'infra-partes-cluster'
+const CAPA_PARTES_CLUSTER_HALO_ID = 'infra-partes-cluster-halo'
 const CAPA_PARTES_CLUSTER_COUNT_ID = 'infra-partes-cluster-count'
 
 // Umbral de clustering: sólo `clusterMaxZoom` de la fuente de escuelas — el
@@ -194,20 +198,23 @@ const CAPA_PARTES_CLUSTER_COUNT_ID = 'infra-partes-cluster-count'
 // escuela ni el ícono de evacuación del cluster dependen de este umbral:
 // derivan su visibilidad del estado de clustering REAL del mapa (ver
 // `cuesNoAgrupados` y los agregados de clusterProperties).
-const CAPA_PARTES_CLUSTER_MAX_ZOOM = 11
+// T4: split earlier (zoom 10) so a couple of clicks reach individual schools.
+const CAPA_PARTES_CLUSTER_MAX_ZOOM = 10
+const RADIO_AGRUPAMIENTO_CLUSTER = 32
 
 // V2: badge de estado por escuela individual. Un único ícono Lucide
 // superpuesto al punto de color reemplaza a los anillos/halos apilados que
 // codificaban servicio (grosor/opacidad) y "sin actualizar" (halo gris), y a
-// las formas CSS de evacuación. Se resuelve con <Marker> DOM (no capa
-// MapLibre) y sólo se dibuja sobre escuelas NO agrupadas (`cuesNoAgrupados`),
+// las formas CSS de evacuación. Es una capa `symbol` con el mismo rasterizado
+// y offset que el badge del cluster, y sólo se dibuja sobre escuelas NO
+// agrupadas (`cuesNoAgrupados`),
 // igual que antes hacían los marcadores de evacuación. El ícono comunica QUÉ
 // pasa; el color del punto sigue comunicando CUÁN grave es (nunca una
 // segunda escala de color). Prioridad (una sola por escuela) en
 // `iconoEstadoEscuela` (lib/mapas/severidad-visual.ts).
 const CAPA_BADGE_ESTADO_ID = 'infra-badge-estado'
+const FUENTE_BADGE_ESTADO_ID = 'infra-badge-estado-src'
 const TAMANO_BADGE_ESTADO = 18
-const ICONO_BADGE_ESTADO_TAMANO = 12
 
 // V2: íconos a nivel cluster. A zoom bajo no hay espacio para un badge por
 // escuela, así que el agregado `esCentroEvacuados`/`esEvacuado` de
@@ -226,12 +233,20 @@ const CAPA_CLUSTER_EVACUADO_ID = 'infra-cluster-evacuado'
 // círculo de 6 px el click sobre una escuela del padrón casi siempre perdía
 // contra el polígono del departamento de abajo.
 const CAPA_PARTES_ESCUELA_ICONO_ID = 'infra-partes-escuela-icono'
+// Affected-school clusters stay above river station pins so their counts read.
+const CAPAS_SOBRE_ESTACIONES = [
+  CAPA_PARTES_CLUSTER_HALO_ID,
+  CAPA_PARTES_CLUSTER_ID,
+  CAPA_PARTES_CLUSTER_COUNT_ID,
+  CAPA_CLUSTER_CENTRO_EVACUADOS_ID,
+  CAPA_CLUSTER_EVACUADO_ID,
+] as const
 const CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID = 'infra-partes-escuela-solucionada-icono'
 
 // Color de foco/realce de la escuela seleccionada: mismo valor que el token
 // `--marker` (= `--yellow`, globals.css) que el hub usa para selección/foco.
 // MapLibre no resuelve var() en el paint, así que se repite el literal.
-const COLOR_FOCO_SELECCION = '#facd05'
+const COLOR_FOCO_SELECCION = COLORES_MAPA_CLARO.foco
 
 // Límites departamentales. Se declaran antes que la capa de partes en el
 // árbol de MapGL para que queden por debajo: son contexto geográfico, no el
@@ -341,9 +356,9 @@ const CAPA_DEPARTAMENTO_HOVER_BORDE_ID = 'infra-departamento-hover-borde'
 function layoutIconoCluster(icono: string): SymbolLayerSpecification['layout'] {
   return {
     'icon-image': icono,
-    'icon-size': 0.8,
+    'icon-size': 1,
     'icon-anchor': 'center',
-    'icon-offset': [13, -13],
+    'icon-offset': expresionOffsetBadgeCluster(),
     'icon-allow-overlap': true,
     'icon-ignore-placement': true,
   }
@@ -366,16 +381,16 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
 // punto neutro menor que crece suavemente con el zoom. Los clusters sin
 // reportes también son menores que los que contienen escuelas afectadas.
 
-// Color NEUTRO compartido por el borde del punto y los íconos del badge (el
-// color de severidad ya está tomado por el relleno; reusarlo para el estado
-// sería una segunda escala). El borde es un trazo mínimo fijo que separa el
-// punto del fondo, ya no codifica el servicio.
-const ANILLO_COLOR = '#1c1c1c'
+// Color NEUTRO del borde del punto y del badge (el color de severidad ya está
+// tomado por el relleno; reusarlo para el estado sería una segunda escala). El
+// borde es un trazo mínimo que separa el punto del fondo: tinta oscura en el
+// tema claro y clara en el oscuro, donde `#1c1c1c` se perdía sobre el basemap.
+const anilloColor = (oscuro = false) => coloresMapa(oscuro).tinta
 
 // Los clusters afectados usan la gravedad más alta presente. Un cluster que
-// contiene sólo escuelas sin reporte usa el fondo y el borde neutros del tema.
+// contiene sólo escuelas sin reporte es un disco suave y chico que retrocede.
 export function colorPorSeveridadRango(oscuro = false): ExpressionSpecification {
-  const colorFondo = oscuro ? '#000000' : '#ffffff' // `--page` en globals.css; MapLibre no resuelve var().
+  const colorFondo = coloresMapa(oscuro).clusterNeutro
   const expresion: ExpressionSpecification = [
     'case', ['==', ['get', 'escuelasAfectadas'], 0], colorFondo, colorSeveridad(SEVERIDADES[0]),
   ]
@@ -386,16 +401,22 @@ export function colorPorSeveridadRango(oscuro = false): ExpressionSpecification 
 }
 
 // El radio del cluster sube por tramos con la cantidad de escuelas.
-export const RADIO_CLUSTER_MENOR = 16
-export const RADIO_CLUSTER_MEDIO = 22
-export const RADIO_CLUSTER_MAYOR = 28
+export const RADIO_CLUSTER_MENOR = 15
+export const RADIO_CLUSTER_MEDIO = 19
+export const RADIO_CLUSTER_MAYOR = 23
 
 export function expresionRadioCluster(): ExpressionSpecification {
   return ['step', ['get', 'point_count'], RADIO_CLUSTER_MENOR, 10, RADIO_CLUSTER_MEDIO, 50, RADIO_CLUSTER_MAYOR]
 }
 
 export function expresionRadioClusterSinReporte(): ExpressionSpecification {
-  return ['step', ['get', 'point_count'], 10, 10, 12, 50, 14]
+  return ['step', ['get', 'point_count'], 9, 10, 11, 50, 13]
+}
+
+// Badge de evacuación en la esquina superior derecha del cluster: el offset
+// sigue al radio para que el badge quede sobre el borde y no tape el número.
+export function expresionOffsetBadgeCluster(): ExpressionSpecification {
+  return ['step', ['get', 'point_count'], ['literal', [12, -12]], 10, ['literal', [15, -15]], 50, ['literal', [18, -18]]]
 }
 
 export function circlePaintPartes(oscuro = false): CircleLayerSpecification['paint'] {
@@ -417,25 +438,38 @@ export function circlePaintPartes(oscuro = false): CircleLayerSpecification['pai
     ],
     'circle-color': [
       'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
-      colorEscuelaSinReporte(oscuro), ['get', 'color'],
+      coloresMapa(oscuro).clusterNeutro, ['get', 'color'],
     ],
     'circle-opacity': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1, 0.9],
     'circle-stroke-color': [
       'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
-      colorBordeSinReporte(oscuro), ANILLO_COLOR,
+      coloresMapa(oscuro).halo, anilloColor(oscuro),
     ],
     'circle-stroke-width': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1.5, 1],
   }
 }
 
+// Neutral clusters: soft fill, no ring. Affected clusters: severity fill with
+// a white rim that lifts them off the basemap.
 export function circlePaintCluster(oscuro = false): CircleLayerSpecification['paint'] {
   return {
     'circle-color': colorPorSeveridadRango(oscuro),
     'circle-radius': [
       'case', ['==', ['get', 'escuelasAfectadas'], 0], expresionRadioClusterSinReporte(), expresionRadioCluster(),
     ],
-    'circle-stroke-color': ['case', ['==', ['get', 'escuelasAfectadas'], 0], colorBordeSinReporte(oscuro), ANILLO_COLOR],
-    'circle-stroke-width': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 1.5, 1],
+    'circle-stroke-color': coloresMapa(oscuro).halo,
+    'circle-stroke-width': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 0, 2],
+  }
+}
+
+// Halo del cluster: sólo los afectados llevan un anillo difuso de su propio
+// color de severidad; los neutros no tienen halo y retroceden.
+export function circlePaintHaloCluster(oscuro = false): CircleLayerSpecification['paint'] {
+  return {
+    'circle-color': colorPorSeveridadRango(oscuro),
+    'circle-radius': ['+', expresionRadioCluster(), 7],
+    'circle-opacity': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 0, 0.22],
+    'circle-blur': 0.5,
   }
 }
 
@@ -444,8 +478,7 @@ export function expresionConteoCluster(): ExpressionSpecification {
 }
 
 export function colorTextoCluster(oscuro = false): ExpressionSpecification {
-  // `--ink-soft` en globals.css; MapLibre no resuelve var().
-  return ['case', ['==', ['get', 'escuelasAfectadas'], 0], oscuro ? '#c9c6c3' : '#5f5e5c', ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff']
+  return ['case', ['==', ['get', 'escuelasAfectadas'], 0], coloresMapa(oscuro).clusterNeutroTexto, ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff']
 }
 
 export function filtroIconoEscuelaAfectada(): FilterSpecification {
@@ -454,15 +487,6 @@ export function filtroIconoEscuelaAfectada(): FilterSpecification {
 
 export function filtroIconoEscuelaSolucionada(): FilterSpecification {
   return ['all', ['!', ['has', 'point_count']], ['==', ['get', 'solucionadaReciente'], true]]
-}
-
-// Componente Lucide por nombre lógico devuelto por la función pura `iconoPunto`.
-const ICONOS_BADGE_ESTADO: Record<IconoPunto, LucideIcon> = {
-  sin: BookX,
-  parcial: BookMinus,
-  evacuado: DoorOpen,
-  centro: House,
-  reloj: Clock,
 }
 
 // Texto accesible de cada badge, sin depender de una segunda escala de color.
@@ -477,56 +501,19 @@ const ETIQUETA_ICONO_ESTADO: Record<IconoPunto, string> = {
 // Popup del cruce de agua clickeado: misma forma (anclado al `lngLat` del
 // evento) que el del departamento. Guarda la CLASE del cruce, no su texto: la
 // etiqueta sale de `ETIQUETAS_CRUCE`, la única fuente de verdad del dominio.
-type InfoCruceClic = { lng: number; lat: number; clasificacion: ClasificacionCruce }
+type InfoCruceClic = {
+  lng: number
+  lat: number
+  clasificacion: ClasificacionCruce
+  // Position in the route's `cruces` (set by `construirCrucesAcceso`); null if absent.
+  indice: number | null
+  nombreCurso: string | null
+  nombrePuente: string | null
+  // IMERG cell under the crossing when the observed-rain layer is on.
+  lluvia: { mm: number; horas: HorasLluvia } | null
+}
 
-// El departamento no tiene marcador debajo, así que el popup se conforma con
-// un offset vertical mínimo para no tapar el punto clickeado.
-const OFFSET_VUELO_EVENTO: [number, number] = [140, 160]
 const OFFSET_POPUP_DEPARTAMENTO: [number, number] = [0, -12]
-const PROPS_POPUP_INFO = {
-  closeButton: false,
-  closeOnClick: false,
-  offset: OFFSET_POPUP_DEPARTAMENTO,
-  className: 'mapa-tooltip mapa-tooltip-departamento',
-}
-
-// Badge: círculo claro detrás del ícono para que se lea sobre cualquier color
-// de severidad (incluida Crítica, rojo oscuro). Sólo decorativo: el evento
-// apunta al punto del mapa, no al badge.
-function estiloBadgeEstado(): CSSProperties {
-  return {
-    width: TAMANO_BADGE_ESTADO,
-    height: TAMANO_BADGE_ESTADO,
-    borderRadius: '50%',
-    background: 'rgba(255, 255, 255, 0.95)',
-    border: `1px solid ${ANILLO_COLOR}`,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    pointerEvents: 'none',
-    boxShadow: '0 0 0 1px rgba(28, 28, 28, 0.15)',
-  }
-}
-
-// Carga un SVG standalone como imagen de MapLibre. `map.addImage` necesita un
-// HTMLImageElement ya decodificado, así que se espera a `onload` antes de
-// registrarlo. Silencioso ante error: el peor caso es que no aparezca el
-// ícono del cluster, nunca que se rompa el mapa.
-function cargarIconoEnMapa(mapa: MapLibreMap, id: string, svg: string): Promise<void> {
-  return new Promise((resolve) => {
-    const imagen = new Image()
-    imagen.onload = () => {
-      try {
-        if (!mapa.hasImage(id)) mapa.addImage(id, imagen)
-      } catch {
-        // Ícono ya registrado o estilo no listo: se ignora.
-      }
-      resolve()
-    }
-    imagen.onerror = () => resolve()
-    imagen.src = `data:image/svg+xml;base64,${btoa(svg)}`
-  })
-}
 
 // Las capas territoriales adicionales arrancan apagadas. La ruta de acceso
 // aparece automáticamente al seleccionar una escuela.
@@ -562,14 +549,21 @@ export function paddingEncuadre(): PaddingOptions {
   const ancho = window.innerWidth
   const alto = window.innerHeight
 
-  let top = PADDING_ENCUADRE_BASE
-  let bottom = PADDING_ENCUADRE_BASE
-  let left = PADDING_ENCUADRE_BASE + (ancho > 720 ? ANCHO_COLUMNA_IZQUIERDA : 0)
-  let right = PADDING_ENCUADRE_BASE + (ancho > 720 ? 296 : 0)
+  const top = PADDING_ENCUADRE_BASE
+  const bottom = PADDING_ENCUADRE_BASE
+  const left = PADDING_ENCUADRE_BASE + (ancho > 720 ? ANCHO_COLUMNA_IZQUIERDA : 0)
+  const right = PADDING_ENCUADRE_BASE + (ancho > 720 ? 296 : 0)
 
-  // Recorte proporcional: si el padding se come más del 80% de la ventana no
-  // queda caja para el bbox y MapLibre tira. Se achica el par culpable (el
-  // horizontal o el vertical) en la misma proporción, no a pelo.
+  return recortarPadding({ top, bottom, left, right }, ancho, alto)
+}
+
+/**
+ * Recorte proporcional: si el padding se come más del 80% de la ventana no
+ * queda caja para el bbox y MapLibre tira. Se achica el par culpable (el
+ * horizontal o el vertical) en la misma proporción, no a pelo.
+ */
+function recortarPadding(padding: { top: number; bottom: number; left: number; right: number }, ancho: number, alto: number): PaddingOptions {
+  let { top, bottom, left, right } = padding
   const topeAncho = ancho * MAX_PADDING_ANCHO
   if (left + right > topeAncho) {
     const factor = topeAncho / (left + right)
@@ -582,8 +576,35 @@ export function paddingEncuadre(): PaddingOptions {
     top = Math.round(top * factor)
     bottom = Math.round(bottom * factor)
   }
-
   return { top, bottom, left, right }
+}
+
+// Encuadre de la provincia (inicial, "Ver provincia" y salida de un departamento).
+// En escritorio (>720 px) la columna "Situación actual" ocupa hasta x≈440, la
+// leyenda (desde 1280 px, abierta) hasta 360 px del borde derecho y la barra de
+// filtros cubre ~60 px arriba. Sin ese margen las estaciones de los bordes
+// quedaban tapadas.
+const PADDING_PROVINCIA_BASE = 24
+const PADDING_PROVINCIA_TOP = 80
+const PADDING_PROVINCIA_IZQUIERDA = 456
+const PADDING_PROVINCIA_DERECHA = 360
+
+/** Padding de `fitBounds` para la provincia completa, esquivando los paneles flotantes. */
+export function paddingProvincia(): PaddingOptions {
+  if (typeof window === 'undefined') return { top: PADDING_PROVINCIA_BASE, bottom: PADDING_PROVINCIA_BASE, left: PADDING_PROVINCIA_BASE, right: PADDING_PROVINCIA_BASE }
+  const ancho = window.innerWidth
+  const alto = window.innerHeight
+  if (ancho <= 720) return { top: PADDING_PROVINCIA_BASE, bottom: PADDING_PROVINCIA_BASE, left: PADDING_PROVINCIA_BASE, right: PADDING_PROVINCIA_BASE }
+  return recortarPadding(
+    {
+      top: PADDING_PROVINCIA_TOP,
+      bottom: PADDING_PROVINCIA_BASE,
+      left: PADDING_PROVINCIA_IZQUIERDA,
+      right: ancho >= 1280 ? PADDING_PROVINCIA_DERECHA : PADDING_PROVINCIA_BASE,
+    },
+    ancho,
+    alto,
+  )
 }
 
 function extraerEscuelasConCoordenadas(escuelas: EscuelaMapaPadron[]) {
@@ -612,9 +633,12 @@ export default function MapInfraestructuraPage(props: {
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
   visible?: boolean
-  onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
+  onRegistrarSeleccion?: (
+    fn: ((escuela: EscuelaMapaPadron, opciones?: { conservarCamara?: boolean }) => void) | null
+  ) => void
   // Element that fullscreen should cover (tabs, filters and map). Defaults to the map shell.
   contenedorPantallaCompleta?: RefObject<HTMLElement | null>
+  filtrosActivos?: FiltrosMapa
 }) {
   const panel = props.panel ?? props.pestana
   const panelLateral = panel === 'radar' && !(props.riskRadarEnabled ?? false) ? 'actual' : panel
@@ -638,17 +662,9 @@ export default function MapInfraestructuraPage(props: {
   }, [capasVisibles])
   const [horasLluvia, setHorasLluvia] = useState<HorasLluvia>(72)
   const [metaLluvia, setMetaLluvia] = useState<MetaLluviaObservada | null>(null)
-  const [resumenEventos, setResumenEventos] = useState<ResumenEventosReportados | null>(null)
+  const [, setResumenEventos] = useState<ResumenEventosReportados | null>(null)
   const [eventoSeleccionado, setEventoSeleccionado] = useState<string | null>(null)
-  const [eventoResaltado, setEventoResaltado] = useState<string | null>(null)
-  // Land the event right of the side panel and low enough that its popup (anchored
-  // at the bottom, up to ~320 px tall) fits under the tab bar.
-  const seleccionarEvento = useCallback((id: string) => {
-    const item = resumenEventos?.eventos.find((evento) => evento.id === id)
-    if (!item || item.lon === null || item.lat === null) return
-    mapRef.current?.getMap()?.flyTo({ center: [item.lon, item.lat], zoom: Math.max(mapRef.current.getZoom(), 9), offset: OFFSET_VUELO_EVENTO, duration: 800 })
-    setEventoSeleccionado(id)
-  }, [resumenEventos])
+  const [eventoResaltado] = useState<string | null>(null)
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
@@ -677,7 +693,6 @@ export default function MapInfraestructuraPage(props: {
   const cerrarFicha = useCallback(() => {
     setFichaCerradaCue(seleccionCue)
   }, [seleccionCue])
-  const [clusterInfoClic, setClusterInfoClic] = useState<MapGeoJSONFeature | null>(null)
   // Clasificación de un CRUCE DE AGUA clickeado sobre la ruta (puente, vado
   // o sin evidencia). Es un popup informativo propio, no una selección: el
   // ícono es más chico que el punto de la escuela y antes el click se lo
@@ -782,7 +797,6 @@ export default function MapInfraestructuraPage(props: {
         map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
       }
     }
-    setClusterInfoClic(null)
     setCruceInfoClic(null)
   }, [modoRadar, props.pestana, props.riskRadarEnabled])
   // "Escuelas en riesgo hoy" outside Radar reuses the same engine snapshot.
@@ -897,18 +911,16 @@ export default function MapInfraestructuraPage(props: {
     [mostrarRiesgoSituacion, dataEscuelasMapaVisible, territorio],
   )
 
-  // Cierre con Esc de los popups de cruce y cluster abiertos por clic. Un solo
-  // listener vive mientras alguno está abierto.
+  // Cierre con Esc del popup de cruce abierto por clic.
   useEffect(() => {
-    if (!clusterInfoClic && !cruceInfoClic) return
+    if (!cruceInfoClic) return
     const alPresionarTecla = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      setClusterInfoClic(null)
-      setCruceInfoClic(null)
+        setCruceInfoClic(null)
     }
     window.addEventListener('keydown', alPresionarTecla)
     return () => window.removeEventListener('keydown', alPresionarTecla)
-  }, [clusterInfoClic, cruceInfoClic])
+  }, [cruceInfoClic])
 
   const datosAlertasFiltrados = useMemo(() => {
     if (!data || !props.escuelasMapa) return data
@@ -963,6 +975,14 @@ export default function MapInfraestructuraPage(props: {
     cuesNoAgrupados,
     dataEscuelasMapaVisible,
   ])
+  const fuenteBadgesEstado = useMemo<FeatureCollection<Point, { imagen: string }>>(() => ({
+    type: 'FeatureCollection',
+    features: badgesEstado.map((badge) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [badge.lng, badge.lat] },
+      properties: { imagen: idImagenBadgeEstado(badge.icono) },
+    })),
+  }), [badgesEstado])
 
   const badgesBorradores = useMemo(() => {
     if (cuesNoAgrupados === null || ocultarPartes) return []
@@ -1139,6 +1159,9 @@ export default function MapInfraestructuraPage(props: {
   // filtro CSS que invertía todo el canvas (ver comentario en globals.css).
   const mapStyle = radarActivo || mode === 'dark' ? 'https://tiles.openfreemap.org/styles/dark' : BASEMAPS[basemap].styleUrl
   const mapStyleRef = useRef(mapStyle)
+  // El borde de los íconos depende del tema; los handlers de `style.load` se
+  // registran una sola vez, así que leen el tema vigente desde un ref.
+  const oscuroRef = useRef(mode === 'dark')
   useEffect(() => {
     mapStyleRef.current = mapStyle
   }, [mapStyle])
@@ -1150,11 +1173,115 @@ export default function MapInfraestructuraPage(props: {
   const escuelasPorCue = useMemo(() => {
     const index = new Map<string, EscuelaMapaPadron>()
     for (const escuela of dataEscuelasMapa?.escuelas ?? []) index.set(escuela.cueAnexo, escuela)
+    for (const sinUb of dataEscuelasMapa?.sinUbicacion ?? []) {
+      if (!index.has(sinUb.cueAnexo)) {
+        index.set(sinUb.cueAnexo, {
+          cueAnexo: sinUb.cueAnexo,
+          nombre: sinUb.nombre,
+          departamento: sinUb.departamento,
+          localidad: sinUb.localidad,
+          lat: null,
+          lon: null,
+          estado: 'sin_afectacion_reportada',
+          niveles: [],
+          alumnos: 0,
+          gravedad: 0,
+          categoriaPrincipal: null,
+          clases: 'normal',
+          apoyo: null,
+          sinActualizar: false,
+          ultimaNovedad: null,
+          alumnosSinClases: 0,
+          situacionesHistoricas: 0,
+          solucionadasRecientes: 0,
+        })
+      }
+    }
     return index
   }, [dataEscuelasMapa])
 
   const escuelaSeleccionada = seleccionCue ? (escuelasPorCue.get(seleccionCue) ?? null) : null
   const parteSeleccionado = seleccionCue ? (partesPorCue.get(seleccionCue) ?? null) : null
+
+  const quitarSeleccion = useCallback(() => {
+    setSeleccionCue(null)
+    setEscuelaResaltada(null)
+    setFichaCerradaCue(null)
+    setFichaPestana(null)
+    setAvisoBusqueda(null)
+    setCruceInfoClic(null)
+  }, [])
+
+  const urlFichaCompleta = useMemo(() => {
+    if (!escuelaSeleccionada) return undefined
+    const filtros = props.filtrosActivos ?? FILTROS_MAPA_VACIOS
+    const filtrosConDepto: FiltrosMapa =
+      departamentoSeleccionado && !filtros.departamentos.includes(departamentoSeleccionado)
+        ? { ...filtros, departamentos: [...filtros.departamentos, departamentoSeleccionado] }
+        : filtros
+    return construirUrlFichaEscuela(escuelaSeleccionada.cueAnexo, {
+      tab: panelLateral,
+      filtros: filtrosConDepto,
+      horizonte: horizonteEfectivo,
+      variable: variableRadar,
+      vista: vistaPlanificacion,
+      desdeMapa: true,
+    })
+  }, [
+    escuelaSeleccionada,
+    panelLateral,
+    props.filtrosActivos,
+    departamentoSeleccionado,
+    horizonteEfectivo,
+    variableRadar,
+    vistaPlanificacion,
+  ])
+
+  const guardarSnapshotAlAbrirFicha = useCallback(() => {
+    if (!escuelaSeleccionada) return
+    const map = mapRef.current?.getMap()
+    let camara: EstadoCamaraMapa | null = null
+    if (map && typeof map.getCenter === 'function') {
+      const c = map.getCenter()
+      camara = {
+        lng: c.lng,
+        lat: c.lat,
+        zoom: typeof map.getZoom === 'function' ? map.getZoom() : 10,
+        bearing: typeof map.getBearing === 'function' ? map.getBearing() : 0,
+        pitch: typeof map.getPitch === 'function' ? map.getPitch() : 0,
+      }
+    }
+    guardarSnapshotRetornoMapa({
+      version: 1,
+      origen: 'mapa',
+      tab: panelLateral,
+      ultimaPestanaMapa: panelLateral,
+      filtros: props.filtrosActivos ?? FILTROS_MAPA_VACIOS,
+      seleccionCue: escuelaSeleccionada.cueAnexo,
+      previewAbierto: true,
+      camara,
+      basemap,
+      capasVisibles,
+      horasLluvia,
+      horizonteSeleccionado: horizonteEfectivo,
+      variableRadar,
+      vistaPlanificacion,
+      departamentoSeleccionado,
+      departamentoRadarId,
+    })
+  }, [
+    escuelaSeleccionada,
+    panelLateral,
+    props.filtrosActivos,
+    basemap,
+    capasVisibles,
+    horasLluvia,
+    horizonteEfectivo,
+    variableRadar,
+    vistaPlanificacion,
+    departamentoSeleccionado,
+    departamentoRadarId,
+  ])
 
   // ── Accesos territoriales (T5c2) ─────────────────────────────────────────
   //
@@ -1183,6 +1310,17 @@ export default function MapInfraestructuraPage(props: {
 
   const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
   const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
+  // La huella del edificio toma el mismo color que el pin de la escuela elegida.
+  const colorEscuelaRuta = useMemo(() => {
+    if (cueRuta === null) return COLOR_SIN_AFECTACION
+    return colorPorCue.get(cueRuta)
+      ?? featureCollectionPadron.features.find((f) => f.properties.cueAnexo === cueRuta)?.properties.color
+      ?? COLOR_SIN_AFECTACION
+  }, [cueRuta, colorPorCue, featureCollectionPadron])
+  const edificioGeojson = useMemo(
+    () => construirEdificioEscuela(geometria, colorEscuelaRuta),
+    [geometria, colorEscuelaRuta],
+  )
 
   // V2 (hallazgo 5): realce de foco. Cubre tanto la escuela elegida en el
   // buscador (`escuelaResaltada`) como la de la ficha abierta
@@ -1201,26 +1339,39 @@ export default function MapInfraestructuraPage(props: {
   }, [escuelaResaltada, parteSeleccionado])
 
   // Seleccionar desde un punto o el buscador abre la misma ficha y encuadre.
-  const handleSeleccionarEscuelaBuscada = useCallback((escuela: EscuelaMapaPadron) => {
-    if (escuela.lat === null || escuela.lon === null) {
-      setAvisoBusqueda(
-        `La escuela "${escuela.nombre}" no tiene ubicación cargada: se muestra la ficha, pero no se puede señalar en el mapa.`,
-      )
-      setEscuelaResaltada(null)
+  const handleSeleccionarEscuelaBuscada = useCallback(
+    (escuela: EscuelaMapaPadron, opciones?: { conservarCamara?: boolean }) => {
+      if (escuela.lat === null || escuela.lon === null) {
+        setAvisoBusqueda(
+          `La escuela "${escuela.nombre}" no tiene ubicación cargada: se muestra la ficha, pero no se puede señalar en el mapa.`,
+        )
+        setEscuelaResaltada(null)
+        setSeleccionCue(escuela.cueAnexo)
+        setFichaCerradaCue(null)
+        setFichaPestana(panelLateral)
+        if (!opciones?.conservarCamara) {
+          encuadreRutaPendiente.current = escuela.cueAnexo
+        }
+        return
+      }
+      setAvisoBusqueda(null)
+      setEscuelaResaltada({ cueAnexo: escuela.cueAnexo, lng: escuela.lon, lat: escuela.lat })
+      if (!opciones?.conservarCamara) {
+        mapRef.current?.getMap()?.flyTo({ center: [escuela.lon, escuela.lat], zoom: 14, duration: 900 })
+        encuadreRutaPendiente.current = escuela.cueAnexo
+      }
       setSeleccionCue(escuela.cueAnexo)
       setFichaCerradaCue(null)
       setFichaPestana(panelLateral)
-      encuadreRutaPendiente.current = escuela.cueAnexo
-      return
-    }
-    setAvisoBusqueda(null)
-    setEscuelaResaltada({ cueAnexo: escuela.cueAnexo, lng: escuela.lon, lat: escuela.lat })
-    mapRef.current?.getMap()?.flyTo({ center: [escuela.lon, escuela.lat], zoom: 14, duration: 900 })
-    setSeleccionCue(escuela.cueAnexo)
-    setFichaCerradaCue(null)
-    setFichaPestana(panelLateral)
-    encuadreRutaPendiente.current = escuela.cueAnexo
-  }, [panelLateral])
+    },
+    [panelLateral],
+  )
+
+  // Lista de riesgo, marcadores del radar y bloque territorial seleccionan por CUE.
+  const seleccionarPorCue = useCallback((cue: string) => {
+    const escuela = escuelasPorCue.get(cue) ?? dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
+    if (escuela) handleSeleccionarEscuelaBuscada(escuela)
+  }, [escuelasPorCue, dataEscuelasMapa, handleSeleccionarEscuelaBuscada])
 
   // El cluster también es clickeable para hacer zoom de expansión.
   const capasInteractivas = [
@@ -1256,8 +1407,10 @@ export default function MapInfraestructuraPage(props: {
       const clusterId = Number(feature.properties?.cluster_id)
       const coords = feature.geometry?.type === 'Point' ? feature.geometry.coordinates : null
       if (!source || !Number.isFinite(clusterId) || !coords) return
-      const zoom = await source.getClusterExpansionZoom(clusterId)
-      mapa.easeTo({ center: [coords[0], coords[1]], zoom })
+      const expansion = await source.getClusterExpansionZoom(clusterId)
+      // Always move at least one level so the click is visibly answered.
+      const zoom = Math.max(expansion, mapa.getZoom() + 1)
+      mapa.easeTo({ center: [coords[0], coords[1]], zoom, duration: 500 })
     } catch {
       // Cualquier fallo (fuente todavía cargando, supercluster no listo) es
       // ruido transitorio: mejor no hacer nada que romper el flujo del mapa.
@@ -1267,7 +1420,6 @@ export default function MapInfraestructuraPage(props: {
   const handleClick = useCallback((event: MapLayerMouseEvent) => {
     const features = event.features ?? []
 
-    setClusterInfoClic(null)
     setCruceInfoClic(null)
 
     // Station and media symbols open their own popup: a cluster underneath must not open a second one.
@@ -1305,6 +1457,13 @@ export default function MapInfraestructuraPage(props: {
       // (`clasificacion`); una clase desconocida o ausente se muestra como
       // "sin puente registrado", que es lo que significa no tener dato.
       const clase = cruceClic.properties?.clasificacion
+      const indice = Number(cruceClic.properties?.indice)
+      const texto = (valor: unknown) => (typeof valor === 'string' && valor !== '' && valor !== 'null' ? valor : null)
+      // The rain layer only exists while it is visible; its hit polygons carry the cell total.
+      const celdaLluvia = mapaGl?.getLayer?.(ID_CAPA_LLUVIA_HIT)
+        ? mapaGl.queryRenderedFeatures?.(event.point, { layers: [ID_CAPA_LLUVIA_HIT] })?.[0]
+        : undefined
+      const mm = Number(celdaLluvia?.properties?.acumuladoMm)
       setCruceInfoClic({
         lng: event.lngLat.lng,
         lat: event.lngLat.lat,
@@ -1312,6 +1471,10 @@ export default function MapInfraestructuraPage(props: {
           typeof clase === 'string' && clase in ETIQUETAS_CRUCE
             ? (clase as ClasificacionCruce)
             : 'sin_evidencia',
+        indice: Number.isInteger(indice) && indice >= 0 ? indice : null,
+        nombreCurso: texto(cruceClic.properties?.nombreCurso),
+        nombrePuente: texto(cruceClic.properties?.nombrePuente),
+        lluvia: celdaLluvia && Number.isFinite(mm) ? { mm, horas: horasLluvia } : null,
       })
       return
     }
@@ -1324,7 +1487,8 @@ export default function MapInfraestructuraPage(props: {
           item.layer?.id === CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID,
       )
     if (feature?.layer?.id === CAPA_PARTES_CLUSTER_ID) {
-      setClusterInfoClic(feature)
+      // T4: a cluster click zooms straight in; no intermediate popup.
+      void acercarAlCluster(feature)
       return
     }
     if (feature?.properties?.cueAnexo) {
@@ -1353,8 +1517,13 @@ export default function MapInfraestructuraPage(props: {
       entradaPuntosPendiente.current = true
       setPuntosVisibles(false)
       setDepartamentoSeleccionado(siguiente)
-      if (siguiente === null) {
-        mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: 24 })
+      const limites = siguiente === null
+        ? null
+        : bboxGeometria(departamentosRaw?.features.find((item) => item.properties.nombre === siguiente)?.geometry ?? null)
+      if (limites) {
+        mapRef.current?.getMap()?.fitBounds(limites, { padding: paddingEncuadre(), duration: 600 })
+      } else {
+        mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia() })
       }
     }
   }, [
@@ -1364,8 +1533,9 @@ export default function MapInfraestructuraPage(props: {
     handleSeleccionarEscuelaBuscada,
     departamentoSeleccionado,
     limitesCorrientes,
-    setClusterInfoClic,
+    departamentosRaw,
     setCruceInfoClic,
+    horasLluvia,
     setSeleccionCue,
     setPuntosVisibles,
     setDepartamentoSeleccionado,
@@ -1423,25 +1593,24 @@ export default function MapInfraestructuraPage(props: {
   // (aislamiento/inundación/cruces): comparten el canal `icon-image` y el
   // mismo ciclo de vida del estilo, así que un solo gate (`iconosClusterListos`)
   // cubre a ambos grupos sin duplicar listeners de `styledata`.
-  function registrarIconosCluster() {
+  function registrarIconosCluster(reemplazar = false) {
     const mapa = mapRef.current?.getMap()
     if (!mapa || typeof mapa.hasImage !== 'function' || typeof mapa.addImage !== 'function') {
       return
     }
-    const pendientes = [...ICONOS_CLUSTER_MAPA, ...ICONOS_ACCESOS_MAPA]
-      .filter(({ id }) => !mapa.hasImage(id))
-      .map(({ id, svg }) => cargarIconoEnMapa(mapa, id, svg))
-    if (pendientes.length === 0) {
+    const iconos = [...iconosClusterMapa(oscuroRef.current), ...iconosAccesosMapa(oscuroRef.current)]
+    if (!reemplazar && iconos.every(({ id }) => mapa.hasImage(id))) {
       setIconosClusterListos(true)
       return
     }
-    void Promise.all(pendientes).then(() => setIconosClusterListos(true))
+    void registrarImagenesSvg(mapa, iconos, reemplazar).then(() => setIconosClusterListos(true))
   }
 
   const handleMapLoad = useCallback(() => {
     registrarIconosCluster()
     actualizarCuesNoAgrupados()
     const map = mapRef.current?.getMap()
+    if (map) aquietarBasemap(map)
     if (map) {
       soltarPopupsVisibles.current?.()
       soltarPopupsVisibles.current = mantenerPopupsVisibles(map)
@@ -1454,6 +1623,7 @@ export default function MapInfraestructuraPage(props: {
           setIconosClusterListos(false)
         }
         ultimoEstiloCargado.current = estiloCargado
+        aquietarBasemap(map)
         registrarIconosCluster()
         window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
       }
@@ -1462,6 +1632,15 @@ export default function MapInfraestructuraPage(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCuesNoAgrupados, setIconosClusterListos])
+
+  // Cambio de tema: con radar activo el estilo no se recarga, así que las
+  // imágenes ya registradas se reemplazan por las del tema nuevo.
+  useEffect(() => {
+    const oscuro = mode === 'dark'
+    if (oscuroRef.current === oscuro) return
+    oscuroRef.current = oscuro
+    registrarIconosCluster(true)
+  }, [mode])
 
   // Encuadre de la ruta seleccionada: sólo si la geometría dibujada tiene un
   // bbox real (una ruta ausente dejaría un `fitBounds` inválido). El padding
@@ -1480,12 +1659,9 @@ export default function MapInfraestructuraPage(props: {
             escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
             actualizadoEn={actualizadoEn}
             onSeleccionar={(cueAnexo) => {
-              const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cueAnexo)
+              const escuela = escuelasPorCue.get(cueAnexo) ?? dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cueAnexo)
               if (escuela) handleSeleccionarEscuelaBuscada(escuela)
             }}
-            secciones={capasVisibles.eventosReportados ? (
-              <SeccionEventosReportados resumen={resumenEventos} onSeleccionar={seleccionarEvento} onResaltar={setEventoResaltado} />
-            ) : null}
           />
         </>
       )}
@@ -1518,12 +1694,16 @@ export default function MapInfraestructuraPage(props: {
           // demasiado cerca; acá el encuadre sale del bbox real del GeoJSON.
           initialViewState={{
             bounds: limitesCorrientes,
-            fitBoundsOptions: { padding: 24 },
+            fitBoundsOptions: { padding: paddingProvincia() },
           }}
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
           onClick={handleClick}
           cursor="pointer"
+          // No compass control: rotation stays off so north is always up.
+          dragRotate={false}
+          pitchWithRotate={false}
+          touchPitch={false}
           onLoad={handleMapLoad}
           // MapLibre descarta fuentes, capas e imágenes al cambiar el estilo.
           // El style.load (registrado en onLoad) determina el final real de
@@ -1531,6 +1711,7 @@ export default function MapInfraestructuraPage(props: {
           onStyleData={() => {
             const map = mapRef.current?.getMap()
             registrarIconosCluster()
+            if (map?.isStyleLoaded()) aquietarBasemap(map)
             if (map?.isStyleLoaded()) window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
           }}
           onMoveEnd={actualizarCuesNoAgrupados}
@@ -1542,7 +1723,10 @@ export default function MapInfraestructuraPage(props: {
           }}
         >
           <Fragment key={versionEstilo}>
-          <NavigationControl position="top-left" showCompass={!radarActivo} />
+          <ControlesZoom
+            mapRef={mapRef}
+            onVerProvincia={() => mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia(), duration: 600 })}
+          />
           {/* La atribución compacta deja libre la esquina inferior derecha del mapa. */}
           <AttributionControl key={radarActivo ? 'radar-attribution' : 'map-attribution'} position={radarActivo ? 'top-right' : 'bottom-right'} compact />
 
@@ -1643,6 +1827,7 @@ export default function MapInfraestructuraPage(props: {
               puntosInundacion={null}
               ruta={rutaGeojson}
               cruces={crucesGeojson}
+              edificio={edificioGeojson}
               visibles={CAPAS_ACCESOS_OCULTAS}
               iconosListos={iconosClusterListos}
               oscuro={mode === 'dark'}
@@ -1658,7 +1843,7 @@ export default function MapInfraestructuraPage(props: {
               data={featureCollectionPadron}
               cluster={true}
               clusterMaxZoom={CAPA_PARTES_CLUSTER_MAX_ZOOM}
-              clusterRadius={40}
+              clusterRadius={RADIO_AGRUPAMIENTO_CLUSTER}
               clusterProperties={{
                 // T1.1b: agregados por max() entre los puntos agrupados — el
                 // El cluster hereda la severidad más alta, no un promedio.
@@ -1714,10 +1899,9 @@ export default function MapInfraestructuraPage(props: {
                 `capasInteractivas`), así el click/hover acierta el ícono
                 completo y no sólo el centro del círculo.
 
-                Q17: `icon-size: 1.2` agranda la escuela individual (~26 px)
-                SÓLO en esta capa; el SVG base compartido queda igual para no
-                agrandar de rebote los íconos Tent/DoorOpen de cluster. Las
-                variantes de severidad son las mismas en ambos temas.
+                Q17: la escuela individual se rasteriza a 26 px y el badge de
+                cluster a 18 px, ambos con `icon-size: 1` y `pixelRatio: 2`
+                (nítidos en HiDPI). El borde sigue el tema.
               */}
               {iconosClusterListos && (
                 <Layer
@@ -1733,7 +1917,7 @@ export default function MapInfraestructuraPage(props: {
                       ['==', ['get', 'severidad'], 'Media'], ID_IMAGEN_ESCUELA_MEDIA,
                       ID_IMAGEN_ESCUELA_BAJA,
                     ],
-                    'icon-size': 1.2,
+                    'icon-size': 1,
                     'icon-anchor': 'center',
                     'icon-allow-overlap': true,
                     'icon-ignore-placement': true,
@@ -1752,7 +1936,7 @@ export default function MapInfraestructuraPage(props: {
                   layout={{
                     visibility: ocultarPartes ? 'none' : 'visible',
                     'icon-image': ID_IMAGEN_ESCUELA_SOLUCIONADA,
-                    'icon-size': 1.2,
+                    'icon-size': 1,
                     'icon-anchor': 'center',
                     'icon-allow-overlap': true,
                     'icon-ignore-placement': true,
@@ -1764,7 +1948,19 @@ export default function MapInfraestructuraPage(props: {
                 />
               )}
               {/* Los clusters afectados usan la severidad más alta; los que
-                  sólo tienen escuelas sin reporte son neutros y más chicos. */}
+                  sólo tienen escuelas sin reporte son neutros y más chicos.
+                  El halo va debajo y los despega del basemap. */}
+              <Layer
+                id={CAPA_PARTES_CLUSTER_HALO_ID}
+                type="circle"
+                layout={{ visibility: ocultarPartes ? 'none' : 'visible' }}
+                filter={['has', 'point_count']}
+                paint={{
+                  ...circlePaintHaloCluster(mode === 'dark'),
+                  ...(puntosVisibles ? {} : { 'circle-opacity': 0 }),
+                  'circle-opacity-transition': { duration: 180, delay: 0 },
+                }}
+              />
               <Layer
                 id={CAPA_PARTES_CLUSTER_ID}
                 type="circle"
@@ -1781,9 +1977,10 @@ export default function MapInfraestructuraPage(props: {
                 type="symbol"
                 layout={{
                   'text-field': expresionConteoCluster(),
-                  'text-size': 12,
-                  'text-font': ['Noto Sans Regular'],
-                  'text-allow-overlap': false,
+                  'text-size': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 10.5, 13],
+                  'text-font': ['case', ['==', ['get', 'escuelasAfectadas'], 0], ['literal', ['Noto Sans Regular']], ['literal', ['Noto Sans Bold']]],
+                  'text-allow-overlap': true,
+                  'text-ignore-placement': true,
                   visibility: ocultarPartes ? 'none' : 'visible',
                 }}
                 filter={['has', 'point_count']}
@@ -1838,47 +2035,44 @@ export default function MapInfraestructuraPage(props: {
             anillos/halos/formas apiladas. Sólo se renderizan las escuelas con
             badge (las normales no agregan ruido).
           */}
-          {!ocultarPartes && badgesEstado.map((badge) => {
-            const Icono = ICONOS_BADGE_ESTADO[badge.icono]
-            const etiqueta = ETIQUETA_ICONO_ESTADO[badge.icono]
-            return (
-              <Marker
-                key={badge.cueAnexo}
-                longitude={badge.lng}
-                latitude={badge.lat}
-                anchor="center"
-                offset={[11, -11]}
-              >
-                <div
-                  data-capa={CAPA_BADGE_ESTADO_ID}
-                  style={estiloBadgeEstado()}
-                  role="img"
-                  aria-label={`${etiqueta}: ${badge.nombre}`}
-                  title={`${etiqueta}: ${badge.nombre}`}
-                >
-                  <Icono
-                    size={ICONO_BADGE_ESTADO_TAMANO}
-                    strokeWidth={2.4}
-                    color={ANILLO_COLOR}
-                  />
-                </div>
-              </Marker>
-            )
-          })}
+          {!ocultarPartes && iconosClusterListos && (
+            <Source id={FUENTE_BADGE_ESTADO_ID} type="geojson" data={fuenteBadgesEstado}>
+              <Layer
+                id={CAPA_BADGE_ESTADO_ID}
+                type="symbol"
+                layout={{
+                  'icon-image': ['get', 'imagen'],
+                  'icon-size': 1,
+                  'icon-anchor': 'center',
+                  'icon-offset': OFFSET_BADGE_ESQUINA,
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
+                }}
+              />
+            </Source>
+          )}
+          {/* El canvas no es accesible: el mismo resumen queda como texto para lectores de pantalla. */}
+          {!ocultarPartes && badgesEstado.length > 0 && (
+            <ul className="sr-only" data-capa={CAPA_BADGE_ESTADO_ID}>
+              {badgesEstado.map((badge) => (
+                <li key={badge.cueAnexo}>{`${ETIQUETA_ICONO_ESTADO[badge.icono]}: ${badge.nombre}`}</li>
+              ))}
+            </ul>
+          )}
 
           {badgesBorradores.map((badge) => (
             <Marker
               key={`infra-borradores-${badge.cue}`}
               longitude={badge.lon}
               latitude={badge.lat}
-              anchor="top-left"
-              offset={[8, 7]}
+              anchor="center"
+              offset={[11, 11]}
             >
               <span
                 role="img"
                 aria-label={`${badge.count} ${badge.count === 1 ? 'borrador sin enviar' : 'borradores sin enviar'}: ${badge.nombre}`}
                 title={`${badge.count} ${badge.count === 1 ? 'borrador sin enviar' : 'borradores sin enviar'}`}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 22, height: 22, padding: '0 5px', border: '1px solid var(--line)', borderRadius: 999, background: 'var(--card)', color: 'var(--ink-soft)', boxShadow: '0 1px 4px #0005', fontSize: 11, fontWeight: 700 }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: TAMANO_BADGE_ESTADO, height: TAMANO_BADGE_ESTADO, padding: '0 4px', border: `1px solid ${anilloColor(mode === 'dark')}`, borderRadius: 999, background: 'var(--card)', color: 'var(--ink-soft)', boxShadow: `0 1px 3px ${coloresMapa(mode === 'dark').sombra}`, fontSize: 'var(--t-micro)', fontWeight: 700, lineHeight: 1 }}
               >
                 {badge.count}
               </span>
@@ -1912,63 +2106,40 @@ export default function MapInfraestructuraPage(props: {
             resumen={resumenRadar}
             alertasResaltadas={alertasResaltadas}
             onVerAlertas={irAAlertasRadar}
+            onSeleccionarEscuela={seleccionarPorCue}
           />
 
           {/* Popup del CRUCE DE AGUA clickeado sobre la ruta (ver `handleClick`).
-              Mismo componente y estilo que el del departamento: un dato
-              puntual que se lee sin cambiar de modo. La etiqueta sale de
-              `ETIQUETAS_CRUCE`; para "Sin puente registrado" se aclara que la
-              ausencia del tag en OSM no prueba que el puente no exista. */}
-          {cruceInfoClic && (() => {
-            const etiqueta = ETIQUETAS_CRUCE[cruceInfoClic.clasificacion]
-            return (
-              <Popup
-                longitude={cruceInfoClic.lng}
-                latitude={cruceInfoClic.lat}
-                {...PROPS_POPUP_INFO}
-              >
-                <p>
-                  <strong>Cruce de agua: {etiqueta}</strong>
-                  {' — '}{DESCRIPCIONES_CRUCE[cruceInfoClic.clasificacion]}
-                </p>
-              </Popup>
-            )
-          })()}
-          {clusterInfoClic && clusterInfoClic.geometry.type === 'Point' && (() => {
-            const [lng, lat] = clusterInfoClic.geometry.coordinates
-            const props = clusterInfoClic.properties ?? {}
-            const total = Number(props.point_count ?? 0)
-            const afectadas = Number(props.escuelasAfectadas ?? 0)
-            const criticas = Number(props.criticas ?? 0)
-            const altas = Number(props.altas ?? 0)
-            return (
-              <Popup
-                longitude={lng}
-                latitude={lat}
-                closeButton={false}
-                closeOnClick={false}
-                offset={OFFSET_POPUP_DEPARTAMENTO}
-                className='mapa-tooltip mapa-tooltip-cluster'
-              >
-                <p>
-                  <strong>{total}</strong> escuelas · <strong>{afectadas}</strong> con situaciones abiertas ({criticas} críticas, {altas} altas)
-                </p>
-                <button
-                  type='button'
-                  onClick={() => {
-                    void acercarAlCluster(clusterInfoClic)
-                    setClusterInfoClic(null)
-                  }}
-                >
-                  Acercar
-                </button>
-              </Popup>
-            )
-          })()}
+              Tarjeta con el estilo de la estación de río: clase del cruce,
+              contexto de la ruta de la escuela seleccionada y, si la capa
+              está prendida, la lluvia IMERG en ese punto. Nunca dice si hoy
+              se puede pasar. */}
+          {cruceInfoClic && (
+            <Popup
+              longitude={cruceInfoClic.lng}
+              latitude={cruceInfoClic.lat}
+              anchor="bottom"
+              maxWidth="340px"
+              closeButton={false}
+              closeOnClick={false}
+              offset={OFFSET_POPUP_DEPARTAMENTO}
+            >
+              <TarjetaCruceAgua
+                clasificacion={cruceInfoClic.clasificacion}
+                nombreCurso={cruceInfoClic.nombreCurso}
+                nombrePuente={cruceInfoClic.nombrePuente}
+                indice={cruceInfoClic.indice}
+                escuela={escuelaSeleccionada}
+                geometria={geometria}
+                lluvia={capasVisibles.lluviaObservada ? cruceInfoClic.lluvia : null}
+              />
+            </Popup>
+          )}
 
           {/* V2 (hallazgo 5): realce de foco de la escuela seleccionada, sea
               por el buscador o por la ficha abierta. Un pin DOM (MapPin) en el
-              color de foco del hub (`--marker`), anclado por su punta inferior
+              color de foco del hub (`--marker`) con borde de tinta del tema y
+              sombra, anclado por su punta inferior
               al punto de la escuela. Reemplaza al anillo circular de MapLibre:
               sin fondo ni anillo, así se ve encima tanto de un punto individual
               como de un cluster todavía sin desagrupar mientras el flyTo llega
@@ -1981,9 +2152,11 @@ export default function MapInfraestructuraPage(props: {
               anchor="bottom"
             >
               <MapPin
-                size={26}
-                strokeWidth={2.4}
-                color={COLOR_FOCO_SELECCION}
+                size={28}
+                strokeWidth={2}
+                color={anilloColor(mode === 'dark')}
+                fill={COLOR_FOCO_SELECCION}
+                style={{ filter: `drop-shadow(0 2px 3px ${coloresMapa(mode === 'dark').sombra})` }}
                 aria-hidden="true"
               />
             </Marker>
@@ -1993,7 +2166,7 @@ export default function MapInfraestructuraPage(props: {
           {/* Stacking (bottom → top): rain raster below the department areas; events
               below the school layers; river stations on top of everything (school
               clusters must not cover them). DOM popups sit above all GL layers. */}
-          <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} beforeId={CAPA_DEPARTAMENTOS_RELLENO_ID} />
+          <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} beforeId={CAPA_DEPARTAMENTOS_RELLENO_ID} sinPopup={modoRadar} />
           <CapaEventosReportados
             visible={capasVisibles.eventosReportados}
             onResumen={setResumenEventos}
@@ -2002,13 +2175,12 @@ export default function MapInfraestructuraPage(props: {
             resaltadoId={eventoResaltado}
             onSeleccion={setEventoSeleccionado}
           />
-          <CapaEstacionesRio visible={capasVisibles.estacionesRio} />
+          <CapaEstacionesRio visible={capasVisibles.estacionesRio} capasEncima={CAPAS_SOBRE_ESTACIONES} />
         </MapGL>}
       </div>
 
-      {radarActivo ? (
-        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
-      ) : props.pestana === 'planificacion' ? (
+      {/* En radar no va la leyenda de situación actual: el radar trae la suya (lluvia, viento...). */}
+      {radarActivo ? null : props.pestana === 'planificacion' ? (
         <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'actual' ? (
         <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
@@ -2040,7 +2212,7 @@ export default function MapInfraestructuraPage(props: {
             onCerrarFicha={cerrarFicha}
             cabecera={(
               <>
-                {seleccionCue !== null && !fichaAbierta && (
+                {!radarActivo && seleccionCue !== null && !fichaAbierta && (
                   <SeleccionEscuela
                     nombre={escuelasPorCue.get(seleccionCue)?.nombre ?? seleccionCue}
                     onVerFicha={() => {
@@ -2065,7 +2237,7 @@ export default function MapInfraestructuraPage(props: {
                       entradaPuntosPendiente.current = true
                       setPuntosVisibles(false)
                       setDepartamentoSeleccionado(null)
-                      mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: 24 })
+                      mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia() })
                     }}
                   />
                 )}
@@ -2087,10 +2259,7 @@ export default function MapInfraestructuraPage(props: {
                 escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
                 cargando={radarLoading && radarData === null}
                 error={radarError}
-                onSeleccionar={(cue) => {
-                  const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
-                  if (escuela) handleSeleccionarEscuelaBuscada(escuela)
-                }}
+                onSeleccionar={seleccionarPorCue}
                 alertas={{
                   grupos: gruposAlertasRadar,
                   cargando: resumenRadar === null && !resumenRadarError,
@@ -2109,10 +2278,7 @@ export default function MapInfraestructuraPage(props: {
                 territorio={territorio}
                 cargando={contextoTerritorial && territorioLoading}
                 error={territorioError !== null}
-                onSeleccionar={(cue) => {
-                  const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
-                  if (escuela) handleSeleccionarEscuelaBuscada(escuela)
-                }}
+                onSeleccionar={seleccionarPorCue}
               />
             )}
             capas={(
@@ -2162,6 +2328,14 @@ export default function MapInfraestructuraPage(props: {
                 onVerAlumnosAlcanzados={setNominalAfectacionId}
                 onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
                 onCerrar={cerrarFicha}
+                urlFichaCompleta={urlFichaCompleta}
+                onAbrirFichaCompleta={guardarSnapshotAlAbrirFicha}
+                onQuitarSeleccion={quitarSeleccion}
+                extraVistaPrevia={radarActivo ? <PronosticoEscuelaBloque cueAnexo={escuelaSeleccionada.cueAnexo} /> : null}
+                aislamiento={territorio?.aislamiento?.escuelas[escuelaSeleccionada.cueAnexo]?.nivel ?? null}
+                distanciaLocalidad={geometria?.disponible && typeof geometria.distanciaKm === 'number'
+                  ? { nombre: geometria.destino?.nombre ?? null, km: geometria.distanciaKm }
+                  : null}
               />
         </aside>
       )}

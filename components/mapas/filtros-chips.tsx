@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type Ref, type RefObject } from 'react'
 import { Popover } from '@base-ui/react/popover'
-import { ChevronDown, Clock, Search, SlidersHorizontal, X } from 'lucide-react'
+import { ChevronDown, Search, X } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { contarOpciones, filtrarEscuelas, opcionesDireccion, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
@@ -10,10 +10,10 @@ import { etiquetaDepartamento, ETIQUETA_APOYO, ETIQUETA_ESTADO_CLASES, ETIQUETA_
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type EstadoClases, type FiltrosMapa, type GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import { cantidadFiltrosEnLinea } from '@/lib/infraestructura/mapa/filtros-en-linea'
 
-type ClaveFiltro = 'departamentos' | 'niveles' | 'gravedades' | 'clases' | 'apoyo' | 'direcciones'
+type ClaveFiltro = 'departamentos' | 'gravedades' | 'clases' | 'apoyo' | 'direcciones'
 type Opcion = { valor: string; etiqueta: string }
 
-const CLAVES_DESPLEGABLES: readonly ClaveFiltro[] = ['departamentos', 'niveles', 'gravedades', 'clases', 'apoyo', 'direcciones']
+const CLAVES_DESPLEGABLES: readonly ClaveFiltro[] = ['departamentos', 'gravedades', 'clases', 'apoyo', 'direcciones']
 const CLAVES_INTERRUPTOR = ['sinActualizar', 'solucionadasRecientes'] as const
 const CLAVES_FILTROS_EN_ORDEN = [...CLAVES_DESPLEGABLES, ...CLAVES_INTERRUPTOR]
 
@@ -34,7 +34,6 @@ const OPCIONES_APOYO: Opcion[] = (['brinda', 'no', 'sin_dato'] as const).map((va
 
 const ETIQUETAS_FILTRO: Record<ClaveFiltro, string> = {
   departamentos: 'Departamento',
-  niveles: 'Nivel',
   gravedades: 'Gravedad',
   clases: 'Clases',
   apoyo: 'Asistencia pedagógica',
@@ -58,9 +57,8 @@ function esApoyo(valor: string): valor is FiltrosMapa['apoyo'][number] {
 }
 
 function opcionesPorFiltro(escuelas: EscuelaMapaEnriquecida[], clave: ClaveFiltro): Opcion[] {
-  if (clave === 'departamentos' || clave === 'niveles') {
-    const disponibles = opcionesDisponibles(escuelas)[clave]
-    return disponibles.map((valor) => ({ valor, etiqueta: clave === 'departamentos' ? etiquetaDepartamento(valor) : valor }))
+  if (clave === 'departamentos') {
+    return opcionesDisponibles(escuelas).departamentos.map((valor) => ({ valor, etiqueta: etiquetaDepartamento(valor) }))
   }
   if (clave === 'direcciones') return opcionesDireccion(escuelas).map((direccion) => ({ valor: String(direccion.id), etiqueta: direccion.nombre }))
   if (clave === 'gravedades') return OPCIONES_GRAVEDAD
@@ -74,7 +72,6 @@ function alternarValor(filtros: FiltrosMapa, clave: ClaveFiltro, valor: string):
 
   switch (clave) {
     case 'departamentos': return { ...filtros, departamentos: siguiente }
-    case 'niveles': return { ...filtros, niveles: siguiente }
     case 'gravedades': return { ...filtros, gravedades: siguiente.map(Number).filter(esGravedadMapa) }
     case 'clases': return { ...filtros, clases: siguiente.filter(esClase) }
     case 'apoyo': return { ...filtros, apoyo: siguiente.filter(esApoyo) }
@@ -101,7 +98,7 @@ function OpcionesFiltro({
 
   return opciones.length === 0 ? (
     <div className="filtros-opcion-vacio" role="status">
-      {clave === 'niveles' ? 'No hay niveles cargados en el padrón.' : 'No hay opciones disponibles.'}
+      No hay opciones disponibles.
     </div>
   ) : opciones.map((opcion, indice) => (
     <Checkbox
@@ -138,7 +135,13 @@ function FiltroDesplegable({
   contenedorPopovers?: RefObject<HTMLElement | null>
 }) {
   const etiqueta = ETIQUETAS_FILTRO[clave]
-  const seleccionados = valoresSeleccionados(filtros, clave)
+  const seleccionadosActuales = valoresSeleccionados(filtros, clave)
+  // The bar is right-aligned: if the chip grew while its list is open, the list
+  // would slide sideways. Keep the chip as it was until the list closes.
+  const [seleccionados, setSeleccionados] = useState(seleccionadosActuales)
+  if (!abierto && seleccionados.join('\u0000') !== seleccionadosActuales.join('\u0000')) {
+    setSeleccionados(seleccionadosActuales)
+  }
   const opciones = opcionesPorFiltro(escuelas, clave)
   const primerCheckbox = useRef<HTMLElement>(null)
   const textoChip = seleccionados.length === 0
@@ -146,10 +149,6 @@ function FiltroDesplegable({
     : `${etiqueta}: ${seleccionados.length > 1
       ? `${seleccionados.length} elegidos`
       : opciones.find((opcion) => opcion.valor === seleccionados[0])?.etiqueta ?? seleccionados[0]}`
-
-  useEffect(() => {
-    if (abierto) primerCheckbox.current?.focus()
-  }, [abierto])
 
   return (
     <div className={`filtros-chip-grupo${seleccionados.length ? ' filtros-chip-grupo--activo' : ''}`}>
@@ -162,13 +161,13 @@ function FiltroDesplegable({
             aria-expanded={abierto}
           />}
         >
-          {textoChip}
+          <span className="filtros-chip__texto">{textoChip}</span>
           <ChevronDown aria-hidden="true" />
         </Popover.Trigger>
         {/* Rendered inside the given container so the popover stays visible in fullscreen. */}
         <Popover.Portal container={contenedorPopovers}>
           <Popover.Positioner className="filtros-popover-posicionador" side="bottom" align="start" sideOffset={4} collisionAvoidance={{ side: 'none', align: 'shift' }}>
-            <Popover.Popup className="filtros-popover" aria-label={etiqueta} data-apertura="abajo">
+            <Popover.Popup className="filtros-popover" aria-label={etiqueta} data-apertura="abajo" initialFocus={primerCheckbox}>
               <OpcionesFiltro clave={clave} escuelas={escuelas} filtros={filtros} onChange={onChange} primerCheckbox={primerCheckbox} />
             </Popover.Popup>
           </Popover.Positioner>
@@ -205,7 +204,7 @@ export function FiltrosChips({
   const [sugerenciasCerradas, setSugerenciasCerradas] = useState(false)
   const [opcionActiva, setOpcionActiva] = useState(0)
   const [busquedaAbierta, setBusquedaAbierta] = useState(Boolean(filtros.q))
-  const [cantidadEnLinea, setCantidadEnLinea] = useState(4)
+  const [cantidadEnLinea, setCantidadEnLinea] = useState(3)
   const [masFiltrosAbiertos, setMasFiltrosAbiertos] = useState(false)
   const busquedaRef = useRef<HTMLInputElement>(null)
   const filtrosBarraRef = useRef<HTMLDivElement>(null)
@@ -225,14 +224,13 @@ export function FiltrosChips({
   }, [busquedaAbierta])
 
   const interruptoresActivos = Number(filtros.sinActualizar) + Number(filtros.solucionadasRecientes)
-  const cantidadFiltrosActivos = filtros.departamentos.length + filtros.niveles.length
+  const cantidadFiltrosActivos = filtros.departamentos.length
     + filtros.gravedades.length + filtros.clases.length + filtros.apoyo.length + filtros.direcciones.length + interruptoresActivos
   const cantidadFuera = CLAVES_FILTROS_EN_ORDEN.length - cantidadEnLinea
   const sinFiltrosEnLinea = cantidadEnLinea === 0
   const etiquetaBotonMas = sinFiltrosEnLinea ? 'Filtros' : 'Más filtros'
   const conteosActivosEnOrden = [
     filtros.departamentos.length,
-    filtros.niveles.length,
     filtros.gravedades.length,
     filtros.clases.length,
     filtros.apoyo.length,
@@ -243,10 +241,15 @@ export function FiltrosChips({
   const cantidadActivosFuera = conteosActivosEnOrden.slice(cantidadEnLinea).reduce((total, conteo) => total + conteo, 0)
   const hayFiltrosActivos = Boolean(filtros.q.trim()) || cantidadFiltrosActivos > 0
 
+  // While a popover is open, the line must not re-flow: a selection changes the chip
+  // text width, and re-measuring would move chips (and their anchored popover) or
+  // push the open chip into "Más filtros". Re-measure once everything is closed.
+  const lineaCongelada = popoverAbierto?.grupo === 'principal' || masFiltrosAbiertos
+
   useLayoutEffect(() => {
     const contenedor = filtrosBarraRef.current
     const fila = medicionRef.current
-    if (!contenedor || !fila || typeof ResizeObserver === 'undefined') return
+    if (lineaCongelada || !contenedor || !fila || typeof ResizeObserver === 'undefined') return
     const medir = () => {
       const anchoContenedor = contenedor.getBoundingClientRect().width
       if (anchoContenedor <= 0) return
@@ -264,7 +267,7 @@ export function FiltrosChips({
     fila.querySelectorAll<HTMLElement>('[data-medicion-filtro]').forEach((elemento) => observador.observe(elemento))
     medir()
     return () => observador.disconnect()
-  }, [filtros, busquedaVisible])
+  }, [filtros, busquedaVisible, lineaCongelada])
 
   function seleccionar(cueAnexo: string) {
     onSeleccionar?.(cueAnexo)
@@ -292,7 +295,7 @@ export function FiltrosChips({
     const activo = filtros[clave]
     return (
       <button key={clave} type="button" className={`filtros-chip filtros-chip--interruptor${activo ? ' filtros-chip--activo' : ''}`} aria-pressed={activo} onClick={() => onChange({ ...filtros, [clave]: !activo })}>
-        {esSinActualizar ? <Clock aria-hidden="true" /> : null}{etiqueta}{activo ? <X aria-hidden="true" /> : null}
+        {etiqueta}{activo ? <X aria-hidden="true" /> : null}
       </button>
     )
   }
@@ -400,7 +403,6 @@ export function FiltrosChips({
               aria-label={`${etiquetaBotonMas}${cantidadActivosFuera ? `, ${cantidadActivosFuera} activos` : ''}`}
             />}
           >
-            <SlidersHorizontal aria-hidden="true" />
             {etiquetaBotonMas}
             {cantidadActivosFuera > 0 ? <span className="filtros-chip__contador" aria-hidden="true">{cantidadActivosFuera}</span> : null}
           </Popover.Trigger>
@@ -429,7 +431,7 @@ export function FiltrosChips({
         {CLAVES_DESPLEGABLES.map((clave) => <div key={clave} data-medicion-filtro={clave}>{renderDesplegable(clave, 'medicion')}</div>)}
         <div data-medicion-filtro="sinActualizar">{renderInterruptor('sinActualizar')}</div>
         <div data-medicion-filtro="solucionadasRecientes">{renderInterruptor('solucionadasRecientes')}</div>
-        <button data-medicion-filtro="mas" type="button" className="filtros-chip"><SlidersHorizontal aria-hidden="true" />Más filtros</button>
+        <button data-medicion-filtro="mas" type="button" className="filtros-chip">Más filtros</button>
       </div>
     </div>
   )

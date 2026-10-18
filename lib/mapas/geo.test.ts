@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson'
-import { distanciaMinimaAlContorno, puntoDentroDeFeatureCollection } from './geo'
+import { bboxGeometria, distanciaMinimaAlContorno, puntoDentroDeFeatureCollection } from './geo'
 
 // Cuadrado 0,0 - 1,1 (lon,lat) con un hueco cuadrado 0.4,0.4 - 0.6,0.6.
 const CUADRADO_CON_HUECO: FeatureCollection<Polygon, { nombre: string }> = {
@@ -96,5 +96,21 @@ describe('distanciaMinimaAlContorno', () => {
   it('un punto lejos del borde da una distancia grande (> 1km)', () => {
     const distancia = distanciaMinimaAlContorno([10, 10], CUADRADO_CON_HUECO)
     expect(distancia).toBeGreaterThan(1)
+  })
+})
+
+describe('bboxGeometria', () => {
+  it('encloses every polygon of a MultiPolygon', () => {
+    expect(bboxGeometria({
+      type: 'MultiPolygon',
+      coordinates: [
+        [[[-59, -28], [-58, -28], [-58, -27], [-59, -28]]],
+        [[[-57, -30], [-56.5, -29], [-57, -29], [-57, -30]]],
+      ],
+    })).toEqual([[-59, -30], [-56.5, -27]])
+  })
+
+  it('returns null without geometry', () => {
+    expect(bboxGeometria(null)).toBeNull()
   })
 })

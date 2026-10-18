@@ -1,0 +1,1 @@
+ALTER TABLE "infra_acceso_osm_geometria" ADD COLUMN "edificio" jsonb;

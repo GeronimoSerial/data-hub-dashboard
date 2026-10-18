@@ -8,6 +8,7 @@ const PESO_SEVERIDAD: Record<Severidad, number> = { Crítica: 4, Alta: 3, Media:
 const PESO_EDIFICIO: Record<EstadoEstablecimiento, number> = {
   evacuado: 4,
   centro_evacuados: 3,
+  sin_clases: 3,
   parcial: 2,
   habitual: 1,
 }

@@ -413,7 +413,7 @@ export function MetodologiaMapa() {
             <div className="ctrl"><label>Profundidad en la escuela, 10 años <output id="u-d10-o"></output></label><input type="range" id="u-d10" min="0" max="3" step="0.05" defaultValue="0.1" /></div>
             <div className="ctrl"><label>Profundidad en la escuela, 100 años <output id="u-d100-o"></output></label><input type="range" id="u-d100" min="0" max="3" step="0.05" defaultValue="0.6" /></div>
             <div className="ctrl"><label>Profundidad en la escuela, 500 años <output id="u-d500-o"></output></label><input type="range" id="u-d500" min="0" max="3" step="0.05" defaultValue="1.2" /></div>
-            <div className="ctrl"><label>Crecida máxima en el río, 10 / 100 / 500 años</label><div className="mono" style={{ fontSize: '.85rem' }}>1,5 · 2,8 · 3,6 m (ejemplo)</div></div>
+            <div className="ctrl"><label>Crecida máxima en el río, 10 / 100 / 500 años</label><div className="mono" style={{ fontSize: 'var(--t-micro)' }}>1,5 · 2,8 · 3,6 m (ejemplo)</div></div>
           </div>
           <svg id="u-svg" viewBox="0 0 760 260" role="img" aria-label="Corte transversal de río y escuela" style={{ marginTop: '14px' }}></svg>
           <div className="result"><span className="badge" id="u-b"></span><span className="why" id="u-why"></span></div>

@@ -1,8 +1,7 @@
 'use client'
 
-import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { formatearLluviaMm, formatearVientoKmh } from '@/lib/infraestructura/radar-meteo/formato'
+import { formatearLluviaMm, formatearLluviaNumero, formatearVientoKmh } from '@/lib/infraestructura/radar-meteo/formato'
 
 type PronosticoEscuela = {
   cueAnexo: string
@@ -18,15 +17,8 @@ type PronosticoEscuela = {
   contextoEnsamble?: { probabilidad25: number | null }
 }
 
-export function EscuelaForecastCard({
-  cueAnexo,
-  nombre,
-  onClose,
-}: {
-  cueAnexo: string
-  nombre: string
-  onClose: () => void
-}) {
+// Bloque de pronóstico que va dentro de la vista previa de la escuela en el radar.
+export function PronosticoEscuelaBloque({ cueAnexo }: { cueAnexo: string }) {
   const [pronostico, setPronostico] = useState<PronosticoEscuela | null>(null)
   const [error, setError] = useState('')
 
@@ -49,20 +41,16 @@ export function EscuelaForecastCard({
   const rafagaMaxima = Math.max(0, ...(pronostico?.horas.map((hora) => hora.rafagaKmh.valor ?? 0) ?? []))
 
   return (
-    <section className="radar-escuela-card" aria-label={`Pronóstico de ${nombre}`}>
-      <header>
-        <div><span>PRONÓSTICO PUNTUAL</span><h2>{pronostico?.nombre ?? nombre}</h2></div>
-        <button type="button" className="map-cerrar" aria-label="Cerrar pronóstico de escuela" onClick={onClose}><X aria-hidden="true" /></button>
-      </header>
+    <section className="pronostico-escuela" aria-label="Pronóstico meteorológico">
+      <h3>Pronóstico</h3>
       {error && <p role="alert">{error}</p>}
       {!pronostico && !error && <p role="status">Cargando pronóstico puntual…</p>}
       {pronostico && (
-        <div className="radar-escuela-result">
-          <p>{pronostico.departamento.nombre}</p>
+        <div className="pronostico-escuela__cuerpo">
           {lluviaMaxima48h < 0.1 ? (
-            <p className="radar-escuela-sin-lluvia48h" role="status">Sin lluvia prevista en 48 h</p>
+            <p className="pronostico-escuela__seco" role="status">Sin lluvia prevista en 48 h</p>
           ) : (
-            <div className="radar-escuela-bars" aria-label="Lluvia por hora, próximas 48 horas">
+            <div className="pronostico-escuela__barras" aria-label="Lluvia por hora, próximas 48 horas">
               {pronostico.horas.map((hora) => {
                 const lluvia = hora.lluviaMm.valor ?? 0
                 return (
@@ -75,16 +63,13 @@ export function EscuelaForecastCard({
               })}
             </div>
           )}
-          <small>
-            {lluviaMaxima48h < 0.1
-              ? 'Próximas 48 h'
-              : 'Próximas 48 h · barras de lluvia por hora'}
-          </small>
-          <div className="radar-escuela-dias">
+          {lluviaMaxima48h >= 0.1 && <small>Próximas 48 h · barras de lluvia por hora</small>}
+          <small>Lluvia por día (mm)</small>
+          <div className="pronostico-escuela__dias">
             {pronostico.dias.map((dia) => (
               <span key={dia.fecha}>
                 {new Date(`${dia.fecha}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'short' })}
-                <b>{formatearLluviaMm(dia.lluviaMm)}</b>
+                <b>{formatearLluviaNumero(dia.lluviaMm)}</b>
               </span>
             ))}
           </div>

@@ -27,7 +27,6 @@ import { AlertasPastilla } from './alertas-pastilla'
 import { agruparAlertas } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
 import type { AlertaRadar } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
 import type { ResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
-import { EscuelaForecastCard } from './escuela-card'
 import { beforeIdSiExiste, CAPAS_RADAR } from './capas'
 import type { EscuelaMapa } from '@/lib/infraestructura/parte-mapa'
 
@@ -254,13 +253,15 @@ function crearFlechasViento(data: RespuestaRadarMeteo, frame: number) {
   return { type: 'FeatureCollection' as const, features }
 }
 
-export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasResaltadas, onVerAlertas }: {
+export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasResaltadas, onVerAlertas, onSeleccionarEscuela }: {
   activo: boolean
   variable: VariableRadarUI
   escuelas?: EscuelaMapa[]
   resumen: ResumenRadarMeteo | null
   alertasResaltadas: AlertaRadar[]
   onVerAlertas: () => void
+  /** Clic en el marcador de una escuela: abre su vista previa (con pronóstico) en la página. */
+  onSeleccionarEscuela?: (cueAnexo: string) => void
 }) {
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -274,14 +275,12 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
   const [map, setMap] = useState<MapLibreMap | null>(null)
   const [capasExistentes, setCapasExistentes] = useState({ borde: false, etiqueta: false, mascara: false })
   const [zoom, setZoom] = useState(0)
-  const [cueEscuela, setCueEscuela] = useState<string | null>(null)
   const [activoPrevio, setActivoPrevio] = useState(activo)
 
   if (activo !== activoPrevio) {
     setActivoPrevio(activo)
     if (!activo) {
       setPoint(null)
-      setCueEscuela(null)
       setPlaying(false)
     }
   }
@@ -529,6 +528,7 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
         closestDistance = distance
       }
     })
+    // One overlay at a time: the point forecast replaces the school card.
     setPoint(closestIndex >= 0 ? closestIndex : null)
   }, [data])
 
@@ -553,7 +553,6 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
     const bounds = map.getBounds()
     return escuelas.filter((escuela) => escuela.lat !== null && escuela.lon !== null && bounds.contains([escuela.lon, escuela.lat]))
   }, [map, zoom, escuelas])
-  const escuelaSeleccionada = escuelas.find((escuela) => escuela.cueAnexo === cueEscuela)
   const departamentosAlerta = useMemo(() => {
     if (!boundary || !alertasResaltadas.length) return null
     const ids = new Set(alertasResaltadas.flatMap((alerta) => alerta.departamentos
@@ -621,13 +620,6 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
           />
         </Source>
       )}
-      {cueEscuela && escuelaSeleccionada && (
-        <EscuelaForecastCard
-          cueAnexo={cueEscuela}
-          nombre={escuelaSeleccionada.nombre}
-          onClose={() => setCueEscuela(null)}
-        />
-      )}
       {escuelasVisibles.map((escuela) => escuela.lat !== null && escuela.lon !== null && (
         <Marker key={escuela.cueAnexo} longitude={escuela.lon} latitude={escuela.lat} anchor="center">
           <button
@@ -637,7 +629,8 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
             title={`${escuela.nombre} · abrir pronóstico`}
             onClick={(event) => {
               event.stopPropagation()
-              setCueEscuela(escuela.cueAnexo)
+              setPoint(null)
+              onSeleccionarEscuela?.(escuela.cueAnexo)
             }}
           >•</button>
         </Marker>

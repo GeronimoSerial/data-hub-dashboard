@@ -127,3 +127,36 @@ describe('RevisarSituacion', () => {
     expect(p.onResponder).toHaveBeenCalledWith({ tipo: 'solucionada', solucionadaEn: expect.any(String) })
   })
 })
+
+describe('RevisarSituacion: consistencia de la actualización (T7)', () => {
+  it('deshabilita "Usado como centro de evacuados" con inundación y muestra el motivo', () => {
+    const p = base({ motivoId: 'inundacion' })
+    render(<RevisarSituacion {...p} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
+    const sheet = screen.getByRole('dialog')
+    fireEvent.click(within(sheet).getByRole('checkbox', { name: 'Las clases o el edificio' }))
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+    expect(screen.getByRole('radio', { name: 'Usado como centro de evacuados' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Sin daños / en uso normal' })).toBeEnabled()
+  })
+
+  it('pasa las decisiones de afectaciones al confirmar la hoja de evacuado a habitual', () => {
+    const onDecidirAfectacionesHabitual = vi.fn()
+    const p = base({
+      clasesEdificio: { servicioEstado: 'normal', estadoEstablecimiento: 'evacuado' },
+      estadoActual: 'evacuado',
+      afectacionesActivas: [{ id: 'a', motivo: 'Inundación' }, { id: 'b', motivo: 'Sin energía o agua' }],
+      onDecidirAfectacionesHabitual,
+    })
+    render(<RevisarSituacion {...p} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
+    const sheet = screen.getByRole('dialog')
+    fireEvent.click(within(sheet).getByRole('checkbox', { name: 'Las clases o el edificio' }))
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
+    fireEvent.click(within(within(screen.getByRole('dialog')).getByRole('group', { name: 'Inundación' })).getByRole('radio', { name: 'Solucionada' }))
+    fireEvent.click(within(within(screen.getByRole('dialog')).getByRole('group', { name: 'Sin energía o agua' })).getByRole('radio', { name: 'Sigue activa' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmar' }))
+    expect(onDecidirAfectacionesHabitual).toHaveBeenCalledWith({ a: 'solucionada', b: 'sigue' })
+  })
+})
