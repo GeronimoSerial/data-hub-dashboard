@@ -4,22 +4,26 @@ import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetasFiltros, nombreArchivoExportacion, parsearSolicitudExportacion } from './solicitud'
 
 describe('parsearSolicitudExportacion', () => {
-  it('rechaza un tipo ausente o desconocido', () => {
-    expect(parsearSolicitudExportacion(new URLSearchParams('')).ok).toBe(false)
-    expect(parsearSolicitudExportacion(new URLSearchParams('tipo=bajo-lluvia')).ok).toBe(false)
+  it('sin estado exporta todas las escuelas, sin horizonte y en xlsx', () => {
+    expect(parsearSolicitudExportacion(new URLSearchParams(''))).toEqual({
+      ok: true,
+      solicitud: { estados: [], filtros: FILTROS_MAPA_VACIOS, horizonte: null, formato: 'xlsx' },
+    })
   })
 
-  it('usa horizonte 72 por defecto y filtros vacíos sin parámetros', () => {
-    const resultado = parsearSolicitudExportacion(new URLSearchParams('tipo=con-clases'))
-    expect(resultado).toEqual({
-      ok: true,
-      solicitud: { tipo: 'con-clases', filtros: FILTROS_MAPA_VACIOS, horizonte: 72 },
-    })
+  it('rechaza un estado desconocido', () => {
+    expect(parsearSolicitudExportacion(new URLSearchParams('estado=bajo-lluvia')).ok).toBe(false)
+    expect(parsearSolicitudExportacion(new URLSearchParams('estado=sin-clases,bajo-lluvia')).ok).toBe(false)
+  })
+
+  it('acepta estados repetidos o separados por comas, sin duplicados y en orden del catálogo', () => {
+    const resultado = parsearSolicitudExportacion(new URLSearchParams('estado=en-riesgo,afectadas&estado=afectadas'))
+    expect(resultado.ok && resultado.solicitud.estados).toEqual(['afectadas', 'en-riesgo'])
   })
 
   it('acepta los filtros con los mismos nombres de parámetro que el mapa', () => {
     const resultado = parsearSolicitudExportacion(
-      new URLSearchParams('tipo=afectadas&departamento=ER&direccion=3,4&clases=sin&apoyo=brinda&q=Escuela'),
+      new URLSearchParams('estado=afectadas&departamento=ER&direccion=3,4&clases=sin&apoyo=brinda&q=Escuela'),
     )
     expect(resultado.ok).toBe(true)
     if (!resultado.ok) return
@@ -33,11 +37,17 @@ describe('parsearSolicitudExportacion', () => {
   })
 
   it('toma el horizonte válido y rechaza uno fuera de 24, 72 o 240', () => {
-    const valido = parsearSolicitudExportacion(new URLSearchParams('tipo=en-riesgo&horizonte=240'))
+    const valido = parsearSolicitudExportacion(new URLSearchParams('estado=en-riesgo&horizonte=240'))
     expect(valido.ok && valido.solicitud.horizonte).toBe(240)
 
-    const invalido = parsearSolicitudExportacion(new URLSearchParams('tipo=en-riesgo&horizonte=99'))
+    const invalido = parsearSolicitudExportacion(new URLSearchParams('estado=en-riesgo&horizonte=99'))
     expect(invalido.ok).toBe(false)
+  })
+
+  it('acepta formato json y rechaza otros formatos', () => {
+    const json = parsearSolicitudExportacion(new URLSearchParams('formato=json'))
+    expect(json.ok && json.solicitud.formato).toBe('json')
+    expect(parsearSolicitudExportacion(new URLSearchParams('formato=pdf')).ok).toBe(false)
   })
 })
 
@@ -48,12 +58,14 @@ describe('etiquetasFiltros', () => {
     ])
   })
 
-  it('traduce departamentos y direcciones a nombres legibles', () => {
+  it('lista los estados seleccionados y traduce departamentos y direcciones', () => {
     const etiquetas = etiquetasFiltros(
       { ...FILTROS_MAPA_VACIOS, departamentos: ['GUALEGUAYCHU'], direcciones: [3, 9] },
       [{ id: 3, nombre: 'Nivel Primario' }],
+      ['sin-clases', 'en-riesgo'],
     )
     expect(etiquetas).toEqual([
+      { etiqueta: 'Estado', valor: 'sin clases, en riesgo' },
       { etiqueta: 'Departamento', valor: etiquetaDepartamento('GUALEGUAYCHU') },
       { etiqueta: 'Dirección', valor: 'Nivel Primario, Nivel 9' },
     ])
@@ -61,10 +73,20 @@ describe('etiquetasFiltros', () => {
 })
 
 describe('nombreArchivoExportacion', () => {
-  it('usa el nombre del catálogo y la fecha en hora de Buenos Aires', () => {
-    // 02:30 UTC del 18 es 23:30 del 17 en Buenos Aires.
-    expect(nombreArchivoExportacion('en-riesgo', new Date('2026-10-18T02:30:00Z'))).toBe(
-      'escuelas-en-riesgo-2026-10-17.xlsx',
+  // 02:30 UTC del 18 es 23:30 del 17 en Buenos Aires.
+  const fecha = new Date('2026-10-18T02:30:00Z')
+
+  it('usa el título de los estados como slug y la fecha en hora de Buenos Aires', () => {
+    expect(nombreArchivoExportacion(['en-riesgo'], fecha)).toBe('escuelas-en-riesgo-2026-10-17.xlsx')
+    expect(nombreArchivoExportacion(['sin-clases', 'en-riesgo'], fecha)).toBe(
+      'escuelas-sin-clases-y-en-riesgo-2026-10-17.xlsx',
     )
+    expect(nombreArchivoExportacion(['asistidas'], fecha)).toBe(
+      'escuelas-con-asistencia-pedagogica-2026-10-17.xlsx',
+    )
+  })
+
+  it('sin estados usa "escuelas"', () => {
+    expect(nombreArchivoExportacion([], fecha)).toBe('escuelas-2026-10-17.xlsx')
   })
 })
