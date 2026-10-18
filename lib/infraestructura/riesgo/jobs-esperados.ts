@@ -55,14 +55,9 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
   // Running in production every 6 h (calcular-riesgo, sync-pronostico-caudal, sync-ensemble)
   // and hourly (situacion-corte), the cadences of their deploy/systemd/ops1 timers.
   { nombre: 'calcular-riesgo', tipo: 'calcular-riesgo-v0', intervaloMinutos: 360, habilitado: true },
-  // Motor v0.4 en modo candidato (odd/tasks/motor-v0-4.md): no programado
-  // hasta decidir su ejecución; nunca publica el puntero vigente.
-  {
-    nombre: 'calcular-riesgo-v04-candidato',
-    tipo: 'calcular-riesgo-v04-candidato',
-    intervaloMinutos: 360,
-    habilitado: false,
-  },
+  // Desde T11 (docs/motor-v0.4/promocion.md) calcular-riesgo corre Motor v0.4;
+  // el job calcular-riesgo-v04-candidato queda sólo para corridas manuales de
+  // evaluación y no se espera ni se programa.
   {
     nombre: 'sync-pronostico-caudal',
     tipo: 'sync-hazard-pronostico-caudal',
@@ -105,20 +100,14 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
     intervaloMinutos: 1440,
     habilitado: false,
   },
-  // Motor v0.4 (T3): serie diaria histórica INA A5; no programada.
-  {
-    nombre: 'sync-ina-serie-diaria',
-    tipo: 'sync-ina-serie-diaria',
-    intervaloMinutos: 1440,
-    habilitado: false,
-  },
-  // Motor v0.4 (T4): última corrida INA 499/289 (plan: 4 consultas/día); no programada.
-  {
-    nombre: 'sync-ina-pronostico',
-    tipo: 'sync-ina-pronostico',
-    intervaloMinutos: 360,
-    habilitado: false,
-  },
+  // Insumos de Motor v0.4 operativo (T11). Coolify `10 6 * * *` (serie diaria
+  // INA A5) y `50 1,7,13,19 * * *` (pronóstico INA 499/289, antes de
+  // calcular-riesgo). No escriben infra_job_run: su frescura se vigila por la
+  // salud de fuente (actualizarSaludFuente). INA no comparte cupo por IP, así
+  // que staging/dev (rol consumidor) también los corren en lugar de replicar
+  // hidro_serie_diaria / hidro_ina_*: no están en JOBS_OPEN_METEO.
+  { nombre: 'sync-ina-serie-diaria', tipo: null, intervaloMinutos: 1440, habilitado: true },
+  { nombre: 'sync-ina-pronostico', tipo: null, intervaloMinutos: 360, habilitado: true },
 ]
 
 // En staging/dev (rol consumidor) los productores Open-Meteo no corren: sus

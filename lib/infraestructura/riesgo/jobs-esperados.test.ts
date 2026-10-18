@@ -23,16 +23,20 @@ describe('JOBS_ESPERADOS', () => {
   })
 
   it('sólo deja sin programar los jobs que producción no corre', () => {
-    expect(JOBS_ESPERADOS.filter((job) => !job.habilitado).map((job) => job.nombre).sort()).toEqual(['calcular-riesgo-v04-candidato', 'climatologia-caudal', 'climatologia-precipitacion', 'episodios-derivados', 'importar-altimetria-v04', 'sync-ina-pronostico', 'sync-ina-serie-diaria', 'sync-seasonal'])
+    expect(JOBS_ESPERADOS.filter((job) => !job.habilitado).map((job) => job.nombre).sort()).toEqual(['climatologia-caudal', 'climatologia-precipitacion', 'episodios-derivados', 'importar-altimetria-v04', 'sync-seasonal'])
   })
 
-  it('declara el candidato v0.4 con su propio tipo de lease, sin programar', () => {
-    expect(porNombre.get('calcular-riesgo-v04-candidato')).toEqual({
-      nombre: 'calcular-riesgo-v04-candidato',
-      tipo: 'calcular-riesgo-v04-candidato',
-      intervaloMinutos: 360,
-      habilitado: false,
-    })
+  it('ya no espera el candidato v0.4: el operativo calcular-riesgo corre Motor v0.4', () => {
+    expect(porNombre.has('calcular-riesgo-v04-candidato')).toBe(false)
+  })
+
+  it('espera los insumos INA de Motor v0.4 sin traza de infra_job_run (salud de fuente)', () => {
+    expect(porNombre.get('sync-ina-serie-diaria')).toEqual({ nombre: 'sync-ina-serie-diaria', tipo: null, intervaloMinutos: 1440, habilitado: true })
+    expect(porNombre.get('sync-ina-pronostico')).toEqual({ nombre: 'sync-ina-pronostico', tipo: null, intervaloMinutos: 360, habilitado: true })
+  })
+
+  it('la altimetría v0.4 sigue siendo una importación manual', () => {
+    expect(porNombre.get('importar-altimetria-v04')).toMatchObject({ habilitado: false })
   })
 })
 
@@ -43,6 +47,9 @@ describe('jobsEsperadosParaRol', () => {
       expect(consumidor.find((job) => job.nombre === nombre)?.habilitado ?? false).toBe(false)
     }
     expect(consumidor.find((job) => job.nombre === 'sync-imerg')).toMatchObject({ habilitado: true })
+    // INA no comparte cupo: el consumidor corre sus propios jobs INA.
+    expect(consumidor.find((job) => job.nombre === 'sync-ina-serie-diaria')).toMatchObject({ habilitado: true })
+    expect(consumidor.find((job) => job.nombre === 'sync-ina-pronostico')).toMatchObject({ habilitado: true })
     expect(consumidor.map((job) => job.nombre)).toEqual(JOBS_ESPERADOS.map((job) => job.nombre))
   })
 

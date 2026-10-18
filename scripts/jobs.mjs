@@ -422,6 +422,8 @@ async function correrCalcularRiesgo() {
 
 // Candidato Motor v0.4: escribe un run 'completado' aislado del operativo; no
 // publica el puntero vigente (ver lib/infraestructura/riesgo/publicar-run.ts).
+// Desde T11 el operativo calcular-riesgo ya corre v0.4: este job no se
+// programa; queda para corridas manuales de evaluación con el padrón completo.
 async function correrCalcularRiesgoCandidatoV04() {
   if (!(await jobsActivos())) return flagDeshabilitado('calcular-riesgo-v04-candidato')
   const { calcularRiesgoCandidatoV04 } = await import(
