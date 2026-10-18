@@ -141,10 +141,6 @@ export function TarjetaCruceAgua({
             <dt>Desde la escuela</dt>
             <dd>a {formatearKm(contexto.distanciaEscuelaM)} km</dd>
           </div>
-          <div>
-            <dt>Sin puente en el camino</dt>
-            <dd>{contexto.sinPuente} de {contexto.total}</dd>
-          </div>
           {lluvia && (
             <div>
               <dt>Lluvia observada ({lluvia.horas} h)</dt>

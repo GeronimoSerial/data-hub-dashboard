@@ -67,7 +67,7 @@ describe('TarjetaCruceAgua', () => {
     expect(screen.getByText('Puente: Puente Pexoa')).toBeTruthy()
     expect(screen.getByText('Cruce 1 de 3')).toBeTruthy()
     expect(screen.getByText('a 0,6 km')).toBeTruthy()
-    expect(screen.getByText('2 de 3')).toBeTruthy()
+    expect(screen.queryByText('2 de 3')).toBeNull()
     expect(screen.getByText('12,3 mm')).toBeTruthy()
     expect(screen.getByText('Escuela 123')).toBeTruthy()
     expect(screen.getByText('Camino a Goya · 3,4 km')).toBeTruthy()
