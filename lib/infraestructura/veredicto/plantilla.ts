@@ -4,6 +4,7 @@
 import type { MetricaVeredicto } from './metricas'
 import type { FuenteVeredicto, NivelVeredicto, TipoDia, TrazaRegla } from './reglas'
 import { describirTraza } from './traza-texto'
+import { ID_IMPACTO } from './orden'
 
 export type ItemPlantilla = {
   fecha: string
@@ -80,10 +81,22 @@ function senalRio(entrada: TrazaRegla, metricas: MetricaVeredicto[]): string {
 export function textoPlantilla(item: ItemPlantilla): string {
   const partes: string[] = []
   const senal = senalPrincipal(item.traza, item.metricas)
+  const impacto = frasesImpacto(item.metricas)
   if (senal) partes.push(senal)
-  else partes.push(SIN_SENAL_TEXTO[item.nivel] ?? `${ROTULO_NIVEL[item.nivel]}.`)
+  else if (impacto.length === 0) partes.push(SIN_SENAL_TEXTO[item.nivel] ?? `${ROTULO_NIVEL[item.nivel]}.`)
+  partes.push(...impacto)
   // Las fuentes ausentes no van en el texto: el modal y el PDF las muestran como detalle técnico.
   return partes.join(' ')
+}
+
+const IDS_IMPACTO_PLANTILLA: string[] = [ID_IMPACTO.escuelasSinClases, ID_IMPACTO.alumnosSinClases, ID_IMPACTO.situacionesAbiertas]
+
+// Plain "label: value." sentences for the main school impact figures.
+function frasesImpacto(metricas: MetricaVeredicto[]): string[] {
+  return IDS_IMPACTO_PLANTILLA.flatMap((id) => {
+    const m = metricas.find((x) => x.id === id)
+    return m ? [`${m.etiqueta}: ${numero(m.valor)}.`] : []
+  })
 }
 
 const SIN_SENAL_TEXTO: Partial<Record<NivelVeredicto, string>> = {

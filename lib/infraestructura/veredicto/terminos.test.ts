@@ -9,11 +9,14 @@ const METRICAS: MetricaAutorizada[] = [
 
 describe('contieneTerminoProhibidoVeredicto: siempre prohibidos', () => {
   it.each([
-    ['Hay 2 escuelas afectadas.', ['rio.parana.nivel']],
-    ['Un establecimiento sin servicio.', []],
-    ['El colegio sigue operativo.', []],
-  ])('bloquea menciones a escuelas o establecimientos: %s', (texto, refs) => {
-    expect(contieneTerminoProhibidoVeredicto(texto, refs)).toBe(true)
+    ['Hay 2 escuelas sin clases.', ['escuelas.sin_clases']],
+    ['Un establecimiento con asistencia pedagógica.', ['escuelas.asistencia_pedagogica']],
+  ])('allows describing affected schools: %s', (texto, refs) => {
+    expect(contieneTerminoProhibidoVeredicto(texto, refs)).toBe(false)
+  })
+
+  it('blocks recommendations phrased with "recomendamos"', () => {
+    expect(contieneTerminoProhibidoVeredicto('Recomendamos evitar la costa.', [])).toBe(true)
   })
 
   it.each([
@@ -149,5 +152,26 @@ describe('validarVeredictoAmbito', () => {
 
     expect(resultado.valida).toBe(false)
     expect(resultado.motivo).toBe('cifra_no_trazable')
+  })
+})
+
+describe('validarVeredictoAmbito: time windows', () => {
+  it('does not treat "24 h" or "72 horas" as figures to trace', () => {
+    const r = validarVeredictoAmbito(
+      [{ texto: 'El río subió 4,25 m en 24 h y se espera lo mismo en 72 horas.', refs: ['rio.parana.nivel'] }],
+      METRICAS,
+    )
+    expect(r.valida).toBe(true)
+  })
+
+  it('still rejects an untraced figure next to a time window', () => {
+    const r = validarVeredictoAmbito([{ texto: 'Cayeron 99 mm en 24 h.', refs: ['lluvia.observada.total'] }], METRICAS)
+    expect(r.valida).toBe(false)
+  })
+
+  it('does not read the 3 of "m3/s" as a figure', () => {
+    const metricas = [{ id: 'caudal.x.pico_m3s', valor: 15666.5, etiqueta: 'Caudal pico' }]
+    const r = validarVeredictoAmbito([{ texto: 'Caudal pico de 15666.5 m3/s.', refs: ['caudal.x.pico_m3s'] }], metricas)
+    expect(r.valida).toBe(true)
   })
 })

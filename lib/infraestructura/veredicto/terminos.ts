@@ -9,12 +9,11 @@
 import { normalizarSinTildes, validarTrazabilidadBriefing, MOTIVO_TERMINO_PROHIBIDO } from '../briefing-ia/validar'
 import type { ResultadoValidacionBriefing } from '../briefing-ia/validar'
 import type { MetricaAutorizada } from '../briefing-ia/metricas'
-import type { SalidaVeredictoIA } from './esquema'
+import type { FraseVeredicto } from './esquema'
 
-type FraseVeredicto = SalidaVeredictoIA['veredictos'][number]['frases'][number]
-
-const PATRON_ESCUELA = /\b(escuelas?|establecimientos?|colegios?)\b/
-const PATRON_ORDEN_OPERATIVA = /\bevacu(ar|en|e|ad)\b|\bse recomienda\b|\bdeben\b/
+const PATRON_ORDEN_OPERATIVA = /\bevacu(ar|en|e|ad)\b|\bse recomienda\b|\brecomend[a-z]*\b|\bdeben\b/
+// Wording that contains digits but carries no data: time windows and the m3/s unit.
+const PATRON_VENTANA_HORAS = /\b(?:24|48|72)\s*(?:h|hs|horas)\b|m3\/s/gi
 const PATRON_SUSPENSION = /\bsuspend[a-z]*\b/
 const PATRON_CLASES = /\bclases\b/
 const PATRON_PROBABILIDAD = /\bprobabilidad[a-z]*\b/
@@ -31,11 +30,8 @@ export function contieneTerminoProhibidoVeredicto(texto: string, refsDeLaFrase: 
 
   const tieneRef = (prefijo: string) => refsDeLaFrase.some((ref) => ref.startsWith(prefijo))
 
-  // Siempre prohibidos.
-  if (PATRON_ESCUELA.test(colapsada) || ['escuela', 'establecimiento', 'colegio'].some((t) => letras.includes(t))) {
-    return true
-  }
-  if (PATRON_ORDEN_OPERATIVA.test(colapsada) || letras.includes('evacuar') || letras.includes('evacuen') || letras.includes('serecomienda')) {
+  // Always forbidden. Describing affected schools is allowed since veredicto-v3.
+  if (PATRON_ORDEN_OPERATIVA.test(colapsada) || letras.includes('evacuar') || letras.includes('evacuen') || letras.includes('serecomienda') || letras.includes('recomend')) {
     return true
   }
   const tieneSuspension = PATRON_SUSPENSION.test(colapsada) || letras.includes('suspend')
@@ -87,7 +83,9 @@ export function validarVeredictoAmbito(
     }
   }
 
-  return validarTrazabilidadBriefing({ frases }, metricas, {
+  // Time windows ("24 h") and the m3/s unit are wording, not data: drop them before tracing figures.
+  const sinVentanas = frases.map((f) => ({ ...f, texto: f.texto.replace(PATRON_VENTANA_HORAS, '') }))
+  return validarTrazabilidadBriefing({ frases: sinVentanas }, metricas, {
     contieneTerminoProhibido: () => false,
   })
 }

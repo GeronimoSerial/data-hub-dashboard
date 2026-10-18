@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { RutaGeoJson } from '@/lib/db/schema'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
 import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
-import { lineasAcceso } from './acceso'
+import { desgloseSuperficies, lineasAcceso, superficieVia } from './acceso'
 import { construirCrucesAcceso } from '@/lib/mapas/accesos-capas'
 
 const rutaConocida: RutaGeoJson = {
@@ -201,5 +201,23 @@ describe('lineasAcceso', () => {
     expect(riesgo).toBe('Sin dato')
     expect(riesgo).not.toBe('Bajo')
     expect(riesgo).not.toBe('Sin riesgo')
+  })
+})
+
+describe('superficieVia', () => {
+  it('clasifica la vía principal en pavimentado, ripio o tierra', () => {
+    expect(superficieVia({ nombre: 'RN 12', tipo: 'primary', pavimentada: true })).toBe('pavimentado')
+    expect(superficieVia({ nombre: null, tipo: 'track', pavimentada: false })).toBe('tierra')
+    expect(superficieVia({ nombre: 'RP 5', tipo: 'secondary', pavimentada: false })).toBe('ripio')
+    expect(superficieVia(null)).toBeNull()
+  })
+})
+
+describe('desgloseSuperficies', () => {
+  it('lista los km por superficie de mayor a menor y omite los tramos insignificantes', () => {
+    expect(desgloseSuperficies({ pavimentado: 8000, ripio: 3000, tierra: 1400 })).toBe('8 km pavimentado · 3 km de ripio · 1,4 km de tierra')
+    expect(desgloseSuperficies({ pavimentado: 0, ripio: 2500, tierra: 12000 })).toBe('12 km de tierra · 2,5 km de ripio')
+    expect(desgloseSuperficies({ pavimentado: 40, ripio: 0, tierra: 0 })).toBeNull()
+    expect(desgloseSuperficies(null)).toBeNull()
   })
 })

@@ -1,4 +1,4 @@
-import type { CruceAccesoOsm, RutaGeoJson } from '@/lib/db/schema'
+import type { CruceAccesoOsm, RutaGeoJson, SuperficiesAcceso, ViaPrincipalAcceso } from '@/lib/db/schema'
 import type { ClaseRutaInundacion, ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
 import { ETIQUETAS_CRUCE } from '@/lib/mapas/accesos-capas'
@@ -51,6 +51,36 @@ export function etiquetaKm(distancia: number): string {
   return `${formato.format(kilometros)} km`
 }
 
+export type SuperficieVia = 'pavimentado' | 'ripio' | 'tierra'
+
+/** Surface of the route's main road; tracks read as dirt, other unpaved roads as gravel. */
+export function superficieVia(via: ViaPrincipalAcceso | null | undefined): SuperficieVia | null {
+  if (!via) return null
+  if (via.pavimentada) return 'pavimentado'
+  return via.tipo === 'track' ? 'tierra' : 'ripio'
+}
+
+/** "pavimentado", "de ripio" or "de tierra", to follow "camino" or "km". */
+export function etiquetaSuperficie(superficie: SuperficieVia): string {
+  return superficie === 'pavimentado' ? 'pavimentado' : `de ${superficie}`
+}
+
+// Stretches under 100 m are snapping noise, not a surface worth naming.
+const TRAMO_MINIMO_M = 100
+
+/** "8 km pavimentado · 3 km de ripio", longest surface first; null without data. */
+export function desgloseSuperficies(superficies: SuperficiesAcceso | null | undefined): string | null {
+  if (!superficies) return null
+  const tramos = (['pavimentado', 'ripio', 'tierra'] as const)
+    .map((superficie) => ({ superficie, metros: superficies[superficie] }))
+    .filter((tramo) => tramo.metros >= TRAMO_MINIMO_M)
+    .sort((a, b) => b.metros - a.metros)
+  if (tramos.length === 0) return null
+  return tramos
+    .map((tramo) => `${etiquetaKm(tramo.metros / 1000)} ${etiquetaSuperficie(tramo.superficie)}`)
+    .join(' · ')
+}
+
 function etiquetaViaPrincipal(geometria: GeometriaAccesoRespuesta): string | null {
   const via = geometria.viaPrincipal
   if (!via || !geometria.ruta) return null
@@ -58,9 +88,8 @@ function etiquetaViaPrincipal(geometria: GeometriaAccesoRespuesta): string | nul
   const nombre = typeof via.nombre === 'string' && via.nombre.trim() !== ''
     ? via.nombre
     : via.tipo === 'residential' ? 'Calle urbana' : 'Camino rural'
-  const superficie = via.pavimentada
-    ? 'pavimentada'
-    : via.tipo === 'track' ? 'de tierra' : 'de ripio'
+  const tipoSuperficie = superficieVia(via)
+  const superficie = tipoSuperficie === 'pavimentado' ? 'pavimentada' : `de ${tipoSuperficie}`
   const destino = geometria.destino ? ` → ${geometria.destino.nombre}` : ''
   const distanciaInformada = typeof geometria.distanciaKm === 'number'
     && Number.isFinite(geometria.distanciaKm)

@@ -58,7 +58,7 @@ function markupGlifo(icono: GlifoIcono, color: string): string {
       `stroke="${color}" stroke-width="${GROSOR_TRAZO_ICONO}" stroke-linecap="round" stroke-linejoin="round">${icono}</svg>`
     );
   }
-  const { nodo, clase } = nodoIconoLucide(icono);
+  const { nodo, clase }= nodoIconoLucide(icono);
   const hijos = nodo
     .map(([etiqueta, atributos]) => `<${etiqueta}${atributosSvg(atributos)}></${etiqueta}>`)
     .join('');

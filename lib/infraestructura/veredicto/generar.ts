@@ -6,7 +6,8 @@ import { ajustarPresupuestoMes, reservarPresupuestoMes } from '../briefing-ia/pr
 import { generarConOpenRouter, type ResultadoProveedorIA } from '../briefing-ia/proveedor-openrouter'
 import { CONFIG_FUENTES } from '../riesgo/providers/config-fuentes'
 import { calcularDia, fechasVentana, type ItemDia } from './entradas'
-import { esquemaSalidaVeredicto, type SalidaVeredictoIA } from './esquema'
+import { esquemaSalidaVeredicto, type FraseVeredicto, type SalidaVeredictoIA } from './esquema'
+import { leerImpactoActual } from './impacto'
 import { fechaArt, sumarDias } from './dia'
 import { marcarCerrado, guardarVeredicto, listarVigentes, type Db, type EntradaVeredicto } from './repositorio'
 import { PROMPT_SISTEMA_VEREDICTO, VERSION_PROMPT_VEREDICTO, construirMensajeUsuario } from './prompt'
@@ -25,6 +26,8 @@ type OpcionesGenerar = {
   montoReservaUsd?: number
   modelo?: string
   apiKey?: string
+  /** Current educational impact per department; defaults to the live sources. */
+  leerImpacto?: typeof leerImpactoActual
 }
 
 export type ResultadoGenerar = {
@@ -51,10 +54,23 @@ function presupuestoDesdeEntorno(): { presupuestoUsdMes: number; montoReservaUsd
   }
 }
 
-// Resultado de la IA por (fecha, ámbito): frases ya validadas o un motivo de plantilla.
+// AI result per (date, scope): a validated sentence or a template reason.
+// Stored as `{ formato, frases: [sentence] }` so the DTO keeps exposing `frases`.
+type SalidaIaFila = { formato: 'titular' | 'linea'; frases: FraseVeredicto[] }
 type DecisionItem =
-  | { fuente: 'ia'; textoFinal: string; salidaIa: SalidaVeredictoIA['veredictos'][number] }
+  | { fuente: 'ia'; textoFinal: string; salidaIa: SalidaIaFila }
   | { fuente: 'plantilla'; motivo: string }
+
+/** The model's sentence for an item: the day headline for the province, its line otherwise. */
+function fraseDe(
+  dia: SalidaVeredictoIA['dias'][number] | undefined,
+  ambito: string,
+): { formato: SalidaIaFila['formato']; frase: FraseVeredicto } | null {
+  if (!dia) return null
+  if (ambito === 'provincia') return { formato: 'titular', frase: dia.titular }
+  const linea = dia.departamentos.find((d) => d.ambito === ambito)
+  return linea ? { formato: 'linea', frase: { texto: linea.texto, refs: linea.refs } } : null
+}
 
 function interpretarRespuesta(
   resultado: ResultadoProveedorIA,
@@ -90,8 +106,14 @@ export async function generarVeredictos(
   const fuentesNoDisponibles = (Object.keys(salud) as FuenteVeredicto[]).filter(
     (fuente) => !salud[fuente].disponible,
   )
+  let impacto: Awaited<ReturnType<typeof leerImpactoActual>>
+  try {
+    impacto = await (opciones.leerImpacto ?? leerImpactoActual)(db)
+  } catch {
+    impacto = new Map()
+  }
   const items: ItemDia[] = []
-  for (const dia of ventana) items.push(...(await calcularDia(db, dia, salud)))
+  for (const dia of ventana) items.push(...(await calcularDia(db, dia, salud, impacto)))
 
   const desde = ventana[0]?.fecha ?? ''
   const hasta = ventana[ventana.length - 1]?.fecha ?? ''
@@ -114,6 +136,7 @@ export async function generarVeredictos(
     }
   }
 
+  const fechasCambiadas = new Set(cambiados.map((i) => i.fecha))
   const decisiones = new Map<Clave, DecisionItem>()
   let motivoLlamada: string | null = null
   let resultadoIa: ResultadoProveedorIA | null = null
@@ -129,7 +152,9 @@ export async function generarVeredictos(
       resultadoIa = await generarIa(
         [
           { role: 'system', content: PROMPT_SISTEMA_VEREDICTO },
-          { role: 'user', content: construirMensajeUsuario(cambiados) },
+          // Whole days go to the model so the headline sees every department;
+          // only the changed rows are persisted below.
+          { role: 'user', content: construirMensajeUsuario(items.filter((i) => fechasCambiadas.has(i.fecha))) },
         ],
         { apiKey: opciones.apiKey, modelo: modeloUsado },
       )
@@ -148,25 +173,23 @@ export async function generarVeredictos(
     if (!interpretada.ok) {
       motivoLlamada = interpretada.motivo
     } else {
-      const porClave = new Map(
-        interpretada.salida.veredictos.map((v) => [claveDe(v.fecha, v.ambito), v]),
-      )
+      const porFecha = new Map(interpretada.salida.dias.map((d) => [d.fecha, d]))
       for (const item of cambiados) {
         const clave = claveDe(item.fecha, item.ambito)
-        const propuesta = porClave.get(clave)
+        const propuesta = fraseDe(porFecha.get(item.fecha), item.ambito)
         if (!propuesta) {
           decisiones.set(clave, { fuente: 'plantilla', motivo: 'sin_salida' })
           continue
         }
-        const validacion = validarVeredictoAmbito(propuesta.frases, item.metricas)
+        const validacion = validarVeredictoAmbito([propuesta.frase], item.metricas)
         if (!validacion.valida) {
           decisiones.set(clave, { fuente: 'plantilla', motivo: validacion.motivo ?? 'validacion_fallida' })
           continue
         }
         decisiones.set(clave, {
           fuente: 'ia',
-          textoFinal: propuesta.frases.map((f) => f.texto).join(' '),
-          salidaIa: propuesta,
+          textoFinal: propuesta.frase.texto,
+          salidaIa: { formato: propuesta.formato, frases: [propuesta.frase] },
         })
       }
     }
