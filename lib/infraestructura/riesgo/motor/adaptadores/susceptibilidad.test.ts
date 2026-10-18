@@ -209,3 +209,18 @@ describe('ultimaFilaConservadoraPorCue', () => {
     expect(seleccion.get('CUE-1')?.peligroInundacionFluvial).toBe(0.7)
   })
 })
+
+// Reglas v0.4 (F1): profundidad fluvial JRC RP100 fuera del Record promediado.
+describe('crearAdapterSusceptibilidad con profundidad fluvial', () => {
+  it('informa profundidadFluvialRp100M sólo con la opción, y null se conserva', async () => {
+    await db.insert(tabla).values([
+      fila('CUE-1', { peligroInundacionFluvial: 0.8, peligroCalor: 300, profundidadRp100M: 1.25 }),
+      fila('CUE-2', { peligroCalor: 250, profundidadRp100M: null }),
+    ])
+    const v04 = crearAdapterSusceptibilidad({ conProfundidadFluvial: true })
+    expect((await v04.obtenerIndicadores('CUE-1'))?.profundidadFluvialRp100M).toBe(1.25)
+    expect((await v04.obtenerIndicadores('CUE-2'))?.profundidadFluvialRp100M).toBeNull()
+    const v03 = await crearAdapterSusceptibilidad().obtenerIndicadores('CUE-1')
+    expect(v03 && 'profundidadFluvialRp100M' in v03).toBe(false)
+  })
+})

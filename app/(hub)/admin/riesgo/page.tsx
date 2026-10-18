@@ -44,7 +44,7 @@ const enlaceActivo: React.CSSProperties = {
   fontWeight: 700,
   textDecoration: 'underline',
 }
-const tenue: React.CSSProperties = { color: 'var(--ink-soft)', fontSize: '0.85rem' }
+const tenue: React.CSSProperties = { color: 'var(--ink-soft)', fontSize: 'var(--t-micro)' }
 
 // El horizonte sólo admite 24|72|240; cualquier otra cosa cae a 24 en
 // silencio: es un panel interno, no un endpoint público al que haya que

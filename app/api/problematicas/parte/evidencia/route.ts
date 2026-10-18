@@ -1,5 +1,11 @@
 import { ensureSeeded } from '@/lib/db/seed'
-import { crearEvidenciaFotografica, ErrorEvidenciaFotografica, type DeclaracionFoto } from '@/lib/infraestructura/adjuntos/evidencia-fotografica'
+import {
+  crearEvidenciaFotografica,
+  ErrorEvidenciaFotografica,
+  resolverMovimientoBaseEvidencia,
+  type DeclaracionFoto,
+} from '@/lib/infraestructura/adjuntos/evidencia-fotografica'
+import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 
 export const runtime = 'nodejs'
@@ -21,15 +27,27 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ code: 'validacion' }, { status: 400, headers: NO_STORE })
   }
   if (!body || typeof body !== 'object') return Response.json({ code: 'validacion' }, { status: 422, headers: NO_STORE })
-  const input = body as { movimientoBaseId?: unknown; idempotencyKey?: unknown; fotos?: unknown }
-  if (typeof input.movimientoBaseId !== 'string' || typeof input.idempotencyKey !== 'string'
+  const input = body as { movimientoBaseId?: unknown; cue?: unknown; idempotencyKey?: unknown; fotos?: unknown }
+  // The school sheet may send only the CUE; the base movement is then resolved here.
+  const cue = typeof input.cue === 'string' ? normalizeCue(input.cue) : null
+  if ((typeof input.movimientoBaseId !== 'string' && !cue) || typeof input.idempotencyKey !== 'string'
     || !Array.isArray(input.fotos) || input.fotos.length < 1 || input.fotos.length > 3) {
     return Response.json({ code: 'validacion' }, { status: 422, headers: NO_STORE })
   }
   try {
     await ensureSeeded()
+    const movimientoBaseId =
+      typeof input.movimientoBaseId === 'string'
+        ? input.movimientoBaseId
+        : await resolverMovimientoBaseEvidencia(cue!.value)
+    if (!movimientoBaseId) {
+      return Response.json(
+        { code: 'sin_parte', error: 'La escuela todavía no tiene un parte al que asociar fotos.' },
+        { status: 404, headers: NO_STORE },
+      )
+    }
     const result = await crearEvidenciaFotografica(request, {
-      movimientoBaseId: input.movimientoBaseId,
+      movimientoBaseId,
       idempotencyKey: input.idempotencyKey,
       fotos: input.fotos as DeclaracionFoto[],
     })

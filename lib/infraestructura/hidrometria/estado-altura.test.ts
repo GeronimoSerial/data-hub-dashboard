@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   EDAD_MAXIMA_LECTURA_HORAS,
   estadoAltura,
+  evaluarLecturaMonitoreo,
+  evaluarPuntoHistorico,
   type LecturaParaEstado,
 } from './estado-altura'
 
@@ -124,5 +126,177 @@ describe('estadoAltura', () => {
         vencida: false,
       })
     })
+  })
+})
+describe('evaluarLecturaMonitoreo', () => {
+  it('clasifica como sin_lectura cuando la lectura es nula', () => {
+    expect(evaluarLecturaMonitoreo(null, { ahora: AHORA })).toEqual({
+      estadoNivel: 'sin_dato',
+      calidad: 'sin_lectura',
+      lecturaVencida: false,
+      inconsistente: false,
+      motivosInconsistencia: [],
+      tieneUmbrales: false,
+      variacionPublicada: {
+        variacionM: null,
+        periodoHoras: null,
+        estadoPublicado: null,
+        tendencia: 'sin_dato',
+        confiable: false,
+      },
+    })
+  })
+
+  it('bloquea la tendencia confiable cuando la lectura es inconsistente aunque tenga variacionM', () => {
+    const res = evaluarLecturaMonitoreo(
+      {
+        lecturaM: 0,
+        variacionM: 0.14,
+        periodoHoras: 12,
+        estadoPublicado: 'CRECE',
+        alertaM: 5,
+        evacuacionM: 6,
+        inconsistente: true,
+        motivosInconsistencia: ['lectura_cero_con_crece'],
+        medidaEn: horasAtras(2),
+      },
+      { ahora: AHORA },
+    )
+
+    expect(res).toEqual({
+      estadoNivel: 'sin_dato',
+      calidad: 'inconsistente',
+      lecturaVencida: false,
+      inconsistente: true,
+      motivosInconsistencia: ['lectura_cero_con_crece'],
+      tieneUmbrales: true,
+      variacionPublicada: {
+        variacionM: 0.14,
+        periodoHoras: 12,
+        estadoPublicado: 'CRECE',
+        tendencia: 'sin_dato',
+        confiable: false,
+      },
+    })
+  })
+
+  it('marca como vencida e invalida la tendencia confiable cuando supera las 18 horas', () => {
+    const res = evaluarLecturaMonitoreo(
+      {
+        lecturaM: 5.4,
+        variacionM: -0.05,
+        periodoHoras: 12,
+        estadoPublicado: 'BAJA',
+        alertaM: 5,
+        evacuacionM: 6,
+        inconsistente: false,
+        medidaEn: horasAtras(20),
+      },
+      { ahora: AHORA },
+    )
+
+    expect(res.estadoNivel).toBe('sin_dato')
+    expect(res.calidad).toBe('vencida')
+    expect(res.lecturaVencida).toBe(true)
+    expect(res.variacionPublicada).toEqual({
+      variacionM: -0.05,
+      periodoHoras: 12,
+      estadoPublicado: 'BAJA',
+      tendencia: 'sin_dato',
+      confiable: false,
+    })
+  })
+
+  it('conserva tendencia confiable cuando faltan umbrales pero la lectura y variación son válidas', () => {
+    const res = evaluarLecturaMonitoreo(
+      {
+        lecturaM: 3.4,
+        variacionM: 0.08,
+        periodoHoras: 6,
+        estadoPublicado: 'CRECE',
+        alertaM: null,
+        evacuacionM: null,
+        inconsistente: false,
+        medidaEn: horasAtras(2),
+      },
+      { ahora: AHORA },
+    )
+
+    expect(res.estadoNivel).toBe('sin_dato')
+    expect(res.calidad).toBe('sin_umbrales')
+    expect(res.tieneUmbrales).toBe(false)
+    expect(res.variacionPublicada).toEqual({
+      variacionM: 0.08,
+      periodoHoras: 6,
+      estadoPublicado: 'CRECE',
+      tendencia: 'crece',
+      confiable: true,
+    })
+  })
+
+  it('mantiene separados estadoNivel en alerta y tendencia en baja', () => {
+    const res = evaluarLecturaMonitoreo(
+      {
+        lecturaM: 5.3,
+        variacionM: -0.04,
+        periodoHoras: 12,
+        estadoPublicado: 'BAJA',
+        alertaM: 5,
+        evacuacionM: 6,
+        inconsistente: false,
+        medidaEn: horasAtras(1),
+      },
+      { ahora: AHORA },
+    )
+
+    expect(res.estadoNivel).toBe('alerta')
+    expect(res.calidad).toBe('vigente')
+    expect(res.variacionPublicada.tendencia).toBe('baja')
+    expect(res.variacionPublicada.confiable).toBe(true)
+  })
+})
+
+describe('evaluarPuntoHistorico', () => {
+  it('clasifica una observación histórica antigua como valida sin aplicar vencimiento de 18h', () => {
+    const res = evaluarPuntoHistorico({
+      lecturaM: 6.1,
+      variacionM: 0.03,
+      periodoHoras: 12,
+      estadoPublicado: 'CRECE',
+      alertaM: 5,
+      evacuacionM: 6,
+      inconsistente: false,
+      medidaEn: '2026-10-01T00:00:00.000Z',
+    })
+
+    expect(res).toEqual({
+      estadoNivel: 'evacuacion',
+      calidad: 'valida',
+      tieneUmbrales: true,
+      variacionPublicada: {
+        variacionM: 0.03,
+        periodoHoras: 12,
+        estadoPublicado: 'CRECE',
+        tendencia: 'crece',
+        confiable: true,
+      },
+    })
+  })
+
+  it('marca como inconsistente y tendencia sin_dato una observación histórica con flag inconsistente', () => {
+    const res = evaluarPuntoHistorico({
+      lecturaM: 0,
+      variacionM: 0.1,
+      periodoHoras: 12,
+      estadoPublicado: 'CRECE',
+      alertaM: 5,
+      evacuacionM: 6,
+      inconsistente: true,
+    })
+
+    expect(res.calidad).toBe('inconsistente')
+    expect(res.estadoNivel).toBe('sin_dato')
+    expect(res.variacionPublicada.tendencia).toBe('sin_dato')
+    expect(res.variacionPublicada.confiable).toBe(false)
   })
 })

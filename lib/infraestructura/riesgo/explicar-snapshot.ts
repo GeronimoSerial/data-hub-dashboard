@@ -123,6 +123,7 @@ function evidenciaActual(factores: FactorMotor[]): string[] {
 
 function textoEvidencia(factor: FactorMotor): string | null {
   if (esRio(factor)) return textoRio(factor)
+  if (factor.variable === 'superacion_terreno' && factor.valor !== null) return textoRioV04(factor)
   if (factor.fuente === 'lluvia-observada') return textoLluvia(factor)
   if (factor.fuente === 'peligro-celda') return textoPeligro(factor)
   if (factor.explicacion === null) return null
@@ -155,6 +156,15 @@ function textoRio(factor: FactorMotor): string {
   const clausulaTendencia = TENDENCIA[tendencia.toLowerCase()] ?? ''
 
   return `Río ${nombreRio(rio)} en ${nombreEstacion(estacion)} — Altura del río: ${numero(valor, 2)} m${clausulaTendencia} · ${textoEstado}.`
+}
+
+// Factor río del motor v0.4: probabilidad de superación del terreno.
+function textoRioV04(factor: FactorMotor): string {
+  const pct = (p: number) => `${Math.round(p * 100)} %`
+  const partes = /a (\d+)h; conservador ([\d.]+)/.exec(factor.explicacion ?? '')
+  const plazo = partes === null ? '' : ` en las próximas ${partes[1]} h`
+  const conservador = partes === null ? '' : ` (escenario conservador ${pct(Number(partes[2]))})`
+  return `Río: probabilidad ${pct(factor.valor ?? 0)} de que el agua supere el terreno de la escuela${plazo}${conservador}.`
 }
 
 const TENDENCIA: Record<string, string> = {

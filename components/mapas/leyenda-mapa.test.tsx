@@ -82,8 +82,13 @@ describe('LeyendaMapa · altura de ríos', () => {
     expect(leyenda.getByText('Alerta')).toBeTruthy()
     expect(leyenda.getByText('Normal')).toBeTruthy()
     expect(leyenda.getByText('Sin dato')).toBeTruthy()
-    expect(container.querySelectorAll('.map-insignia')).toHaveLength(4)
-    expect(leyenda.getAllByRole('note').some((nota) => nota.getAttribute('title') === 'Sin dato también cuando la última lectura tiene más de 18 h.')).toBe(true)
+    // One pin per state, label only: no level chips and no stale-reading sample.
+    expect(container.querySelectorAll('.map-leyenda__situacion > li')).toHaveLength(4)
+    expect(container.querySelectorAll('.map-pastilla-estacion')).toHaveLength(0)
+    expect(leyenda.queryByText('Lectura de más de 18 h')).toBeNull()
+    expect(leyenda.queryByText('3,00 m')).toBeNull()
+    expect(leyenda.queryByText('s/d')).toBeNull()
+    expect(leyenda.getAllByRole('note').some((nota) => nota.getAttribute('title') === 'Una lectura de más de 18 h conserva su último nivel; su antigüedad está en la ficha de la estación.')).toBe(true)
   })
 
   it('no muestra la escala de altura de ríos cuando la capa está apagada', () => {
@@ -146,7 +151,8 @@ describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
     expect(Array.from(container.querySelectorAll('.map-leyenda__simbolos li')).map((item) => item.textContent)).toEqual([
       'Funcionamiento interrumpido', 'Funcionamiento parcialmente interrumpido', 'Evacuado', 'Usado como centro de evacuados', 'Sin actualizar', 'Solucionada recientemente',
     ])
-    expect(container.querySelector('.map-leyenda__simbolos li:last-child svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelector('.map-leyenda__simbolos li:last-child .map-insignia')).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelector('.map-leyenda__simbolos li:last-child .map-insignia svg')).not.toBeNull()
     expect(container.querySelector('p')).toBeNull()
   })
 

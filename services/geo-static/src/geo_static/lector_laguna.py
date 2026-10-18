@@ -3,10 +3,11 @@
 Mantiene abiertos los rasters (ambos EPSG:4326) para lecturas en lote. Para una
 escuela (lon, lat):
 - distancia_agua_m: distancia al pixel de agua GSW mas cercano dentro de
-  RADIO_BUSQUEDA_M.
+  RADIO_BUSQUEDA_M; si no hay, dentro de RADIO_DISTANCIA_AGUA_M.
 - altura_sobre_agua_m: p10 del DEM dentro de RADIO_ESCUELA_M de la escuela menos
-  p10 del DEM en los pixeles de agua dentro del radio.
-- junto_laguna: decision de proximidad (ver proximidad_laguna.junto_laguna).
+  p10 del DEM en los pixeles de agua dentro del mismo radio usado para la distancia.
+- junto_laguna: decision de proximidad (ver proximidad_laguna.junto_laguna),
+  siempre con RADIO_BUSQUEDA_M.
 
 Si el punto cae fuera de los limites de cualquiera de los dos rasters, devuelve
 todo None.
@@ -30,6 +31,7 @@ from geo_static.proximidad_laguna import (
     NODATA_GSW,
     OCURRENCIA_MIN_PCT,
     RADIO_BUSQUEDA_M,
+    RADIO_DISTANCIA_AGUA_M,
     RADIO_ESCUELA_M,
     altura_sobre_agua_m,
     distancia_agua_m,
@@ -51,6 +53,7 @@ class LectorLaguna:
         *,
         ocurrencia_min_pct: float = OCURRENCIA_MIN_PCT,
         radio_busqueda_m: float = RADIO_BUSQUEDA_M,
+        radio_distancia_m: float = RADIO_DISTANCIA_AGUA_M,
         distancia_max_m: float = DISTANCIA_MAX_M,
         altura_max_m: float = ALTURA_MAX_M,
     ) -> None:
@@ -58,6 +61,7 @@ class LectorLaguna:
         self._dem = rasterio.open(ruta_dem)
         self._ocurrencia_min_pct = ocurrencia_min_pct
         self._radio_m = radio_busqueda_m
+        self._radio_distancia_m = max(radio_busqueda_m, radio_distancia_m)
         self._distancia_max_m = distancia_max_m
         self._altura_max_m = altura_max_m
 
@@ -66,8 +70,28 @@ class LectorLaguna:
         if not (_dentro(self._gsw, lon, lat) and _dentro(self._dem, lon, lat)):
             return {"distancia_agua_m": None, "altura_sobre_agua_m": None, "junto_laguna": None}
 
+        distancia, altura = self._distancia_y_altura(lon, lat, self._radio_m)
+        decision = junto_laguna(
+            distancia,
+            altura,
+            distancia_max_m=self._distancia_max_m,
+            altura_max_m=self._altura_max_m,
+        )
+        if distancia is None and self._radio_distancia_m > self._radio_m:
+            # Sin agua en el radio de laguna: se informa la mas cercana dentro
+            # del radio extendido; junto_laguna ya quedo decidido (False).
+            distancia, altura = self._distancia_y_altura(lon, lat, self._radio_distancia_m)
+
+        return {
+            "distancia_agua_m": distancia,
+            "altura_sobre_agua_m": altura,
+            "junto_laguna": decision,
+        }
+
+    def _distancia_y_altura(self, lon: float, lat: float, radio_m: float):
+        """Distancia al agua y altura sobre ella buscando dentro de `radio_m`."""
         ocurrencia, centro_fila, centro_col, res_x_m, res_y_m, desplazamiento = self._ventana_gsw(
-            lon, lat
+            lon, lat, radio_m
         )
         distancia = distancia_agua_m(
             ocurrencia,
@@ -76,48 +100,37 @@ class LectorLaguna:
             res_x_m,
             res_y_m,
             ocurrencia_min_pct=self._ocurrencia_min_pct,
-            radio_m=self._radio_m,
+            radio_m=radio_m,
         )
-        altura = None
-        if distancia is not None:
-            agua_fila, agua_col = _pixeles_agua_en_radio(
-                ocurrencia,
-                centro_fila,
-                centro_col,
-                res_x_m,
-                res_y_m,
-                ocurrencia_min_pct=self._ocurrencia_min_pct,
-                radio_m=self._radio_m,
-            )
-            xs, ys = xy(
-                self._gsw.transform,
-                agua_fila + desplazamiento[0],
-                agua_col + desplazamiento[1],
-            )
-            altura = self._altura(lon, lat, np.asarray(xs), np.asarray(ys))
-
-        return {
-            "distancia_agua_m": distancia,
-            "altura_sobre_agua_m": altura,
-            "junto_laguna": junto_laguna(
-                distancia,
-                altura,
-                distancia_max_m=self._distancia_max_m,
-                altura_max_m=self._altura_max_m,
-            ),
-        }
+        if distancia is None:
+            return None, None
+        agua_fila, agua_col = _pixeles_agua_en_radio(
+            ocurrencia,
+            centro_fila,
+            centro_col,
+            res_x_m,
+            res_y_m,
+            ocurrencia_min_pct=self._ocurrencia_min_pct,
+            radio_m=radio_m,
+        )
+        xs, ys = xy(
+            self._gsw.transform,
+            agua_fila + desplazamiento[0],
+            agua_col + desplazamiento[1],
+        )
+        return distancia, self._altura(lon, lat, np.asarray(xs), np.asarray(ys), radio_m)
 
     def cerrar(self) -> None:
         self._gsw.close()
         self._dem.close()
 
-    def _ventana_gsw(self, lon: float, lat: float):
+    def _ventana_gsw(self, lon: float, lat: float, radio_m: float):
         """Ventana GSW centrada en el punto, con nodata fuera del raster."""
         mx, my = metros_por_grado(lat)
         res_x, res_y = self._gsw.res
         res_x_m, res_y_m = res_x * mx, res_y * my
-        semi_col = math.ceil(self._radio_m / res_x_m)
-        semi_fila = math.ceil(self._radio_m / res_y_m)
+        semi_col = math.ceil(radio_m / res_x_m)
+        semi_fila = math.ceil(radio_m / res_y_m)
 
         fila, col = self._gsw.index(lon, lat)
         fila_ini, col_ini = fila - semi_fila, col - semi_col
@@ -127,7 +140,9 @@ class LectorLaguna:
         )
         return ocurrencia, semi_fila, semi_col, res_x_m, res_y_m, (fila_ini, col_ini)
 
-    def _altura(self, lon: float, lat: float, xs: np.ndarray, ys: np.ndarray) -> float | None:
+    def _altura(
+        self, lon: float, lat: float, xs: np.ndarray, ys: np.ndarray, radio_m: float
+    ) -> float | None:
         """Altura de la escuela sobre el agua con p10 del DEM (ver altura_sobre_agua_m).
 
         Lee una ventana DEM centrada en la escuela con el radio de busqueda; de
@@ -139,8 +154,8 @@ class LectorLaguna:
         mx, my = metros_por_grado(lat)
         res_x, res_y = dem.res
         res_x_m, res_y_m = res_x * mx, res_y * my
-        semi_fila = math.ceil(self._radio_m / res_y_m)
-        semi_col = math.ceil(self._radio_m / res_x_m)
+        semi_fila = math.ceil(radio_m / res_y_m)
+        semi_col = math.ceil(radio_m / res_x_m)
 
         fila_c, col_c = dem.index(lon, lat)
         fila_ini, col_ini = fila_c - semi_fila, col_c - semi_col

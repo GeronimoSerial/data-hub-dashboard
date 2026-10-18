@@ -8,7 +8,7 @@ let clientCache: { fingerprint: string; client: S3Client; bucket: string } | und
 
 function getReadClient() {
   const config = readObsConfig()
-  const fingerprint = `${config.endpoint}\n${config.region}\n${config.accessKeyId}\n${config.secretAccessKey}`
+  const fingerprint = `${config.endpoint}\n${config.region}\n${config.accessKeyId}\n${config.secretAccessKey}\n${config.forcePathStyle ?? false}`
   if (!clientCache || clientCache.fingerprint !== fingerprint) {
     clientCache?.client.destroy()
     clientCache = {

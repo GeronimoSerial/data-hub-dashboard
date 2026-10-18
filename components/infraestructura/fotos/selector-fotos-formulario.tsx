@@ -1,19 +1,31 @@
 'use client'
 
-import { useRef, useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { prepararFotosFormulario, type FotoElegida, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 import { descartarSubidaFotoNoDeclarada } from '@/lib/infraestructura/fotos/subida-cola'
+import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
 import { SelectorFotos } from './selector-fotos'
 
 export function SelectorFotosFormulario({
   draftId,
   onPreparadasChange,
   onCountChange,
+  onHabilitadaChange,
 }: {
   draftId: string
   onPreparadasChange: (fotos: readonly FotoPreparada[]) => void
   onCountChange?: (count: number) => void
+  /** Informa si las fotos están habilitadas en esta instalación (false: no hay selector). */
+  onHabilitadaChange?: (habilitada: boolean) => void
 }): JSX.Element {
+  useEffect(() => {
+    let activo = true
+    void fetchReportesOfflineFeatures().then((flags) => {
+      if (activo) onHabilitadaChange?.(flags.fotos)
+    })
+    return () => { activo = false }
+  }, [onHabilitadaChange])
+
   const elegidasRef = useRef<FotoElegida[]>([])
   const preparadasRef = useRef(new Map<string, FotoPreparada>())
   const enProcesoRef = useRef(new Map<string, Promise<void>>())

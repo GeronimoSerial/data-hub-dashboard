@@ -30,3 +30,7 @@ Ministerio de Educación.zip
 
 # Caché local del registro de skills de los agentes
 .atl/
+
+# Paquete local de insumos de Motor v0.4 (~1 GB: DEM, respuestas INA, copia
+# del repositorio). Se lee como referencia y nunca se versiona.
+Motor v0.4/

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { obtenerEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
+import { obtenerEstadoDatosSeguro } from '@/lib/infraestructura/riesgo/estado-datos/consulta'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 
@@ -36,7 +37,10 @@ export async function GET(request: Request) {
     return jsonError('territorioId requiere territorioTipo', 400)
   }
 
-  const estado = await obtenerEstadoSituacion({ territorioTipo, territorioId })
+  const [estado, estadoDatos] = await Promise.all([
+    obtenerEstadoSituacion({ territorioTipo, territorioId }),
+    obtenerEstadoDatosSeguro(),
+  ])
 
   return Response.json(
     {
@@ -54,6 +58,7 @@ export async function GET(request: Request) {
       briefing: estado.briefing,
       atraso: estado.atraso,
       prioridades: estado.prioridades,
+      estadoDatos,
     },
     { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
   )

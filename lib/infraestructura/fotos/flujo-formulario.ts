@@ -40,14 +40,25 @@ export async function prepararFotosFormulario(
   return { preparadas, errores }
 }
 
+/** The school has no report yet, so there is no movement to attach photos to. */
+export class SinParteError extends Error {
+  constructor() {
+    super('La escuela todavía no tiene un parte al que asociar fotos.')
+    this.name = 'SinParteError'
+  }
+}
+
 export async function declararFotosFormulario({
   draftId,
   movimientoBaseId,
+  cue,
   idempotencyKey,
   fotos,
 }: {
   draftId: string
-  movimientoBaseId: string
+  /** Movement to document; without it the server resolves the latest one for `cue`. */
+  movimientoBaseId?: string
+  cue?: string
   idempotencyKey: string
   fotos: readonly FotoPreparada[]
 }): Promise<void> {
@@ -57,6 +68,7 @@ export async function declararFotosFormulario({
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       movimientoBaseId,
+      cue,
       idempotencyKey,
       fotos: fotos.map((foto) => ({
         attachmentId: foto.attachmentId,
@@ -67,6 +79,10 @@ export async function declararFotosFormulario({
       })),
     }),
   })
+  if (response.status === 404) {
+    const cuerpo = (await response.json().catch(() => null)) as { code?: string } | null
+    if (cuerpo?.code === 'sin_parte') throw new SinParteError()
+  }
   if (!response.ok) throw new Error('No se pudieron asociar las fotos; se conservaron en este dispositivo.')
   const result = await response.json() as { movimientoId?: string }
   if (!result.movimientoId) throw new Error('El servidor no confirmó la evidencia fotográfica.')

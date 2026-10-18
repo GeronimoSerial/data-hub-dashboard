@@ -190,7 +190,8 @@ def _fila_sin_datos(
 
 def _registro_geometria(
     cue_anexo, fecha_extracto, ruta, cruces, motivo,
-    via_principal=None, destino=None, distancia_destino_m=None,
+    via_principal=None, destino=None, distancia_destino_m=None, superficies=None,
+    edificio=None,
 ):
     return {
         "cue_anexo": cue_anexo,
@@ -203,7 +204,33 @@ def _registro_geometria(
         "via_principal": via_principal,
         "destino": destino,
         "distancia_destino_m": distancia_destino_m,
+        "superficies": superficies,
+        "edificio": edificio,
     }
+
+
+def _asignar_edificios(registros: list[dict], escuelas: list[dict], poligonos=None) -> Counter:
+    """Completa `edificio` (huella OSM del edificio escolar, ver
+    `edificio_escolar`) en cada registro de geometria. Los poligonos se leen
+    UNA vez del pbf para todo el bbox de las escuelas, salvo que se pasen.
+    Devuelve el conteo por `asociacion` (`None` = sin candidato)."""
+    from geo_static.edificio_escolar import asociar_edificios, cargar_poligonos_escolares
+
+    if poligonos is None:
+        norte, sur, este, oeste = _bbox_departamento(escuelas, margen_grados=0.01)
+        poligonos = cargar_poligonos_escolares(str(PBF_LOCAL_DEFAULT), norte, sur, este, oeste)
+    edificios = asociar_edificios(escuelas, poligonos)
+    conteo: Counter = Counter()
+    for registro in registros:
+        edificio = edificios.get(registro["cue_anexo"])
+        registro["edificio"] = edificio
+        conteo[edificio["asociacion"] if edificio else None] += 1
+    print(
+        f"[calcular_aislamiento] edificios escolares: {len(poligonos)} poligonos OSM, "
+        f"asociacion: {dict(conteo)}",
+        flush=True,
+    )
+    return conteo
 
 
 def _escribir_geometria_ndjson(registros: list[dict], fecha_corrida: str) -> Path:
@@ -412,12 +439,18 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         )
 
         t_agua0 = time.monotonic()
+        nombres_agua: list = []
+        atributos_agua: list = []
         geometrias_agua, puntos_ford = construir_geometrias_agua_y_fords_local(
-            str(PBF_LOCAL_DEFAULT), norte, sur, este, oeste
+            str(PBF_LOCAL_DEFAULT), norte, sur, este, oeste,
+            nombres_agua_out=nombres_agua,
+            atributos_agua_out=atributos_agua,
         )
         arbol_agua = construir_arbol_agua(geometrias_agua)
         cruces_por_arista = construir_cruces_por_arista(
-            grafo, arbol_agua, geometrias_agua, puntos_ford
+            grafo, arbol_agua, geometrias_agua, puntos_ford,
+            nombres_agua=nombres_agua,
+            atributos_agua=atributos_agua,
         )
         grafo_seguro = construir_grafo_seguro(grafo, cruces_por_arista)
         print(
@@ -557,6 +590,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                             via_principal=geometria["via_principal"],
                             destino=geometria["destino"],
                             distancia_destino_m=geometria["distancia_destino_m"],
+                            superficies=geometria.get("superficies"),
                         )
                     )
             except Exception as exc:
@@ -596,6 +630,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 )
             )
 
+        _asignar_edificios(registros_geometria, escuelas)
         ruta_geom_path = _escribir_geometria_ndjson(registros_geometria, fecha_corrida)
         con_ruta = sum(1 for r in registros_geometria if r["ruta"] is not None)
         cruces_por_clase = Counter(

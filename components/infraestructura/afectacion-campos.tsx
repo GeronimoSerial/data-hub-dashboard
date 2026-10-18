@@ -3,8 +3,13 @@
 import { useState, type JSX } from 'react'
 import type { TurnoContexto, SeccionContexto } from '@/lib/infraestructura/contexto'
 import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
-import type { Severidad } from '@/lib/infraestructura/validacion'
+import { SEVERIDADES, type Severidad } from '@/lib/infraestructura/validacion'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import {
+  ETIQUETA_JUSTIFICACION_CRITICA,
+  JUSTIFICACIONES_CRITICA,
+  requiereJustificacionCritica,
+} from '@/lib/infraestructura/justificacion-critica'
 import { detectarMotivoDuplicado } from '@/lib/infraestructura/duplicado-motivo'
 import { CampoGravedad } from '@/components/infraestructura/campo-gravedad'
 import type { JustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
@@ -17,6 +22,7 @@ import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
 import { AvisosRedSeguridad } from '@/components/infraestructura/aviso-red-seguridad'
 import { evaluarRedesSeguridad } from '@/lib/infraestructura/red-seguridad'
+import { severidadSugeridaPorAlcance, type CampoConsistencia, type Regla, type Sugerencia } from '@/lib/infraestructura/consistencia-parte'
 
 export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
   establecimiento:
@@ -109,6 +115,51 @@ export interface CamposQuePasoProps extends CamposComunes {
    * es ruido — el director no lo está agregando, lo está mirando.
    */
   esNueva?: boolean
+  /** Advertencias de consistencia (no bloquean); se filtran por campo. */
+  avisos?: Regla[]
+}
+
+/*
+  Advertencias de consistencia: no bloquean. "Cambiar a" aplica el valor que
+  resuelve la advertencia; "Está bien así" la descarta sólo para las respuestas
+  actuales (si cambian, vuelve).
+*/
+export function AvisosConsistencia({
+  reglas,
+  campos,
+  onAplicar,
+}: {
+  reglas: Regla[]
+  campos: CampoConsistencia[]
+  onAplicar?: (sugerencia: Sugerencia) => void
+}): JSX.Element | null {
+  const [descartadas, setDescartadas] = useState<Record<string, string>>({})
+  const visibles = reglas.filter((regla) => campos.includes(regla.campo) && descartadas[regla.codigo] !== (regla.firma ?? ''))
+  if (visibles.length === 0) return null
+  return (
+    <>
+      {visibles.map((regla) => (
+        <div key={regla.codigo} className="aviso-badge" role="note">
+          <span className="aviso-badge__sello">Revisar</span>
+          <span className="aviso-badge__texto">{regla.mensaje}</span>
+          <span className="aviso-badge__acciones">
+            {regla.sugerencia && onAplicar ? (
+              <button type="button" className="aviso-badge__accion" onClick={() => onAplicar(regla.sugerencia!)}>
+                {regla.sugerencia.etiqueta}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="aviso-badge__accion aviso-badge__accion--secundaria"
+              onClick={() => setDescartadas((actual) => ({ ...actual, [regla.codigo]: regla.firma ?? '' }))}
+            >
+              Está bien así
+            </button>
+          </span>
+        </div>
+      ))}
+    </>
+  )
 }
 
 /*
@@ -130,6 +181,7 @@ export function CamposQuePaso({
   motivos,
   otrasAfectaciones,
   esNueva = false,
+  avisos = [],
   onChange,
   disabled = false,
 }: CamposQuePasoProps): JSX.Element {
@@ -267,27 +319,42 @@ export function CamposQuePaso({
           </span>
         </p>
       )}
+
+      <AvisosConsistencia reglas={avisos} campos={['motivo', 'severidad', 'justificacionCritica']} />
     </>
   )
 }
 
 export interface CamposAQuienAfectaProps extends CamposComunes {
   turnos: TurnoContexto[]
+  /** Catálogo de motivos: de aquí sale la gravedad sugerida del motivo elegido. */
+  motivos?: MotivoRow[]
   usaSelectorEstablecimiento?: boolean
   ocultarPreguntaAlcance?: boolean
   ocultarDescripcion?: boolean
+  /** "Otro" exige describir la situación: la etiqueta lo dice y la validación del paso lo exige. */
+  descripcionObligatoria?: boolean
+  avisos?: Regla[]
 }
 
 export function CamposAQuienAfecta({
   borrador,
   idPrefijo,
   turnos,
+  motivos = [],
   usaSelectorEstablecimiento = false,
   ocultarPreguntaAlcance = false,
   ocultarDescripcion = false,
+  descripcionObligatoria = false,
+  avisos = [],
   onChange,
   disabled = false,
 }: CamposAQuienAfectaProps): JSX.Element {
+  const [recomendacion, setRecomendacion] = useState<{ sugerida: Severidad; porMotivo: Severidad } | null>(null)
+  const [justificandoCritica, setJustificandoCritica] = useState(false)
+  const [razonCritica, setRazonCritica] = useState<JustificacionCritica | ''>('')
+  const [detalleCritica, setDetalleCritica] = useState('')
+
   const totalAlumnos = totalAlumnosDe(borrador, turnos)
   const seccionesDisponibles = aplanarSecciones(turnos)
   const matriculaDisponible = seccionesDisponibles.reduce((suma, seccion) => suma + seccion.matricula, 0)
@@ -297,6 +364,40 @@ export function CamposAQuienAfecta({
     : cantidadSecciones === 1
       ? '1 sección seleccionada'
       : `${cantidadSecciones} secciones seleccionadas`
+
+  const motivoElegido = motivos.find((m) => m.nombre === borrador.motivo)
+  const sugeridaCatalogo = motivoElegido?.severidadSugerida ?? null
+  const razonCriticaValida = razonCritica !== '' && (razonCritica !== 'otro' || detalleCritica.trim() !== '')
+
+  /*
+    Recomendación, no decisión: sólo al pasar a "toda la escuela", y sólo si la
+    sugerida para ese alcance supera tanto la del motivo como la ya elegida. Se
+    muestra una vez por cambio de alcance; "Mantener" la deja como estaba.
+  */
+  function recomendarPorAlcance(alcance: '' | 'toda' | 'algunas') {
+    if (alcance !== 'toda' || borrador.alcanceEstablecimiento === 'toda' || borrador.severidad === '') return
+    const motivoId = motivoElegido?.id ?? null
+    const porMotivo = severidadSugeridaPorAlcance(motivoId, null)
+    const sugerida = severidadSugeridaPorAlcance(motivoId, { tipo: 'toda' })
+    if (!porMotivo || !sugerida) return
+    const indiceSugerida = SEVERIDADES.indexOf(sugerida)
+    if (indiceSugerida > SEVERIDADES.indexOf(porMotivo) && indiceSugerida > SEVERIDADES.indexOf(borrador.severidad)) {
+      setRecomendacion({ sugerida, porMotivo })
+    }
+  }
+
+  // Subir a Crítica sin una sugerencia de catálogo que la respalde exige la misma
+  // justificación que en el paso 1; se pide aquí antes de aplicarla.
+  function cambiarGravedadRecomendada(severidad: Severidad) {
+    setRecomendacion(null)
+    if (requiereJustificacionCritica(severidad, sugeridaCatalogo)) {
+      setRazonCritica('')
+      setDetalleCritica('')
+      setJustificandoCritica(true)
+      return
+    }
+    onChange({ ...borrador, severidad, justificacionCritica: '', justificacionCriticaDetalle: '' })
+  }
 
   return (
     <>
@@ -350,6 +451,7 @@ export function CamposAQuienAfecta({
             })}
             onAccion={(tipo) => {
               if (tipo === 'marcar-toda-la-escuela') {
+                recomendarPorAlcance('toda')
                 onChange({
                   ...borrador,
                   alcanceEstablecimiento: 'toda',
@@ -362,7 +464,10 @@ export function CamposAQuienAfecta({
           <SelectorEstablecimiento
             turnos={turnos}
             valor={{ alcance: borrador.alcanceEstablecimiento, secciones: borrador.secciones }}
-            onCambiar={(v) => onChange({ ...borrador, alcanceEstablecimiento: v.alcance, secciones: v.secciones, alumnos: [] })}
+            onCambiar={(v) => {
+              recomendarPorAlcance(v.alcance)
+              onChange({ ...borrador, alcanceEstablecimiento: v.alcance, secciones: v.secciones, alumnos: [] })
+            }}
             disabled={disabled}
           />
           <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
@@ -393,12 +498,68 @@ export function CamposAQuienAfecta({
         </div>
       )}
 
+      <AvisosConsistencia reglas={avisos} campos={['alcance']} />
+
+      <ConfirmSheet
+        open={recomendacion !== null}
+        titulo="Recomendamos subir la gravedad"
+        confirmarLabel={`Cambiar a ${recomendacion?.sugerida ?? ''}`}
+        cancelarLabel={`Mantener ${borrador.severidad}`}
+        onCancelar={() => setRecomendacion(null)}
+        onConfirmar={() => {
+          if (recomendacion) cambiarGravedadRecomendada(recomendacion.sugerida)
+        }}
+      >
+        <p>{`Sugerimos ${recomendacion?.sugerida ?? ''} en lugar de ${recomendacion?.porMotivo ?? ''} porque afecta a toda la escuela.`}</p>
+      </ConfirmSheet>
+
+      <ConfirmSheet
+        open={justificandoCritica}
+        titulo="¿Por qué es crítica?"
+        confirmarLabel="Confirmar"
+        cancelarLabel="Volver"
+        confirmarDeshabilitado={!razonCriticaValida || disabled}
+        onCancelar={() => setJustificandoCritica(false)}
+        onConfirmar={() => {
+          if (!razonCriticaValida || disabled) return
+          onChange({
+            ...borrador,
+            severidad: 'Crítica',
+            justificacionCritica: razonCritica,
+            justificacionCriticaDetalle: razonCritica === 'otro' ? detalleCritica.trim() : '',
+          })
+          setJustificandoCritica(false)
+        }}
+      >
+        <div className="afectacion-campos__opciones">
+          {JUSTIFICACIONES_CRITICA.map((justificacion) => (
+            <Opcion
+              key={justificacion}
+              tipo="radio"
+              name={`${idPrefijo}-justificacion-alcance`}
+              checked={razonCritica === justificacion}
+              disabled={disabled}
+              onChange={() => setRazonCritica(justificacion)}
+              label={ETIQUETA_JUSTIFICACION_CRITICA[justificacion]}
+              compacta
+            />
+          ))}
+        </div>
+        {razonCritica === 'otro' ? (
+          <label className="ui-label afectacion-campos__detalle">
+            Describa qué pasa
+            <Textarea maxLength={300} value={detalleCritica} disabled={disabled} onChange={(e) => setDetalleCritica(e.target.value)} />
+          </label>
+        ) : null}
+      </ConfirmSheet>
+
       {!ocultarDescripcion ? (
         <div className="afectacion-campos__grupo">
-          <Label htmlFor={`${idPrefijo}-descripcion`}>Descripción (opcional)</Label>
+          <Label htmlFor={`${idPrefijo}-descripcion`}>{descripcionObligatoria ? 'Descripción (obligatoria)' : 'Descripción (opcional)'}</Label>
           <Textarea
             id={`${idPrefijo}-descripcion`}
             maxLength={500}
+            aria-required={descripcionObligatoria || undefined}
             value={borrador.descripcion}
             onChange={(evento) => onChange({ ...borrador, descripcion: evento.target.value })}
             disabled={disabled}

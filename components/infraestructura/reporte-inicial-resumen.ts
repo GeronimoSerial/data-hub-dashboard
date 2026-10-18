@@ -35,6 +35,8 @@ export interface EntradaResumen {
   estadoEstablecimiento: EstadoEstablecimiento | ''
   rigeDesde: string
   asistenciaPedagogica?: { brinda: boolean; modalidades: string[] }
+  /** Sólo lectura: las fotos se eligen en el primer paso, no acá. */
+  fotosAdjuntas?: number
 }
 
 export interface FilaResumen {
@@ -77,7 +79,7 @@ export function describirAlcanceServicio(servicio: ServicioResumen): string {
  * "Descripción: —" es ruido que no ayuda a confirmar nada.
  */
 export function armarResumen(entrada: EntradaResumen): FilaResumen[] {
-  const { afectacion, servicio, estadoEstablecimiento, rigeDesde, asistenciaPedagogica } = entrada
+  const { afectacion, servicio, estadoEstablecimiento, rigeDesde, asistenciaPedagogica, fotosAdjuntas } = entrada
 
   const lineas: FilaResumen[] = [
     { etiqueta: 'Situación', valor: afectacion.motivo, severidad: afectacion.severidad },
@@ -104,6 +106,8 @@ export function armarResumen(entrada: EntradaResumen): FilaResumen[] {
       : 'No'
     lineas.push({ etiqueta: 'Asistencia pedagógica', valor })
   }
+
+  if (fotosAdjuntas !== undefined) lineas.push({ etiqueta: 'Fotos adjuntas', valor: String(fotosAdjuntas) })
 
   return lineas
 }

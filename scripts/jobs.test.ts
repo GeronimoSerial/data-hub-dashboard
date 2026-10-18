@@ -409,3 +409,38 @@ describe('RADAR_SYNC_ENABLED', () => {
     expect(mocks.ejecutarSyncImerg).toHaveBeenCalledOnce()
   })
 })
+
+describe('RIESGO_DATOS_ROL=consumidor', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it.each([
+    'sync-pronostico-caudal', 'sync-ensemble', 'sync-seasonal', 'climatologia-precipitacion',
+    'climatologia-caudal', 'sync-radar-meteo', 'sync-radar-ensemble', 'verificar-radar-meteo',
+  ])('bloquea %s sin migrar ni cargar el productor', async nombre => {
+    vi.stubEnv('RIESGO_DATOS_ROL', 'consumidor')
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+    const resultado = await correrJob(nombre)
+    expect(resultado).toEqual({ ejecutado: false, motivo: 'rol_consumidor' })
+    expect(codigoSalida(nombre, resultado)).toBe(0)
+    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
+    expect(mocks.ejecutarSyncPronosticoCaudal).not.toHaveBeenCalled()
+    expect(mocks.ejecutarSyncEnsemble).not.toHaveBeenCalled()
+    expect(mocks.ejecutarCalculoClimatologia).not.toHaveBeenCalled()
+    expect(mocks.ejecutarCalculoClimatologiaCaudal).not.toHaveBeenCalled()
+    expect(mocks.ejecutarSyncRadarMeteo).not.toHaveBeenCalled()
+  })
+
+  it('infiere el rol consumidor desde la base hub_staging', async () => {
+    vi.stubEnv('RIESGO_DATOS_ROL', undefined)
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@h/hub_staging')
+    const { correrJob } = await import('./jobs.mjs')
+    await expect(correrJob('sync-ensemble')).resolves.toEqual({ ejecutado: false, motivo: 'rol_consumidor' })
+  })
+
+  it('no bloquea jobs sin Open-Meteo como sync-imerg', async () => {
+    vi.stubEnv('RIESGO_DATOS_ROL', 'consumidor')
+    mocks.ejecutarSyncImerg.mockResolvedValue({ ejecutado: true })
+    const { correrJob } = await import('./jobs.mjs')
+    await expect(correrJob('sync-imerg')).resolves.toEqual({ ejecutado: true })
+  })
+})

@@ -51,16 +51,15 @@ describe('PanelSituacionActual', () => {
     vi.spyOn(Date, 'now').mockReturnValue(ahora)
     const { container } = render(<PanelSituacionActual escuelas={escuelas} actualizadoEn="2026-10-05T14:30:00.000Z" onSeleccionar={vi.fn()} />)
 
-    expect(screen.getByText('Escuelas con situaciones abiertas').previousElementSibling).toHaveTextContent('3')
-    expect(screen.getByText('Sin clases', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('4')
-    expect(screen.getByText('Alumnos sin clases').previousElementSibling).toHaveTextContent('110')
-    expect(screen.getByText('Sin actualizar', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('1')
-    expect(container.querySelector('.map-sitact__apoyo p')).toHaveTextContent('2 de 4 escuelas sin clases brindan asistencia pedagógica')
+    expect(screen.getByText('Escuelas sin clases').nextElementSibling).toHaveTextContent('4')
+    expect(container.querySelector('.map-sitact__kpi--resaltado small')).toHaveTextContent('De 3 con situaciones abiertas')
+    expect(screen.getByText('Alumnos sin clases').nextElementSibling).toHaveTextContent('110')
+    expect(screen.getByText('Sin actualizar', { selector: 'dt' }).nextElementSibling).toHaveTextContent('1')
+    expect(container.querySelector('.map-sitact__apoyo')).toHaveTextContent('Con asistencia pedagógica2 de 4')
     expect(container.querySelector('.map-sitact__apoyo')).toHaveTextContent('1 sin dato')
-    expect(screen.getByRole('progressbar', { name: 'Escuelas sin clases que brindan asistencia pedagógica' })).toBeInTheDocument()
 
-    const situaciones = screen.getByRole('region', { name: /Situaciones/ })
-    const filas = within(situaciones).getAllByRole('button')
+    const situaciones = screen.getByRole('region', { name: /Escuelas afectadas/ })
+    const filas = within(situaciones).getAllByRole('button', { name: /^Escuela / })
     expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual([
       'Escuela Parcial, Bella Vista · Secundario',
       'Escuela Alta, General Alvear · Primario, Inicial',
@@ -74,17 +73,24 @@ describe('PanelSituacionActual', () => {
     expect(within(situaciones).queryByText('Escuela sin reporte')).not.toBeInTheDocument()
   })
 
-  it('muestra la quinta KPI como secundaria a ancho completo sin cambiar los valores', () => {
+  it('muestra sólo las dos cifras principales como tarjetas', () => {
     const { container } = render(<PanelSituacionActual escuelas={escuelas} actualizadoEn={null} onSeleccionar={vi.fn()} />)
     const kpis = Array.from(container.querySelectorAll('.map-sitact__kpi'))
-    const css = readFileSync('app/globals.css', 'utf8')
-    const reglaSecundaria = css.match(/\.map-sitact__kpi--secundario\s*\{[^}]*\}/)?.[0]
 
-    expect(kpis.map((kpi) => kpi.querySelector('strong')?.textContent)).toEqual(['3', '4', '110', '1', '0'])
-    expect(kpis.slice(0, 4).every((kpi) => !kpi.classList.contains('map-sitact__kpi--secundario'))).toBe(true)
-    expect(kpis[4]).toHaveClass('map-sitact__kpi--secundario')
-    expect(kpis[4].querySelector('span')).toHaveTextContent('Solucionadas en los últimos 15 días')
-    expect(reglaSecundaria).toContain('grid-column: 1 / -1')
+    expect(kpis.map((kpi) => kpi.querySelector('strong')?.textContent)).toEqual(['4', '110'])
+    expect(kpis[0]).toHaveClass('map-sitact__kpi--resaltado')
+  })
+
+  it('filtra las escuelas afectadas con los chips', () => {
+    render(<PanelSituacionActual escuelas={escuelas} actualizadoEn={null} onSeleccionar={vi.fn()} />)
+    const situaciones = screen.getByRole('region', { name: /Escuelas afectadas/ })
+    const filas = () => within(situaciones).queryAllByRole('button', { name: /^Escuela / })
+
+    expect(within(situaciones).getByRole('button', { name: 'Todas' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(within(situaciones).getByRole('button', { name: 'Sin actualizar' }))
+    expect(filas().map((fila) => fila.getAttribute('aria-label'))).toEqual(['Escuela Alta, General Alvear · Primario, Inicial'])
+    fireEvent.click(within(situaciones).getByRole('button', { name: 'Todas' }))
+    expect(filas()).toHaveLength(3)
   })
 
   it('selecciona la escuela al activar su renglón', () => {
@@ -103,8 +109,9 @@ describe('PanelSituacionActual', () => {
     const tambienAbierta = { ...escuelas[0], cueAnexo: '800', nombre: 'Escuela Abierta y Solucionada', solucionadasRecientes: 1 }
     render(<PanelSituacionActual escuelas={[solucionada, otraSolucionada, tambienAbierta]} actualizadoEn={null} onSeleccionar={onSeleccionar} />)
 
-    expect(screen.getByText('Solucionadas en los últimos 15 días', { selector: '.map-sitact__kpi span' }).previousElementSibling).toHaveTextContent('3')
-    const seccion = screen.getByRole('region', { name: 'Solucionadas en los últimos 15 días' })
+    const seccion = screen.getByText('Solucionadas en los últimos 15 días').closest('details')!
+    expect(seccion).not.toHaveAttribute('open')
+    expect(seccion.querySelector('summary')).toHaveTextContent('2')
     const filas = within(seccion).getAllByRole('button')
     expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual([
       'Escuela Solucionada, Ituzaingó',

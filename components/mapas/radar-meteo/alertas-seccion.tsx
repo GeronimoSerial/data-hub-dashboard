@@ -20,11 +20,11 @@ export function AlertasSeccion(props: {
     <section id="radar-alertas-smn" aria-labelledby="radar-alertas-smn-titulo" className="map-radar-alertas">
       <h3 id="radar-alertas-smn-titulo" className="map-sitact__titulo-seccion">Alertas del SMN</h3>
       {cargando ? (
-        <p role="status" className="map-sitact__vacio">Cargando alertas…</p>
+        <p role="status" className="map-sitact__vacio map-sitact__vacio--linea">Cargando alertas…</p>
       ) : error ? (
-        <p className="map-sitact__vacio">No se pudieron cargar las alertas del SMN.</p>
+        <p className="map-sitact__vacio map-sitact__vacio--linea">No se pudieron cargar las alertas del SMN.</p>
       ) : grupos.length === 0 ? (
-        <p className="map-sitact__vacio">Sin alertas oficiales vigentes ni próximas · SMN</p>
+        <p className="map-sitact__vacio map-sitact__vacio--linea">Sin alertas oficiales vigentes ni próximas · SMN</p>
       ) : (
         <>
           <div className="map-sitact__lista">

@@ -2,7 +2,7 @@
 // Final diario (GPM_3IMERGDF v07) los subsets por bbox vía OPeNDAP de Earthdata
 // Cloud y guarda la serie diaria por celda de 0.1° en `hazard_precipitacion_serie`
 // bajo la clave `imerg:<geometryRef>`. Luego recalcula `hazard_climatology` con la
-// versión `climatologia-imerg-v1`.
+// versión `climatologia-imerg-v1-<desde>-<hasta>` (una por período, ver versionUmbralesImerg).
 //
 // Idempotencia y reanudación: la unidad de trabajo es un mes. Un mes sólo se guarda
 // si todos sus días bajaron bien; ante cualquier error se descarta el mes completo y
@@ -27,6 +27,7 @@ import {
   periodoClimatologiaImerg,
   PREFIJO_SERIE_IMERG,
   VERSION_CLIMATOLOGIA_IMERG,
+  versionUmbralesImerg,
   type GranuloDiarioImerg,
 } from '../providers/climatologia-imerg'
 
@@ -229,7 +230,7 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
       unidad: punto.unidad,
       periodoDesde: umbrales.periodoDesde,
       periodoHasta: umbrales.periodoHasta,
-      version: VERSION_CLIMATOLOGIA_IMERG,
+      version: versionUmbralesImerg(umbrales.periodoDesde, umbrales.periodoHasta),
       calculadoEn: ahoraIso,
       aniosCobertura: umbrales.aniosCobertura,
       diasCobertura: umbrales.diasCobertura,

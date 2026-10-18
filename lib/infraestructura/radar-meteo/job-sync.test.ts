@@ -85,7 +85,8 @@ describe('job de sincronización del radar meteorológico', () => {
     const [salud] = await getDb().select().from(hazardSourceHealth).where(eq(hazardSourceHealth.provider, 'open-meteo-radar'))
     expect(salud?.estado).toBe('ok')
     expect(salud?.ultimoErrorSaneado).toBeNull()
-    expect(salud?.ttlMinutos).toBe(240)
+    // Cron cada 6 h (`27 3,9,15,21 * * *`): 6 h + 1 h de margen.
+    expect(salud?.ttlMinutos).toBe(420)
   })
 
   it('registra salud no_disponible con error saneado cuando el proveedor falla', async () => {

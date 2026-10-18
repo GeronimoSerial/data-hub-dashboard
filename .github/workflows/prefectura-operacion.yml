@@ -4,7 +4,7 @@ on:
     inputs:
       operacion:
         type: choice
-        options: [inspeccionar, configurar, ejecutar, estado]
+        options: [inspeccionar, configurar, ejecutar, estado, ejecutar-productor]
         default: inspeccionar
         required: true
 permissions:
@@ -28,7 +28,7 @@ jobs:
           import os,json,urllib.request,urllib.parse
           base='https://coolify.sistemas.mec.gob.ar/api/v1'
           staging=os.environ['STAGING_UUID']; prod=os.environ['PROD_UUID']; dev='grg5ycm7js8dk9lkzkktt7l7'
-          assert staging=='j3zm0co4bi9iy0c70nv3vinf' and staging!=prod and dev!=prod
+          assert staging=='j3zm0co4bi9iy0c70nv3vinf' and prod=='pts681lz0kazhs1dph8wjaxt' and dev not in (staging,prod)
           consumidores=[('staging',staging),('dev',dev)]
           def api(path,method='GET',data=None):
             req=urllib.request.Request(base+path,method=method,
@@ -71,4 +71,8 @@ jobs:
               r=api('/applications/'+uuid+'/scheduled-tasks/'+t['uuid']+'/executions')
               r=r if isinstance(r,list) else r.get('data',[])
               print('Ejecuciones de entrega',nombre,json.dumps([{k:x.get(k) for k in ['uuid','status','started_at','finished_at']} for x in r[:5]]))
+          elif op=='ejecutar-productor':
+            t=next(t for t in tasks(prod) if t.get('name')=='sync-prefectura-alturas')
+            api('/applications/'+prod+'/scheduled-tasks/'+t['uuid']+'/execute','POST')
+            print('Productor de alturas solicitado; su lease horario evita duplicar la ingesta')
           PY

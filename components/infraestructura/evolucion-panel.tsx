@@ -26,7 +26,6 @@ const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 function claveConsulta(filtros: FiltrosMapa): string {
   const parametros = new URLSearchParams()
   filtros.departamentos.forEach((departamento) => parametros.append('departamento', departamento))
-  filtros.niveles.forEach((nivel) => parametros.append('nivel', nivel))
   return parametros.toString()
 }
 

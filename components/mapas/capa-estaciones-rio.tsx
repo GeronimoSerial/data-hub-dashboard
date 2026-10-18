@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
-import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
-import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
-import { textoActualizado, textoAlturaRio } from '@/lib/infraestructura/presentacion/textos-dato'
+import { ESTILO_PASTILLA_ESTACION, idMarcadorEstacion, idPastillaEstacion, registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
+import { PALETA_ESTADO_ALTURA } from '@/lib/mapas/paleta-tonal'
+import { TarjetaEstacionRio } from './tarjeta-estacion-rio'
 
 type EstadoAltura = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 type Tendencia = 'crece' | 'baja' | 'estable' | 'sin_dato'
@@ -32,30 +32,24 @@ type EstacionRio = {
   lecturaVencida: boolean
   estado: EstadoAltura
   tendencia: Tendencia
+  /** Level state of the last reading even when stale (absent on older payloads). */
+  estadoUltimaLectura?: EstadoAltura
+  horasDesdeLectura?: number | null
 }
 
 type PuntoEstacion = {
   type: 'Feature'
   geometry: { type: 'Point'; coordinates: [number, number] }
-  properties: { estacionId: string; nombre: string; estado: EstadoAltura; insignia: string; altura: string }
+  properties: { estacionId: string; nombre: string; estado: EstadoAltura; vencida: boolean; insignia: string; marcador: string; texto: string; nivel: string; lado: LadoPastilla }
 }
 
 export const CAPA_ESTACIONES_RIO_ID = 'estaciones-rio-simbolos'
 const ID_CAPA = CAPA_ESTACIONES_RIO_ID
+const ID_CAPA_PASTILLA = 'estaciones-rio-pastillas'
 const ID_FUENTE = 'estaciones-rio-src'
-const INSIGNIAS_ESTACIONES = [
-  'estacion-evacuacion',
-  'estacion-alerta',
-  'estacion-normal',
-  'estacion-sin-dato',
-] as const
+const FLECHA_TENDENCIA: Record<Tendencia, string> = { crece: '↑ ', baja: '↓ ', estable: '', sin_dato: '' }
 
-export const COLOR_ESTADO_ALTURA: Record<EstadoAltura, string> = {
-  evacuacion: '#b91c1c',
-  alerta: '#f59e0b',
-  normal: '#15803d',
-  sin_dato: '#9ca3af',
-}
+export const COLOR_ESTADO_ALTURA: Record<EstadoAltura, string> = PALETA_ESTADO_ALTURA
 
 const ETIQUETA_ESTADO: Record<EstadoAltura, string> = {
   evacuacion: 'Evacuación',
@@ -64,17 +58,7 @@ const ETIQUETA_ESTADO: Record<EstadoAltura, string> = {
   sin_dato: 'Sin dato',
 }
 
-const ETIQUETA_TENDENCIA: Record<Tendencia, string> = {
-  crece: 'Crece',
-  baja: 'Baja',
-  estable: 'Estable',
-  sin_dato: 'Sin dato',
-}
 
-const ETIQUETA_RIO: Record<EstacionRio['rio'], string> = {
-  parana: 'Río Paraná',
-  uruguay: 'Río Uruguay',
-}
 
 export function etiquetaEstadoAltura(estado: EstadoAltura): string {
   return ETIQUETA_ESTADO[estado]
@@ -105,37 +89,92 @@ function formatoMetros(valor: number | null | undefined): string {
   return valor == null ? 'Sin dato' : `${valor.toFixed(2).replace('.', ',')} m`
 }
 
-function insigniaDe(estado: EstadoAltura): string {
-  return `estacion-${estado === 'sin_dato' ? 'sin-dato' : estado}`
+
+type LadoPastilla = 'derecha' | 'izquierda'
+
+// Roughly one chip at the overview zoom (~7): two stations closer than this would
+// stack their chips if both sat on the same side.
+const VECINDAD_LON = 0.45
+const VECINDAD_LAT = 0.2
+
+/**
+ * Chips default to the right of the pin. When two stations are neighbours, the
+ * western one (or the southern one if they share a meridian) flips its chip to
+ * the left so both levels stay visible without any collision hiding.
+ */
+export function ladosPastilla(estaciones: Array<{ estacionId: string; lat: number; lon: number }>): Map<string, LadoPastilla> {
+  const lados = new Map<string, LadoPastilla>(estaciones.map((e) => [e.estacionId, 'derecha']))
+  for (const a of estaciones) {
+    for (const b of estaciones) {
+      if (a === b) continue
+      if (Math.abs(a.lon - b.lon) > VECINDAD_LON || Math.abs(a.lat - b.lat) > VECINDAD_LAT) continue
+      const aCede = a.lon < b.lon - 0.02 || (Math.abs(a.lon - b.lon) <= 0.02 && a.lat < b.lat)
+      if (aCede) lados.set(a.estacionId, 'izquierda')
+    }
+  }
+  return lados
+}
+
+/**
+ * What the map paints: a stale reading keeps its last level state (muted, with its
+ * age) instead of turning gray; only a station without any reading is sin dato.
+ */
+export function estadoEnMapa(estacion: EstacionRio): { estado: EstadoAltura; vencida: boolean } {
+  if (!estacion.lectura) return { estado: 'sin_dato', vencida: false }
+  const vencida = estacion.lecturaVencida
+  return { estado: vencida ? (estacion.estadoUltimaLectura ?? estacion.estado) : estacion.estado, vencida }
+}
+
+// Chips show only the level; a stale reading keeps its last level and the click
+// card carries its age.
+function textoPastilla(estacion: EstacionRio): string {
+  if (!estacion.lectura) return 's/d'
+  return `${FLECHA_TENDENCIA[estacion.tendencia]}${formatoMetros(estacion.lectura.lecturaM)}`
 }
 
 function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; features: PuntoEstacion[] } {
+  const lados = ladosPastilla(estaciones)
   return {
     type: 'FeatureCollection',
-    features: estaciones.map((estacion) => ({
+    features: estaciones.map((estacion) => {
+      const { estado, vencida } = estadoEnMapa(estacion)
+      const nivel = textoPastilla(estacion)
+      return {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [estacion.lon, estacion.lat] },
       properties: {
         estacionId: estacion.estacionId,
         nombre: estacion.nombre,
-        estado: estacion.estado,
-        insignia: insigniaDe(estacion.estado),
-        altura: estacion.lectura ? formatoMetros(estacion.lectura.lecturaM) : '',
+        estado,
+        vencida,
+        insignia: idPastillaEstacion(estado),
+        marcador: idMarcadorEstacion(estado),
+        lado: lados.get(estacion.estacionId) ?? 'derecha',
+        nivel,
+        texto: nivel,
       },
-    })),
+    }}),
   }
 }
 
-export function CapaEstacionesRio({ visible, beforeId }: { visible: boolean; beforeId?: string }) {
-  if (!visible) return null
-  return <CapaEstacionesRioActiva beforeId={beforeId} />
+type PropsCapa = {
+  visible: boolean
+  beforeId?: string
+  /** Layers kept above the stations (e.g. school clusters, so their counts stay readable). */
+  capasEncima?: readonly string[]
 }
 
-function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
+export function CapaEstacionesRio({ visible, beforeId, capasEncima }: PropsCapa) {
+  if (!visible) return null
+  return <CapaEstacionesRioActiva beforeId={beforeId} capasEncima={capasEncima} />
+}
+
+const SIN_CAPAS: readonly string[] = []
+
+function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<PropsCapa, 'visible'>) {
   const [estaciones, setEstaciones] = useState<EstacionRio[]>([])
   const [listo, setListo] = useState(false)
   const [seleccionada, setSeleccionada] = useState<string | null>(null)
-  const [enfocada, setEnfocada] = useState<string | null>(null)
   const { current: mapa } = useMap()
 
   useEffect(() => {
@@ -158,7 +197,7 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
     // A basemap swap (e.g. Radar's dark style) drops every registered image, which
     // leaves the symbols invisible: register again whenever the style changes.
     const registrar = () => {
-      registrarInsignias(mapaGl, INSIGNIAS_ESTACIONES).then(() => {
+      registrarSimbolosEstacion(mapaGl).then(() => {
         if (vigente) setListo(true)
       })
     }
@@ -179,14 +218,21 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
     const alTope = () => {
       const capas = mapaGl.getStyle?.()?.layers
       if (!capas?.length || !mapaGl.getLayer?.(ID_CAPA)) return
-      if (capas[capas.length - 1].id !== ID_CAPA) mapaGl.moveLayer(ID_CAPA)
+      const encima = capasEncima.filter((id) => mapaGl.getLayer?.(id))
+      // Pins < clusters < level chips: cluster counts stay readable over a pin and
+      // no layer can ever cover a station's level.
+      const pastilla = mapaGl.getLayer?.(ID_CAPA_PASTILLA) ? [ID_CAPA_PASTILLA] : []
+      const orden = [ID_CAPA, ...encima, ...pastilla]
+      const cola = capas.slice(-orden.length).map((capa) => capa.id)
+      if (cola.join('|') === orden.join('|')) return
+      for (const id of orden) mapaGl.moveLayer(id)
     }
     alTope()
     mapaGl.on('styledata', alTope)
     return () => {
       mapaGl.off('styledata', alTope)
     }
-  }, [mapa, listo, beforeId])
+  }, [mapa, listo, beforeId, capasEncima])
 
   useEffect(() => {
     if (!mapa || !listo) return
@@ -197,106 +243,98 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
     const alEntrar = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
       const id = idDe(evento)
       if (!id) return
+      // No hover tooltip: the pointer cursor alone invites the click.
       mapa.getCanvas().style.cursor = 'pointer'
-      setEnfocada(id)
     }
     const alSalir = () => {
       mapa.getCanvas().style.cursor = ''
-      setEnfocada(null)
     }
     const alHacerClic = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
       const id = idDe(evento)
       if (id) setSeleccionada(id)
     }
-    mapa.on('mouseenter', ID_CAPA, alEntrar)
-    mapa.on('mouseleave', ID_CAPA, alSalir)
-    mapa.on('click', ID_CAPA, alHacerClic)
+    for (const id of [ID_CAPA, ID_CAPA_PASTILLA]) {
+      mapa.on('mouseenter', id, alEntrar)
+      mapa.on('mouseleave', id, alSalir)
+      mapa.on('click', id, alHacerClic)
+    }
     return () => {
-      mapa.off('mouseenter', ID_CAPA, alEntrar)
-      mapa.off('mouseleave', ID_CAPA, alSalir)
-      mapa.off('click', ID_CAPA, alHacerClic)
+      for (const id of [ID_CAPA, ID_CAPA_PASTILLA]) {
+        mapa.off('mouseenter', id, alEntrar)
+        mapa.off('mouseleave', id, alSalir)
+        mapa.off('click', id, alHacerClic)
+      }
     }
   }, [mapa, listo])
 
   const datos = useMemo(() => puntosDe(estaciones), [estaciones])
   const activa = estaciones.find((estacion) => estacion.estacionId === seleccionada) ?? null
-  const alturaActiva = textoAlturaRio({
-    alturaM: activa?.lectura?.lecturaM ?? null,
-    estado: activa?.estado ?? 'sin_dato',
-    alertaM: activa?.lectura?.alertaM ?? null,
-    evacuacionM: activa?.lectura?.evacuacionM ?? null,
-  })
-  const enfoque = estaciones.find((estacion) => estacion.estacionId === enfocada) ?? null
-
+  const cerrar = useCallback(() => {
+    setSeleccionada(null)
+    // Keyboard users land back on the map after closing the card.
+    mapa?.getCanvas().focus?.()
+  }, [mapa])
   return (
     <>
       {listo && (
         <Source id={ID_FUENTE} type="geojson" data={datos}>
           <Layer
+            id={ID_CAPA_PASTILLA}
+            type="symbol"
+            beforeId={beforeId}
+            layout={{
+              // Level chip beside the pin at every zoom (user: level must read zoomed out too).
+              'icon-image': ['get', 'insignia'],
+              'icon-text-fit': 'both',
+              'icon-text-fit-padding': [3, 7, 3, 7],
+              // Every level is always shown: overlaps between neighbours are solved by
+              // placement (see ladosPastilla), never by collision hiding.
+              'icon-allow-overlap': true,
+              'text-field': ['get', 'nivel'],
+              'text-size': ['interpolate', ['linear'], ['zoom'], 6, 10, 9, 11],
+              // MapLibre defaults to Open Sans, which the OpenFreeMap glyph server does not serve.
+              'text-font': ['Noto Sans Bold'],
+              'text-anchor': ['match', ['get', 'lado'], 'izquierda', 'right', 'left'],
+              'text-offset': ['match', ['get', 'lado'], 'izquierda', ['literal', [-1.4, -1.45]], ['literal', [1.4, -1.45]]],
+              'text-allow-overlap': true,
+              'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
+            }}
+            paint={{
+              'text-color': ['match', ['get', 'estado'],
+                'evacuacion', ESTILO_PASTILLA_ESTACION.evacuacion.texto,
+                'alerta', ESTILO_PASTILLA_ESTACION.alerta.texto,
+                'normal', ESTILO_PASTILLA_ESTACION.normal.texto,
+                ESTILO_PASTILLA_ESTACION.sin_dato.texto],
+            }}
+          />
+          <Layer
             id={ID_CAPA}
             type="symbol"
             beforeId={beforeId}
             layout={{
-              'icon-image': ['get', 'insignia'],
-              'icon-size': 1,
+              // State-coloured pin with a river glyph, at every zoom and for sin dato too.
+              'icon-image': ['get', 'marcador'],
+              'icon-anchor': 'bottom',
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 6, 0.85, 9, 1],
               'icon-allow-overlap': true,
-              'icon-ignore-placement': false,
+              // Pins always draw and never claim space, so they cannot hide their own chip.
+              'icon-ignore-placement': true,
               'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
-              'text-field': ['step', ['zoom'], '', 8, ['get', 'altura']],
-              'text-size': 11,
-              // MapLibre defaults to Open Sans, which the OpenFreeMap glyph server does not serve.
-              'text-font': ['Noto Sans Regular'],
-              'text-offset': [0, 1.6],
-              'text-anchor': 'top',
-              'text-optional': true,
             }}
-            paint={{ 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 }}
           />
         </Source>
-      )}
-      {enfoque && !activa && (
-        <Popup
-          longitude={enfoque.lon}
-          latitude={enfoque.lat}
-          anchor="bottom"
-          closeButton={false}
-          closeOnClick={false}
-          className="mapa-tooltip"
-          offset={18}
-        >
-          {`Estación Prefectura ${enfoque.nombre} · Altura del río: ${enfoque.lectura ? formatoMetros(enfoque.lectura.lecturaM) : 'sin dato'} · ${etiquetaEstadoAltura(enfoque.estado)} — clic para ver detalle`}
-        </Popup>
       )}
       {activa && (
         <Popup
           longitude={activa.lon}
           latitude={activa.lat}
           anchor="bottom"
-          maxWidth="360px"
-          onClose={() => setSeleccionada(null)}
+          maxWidth="340px"
+          offset={30}
+          onClose={cerrar}
           closeOnClick={false}
         >
-          <div className="map-popup">
-            <p className="map-popup-title">{activa.nombre}</p>
-            <p className="map-popup-muted">{ETIQUETA_RIO[activa.rio]}</p>
-            <hr className="map-popup-rule" />
-            <p className="map-popup-row">
-              <DatoFechado
-                actualizado={textoActualizado(activa.lectura?.medidaEn)}
-                vencido={activa.lecturaVencida}
-              >
-                <strong>{alturaActiva.altura}</strong>
-              </DatoFechado>
-              {' · '}{alturaActiva.estado}
-              {activa.lectura?.inconsistente && <NotaInfo texto="Lectura marcada como inconsistente por la fuente." />}
-            </p>
-            {alturaActiva.umbrales && <p className="map-popup-muted">{alturaActiva.umbrales}</p>}
-            <p className="map-popup-row">Tendencia: {ETIQUETA_TENDENCIA[activa.tendencia]}</p>
-            <p className="map-popup-muted">
-              <small>Fuente: Prefectura Naval Argentina</small>
-              <NotaInfo texto="Ubicación declarada por el publicador (no verificada)." />
-            </p>
-          </div>
+          <TarjetaEstacionRio estacion={{ ...activa, ...estadoEnMapa(activa) }} onCerrar={cerrar} />
         </Popup>
       )}
     </>

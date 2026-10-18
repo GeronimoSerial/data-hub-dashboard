@@ -56,9 +56,13 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
   return (
     <section className="riesgo-escuela" aria-label="Riesgo de la escuela">
       <div className="riesgo-escuela__bloque" data-testid="riesgo-escuela-actual">
-        <h3 className="riesgo-escuela__titulo">Riesgo actual (hoy)</h3>
-        <p className="riesgo-escuela__subtitulo">
-          Motor de riesgo · horizonte {ETIQUETA_HORIZONTE_MOTOR[horizonte]}
+        <div className="riesgo-escuela__encabezado">
+          <h3 className="riesgo-escuela__titulo">Riesgo por el clima</h3>
+          <span className="riesgo-escuela__horizonte">Próximas {ETIQUETA_HORIZONTE_MOTOR[horizonte]}</span>
+        </div>
+        <p className="riesgo-escuela__explicacion">
+          Estimación automática con el pronóstico de lluvia y la altura de los ríos. Indica lo que
+          podría pasar, no lo que la escuela ya reportó.
         </p>
         {estado.fase === 'cargando' && (
           <p role="status">Cargando riesgo actual…</p>
@@ -71,20 +75,35 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
 
       {planificacion && planificacion.some((fila) => !esSinValor(fila.etiquetaNivel)) && (
         <div className="riesgo-escuela__bloque" data-testid="riesgo-escuela-planificacion">
-          <h3 className="riesgo-escuela__titulo">Prioridad de planificación (exposición estructural)</h3>
+          <h3 className="riesgo-escuela__titulo">Prioridad para obras y prevención</h3>
+          <p className="riesgo-escuela__explicacion">
+            Qué tan expuesta está la escuela por su ubicación y sus antecedentes. Depende de la
+            ubicación y los antecedentes, no del clima de hoy: sirve para planificar.
+          </p>
           <dl className="riesgo-escuela__planificacion">
             {planificacion.map((fila) => (
               <div key={fila.etiquetaVista}>
-                <dt>{fila.etiquetaVista}</dt>
+                <dt>
+                  {fila.etiquetaVista}
+                  {AYUDA_VISTA[fila.etiquetaVista] && (
+                    <span className="riesgo-escuela__ayuda-vista">{AYUDA_VISTA[fila.etiquetaVista]}</span>
+                  )}
+                </dt>
                 <dd>{fila.etiquetaNivel}</dd>
               </div>
             ))}
           </dl>
-          <p className="riesgo-escuela__nota">Depende de la ubicación y los antecedentes, no del clima de hoy.</p>
         </div>
       )}
     </section>
   )
+}
+
+// Plain-language hint for each planning view, keyed by its legend title.
+const AYUDA_VISTA: Record<string, string> = {
+  Aislamiento: 'Si un corte de camino puede dejarla sin acceso',
+  'Exposición a inundación': 'Cercanía a ríos y zonas que se anegan',
+  'Veces con situaciones': 'Situaciones reportadas en ciclos anteriores',
 }
 
 // Un valor sin dato: vacío, "Nulo" (nivel 0) o "Nulo (0)" (historial sin situaciones).
@@ -99,14 +118,17 @@ function ContenidoRiesgo({ explicacion }: { explicacion: ExplicacionSnapshot }):
   const situacionActual = explicacion.situacionActual.filter((linea) => !conclusion.includes(linea))
   return (
     <>
-      <span
-        className={`riesgo-escuela__nivel riesgo-escuela__nivel--${nivel ?? 'sin_dato'}`}
+      <p className="riesgo-escuela__nivel-fila">
+        <span className="riesgo-escuela__nivel-etiqueta">Nivel estimado</span>
+        <span
+          className={`riesgo-escuela__nivel riesgo-escuela__nivel--${nivel ?? 'sin_dato'}`}
         // Mismo color que el marcador y la leyenda del Radar.
         style={nivel && nivel !== 'bajo' ? { backgroundColor: colorRiesgo(nivel) } : undefined}
         data-testid="riesgo-escuela-nivel"
       >
-        {etiquetaNivel}
-      </span>
+          {etiquetaNivel}
+        </span>
+      </p>
       <p className="riesgo-escuela__conclusion" data-testid="riesgo-escuela-conclusion">
         {conclusion}
       </p>

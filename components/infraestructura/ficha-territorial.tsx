@@ -3,6 +3,7 @@
 import { DatoFechado } from '@/components/ui/dato-fechado'
 import { textoActualizado } from '@/lib/infraestructura/presentacion/textos-dato'
 import { useEffect, useState, type JSX } from 'react'
+import { ResumenPronosticoEscuela } from '@/components/infraestructura/resumen-pronostico-escuela'
 import { estadoAltura } from '@/lib/infraestructura/hidrometria/estado-altura'
 import {
   cantidadLluvia,
@@ -320,7 +321,16 @@ function SinDatosPeligro({ razon }: { razon: string }): JSX.Element {
  * La pertenencia o no de la escuela a la ficha la decide el PADRE server-side
  * vía un flag; este componente, si se monta, asume que corresponde mostrarla.
  */
-export function FichaTerritorial({
+export function FichaTerritorial(props: FichaTerritorialProps): JSX.Element {
+  return (
+    <>
+      <ResumenPronosticoEscuela cueAnexo={props.cueAnexo} />
+      <DatosTerritoriales {...props} />
+    </>
+  )
+}
+
+function DatosTerritoriales({
   cueAnexo,
   localidad,
   riesgoAcceso,

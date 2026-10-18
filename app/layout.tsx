@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Barlow, Barlow_Semi_Condensed, Montserrat } from 'next/font/google'
+import { Barlow, Barlow_Semi_Condensed, Inter, Montserrat } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 
@@ -27,6 +27,13 @@ const montserrat = Montserrat({
   variable: '--font-montserrat',
   display: 'swap',
   weight: ['700'],
+})
+
+// Body text across the app; Barlow stays for titles and subheads.
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
@@ -66,7 +73,7 @@ export default function RootLayout({
   return (
     <html
       lang="es-AR"
-      className={`${barlow.variable} ${barlowSemiCondensed.variable} ${montserrat.variable}`}
+      className={`${barlow.variable} ${barlowSemiCondensed.variable} ${montserrat.variable} ${inter.variable}`}
     >
       <body>
         <Providers>{children}</Providers>

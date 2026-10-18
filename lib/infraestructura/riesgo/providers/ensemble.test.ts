@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   calcularDispersion,
   contarProbabilidadSuperarUmbral,
+  esperaEntreLotesEnsembleMs,
   obtenerProbabilidadesEnsemble,
+  pesoLoteEnsemble,
   TAMANO_LOTE_COORDENADAS_ENSEMBLE,
+  TIMEOUT_MS_ENSEMBLE,
 } from './ensemble'
 import type { HazardEnsembleProbPunto } from './ensemble'
 import { longitudesDeUrl } from './__fixtures__/url'
@@ -239,4 +242,171 @@ describe('obtenerProbabilidadesEnsemble', () => {
     expect(refs).toContain('-27_20')
     expect(refs).toContain('-27_44')
   }, 15_000)
+  it('un 429 corta los lotes restantes: no se consultan y quedan con rate_limited', async () => {
+    const fetchImpl = vi.fn(async () => new Response('Minutely API request limit exceeded', { status: 429 }))
+    const celdas = celdasSinteticas(45)
+    const { umbralP95PorCelda, umbralP99PorCelda } = mapasUmbral(
+      celdas.map((c) => c.geometryRef),
+      -1,
+      -1,
+    )
+
+    const { puntos, erroresPorCelda, llamadasRealizadas } = await obtenerProbabilidadesEnsemble({
+      geometryRefsConCoordenada: celdas,
+      corridaEn: CORRIDA_EN,
+      acumuladoHoras: 24,
+      umbralP95PorCelda,
+      umbralP99PorCelda,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      controladorCupoFactory: () => ({
+        reservar: async () => ({ ok: true, esperoMs: 0 }),
+        registrar429: async () => {},
+      }),
+      esperar: async () => {},
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(llamadasRealizadas).toBe(1)
+    expect(puntos).toEqual([])
+    expect(Object.keys(erroresPorCelda)).toHaveLength(45)
+    expect(Object.values(erroresPorCelda).every((detalle) => detalle.startsWith('rate_limited'))).toBe(true)
+  })
+
+  it('reserva cupo contando los 51 miembros como variables, igual que Open-Meteo', async () => {
+    const fetchImpl = fetchJsonPorUrl((url) => payloadEnsembleParaLongitudes(longitudesDeUrl(url)))
+    const celdas = celdasSinteticas(45)
+    const { umbralP95PorCelda, umbralP99PorCelda } = mapasUmbral(
+      celdas.map((c) => c.geometryRef),
+      -1,
+      -1,
+    )
+    const pesos: number[] = []
+
+    await obtenerProbabilidadesEnsemble({
+      geometryRefsConCoordenada: celdas,
+      corridaEn: CORRIDA_EN,
+      acumuladoHoras: 24,
+      umbralP95PorCelda,
+      umbralP99PorCelda,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      controladorCupoFactory: (peso) => {
+        pesos.push(peso)
+        return { reservar: async () => ({ ok: true, esperoMs: 0 }), registrar429: async () => {} }
+      },
+      esperar: async () => {},
+    })
+
+    // 20 ubicaciones × max(1, 51/10) × max(1, 3/14) = 102 por lote completo.
+    expect(pesos).toEqual([
+      pesoLoteEnsemble(20),
+      pesoLoteEnsemble(20),
+      pesoLoteEnsemble(5),
+    ])
+    expect(pesoLoteEnsemble(20)).toBeCloseTo(102, 10)
+  })
+
+  it('con guarda de cupo espacia los lotes para no superar el límite por minuto', async () => {
+    const fetchImpl = fetchJsonPorUrl((url) => payloadEnsembleParaLongitudes(longitudesDeUrl(url)))
+    const celdas = celdasSinteticas(45)
+    const { umbralP95PorCelda, umbralP99PorCelda } = mapasUmbral(
+      celdas.map((c) => c.geometryRef),
+      -1,
+      -1,
+    )
+    const esperar = vi.fn(async (_ms: number) => {})
+
+    await obtenerProbabilidadesEnsemble({
+      geometryRefsConCoordenada: celdas,
+      corridaEn: CORRIDA_EN,
+      acumuladoHoras: 24,
+      umbralP95PorCelda,
+      umbralP99PorCelda,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      controladorCupoFactory: () => ({
+        reservar: async () => ({ ok: true, esperoMs: 0 }),
+        registrar429: async () => {},
+      }),
+      esperar,
+    })
+
+    // Antes del 2do y del 3er lote: 102 / 480 por minuto = 12,75 s.
+    expect(esperar.mock.calls.map(([ms]) => ms)).toEqual([12_750, 12_750])
+    expect(esperaEntreLotesEnsembleMs(20, false)).toBe(12_750)
+  })
+  it('pide cada punto de grilla una vez y calcula la probabilidad de cada celda con su propio umbral', async () => {
+    const fetchImpl = fetchJsonPorUrl((url) =>
+      payloadEnsembleParaLongitudes(longitudesDeUrl(url).map(() => 10)).map((elemento) => ({
+        ...elemento,
+        latitude: -27.5,
+        longitude: -58.75,
+      })),
+    )
+    // Tres celdas de 0,1° en el mismo punto -27.5_-58.75 con umbrales distintos.
+    const celdas = ['-27.4_-58.8', '-27.5_-58.7', '-27.6_-58.8'].map((geometryRef) => {
+      const [lat, lon] = geometryRef.split('_').map(Number)
+      return { geometryRef, lat, lon }
+    })
+    const umbralP95PorCelda = new Map([
+      ['-27.4_-58.8', 5],
+      ['-27.5_-58.7', 15],
+      ['-27.6_-58.8', 5],
+    ])
+    const umbralP99PorCelda = new Map([
+      ['-27.4_-58.8', 20],
+      ['-27.5_-58.7', 20],
+      ['-27.6_-58.8', 9],
+    ])
+
+    const { puntos, erroresPorCelda, llamadasRealizadas } = await obtenerProbabilidadesEnsemble({
+      geometryRefsConCoordenada: celdas,
+      corridaEn: CORRIDA_EN,
+      acumuladoHoras: 24,
+      umbralP95PorCelda,
+      umbralP99PorCelda,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(longitudesDeUrl(fetchImpl.mock.calls[0][0])).toEqual([-58.8])
+    expect(llamadasRealizadas).toBe(1)
+    expect(erroresPorCelda).toEqual({})
+    const porRef = new Map(puntos.map((punto) => [punto.geometryRef, punto]))
+    expect(porRef.size).toBe(3)
+    // Acumulado de 24 h = 10 mm en los 51 miembros.
+    expect(porRef.get('-27.4_-58.8')).toMatchObject({ probabilidadP95: 1, probabilidadP99: 0 })
+    expect(porRef.get('-27.5_-58.7')).toMatchObject({ probabilidadP95: 0, probabilidadP99: 0 })
+    expect(porRef.get('-27.6_-58.8')).toMatchObject({ probabilidadP95: 1, probabilidadP99: 1 })
+  })
+  it('espera hasta 30 s una respuesta lenta en vez de cortarla a los 10 s y reintentar', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchImpl = vi.fn(
+        (url: string) =>
+          new Promise<Response>((resolve) => {
+            const cuerpo = JSON.stringify(payloadEnsembleParaLongitudes(longitudesDeUrl(url)))
+            setTimeout(() => resolve(new Response(cuerpo)), 20_000)
+          }),
+      )
+      const celdas = celdasSinteticas(1)
+      const promesa = obtenerProbabilidadesEnsemble({
+        geometryRefsConCoordenada: celdas,
+        corridaEn: CORRIDA_EN,
+        acumuladoHoras: 24,
+        ...mapasUmbral(
+          celdas.map((c) => c.geometryRef),
+          -1,
+          -1,
+        ),
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      })
+      await vi.advanceTimersByTimeAsync(20_000)
+      const { erroresPorCelda } = await promesa
+
+      expect(erroresPorCelda).toEqual({})
+      expect(fetchImpl).toHaveBeenCalledTimes(1)
+      expect(TIMEOUT_MS_ENSEMBLE).toBe(30_000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

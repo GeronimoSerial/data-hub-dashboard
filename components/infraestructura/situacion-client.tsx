@@ -11,6 +11,8 @@
 // el color es SIEMPRE un refuerzo de un texto, nunca la única señal; "Sin
 // dato" nunca se pinta de verde; el copy no usa "alerta" ni "SMN".
 import { useCallback, useEffect, useState, type JSX } from 'react'
+import type { EstadoDatos } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
+import { PanelEstadoDatos } from './estado-datos/panel-estado-datos'
 
 export interface KpisSituacionCliente {
   escuelasAfectacionConfirmadaVigente: number
@@ -62,6 +64,8 @@ export interface EstadoSituacionCliente {
   briefing: string[]
   atraso: AtrasoSituacionCliente
   prioridades: PrioridadCliente[]
+  // null: no se pudo leer el estado de los datos (el panel lo avisa).
+  estadoDatos: EstadoDatos | null
 }
 
 // Refresco automático: cada 5 minutos, alineado a la cadencia horaria del job
@@ -130,27 +134,6 @@ function kpiTile(props: {
       <span className="situacion-kpi__titulo">{props.titulo}</span>
       <span className="situacion-kpi__valor">{props.valor}</span>
     </div>
-  )
-}
-
-function PanelFuentesSalud(props: { fuentes: FuenteSaludCliente[] }): JSX.Element {
-  if (props.fuentes.length === 0) {
-    return <p role="status">Sin datos de salud de fuentes.</p>
-  }
-  return (
-    <ul className="situacion-fuentes" data-testid="situacion-fuentes">
-      {props.fuentes.map((fuente) => (
-        <li key={fuente.provider} data-testid={`situacion-fuente-${fuente.provider}`}>
-          <strong>{fuente.provider}</strong>:{' '}
-          {fuente.frescuraMinutos === null
-            ? 'sin dato'
-            : `${fuente.frescuraMinutos} min`}{' '}
-          {/* El color es refuerzo: el texto "vencida"/"al día" siempre está,
-              nunca se comunica sólo con color. */}
-          <span data-vencida={fuente.vencida}>{fuente.vencida ? '(vencida)' : '(al día)'}</span>
-        </li>
-      ))}
-    </ul>
   )
 }
 
@@ -282,6 +265,8 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
         )}
       </header>
 
+      <PanelEstadoDatos estado={estado.estadoDatos} />
+
       {estado.corte !== null && (
         <section aria-label="Indicadores principales" className="situacion-kpis">
           {kpiTile({
@@ -345,11 +330,6 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
       <section aria-label="Prioridades">
         <h2>Prioridades (riesgo alto o muy alto)</h2>
         <PanelPrioridades prioridades={estado.prioridades} />
-      </section>
-
-      <section aria-label="Salud de fuentes">
-        <h2>Salud de fuentes</h2>
-        {estado.corte !== null && <PanelFuentesSalud fuentes={estado.corte.fuentesSalud} />}
       </section>
     </div>
   )

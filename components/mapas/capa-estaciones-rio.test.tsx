@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import { CapaEstacionesRio, etiquetaEstadoAltura, COLOR_ESTADO_ALTURA, formatearFechaLocal } from './capa-estaciones-rio'
-import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
+import { registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
 
 const mapa = vi.hoisted(() => {
   type Manejador = (evento: unknown) => void
@@ -39,8 +39,9 @@ vi.mock('react-map-gl/maplibre', () => ({
   useMap: () => ({ current: mapa }),
 }))
 
-vi.mock('@/lib/mapas/insignias-mapa', () => ({
-  registrarInsignias: vi.fn(),
+vi.mock('@/lib/mapas/insignias-mapa', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/mapas/insignias-mapa')>()),
+  registrarSimbolosEstacion: vi.fn(),
 }))
 
 const ESTACIONES = [
@@ -81,6 +82,12 @@ const ESTACIONES = [
   },
 ]
 
+function capaPorId(id: string): { id: string; beforeId?: string; minzoom?: number; layout: Record<string, unknown>; paint: Record<string, unknown> } {
+  const capa = screen.getAllByTestId('layer').map((nodo) => JSON.parse(nodo.dataset.props ?? '{}')).find((c) => c.id === id)
+  if (!capa) throw new Error(`sin capa ${id}`)
+  return capa
+}
+
 function ultimaCapa(): { id: string; beforeId?: string; layout: Record<string, unknown>; paint: Record<string, unknown> } {
   const nodos = screen.getAllByTestId('layer')
   return JSON.parse(nodos[nodos.length - 1].dataset.props ?? '{}')
@@ -92,7 +99,7 @@ function datosFuente(): { id: string; data: { features: Array<{ properties: Reco
 
 describe('CapaEstacionesRio', () => {
   beforeEach(() => {
-    vi.mocked(registrarInsignias).mockResolvedValue(undefined)
+    vi.mocked(registrarSimbolosEstacion).mockResolvedValue(undefined)
     mapa.limpiar()
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -114,44 +121,81 @@ describe('CapaEstacionesRio', () => {
     expect(data.features[0].properties).toMatchObject({
       estacionId: 'rosario',
       estado: 'evacuacion',
-      insignia: 'estacion-evacuacion',
-      altura: '4,12 m',
+      insignia: 'estacion-pastilla-evacuacion',
+      marcador: 'estacion-marcador-evacuacion',
+      texto: '↑ 4,12 m',
     })
     expect(data.features[1].properties).toMatchObject({
       estacionId: 'corrientes',
-      insignia: 'estacion-sin-dato',
-      altura: '',
+      insignia: 'estacion-pastilla-sin-dato',
+      marcador: 'estacion-marcador-sin-dato',
+      texto: 's/d',
     })
-    expect(registrarInsignias).toHaveBeenCalledWith(
-      expect.anything(),
-      ['estacion-evacuacion', 'estacion-alerta', 'estacion-normal', 'estacion-sin-dato'],
-    )
+    expect(registrarSimbolosEstacion).toHaveBeenCalledWith(expect.anything())
+  })
+
+  it('con lectura vencida pinta el último estado conocido, opaco y sólo el nivel en el chip', async () => {
+    const vencida = {
+      ...ESTACIONES[0],
+      estacionId: 'goya',
+      nombre: 'Goya',
+      lectura: { ...ESTACIONES[0].lectura!, lecturaM: 3.7 },
+      lecturaVencida: true,
+      estado: 'sin_dato',
+      tendencia: 'sin_dato',
+      estadoUltimaLectura: 'alerta',
+      horasDesdeLectura: 26,
+    }
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ estaciones: [vencida, ESTACIONES[1]] }) }) as unknown as typeof fetch
+    render(<CapaEstacionesRio visible />)
+
+    await screen.findByTestId('source')
+    const { data } = datosFuente()
+    expect(data.features[0].properties).toMatchObject({
+      estado: 'alerta',
+      vencida: true,
+      insignia: 'estacion-pastilla-alerta',
+      marcador: 'estacion-marcador-alerta',
+      texto: '3,70 m',
+    })
+    // Sin lectura de verdad: sigue s/d y sin marca de vencida.
+    expect(data.features[1].properties).toMatchObject({ estado: 'sin_dato', vencida: false, texto: 's/d' })
+    // Never translucent: staleness is shown only in the click card.
+    expect(capaPorId('estaciones-rio-simbolos').paint?.['icon-opacity']).toBeUndefined()
+    expect(capaPorId('estaciones-rio-pastillas').paint['icon-opacity']).toBeUndefined()
   })
 
   it('vuelve a registrar las insignias cuando cambia el estilo del mapa', async () => {
     render(<CapaEstacionesRio visible />)
-    await waitFor(() => expect(registrarInsignias).toHaveBeenCalled())
-    const antes = vi.mocked(registrarInsignias).mock.calls.length
+    await waitFor(() => expect(registrarSimbolosEstacion).toHaveBeenCalled())
+    const antes = vi.mocked(registrarSimbolosEstacion).mock.calls.length
     act(() => mapa.emitir('styledata', '', {}))
-    expect(vi.mocked(registrarInsignias).mock.calls.length).toBeGreaterThan(antes)
+    expect(vi.mocked(registrarSimbolosEstacion).mock.calls.length).toBeGreaterThan(antes)
   })
 
   it('usa una capa symbol con beforeId y solapamiento de iconos permitido', async () => {
     render(<CapaEstacionesRio visible beforeId="labels" />)
 
-    await screen.findByTestId('layer')
-    const capa = ultimaCapa()
-    expect(capa.id).toBe('estaciones-rio-simbolos')
-    expect(capa.beforeId).toBe('labels')
-    expect(capa.layout['icon-allow-overlap']).toBe(true)
-    expect(capa.layout['icon-image']).toEqual(['get', 'insignia'])
+    await screen.findAllByTestId('layer')
+    const marcador = ultimaCapa()
+    expect(marcador.id).toBe('estaciones-rio-simbolos')
+    expect(marcador.beforeId).toBe('labels')
+    expect(marcador.layout['icon-allow-overlap']).toBe(true)
+    expect(marcador.layout['icon-anchor']).toBe('bottom')
+    expect(marcador.layout['icon-image']).toEqual(['get', 'marcador'])
+    const pastilla = capaPorId('estaciones-rio-pastillas')
+    expect(pastilla.beforeId).toBe('labels')
+    expect(pastilla.minzoom).toBeUndefined()
+    expect(pastilla.layout['icon-text-fit']).toBe('both')
+    expect(pastilla.layout['icon-image']).toEqual(['get', 'insignia'])
+    expect(pastilla.layout['text-field']).toEqual(['get', 'nivel'])
   })
 
   it('pide la fuente Noto Sans que sirve el basemap (no el Open Sans por defecto de MapLibre)', async () => {
     render(<CapaEstacionesRio visible />)
 
-    await screen.findByTestId('layer')
-    expect(ultimaCapa().layout['text-font']).toEqual(['Noto Sans Regular'])
+    await screen.findAllByTestId('layer')
+    expect(capaPorId('estaciones-rio-pastillas').layout['text-font']).toEqual(['Noto Sans Bold'])
   })
 
   it('sin beforeId mantiene las estaciones por encima de capas agregadas después (clusters de escuelas)', async () => {
@@ -168,7 +212,7 @@ describe('CapaEstacionesRio', () => {
     Object.assign(mapa, extra)
     try {
       render(<CapaEstacionesRio visible />)
-      await screen.findByTestId('layer')
+      await screen.findAllByTestId('layer')
       expect(ultimaCapa().beforeId).toBeUndefined()
 
       act(() => mapa.emitir('styledata', '', {}))
@@ -191,25 +235,18 @@ describe('CapaEstacionesRio', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('con lectura vencida no muestra un aviso: atenúa el valor y deja la fecha en el tooltip', async () => {
-    render(<CapaEstacionesRio visible />)
-
-    await screen.findByTestId('source')
-    act(() => {
-      mapa.emitir('click', 'estaciones-rio-simbolos', { features: [{ properties: { estacionId: 'corrientes' } }] })
-    })
-
-    const popup = await waitFor(() => screen.getByTestId('popup'))
-    expect(within(popup).getByText('Corrientes')).toBeTruthy()
-    expect(within(popup).getByText('Altura del río: sin dato')).toBeTruthy()
-    expect(popup.textContent).not.toMatch(/desactualizad/i)
-    expect(popup.querySelector('.dato-fechado--vencido')).not.toBeNull()
-    // La procedencia no va en el texto: queda detrás del ícono de info.
-    expect(popup.textContent).not.toContain('no verificada')
-    expect(within(popup).getByRole('note')).toHaveAttribute('title', 'Ubicación declarada por el publicador (no verificada).')
-  })
-
-  it('con lectura vigente dice la altura del río explícita, el estado y los umbrales', async () => {
+  it('al hacer clic abre la tarjeta con nivel, estado, serie y distancias a umbrales', async () => {
+    global.fetch = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        String(url).includes('/lecturas?')
+          ? { lecturas: [
+              { medidaEn: '2026-10-09T12:00:00-03:00', lecturaM: 3.6 },
+              { medidaEn: '2026-10-11T12:00:00-03:00', lecturaM: 4.0 },
+              { medidaEn: '2026-10-12T12:00:00-03:00', lecturaM: 4.12 },
+            ] }
+          : { estaciones: ESTACIONES },
+    })) as unknown as typeof fetch
     render(<CapaEstacionesRio visible />)
 
     await screen.findByTestId('source')
@@ -217,27 +254,44 @@ describe('CapaEstacionesRio', () => {
       mapa.emitir('click', 'estaciones-rio-simbolos', { features: [{ properties: { estacionId: 'rosario' } }] })
     })
 
-    const popup = await waitFor(() => screen.getByTestId('popup'))
-    expect(within(popup).getByText('Altura del río: 4,12 m')).toBeTruthy()
-    expect(popup.querySelector('.dato-fechado--vencido')).toBeNull()
-    expect(popup.querySelector('.dato-fechado')?.getAttribute('title')).toMatch(/^Actualizado \d{2}\/\d{2} \d{2}:\d{2}$/)
+    const tarjeta = await screen.findByRole('dialog', { name: 'Rosario' }, { timeout: 5000 })
+    expect(tarjeta.querySelector('.tarjeta-estacion__estado')?.textContent).toBe('Evacuación')
+    // Actual, alerta and evacuación share the top row.
+    expect([...tarjeta.querySelectorAll('.tarjeta-estacion__cifra dd:not(.tarjeta-estacion__exceso)')].map((n) => n.textContent)).toEqual(['4,12 m', '3,50 m', '4,00 m'])
+    // Actual is coloured by the band its value falls into, with the excess below.
+    expect(tarjeta.querySelector('.tarjeta-estacion__cifra--actual-evacuacion')).not.toBeNull()
+    expect(within(tarjeta).getByText('▲ 0,12 m sobre evacuación')).toBeTruthy()
+    expect(within(tarjeta).getByText('Superada por 0,62 m')).toBeTruthy()
+    expect(await within(tarjeta).findByRole('img', { name: /últimos 7 días/i }, { timeout: 5000 })).toBeTruthy()
+    expect(within(tarjeta).getByText('+0,12 m (+3,0 %)')).toBeTruthy()
+    expect(within(tarjeta).getByText('+0,52 m (+14,4 %)')).toBeTruthy()
+    expect(vi.mocked(global.fetch).mock.calls.some(([u]) => String(u).startsWith('/api/infraestructura/hidrometria/estaciones/rosario/lecturas?desde='))).toBe(true)
   })
 
-  it('muestra el tooltip de una línea al entrar y lo oculta al salir', async () => {
+  it('Escape cierra la tarjeta', async () => {
+    render(<CapaEstacionesRio visible />)
+    await screen.findByTestId('source')
+    act(() => {
+      mapa.emitir('click', 'estaciones-rio-pastillas', { features: [{ properties: { estacionId: 'corrientes' } }] })
+    })
+    const tarjeta = await screen.findByRole('dialog', { name: 'Corrientes' }, { timeout: 5000 })
+    expect(within(tarjeta).getByText('Sin lecturas publicadas.')).toBeTruthy()
+    expect(document.activeElement).toBe(tarjeta)
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('no muestra tooltip al pasar el puntero', async () => {
     render(<CapaEstacionesRio visible />)
 
     await screen.findByTestId('source')
     act(() => {
       mapa.emitir('mouseenter', 'estaciones-rio-simbolos', { features: [{ properties: { estacionId: 'corrientes' } }] })
     })
-    expect(
-      (await screen.findByTestId('tooltip')).textContent,
-    ).toBe('Estación Prefectura Corrientes · Altura del río: sin dato · Sin dato — clic para ver detalle')
-
-    act(() => {
-      mapa.emitir('mouseleave', 'estaciones-rio-simbolos', {})
-    })
-    await waitFor(() => expect(screen.queryByTestId('tooltip')).toBeNull())
+    expect(screen.queryByTestId('tooltip')).toBeNull()
+    expect(screen.queryByTestId('popup')).toBeNull()
   })
 
   it('no rompe la capa si la petición falla', async () => {
@@ -274,5 +328,19 @@ describe('formatearFechaLocal', () => {
 
   it('devuelve el texto libre sin cambios', () => {
     expect(formatearFechaLocal('2026-10-06 (aprox.)')).toBe('2026-10-06 (aprox.)')
+  })
+})
+
+describe('ladosPastilla', () => {
+  it('flips the western neighbour to the left and leaves lone stations on the right', async () => {
+    const { ladosPastilla } = await import('./capa-estaciones-rio')
+    const lados = ladosPastilla([
+      { estacionId: 'a', lat: -29.0, lon: -56.6 },
+      { estacionId: 'b', lat: -29.05, lon: -56.5 },
+      { estacionId: 'c', lat: -27.0, lon: -58.0 },
+    ])
+    expect(lados.get('a')).toBe('izquierda')
+    expect(lados.get('b')).toBe('derecha')
+    expect(lados.get('c')).toBe('derecha')
   })
 })

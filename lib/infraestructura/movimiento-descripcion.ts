@@ -118,6 +118,7 @@ const ESTADO_ESTABLECIMIENTO_TEXTO: Record<EstadoEstablecimiento, string> = {
   parcial: 'parcial',
   evacuado: 'evacuado',
   centro_evacuados: 'centro de evacuados',
+  sin_clases: 'sin clases',
 }
 
 /** Título compartido por el resumen de carga, la línea de tiempo y el historial. */
@@ -168,6 +169,9 @@ function detalleAlcance(secciones: number, alumnos: number): string {
 }
 
 function detalleCambioAlcance(cambio: DiffParte['alcancesCambiados'][number]): string {
+  if (cambio.todaLaEscuela && cambio.seccionesRetiradas + cambio.alumnosRetirados === 0) {
+    return `Se amplió el alcance de ${cambio.motivo}: toda la escuela`
+  }
   const partes: string[] = []
   if (cambio.seccionesAgregadas > 0) partes.push(`${cambio.seccionesAgregadas} ${pluralizar(cambio.seccionesAgregadas, 'sección', 'secciones')} más`)
   if (cambio.seccionesRetiradas > 0) partes.push(`${cambio.seccionesRetiradas} ${pluralizar(cambio.seccionesRetiradas, 'sección', 'secciones')} menos`)
@@ -196,7 +200,8 @@ export function describirMovimiento(
   diff.afectacionesAgregadas.forEach((agregada) => {
     lineas.push(`Se informó ${agregada.motivo}`)
     lineas.push(`Gravedad ${agregada.severidad}`)
-    if (agregada.secciones > 0 || agregada.alumnos > 0) lineas.push(detalleAlcance(agregada.secciones, agregada.alumnos))
+    if (agregada.todaLaEscuela) lineas.push('Toda la escuela')
+    else if (agregada.secciones > 0 || agregada.alumnos > 0) lineas.push(detalleAlcance(agregada.secciones, agregada.alumnos))
     if (agregada.causadaPor) lineas.push(`Causado por "${agregada.causadaPor.motivo}"`)
   })
 

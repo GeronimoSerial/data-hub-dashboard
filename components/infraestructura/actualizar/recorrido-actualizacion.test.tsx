@@ -88,6 +88,19 @@ describe('RecorridoActualizacion', () => {
     expect(declararFotosMock).toHaveBeenCalledWith(expect.objectContaining({ movimientoBaseId: 'movement-base' }))
   })
 
+  it('la barra de acciones de datos queda pegada y muestra Volver', async () => {
+    stub()
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    for (let i = 0; i < 2; i++) {
+      fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    }
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+    const volver = screen.getByRole('button', { name: 'Volver' })
+    expect(volver.closest('.asistente__acciones')).toHaveClass('asistente__acciones--pegada')
+  })
+
   it('deja un solo Volver en datos y vuelve a la pregunta conservando la selección', async () => {
     stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
@@ -303,3 +316,136 @@ async function cuerpoDelPost(fetchMock: ReturnType<typeof vi.fn>) {
   const [, init] = fetchMock.mock.calls.find(([, i]) => (i as RequestInit | undefined)?.method === 'POST')!
   return JSON.parse((init as RequestInit).body as string)
 }
+
+function estadoConSituacion(estadoParte: string, estadoServicio: string) {
+  const base = estadoActual()
+  return { ...base, parte: { ...base.parte, estadoEstablecimiento: estadoParte }, servicio: { estadoGeneral: estadoServicio, alcanceVigente: [] } }
+}
+
+function stubConEstado(estado: Record<string, unknown>, respuestaPost: { status: number; body: Record<string, unknown> } = { status: 201, body: { ok: true, movimientoId: 'm1' } }) {
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (!init || init.method !== 'POST') {
+      const body = url.includes('/historial') ? { ok: true, movimientos: [] } : estado
+      return new Response(JSON.stringify(body), { status: 200 })
+    }
+    return new Response(JSON.stringify(respuestaPost.body), { status: respuestaPost.status })
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+async function pasarASalidaDeEvacuacion() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
+  const sheet = screen.getByRole('dialog')
+  fireEvent.click(within(sheet).getByRole('checkbox', { name: 'Las clases o el edificio' }))
+  fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
+  const hoja = screen.getByRole('dialog')
+  fireEvent.click(within(within(hoja).getByRole('group', { name: 'Inundación' })).getByRole('radio', { name: 'Solucionada' }))
+  fireEvent.click(within(within(hoja).getByRole('group', { name: 'Sin energía o agua' })).getByRole('radio', { name: 'Sigue activa' }))
+  fireEvent.click(within(hoja).getByRole('button', { name: 'Confirmar' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+}
+
+describe('RecorridoActualizacion: salida de evacuación (T7)', () => {
+  it('bloquea el envío mientras el servicio siga suspendido y lo explica', async () => {
+    const fetchMock = stubConEstado(estadoConSituacion('evacuado', 'suspendido'))
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    await pasarASalidaDeEvacuacion()
+    elegirAsistencia('No')
+    expect(screen.getByText(/El servicio sigue suspendido/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardar actualización' })).toBeDisabled()
+    expect(fetchMock.mock.calls.filter(([, i]) => i?.method === 'POST')).toHaveLength(0)
+  })
+
+  it('envía las afectaciones solucionadas y las que siguen activas con sus ids', async () => {
+    const fetchMock = stubConEstado(estadoConSituacion('evacuado', 'normal'))
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    await pasarASalidaDeEvacuacion()
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    const cuerpo = await cuerpoDelPost(fetchMock)
+    expect(cuerpo.afectacionesSolucionadas.map((s: { id: string }) => s.id)).toEqual(['a'])
+    expect(cuerpo.afectacionesConfirmadas).toEqual(['b'])
+    expect(cuerpo.estadoEstablecimiento).toEqual({ estado: 'habitual' })
+  })
+
+  it('muestra el mensaje del servidor cuando responde 409', async () => {
+    stubConEstado(estadoConSituacion('evacuado', 'normal'), { status: 409, body: { ok: false, error: 'La afectación Inundación sigue activa.', codigo: 'habitual-con-afectaciones-activas' } })
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    await pasarASalidaDeEvacuacion()
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    expect(await screen.findByText(/La afectación Inundación sigue activa/)).toBeInTheDocument()
+  })
+})
+
+function estadoConEvacuacion() {
+  const base = estadoActual()
+  return {
+    ...base,
+    parte: { ...base.parte, estadoEstablecimiento: 'evacuado' },
+    servicio: { estadoGeneral: 'suspendido', alcanceVigente: [] },
+    afectaciones: [{ ...base.afectaciones[0], id: 'e', motivo: 'Evacuación preventiva', severidad: 'Crítica' }],
+  }
+}
+
+async function abrirCambioDeEdificio() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
+  const sheet = screen.getByRole('dialog')
+  fireEvent.click(within(sheet).getByRole('checkbox', { name: 'Las clases o el edificio' }))
+  fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+}
+
+describe('RecorridoActualizacion: cierre de la última afectación (T8)', () => {
+  it('cerrar la evacuación preventiva permite Sin daños y envía la solución con habitual y clases normales', async () => {
+    const fetchMock = stubConEstado(estadoConEvacuacion())
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    await abrirCambioDeEdificio()
+    const sinDanos = screen.getByRole('radio', { name: 'Sin daños / en uso normal' })
+    expect(sinDanos).toBeEnabled()
+    fireEvent.click(sinDanos)
+    const hoja = screen.getByRole('dialog')
+    fireEvent.click(within(within(hoja).getByRole('group', { name: 'Evacuación preventiva' })).getByRole('radio', { name: 'Solucionada' }))
+    fireEvent.click(within(hoja).getByRole('button', { name: 'Confirmar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, con normalidad' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    const cuerpo = await cuerpoDelPost(fetchMock)
+    expect(cuerpo.afectacionesSolucionadas.map((s: { id: string }) => s.id)).toEqual(['e'])
+    expect(cuerpo.estadoEstablecimiento).toEqual({ estado: 'habitual' })
+    expect(cuerpo.servicioEducativo.estado).toBe('normal')
+  })
+
+  it('sin afectaciones vigentes con el edificio evacuado ofrece restablecer el funcionamiento', async () => {
+    stubConEstado({ ...estadoConEvacuacion(), afectaciones: [] })
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    const restablecer = screen.getByRole('region', { name: 'Restablecer el funcionamiento' })
+    expect(within(restablecer).getByRole('radio', { name: 'Sin daños / en uso normal' })).toBeChecked()
+    expect(within(restablecer).getByRole('radio', { name: 'Sí, con normalidad' })).toBeChecked()
+  })
+
+  it('tras cerrar la última afectación ofrece restablecer el edificio y las clases, ya preseleccionados', async () => {
+    const fetchMock = stubConEstado(estadoConEvacuacion())
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Se solucionó' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    const restablecer = screen.getByRole('region', { name: 'Restablecer el funcionamiento' })
+    expect(within(restablecer).getByRole('radio', { name: 'Sin daños / en uso normal' })).toBeChecked()
+    expect(within(restablecer).getByRole('radio', { name: 'Sí, con normalidad' })).toBeChecked()
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    const cuerpo = await cuerpoDelPost(fetchMock)
+    expect(cuerpo.afectacionesSolucionadas.map((s: { id: string }) => s.id)).toEqual(['e'])
+    expect(cuerpo.estadoEstablecimiento).toEqual({ estado: 'habitual' })
+    expect(cuerpo.servicioEducativo.estado).toBe('normal')
+  })
+})

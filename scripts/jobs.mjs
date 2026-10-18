@@ -43,6 +43,7 @@ const NOMBRES_VALIDOS = [
   'climatologia-caudal',
   'climatologia-imerg',
   'calcular-riesgo',
+  'calcular-riesgo-v04-candidato',
   'episodios-derivados',
   'sync-seasonal',
   'situacion-corte',
@@ -52,6 +53,9 @@ const NOMBRES_VALIDOS = [
   'sync-synop-lluvia',
   'sync-prefectura-historico',
   'importar-exposicion-rio-dem',
+  'importar-altimetria-v04',
+  'sync-ina-serie-diaria',
+  'sync-ina-pronostico',
   'limpiar-adjuntos-huerfanos',
 ]
 
@@ -324,6 +328,30 @@ async function correrImportarExposicionRioDem() {
   return importarExposicionRioDem()
 }
 
+// Altimetría escolar v0.4 (CSV conservador, ruta en ALTIMETRIA_V04_CSV):
+// idempotente por sha256 del archivo; no programado.
+async function correrImportarAltimetriaV04() {
+  if (!(await jobsActivos())) return flagDeshabilitado('importar-altimetria-v04')
+  const { importarAltimetriaV04 } = await import('../lib/infraestructura/riesgo/jobs/importar-altimetria-v04.ts')
+  return importarAltimetriaV04()
+}
+
+// Serie diaria histórica INA A5 (Motor v0.4): backfill por ventanas la primera
+// vez, incremental después; presupuesto de solicitudes acotado. No programado.
+async function correrSyncInaSerieDiaria() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-ina-serie-diaria')
+  const { sincronizarSerieDiariaIna } = await import('../lib/infraestructura/hidrometria/ina/sync-ina-serie-diaria.ts')
+  return sincronizarSerieDiariaIna()
+}
+
+// Última corrida de los pronósticos INA 499/289 (Motor v0.4): dedupe por
+// corrida, una solicitud por calibrado. No programado.
+async function correrSyncInaPronostico() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-ina-pronostico')
+  const { sincronizarPronosticoIna } = await import('../lib/infraestructura/hidrometria/ina/sync-ina-pronostico.ts')
+  return sincronizarPronosticoIna()
+}
+
 async function correrSyncRadarEnsemble(opts) {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
   const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
@@ -355,6 +383,9 @@ async function correrSyncImerg() {
   return ejecutarSyncImerg({ earthdataToken: process.env.EARTHDATA_TOKEN })
 }
 
+// climatologia-precipitacion (ERA5) y climatologia-caudal no están programadas
+// desde el 2026-10-18 (paquete "Cuota Open-Meteo", docs/datos/cuota-open-meteo.md):
+// el despacho queda sólo para corridas manuales.
 async function correrCalculoClimatologia() {
   if (!(await jobsActivos())) return flagDeshabilitado('climatologia-precipitacion')
   const { ejecutarCalculoClimatologia } = await import(
@@ -387,6 +418,18 @@ async function correrCalcularRiesgo() {
     '../lib/infraestructura/riesgo/jobs/calcular-riesgo.ts'
   )
   return calcularYPublicarRiesgo()
+}
+
+// Candidato Motor v0.4: escribe un run 'completado' aislado del operativo; no
+// publica el puntero vigente (ver lib/infraestructura/riesgo/publicar-run.ts).
+// Desde T11 el operativo calcular-riesgo ya corre v0.4: este job no se
+// programa; queda para corridas manuales de evaluación con el padrón completo.
+async function correrCalcularRiesgoCandidatoV04() {
+  if (!(await jobsActivos())) return flagDeshabilitado('calcular-riesgo-v04-candidato')
+  const { calcularRiesgoCandidatoV04 } = await import(
+    '../lib/infraestructura/riesgo/jobs/calcular-riesgo-v04.ts'
+  )
+  return calcularRiesgoCandidatoV04()
 }
 
 async function correrEpisodiosDerivados() {
@@ -422,6 +465,14 @@ export async function correrJob(nombre, opts) {
 
   if (!(await jobsActivos())) {
     return flagDeshabilitado(nombre)
+  }
+
+  // Staging/dev no gastan cupo Open-Meteo: replican desde hub_prod
+  // (scripts/replicar-riesgo-om.mjs). Antes de migrar o cargar el productor.
+  const { JOBS_OPEN_METEO, rolEntorno } = await import('../lib/infraestructura/riesgo/providers/rol-entorno.ts')
+  if (JOBS_OPEN_METEO.includes(nombre) && rolEntorno() === 'consumidor') {
+    console.warn(`[jobs] "${nombre}" no ejecutado: entorno consumidor (RIESGO_DATOS_ROL)`)
+    return { ejecutado: false, motivo: 'rol_consumidor' }
   }
 
   if (['sync-radar-meteo', 'verificar-radar-meteo', 'sync-radar-ensemble'].includes(nombre) &&
@@ -470,6 +521,8 @@ export async function correrJob(nombre, opts) {
       return correrCalculoClimatologiaImerg()
     case 'calcular-riesgo':
       return correrCalcularRiesgo()
+    case 'calcular-riesgo-v04-candidato':
+      return correrCalcularRiesgoCandidatoV04()
     case 'episodios-derivados':
       return correrEpisodiosDerivados()
     case 'sync-seasonal':
@@ -488,6 +541,12 @@ export async function correrJob(nombre, opts) {
       return correrSyncPrefecturaHistorico()
     case 'importar-exposicion-rio-dem':
       return correrImportarExposicionRioDem()
+    case 'importar-altimetria-v04':
+      return correrImportarAltimetriaV04()
+    case 'sync-ina-serie-diaria':
+      return correrSyncInaSerieDiaria()
+    case 'sync-ina-pronostico':
+      return correrSyncInaPronostico()
     default:
       throw new JobDesconocidoError(nombre)
   }
@@ -506,6 +565,9 @@ export function codigoSalida(nombreJob, resultado) {
   if (nombreJob === 'sync-synop-lluvia' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'sync-prefectura-historico' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'importar-exposicion-rio-dem' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'importar-altimetria-v04' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'sync-ina-serie-diaria' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'sync-ina-pronostico' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3
@@ -514,6 +576,7 @@ export function codigoSalida(nombreJob, resultado) {
   // No-ops idempotentes / gating: éxito silencioso.
   if (
     motivo === 'flag_deshabilitado' ||
+    motivo === 'rol_consumidor' ||
     motivo === 'ya_completado' ||
     motivo === 'en_progreso_vigente' ||
     motivo === 'lease_no_disponible'
