@@ -30,7 +30,7 @@ import {
   ETIQUETA_NIVEL_PLAN,
   nivelPlanificacion,
   TITULO_LEYENDA_VISTA,
-  VISTAS_PLANIFICACION,
+  VISTAS_ESTRUCTURALES,
 } from '@/lib/infraestructura/mapa/planificacion'
 import type { EscuelaFichaEnriquecida } from '@/lib/infraestructura/parte-mapa'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -241,7 +241,7 @@ export function FichaEscuelaPagina({
 
   const planificacion = useMemo(
     () =>
-      VISTAS_PLANIFICACION.map((vista) => ({
+      VISTAS_ESTRUCTURALES.map((vista) => ({
         etiquetaVista: TITULO_LEYENDA_VISTA[vista],
         etiquetaNivel:
           vista === 'historial'

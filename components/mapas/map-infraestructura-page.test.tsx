@@ -1489,11 +1489,16 @@ describe('MapInfraestructuraPage — Planificación', () => {
     const panel = await screen.findByTestId('panel-lateral')
     expect(within(panel).getByRole('heading', { name: 'Planificación' })).toBeInTheDocument()
     expect(within(panel).getByRole('group', { name: 'Vista' })).toBeInTheDocument()
-    expect(within(panel).getByRole('button', { name: 'Escuelas aisladas' })).toBeInTheDocument()
-    expect(within(panel).getByRole('button', { name: 'Inundación' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Riesgo hoy' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Aislamiento' })).toBeInTheDocument()
+    expect(within(panel).queryByRole('button', { name: 'Inundación' })).not.toBeInTheDocument()
     expect(within(panel).getByRole('button', { name: 'Historial' })).toBeInTheDocument()
     expect(within(panel).queryByRole('heading', { name: 'Situación actual' })).not.toBeInTheDocument()
-    expect(screen.getByText('Aislamiento')).toBeInTheDocument()
+    const leyenda = screen.getByRole('complementary', { name: 'Referencias del mapa' })
+    expect(within(leyenda).getByText(/Riesgo actual \(hoy\)/)).toBeInTheDocument()
+
+    await userEvent.click(within(panel).getByRole('button', { name: 'Aislamiento' }))
+    expect(within(leyenda).getByText('Aislamiento')).toBeInTheDocument()
 
     await userEvent.click(within(panel).getByRole('button', { name: 'Historial' }))
     expect(screen.getByText('Veces con situaciones')).toBeInTheDocument()
@@ -1537,6 +1542,7 @@ describe('MapInfraestructuraPage — Planificación', () => {
       })),
     }
     await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion', escuelasMapa: escuelas })
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Aislamiento' }))
 
     const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
     const coloresAisladas = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
@@ -1556,16 +1562,22 @@ describe('MapInfraestructuraPage — Planificación', () => {
     ])
   })
 
-  it('en Inundación no dibuja escuelas sin riesgo o sin dato y la leyenda no muestra Nulo', async () => {
+  it('Riesgo hoy pide el motor sin riskRadarEnabled y colorea con su nivel al horizonte elegido', async () => {
+    llamadasRadar.activos.length = 0
     await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion' })
 
-    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Inundación' }))
-
+    expect(llamadasRadar.activos.at(-1)).toBe(true)
     const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
-    expect(JSON.parse(fuente.getAttribute('data-geojson') ?? '{}').features).toEqual([])
+    const colores = () => JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
+      .features.filter((feature: { properties: { conDato: boolean } }) => feature.properties.conDato)
+      .map((feature: { properties: { cueAnexo: string; color?: string } }) => [feature.properties.cueAnexo, feature.properties.color])
+    expect(colores()).toEqual([[CUE, colorRiesgo('alto')]])
+    expect(within(screen.getByTestId('panel-planificacion')).getByText('Escuelas en riesgo')).toBeInTheDocument()
+
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: '24 h' }))
+    expect(colores()).toEqual([[CUE, colorRiesgo('moderado')]])
     const leyenda = screen.getByRole('complementary', { name: 'Referencias del mapa' })
-    expect(within(leyenda).getByText('Exposición a inundación')).toBeInTheDocument()
-    expect(within(leyenda).queryByText('Nulo')).not.toBeInTheDocument()
+    expect(within(leyenda).getByText(/Riesgo actual \(hoy\) · 24 h/)).toBeInTheDocument()
   })
 
   it('abre la ficha flotante desde Prioridad y no la conserva al cambiar de pestaña', async () => {
@@ -1595,6 +1607,7 @@ describe('MapInfraestructuraPage — Planificación', () => {
       })),
     }
     await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion', escuelasMapa: escuelas })
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Aislamiento' }))
 
     expect(within(screen.getByTestId('panel-planificacion')).getByText('Todavía no hay datos para esta vista.')).toBeInTheDocument()
     await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Historial' }))

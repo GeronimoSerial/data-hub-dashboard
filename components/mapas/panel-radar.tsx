@@ -2,11 +2,11 @@
 
 import type { JSX } from 'react'
 import { EscuelasEnRiesgo } from '@/components/mapas/escuelas-en-riesgo'
+import { SelectorHorizonteMotor } from '@/components/mapas/selector-horizonte-motor'
 import { Segmentado } from '@/components/mapas/segmentado'
 import { AlertasSeccion } from '@/components/mapas/radar-meteo/alertas-seccion'
 import { PronosticoResumen } from '@/components/mapas/radar-meteo/pronostico-resumen'
 import { ETIQUETAS_VARIABLE_RADAR, VARIABLES_RADAR_UI, type VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
-import { ETIQUETA_HORIZONTE_MOTOR } from '@/lib/infraestructura/mapa/radar'
 import { pronosticoPorHorizonte } from '@/lib/infraestructura/radar-meteo/pronostico-horizonte'
 import type { ResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
@@ -46,29 +46,16 @@ export interface PanelRadarProps {
   }
 }
 
-const HORIZONTES: HorizonteMotor[] = [24, 72, 240]
 
 export function PanelRadar(props: PanelRadarProps): JSX.Element {
   const { horizonte, disponibles, onHorizonte, variable, onVariable, puntos, escuelas, cargando, error, onSeleccionar, alertas, pronostico } = props
   const hayMotor = disponibles.length > 0
   const hayPronostico = pronostico.resumen !== null && !pronostico.resumen.sinDatos && pronostico.resumen.departamentos.length > 0
   const pronosticoHorizonte = hayPronostico && pronostico.resumen ? pronosticoPorHorizonte(pronostico.resumen, horizonte) : null
-  const opciones = HORIZONTES.map((valor) => ({
-    valor,
-    etiqueta: ETIQUETA_HORIZONTE_MOTOR[valor],
-    deshabilitada: hayMotor && !disponibles.includes(valor),
-    titulo: 'Sin datos para este horizonte',
-  }))
 
   return (
     <section className="map-sitact" aria-label="Radar" data-testid="panel-radar">
-      <Segmentado
-        etiqueta="Horizonte"
-        opciones={opciones}
-        valor={horizonte}
-        onChange={onHorizonte}
-        columnas={3}
-      />
+      <SelectorHorizonteMotor horizonte={horizonte} disponibles={disponibles} onHorizonte={onHorizonte} />
 
       <Segmentado
         etiqueta="Variable meteorológica"

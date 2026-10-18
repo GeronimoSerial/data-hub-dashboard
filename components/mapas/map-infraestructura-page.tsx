@@ -156,11 +156,11 @@ export {
 } from '@/lib/infraestructura/mapa/punto'
 import { construirPuntosNivel, puntosRadarVisibles } from '@/lib/infraestructura/mapa/puntos-nivel'
 import { coloresRadar, escuelasPorRiesgo } from '@/lib/infraestructura/mapa/radar'
-import { coloresPlanificacion, cuesJuntoLagunaPlanificacion, ETIQUETA_NIVEL_PLAN, nivelPlanificacion, TITULO_LEYENDA_VISTA, VISTAS_PLANIFICACION } from '@/lib/infraestructura/mapa/planificacion'
+import { coloresPlanificacion, ETIQUETA_NIVEL_PLAN, nivelPlanificacion, TITULO_LEYENDA_VISTA, VISTA_PLANIFICACION_DEFAULT, VISTAS_ESTRUCTURALES } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
 import { mantenerPopupsVisibles } from '@/components/mapas/popups-visibles'
-import { puntosRiesgoSobreSituacion, soloConDatoOJuntoLaguna } from '@/lib/infraestructura/mapa/puntos-nivel'
+import { puntosRiesgoSobreSituacion } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   iconosClusterMapa,
   idImagenBadgeEstado,
@@ -773,7 +773,7 @@ export default function MapInfraestructuraPage(props: {
     }
   }, [props.visible])
 
-  const [vistaPlanificacion, setVistaPlanificacion] = useState<VistaPlanificacion>('aisladas')
+  const [vistaPlanificacion, setVistaPlanificacion] = useState<VistaPlanificacion>(VISTA_PLANIFICACION_DEFAULT)
   const pestanaPrevia = useRef(props.pestana)
   useEffect(() => {
     const anterior = pestanaPrevia.current
@@ -800,10 +800,13 @@ export default function MapInfraestructuraPage(props: {
     setCruceInfoClic(null)
   }, [modoRadar, props.pestana, props.riskRadarEnabled])
   // "Escuelas en riesgo hoy" outside Radar reuses the same engine snapshot.
-  const riesgoHoyFueraDeRadar = !radarActivo && (props.riskRadarEnabled ?? false) && capasVisibles.escuelasEnRiesgo
+  // Planificación › Riesgo hoy colorea el mapa con el motor: no depende de riskRadarEnabled
+  // y reemplaza a la capa superpuesta para no dibujar el riesgo dos veces.
+  const riesgoPlanificacion = esPlanificacion && vistaPlanificacion === 'riesgo'
+  const riesgoHoyFueraDeRadar = !radarActivo && !riesgoPlanificacion && (props.riskRadarEnabled ?? false) && capasVisibles.escuelasEnRiesgo
   const { data: radarData, loading: radarLoading, error: radarError } = useRadar(
     filtrosRadar,
-    radarActivo || riesgoHoyFueraDeRadar,
+    radarActivo || esPlanificacion || riesgoHoyFueraDeRadar,
   )
 
   // La API devuelve los tres horizontes; la lista lateral y la coropleta
@@ -862,13 +865,14 @@ export default function MapInfraestructuraPage(props: {
   )
   const colorPorCue = useMemo(() => {
     const escuelasVisibles = dataEscuelasMapaVisible?.escuelas ?? []
-    if (radarActivo) {
+    if (radarActivo || riesgoPlanificacion) {
       return coloresRadar(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo)
     }
-    if (esPlanificacion) return coloresPlanificacion(escuelasVisibles, vistaPlanificacion, { territorio })
+    if (esPlanificacion && vistaPlanificacion !== 'riesgo') return coloresPlanificacion(escuelasVisibles, vistaPlanificacion, { territorio })
     return new Map<string, string>()
   }, [
     radarActivo,
+    riesgoPlanificacion,
     esPlanificacion,
     radarData,
     dataEscuelasMapaVisible,
@@ -878,18 +882,14 @@ export default function MapInfraestructuraPage(props: {
   ])
   const puntosNivel = useMemo(() => {
     const escuelasVisibles = dataEscuelasMapaVisible?.escuelas ?? []
-    const cuesLaguna = esPlanificacion
-      ? cuesJuntoLagunaPlanificacion(escuelasVisibles, vistaPlanificacion, { territorio })
-      : new Set<string>()
-    const puntos = construirPuntosNivel(escuelasVisibles, colorPorCue, cuesLaguna)
-    if (radarActivo) {
+    const puntos = construirPuntosNivel(escuelasVisibles, colorPorCue)
+    if (radarActivo || riesgoPlanificacion) {
       const nivelPorCue = new Map(escuelasPorRiesgo(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo)
         .map(({ escuela, nivel }) => [escuela.cueAnexo, nivel]))
       return puntosRadarVisibles(puntos, nivelPorCue)
     }
-    // Exposición a inundación dibuja Alto/Medio/Bajo y las escuelas junto a laguna; el resto queda fuera.
-    return esPlanificacion && vistaPlanificacion === 'inundacion' ? soloConDatoOJuntoLaguna(puntos) : puntos
-  }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion, territorio, radarActivo, radarData, horizonteEfectivo])
+    return puntos
+  }, [dataEscuelasMapaVisible, colorPorCue, riesgoPlanificacion, radarActivo, radarData, horizonteEfectivo])
   const puntosRiesgoHoy = useMemo(() => {
     if (!riesgoHoyFueraDeRadar) return construirPuntosNivel([], new Map())
     const escuelasVisibles = dataEscuelasMapaVisible?.escuelas ?? []
@@ -2181,7 +2181,7 @@ export default function MapInfraestructuraPage(props: {
 
       {/* En radar no va la leyenda de situación actual: el radar trae la suya (lluvia, viento...). */}
       {radarActivo ? null : props.pestana === 'planificacion' ? (
-        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'actual' ? (
         <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : null}
@@ -2279,6 +2279,14 @@ export default function MapInfraestructuraPage(props: {
                 cargando={contextoTerritorial && territorioLoading}
                 error={territorioError !== null}
                 onSeleccionar={seleccionarPorCue}
+                riesgo={{
+                  horizonte: horizonteEfectivo,
+                  disponibles: horizontesDisponibles,
+                  onHorizonte: setHorizonteSeleccionado,
+                  puntos: radarData?.puntos ?? null,
+                  cargando: radarLoading && radarData === null,
+                  error: radarError,
+                }}
               />
             )}
             capas={(
@@ -2308,7 +2316,7 @@ export default function MapInfraestructuraPage(props: {
                 escuela={escuelaSeleccionada}
                 borradoresServerCount={borradoresMapa.error ? null : (borradoresMapa.counts.get(escuelaSeleccionada.cueAnexo) ?? (borradoresMapa.loading ? null : 0))}
                 horizonteRiesgo={horizonteEfectivo}
-                planificacion={VISTAS_PLANIFICACION.map((vista) => ({
+                planificacion={VISTAS_ESTRUCTURALES.map((vista) => ({
                   etiquetaVista: TITULO_LEYENDA_VISTA[vista],
                   etiquetaNivel: vista === 'historial'
                     ? `${ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })]} (${escuelaSeleccionada.situacionesHistoricas})`

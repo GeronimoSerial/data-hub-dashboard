@@ -15,8 +15,20 @@ const territorio: TerritorioMapa = {
   susceptibilidad: { fuente: 'physrisk', indicador: 'inundacion_fluvial', escenario: 'historico', unidad: 'm', periodoRetornoAnios: 100, fechaCorrida: '2026-01-01', licencia: 'licencia', escuelas: { '1': { inundacionFluvialM: 0.2, claseRio: null, juntoLaguna: null }, '2': { inundacionFluvialM: 0.8, claseRio: null, juntoLaguna: null } } },
 }
 
+const riesgo: React.ComponentProps<typeof PanelPlanificacion>['riesgo'] = {
+  horizonte: 72,
+  disponibles: [24, 72, 240],
+  onHorizonte: vi.fn(),
+  puntos: [
+    { cueAnexo: '1', horizonteHoras: 72, nivelRiesgo: 'alto', nivelAmenaza: 'alto' },
+    { cueAnexo: '2', horizonteHoras: 24, nivelRiesgo: 'muy_alto', nivelAmenaza: 'alto' },
+  ],
+  cargando: false,
+  error: null,
+}
+
 function props(overrides: Partial<React.ComponentProps<typeof PanelPlanificacion>> = {}) {
-  return { vista: 'aisladas' as VistaPlanificacion, onVista: vi.fn(), escuelas, territorio, cargando: false, error: false, onSeleccionar: vi.fn(), ...overrides }
+  return { vista: 'aisladas' as VistaPlanificacion, onVista: vi.fn(), escuelas, territorio, cargando: false, error: false, onSeleccionar: vi.fn(), riesgo, ...overrides }
 }
 
 describe('PanelPlanificacion', () => {
@@ -34,8 +46,9 @@ describe('PanelPlanificacion', () => {
     const onVista = vi.fn()
     const onSeleccionar = vi.fn()
     const { rerender } = render(<PanelPlanificacion {...props({ onVista, onSeleccionar })} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Inundación' }))
-    expect(onVista).toHaveBeenCalledWith('inundacion')
+    expect(screen.queryByRole('button', { name: 'Inundación' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Riesgo hoy' }))
+    expect(onVista).toHaveBeenCalledWith('riesgo')
     rerender(<PanelPlanificacion {...props({ vista: 'historial', onVista, onSeleccionar })} />)
     const filas = screen.getAllByRole('button').filter((boton) => boton.className.includes('map-sitact__fila'))
     expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual(['Escuela Dos, Bella Vista', 'Escuela Uno, Goya'])
@@ -57,20 +70,29 @@ describe('PanelPlanificacion', () => {
     expect(screen.getByText('Ninguna escuela con prioridad para estos filtros.')).toBeInTheDocument()
   })
 
-  it('en Inundación lista las escuelas junto a laguna con etiquetas simples', () => {
-    const conLaguna: TerritorioMapa = {
-      ...territorio,
-      susceptibilidad: { ...territorio.susceptibilidad!, escuelas: {
-        '1': { inundacionFluvialM: null, claseRio: null, juntoLaguna: true },
-        '2': { inundacionFluvialM: null, claseRio: 'medio', juntoLaguna: true },
-      } },
-    }
-    render(<PanelPlanificacion {...props({ vista: 'inundacion', territorio: conLaguna })} />)
+  it('en Riesgo hoy muestra el horizonte y las escuelas en riesgo del motor', () => {
+    const onHorizonte = vi.fn()
+    render(<PanelPlanificacion {...props({ vista: 'riesgo', territorio: null, riesgo: { ...riesgo, onHorizonte } })} />)
+    expect(screen.getByText('Escuelas en riesgo')).toBeInTheDocument()
     const filas = screen.getAllByRole('button').filter((boton) => boton.className.includes('map-sitact__fila'))
-    expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual(['Escuela Dos, Bella Vista', 'Escuela Uno, Goya'])
-    expect(filas[0]).toHaveTextContent('Medio · Junto a laguna')
-    expect(filas[1]).toHaveTextContent('Junto a laguna')
-    expect(filas[1]).not.toHaveTextContent('Nulo')
+    expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual(['Escuela Uno, Goya'])
+    fireEvent.click(screen.getByRole('button', { name: '24 h' }))
+    expect(onHorizonte).toHaveBeenCalledWith(24)
+    expect(screen.queryByText('Cargando datos…')).not.toBeInTheDocument()
+  })
+
+  it('en Riesgo hoy muestra carga y error del motor', () => {
+    const carga = render(<PanelPlanificacion {...props({ vista: 'riesgo', riesgo: { ...riesgo, puntos: null, cargando: true } })} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Calculando riesgo…')
+    carga.unmount()
+    render(<PanelPlanificacion {...props({ vista: 'riesgo', riesgo: { ...riesgo, error: 'fallo' } })} />)
+    expect(screen.getByRole('status')).toHaveTextContent('No se pudo cargar el pronóstico')
+  })
+
+  it('en Historial sin situaciones explica que todavía no hay registros', () => {
+    render(<PanelPlanificacion {...props({ vista: 'historial', escuelas: escuelas.map((escuela) => ({ ...escuela, situacionesHistoricas: 0 })) })} />)
+    expect(screen.getByText('Todavía no hay situaciones registradas para estos filtros.')).toBeInTheDocument()
+    expect(screen.queryByText('Ninguna escuela con prioridad para estos filtros.')).not.toBeInTheDocument()
   })
 
   it('no muestra estados del territorio en historial ni textos técnicos', () => {
