@@ -8,6 +8,7 @@ describe('resolverPestana', () => {
     ['#planificacion', '', 'planificacion'],
     ['#estadisticas', '', 'estadisticas'],
     ['#capas', '', 'capas'],
+    ['#exportar', '', 'exportar'],
     ['#operativa', '', 'actual'],
     ['#evolucion', '', 'estadisticas'],
     ['', '?modo=radar', 'radar'],
