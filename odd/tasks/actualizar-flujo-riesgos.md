@@ -25,7 +25,7 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - [x] R5b Client 'nueva' evaluation passes the afectación category so the alumnos exemption matches the server.
 - [x] R6 A3 follow-up: banner dismissals must not reset across `reporte-inicial-form` steps.
 - [x] R6b Consistency rule codes are unique (habitual-clases-suspendidas defined twice)
-- [ ] R7 Extract route domain logic into a use case + repository (behavior-preserving), dedupe JSON mapping and motivo lookups.
+- [x] R7 Extract route domain logic into a use case + repository (behavior-preserving), dedupe JSON mapping and motivo lookups.
 - [ ] R8 A5: Mermaid flow map + UX proposal doc.
 
 ## Progress
@@ -90,3 +90,11 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - R6b: route inline (2 production-adjacent edits + task doc; mechanical rename). Test-first: new test `every rule code is unique because dismissals are keyed by code` failed RED (`TypeError: codigosDeReglas is not a function`) before the change. GREEN: exported `codigosDeReglas()`; second `habitual-clases-suspendidas` (sin energía variant) renamed to `habitual-clases-suspendidas-sin-energia`. No non-test consumers reference the code.
   - `npx tsc --noEmit`: exit 0
   - `timeout 300 npx vitest run lib/infraestructura/consistencia-parte components/infraestructura/reporte-inicial-form.test.tsx components/infraestructura/actualizar app/api/problematicas/parte`: 21 files, 321 tests passed
+- R7: route inline by one bounded writer (this worker), 3 work-unit commits. Behavior-preserving refactor: no RED (no behavior change to observe); the existing `app/api/problematicas/parte` route tests are the contract and were not edited.
+  - Step 1 (commit b889aae5): alumnos exemption is one function `preguntaEdificioYClases` in `consistencia-parte.ts`, used by `consistencia-parte-servidor.ts` and `consistencia-actualizacion.ts` (`respuestasNuevaDeActualizacion`). The JSON mapping is `parteDeFila` (used twice) and the motivo ids are one `indiceMotivoIds` map built once per request (first match wins, as `find` did).
+  - Step 2 (commit d81bcac1): DB reads/writes moved to `lib/infraestructura/parte/parte-repo.ts`; each function takes the drizzle handle (`db` or the transaction `tx`, which is a subclass of it).
+  - Step 3 (see git log, "use case" commit): the POST flow moved to `lib/infraestructura/parte/actualizar-parte.ts` (`ejecutarActualizacionParte`), returning a typed union (`error` with status/mensaje/codigo, `replay`, `creado`, `fallo_interno`). The route keeps parse, auth, db handles, the replay/error/500 mapping with the same `console.error`, and the verification link. `idempotencia.ts` moved to `lib/infraestructura/parte/` because the use case must not import from `app/`; `app/api/problematicas/parte/idempotencia.ts` re-exports it so `idempotencia.test.ts` is unchanged.
+  - Route size: `route.ts` 1107 lines before, 334 after. New: `actualizar-parte.ts` 729 (one transactional function moved with mechanical rewrites only: `cue.value` to `cueAnexo`, error returns to `fallo(...)`), `parte-repo.ts` 303.
+  - `npx tsc --noEmit`: exit 0
+  - `eslint app/api/problematicas/parte lib/infraestructura/parte`: exit 0, 0 warnings
+  - `timeout 300 npx vitest run app/api/problematicas/parte lib/infraestructura/consistencia-parte components/infraestructura/actualizar`: 20 files, 245 tests passed (same before and after)

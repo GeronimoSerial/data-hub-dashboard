@@ -5,6 +5,7 @@
 // el caso de uso (actualizar-parte.ts).
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { getDb } from '@/lib/db'
+import type { EstadoEstablecimiento, Parte } from '@/lib/infraestructura/trayectoria-tipos'
 import {
   infraAfectacion,
   infraAfectacionAlumno,
@@ -23,6 +24,17 @@ export type Ejecutor = ReturnType<typeof getDb>
 export type FilaMovimiento = typeof infraMovimiento.$inferSelect
 export type FilaParte = typeof infraParte.$inferSelect
 export type FilaBorrador = typeof infraBorrador.$inferSelect
+
+
+// Fila de infra_parte → Parte tipado: el estado es un enum y la asistencia se
+// guarda serializada como JSON en texto.
+export function parteDeFila(fila: FilaParte): Parte {
+  return {
+    ...fila,
+    estadoEstablecimiento: fila.estadoEstablecimiento as EstadoEstablecimiento,
+    asistenciaPedagogica: fila.asistenciaPedagogica ? JSON.parse(fila.asistenciaPedagogica) : null,
+  }
+}
 
 export type ClaveServicio = { tipo: 'establecimiento' | 'turno' | 'seccion'; referenciaId: string | null }
 
