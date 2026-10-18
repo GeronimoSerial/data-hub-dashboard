@@ -71,25 +71,24 @@ function evento(overrides: Partial<EventoTerreno>): EventoTerreno {
   }
 }
 
-function mockFetchVeredictos(veredictos: DtoVeredicto[], puntosRadar: unknown[] = []) {
+function mockFetchVeredictos(veredictos: DtoVeredicto[]) {
   const fetchMock = vi.fn(async (url: string) => {
-    if (url.includes('/radar')) return jsonResponse({ puntos: puntosRadar }, 200)
+    if (url.includes('/eventos')) return jsonResponse({ eventos: [] }, 200)
     return jsonResponse({ veredictos }, 200)
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
 
-function punto(overrides: { departamento: string | null; horizonteHoras: number; nivelRiesgo: string | null }) {
-  return { id: 'p', nombre: 'Escuela', ...overrides }
-}
+const depto = (id: string, ambito: string, nivel: string, texto: string, extra: Partial<DtoVeredicto> = {}) =>
+  veredicto({ id, fecha: hoy, ambito: `departamento:${ambito}`, nivel, texto, ...extra })
 
 const ayer = fechaLocal(-1)
 const hoy = fechaLocal(0)
 const manana = fechaLocal(1)
 
 describe('VeredictoModal', () => {
-  it('muestra carga, luego la línea de tiempo y el detalle de HOY por defecto', async () => {
+  it('shows loading, then the timeline and today by default with the AI headline', async () => {
     const fetchMock = mockFetchVeredictos([
       veredicto({ id: 'a', fecha: ayer, tipoDia: 'observado', nivel: 'alerta', texto: 'Ayer texto.' }),
       veredicto({ id: 'b', fecha: hoy, nivel: 'vigilancia', texto: 'Hoy texto.', enCalibracion: true }),
@@ -101,28 +100,30 @@ describe('VeredictoModal', () => {
     expect(screen.getByText('Cargando veredictos…')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/infraestructura/veredictos', expect.anything())
 
-    const detalle = await screen.findByRole('region', { name: 'Detalle del veredicto' })
+    const detalle = await screen.findByRole('region', { name: 'Veredicto del día' })
     const linea = screen.getByRole('group', { name: 'Línea de tiempo' })
     expect(within(linea).getAllByRole('button')).toHaveLength(3)
-    expect(within(detalle).getByText(/HOY/)).toBeInTheDocument()
+    expect(within(detalle).getByRole('heading', { name: 'Hoy' })).toBeInTheDocument()
+    expect(within(detalle).getByText('Generado con IA · puede contener errores')).toBeInTheDocument()
     expect(within(detalle).getByText('Hoy texto.')).toBeInTheDocument()
     expect(within(detalle).getByLabelText('Nivel: Vigilancia')).toBeInTheDocument()
     expect(within(detalle).getByText('En calibración')).toBeInTheDocument()
-    expect(within(detalle).getByText(/generado \d{2}:\d{2}/)).toBeInTheDocument()
   })
 
-  it('en HOY muestra hasta qué hora llegó la lluvia IMERG en el tooltip del generado', async () => {
-    const hace3h = new Date(Date.now() - 3 * 3600_000).toISOString()
-    mockFetchVeredictos([veredicto({ id: 'b', fecha: hoy, imergHasta: hace3h })])
+  it('always opens on the current day, even when its verdict is missing and a stale row says hoy', async () => {
+    mockFetchVeredictos([
+      veredicto({ id: 'a', fecha: ayer, tipoDia: 'hoy', nivel: 'alerta', texto: 'Ayer texto.' }),
+    ])
 
     render(<VeredictoModal open onOpenChange={() => {}} />)
-    const detalle = await screen.findByRole('region', { name: 'Detalle del veredicto' })
-    const generado = within(detalle).getByText(/generado \d{2}:\d{2}/)
-    expect(generado).toHaveAttribute('title', expect.stringMatching(/^Lluvia observada hasta \d{2}:\d{2}$/))
-    expect(within(detalle).queryByText(/Lluvia observada hasta/)).toBeNull()
+    const linea = await screen.findByRole('group', { name: 'Línea de tiempo' })
+    expect(within(linea).getByRole('button', { name: new RegExp(ddMm(hoy)) })).toHaveAttribute('aria-pressed', 'true')
+    const detalle = screen.getByRole('region', { name: 'Veredicto del día' })
+    expect(within(detalle).getByRole('heading', { name: 'Hoy' })).toBeInTheDocument()
+    expect(within(detalle).getByText('El veredicto de este día todavía no se generó.')).toBeInTheDocument()
   })
 
-  it('cambia el detalle al elegir otro día', async () => {
+  it('switches the day from the timeline', async () => {
     mockFetchVeredictos([
       veredicto({ id: 'a', fecha: ayer, tipoDia: 'observado', nivel: 'alerta', texto: 'Ayer texto.' }),
       veredicto({ id: 'b', fecha: hoy, nivel: 'vigilancia', texto: 'Hoy texto.' }),
@@ -132,64 +133,99 @@ describe('VeredictoModal', () => {
     const linea = await screen.findByRole('group', { name: 'Línea de tiempo' })
     fireEvent.click(within(linea).getByRole('button', { name: new RegExp(ddMm(ayer)) }))
 
-    const detalle = screen.getByRole('region', { name: 'Detalle del veredicto' })
+    const detalle = screen.getByRole('region', { name: 'Veredicto del día' })
     expect(within(detalle).getByText('Ayer texto.')).toBeInTheDocument()
-    expect(within(detalle).getByText(/OBSERVADO/)).toBeInTheDocument()
+    expect(within(detalle).getByText(/observado/)).toBeInTheDocument()
   })
 
-  it('llama onSeleccionarDepartamento con el id sin prefijo al pulsar "Ver en el mapa"', async () => {
+  it('lists departments from most to least severe, then by schools without classes', async () => {
     mockFetchVeredictos([
-      veredicto({ id: 'p', fecha: hoy, nivel: 'vigilancia' }),
-      veredicto({
-        id: 'd',
-        fecha: hoy,
-        ambito: 'departamento:PASO DE LOS LIBRES',
-        nivel: 'alerta',
-        texto: 'Se reportaron cortes. Otra oración.',
+      veredicto({ id: 'p', fecha: hoy, nivel: 'severo', texto: 'Titular.' }),
+      depto('d1', 'GOYA', 'vigilancia', 'Goya en vigilancia.'),
+      depto('d2', 'LAVALLE', 'alerta', 'Lavalle en alerta.'),
+      depto('d3', 'ESQUINA', 'severo', 'Esquina severo.'),
+      depto('d4', 'SAUCE', 'alerta', 'Sauce con escuelas.', {
+        metricas: [{ id: 'escuelas.sin_clases', valor: 3, unidad: 'escuelas', etiqueta: 'x', fuenteUrl: null }],
       }),
+    ])
+
+    render(<VeredictoModal open onOpenChange={() => {}} />)
+    const lista = await screen.findByRole('list', { name: 'Departamentos' })
+    const nombres = within(lista).getAllByRole('listitem').map((li) => li.querySelector('strong')?.textContent)
+    expect(nombres).toEqual(['Esquina', 'Sauce', 'Lavalle', 'Goya'])
+  })
+
+  it('collapses departments without news into one line', async () => {
+    mockFetchVeredictos([
+      veredicto({ id: 'p', fecha: hoy, nivel: 'alerta' }),
+      depto('d1', 'GOYA', 'alerta', 'Goya en alerta.'),
+    ])
+
+    render(<VeredictoModal open onOpenChange={() => {}} />)
+    const quietos = await screen.findByText(/^Sin novedades:/)
+    expect(quietos).toHaveTextContent('Bella Vista')
+    expect(quietos).not.toHaveTextContent('Goya')
+  })
+
+  it('shows only the first sentence of an old long department text', async () => {
+    mockFetchVeredictos([
+      veredicto({ id: 'p', fecha: hoy, nivel: 'alerta' }),
+      depto('d', 'PASO DE LOS LIBRES', 'alerta', 'Se reportaron cortes. Otra oración.'),
     ])
     const onSeleccionarDepartamento = vi.fn()
 
-    render(
-      <VeredictoModal open onOpenChange={() => {}} onSeleccionarDepartamento={onSeleccionarDepartamento} />,
-    )
-    const seccion = await screen.findByRole('region', { name: 'Departamentos con señal' })
-    expect(within(seccion).getByText('Paso de los Libres')).toBeInTheDocument()
-    expect(within(seccion).getByText('Se reportaron cortes.')).toBeInTheDocument()
+    render(<VeredictoModal open onOpenChange={() => {}} onSeleccionarDepartamento={onSeleccionarDepartamento} />)
+    const lista = await screen.findByRole('list', { name: 'Departamentos' })
+    expect(within(lista).getByText('Paso de los Libres')).toBeInTheDocument()
+    expect(within(lista).getByText('Se reportaron cortes.')).toBeInTheDocument()
+    expect(within(lista).queryByText(/Otra oración/)).toBeNull()
 
-    fireEvent.click(within(seccion).getByRole('button', { name: 'Ver en el mapa' }))
+    fireEvent.click(within(lista).getByRole('button', { name: 'Ver Paso de los Libres en el mapa' }))
     expect(onSeleccionarDepartamento).toHaveBeenCalledWith('PASO DE LOS LIBRES')
   })
 
-  it('cuenta escuelas por riesgo actual (72 h) por departamento y muestra la nota', async () => {
-    mockFetchVeredictos(
-      [veredicto({ id: 'd', fecha: hoy, ambito: 'departamento:ITUZAINGÓ', nivel: 'alerta', texto: 'Señal en Ituzaingó.' })],
-      [
-        punto({ departamento: 'ITUZAINGO', horizonteHoras: 72, nivelRiesgo: 'alto' }),
-        punto({ departamento: 'ITUZAINGO', horizonteHoras: 72, nivelRiesgo: 'alto' }),
-        punto({ departamento: 'ITUZAINGO', horizonteHoras: 72, nivelRiesgo: 'bajo' }),
-        punto({ departamento: 'ITUZAINGO', horizonteHoras: 24, nivelRiesgo: 'alto' }),
-      ],
-    )
+  it('shows one headline only for an old verdict with many sentences', async () => {
+    const frases = Array.from({ length: 6 }, (_, i) => ({ texto: `Frase ${i}.`, refs: [] }))
+    mockFetchVeredictos([veredicto({ id: 'largo', fecha: hoy, frases })])
 
     render(<VeredictoModal open onOpenChange={() => {}} />)
-    const seccion = await screen.findByRole('region', { name: 'Departamentos con señal' })
-    expect(within(seccion).getByText('Nivel del día según reglas del veredicto: lluvia, ríos y pronóstico por departamento.')).toBeVisible()
-    const escuelas = await within(seccion).findByTestId('veredicto-depto-escuelas')
-    expect(escuelas).toHaveTextContent('Escuelas por riesgo actual (hoy): 2 alto · 1 bajo')
+    const detalle = await screen.findByRole('region', { name: 'Veredicto del día' })
+    expect(within(detalle).getByText('Frase 0.')).toHaveClass('sr-only')
+    expect(within(detalle).queryByText('Frase 1.')).toBeNull()
   })
 
-  it('deja la nota de generación por reglas en el tooltip cuando la fuente es plantilla', async () => {
+  it('hides technical details: metrics, rules, upstream stations and sources', async () => {
+    mockFetchVeredictos([
+      veredicto({
+        id: 'p',
+        fecha: hoy,
+        nivel: 'alerta',
+        imergHasta: new Date().toISOString(),
+        fuentesAusentes: ['smn'],
+        metricas: [{ id: 'rio.x.altura_max_m', valor: 7.25, unidad: 'm', etiqueta: 'Altura máxima X', fuenteUrl: 'https://f' }],
+        traza: [{ regla: 'rio.estado', ref: 'rio.x.estado_max', valor: 7.25, umbral: 'alerta', nivel: 'alerta' }],
+        aguasArriba: [{ estacionId: 'pna-iguazu', nombre: 'IGUAZU', rio: 'parana', estadoMax: 'normal', alturaMaxM: 30.8, umbralM: 31.5 }],
+      }),
+    ])
+
+    render(<VeredictoModal open onOpenChange={() => {}} />)
+    const detalle = await screen.findByRole('region', { name: 'Veredicto del día' })
+    expect(detalle.querySelector('details')).toBeNull()
+    expect(within(detalle).queryByText(/Aguas arriba/)).toBeNull()
+    expect(within(detalle).queryByText(/Altura máxima/)).toBeNull()
+    expect(within(detalle).queryByRole('link')).toBeNull()
+  })
+
+  it('without AI shows the rules label instead of the AI mark', async () => {
     mockFetchVeredictos([veredicto({ id: 'p', fecha: hoy, fuente: 'plantilla' })])
 
     render(<VeredictoModal open onOpenChange={() => {}} />)
-    const detalle = await screen.findByRole('region', { name: 'Detalle del veredicto' })
-    // Detalle técnico en el tooltip del ícono de info, no como texto.
-    expect(within(detalle).getByRole('note').getAttribute('title')).toContain('Generado por reglas (IA no disponible).')
-    expect(detalle.textContent).not.toContain('Generado por reglas')
+    const detalle = await screen.findByRole('region', { name: 'Veredicto del día' })
+    expect(within(detalle).getByText('Generado por reglas automáticas')).toBeInTheDocument()
+    expect(within(detalle).queryByText(/Generado con IA/)).toBeNull()
   })
 
-  it('lista los eventos confirmados del día seleccionado y el mensaje vacío si no hay', async () => {
+  it('lists the confirmed field events of the selected day only', async () => {
     mockFetchVeredictos([
       veredicto({ id: 'a', fecha: ayer, tipoDia: 'observado' }),
       veredicto({ id: 'b', fecha: hoy }),
@@ -198,62 +234,39 @@ describe('VeredictoModal', () => {
       evento({
         id: 'e1',
         fecha: hoy,
-        fechaTexto: ddMm(hoy),
         titulo: 'Torre caída en ruta 14',
         lugar: 'Ruta 14',
-        departamento: 'PASO DE LOS LIBRES',
-        confianzaTexto: 'Confianza alta',
         fuente: { medio: 'Diario X', fecha: '13/10/2026', url: 'https://example.com/nota' },
       }),
       evento({ id: 'e2', fecha: ayer, titulo: 'Otro evento', departamento: 'CONCORDIA' }),
     ]
 
     render(<VeredictoModal open onOpenChange={() => {}} eventos={eventos} />)
-    const seccion = await screen.findByRole('region', { name: 'Confirmado en terreno (no modifica el nivel)' })
+    const seccion = await screen.findByRole('region', { name: 'Confirmado en terreno' })
     expect(within(seccion).getByText('Torre caída en ruta 14')).toBeInTheDocument()
-    expect(within(seccion).getByText('Confianza alta')).toBeInTheDocument()
-    expect(within(seccion).getByRole('link', { name: 'Diario X, 13/10/2026' })).toHaveAttribute(
-      'href',
-      'https://example.com/nota',
-    )
+    expect(within(seccion).getByRole('link', { name: 'Diario X, 13/10/2026' })).toHaveAttribute('href', 'https://example.com/nota')
     expect(within(seccion).queryByText('Otro evento')).not.toBeInTheDocument()
 
     fireEvent.click(within(screen.getByRole('group', { name: 'Línea de tiempo' })).getByRole('button', { name: new RegExp(ddMm(ayer)) }))
-    expect(within(seccion).getByText('Otro evento')).toBeInTheDocument()
-    expect(within(seccion).queryByText('Torre caída en ruta 14')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Confirmado en terreno' })).toHaveTextContent('Otro evento')
   })
 
-  it('carga los eventos desde la API con el rango de los veredictos cuando no se pasan por prop', async () => {
+  it('loads events from the API for the verdict range and hides the section when there are none', async () => {
     const fetchMock = vi.fn(async (url: string) => {
-      if (url.includes('/eventos')) return jsonResponse({ eventos: [evento({ id: 'api', fecha: hoy, titulo: 'Evento desde API', fechaTexto: ddMm(hoy) })] }, 200)
+      if (url.includes('/eventos')) return jsonResponse({ eventos: [evento({ id: 'api', fecha: hoy, titulo: 'Evento desde API' })] }, 200)
       return jsonResponse({ veredictos: [veredicto({ id: 'a', fecha: ayer, tipoDia: 'observado' }), veredicto({ id: 'b', fecha: hoy })] }, 200)
     })
     vi.stubGlobal('fetch', fetchMock)
 
     render(<VeredictoModal open onOpenChange={() => {}} />)
-    const seccion = await screen.findByRole('region', { name: 'Confirmado en terreno (no modifica el nivel)' })
-    expect(await within(seccion).findByText('Evento desde API')).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledWith(
-      `/api/infraestructura/veredictos/eventos?desde=${ayer}&hasta=${hoy}`,
-      expect.anything(),
-    )
+    expect(await screen.findByText('Evento desde API')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(`/api/infraestructura/veredictos/eventos?desde=${ayer}&hasta=${hoy}`, expect.anything())
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'Línea de tiempo' })).getByRole('button', { name: new RegExp(ddMm(ayer)) }))
+    expect(screen.queryByRole('region', { name: 'Confirmado en terreno' })).toBeNull()
   })
 
-  it('muestra el mensaje vacío si la API de eventos falla', async () => {
-    const fetchMock = vi.fn(async (url: string) => {
-      if (url.includes('/eventos')) return jsonResponse({ error: 'boom' }, 500)
-      return jsonResponse({ veredictos: [veredicto({ id: 'b', fecha: hoy })] }, 200)
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<VeredictoModal open onOpenChange={() => {}} />)
-    const seccion = await screen.findByRole('region', { name: 'Confirmado en terreno (no modifica el nivel)' })
-    expect(
-      await within(seccion).findByText('Sin eventos confirmados con fuente verificable para este día.'),
-    ).toBeInTheDocument()
-  })
-
-  it('muestra el mensaje de error si la carga falla', async () => {
+  it('shows the error message when loading fails', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: 'boom' }, 500)))
 
     render(<VeredictoModal open onOpenChange={() => {}} />)
@@ -262,38 +275,10 @@ describe('VeredictoModal', () => {
     })
   })
 
-  it('muestra el estado vacío cuando no hay veredictos', async () => {
+  it('shows the empty state when there are no verdicts', async () => {
     mockFetchVeredictos([])
 
     render(<VeredictoModal open onOpenChange={() => {}} />)
     expect(await screen.findByText('Sin veredictos todavía para este período.')).toBeInTheDocument()
-  })
-
-  it('describe la traza en lenguaje legible y lista las aguas arriba como contexto', async () => {
-    mockFetchVeredictos([
-      veredicto({
-        id: 'p',
-        fecha: hoy,
-        nivel: 'alerta',
-        metricas: [
-          { id: 'rio.pna-paso-de-los-libres.altura_max_m', valor: 7.25, unidad: 'm', etiqueta: 'Altura máxima PASO DE LOS LIBRES', estacion: { nombre: 'PASO DE LOS LIBRES', rio: 'uruguay' }, fuenteUrl: 'https://f' },
-          { id: 'rio.pna-paso-de-los-libres.alerta_m', valor: 7.1, unidad: 'm', etiqueta: 'Nivel de alerta PASO DE LOS LIBRES', fuenteUrl: 'https://f' },
-        ],
-        traza: [{ regla: 'rio.estado', ref: 'rio.pna-paso-de-los-libres.estado_max', valor: 7.25, umbral: 'alerta', nivel: 'alerta' }],
-        aguasArriba: [
-          { estacionId: 'pna-iguazu', nombre: 'IGUAZU', rio: 'parana', estadoMax: 'normal', alturaMaxM: 30.8, umbralM: 31.5 },
-        ],
-      }),
-    ])
-
-    render(<VeredictoModal open onOpenChange={() => {}} />)
-    const detalle = await screen.findByRole('region', { name: 'Detalle del veredicto' })
-    expect(
-      within(detalle).getByText('Prefectura Paso de los Libres (río Uruguay) — Altura del río: 7,25 m · Alerta (alerta 7,10 m)'),
-    ).toBeInTheDocument()
-    expect(within(detalle).getByText('Aguas arriba (contexto, no modifica el nivel)')).toBeInTheDocument()
-    expect(
-      within(detalle).getByText('Prefectura Iguazú (río Paraná) — Altura del río: 30,80 m · Normal (alerta 31,50 m)'),
-    ).toBeInTheDocument()
   })
 })

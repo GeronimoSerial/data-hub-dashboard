@@ -6,7 +6,7 @@ import { ResumenDepartamento } from './resumen-departamento'
 afterEach(cleanup)
 
 describe('ResumenDepartamento', () => {
-  it('muestra nombre, totales y permite quitar el filtro', async () => {
+  it('muestra el preview del departamento con sus totales y permite cerrarlo', async () => {
     const onQuitar = vi.fn()
     render(
       <ResumenDepartamento
@@ -21,16 +21,22 @@ describe('ResumenDepartamento', () => {
       />,
     )
 
-    expect(screen.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('Departamento: Capital')
-    expect(screen.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('10 escuelas · 3 con situaciones abiertas · 30%')
-    await screen.getByRole('button', { name: 'Quitar filtro' }).click()
+    const region = screen.getByRole('region', { name: 'Departamento Capital' })
+    expect(screen.getByRole('heading', { level: 2, name: 'Capital' })).toBeInTheDocument()
+    expect(region).toHaveTextContent('Departamento · 10 escuelas')
+    expect(region).toHaveTextContent('3escuelas con situaciones abiertas')
+    expect(region).toHaveTextContent('30% de las escuelas del departamento')
+    expect(region).toHaveTextContent('Filtro activo')
+    await screen.getByRole('button', { name: 'Cerrar departamento' }).click()
     expect(onQuitar).toHaveBeenCalledOnce()
+    await screen.getByRole('button', { name: 'Quitar filtro' }).click()
+    expect(onQuitar).toHaveBeenCalledTimes(2)
   })
 
   it('muestra el nombre aunque los totales todavía no estén disponibles', () => {
     render(<ResumenDepartamento nombre="Capital" totales={null} onQuitar={() => {}} />)
 
-    expect(screen.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('Departamento: Capital')
-    expect(screen.queryByText(/escuelas ·/)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Capital' })).toBeInTheDocument()
+    expect(screen.queryByText(/situaciones abiertas/)).not.toBeInTheDocument()
   })
 })

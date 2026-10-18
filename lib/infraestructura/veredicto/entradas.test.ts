@@ -175,6 +175,41 @@ describe('calcularDia hoy con lluvia IMERG parcial', () => {
   })
 })
 
+describe('calcularDia con impacto educativo', () => {
+  const impacto = new Map([
+    ['GOYA', { situacionesAbiertas: 2, escuelasSinClases: 1, alumnosSinClases: 80, asistenciaPedagogica: 0, escuelasAisladas: 0, escuelasAccesoRiesgo: 0, radarAlto: 0 }],
+  ])
+
+  it('adds a department with affected schools even without a hydro signal, and sums the province', async () => {
+    const items = await calcularDia(getDb(), { fecha: '2026-10-13', tipoDia: 'hoy' }, undefined, impacto)
+    const goya = items.find((i) => i.ambito === 'departamento:GOYA')
+    const provincia = items.find((i) => i.ambito === 'provincia')
+
+    expect(goya?.metricas.find((m) => m.id === 'alumnos.sin_clases')?.valor).toBe(80)
+    expect(provincia?.metricas.find((m) => m.id === 'escuelas.sin_clases')?.valor).toBe(1)
+  })
+
+  it('changes the input hash when the impact changes', async () => {
+    const sin = await calcularDia(getDb(), { fecha: '2026-10-13', tipoDia: 'hoy' })
+    const con = await calcularDia(getDb(), { fecha: '2026-10-13', tipoDia: 'hoy' }, undefined, impacto)
+    const hash = (lista: typeof sin) => lista.find((i) => i.ambito === 'provincia')?.inputsHash
+    expect(hash(con)).not.toBe(hash(sin))
+  })
+
+  it('does not add a quiet department whose only impact is access risk', async () => {
+    const soloAcceso = new Map([
+      ['SAUCE', { situacionesAbiertas: 0, escuelasSinClases: 0, alumnosSinClases: 0, asistenciaPedagogica: 0, escuelasAisladas: 2, escuelasAccesoRiesgo: 5, radarAlto: 0 }],
+    ])
+    const items = await calcularDia(getDb(), { fecha: '2026-10-13', tipoDia: 'hoy' }, undefined, soloAcceso)
+    expect(items.some((i) => i.ambito === 'departamento:SAUCE')).toBe(false)
+  })
+
+  it('ignores the current impact on past and forecast days', async () => {
+    const items = await calcularDia(getDb(), { fecha: '2026-10-12', tipoDia: 'observado' }, undefined, impacto)
+    expect(items.some((i) => i.ambito === 'departamento:GOYA')).toBe(false)
+  })
+})
+
 describe('finUltimoGranulo', () => {
   it('soporta un volumen real de gránulos sin desbordar la pila', () => {
     const granulos = Array.from({ length: 200_000 }, (_, i) => ({

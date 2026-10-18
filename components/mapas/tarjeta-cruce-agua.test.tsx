@@ -70,9 +70,15 @@ describe('TarjetaCruceAgua', () => {
     expect(screen.queryByText('2 de 3')).toBeNull()
     expect(screen.getByText('12,3 mm')).toBeTruthy()
     expect(screen.getByText('Escuela 123')).toBeTruthy()
-    expect(screen.getByText('Camino a Goya · 3,4 km')).toBeTruthy()
-    expect(screen.getByText('Vía principal: RP 12 · sin pavimentar')).toBeTruthy()
+    expect(screen.getByText('Camino a Goya · 3,4 km de ripio')).toBeTruthy()
+    expect(screen.getByText('Vía principal: RP 12')).toBeTruthy()
     expect(screen.getByText('Mapa colaborativo OpenStreetMap')).toBeTruthy()
+  })
+
+  it('con el desglose por superficie lo muestra en lugar de la superficie principal', () => {
+    render(<TarjetaCruceAgua clasificacion="vado" indice={0} geometria={{ ...GEOMETRIA, superficies: { pavimentado: 2000, ripio: 1400, tierra: 0 } }} />)
+    expect(screen.getByText('Camino a Goya · 3,4 km')).toBeTruthy()
+    expect(screen.getByText('2 km pavimentado · 1,4 km de ripio')).toBeTruthy()
   })
 
   it('omite los datos que faltan y nunca afirma si hoy se puede pasar', () => {

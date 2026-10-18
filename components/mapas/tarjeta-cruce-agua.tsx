@@ -1,5 +1,6 @@
 import type { CruceAccesoOsm } from '@/lib/db/schema'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
+import { desgloseSuperficies, etiquetaSuperficie, superficieVia } from '@/lib/infraestructura/mapa/acceso'
 import { DESCRIPCIONES_CRUCE, ETIQUETAS_CRUCE, type ClasificacionCruce } from '@/lib/mapas/accesos-capas'
 
 const RADIO_TIERRA_M = 6_371_000
@@ -111,6 +112,8 @@ export function TarjetaCruceAgua({
   const destino = geometria?.destino?.nombre
   const distanciaKm = geometria?.distanciaKm
   const via = geometria?.viaPrincipal
+  const desglose = desgloseSuperficies(geometria?.superficies)
+  const superficie = desglose ? null : superficieVia(via)
 
   return (
     <div className="map-popup tarjeta-estacion tarjeta-cruce" data-clase={clasificacion}>
@@ -156,13 +159,15 @@ export function TarjetaCruceAgua({
             <p className="tarjeta-estacion__sub">
               Camino a {destino}
               {typeof distanciaKm === 'number' && ` · ${formatearKm(distanciaKm * 1000)} km`}
+              {typeof distanciaKm === 'number' && superficie && ` ${etiquetaSuperficie(superficie)}`}
             </p>
+          )}
+          {desglose && (
+            <p className="tarjeta-estacion__sub">{desglose}</p>
           )}
           {via && (
             <p className="tarjeta-estacion__sub">
               {via.nombre ? `Vía principal: ${via.nombre}` : 'Vía principal sin nombre'}
-              {' · '}
-              {via.pavimentada ? 'pavimentada' : 'sin pavimentar'}
             </p>
           )}
         </div>

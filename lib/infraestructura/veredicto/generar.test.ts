@@ -11,17 +11,14 @@ usarDbTemporal('veredicto-generar')
 
 const AHORA = new Date('2026-10-13T15:00:00.000Z')
 
-// Respuesta válida del modelo: dos frases sin cifras ni términos prohibidos para
-// cada día de la ventana (los ámbitos sin datos son sólo 'provincia').
+// Valid model output: a headline with no figures for every day of the window
+// (without data the only scope is 'provincia').
 function contenidoIaValido(): string {
   return JSON.stringify({
-    veredictos: fechasVentana(AHORA).map((d) => ({
+    dias: fechasVentana(AHORA).map((d) => ({
       fecha: d.fecha,
-      ambito: 'provincia',
-      frases: [
-        { texto: 'Sin señales relevantes en la provincia.', refs: [] },
-        { texto: 'Se sigue el monitoreo habitual del día.', refs: [] },
-      ],
+      titular: { texto: 'Sin señales relevantes en la provincia.', refs: [] },
+      departamentos: [],
     })),
   })
 }
@@ -135,7 +132,7 @@ describe('generarVeredictos', () => {
     expect(filas.every((f) => f.modelo === 'modelo-test')).toBe(true)
     expect(
       filas.every(
-        (f) => f.textoFinal === 'Sin señales relevantes en la provincia. Se sigue el monitoreo habitual del día.',
+        (f) => f.textoFinal === 'Sin señales relevantes en la provincia.',
       ),
     ).toBe(true)
 
@@ -153,13 +150,10 @@ describe('generarVeredictos', () => {
   it('una referencia inválida deja la plantilla con el motivo de la validación', async () => {
     const db = getDb()
     const contenido = JSON.stringify({
-      veredictos: fechasVentana(AHORA).map((d) => ({
+      dias: fechasVentana(AHORA).map((d) => ({
         fecha: d.fecha,
-        ambito: 'provincia',
-        frases: [
-          { texto: 'Se registran 999 mm en la provincia.', refs: ['ref-inexistente'] },
-          { texto: 'Sin señales de alerta.', refs: [] },
-        ],
+        titular: { texto: 'Se registran 999 mm en la provincia.', refs: ['ref-inexistente'] },
+        departamentos: [],
       })),
     })
     const resultado = await generarVeredictos(db, {
@@ -205,6 +199,57 @@ describe('generarVeredictos', () => {
 
     expect(resultado.motivoFallback).toBe('json_invalido')
     expect(resultado.fuenteIa).toBe(0)
+  })
+
+  it('stores the headline on the province row and each line on its department row', async () => {
+    const db = getDb()
+    const hoy = fechasVentana(AHORA).find((d) => d.tipoDia === 'hoy')!.fecha
+    const impacto = new Map([
+      ['GOYA', { situacionesAbiertas: 0, escuelasSinClases: 2, alumnosSinClases: 0, asistenciaPedagogica: 0, escuelasAisladas: 0, escuelasAccesoRiesgo: 0, radarAlto: 0 }],
+    ])
+    const contenido = JSON.stringify({
+      dias: fechasVentana(AHORA).map((d) => ({
+        fecha: d.fecha,
+        titular: { texto: 'Hay escuelas sin clases en Goya.', refs: [] },
+        departamentos:
+          d.fecha === hoy
+            ? [{ ambito: 'departamento:GOYA', texto: 'Goya tiene 2 escuelas sin clases.', refs: ['escuelas.sin_clases'] }]
+            : [],
+      })),
+    })
+    const ia = mockIa(contenido)
+    await generarVeredictos(db, {
+      ahora: AHORA,
+      generarConIA: ia,
+      leerImpacto: async () => impacto,
+      ...mockPresupuesto(),
+    })
+
+    const filas = await db.select().from(infraVeredictoDia)
+    const goya = filas.find((f) => f.fecha === hoy && f.ambito === 'departamento:GOYA')
+    const provincia = filas.find((f) => f.fecha === hoy && f.ambito === 'provincia')
+    expect(goya?.fuente).toBe('ia')
+    expect(goya?.textoFinal).toBe('Goya tiene 2 escuelas sin clases.')
+    expect(provincia?.textoFinal).toBe('Hay escuelas sin clases en Goya.')
+    const mensaje = ia.mock.calls[0][0][1].content as string
+    expect(mensaje).toContain('escuelas.sin_clases')
+  })
+
+  it('a department missing from the output falls back to the template for that row only', async () => {
+    const db = getDb()
+    const hoy = fechasVentana(AHORA).find((d) => d.tipoDia === 'hoy')!.fecha
+    const impacto = new Map([
+      ['GOYA', { situacionesAbiertas: 1, escuelasSinClases: 0, alumnosSinClases: 0, asistenciaPedagogica: 0, escuelasAisladas: 0, escuelasAccesoRiesgo: 0, radarAlto: 0 }],
+    ])
+    await generarVeredictos(db, {
+      ahora: AHORA,
+      generarConIA: mockIa(),
+      leerImpacto: async () => impacto,
+      ...mockPresupuesto(),
+    })
+    const filas = await db.select().from(infraVeredictoDia)
+    expect(filas.find((f) => f.fecha === hoy && f.ambito === 'departamento:GOYA')?.fuente).toBe('plantilla')
+    expect(filas.find((f) => f.fecha === hoy && f.ambito === 'provincia')?.fuente).toBe('ia')
   })
 
   it('cerrarDiaAnterior marca cerrado el día ART anterior a ahora', async () => {
