@@ -1,131 +1,84 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
+import type { DataColumn, SortState } from '@/components/arc/sortable-data-table/sortable-data-table'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Segmentado } from '@/components/mapas/segmentado'
 import { EXPORTACIONES_ESCUELAS, TIPOS_EXPORTACION_ESCUELAS, type TipoExportacionEscuelas } from '@/lib/exportaciones/escuelas'
 import { nombreArchivoExportacion } from '@/lib/exportaciones/solicitud'
 import { urlExportacionEscuelas, type FiltrosExportacion } from '@/lib/exportaciones/url'
-import { ETIQUETA_GRAVEDAD, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
-import { opcionesDireccion, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
+import { ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
 import { ETIQUETA_HORIZONTE_MOTOR, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
-import type { EscuelaMapaEnriquecida, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
-import type { EscuelasMapaPadronResultado } from '@/lib/infraestructura/parte-mapa'
+import type { GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import { descargarExportacion } from './descarga'
+import { usePrevia } from './use-previa'
 import styles from './exportar.module.css'
 
-const RUTA_ESCUELAS = '/api/mapas/infraestructura/escuelas'
+const SortableDataTable = dynamic(
+  () => import('@/components/arc/sortable-data-table/sortable-data-table').then(m => m.SortableDataTable),
+  { loading: () => <CargaExportacion titulo="Cargando tabla" detalle="Preparando la vista de escuelas." /> },
+)
+
+function CargaExportacion({ titulo, detalle }: { titulo: string; detalle: string }) {
+  return (
+    <div className={styles.carga} role="status">
+      <span className={styles.spinner} aria-hidden="true" />
+      <div><p className={styles.cargaTitulo}>{titulo}</p><p className={styles.nota}>{detalle}</p></div>
+    </div>
+  )
+}
 const HORIZONTES: readonly HorizonteMotor[] = [24, 72, 240]
-const OPCIONES_HORIZONTE = HORIZONTES.map((valor) => ({ valor, etiqueta: ETIQUETA_HORIZONTE_MOTOR[valor] }))
-const OPCIONES_ESTADO = TIPOS_EXPORTACION_ESCUELAS.map((tipo) => ({ value: tipo, label: EXPORTACIONES_ESCUELAS[tipo].titulo }))
+const OPCIONES_HORIZONTE = HORIZONTES.map(valor => ({ valor, etiqueta: ETIQUETA_HORIZONTE_MOTOR[valor] }))
+const OPCIONES_ESTADO = TIPOS_EXPORTACION_ESCUELAS.map(tipo => ({ value: tipo, label: EXPORTACIONES_ESCUELAS[tipo].titulo }))
 const GRAVEDADES: readonly GravedadMapa[] = [1, 2, 3, 4]
-const OPCIONES_GRAVEDAD = GRAVEDADES.map((gravedad) => ({ value: String(gravedad), label: ETIQUETA_GRAVEDAD[gravedad] }))
-const RETARDO_PREVIA_MS = 250
+const OPCIONES_GRAVEDAD = GRAVEDADES.map(gravedad => ({ value: String(gravedad), label: ETIQUETA_GRAVEDAD[gravedad] }))
+const TAMANOS_PAGINA = [25, 50, 100]
+const FECHA = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
 
-type ColumnaPrevia = { clave: string; encabezado: string }
-type PreviaExportacion = {
-  total: number
-  columnas: ColumnaPrevia[]
-  filas: Record<string, unknown>[]
-}
-
-function useEscuelasParaFiltros() {
-  const [escuelas, setEscuelas] = useState<EscuelaMapaEnriquecida[] | null>(null)
-  const [error, setError] = useState(false)
-
-  useEffect(() => {
-    const controlador = new AbortController()
-    fetch(RUTA_ESCUELAS, { signal: controlador.signal, headers: { Accept: 'application/json' } })
-      .then(async (respuesta) => {
-        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`)
-        const datos = (await respuesta.json()) as EscuelasMapaPadronResultado
-        setEscuelas(datos.escuelas)
-      })
-      .catch(() => {
-        if (!controlador.signal.aborted) setError(true)
-      })
-    return () => controlador.abort()
-  }, [])
-
-  return { escuelas, error }
-}
-
-type ResultadoPrevia = { url: string; previa: PreviaExportacion | null; error: boolean }
-
-/**
- * Vista previa de la consulta actual. Espera un instante tras cada cambio,
- * cancela la petición anterior y conserva la última previa válida mientras
- * llega la nueva.
- */
-function usePrevia(url: string) {
-  const [resultado, setResultado] = useState<ResultadoPrevia | null>(null)
-
-  useEffect(() => {
-    const controlador = new AbortController()
-    const temporizador = setTimeout(() => {
-      fetch(url, { signal: controlador.signal, headers: { Accept: 'application/json' }, cache: 'no-store' })
-        .then(async (respuesta) => {
-          if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`)
-          const previa = (await respuesta.json()) as PreviaExportacion
-          if (!controlador.signal.aborted) setResultado({ url, previa, error: false })
-        })
-        .catch(() => {
-          if (!controlador.signal.aborted) setResultado({ url, previa: null, error: true })
-        })
-    }, RETARDO_PREVIA_MS)
-    return () => {
-      clearTimeout(temporizador)
-      controlador.abort()
-    }
-  }, [url])
-
-  const actual = resultado?.url === url ? resultado : null
-  return {
-    previa: resultado?.previa ?? null,
-    cargando: actual === null,
-    error: actual?.error === true,
+function textoCelda(valor: unknown, clave: string): string {
+  if (valor === null || valor === undefined || valor === '') return 'Sin dato'
+  if (clave === 'ultimaNovedad' && typeof valor === 'string') {
+    const fecha = new Date(valor)
+    if (Number.isFinite(fecha.getTime())) return FECHA.format(fecha)
   }
-}
-
-function textoCelda(valor: unknown): string {
-  return valor === null || valor === undefined || valor === '' ? '—' : String(valor)
-}
-
-function textoConteo(total: number): string {
-  return `${total} ${total === 1 ? 'escuela' : 'escuelas'}`
+  return String(valor)
 }
 
 export function VistaExportar() {
-  const { escuelas, error: errorOpciones } = useEscuelasParaFiltros()
   const [estados, setEstados] = useState<TipoExportacionEscuelas[]>([])
   const [departamentos, setDepartamentos] = useState<string[]>([])
   const [direcciones, setDirecciones] = useState<string[]>([])
   const [gravedades, setGravedades] = useState<string[]>([])
   const [horizonte, setHorizonte] = useState<HorizonteMotor>(72)
+  const [pagina, setPagina] = useState(1)
+  const [tamanoPagina, setTamanoPagina] = useState(25)
+  const [orden, setOrden] = useState<SortState | null>(null)
   const [descargando, setDescargando] = useState(false)
+  const [dialogoDescarga, setDialogoDescarga] = useState(false)
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null)
-
-  const opcionesDepartamento = useMemo(
-    () => (escuelas ? opcionesDisponibles(escuelas).departamentos : []).map((valor) => ({ value: valor, label: etiquetaDepartamento(valor) })),
-    [escuelas],
-  )
-  const opcionesDirecciones = useMemo(
-    () => (escuelas ? opcionesDireccion(escuelas) : []).map((direccion) => ({ value: String(direccion.id), label: direccion.nombre })),
-    [escuelas],
-  )
 
   const filtros: FiltrosExportacion = {
     departamentos,
     direcciones: direcciones.map(Number),
-    gravedades: gravedades.map((valor) => Number(valor) as GravedadMapa),
+    gravedades: gravedades.map(valor => Number(valor) as GravedadMapa),
   }
   const hayFiltros = estados.length > 0 || departamentos.length > 0 || direcciones.length > 0 || gravedades.length > 0
   const incluyeRiesgo = estados.includes('en-riesgo')
+  const consulta = { estados, filtros, horizonte, orden }
+  const urlDescarga = urlExportacionEscuelas({ ...consulta, formato: 'xlsx' })
+  const urlPrevia = urlExportacionEscuelas({ ...consulta, formato: 'json', pagina, tamanoPagina })
+  const { previa, cargando, error: errorPrevia, reintentar } = usePrevia(urlPrevia)
+  const columnas = useMemo<DataColumn<Record<string, unknown>>[]>(() =>
+    previa?.columnas.map(c => ({ key: c.clave, label: c.encabezado, render: valor => textoCelda(valor, c.clave) })) ?? [],
+  [previa?.columnas])
 
-  const urlDescarga = urlExportacionEscuelas({ estados, filtros, horizonte, formato: 'xlsx' })
-  const urlPrevia = urlExportacionEscuelas({ estados, filtros, horizonte, formato: 'json' })
-  const { previa, cargando, error: errorPrevia } = usePrevia(urlPrevia)
+  function reiniciarPagina() {
+    setPagina(1)
+    setOrden(null)
+  }
 
   function limpiar() {
     setEstados([])
@@ -133,10 +86,12 @@ export function VistaExportar() {
     setDirecciones([])
     setGravedades([])
     setHorizonte(72)
+    reiniciarPagina()
   }
 
   async function descargar() {
     setDescargando(true)
+    setDialogoDescarga(true)
     setErrorDescarga(null)
     try {
       await descargarExportacion(urlDescarga, nombreArchivoExportacion(estados, new Date()))
@@ -144,106 +99,119 @@ export function VistaExportar() {
       setErrorDescarga(error instanceof Error ? error.message : 'No se pudo descargar el archivo.')
     } finally {
       setDescargando(false)
+      setDialogoDescarga(false)
     }
   }
 
+  const totalPaginas = previa?.totalPaginas ?? 0
+  const paginaVisible = previa?.pagina ?? pagina
+  const inicio = previa && previa.filas.length > 0 ? (previa.pagina - 1) * previa.tamanoPagina + 1 : 0
+  const fin = previa ? inicio + previa.filas.length - (inicio > 0 ? 1 : 0) : 0
+
   return (
     <div className={styles.vista}>
+      <header className={styles.encabezado}>
+        <h2>Exportar escuelas</h2>
+        <p className={styles.nota}>Filtrá el padrón, revisá los resultados y descargá el listado en Excel.</p>
+      </header>
       <div className={styles.barra} role="toolbar" aria-label="Filtros de exportación">
         <div className={`ui-field ${styles.campo}`}>
           <span className="ui-field__label">Estado</span>
           <MultiSelect<TipoExportacionEscuelas>
-            ariaLabel="Estado"
-            value={estados}
-            onChange={setEstados}
-            options={OPCIONES_ESTADO}
-            placeholder="Todas las escuelas"
+            ariaLabel="Estado" value={estados} options={OPCIONES_ESTADO} placeholder="Todas las escuelas"
+            onChange={valor => { setEstados(valor); reiniciarPagina() }}
           />
         </div>
         <div className={`ui-field ${styles.campo}`}>
           <span className="ui-field__label">Departamento</span>
           <MultiSelect
-            ariaLabel="Departamento"
-            value={departamentos}
-            onChange={setDepartamentos}
-            options={opcionesDepartamento}
-            placeholder="Todos los departamentos"
+            ariaLabel="Departamento" value={departamentos} options={previa?.opciones.departamentos ?? []}
+            placeholder={previa ? 'Todos los departamentos' : 'Cargando departamentos…'}
+            onChange={valor => { setDepartamentos(valor); reiniciarPagina() }}
           />
         </div>
         <div className={`ui-field ${styles.campo}`}>
           <span className="ui-field__label">Dirección</span>
           <MultiSelect
-            ariaLabel="Dirección"
-            value={direcciones}
-            onChange={setDirecciones}
-            options={opcionesDirecciones}
-            placeholder="Todas las direcciones"
+            ariaLabel="Dirección" value={direcciones} options={previa?.opciones.direcciones ?? []}
+            placeholder={previa ? 'Todas las direcciones' : 'Cargando direcciones…'}
+            onChange={valor => { setDirecciones(valor); reiniciarPagina() }}
           />
         </div>
         <div className={`ui-field ${styles.campo}`}>
           <span className="ui-field__label">Gravedad</span>
           <MultiSelect
-            ariaLabel="Gravedad"
-            value={gravedades}
-            onChange={setGravedades}
-            options={OPCIONES_GRAVEDAD}
-            placeholder="Todas las gravedades"
+            ariaLabel="Gravedad" value={gravedades} options={OPCIONES_GRAVEDAD} placeholder="Todas las gravedades"
+            onChange={valor => { setGravedades(valor); reiniciarPagina() }}
           />
         </div>
         {incluyeRiesgo ? (
           <Segmentado<HorizonteMotor>
-            etiqueta="Horizonte de riesgo"
-            opciones={OPCIONES_HORIZONTE}
-            valor={horizonte}
-            onChange={setHorizonte}
+            etiqueta="Horizonte de riesgo" opciones={OPCIONES_HORIZONTE} valor={horizonte}
+            onChange={valor => { setHorizonte(valor); reiniciarPagina() }}
           />
         ) : null}
-        <div className={styles.acciones}>
-          {hayFiltros ? (
-            <button type="button" className={styles.limpiar} onClick={limpiar}>Limpiar</button>
-          ) : null}
-          <Button type="button" onClick={() => void descargar()} disabled={descargando} aria-busy={descargando || undefined}>
-            {descargando ? 'Preparando archivo…' : 'Descargar Excel'}
-          </Button>
-        </div>
+      </div>
+      <div className={styles.acciones}>
+        <Button type="button" onClick={() => void descargar()} disabled={descargando} aria-busy={descargando || undefined}>
+          {descargando ? 'Preparando archivo…' : 'Descargar Excel'}
+        </Button>
+        {hayFiltros ? <Button type="button" variant="ghost" onClick={limpiar}>Limpiar</Button> : null}
+        <span className={styles.nota}>El Excel incluye todas las escuelas que coinciden con los filtros.</span>
       </div>
       {errorDescarga ? <p className={styles.error} role="alert">{errorDescarga}</p> : null}
-      {errorOpciones ? <p className={styles.error} role="alert">No se pudieron cargar las opciones de filtro.</p> : null}
+      <Dialog open={dialogoDescarga} onOpenChange={setDialogoDescarga}>
+        <DialogContent className={styles.dialogoCarga}>
+          <span className={styles.spinner} aria-hidden="true" />
+          <DialogTitle>Preparando Excel</DialogTitle>
+          <DialogDescription>Estamos generando el listado completo de escuelas con los filtros seleccionados. La descarga comenzará automáticamente.</DialogDescription>
+          <p className={styles.nota}>Podés cerrar esta ventana mientras se prepara el archivo.</p>
+        </DialogContent>
+      </Dialog>
 
-      <section aria-label="Vista previa de escuelas">
-        {errorPrevia ? <p className={styles.error} role="alert">No se pudo cargar la vista previa.</p> : null}
-        {!errorPrevia && previa === null && cargando ? <p className="muted" role="status">Cargando vista previa…</p> : null}
-        {!errorPrevia && previa !== null && previa.total === 0 ? (
-          <p className="muted" role="status">Ninguna escuela coincide con estos filtros.</p>
+      <section className={styles.previa} aria-label="Vista previa de escuelas" aria-busy={cargando}>
+        {errorPrevia ? (
+          <div role="alert" className={styles.error}>
+            No se pudo cargar la vista previa. <Button variant="secondary" onClick={reintentar}>Reintentar</Button>
+          </div>
         ) : null}
-        {!errorPrevia && previa !== null && previa.total > 0 ? (
+        {cargando ? (
+          <div className={styles.cargaVelo}>
+            <CargaExportacion titulo={previa ? 'Actualizando resultados' : 'Cargando escuelas'} detalle={`Preparando la página ${pagina} del listado.`} />
+          </div>
+        ) : null}
+        {!errorPrevia && previa ? (
           <>
-            <p className={styles.conteo} role="status">{textoConteo(previa.total)}</p>
-            {previa.filas.length < previa.total ? (
-              <p className={styles.nota}>
-                Mostrando las primeras {previa.filas.length} de {previa.total}. El Excel incluye todas.
-              </p>
-            ) : null}
-            <div className={styles.tablaWrap}>
-              <table className={styles.tabla}>
-                <thead>
-                  <tr>
-                    {previa.columnas.map((columna) => (
-                      <th key={columna.clave} scope="col">{columna.encabezado}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previa.filas.map((fila, indice) => (
-                    <tr key={indice}>
-                      {previa.columnas.map((columna) => (
-                        <td key={columna.clave}>{textoCelda(fila[columna.clave])}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className={styles.resumen}>
+              <div className={styles.totales} role="status">
+                <p className={styles.conteo}>{previa.total} {previa.total === 1 ? 'escuela' : 'escuelas'}</p>
+                <p className={styles.nota}>Total alumnos: {previa.totalAlumnos.toLocaleString('es-AR')}</p>
+              </div>
+              <label className={styles.tamano}>
+                Filas por página
+                <select value={tamanoPagina} disabled={cargando} onChange={evento => {
+                  setTamanoPagina(Number(evento.target.value)); setPagina(1)
+                }}>
+                  {TAMANOS_PAGINA.map(tamano => <option key={tamano} value={tamano}>{tamano}</option>)}
+                </select>
+              </label>
             </div>
+            <fieldset className={styles.tablaWrap} disabled={cargando}>
+              <legend className="sr-only">Escuelas que coinciden con los filtros</legend>
+              <SortableDataTable
+                rows={previa.filas} columns={columnas} rowKey="cue" caption="Escuelas para exportar"
+                emptyMessage="Ninguna escuela coincide con estos filtros. Probá cambiar los filtros o limpiarlos."
+                sort={orden} manualSorting onSortChange={valor => { setOrden(valor); setPagina(1) }}
+              />
+            </fieldset>
+            <nav className={styles.paginacion} aria-label="Paginación de escuelas">
+              <span className={styles.nota}>{inicio}–{fin} de {previa.total}</span>
+              <div className={styles.paginas}>
+                <Button variant="secondary" disabled={cargando || paginaVisible <= 1} onClick={() => setPagina(paginaVisible - 1)}>Anterior</Button>
+                <span>Página {paginaVisible} de {Math.max(1, totalPaginas)}</span>
+                <Button variant="secondary" disabled={cargando || paginaVisible >= totalPaginas} onClick={() => setPagina(paginaVisible + 1)}>Siguiente</Button>
+              </div>
+            </nav>
           </>
         ) : null}
       </section>

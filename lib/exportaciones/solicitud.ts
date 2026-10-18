@@ -23,6 +23,10 @@ export type SolicitudExportacion = {
   /** `null` cuando no se pidió horizonte: el radar sólo se carga si hace falta. */
   horizonte: HorizonteMotor | null
   formato: FormatoExportacion
+  pagina: number
+  tamanoPagina: number
+  ordenarPor: string | null
+  sentido: 'asc' | 'desc'
 }
 
 export type ResultadoSolicitudExportacion =
@@ -53,6 +57,16 @@ export function parsearSolicitudExportacion(params: URLSearchParams): ResultadoS
     return { ok: false, error: 'horizonte inválido' }
   }
 
+  const pagina = Number(params.get('pagina') ?? 1)
+  const tamanoPagina = Number(params.get('tamanoPagina') ?? 25)
+  const sentido = params.get('sentido') ?? 'asc'
+  if (!Number.isSafeInteger(pagina) || pagina < 1 ||
+      !Number.isSafeInteger(tamanoPagina) || tamanoPagina < 1 || tamanoPagina > 100 ||
+      pagina > Math.floor(Number.MAX_SAFE_INTEGER / tamanoPagina)) {
+    return { ok: false, error: 'paginación inválida' }
+  }
+  if (sentido !== 'asc' && sentido !== 'desc') return { ok: false, error: 'sentido de orden inválido' }
+
   return {
     ok: true,
     solicitud: {
@@ -60,6 +74,10 @@ export function parsearSolicitudExportacion(params: URLSearchParams): ResultadoS
       filtros: { ...FILTROS_MAPA_VACIOS, ...contexto.filtrosParciales },
       horizonte: contexto.horizonte,
       formato,
+      pagina,
+      tamanoPagina,
+      ordenarPor: params.get('ordenarPor'),
+      sentido,
     },
   }
 }

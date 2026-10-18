@@ -7,7 +7,10 @@ describe('parsearSolicitudExportacion', () => {
   it('sin estado exporta todas las escuelas, sin horizonte y en xlsx', () => {
     expect(parsearSolicitudExportacion(new URLSearchParams(''))).toEqual({
       ok: true,
-      solicitud: { estados: [], filtros: FILTROS_MAPA_VACIOS, horizonte: null, formato: 'xlsx' },
+      solicitud: {
+        estados: [], filtros: FILTROS_MAPA_VACIOS, horizonte: null, formato: 'xlsx',
+        pagina: 1, tamanoPagina: 25, ordenarPor: null, sentido: 'asc',
+      },
     })
   })
 

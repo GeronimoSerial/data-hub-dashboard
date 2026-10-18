@@ -32,7 +32,7 @@ export function MultiSelect<T extends string>({
       onValueChange={(next) => onChange(next as T[])}
     >
       <SelectPrimitive.Trigger className={cn('ui-select-trigger', className)} aria-label={ariaLabel}>
-        <SelectPrimitive.Value>
+        <SelectPrimitive.Value className="ui-select-value">
           {(current) => {
             const values = Array.isArray(current) ? (current as T[]) : []
             if (values.length === 0) return placeholder
@@ -46,23 +46,25 @@ export function MultiSelect<T extends string>({
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
-        <SelectPrimitive.Positioner className="ui-select-positioner" sideOffset={6}>
+        <SelectPrimitive.Positioner className="ui-select-positioner" sideOffset={6} alignItemWithTrigger={false}>
           <SelectPrimitive.Popup className="ui-select-popup">
-            {options.map((opt) => (
-              <SelectPrimitive.Item
-                key={opt.value}
-                value={opt.value}
-                className="ui-select-item"
-                label={opt.label}
-              >
-                <span className="ui-select-check" aria-hidden="true">
-                  <SelectPrimitive.ItemIndicator>
-                    <Check size={13} strokeWidth={3} />
-                  </SelectPrimitive.ItemIndicator>
-                </span>
-                <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
-              </SelectPrimitive.Item>
-            ))}
+            <SelectPrimitive.List className="ui-select-list">
+              {options.map((opt) => (
+                <SelectPrimitive.Item
+                  key={opt.value}
+                  value={opt.value}
+                  className="ui-select-item"
+                  label={opt.label}
+                >
+                  <span className="ui-select-check" aria-hidden="true">
+                    <SelectPrimitive.ItemIndicator>
+                      <Check size={13} strokeWidth={3} />
+                    </SelectPrimitive.ItemIndicator>
+                  </span>
+                  <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
+                </SelectPrimitive.Item>
+              ))}
+            </SelectPrimitive.List>
           </SelectPrimitive.Popup>
         </SelectPrimitive.Positioner>
       </SelectPrimitive.Portal>

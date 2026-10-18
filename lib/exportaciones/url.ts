@@ -18,6 +18,9 @@ export function urlExportacionEscuelas(input: {
   filtros: FiltrosExportacion
   horizonte: HorizonteMotor
   formato: FormatoExportacion
+  pagina?: number
+  tamanoPagina?: number
+  orden?: { key: string; direction: 'asc' | 'desc' } | null
 }): string {
   const params = new URLSearchParams()
   for (const estado of input.estados) params.append('estado', estado)
@@ -28,7 +31,15 @@ export function urlExportacionEscuelas(input: {
   }
 
   if (input.estados.includes('en-riesgo')) params.set('horizonte', String(input.horizonte))
-  if (input.formato === 'json') params.set('formato', 'json')
+  if (input.orden) {
+    params.set('ordenarPor', input.orden.key)
+    params.set('sentido', input.orden.direction)
+  }
+  if (input.formato === 'json') {
+    params.set('formato', 'json')
+    params.set('pagina', String(input.pagina ?? 1))
+    params.set('tamanoPagina', String(input.tamanoPagina ?? 25))
+  }
 
   const query = params.toString()
   return query ? `${RUTA_EXPORTAR_ESCUELAS}?${query}` : RUTA_EXPORTAR_ESCUELAS

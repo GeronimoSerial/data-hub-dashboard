@@ -1,58 +1,23 @@
-import { GET as radarGET } from '@/app/api/infraestructura/radar/route'
 import { archivoResponseHeaders } from '@/lib/archivo'
-import { crearLibroInstitucional } from '@/lib/exportaciones/libro-institucional'
-import {
-  columnasExportacion,
-  filasExportacion,
-  riesgoPorCueDesdeRadar,
-  tituloExportacion,
-} from '@/lib/exportaciones/escuelas'
-import {
-  etiquetasFiltros,
-  HORIZONTE_POR_DEFECTO,
-  nombreArchivoExportacion,
-  parsearSolicitudExportacion,
-} from '@/lib/exportaciones/solicitud'
+import { consultarExportacion } from '@/lib/exportaciones/consulta'
+import { tituloExportacion } from '@/lib/exportaciones/escuelas'
+import { etiquetasFiltros, nombreArchivoExportacion, parsearSolicitudExportacion } from '@/lib/exportaciones/solicitud'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
-import { alcanceMapa, filtrosDeAlcance } from '@/lib/infraestructura/alcance-mapa'
-import { filtrarEscuelas, opcionesDireccion } from '@/lib/infraestructura/mapa/filtrar'
-import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
-import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
-import { listarEscuelasMapaEnriquecidas } from '@/lib/infraestructura/parte-mapa'
+import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
+import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-const FILAS_PREVIA_JSON = 200
-const CABECERAS_PRIVADAS = { 'Cache-Control': 'private, no-store' }
+const CABECERAS_PRIVADAS = { 'Cache-Control': 'private, no-cache', Vary: 'Cookie, Accept-Encoding' }
 
-type RespuestaRadar = { puntos: Parameters<typeof riesgoPorCueDesdeRadar>[0] }
-
-// El radar no expone un cargador reutilizable: se usa su propio handler, que
-// trae los puntos del horizonte con la misma lógica que el panel y el mapa.
-async function cargarRiesgoPorCue(
-  request: Request,
-  horizonte: HorizonteMotor,
-  escuelas: EscuelaMapaEnriquecida[],
-) {
-  const url = new URL('/api/infraestructura/radar', request.url)
-  url.searchParams.set('horizonte', String(horizonte))
-  const respuesta = await radarGET(new Request(url))
-  if (!respuesta.ok) return null
-  const { puntos } = (await respuesta.json()) as RespuestaRadar
-  return riesgoPorCueDesdeRadar(puntos, escuelas, horizonte)
-}
-
-// Mismo orden que `app/api/mapas/infraestructura/escuelas` y `mapa-ruta.ts`.
 export async function GET(request: Request) {
-  await ensureSeeded()
-
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) {
     const error = acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
+    return Response.json({ error }, { status: acceso.status, headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   const alcance = alcanceMapa(acceso.user)
@@ -62,48 +27,57 @@ export async function GET(request: Request) {
 
   const parseo = parsearSolicitudExportacion(new URL(request.url).searchParams)
   if (!parseo.ok) return Response.json({ error: parseo.error }, { status: 400 })
-  const { estados, filtros, horizonte, formato } = parseo.solicitud
+  const solicitud = parseo.solicitud
+  await ensureSeeded()
 
-  const { escuelas } = await listarEscuelasMapaEnriquecidas(filtrosDeAlcance(alcance))
-  const seleccionadas = filtrarEscuelas(escuelas, filtros)
-
-  // El radar sólo se consulta si hace falta: lo pide `en-riesgo` o un horizonte explícito.
-  const necesitaRiesgo = estados.includes('en-riesgo') || horizonte !== null
-  const riesgoPorCue = necesitaRiesgo
-    ? await cargarRiesgoPorCue(request, horizonte ?? HORIZONTE_POR_DEFECTO, seleccionadas)
-    : undefined
-  if (riesgoPorCue === null) {
-    return Response.json({ error: 'No se pudo calcular el riesgo de las escuelas' }, { status: 500 })
-  }
-
-  const filas = filasExportacion(estados, seleccionadas, { riesgoPorCue })
-  const columnas = columnasExportacion(estados, { riesgo: riesgoPorCue !== undefined })
-
-  if (formato === 'json') {
+  let consulta
+  try {
+    consulta = await consultarExportacion(alcance, solicitud, request)
+  } catch (error) {
+    const ordenInvalido = error instanceof Error && error.message === 'Columna de orden inválida'
     return Response.json(
-      {
-        total: filas.length,
-        columnas: columnas.map(({ clave, encabezado }) => ({ clave, encabezado })),
-        filas: filas.slice(0, FILAS_PREVIA_JSON),
-      },
-      { headers: CABECERAS_PRIVADAS },
+      { error: ordenInvalido ? error.message : 'No se pudo cargar la exportación. Volvé a intentar.' },
+      { status: ordenInvalido ? 400 : 500, headers: { 'Cache-Control': 'private, no-store' } },
     )
   }
+  const { filas, columnas, opciones, direcciones, totalAlumnos } = consulta
 
+  if (solicitud.formato === 'json') {
+    const { tamanoPagina } = solicitud
+    const totalPaginas = Math.ceil(filas.length / tamanoPagina)
+    const pagina = Math.min(solicitud.pagina, Math.max(1, totalPaginas))
+    const inicio = (pagina - 1) * tamanoPagina
+    return jsonComprimido(request, {
+      total: filas.length,
+      totalAlumnos,
+      pagina,
+      tamanoPagina,
+      totalPaginas,
+      columnas: columnas.map(({ clave, encabezado }) => ({ clave, encabezado })),
+      filas: filas.slice(inicio, inicio + tamanoPagina).map(fila =>
+        Object.fromEntries(columnas.map(({ clave }) => [clave, fila[clave]])),
+      ),
+      opciones,
+    }, { headers: CABECERAS_PRIVADAS })
+  }
+
+  // La vista previa no carga ExcelJS ni genera un libro.
+  const { crearLibroInstitucional } = await import('@/lib/exportaciones/libro-institucional')
   const generadoEn = new Date()
   const libro = await crearLibroInstitucional({
-    titulo: tituloExportacion(estados),
-    filtros: etiquetasFiltros(filtros, opcionesDireccion(escuelas), estados),
+    titulo: tituloExportacion(solicitud.estados),
+    filtros: etiquetasFiltros(solicitud.filtros, direcciones, solicitud.estados),
     columnas,
     filas,
     generadoEn,
     unidad: 'escuelas',
+    totales: [{ etiqueta: 'Total alumnos', valor: totalAlumnos }],
   })
 
   return new Response(libro, {
     headers: archivoResponseHeaders({
       mime: MIME_XLSX,
-      nombreOriginal: nombreArchivoExportacion(estados, generadoEn),
+      nombreOriginal: nombreArchivoExportacion(solicitud.estados, generadoEn),
       download: true,
     }),
   })

@@ -35,6 +35,7 @@ export type OpcionesLibroInstitucional = {
   generadoEn: Date
   hoja?: string
   unidad?: string
+  totales?: { etiqueta: string; valor: number }[]
 }
 
 const FORMATO_NUMERICO: Record<FormatoColumna, string | undefined> = {
@@ -157,6 +158,11 @@ export async function crearLibroInstitucional(opciones: OpcionesLibroInstitucion
 
   ws.getCell(filaTotal, 1).value = `Total: ${filas.length} ${unidad}`
   ws.getCell(filaTotal, 1).font = fuente({ bold: true })
+  opciones.totales?.forEach(({ etiqueta, valor }, indice) => {
+    const celda = ws.getCell(filaTotal + indice + 1, 1)
+    celda.value = `${etiqueta}: ${valor}`
+    celda.font = fuente({ bold: true })
+  })
 
   // Column widths: the first column also hosts the logo, so keep it wide enough.
   columnas.forEach((columna, indice) => {

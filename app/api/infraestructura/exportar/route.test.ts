@@ -5,6 +5,8 @@ import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { listarEscuelasMapaEnriquecidas } from '@/lib/infraestructura/parte-mapa'
 import { GET as radarGET } from '@/app/api/infraestructura/radar/route'
 import { GET } from './route'
+import { invalidarCacheExportaciones } from '@/lib/exportaciones/consulta'
+import * as exportacionesEscuelas from '@/lib/exportaciones/escuelas'
 
 const { ensureSeeded, verificarAccesoLectura } = vi.hoisted(() => ({
   ensureSeeded: vi.fn(),
@@ -91,6 +93,7 @@ async function filasDelLibro(res: Response): Promise<string[]> {
 
 describe('GET /api/infraestructura/exportar', () => {
   beforeEach(() => {
+    invalidarCacheExportaciones()
     ensureSeeded.mockReset().mockResolvedValue(undefined)
     verificarAccesoLectura.mockReset().mockResolvedValue({ ok: true, user: usuario('consulta') })
     vi.mocked(listarEscuelasMapaEnriquecidas).mockReset().mockResolvedValue(padron(ESCUELAS))
@@ -102,6 +105,7 @@ describe('GET /api/infraestructura/exportar', () => {
     const res = await GET(req('?estado=afectadas'))
     expect(res.status).toBe(401)
     expect(listarEscuelasMapaEnriquecidas).not.toHaveBeenCalled()
+    expect(ensureSeeded).not.toHaveBeenCalled()
   })
 
   it('responde 403 a un rol sin niveles jurisdiccionales asignados', async () => {
@@ -195,7 +199,7 @@ describe('GET /api/infraestructura/exportar', () => {
     const res = await GET(req('?formato=json&estado=afectadas&estado=en-riesgo&horizonte=240&departamento=GUALEGUAYCHU'))
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toMatch(/application\/json/)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(res.headers.get('Cache-Control')).toBe('private, no-cache')
     const cuerpo = await res.json()
     expect(cuerpo.total).toBe(1)
     expect(cuerpo.columnas.map((c: { clave: string }) => c.clave)).toEqual([
@@ -206,15 +210,147 @@ describe('GET /api/infraestructura/exportar', () => {
     expect(cuerpo.filas[0]).toMatchObject({ cue: '1802001-01', escuela: 'Escuela Otro Depto', nivelRiesgo: 'Alto' })
   })
 
-  it('formato=json limita las filas a 200 pero informa el total', async () => {
+  it('formato=json pagina de a 25 y permite llegar a las últimas filas', async () => {
     const muchas = Array.from({ length: 205 }, (_, i) =>
       escuela({ cueAnexo: `X-${i}`, nombre: `Escuela ${String(i).padStart(3, '0')}`, clases: 'sin' }),
     )
     vi.mocked(listarEscuelasMapaEnriquecidas).mockResolvedValue(padron(muchas))
     const cuerpo = await (await GET(req('?formato=json&estado=sin-clases'))).json()
     expect(cuerpo.total).toBe(205)
-    expect(cuerpo.filas).toHaveLength(200)
+    expect(cuerpo).toMatchObject({ pagina: 1, tamanoPagina: 25, totalPaginas: 9 })
+    expect(cuerpo.filas).toHaveLength(25)
+    const ultima = await (await GET(req('?formato=json&estado=sin-clases&pagina=9'))).json()
+    expect(ultima.filas).toHaveLength(5)
+    expect(ultima.filas[0].cue).toBe('X-200')
+    expect(listarEscuelasMapaEnriquecidas).toHaveBeenCalledTimes(1)
   })
+
+  it('ordena todo el resultado antes de paginar y conserva el orden al descargar', async () => {
+    vi.mocked(listarEscuelasMapaEnriquecidas).mockResolvedValue(padron([
+      escuela({ cueAnexo: 'a', nombre: 'A', alumnos: 1 }),
+      escuela({ cueAnexo: 'b', nombre: 'B', alumnos: 20 }),
+      escuela({ cueAnexo: 'c', nombre: 'C', alumnos: 3 }),
+    ]))
+    const orden = 'ordenarPor=matricula&sentido=desc'
+    const cuerpo = await (await GET(req(`?formato=json&pagina=2&tamanoPagina=1&${orden}`))).json()
+    expect(cuerpo.filas.map((f: { escuela: string }) => f.escuela)).toEqual(['C'])
+    expect(await filasDelLibro(await GET(req(`?${orden}`)))).toEqual(['B', 'C', 'A'])
+    expect(listarEscuelasMapaEnriquecidas).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['', 300],
+    ['&pagina=2&tamanoPagina=1&ordenarPor=escuela&sentido=desc', 300],
+    ['&depto=ER', 200],
+    ['&estado=sin-clases', 100],
+    ['&depto=inexistente', 0],
+  ])('suma la matrícula de todo el resultado filtrado (%s)', async (filtros, esperado) => {
+    const cuerpo = await (await GET(req(`?formato=json${filtros}`))).json()
+    expect(cuerpo.totalAlumnos).toBe(esperado)
+    const libro = new ExcelJS.Workbook()
+    await libro.xlsx.load(await (await GET(req(`?formato=xlsx${filtros}`))).arrayBuffer())
+    expect(libro.worksheets[0].getSheetValues().flat()).toContain(`Total alumnos: ${esperado}`)
+  })
+
+  it('suma solamente la matrícula del alcance autorizado', async () => {
+    expect((await (await GET(req('?formato=json'))).json()).totalAlumnos).toBe(300)
+    verificarAccesoLectura.mockResolvedValue({ ok: true, user: usuario('director_nivel', [9]) })
+    vi.mocked(listarEscuelasMapaEnriquecidas).mockResolvedValue(padron([ESCUELAS[2]]))
+    const cuerpo = await (await GET(req('?formato=json'))).json()
+    expect(cuerpo.totalAlumnos).toBe(100)
+    expect(listarEscuelasMapaEnriquecidas).toHaveBeenLastCalledWith({ nivelesJurIds: [9] })
+  })
+
+  it('comparte consultas concurrentes y el radar entre páginas y filtros', async () => {
+    await Promise.all([
+      GET(req('?formato=json&estado=en-riesgo&horizonte=240')),
+      GET(req('?formato=json&estado=en-riesgo&horizonte=240&pagina=2')),
+      GET(req('?formato=json&estado=en-riesgo&horizonte=240&depto=ER')),
+    ])
+    expect(listarEscuelasMapaEnriquecidas).toHaveBeenCalledTimes(1)
+    expect(radarGET).toHaveBeenCalledTimes(1)
+    expect(verificarAccesoLectura).toHaveBeenCalledTimes(3)
+  })
+
+  it('comparte la preparación de filas entre ordenamientos sin mutar el orden original', async () => {
+    const preparar = vi.spyOn(exportacionesEscuelas, 'filasExportacion')
+    try {
+      const [asc, desc, original] = await Promise.all([
+        GET(req('?formato=json&ordenarPor=escuela&sentido=asc')),
+        GET(req('?formato=json&ordenarPor=escuela&sentido=desc')),
+        GET(req('?formato=json')),
+      ])
+      const nombres = (cuerpo: { filas: { escuela: string }[] }) => cuerpo.filas.map(f => f.escuela)
+      expect(nombres(await asc.json())).toEqual(['Escuela Afectada', 'Escuela Normal', 'Escuela Otro Depto'])
+      expect(nombres(await desc.json())).toEqual(['Escuela Otro Depto', 'Escuela Normal', 'Escuela Afectada'])
+      expect(nombres(await original.json())).toEqual(['Escuela Afectada', 'Escuela Normal', 'Escuela Otro Depto'])
+      expect(preparar).toHaveBeenCalledOnce()
+    } finally {
+      preparar.mockRestore()
+    }
+  })
+
+  it('separa la caché por alcance y canoniza el orden de los niveles', async () => {
+    await GET(req('?formato=json'))
+    verificarAccesoLectura.mockResolvedValue({ ok: true, user: usuario('director_nivel', [9, 4]) })
+    await GET(req('?formato=json'))
+    verificarAccesoLectura.mockResolvedValue({ ok: true, user: usuario('director_nivel', [4, 9]) })
+    await GET(req('?formato=json'))
+    expect(listarEscuelasMapaEnriquecidas).toHaveBeenCalledTimes(2)
+    expect(listarEscuelasMapaEnriquecidas).toHaveBeenLastCalledWith({ nivelesJurIds: [4, 9] })
+    verificarAccesoLectura.mockResolvedValue({ ok: false, status: 401 })
+    expect((await GET(req('?formato=json'))).status).toBe(401)
+  })
+
+  it('la caché vence a los 30 segundos y no retiene errores', async () => {
+    const ahora = vi.spyOn(Date, 'now').mockReturnValue(1000)
+    try {
+      await GET(req('?formato=json'))
+      ahora.mockReturnValue(31_001)
+      await GET(req('?formato=json'))
+      expect(listarEscuelasMapaEnriquecidas).toHaveBeenCalledTimes(2)
+      vi.mocked(radarGET).mockResolvedValueOnce(Response.json({}, { status: 500 }))
+      expect((await GET(req('?formato=json&estado=en-riesgo'))).status).toBe(500)
+      expect((await GET(req('?formato=json&estado=en-riesgo'))).status).toBe(200)
+      expect(radarGET).toHaveBeenCalledTimes(2)
+    } finally {
+      ahora.mockRestore()
+    }
+  })
+
+  it('revalida con ETag después de comprobar acceso, sin repetir la consulta', async () => {
+    const respuesta = await GET(req('?formato=json'))
+    const etag = respuesta.headers.get('ETag')!
+    expect(etag).toBeTruthy()
+    const revalidada = await GET(new Request(req('?formato=json'), { headers: { 'If-None-Match': etag } }))
+    expect(revalidada.status).toBe(304)
+    expect(revalidada.headers.get('Vary')).toContain('Cookie')
+    expect(listarEscuelasMapaEnriquecidas).toHaveBeenCalledTimes(1)
+    expect(verificarAccesoLectura).toHaveBeenCalledTimes(2)
+  })
+
+  it('no reutiliza las filas de otro alcance y las opciones respetan ese alcance', async () => {
+    await GET(req('?formato=json'))
+    verificarAccesoLectura.mockResolvedValue({ ok: true, user: usuario('director_nivel', [9]) })
+    vi.mocked(listarEscuelasMapaEnriquecidas).mockResolvedValue(padron([ESCUELAS[2]]))
+    const cuerpo = await (await GET(req('?formato=json'))).json()
+    expect(cuerpo.filas.map((f: { cue: string }) => f.cue)).toEqual(['1802001-01'])
+    expect(cuerpo.opciones.direcciones).toEqual([{ value: '9', label: 'Nivel Medio' }])
+    expect(cuerpo.total).toBe(1)
+  })
+
+  it('ajusta una página que ya no existe y entrega solo las columnas visibles', async () => {
+    const cuerpo = await (await GET(req('?formato=json&pagina=20&tamanoPagina=2'))).json()
+    expect(cuerpo).toMatchObject({ pagina: 2, totalPaginas: 2, total: 3 })
+    expect(cuerpo.filas).toHaveLength(1)
+    expect(Object.keys(cuerpo.filas[0])).toEqual(cuerpo.columnas.map((c: { clave: string }) => c.clave))
+  })
+
+  it.each(['pagina=0', 'pagina=1.5', 'pagina=1e20', 'tamanoPagina=101', 'tamanoPagina=0', 'sentido=otro', 'ordenarPor=inexistente'])(
+    'rechaza parámetros inválidos: %s', async parametros => {
+      expect((await GET(req(`?formato=json&${parametros}`))).status).toBe(400)
+    },
+  )
 
   it('formato desconocido responde 400', async () => {
     expect((await GET(req('?formato=pdf'))).status).toBe(400)

@@ -49,4 +49,16 @@ describe('urlExportacionEscuelas', () => {
     const descarga = urlExportacionEscuelas({ estados: [], filtros: SIN_FILTROS, horizonte: 72, formato: 'xlsx' })
     expect(new URL(descarga, BASE).searchParams.has('formato')).toBe(false)
   })
+
+  it('pagina la vista previa y descarga todos los resultados con el mismo orden', () => {
+    const opciones = { estados: [] as const, filtros: SIN_FILTROS, horizonte: 72 as const, pagina: 3, tamanoPagina: 50, orden: { key: 'matricula', direction: 'desc' as const } }
+    const previa = new URL(urlExportacionEscuelas({ ...opciones, formato: 'json' }), BASE).searchParams
+    expect(previa.get('pagina')).toBe('3')
+    expect(previa.get('tamanoPagina')).toBe('50')
+    expect(previa.get('ordenarPor')).toBe('matricula')
+    const descarga = new URL(urlExportacionEscuelas({ ...opciones, formato: 'xlsx' }), BASE).searchParams
+    expect(descarga.get('ordenarPor')).toBe('matricula')
+    expect(descarga.has('pagina')).toBe(false)
+    expect(descarga.has('tamanoPagina')).toBe(false)
+  })
 })
