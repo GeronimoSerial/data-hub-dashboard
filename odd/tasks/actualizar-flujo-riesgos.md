@@ -26,7 +26,7 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
 - [x] R6 A3 follow-up: banner dismissals must not reset across `reporte-inicial-form` steps.
 - [x] R6b Consistency rule codes are unique (habitual-clases-suspendidas defined twice)
 - [x] R7 Extract route domain logic into a use case + repository (behavior-preserving), dedupe JSON mapping and motivo lookups.
-- [ ] R8 A5: Mermaid flow map + UX proposal doc.
+- [x] R8 A5: Mermaid flow map + UX proposal doc.
 
 ## Progress
 (updated per task with route, commit and evidence)
@@ -103,3 +103,6 @@ Resolve every risk found while mapping the "actualizar parte" flow, plus the lef
   - Left as is: `actualizar/algo-nuevo.tsx` day labels already use `Intl` with `timeZone` America/Argentina/Buenos_Aires (display only); `actualizar/algo-nuevo.test.tsx:177` has a fixed local-time fixture (test data only).
   - `npx tsc --noEmit`: exit 0
   - `timeout 300 npx vitest run components/infraestructura/vigencia-chips components/infraestructura/reporte-inicial-form.test.tsx components/infraestructura/actualizar lib/infraestructura/zona-horaria lib/infraestructura/vigencia`: 14 files, 213 tests passed
+- R8: route inline (1 new doc, passive documentation). No tests; structural check only: mermaid fence balanced (7 blocks opened, 7 closed, no `;` or `#` in the diagram), every referenced path verified with `rg --files`/`test -e`.
+  - Doc: `docs/flujos/actualizar-parte.md` (sequence diagram, layer table, wizard steps, zona horaria, 5 UX proposals marked as not implemented). Language: Spanish, matching `docs/`.
+  - commit: see git log (docs(parte): map actualizar flow and UX proposals)
