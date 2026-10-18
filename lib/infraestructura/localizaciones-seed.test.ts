@@ -1,53 +1,40 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { getRawClient } from '../db'
-import { crearEjecutorSql } from './ge-db'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { getRawClient, migrarDb } from '../db'
+import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { ensureLocalizacionesSeeded } from './localizaciones-seed'
+import { guardarVersion } from './datasets/repositorio'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
-let dir: string
-let prev: string | undefined
-
-beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), 'loc-seed-'))
-  prev = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-})
-
-afterEach(() => {
-  if (prev === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prev
-  rmSync(dir, { recursive: true, force: true })
+usarDbTemporal('localizaciones-db', { seed: false })
+let revision = 0
+beforeEach(async () => {
+  await migrarDb()
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await guardarVersion({ datasetId: 'localizaciones', nombre: 'Padrón', formato: 'array', clave: 'cueAnexo',
+    revision: String(++revision), fuente: 'fixture', datos: [{ cueAnexo: '1800001-00', nombre: 'Escuela', departamento: 'Capital',
+      localidad: 'Corrientes', lat: -27.47, lon: -58.83, geoCalidad: null }] })
+  await client.execute('DELETE FROM ge.ge_localizacion')
 })
 
 describe('ensureLocalizacionesSeeded', () => {
-  it('siembra ge.ge_localizacion desde el JSON versionado cuando la tabla esta vacia', async () => {
+  it('reconstruye la proyección desde la versión publicada', async () => {
     await ensureLocalizacionesSeeded()
-    const client = crearEjecutorSql(getRawClient())
-      const res = await client.execute('SELECT COUNT(*) AS n FROM ge.ge_localizacion')
-      expect(Number(res.rows[0].n)).toBeGreaterThan(2000)
+    const resultado = await crearEjecutorSql(getRawClient()).execute('SELECT cue_anexo,nombre FROM ge.ge_localizacion')
+    expect(resultado.rows).toEqual([{ cue_anexo: '1800001-00', nombre: 'Escuela' }])
   })
-
-  it('es idempotente: correrla dos veces no duplica registros', async () => {
+  it('no duplica ni pisa una proyección ya existente', async () => {
     await ensureLocalizacionesSeeded()
     const client = crearEjecutorSql(getRawClient())
-      const primera = Number(
-        (await client.execute('SELECT COUNT(*) AS n FROM ge.ge_localizacion')).rows[0].n,
-      )
-      await ensureLocalizacionesSeeded()
-      const segunda = Number(
-        (await client.execute('SELECT COUNT(*) AS n FROM ge.ge_localizacion')).rows[0].n,
-      )
-      expect(segunda).toBe(primera)
+    await client.execute("UPDATE ge.ge_localizacion SET nombre='Nombre operativo'")
+    await ensureLocalizacionesSeeded()
+    const resultado = await client.execute('SELECT nombre FROM ge.ge_localizacion')
+    expect(resultado.rows).toEqual([{ nombre: 'Nombre operativo' }])
   })
-
-  it('no siembra secciones ni identidades: el padron no viaja en la imagen', async () => {
+  it('no siembra secciones ni identidades nominales', async () => {
     await ensureLocalizacionesSeeded()
-    const client = crearEjecutorSql(getRawClient())
-      const secciones = await client.execute('SELECT COUNT(*) AS n FROM ge.ge_seccion')
-      const identidades = await client.execute('SELECT COUNT(*) AS n FROM ge.ge_alumno_identidad')
-      expect(Number(secciones.rows[0].n)).toBe(0)
-      expect(Number(identidades.rows[0].n)).toBe(0)
+    const resultado = await crearEjecutorSql(getRawClient()).execute('SELECT (SELECT count(*) FROM ge.ge_seccion) AS secciones,(SELECT count(*) FROM ge.ge_alumno_identidad) AS identidades')
+    expect(Number(resultado.rows[0].secciones)).toBe(0)
+    expect(Number(resultado.rows[0].identidades)).toBe(0)
   })
 })

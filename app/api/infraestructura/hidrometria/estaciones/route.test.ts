@@ -4,7 +4,7 @@ import { getDb, migrarDb } from '@/lib/db'
 import { hidroLectura } from '@/lib/db/schema'
 import type { AccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
-import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { USER } from '@/lib/infraestructura/riesgo/__fixtures__/motor-api'
 
 // Factory puro (sin importOriginal) para no arrastrar @/lib/session -> @/lib/db
@@ -87,7 +87,7 @@ describe('GET /api/infraestructura/hidrometria/estaciones', () => {
     const { estaciones } = await res.json()
     const estacion = estaciones.find((e: { estacionId: string }) => e.estacionId === ESTACION)
 
-    const catalogo = CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.estacionId === ESTACION)
+    const catalogo = obtenerEstacionesPrefectura().find((e) => e.estacionId === ESTACION)
     expect(estacion).toEqual({
       estacionId: ESTACION,
       nombre: catalogo?.nombrePna,
@@ -99,6 +99,8 @@ describe('GET /api/infraestructura/hidrometria/estaciones', () => {
       lectura: null,
       estado: 'sin_dato',
       lecturaVencida: false,
+      estadoUltimaLectura: 'sin_dato',
+      horasDesdeLectura: null,
       tendencia: 'sin_dato',
     })
   })
@@ -126,5 +128,26 @@ describe('GET /api/infraestructura/hidrometria/estaciones', () => {
       medidaEn: '2026-10-13T15:00:00.000Z',
       inconsistente: false,
     })
+  })
+
+  it('expone el estado de la última lectura vencida sin cambiar estado', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-14T17:00:00.000Z'))
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    await getDb()
+      .insert(hidroLectura)
+      .values([filaLectura('l-vieja', ESTACION, 6.4, '2026-10-13T15:00:00.000Z')])
+
+    mockAcceso({ ok: true, user: USER })
+    const res = await llamar()
+    const { estaciones } = await res.json()
+    const estacion = estaciones.find((e: { estacionId: string }) => e.estacionId === ESTACION)
+
+    expect(estacion.estado).toBe('sin_dato')
+    expect(estacion.lecturaVencida).toBe(true)
+    expect(estacion.estadoUltimaLectura).toBe('evacuacion')
+    expect(estacion.horasDesdeLectura).toBe(26)
   })
 })

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { eq } from 'drizzle-orm'
+import { eq, ne } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let dir: string
@@ -51,6 +51,21 @@ async function restart() {
 }
 
 describe('upsertRecursoNatalidad', () => {
+  it('respeta un catálogo exclusivo de infraestructura después de reiniciar', async () => {
+    await restart()
+    const { getDb } = await import('@/lib/db')
+    const { recursos } = await import('@/lib/db/schema')
+    await getDb().delete(recursos).where(ne(recursos.id, 'recurso-infraestructura'))
+
+    await restart()
+    await restart()
+
+    const { getDb: getDbAfter } = await import('@/lib/db')
+    const { recursos: recursosAfter } = await import('@/lib/db/schema')
+    expect(await getDbAfter().select({ id: recursosAfter.id }).from(recursosAfter))
+      .toEqual([{ id: 'recurso-infraestructura' }])
+  })
+
   it('da de alta el recurso del catálogo sobre una base ya poblada', async () => {
     await restart()
     await restart()

@@ -6,7 +6,7 @@ import { LeyendaRadar } from './leyenda'
 describe('leyenda del radar meteorológico', () => {
   it('mantiene título, unidad, escala y actualización sin aclaraciones técnicas', () => {
     const { container } = render(<LeyendaRadar variable="lluvia" minutos={5} paso={1} />)
-    expect(container.querySelector('b')).toHaveTextContent('Lluvia')
+    expect(container.querySelector('b')).toHaveTextContent('Lluvia (mm)')
     expect(container.textContent).toContain('mm/h')
     // La frescura va en el tooltip del título, no en el texto.
     expect(container.textContent).not.toContain('Actualizado')

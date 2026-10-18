@@ -7,6 +7,7 @@ import type {
 import {
   claseInundacion,
   construirCrucesAcceso,
+  construirEdificioEscuela,
   construirPuntosAislamiento,
   construirPuntosInundacion,
   construirRutaAcceso,
@@ -211,6 +212,26 @@ describe('construirRutaAcceso', () => {
   })
 })
 
+describe('construirEdificioEscuela', () => {
+  const poligono = { type: 'Polygon' as const, coordinates: [[[-58.8, -27.4], [-58.79, -27.4], [-58.79, -27.39], [-58.8, -27.4]]] }
+  const edificio = { asociacion: 'dentro' as const, distanciaM: 0, osmId: 1, poligono, candidatos: 1 }
+
+  it('copia el polígono y le pone el color de la escuela', () => {
+    const resultado = construirEdificioEscuela({ cueAnexo: 'A', disponible: true, edificio }, '#b91c1c')
+    expect(resultado?.features).toHaveLength(1)
+    expect(resultado?.features[0].geometry).toEqual(poligono)
+    expect(resultado?.features[0].properties.color).toBe('#b91c1c')
+  })
+
+  it('devuelve null sin polígono (extracto previo o asociación ambigua)', () => {
+    expect(construirEdificioEscuela(null, '#000')).toBeNull()
+    expect(construirEdificioEscuela({ cueAnexo: 'A', disponible: false }, '#000')).toBeNull()
+    expect(
+      construirEdificioEscuela({ cueAnexo: 'A', disponible: true, edificio: { ...edificio, asociacion: 'ambigua', poligono: null } }, '#000'),
+    ).toBeNull()
+  })
+})
+
 describe('construirCrucesAcceso', () => {
   it('asigna ícono y etiqueta por clasificación', () => {
     const clasificaciones: ClasificacionCruce[] = ['puente', 'vado', 'vado_probable', 'sin_evidencia']
@@ -232,6 +253,46 @@ describe('construirCrucesAcceso', () => {
     }
   })
 
+  it('pasa índice y nombres, con null cuando la fila vieja no los trae', () => {
+    const resultado = construirCrucesAcceso({
+      cueAnexo: 'A',
+      disponible: true,
+      cruces: [
+        { lon: -64, lat: -31, clasificacion: 'puente', nombreCurso: 'Río Santa Lucía', nombrePuente: 'Puente Viejo' },
+        { lon: -64.1, lat: -31.1, clasificacion: 'vado' },
+      ],
+    })
+
+    expect(resultado.features[0].properties).toMatchObject({
+      indice: 0,
+      nombreCurso: 'Río Santa Lucía',
+      nombrePuente: 'Puente Viejo',
+    })
+    expect(resultado.features[1].properties).toMatchObject({
+      indice: 1,
+      nombreCurso: null,
+      nombrePuente: null,
+    })
+  })
+
+  it('pasa tipoCurso e intermitente, con null cuando la fila vieja no los trae', () => {
+    const resultado = construirCrucesAcceso({
+      cueAnexo: 'A',
+      disponible: true,
+      cruces: [
+        { lon: -64, lat: -31, clasificacion: 'vado', tipoCurso: 'stream', intermitente: true },
+        { lon: -64.1, lat: -31.1, clasificacion: 'puente', tipoCurso: 'river', intermitente: false },
+        { lon: -64.2, lat: -31.2, clasificacion: 'vado' },
+      ],
+    })
+
+    expect(resultado.features.map((f) => [f.properties.tipoCurso, f.properties.intermitente])).toEqual([
+      ['stream', true],
+      ['river', false],
+      [null, null],
+    ])
+  })
+
   it('devuelve una colección vacía cuando no está disponible', () => {
     expect(construirCrucesAcceso(null).features).toHaveLength(0)
     expect(construirCrucesAcceso({ cueAnexo: 'A', disponible: false }).features).toHaveLength(0)
@@ -249,7 +310,7 @@ describe('ICONOS_ACCESOS_MAPA', () => {
 })
 
 describe('íconos de cruces de agua', () => {
-  it('usa fondo blanco y trazo y borde semánticos, con paths de Lucide', () => {
+  it('usa relleno semántico, halo y glifo blanco de Lucide', () => {
     const iconos = [
       { svg: SVG_ICONO_CRUCE_PUENTE, color: '#356f23' },
       { svg: SVG_ICONO_CRUCE_VADO, color: '#b45f04' },
@@ -257,19 +318,13 @@ describe('íconos de cruces de agua', () => {
     ]
 
     for (const { svg, color } of iconos) {
-      expect(svg).toContain(`stroke="${color}"`)
-      expect(svg).toContain(`<circle cx="12" cy="12" r="11" fill="#ffffff" stroke="${color}" stroke-width="1" />`)
+      expect(svg).toContain(`fill="${color}"`)
+      expect(svg).toContain('stroke="#ffffff"')
       expect(svg).not.toMatch(/#(?:9ca3af|6b7280|fde68a)/)
     }
 
-    expect(SVG_ICONO_CRUCE_VADO).toContain('<path d="M2 12q2.5 2 5 0t5 0 5 0 5 0" />')
-    expect(SVG_ICONO_CRUCE_VADO).toContain('<path d="M2 19q2.5 2 5 0t5 0 5 0 5 0" />')
-    expect(SVG_ICONO_CRUCE_VADO).toContain('<path d="M2 5q2.5 2 5 0t5 0 5 0 5 0" />')
-    expect(SVG_ICONO_CRUCE_SIN_EVIDENCIA).toContain(
-      '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />',
-    )
-    expect(SVG_ICONO_CRUCE_SIN_EVIDENCIA).toContain('<path d="M12 17h.01" />')
-    expect(SVG_ICONO_CRUCE_SIN_EVIDENCIA).not.toContain('<circle cx="12" cy="12" r="10" />')
+    expect(SVG_ICONO_CRUCE_VADO).toContain('lucide-waves-horizontal')
+    expect(SVG_ICONO_CRUCE_SIN_EVIDENCIA).toContain('lucide-circle-question-mark')
   })
 })
 

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { hazardForecast, hazardSourceHealth, infraJobRun } from '@/lib/db/schema'
-import { PUNTOS_RIO } from '../puntos-rio'
+import { obtenerPuntosRio } from '../puntos-rio'
 import { borrarPerfilesGeo, insertarPerfilesGeo } from './__fixtures__/perfiles-geo'
 import type { HazardForecastPunto } from '../tipos-hazard'
 import type {
@@ -99,12 +99,12 @@ describe('ejecutarSyncPronosticoCaudal', () => {
       floodProvider: floodFake(),
     })
 
-    const esperadas = CELDAS.length + PUNTOS_RIO.length
+    const esperadas = CELDAS.length + obtenerPuntosRio().length
     expect(resultado).toEqual({
       ok: true,
       resultado: {
         celdasConsultadas: CELDAS.length,
-        puntosRioConsultados: PUNTOS_RIO.length,
+        puntosRioConsultados: obtenerPuntosRio().length,
         llamadasRealizadas: esperadas,
         filasInsertadas: esperadas,
         proveedoresConError: [],
@@ -149,7 +149,7 @@ describe('ejecutarSyncPronosticoCaudal', () => {
     expect(despues).toHaveLength(antesCount)
   })
 
-  it('un proveedor con errores por celda queda degradado pero el job completa ok', async () => {
+  it('un proveedor con errores por celda queda degradado y el job-run queda fallido por cobertura parcial', async () => {
     const ahora = new Date('2026-09-26T07:00:00.000Z') // bloque 06-12
     const celdaCaida = CELDAS[0]
     const mensaje = 'timeout: no respondió a los 12s'
@@ -160,11 +160,19 @@ describe('ejecutarSyncPronosticoCaudal', () => {
       floodProvider: floodFake(),
     })
 
-    expect(resultado.ok).toBe(true)
-    if (!resultado.ok) throw new Error('unreachable')
+    expect(resultado.ok).toBe(false)
+    if (resultado.ok || resultado.motivo !== 'cobertura_parcial') throw new Error('unreachable')
+    expect(resultado.puntosSinDato).toBe(1)
     expect(resultado.resultado.proveedoresConError).toEqual(['open-meteo-ecmwf'])
+    const runs = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.tipo, 'sync-hazard-pronostico-caudal'))
+    const run = runs.find((fila) => fila.iniciadoEn === ahora.toISOString())
+    expect(run?.estado).toBe('fallido')
+    expect(run?.errorSaneado).toMatch(/^cobertura_parcial: 1 de /)
     // celdas caídas no emiten puntos: 2 de ECMWF + todos los de flood
-    expect(resultado.resultado.filasInsertadas).toBe(CELDAS.length - 1 + PUNTOS_RIO.length)
+    expect(resultado.resultado.filasInsertadas).toBe(CELDAS.length - 1 + obtenerPuntosRio().length)
 
     const db = getDb()
     const salud = await db.select().from(hazardSourceHealth)
@@ -189,9 +197,11 @@ describe('ejecutarSyncPronosticoCaudal', () => {
 // una renovación necesitamos > 25 celdas, así que en esta suite insertamos 60
 // perfiles extra (total 63 con las 3 base) y las limpiamos en el afterAll para
 // no alterar los conteos de los tests que ya existían.
+// Separadas 0,5° para que cada celda caiga en su propio punto de grilla de
+// 0,25° (las tandas ECMWF se arman por punto, ver grilla-modelo.ts).
 const CELDAS_EXTRA = Array.from({ length: 60 }, (_, indice) => ({
   cueAnexo: `199000${indice + 1}-00`,
-  geometryRef: `-30.${String(indice).padStart(2, '0')}_-60.0`,
+  geometryRef: `${(-30 - indice * 0.5).toFixed(1)}_-60.0`,
 }))
 
 type RenovarLeaseParamsTest = {
@@ -282,7 +292,7 @@ describe('ejecutarSyncPronosticoCaudal — conteo real de llamadas (regresión h
     if (!resultado.ok) throw new Error('unreachable')
     // 2 tandas en total (todas las celdas caben en 1 tanda de 25, todos los
     // puntos de río en otra), cada una reportando 1 sola llamada real: el
-    // total real es 2, MUY por debajo de CELDAS.length + PUNTOS_RIO.length.
+    // total real es 2, MUY por debajo de CELDAS.length + obtenerPuntosRio().length.
     expect(resultado.resultado.llamadasRealizadas).toBe(2)
   })
 })
@@ -377,7 +387,7 @@ describe('ejecutarSyncPronosticoCaudal — volumen realista (regresión RangeErr
     )
     const esperadas =
       resultado.resultado.celdasConsultadas * PASOS_HORARIOS_VOLUMEN_REAL * VARIABLES_VOLUMEN_REAL +
-      PUNTOS_RIO.length
+      obtenerPuntosRio().length
     expect(resultado.resultado.filasInsertadas).toBe(esperadas)
   }, 120_000)
 })

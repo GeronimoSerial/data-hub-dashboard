@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 import { randomUUID } from 'node:crypto'
 import { and, desc, eq, inArray, lt, ne, or } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
@@ -11,14 +12,19 @@ import { obtenerPronosticoRadar, type LoteRadar } from './provider'
 
 const TIPO_JOB = 'sync-radar-meteo'
 const DURACION_LEASE_MS = 20 * 60 * 1000
-// Cron cada 3 h (ver slotTresHoras): el TTL acompaña esa cadencia.
+// Cron cada 6 h (`27 3,9,15,21 * * *`, cuota Open-Meteo C3): los modelos se
+// actualizan cada 6 h, así que una corrida intermedia repetía datos y gastaba
+// ~239 unidades. El TTL es la cadencia más 1 h de margen. La clave sigue
+// siendo por bloque de 3 h (ver slotTresHoras) para permitir una corrida
+// manual entre dos programadas.
 const PROVIDER_SALUD = 'open-meteo-radar'
-const TTL_SALUD_MINUTOS = 240
+const TTL_SALUD_MINUTOS = 420
 const LICENCIA_SALUD = 'CC-BY 4.0 no comercial — Open-Meteo + ECMWF, nivel gratuito'
 const ERROR_SANEADO = 'fallo al sincronizar radar meteorológico'
 type Db = ReturnType<typeof getDb>
 
 export async function obtenerUltimoRunRadarMeteo(db: Db = getDb()) {
+  await cargarReferencias()
   const [fila] = await db.select().from(radarMeteoRun).where(eq(radarMeteoRun.status, 'completo')).orderBy(desc(radarMeteoRun.fetchedAt)).limit(1)
   return fila ?? null
 }
@@ -67,6 +73,7 @@ function combinar(lotes: LoteRadar[]): LoteRadar {
 }
 
 export async function ejecutarSyncRadarMeteo(params: { ahora?: Date; celdas?: ReturnType<typeof generarGrilla>; obtener?: typeof obtenerPronosticoRadar } = {}) {
+  await cargarReferencias()
   const db = getDb(), ahora = params.ahora ?? new Date(), { inicio, clave } = slotTresHoras(ahora)
   const idempotencyKey = `open-meteo:best_match:${GRID_VERSION}:${clave}`
   const [existente] = await db.select().from(radarMeteoRun).where(eq(radarMeteoRun.idempotencyKey, idempotencyKey)).limit(1)

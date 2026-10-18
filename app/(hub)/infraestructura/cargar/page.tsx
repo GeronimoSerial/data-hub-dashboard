@@ -9,6 +9,7 @@ import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { validarRutaRetornoInterna } from '@/lib/infraestructura/mapa/estado-retorno'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -41,12 +42,13 @@ const MENSAJES_ERROR: Record<ContextoErrorKind, string> = {
 export default async function CargarParteEscuelaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cue?: string }>
+  searchParams: Promise<{ cue?: string; volver?: string }>
 }) {
   const user = await getSessionUser()
   if (!user) redirect('/login?callbackUrl=/infraestructura/cargar')
 
-  const { cue } = await searchParams
+  const { cue, volver } = await searchParams
+  const rutaRetorno = validarRutaRetornoInterna(volver)
   const buscado = typeof cue === 'string' && cue.trim() !== ''
 
   let resultado = null
@@ -61,6 +63,19 @@ export default async function CargarParteEscuelaPage({
 
   return (
     <div className="cargar-parte">
+      {rutaRetorno && (
+        <div className="cargar-parte__retorno">
+          <Link
+            href={rutaRetorno}
+            className="ui-button ui-button--secondary ui-button--sm"
+            data-testid="volver-origen-cargar"
+          >
+            {rutaRetorno.startsWith('/mapas/infraestructura/escuelas/')
+              ? 'Volver a la ficha de la escuela'
+              : 'Volver al mapa'}
+          </Link>
+        </div>
+      )}
       <header className="cargar-parte__encabezado">
         <h1>Cargar el parte de una escuela</h1>
         <p className="cargar-parte__intro">
@@ -71,6 +86,7 @@ export default async function CargarParteEscuelaPage({
       {/* Un GET y no un formulario con estado: el CUE queda en la URL, así que
           la búsqueda se puede compartir, marcar y recargar sin repetirla. */}
       <form className="cargar-parte__busqueda" method="get" action="/infraestructura/cargar">
+        {rutaRetorno && <input type="hidden" name="volver" value={rutaRetorno} />}
         <div className="cargar-parte__campo">
           <Label htmlFor="cue">CUE de la escuela</Label>
           <Input id="cue" name="cue" defaultValue={cue ?? ''} placeholder="1800001-00" />

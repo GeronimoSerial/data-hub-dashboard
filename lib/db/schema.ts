@@ -1,5 +1,15 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, text, integer, bigint, boolean, doublePrecision, jsonb, real, primaryKey, index, uniqueIndex, timestamp, check } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, bigint, boolean, doublePrecision, jsonb, real, primaryKey, index, uniqueIndex, timestamp, check, foreignKey } from 'drizzle-orm/pg-core'
+
+export const infraDatasetEntrega = pgTable('infra_dataset_entrega', {
+  versionId: text('version_id').notNull().references(() => infraDatasetVersion.id),
+  destino: text('destino').notNull(),
+  intentos: integer('intentos').notNull().default(0),
+  proximoIntento: timestamp('proximo_intento', { withTimezone: true }).notNull().defaultNow(),
+  entregadaEn: timestamp('entregada_en', { withTimezone: true }),
+  ultimoError: text('ultimo_error'),
+  creadaEn: timestamp('creada_en', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.versionId, t.destino] }), index('infra_dataset_entrega_pendiente_idx').on(t.destino, t.proximoIntento)])
 
 export const niveles = pgTable('niveles', {
   id: text('id').primaryKey(),
@@ -356,7 +366,7 @@ export const infraParte = pgTable(
       .notNull()
       .references(() => infraPeriodo.id),
     cueAnexo: text('cue_anexo').notNull(),
-    // 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados' (spec §11). Independiente
+    // 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados' | 'sin_clases' (spec §11). Independiente
     // del servicio educativo: ver infraServicioAlcance.
     estadoEstablecimiento: text('estado_establecimiento').notNull().default('habitual'),
     asistenciaPedagogica: text('asistencia_pedagogica'),
@@ -859,11 +869,19 @@ export const infraRiskRun = pgTable(
     modeloVersion: text('modelo_version').notNull(),
     iniciadoEn: text('iniciado_en').notNull(),
     publicadoEn: text('publicado_en'),
-    // 'preparando' | 'vigente' | 'vencido' | 'fallido'.
+    // 'preparando' | 'vigente' | 'vencido' | 'fallido' | 'completado'.
+    // 'completado' es el estado final de una corrida candidata (Motor v0.4):
+    // terminó y es auditable, pero nunca pasa a 'vigente'.
     estado: text('estado').notNull(),
     // p. ej. { procesadas: 2005, conEvidencia: 1800, sinEvidencia: 205 }.
     cobertura: jsonb('cobertura').$type<Record<string, number>>(),
     creadaEn: text('creada_en').notNull(),
+    // 'operativo' | 'candidato' (migración 0024). Las filas previas quedan
+    // 'operativo' por defecto y se leen igual que antes.
+    modo: text('modo').notNull().default('operativo'),
+    // Metadatos de corrida v0.4 validados con
+    // lib/infraestructura/riesgo/motor-v04/contratos.ts (null en v0.3).
+    metadatos: jsonb('metadatos').$type<Record<string, unknown>>(),
   },
   (t) => [
     uniqueIndex('infra_risk_run_vigente_unico')
@@ -871,6 +889,10 @@ export const infraRiskRun = pgTable(
       .where(sql`${t.estado} = 'vigente'`),
     index('infra_risk_run_periodo_id_idx').on(t.periodoId),
     index('infra_risk_run_publicado_en_idx_e7b').on(t.publicadoEn),
+    // Aislamiento del candidato a nivel DB: aunque el código fallara, una
+    // corrida candidata no puede ocupar el puntero vigente.
+    check('infra_risk_run_modo_check', sql`${t.modo} IN ('operativo', 'candidato')`),
+    check('infra_risk_run_candidato_no_vigente', sql`${t.modo} <> 'candidato' OR ${t.estado} <> 'vigente'`),
   ],
 )
 
@@ -911,6 +933,9 @@ export const infraRiskSnapshot = pgTable(
     exposicionSecciones: integer('exposicion_secciones'),
     calculadoEn: text('calculado_en').notNull(),
     validoHasta: text('valido_hasta').notNull(),
+    // Resultado probabilístico v0.4 por CUE/anexo × horizonte, validado con
+    // motor-v04/contratos.ts. No reemplaza los scores heredados (null en v0.3).
+    resultadoV04: jsonb('resultado_v04').$type<Record<string, unknown>>(),
   },
   (t) => [
     uniqueIndex('infra_risk_snapshot_uidx').on(t.runId, t.cueAnexo, t.horizonteHoras),
@@ -1118,6 +1143,104 @@ export const infraExposicionRioDem = pgTable(
     importadoEn: text('importado_en').notNull(),
   },
   (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })],
+)
+
+// Motor v0.4 (U2): altimetría escolar por fuente importada del CSV
+// conservador. Una versión por archivo (sha256); las versiones anteriores se
+// conservan y el rollback consiste en leer la versión previa. La cota
+// conservadora es un escenario (mínimo admisible), no una cota de piso.
+export const infraAltimetriaEscolar = pgTable(
+  'infra_altimetria_escolar',
+  {
+    cueAnexo: text('cue_anexo').notNull(),
+    version: text('version').notNull(),
+    estado: text('estado').notNull(),
+    motivo: text('motivo'),
+    ignP10M: doublePrecision('ign_p10_m'),
+    copernicusP10M: doublePrecision('copernicus_p10_m'),
+    cotaPrincipalM: doublePrecision('cota_principal_m'),
+    cotaConservadoraM: doublePrecision('cota_conservadora_m'),
+    fuenteConservadora: text('fuente_conservadora'),
+    fuentesValidas: integer('fuentes_validas').notNull(),
+    referenciaVertical: text('referencia_vertical').notNull(),
+    operador: text('operador').notNull(),
+    conversion: text('conversion').notNull(),
+    origenSha256: text('origen_sha256').notNull(),
+    importadoEn: text('importado_en').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.cueAnexo, t.version] }),
+    index('infra_altimetria_escolar_version_idx').on(t.version, t.importadoEn),
+    check('infra_altimetria_escolar_estado_check', sql`${t.estado} IN ('candidata', 'pendiente')`),
+  ],
+)
+
+// Motor v0.4 (U3a): lotes crudos inmutables descargados de INA A5, por sha256
+// del payload. Cada fila de hidro_serie_diaria apunta al lote que la trajo.
+export const hidroLoteCrudo = pgTable('hidro_lote_crudo', {
+  sha256: text('sha256').primaryKey(),
+  fuente: text('fuente').notNull(),
+  url: text('url').notNull(),
+  serieId: integer('serie_id').notNull(),
+  payload: jsonb('payload').notNull(),
+  descargadoEn: text('descargado_en').notNull(),
+})
+
+// Motor v0.4 (U3a): altura diaria histórica por estación (fecha local
+// YYYY-MM-DD). Se conserva la primera observación de cada fecha: reejecutar
+// nunca cambia valor ni fecha; un valor distinto se informa como discrepancia.
+export const hidroSerieDiaria = pgTable(
+  'hidro_serie_diaria',
+  {
+    estacionId: text('estacion_id').notNull(),
+    fecha: text('fecha').notNull(),
+    fuente: text('fuente').notNull(),
+    valorM: doublePrecision('valor_m').notNull(),
+    serieId: integer('serie_id').notNull(),
+    loteSha256: text('lote_sha256').notNull().references(() => hidroLoteCrudo.sha256),
+    descargadoEn: text('descargado_en').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.estacionId, t.fecha, t.fuente] })],
+)
+
+// Motor v0.4 (U3b): corridas de pronóstico INA A5 (calibrados 499/289). La
+// emisión se identifica por (cal_id, cor_id); volver a descargarla no cambia
+// forecast_date. lote_sha256 apunta al payload crudo.
+export const hidroInaCorrida = pgTable(
+  'hidro_ina_corrida',
+  {
+    calId: integer('cal_id').notNull(),
+    corId: integer('cor_id').notNull(),
+    forecastDate: text('forecast_date').notNull(),
+    descargadoEn: text('descargado_en').notNull(),
+    loteSha256: text('lote_sha256').notNull().references(() => hidroLoteCrudo.sha256),
+  },
+  (t) => [primaryKey({ columns: [t.calId, t.corId] }), index('hidro_ina_corrida_cal_forecast_idx').on(t.calId, t.forecastDate)],
+)
+
+// Motor v0.4 (U3b): valores de cada corrida tal como los publica INA. El
+// qualifier se guarda sin interpretar (main/p10/p90, inferior/medio/superior)
+// y el soporte temporal sale del catálogo series-pronostico-a5.
+export const hidroInaPronostico = pgTable(
+  'hidro_ina_pronostico',
+  {
+    calId: integer('cal_id').notNull(),
+    corId: integer('cor_id').notNull(),
+    seriesId: integer('series_id').notNull(),
+    estacionId: text('estacion_id'),
+    variable: text('variable'),
+    unidad: text('unidad'),
+    timestart: text('timestart').notNull(),
+    timeend: text('timeend').notNull(),
+    soporte: text('soporte').notNull(),
+    qualifier: text('qualifier'),
+    valor: doublePrecision('valor').notNull(),
+  },
+  (t) => [
+    foreignKey({ columns: [t.calId, t.corId], foreignColumns: [hidroInaCorrida.calId, hidroInaCorrida.corId] }),
+    uniqueIndex('hidro_ina_pronostico_valor_uq').on(t.corId, t.seriesId, t.timestart, t.timeend, sql`coalesce(${t.qualifier}, '')`),
+    check('hidro_ina_pronostico_soporte_check', sql`${t.soporte} in ('semanal_media', 'diario', 'instantaneo', 'desconocido')`),
+  ],
 )
 
 // E7a: episodios derivados (calculados automáticamente)
@@ -1506,6 +1629,14 @@ export type CruceAccesoOsm = {
   lon: number
   lat: number
   clasificacion: 'puente' | 'vado' | 'vado_probable' | 'sin_evidencia'
+  // OSM `name` of the crossed waterway; absent in rows imported before it existed.
+  nombreCurso?: string | null
+  // Bridge `bridge:name`/`name` for bridge crossings; absent in older rows.
+  nombrePuente?: string | null
+  // OSM `waterway` value of the crossed waterway (river, stream, canal...); absent in older rows.
+  tipoCurso?: string | null
+  // true for intermittent=yes or seasonal=yes, false only when tagged `no`, null when unknown.
+  intermitente?: boolean | null
 }
 
 export type RutaGeoJson = {
@@ -1513,10 +1644,28 @@ export type RutaGeoJson = {
   coordinates: Array<[number, number]>
 }
 
+/** Metres of the access route by surface (geo-static job v4, 2026-10-17 run onwards). */
+export type SuperficiesAcceso = {
+  pavimentado: number
+  ripio: number
+  tierra: number
+}
+
 export type ViaPrincipalAcceso = {
   nombre: string | null
   tipo: string
   pavimentada: boolean
+}
+
+// Huella OSM del edificio escolar asociada por el job geo-static
+// (`edificio_escolar.py`). `poligono` null con `asociacion: 'ambigua'` = varios
+// candidatos empatados; la coordenada de la escuela nunca se toca.
+export type EdificioOsm = {
+  asociacion: 'dentro' | 'nombre' | 'cercania' | 'ambigua'
+  distanciaM: number | null
+  osmId: number | string | null
+  poligono: { type: 'Polygon' | 'MultiPolygon'; coordinates: unknown } | null
+  candidatos: number
 }
 
 // Geometría OSM usada por el cálculo de aislamiento (ruta escuela → localidad
@@ -1527,11 +1676,12 @@ export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
   cueAnexo: text('cue_anexo').notNull(),
   versionJob: text('version_job').notNull(),
   ruta: jsonb('ruta').$type<RutaGeoJson>(),        // GeoJSON LineString | null
-  cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion}]
+  cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion, nombreCurso?, nombrePuente?}]
   viaPrincipal: text('via_principal'),
   destinoNombre: text('destino_nombre'),
   distanciaDestinoM: real('distancia_destino_m'),
   motivoSinGeometria: text('motivo_sin_geometria'),
+  edificio: jsonb('edificio').$type<EdificioOsm>(),  // huella del edificio | null (extractos previos)
   fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
   licencia: text('licencia').notNull(),
   importadoEn: text('importado_en').notNull(),
@@ -1611,3 +1761,55 @@ export const radarMeteoEnsembleRun = pgTable('radar_meteo_ensemble_run', {
 // Booleanos nativos: user.emailVerified, user.banned,
 // infra_verificacion.discrepancia, infra_risk_snapshot.evidenciaValida,
 // infra_aislamiento_osm.tieneAlternativaSinCruce. Sin TODO(DB1-F2) por duda.
+
+
+// Fuentes de infraestructura: identidad → versiones → registros → publicación.
+// Las tablas de dominio existentes son proyecciones operativas de estos datos.
+export const infraDataset = pgTable('infra_dataset', {
+  id: text('id').primaryKey(),
+  nombre: text('nombre').notNull(),
+})
+
+export const infraDatasetVersion = pgTable('infra_dataset_version', {
+  id: text('id').primaryKey(),
+  datasetId: text('dataset_id').notNull().references(() => infraDataset.id),
+  revision: text('revision').notNull(),
+  checksum: text('checksum').notNull(),
+  fuente: text('fuente').notNull(),
+  licencia: text('licencia'),
+  fechaFuente: timestamp('fecha_fuente', { withTimezone: true }),
+  creadaEn: timestamp('creada_en', { withTimezone: true }).notNull().defaultNow(),
+  formato: text('formato').notNull(),
+  estructura: jsonb('estructura').$type<Record<string, unknown>>().notNull(),
+  metadatos: jsonb('metadatos').$type<Record<string, unknown>>().notNull(),
+  filas: integer('filas').notNull(),
+}, (t) => [
+  uniqueIndex('infra_dataset_version_dataset_id_uidx').on(t.datasetId, t.id),
+  index('infra_dataset_version_dataset_fecha_idx').on(t.datasetId, t.creadaEn),
+  check('infra_dataset_version_filas_check', sql`${t.filas} >= 0`),
+])
+
+export const infraDatasetRegistro = pgTable('infra_dataset_registro', {
+  versionId: text('version_id').notNull().references(() => infraDatasetVersion.id),
+  clave: text('clave').notNull(),
+  orden: integer('orden').notNull(),
+  datos: jsonb('datos').$type<Record<string, unknown>>().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.versionId, t.clave] }),
+  uniqueIndex('infra_dataset_registro_orden_uidx').on(t.versionId, t.orden),
+])
+
+export const infraDatasetDependencia = pgTable('infra_dataset_dependencia', {
+  versionId: text('version_id').notNull().references(() => infraDatasetVersion.id),
+  entradaId: text('entrada_id').notNull().references(() => infraDatasetVersion.id),
+}, (t) => [primaryKey({ columns: [t.versionId, t.entradaId] })])
+
+export const infraDatasetPublicacion = pgTable('infra_dataset_publicacion', {
+  datasetId: text('dataset_id').primaryKey().references(() => infraDataset.id),
+  versionId: text('version_id').notNull(),
+  publicadaEn: timestamp('publicada_en', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [foreignKey({
+  columns: [t.datasetId, t.versionId],
+  foreignColumns: [infraDatasetVersion.datasetId, infraDatasetVersion.id],
+  name: 'infra_dataset_publicacion_version_fk',
+})])

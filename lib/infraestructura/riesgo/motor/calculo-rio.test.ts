@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { crearPuertosFake } from './__fixtures__/puertos-fake'
 import { calcularRiesgoEscuela } from './calculo'
-import { MOTOR_VERSION, UMBRAL_ALTO, UMBRAL_MODERADO } from './config'
+import { MOTOR_VERSION_V03, UMBRAL_ALTO, UMBRAL_MODERADO } from './config'
 import type { EvidenciaRioNoDisponible, EvidenciaRioPrefectura, PuertosMotor } from './puertos'
 
 const CUE = 'cue-rio'
@@ -76,7 +76,7 @@ function calcular(p: PuertosMotor) {
 
 describe('calcularRiesgoEscuela — evidencia de río (Prefectura)', () => {
   it('sube la versión del motor', () => {
-    expect(MOTOR_VERSION).toBe('motor-v0.3')
+    expect(MOTOR_VERSION_V03).toBe('motor-v0.3')
   })
 
   it('evacuación en escuela expuesta: factor rio-prefectura y piso alto', async () => {

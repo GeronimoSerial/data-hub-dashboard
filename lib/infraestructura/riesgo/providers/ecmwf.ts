@@ -15,10 +15,11 @@
 //   horizonte, así que se deriva de la diferencia real entre timestamps
 //   consecutivos (primer punto usa el paso del segundo respecto al primero).
 import { z } from 'zod'
-import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import { construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import { crearColaLotesPorPuntoGrilla, destinoDeRespuesta } from './grilla-modelo'
 import { isoUtc, parsearTimestampUtc } from './timestamps'
 import { ejecutarConReintentos } from './cliente-http'
-import { apiKeyDesdeEntorno, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
+import { apiKeyDesdeEntorno, MOTIVOS_CORTAN_LOTES, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import type { HazardForecastPunto, HazardProvider } from '../tipos-hazard'
 
@@ -36,6 +37,12 @@ const MS_POR_HORA = 3_600_000
 // servidor y a la vez reduce ~387 celdas reales a ~8 llamadas por ciclo.
 export const TAMANO_LOTE_COORDENADAS = 50
 
+// Cuota Open-Meteo (C4): un lote de 25 puntos × 240 h × 5 variables tardaba
+// más que el default de 10 s de cliente-http; cada timeout era un reintento
+// que volvía a reservar y gastar cupo (~110 unidades por corrida). Con 30 s
+// el request normal entra holgado y el reintento queda para fallas reales.
+export const TIMEOUT_MS_ECMWF = 30_000
+
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
 // Open-Meteo puede devolver nulls en el borde del horizonte: se modelan como
 // nullable y luego se descartan punto a punto (NO se convierten a 0).
@@ -43,8 +50,12 @@ const serieNumerica = z.array(z.number().nullable())
 
 // Un objeto por ubicación. Con una sola coordenada Open-Meteo responde un
 // objeto suelto; con varias, un array de estos objetos en el orden pedido.
+// `latitude`/`longitude` son el punto de grilla usado: sólo se leen para
+// verificar la deduplicación (ver grilla-modelo.ts), nunca para emparejar.
 const payloadEcmwfElementoSchema = z
   .object({
+    latitude: z.number().optional(),
+    longitude: z.number().optional(),
     hourly: z.object({
       time: z.array(z.string()),
       precipitation: serieNumerica,
@@ -212,45 +223,52 @@ export function crearProviderEcmwf(opts?: {
       }
     }
 
-    const lotes = agruparEnLotes(celdasValidas, TAMANO_LOTE_COORDENADAS)
+    // Cuota Open-Meteo (C1): un request por punto de grilla de 0,25°, no por
+    // celda; la serie del representante se replica a las demás celdas del
+    // punto (ver grilla-modelo.ts).
+    const cola = crearColaLotesPorPuntoGrilla(celdasValidas, TAMANO_LOTE_COORDENADAS)
     const celdasPorLlamada: number[] = []
 
-    for (let indiceLote = 0; indiceLote < lotes.length; indiceLote++) {
-      const lote = lotes[indiceLote]
-      const peso = pesoLlamada({ ubicaciones: lote.length, variables: VARIABLES_HOURLY.length, dias: FORECAST_DAYS })
+    for (let lote = cola.siguiente(); lote !== undefined; lote = cola.siguiente()) {
+      const representantes = lote.map((grupo) => grupo.celdas[0])
+      const peso = pesoLlamada({
+        ubicaciones: representantes.length,
+        variables: VARIABLES_HOURLY.length,
+        dias: FORECAST_DAYS,
+      })
       const cupo = opts?.controladorCupoFactory?.(peso)
       const resultado = await ejecutarConReintentos<PayloadEcmwfElemento[]>({
-        url: construirUrlLote(lote, apiKey),
+        url: construirUrlLote(representantes, apiKey),
         fetchImpl,
         cupo,
-        parsearPayload: crearParserLote(payloadEcmwfElementoSchema, lote.length),
+        timeoutMs: TIMEOUT_MS_ECMWF,
+        parsearPayload: crearParserLote(payloadEcmwfElementoSchema, representantes.length),
       })
 
       if (!resultado.ok) {
-        if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) celdasPorLlamada.push(lote.length)
+        if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) celdasPorLlamada.push(representantes.length)
         const detalle = `${resultado.motivo}: ${resultado.detalle}`
-        if (MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) {
-          // Cupo agotado en ventana larga o host en cooldown: los lotes que
-          // faltan van a chocar exactamente igual (misma guarda, mismo
-          // host). Se marcan como no consultados y se corta el loop en vez
-          // de seguir golpeando la guarda lote por lote sin necesidad.
-          for (const loteRestante of lotes.slice(indiceLote + 1)) {
-            for (const celda of loteRestante) erroresPorCelda[celda.geometryRef] = detalle
-          }
-          for (const celda of lote) erroresPorCelda[celda.geometryRef] = detalle
+        for (const grupo of lote) for (const celda of grupo.celdas) erroresPorCelda[celda.geometryRef] = detalle
+        if (MOTIVOS_CORTAN_LOTES.has(resultado.motivo)) {
+          // Cupo agotado en ventana larga, host en cooldown o 429 (que deja
+          // la cuenta en cooldown): los lotes que faltan van a chocar
+          // exactamente igual (misma guarda, mismo host). Se marcan como no
+          // consultados y se corta el loop en vez de seguir golpeando la
+          // guarda lote por lote sin necesidad.
+          for (const celda of cola.vaciar()) erroresPorCelda[celda.geometryRef] = detalle
           break
-        }
-        for (const celda of lote) {
-          erroresPorCelda[celda.geometryRef] = detalle
         }
         continue
       }
 
-      celdasPorLlamada.push(lote.length)
+      celdasPorLlamada.push(representantes.length)
       // El array de respuesta viene en el mismo orden que las coordenadas
       // enviadas: se empareja por índice, no por el lat/lon de la respuesta.
-      lote.forEach((celda, indice) => {
-        puntos.push(...puntosDeCelda(celda.geometryRef, resultado.datos[indice].hourly, params.ahora))
+      lote.forEach((grupo, indice) => {
+        const elemento = resultado.datos[indice]
+        const { destino, reencolar } = destinoDeRespuesta(grupo, elemento)
+        if (reencolar) cola.reencolarMiembros(grupo)
+        for (const celda of destino) puntos.push(...puntosDeCelda(celda.geometryRef, elemento.hourly, params.ahora))
       })
     }
 

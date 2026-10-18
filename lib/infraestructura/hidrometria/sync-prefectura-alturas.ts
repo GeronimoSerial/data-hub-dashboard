@@ -1,9 +1,10 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Hourly sync of the Prefectura Naval Argentina heights table. Keeps only the
 // rows that resolve to the Corrientes catalogue and stores them idempotently.
 import { getDb } from '@/lib/db'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
 import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
-import { CATALOGO_ESTACIONES_PREFECTURA_VERSION, buscarEstacionPrefectura } from './estaciones-prefectura'
+import { obtenerVersionCatalogoPrefectura, buscarEstacionPrefectura } from './estaciones-prefectura'
 import {
   ErrorRedPrefectura,
   HttpPrefecturaError,
@@ -12,7 +13,8 @@ import {
   descargarAlturasPrefectura,
 } from './prefectura-cliente'
 import { EstructuraPrefecturaCambiadaError, type FilaAlturaPrefectura } from './prefectura-parser'
-import { type LecturaResuelta, guardarLecturasPrefectura } from './lecturas-repo'
+import { type LecturaResuelta } from './lecturas-repo'
+import { publicarCorridaPrefectura } from './publicacion'
 
 const TIPO_JOB = 'sync-prefectura-alturas'
 const DURACION_LEASE_MS = 10 * 60 * 1000
@@ -99,11 +101,12 @@ export async function syncPrefecturaAlturas(
     esperar?: (ms: number) => Promise<void>
   } = {},
 ): Promise<ResultadoSyncPrefectura> {
+  await cargarReferencias()
   const ahora = opts.ahora ?? new Date()
   const lease = await adquirirLease({
     tipo: TIPO_JOB,
     claveIdempotente: claveIdempotenteDeHora(ahora),
-    version: CATALOGO_ESTACIONES_PREFECTURA_VERSION,
+    version: obtenerVersionCatalogoPrefectura(),
     duracionLeaseMs: DURACION_LEASE_MS,
     ahora,
   })
@@ -119,10 +122,12 @@ export async function syncPrefecturaAlturas(
     // report a failure instead of a success over nothing processed.
     if (resueltas.length === 0) throw new SinEstacionesCatalogoError()
 
-    const guardado = await guardarLecturasPrefectura(getDb(), resueltas, {
+    const publicacion = await publicarCorridaPrefectura({ tipo: 'alturas', filas: resueltas,
+      jobRunId: lease.jobRunId,
       capturadaEn: ahora.toISOString(),
-      catalogoVersion: CATALOGO_ESTACIONES_PREFECTURA_VERSION,
+      catalogoVersion: obtenerVersionCatalogoPrefectura(),
     })
+    const guardado = publicacion.resultado as { insertadas: number; duplicadas: number; sinFecha: number }
     const contadores = {
       filasPublicadas: filas.length,
       estacionesCatalogo: resueltas.length,

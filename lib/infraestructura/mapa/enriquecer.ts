@@ -20,6 +20,7 @@ export function derivarClases(
 ): EstadoClases {
   if (estado === 'evacuado') return 'evacuado'
   if (estado === 'centro_evacuados') return 'centro'
+  if (estado === 'sin_clases') return 'sin'
   if (servicio === 'suspendido') return 'sin'
   if (servicio === 'parcial') return 'parcial'
   return 'normal'
@@ -33,8 +34,9 @@ export function derivarApoyo(
   if (asistencia === null) return 'sin_dato'
   if (!asistencia.brinda) return 'no'
 
-  const virtual = asistencia.modalidades.includes('Clase virtual')
-  const cuadernillo = asistencia.modalidades.includes('Cuadernillo')
+  const virtual = asistencia.modalidades.includes('Asistencia virtual')
+  const cuadernillo =
+    asistencia.modalidades.includes('Cuadernillos digitales') || asistencia.modalidades.includes('Cuadernillos impresos')
   if (virtual && cuadernillo) return 'ambos'
   if (virtual) return 'virtual'
   if (cuadernillo) return 'cuadernillo'

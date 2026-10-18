@@ -15,7 +15,7 @@ describe('ubicación de los controles del radar sobre el sidebar', () => {
   it('mantiene la leyenda base a la derecha y mueve la variante del resumen fuera del sidebar', () => {
     const leyendaBase = reglasDe('.radar-meteo-legend')[0] ?? ''
     expect(leyendaBase).not.toMatch(/\bleft\s*:/i)
-    expect(leyendaBase).toMatch(/\bright\s*:\s*16px/i)
+    expect(leyendaBase).toMatch(/\bright\s*:\s*var\(--s-3\)/i)
     expect(leyendaBase).toMatch(/\bwidth\s*:\s*224px/i)
 
     const leyendaConResumen = reglasDe('.radar-resumen ~ .radar-meteo-legend')

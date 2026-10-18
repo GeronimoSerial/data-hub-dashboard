@@ -36,12 +36,17 @@ export const CAPA_INUNDACION_ID = 'infra-inundacion-symbol'
 export const CAPA_RUTA_ACCESO_CASING_ID = 'infra-ruta-acceso-casing'
 export const CAPA_RUTA_ACCESO_ID = 'infra-ruta-acceso-line'
 export const CAPA_CRUCES_ACCESO_ID = 'infra-cruces-acceso-symbol'
+export const CAPA_EDIFICIO_RELLENO_ID = 'infra-edificio-escuela-fill'
+export const CAPA_EDIFICIO_BORDE_ID = 'infra-edificio-escuela-line'
+/** The footprint only reads at street level. */
+export const ZOOM_MIN_EDIFICIO = 16
 
 // Ids de fuentes: internos del componente (la página sólo necesita los layers).
 const FUENTE_AISLAMIENTO_ID = 'infra-accesos-aislamiento-src'
 const FUENTE_INUNDACION_ID = 'infra-accesos-inundacion-src'
 const FUENTE_RUTA_ID = 'infra-accesos-ruta-src'
 const FUENTE_CRUCES_ID = 'infra-accesos-cruces-src'
+const FUENTE_EDIFICIO_ID = 'infra-accesos-edificio-src'
 
 // ---------------------------------------------------------------------------
 // Layouts compartidos
@@ -82,6 +87,8 @@ type CapasAccesosTerritorialesProps = {
   puntosInundacion: GeoJSON.FeatureCollection | null
   ruta: GeoJSON.FeatureCollection | null
   cruces: GeoJSON.FeatureCollection | null
+  /** Building footprint of the selected school (`construirEdificioEscuela`). */
+  edificio?: GeoJSON.FeatureCollection | null
   visibles: Record<CapaAccesos, boolean>
   iconosListos: boolean
   oscuro: boolean
@@ -94,6 +101,7 @@ export function CapasAccesosTerritoriales({
   puntosInundacion,
   ruta,
   cruces,
+  edificio = null,
   visibles,
   iconosListos,
   oscuro,
@@ -111,6 +119,23 @@ export function CapasAccesosTerritoriales({
       {MOSTRAR_AGUA_ESTIMADA && visibles.inundacion && puntosInundacion !== null && iconosListos && (
         <Source id={FUENTE_INUNDACION_ID} type="geojson" data={puntosInundacion}>
           <Layer id={CAPA_INUNDACION_ID} type="symbol" layout={layoutPuntoTerritorial()} />
+        </Source>
+      )}
+
+      {edificio !== null && (
+        <Source id={FUENTE_EDIFICIO_ID} type="geojson" data={edificio}>
+          <Layer
+            id={CAPA_EDIFICIO_RELLENO_ID}
+            type="fill"
+            minzoom={ZOOM_MIN_EDIFICIO}
+            paint={{ 'fill-color': ['get', 'color'], 'fill-opacity': 0.18 }}
+          />
+          <Layer
+            id={CAPA_EDIFICIO_BORDE_ID}
+            type="line"
+            minzoom={ZOOM_MIN_EDIFICIO}
+            paint={{ 'line-color': ['get', 'color'], 'line-width': 1.5, 'line-opacity': 0.9 }}
+          />
         </Source>
       )}
 

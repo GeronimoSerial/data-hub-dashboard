@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { infraGeoProfile, infraGeoRio } from '@/lib/db/schema'
-import { PUNTOS_RIO, type PuntoRio } from './puntos-rio'
+import { obtenerPuntosRio, type PuntoRio } from './puntos-rio'
 import {
   calcularAsociacionesRio,
   elegirPuntoRioMasCercano,
@@ -20,7 +20,7 @@ beforeAll(async () => {
   await ensureSeeded()
 })
 
-// Punto real de PUNTOS_RIO sobre el que se construyen los fixtures de la DB.
+// Punto real de obtenerPuntosRio() sobre el que se construyen los fixtures de la DB.
 const CORRIENTES = { lat: -27.4692, lon: -58.9306, id: 'parana-corrientes-paso-patria' }
 
 // 1 grado de latitud en km con el mismo radio terrestre que usa el módulo
@@ -184,8 +184,8 @@ describe('calcularAsociacionesRio', () => {
   })
 })
 
-describe('PUNTOS_RIO', () => {
+describe('obtenerPuntosRio()', () => {
   it('expone el punto de Corrientes usado como fixture', () => {
-    expect(PUNTOS_RIO.some((p) => p.id === CORRIENTES.id)).toBe(true)
+    expect(obtenerPuntosRio().some((p) => p.id === CORRIENTES.id)).toBe(true)
   })
 })

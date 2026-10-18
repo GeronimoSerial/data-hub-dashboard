@@ -26,7 +26,7 @@ beforeAll(async () => {
 // Escuela cerca del punto de río "parana-corrientes-paso-patria"
 // (-27.4692, -58.9306): coordenada elegida a <0.05° del punto.
 const CUE_CERCA = '1800001-00'
-// Escuela a >2° de todos los PUNTOS_RIO (el más próximo, uruguay-santo-tome,
+// Escuela a >2° de todos los obtenerPuntosRio() (el más próximo, uruguay-santo-tome,
 // está a ~2.9°): supera el umbral de 0.75° y queda sin punto.
 const CUE_LEJOS = '1800002-00'
 // Perfil sin coordenadas: motivoExclusion no nulo, queda fuera de
@@ -124,12 +124,12 @@ describe('crearAdapterTerritorio', () => {
   it('coincide con elegirPuntoRioMasCercano(40 km) para las mismas coordenadas', async () => {
     const { crearAdapterTerritorio } = await import('./territorio')
     const { elegirPuntoRioMasCercano, RADIO_MAXIMO_KM_DEFAULT } = await import('../../rio-asociacion')
-    const { PUNTOS_RIO } = await import('../../puntos-rio')
+    const { obtenerPuntosRio } = await import('../../puntos-rio')
 
     for (const fila of FILAS) {
       if (fila.lat === null || fila.lon === null) continue
       const esperado =
-        elegirPuntoRioMasCercano(fila.lat, fila.lon, RADIO_MAXIMO_KM_DEFAULT, PUNTOS_RIO)
+        elegirPuntoRioMasCercano(fila.lat, fila.lon, RADIO_MAXIMO_KM_DEFAULT, obtenerPuntosRio())
           ?.puntoRioId ?? null
       const perfil = await crearAdapterTerritorio().obtenerPerfil(fila.cueAnexo)
       expect(perfil?.puntoRioId, fila.cueAnexo).toBe(esperado)

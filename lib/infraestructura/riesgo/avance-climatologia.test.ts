@@ -88,16 +88,16 @@ describe('obtenerAvanceClimatologia', () => {
     expect(avance.precipitacion.completas).toBe(1)
   })
 
-  it('cuenta el avance de caudal contra el total fijo de PUNTOS_RIO', async () => {
-    const { PUNTOS_RIO } = await import('./puntos-rio')
+  it('cuenta el avance de caudal contra el total fijo de obtenerPuntosRio()', async () => {
+    const { obtenerPuntosRio } = await import('./puntos-rio')
     await insertarFilaClimatologia({
-      geometryRef: PUNTOS_RIO[0].id,
+      geometryRef: obtenerPuntosRio()[0].id,
       version: VERSION_CAUDAL,
       periodoDesde: PERIODO_DESDE_CAUDAL,
       periodoHasta: PERIODO_HASTA_CAUDAL,
     })
 
     const avance = await obtenerAvanceClimatologia()
-    expect(avance.caudal).toEqual({ completas: 1, total: PUNTOS_RIO.length })
+    expect(avance.caudal).toEqual({ completas: 1, total: obtenerPuntosRio().length })
   })
 })

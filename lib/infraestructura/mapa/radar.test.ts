@@ -59,9 +59,13 @@ describe('escuelasPorRiesgo', () => {
 })
 
 describe('resumirRiesgo', () => {
-  it('cuenta y suma alumnos sólo para riesgos alto y muy alto', () => {
+  it('cuenta escuelas y alumnos desde riesgo moderado, con el desglose por nivel', () => {
     const resultado = escuelasPorRiesgo(puntos, padrón, 24)
-    expect(resumirRiesgo(resultado)).toEqual({ escuelasAltas: 3, alumnosAltos: 180 })
+    expect(resumirRiesgo(resultado)).toEqual({
+      escuelas: 4,
+      alumnos: 260,
+      porNivel: { muy_alto: 1, alto: 2, moderado: 1 },
+    })
   })
 })
 
@@ -132,5 +136,19 @@ describe('nivelRiesgo y colorRiesgo', () => {
     const colores = niveles.map(colorRiesgo)
     expect(new Set(colores).size).toBe(4)
     expect(colores.every((color) => typeof color === 'string' && color.length > 0)).toBe(true)
+  })
+})
+
+describe('escuelasEnRadar — vulnerabilidad', () => {
+  it('acompaña cada escuela con el nivel de vulnerabilidad del horizonte elegido', () => {
+    const conVulnerabilidad = [
+      { cueAnexo: 'alto-muchos', horizonteHoras: 24, nivelRiesgo: 'alto', nivelAmenaza: 'muy_alto', nivelVulnerabilidad: 'bajo' },
+      { cueAnexo: 'moderado', horizonteHoras: 24, nivelRiesgo: 'moderado' },
+    ]
+    const resultado = escuelasEnRadar(conVulnerabilidad, padrón, 24)
+    expect(resultado.map(({ escuela, amenaza, vulnerabilidad }) => [escuela.cueAnexo, amenaza, vulnerabilidad])).toEqual([
+      ['alto-muchos', 'muy_alto', 'bajo'],
+      ['moderado', null, null],
+    ])
   })
 })

@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Composición de los insumos del veredicto diario por día y ámbito: lee la base,
 // agrega la lluvia observada, evalúa las reglas y arma un ítem por ámbito con
 // señal (más la provincia siempre) listo para persistir o enviar a la IA.
@@ -129,6 +130,7 @@ export async function calcularDia(
   { fecha, tipoDia }: VentanaDia,
   salud?: SaludFuentes,
 ): Promise<ItemDia[]> {
+  await cargarReferencias()
   const noDisponible = (fuente: keyof SaludFuentes): boolean =>
     salud !== undefined && !salud[fuente].disponible
   const esHoy = tipoDia === 'hoy'

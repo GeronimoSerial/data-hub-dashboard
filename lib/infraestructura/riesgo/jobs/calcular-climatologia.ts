@@ -4,6 +4,11 @@
 // de Open-Meteo. Cada lote se guarda apenas llega, así un corte de cupo no pierde
 // lo ya descargado.
 //
+// No programado desde el 2026-10-18 (paquete "Cuota Open-Meteo",
+// docs/datos/cuota-open-meteo.md): los umbrales del motor salen de la
+// climatología IMERG y ERA5 queda como respaldo ya cargado. Se conserva para
+// corridas manuales (`node scripts/jobs.mjs climatologia-precipitacion`).
+//
 // Idempotencia: `infra_job_run` (ver job-run.ts) usa la claveIdempotente
 // período+versión+fecha UTC, así que el job corre una vez por día para la misma
 // versión. Cada corrida retoma sólo los pares (celda ERA5, año) que faltan.

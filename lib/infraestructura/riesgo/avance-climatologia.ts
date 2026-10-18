@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Avance de los dos jobs de climatología bajo cursor resumable de cupo
 // (OM-cupo, ver docs/ejecucion-enos/OM-cupo/registro.md): mientras el cupo
 // diario no alcance para terminar todas las celdas pendientes, el job vuelve
@@ -9,7 +10,7 @@
 import { and, eq, isNotNull } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { hazardClimatology, infraGeoProfile } from '@/lib/db/schema'
-import { PUNTOS_RIO } from './puntos-rio'
+import { obtenerPuntosRio } from './puntos-rio'
 
 // Mismas constantes por defecto que los jobs (calcular-climatologia.ts /
 // calcular-climatologia-caudal.ts): el avance se mide contra el
@@ -30,6 +31,7 @@ export type AvanceClimatologiaGeneral = {
 }
 
 export async function obtenerAvanceClimatologia(): Promise<AvanceClimatologiaGeneral> {
+  await cargarReferencias()
   const db = getDb()
 
   // Total de celdas candidatas: mismo selectDistinct que usa
@@ -64,6 +66,6 @@ export async function obtenerAvanceClimatologia(): Promise<AvanceClimatologiaGen
 
   return {
     precipitacion: { completas: filasPrecipitacion.length, total: totalPrecipitacion },
-    caudal: { completas: filasCaudal.length, total: PUNTOS_RIO.length },
+    caudal: { completas: filasCaudal.length, total: obtenerPuntosRio().length },
   }
 }

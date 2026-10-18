@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { and, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
@@ -11,14 +11,30 @@ import type {
   PerfilTerritorio,
 } from '../motor/puertos'
 import type { calcularYPublicarRiesgo as CalcularYPublicarRiesgo } from './calcular-riesgo'
+import type { calcularFilasEscuela as CalcularFilasEscuela, crearPuertosConCache as CrearPuertosConCache } from './compartido-riesgo'
 
 usarDbTemporal('calcular-riesgo-')
 
+// Rollback de un ciclo (RIESGO_REGLAS_MOTOR=v0.3, docs/motor-v0.4/promocion.md):
+// este archivo fija el flag para verificar que el job operativo con reglas v0.3
+// se comporta exactamente como el motor-v0.3 previo a la promoción. El camino
+// v0.4 (default) se prueba en calcular-riesgo-operativo-v04.test.ts.
+const reglasOriginales = process.env.RIESGO_REGLAS_MOTOR
+
 beforeAll(async () => {
+  process.env.RIESGO_REGLAS_MOTOR = 'v0.3'
   ;({ calcularYPublicarRiesgo } = await import('./calcular-riesgo'))
+  ;({ calcularFilasEscuela, crearPuertosConCache } = await import('./compartido-riesgo'))
+})
+
+afterAll(() => {
+  if (reglasOriginales === undefined) delete process.env.RIESGO_REGLAS_MOTOR
+  else process.env.RIESGO_REGLAS_MOTOR = reglasOriginales
 })
 
 let calcularYPublicarRiesgo: typeof CalcularYPublicarRiesgo
+let calcularFilasEscuela: typeof CalcularFilasEscuela
+let crearPuertosConCache: typeof CrearPuertosConCache
 
 const CUE_A = '1800001-00'
 const CUE_B = '1800002-00'
@@ -103,12 +119,33 @@ describe('calcularYPublicarRiesgo', () => {
     expect(vigentes[0]?.id).toBe(resultado.runId)
     expect(vigentes[0]?.modeloVersion).toBe('motor-v0.3')
     expect(vigentes[0]?.cobertura).toEqual({ procesadas: 9, conEvidencia: 6, sinEvidencia: 3 })
+    expect(vigentes[0]?.modo).toBe('operativo')
+    // Byte a byte como motor-v0.3: sin metadatos v0.4 ni detalle por escuela.
+    expect(vigentes[0]?.metadatos).toBeNull()
 
     const snapshots = await db
       .select()
       .from(infraRiskSnapshot)
       .where(eq(infraRiskSnapshot.runId, resultado.runId))
     expect(snapshots).toHaveLength(9)
+    for (const snapshot of snapshots) expect(snapshot.resultadoV04).toBeNull()
+
+    // Golden v0.3: cada fila coincide con el cálculo compartido con reglas
+    // v0.3 por defecto, que es exactamente lo que escribía el job antes de la
+    // promoción (ids aparte).
+    const puertosGolden = crearPuertosConCache(crearPuertosFake(escenario()))
+    for (const snapshot of snapshots) {
+      const { snapshot: esperado } = await calcularFilasEscuela({
+        runId: resultado.runId,
+        cueAnexo: snapshot.cueAnexo,
+        horizonte: snapshot.horizonteHoras as 24 | 72 | 240,
+        asOf: ahora.toISOString(),
+        puertos: puertosGolden,
+      })
+      const { id: _a, ...restoReal } = snapshot
+      const { id: _b, ...restoEsperado } = esperado
+      expect(restoReal).toMatchObject(restoEsperado)
+    }
 
     // I-7b: la amenaza se persiste por separado de la prioridad. Con evidencia
     // de amenaza, score y nivel van juntos; sin evidencia (C), ambos null.

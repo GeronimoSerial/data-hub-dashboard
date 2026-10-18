@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 import { and, desc, eq, gt, gte, lte, lt, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { hazardObservation, radarMeteoRun, radarMeteoVerificacion } from '@/lib/db/schema'
@@ -99,12 +100,14 @@ export function fechaD1(ahora = new Date()) {
 }
 
 export async function obtenerMetricasVerificacion(hasta = fechaD1(), db: Db = getDb()) {
+  await cargarReferencias()
   const desde = desplazarFecha(hasta, -13)
   const rows = await db.select().from(radarMeteoVerificacion).where(and(gte(radarMeteoVerificacion.fecha, desde), lt(radarMeteoVerificacion.fecha, siguiente(hasta))))
   return calcularMetricasVerificacion(rows, hasta)
 }
 
 export async function ejecutarVerificacionRadarMeteo(params: { ahora?: Date; desde?: string; db?: Db } = {}) {
+  await cargarReferencias()
   const db = params.db ?? getDb()
   const hoy = fechaD1(params.ahora)
   const fechas: string[] = params.desde ? [] : [hoy]

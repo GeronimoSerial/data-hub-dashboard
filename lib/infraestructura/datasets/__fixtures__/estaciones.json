@@ -1,0 +1,375 @@
+{
+  "prefectura": [
+    {
+      "estacionId": "pna-ituzaingo",
+      "nombrePna": "ITUZAINGO",
+      "idHistorico": 90,
+      "rio": "parana",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -27.60825,
+        "lon": -56.834663,
+        "precisionDecimales": 5
+      }
+    },
+    {
+      "estacionId": "pna-ita-ibate",
+      "nombrePna": "ITA IBATE",
+      "idHistorico": 100,
+      "rio": "parana",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -27.42225,
+        "lon": -57.333306,
+        "precisionDecimales": 5
+      }
+    },
+    {
+      "estacionId": "pna-itati",
+      "nombrePna": "ITATI",
+      "idHistorico": 110,
+      "rio": "parana",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -27.27,
+        "lon": -58.24,
+        "precisionDecimales": 2
+      }
+    },
+    {
+      "estacionId": "pna-paso-de-la-patria",
+      "nombrePna": "PASO DE LA PATRIA",
+      "idHistorico": 120,
+      "rio": "parana",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -27.315833,
+        "lon": -58.576944,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-corrientes",
+      "nombrePna": "CORRIENTES",
+      "idHistorico": 130,
+      "rio": "parana",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -27.46,
+        "lon": -58.84,
+        "precisionDecimales": 2
+      }
+    },
+    {
+      "estacionId": "pna-empedrado",
+      "nombrePna": "EMPEDRADO",
+      "idHistorico": 150,
+      "rio": "parana",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -27.958948,
+        "lon": -58.820198,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-bella-vista",
+      "nombrePna": "BELLA VISTA",
+      "idHistorico": 160,
+      "rio": "parana",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -28.505997,
+        "lon": -59.050133,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-goya",
+      "nombrePna": "GOYA",
+      "idHistorico": 170,
+      "rio": "parana",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -29.14,
+        "lon": -59.27,
+        "precisionDecimales": 2
+      }
+    },
+    {
+      "estacionId": "pna-esquina",
+      "nombrePna": "ESQUINA",
+      "idHistorico": 190,
+      "rio": "parana",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -30.016222,
+        "lon": -59.536583,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-garruchos",
+      "nombrePna": "GARRUCHOS",
+      "idHistorico": 560,
+      "rio": "uruguay",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -28.177688,
+        "lon": -55.641362,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-santo-tome",
+      "nombrePna": "SANTO TOME",
+      "idHistorico": 570,
+      "rio": "uruguay",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -28.545389,
+        "lon": -56.028472,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-alvear",
+      "nombrePna": "ALVEAR",
+      "idHistorico": 580,
+      "rio": "uruguay",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -29.11339,
+        "lon": -56.55634,
+        "precisionDecimales": 5
+      }
+    },
+    {
+      "estacionId": "pna-la-cruz",
+      "nombrePna": "LA CRUZ",
+      "idHistorico": 590,
+      "rio": "uruguay",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -29.17933752,
+        "lon": -56.63205059,
+        "precisionDecimales": 8
+      }
+    },
+    {
+      "estacionId": "pna-yapeyu",
+      "nombrePna": "YAPEYU",
+      "idHistorico": 600,
+      "rio": "uruguay",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -29.470186,
+        "lon": -56.810651,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-paso-de-los-libres",
+      "nombrePna": "PASO DE LOS LIBRES",
+      "idHistorico": 610,
+      "rio": "uruguay",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -29.721111,
+        "lon": -57.082222,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-bompland",
+      "nombrePna": "BOMPLAND",
+      "idHistorico": 620,
+      "rio": "uruguay",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -29.979167,
+        "lon": -57.337222,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-monte-caseros",
+      "nombrePna": "MONTE CASEROS",
+      "idHistorico": 630,
+      "rio": "uruguay",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -30.251627,
+        "lon": -57.621348,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-mocoreta",
+      "nombrePna": "MOCORETA",
+      "idHistorico": 640,
+      "rio": "uruguay",
+      "rol": "corrientes",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -30.690372,
+        "lon": -57.820794,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-iguazu",
+      "nombrePna": "IGUAZU",
+      "idHistorico": 20,
+      "rio": "parana",
+      "rol": "contexto-aguas-arriba",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -25.593194,
+        "lon": -54.580083,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-libertador",
+      "nombrePna": "LIBERTADOR",
+      "idHistorico": 50,
+      "rio": "parana",
+      "rol": "contexto-aguas-arriba",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -26.791528,
+        "lon": -55.024889,
+        "precisionDecimales": 6
+      }
+    },
+    {
+      "estacionId": "pna-posadas",
+      "nombrePna": "POSADAS",
+      "idHistorico": 80,
+      "rio": "parana",
+      "rol": "contexto-aguas-arriba",
+      "coordenadas": {
+        "fuente": "pna-mapa.php",
+        "consultadaEl": "2026-10-13",
+        "verificada": false,
+        "lat": -27.353611,
+        "lon": -55.913806,
+        "precisionDecimales": 6
+      }
+    }
+  ],
+  "synop": [
+    {
+      "wmo": "87155",
+      "nombre": "Resistencia Aero",
+      "lat": -27.4386,
+      "lon": -59.0458
+    },
+    {
+      "wmo": "87166",
+      "nombre": "Corrientes Aero",
+      "lat": -27.4497,
+      "lon": -58.7597
+    },
+    {
+      "wmo": "87173",
+      "nombre": "Ituzaingó",
+      "lat": -27.5856,
+      "lon": -56.6772
+    },
+    {
+      "wmo": "87178",
+      "nombre": "Posadas Aero",
+      "lat": -27.3908,
+      "lon": -55.9669
+    },
+    {
+      "wmo": "87187",
+      "nombre": "Oberá",
+      "lat": -27.4836,
+      "lon": -55.1314
+    },
+    {
+      "wmo": "87270",
+      "nombre": "Reconquista",
+      "lat": -29.205,
+      "lon": -59.6933
+    },
+    {
+      "wmo": "87281",
+      "nombre": "Mercedes",
+      "lat": -29.2261,
+      "lon": -58.0856
+    },
+    {
+      "wmo": "87289",
+      "nombre": "Paso de los Libres",
+      "lat": -29.6892,
+      "lon": -57.1483
+    },
+    {
+      "wmo": "87393",
+      "nombre": "Monte Caseros",
+      "lat": -30.2617,
+      "lon": -57.6389
+    }
+  ]
+}

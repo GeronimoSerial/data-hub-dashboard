@@ -23,10 +23,25 @@ describe('seed-demo-partes sin padrón', () => {
   it('siembra 80 escuelas sin alcance nominal y las devuelve en el mapa con PGlite', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'seed-demo-partes-'))
     try {
+      // Preparar explícitamente el padrón de prueba en DB; la aplicación ya
+      // no siembra escuelas desde archivos públicos al arrancar.
+      await execFileAsync(process.execPath, ['--input-type=module', '-e', `
+        import { readFileSync } from 'node:fs';
+        import { registerTsResolver } from './scripts/lib/register-ts-resolver.mjs';
+        registerTsResolver(process.cwd());
+        const { migrarDb, getRawClient } = await import('./lib/db/index.ts');
+        const { ensureGeSchema, crearEjecutorSql } = await import('./lib/infraestructura/ge-db.ts');
+        const { guardarVersion } = await import('./lib/infraestructura/datasets/repositorio.ts');
+        await migrarDb(); await ensureGeSchema(crearEjecutorSql(getRawClient()));
+        await guardarVersion({ datasetId: 'localizaciones', nombre: 'Fixture', revision: 'test',
+          fuente: 'fixture', formato: 'array', clave: 'cueAnexo',
+          datos: JSON.parse(readFileSync('public/data/localizaciones.json', 'utf8')) });
+        await getRawClient().close();
+      `], { env: entornoBase({ DATA_DIR: dataDir, PGLITE_DATA_DIR: join(dataDir, 'pg'), DATABASE_URL: '', NODE_ENV: 'development' }), timeout: 30_000 })
       const { stdout } = await execFileAsync(
         process.execPath,
         [SCRIPT, '--escuelas', '80', '--sin-padron'],
-        { env: entornoBase({ DATA_DIR: dataDir, DEMO_OK: '1', DATABASE_URL: '', NODE_ENV: 'development' }), timeout: 30_000 },
+        { env: entornoBase({ DATA_DIR: dataDir, PGLITE_DATA_DIR: join(dataDir, 'pg'), DEMO_OK: '1', DATABASE_URL: '', NODE_ENV: 'development' }), timeout: 30_000 },
       )
       expect(stdout).toContain('Modo sin padrón: partes sin secciones ni alumnos nominales.')
       expect(stdout).toMatch(/Total de partes devueltos: (8[0-9]|[1-9][0-9]{2,})/)

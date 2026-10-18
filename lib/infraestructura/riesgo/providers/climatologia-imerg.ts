@@ -12,6 +12,17 @@ import {
 } from './imerg'
 
 export const VERSION_CLIMATOLOGIA_IMERG = 'climatologia-imerg-v1'
+
+/**
+ * Versión con la que se guardan los umbrales de un período concreto, p. ej.
+ * `climatologia-imerg-v1-2001-2014`. El período crece a medida que se bajan
+ * años; con una versión única el reductor del motor (agrupa por versión, ver
+ * motor/adaptadores/lluvia.ts) mezclaba percentiles de períodos distintos.
+ * Conserva el prefijo `climatologia-imerg` que usan los lectores.
+ */
+export function versionUmbralesImerg(periodoDesde: string, periodoHasta: string): string {
+  return `${VERSION_CLIMATOLOGIA_IMERG}-${periodoDesde.slice(0, 4)}-${periodoHasta.slice(0, 4)}`
+}
 export const ANIO_INICIO_IMERG = 2001
 export const PREFIJO_SERIE_IMERG = 'imerg:'
 

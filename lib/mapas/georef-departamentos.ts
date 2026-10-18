@@ -1,5 +1,5 @@
 // Padrón oficial de departamentos de Corrientes importado de la API Georef
-// Argentina. Versionado en public/data para que la comparación con
+// Argentina. Versionado en DB para que la comparación con
 // infra_geo_profile.departamento no dependa de la red.
 //
 // IMPORTANTE (hallazgo N2, docs/ejecucion-enos/E3a/registro.md §1.2): este
@@ -8,7 +8,7 @@
 // este módulo sólo versiona/valida NOMBRES; la geometría poligonal queda fuera
 // de alcance (documentado para E4).
 
-import georefDepartamentos from '@/public/data/georef-departamentos-corrientes.json'
+import { referencia } from '@/lib/infraestructura/datasets/memoria'
 // Implementación compartida en lib/mapas/normalizar-departamento.ts (usada
 // también por lib/mapas/departamentos.ts y
 // lib/infraestructura/riesgo/geo-perfil.ts). Se re-exporta acá para no tocar
@@ -21,8 +21,9 @@ export interface DepartamentoGeoref {
   nombre: string
 }
 
-export const GEOREF_DEPARTAMENTOS_CORRIENTES: ReadonlyArray<DepartamentoGeoref> =
-  georefDepartamentos.departamentos
+export function obtenerDepartamentosGeoref(): ReadonlyArray<DepartamentoGeoref> {
+  return referencia<{ departamentos: DepartamentoGeoref[] }>('georef-departamentos').departamentos
+}
 
 export interface ComparacionDepartamentos {
   /** Nombres normalizados presentes tanto en Georef como en el padrón. */
@@ -40,7 +41,7 @@ export function compararDepartamentosConGeoref(
   departamentosDelPadron: string[],
 ): ComparacionDepartamentos {
   const georefNormalizados = new Set(
-    GEOREF_DEPARTAMENTOS_CORRIENTES.map((departamento) =>
+    obtenerDepartamentosGeoref().map((departamento) =>
       normalizarNombreDepartamento(departamento.nombre),
     ),
   )

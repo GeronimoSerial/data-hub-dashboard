@@ -1,29 +1,23 @@
 #!/usr/bin/env node
 // Curation-time gazetteer for the reported flood events registry.
 //
-// Resolves every named place in public/data/eventos-inundaciones/eventos.geojson
-// against OpenStreetMap (Nominatim search) and writes
-// public/data/eventos-inundaciones/gazetteer-osm.json. The app never calls
+// Reads the published registry, resolves names with Nominatim and publishes
+// a new gazetteer version in the DB. The app never calls
 // Nominatim at runtime; rerun this script when the registry changes.
 //
 // Nominatim usage policy: at most 1 request per second, descriptive User-Agent,
-// results cached in the output file. Data © OpenStreetMap contributors (ODbL).
+// results cached in the published dataset. Data © OpenStreetMap contributors (ODbL).
 
-import { readFileSync, writeFileSync } from 'node:fs'
-
-const REGISTRO = 'public/data/eventos-inundaciones/eventos.geojson'
-const SALIDA = 'public/data/eventos-inundaciones/gazetteer-osm.json'
+import { registerTsResolver } from './lib/register-ts-resolver.mjs'
+registerTsResolver(process.cwd())
+const { getRawClient } = await import('../lib/db/index.ts')
+const { leerVersion, guardarVersion } = await import('../lib/infraestructura/datasets/repositorio.ts')
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search'
 const USER_AGENT = 'data-hub-dashboard gazetteer curation (https://github.com/GeronimoSerial/data-hub-dashboard)'
 const PAUSA_MS = 1100
 
 // Search text per place when the registry name alone is ambiguous in OSM.
-const CONSULTAS = {
-  'Isla Apipé': 'Isla Apipé Grande',
-  'Ituzaingó (Isla Apipé)': 'Isla Apipé Grande',
-  'Ituzaingó (represa Yacyretá)': 'Represa Yacyretá',
-  Corrientes: 'Corrientes, Capital',
-}
+
 
 // OSM classes accepted as a named place (towns, islands, parajes, barrios, dams).
 const ACEPTADOS = [
@@ -53,7 +47,12 @@ async function buscar(texto) {
   return resultados.find(aceptado) ?? null
 }
 
-const registro = JSON.parse(readFileSync(REGISTRO, 'utf8'))
+try {
+const versionRegistro = await leerVersion('eventos-inundaciones')
+if (!versionRegistro) throw new Error('Registro de eventos sin publicar')
+const registro = versionRegistro.documento
+const anterior = await leerVersion('gazetteer-osm')
+const cache = new Map((anterior?.documento.lugares ?? []).map((lugar) => [lugar.nombre, lugar]))
 const nombres = [
   ...new Set(
     registro.features.flatMap((f) => String(f.properties.localidad ?? '').split(';').map((n) => n.trim()).filter(Boolean)),
@@ -63,7 +62,8 @@ const nombres = [
 const lugares = []
 const sinCoincidencia = []
 for (const nombre of nombres) {
-  const consulta = CONSULTAS[nombre] ?? nombre
+  if (cache.has(nombre) && !process.argv.includes('--refresh')) { lugares.push(cache.get(nombre)); continue }
+  const consulta = cache.get(nombre)?.consulta ?? nombre
   const resultado = await buscar(consulta)
   if (resultado) {
     lugares.push({
@@ -83,19 +83,12 @@ for (const nombre of nombres) {
   await esperar(PAUSA_MS)
 }
 
-writeFileSync(
-  SALIDA,
-  `${JSON.stringify(
-    {
-      fuente: 'OpenStreetMap (Nominatim search)',
-      atribucion: '© OpenStreetMap contributors',
-      licencia: 'ODbL 1.0 (https://opendatacommons.org/licenses/odbl/)',
-      generadoEn: new Date().toISOString(),
-      lugares,
-      sinCoincidencia,
-    },
-    null,
-    2,
-  )}\n`,
-)
+await guardarVersion({ datasetId: 'gazetteer-osm', nombre: 'Lugares OSM curados', formato: 'lugares',
+    revision: new Date().toISOString(), fuente: 'OpenStreetMap (Nominatim search)',
+    licencia: 'ODbL 1.0', fechaFuente: new Date().toISOString(), entradas: [versionRegistro.version.id],
+    datos: { fuente: 'OpenStreetMap (Nominatim search)', atribucion: '© OpenStreetMap contributors',
+      licencia: 'ODbL 1.0 (https://opendatacommons.org/licenses/odbl/)', generadoEn: new Date().toISOString(), lugares, sinCoincidencia },
+  })
 console.log(`${lugares.length} lugares resueltos, ${sinCoincidencia.length} sin coincidencia: ${sinCoincidencia.join(', ') || '-'}`)
+
+} finally { await getRawClient().end() }

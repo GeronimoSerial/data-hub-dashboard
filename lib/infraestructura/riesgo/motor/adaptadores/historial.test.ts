@@ -135,3 +135,37 @@ describe('crearAdapterHistorial', () => {
     expect(resumen.antecedentes[0]?.accesoInterrumpido).toBe(false)
   })
 })
+
+// Reglas v0.4 (F2): el adapter informa si el sistema tenía algún parte al asOf.
+describe('crearAdapterHistorial con informarFuente', () => {
+  it('fuenteDisponible true si existe algún parte creado hasta asOf', async () => {
+    const { crearAdapterHistorial } = await import('./historial')
+    const resumen = await crearAdapterHistorial({ informarFuente: true }).obtenerResumen({
+      cueAnexo: '1899999-00',
+      asOf: '2026-06-10T00:00:00.000Z',
+      ventanaDias: 365,
+    })
+    expect(resumen.cantidadConfirmadas).toBe(0)
+    expect(resumen.fuenteDisponible).toBe(true)
+  })
+
+  it('fuenteDisponible false si no había ningún parte al asOf', async () => {
+    const { crearAdapterHistorial } = await import('./historial')
+    const resumen = await crearAdapterHistorial({ informarFuente: true }).obtenerResumen({
+      cueAnexo: CUE_VIGENTE,
+      asOf: '2026-05-01T00:00:00.000Z',
+      ventanaDias: 365,
+    })
+    expect(resumen.fuenteDisponible).toBe(false)
+  })
+
+  it('sin la opción no agrega el campo (v0.3 intacto)', async () => {
+    const { crearAdapterHistorial } = await import('./historial')
+    const resumen = await crearAdapterHistorial().obtenerResumen({
+      cueAnexo: CUE_VIGENTE,
+      asOf: '2026-06-06T00:00:00.000Z',
+      ventanaDias: 365,
+    })
+    expect('fuenteDisponible' in resumen).toBe(false)
+  })
+})

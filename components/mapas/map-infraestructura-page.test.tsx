@@ -27,8 +27,9 @@ const CUE_SIN_AFECTACION = '1801605-99'
 // pulsar "Ver recorrido"). Es un spy además de `flyTo` para poder contar
 // cuántas veces se encuadró: encuadrar de más es un bug tan visible como no
 // encuadrar.
-const { FLY_TO_MOCK, FIT_BOUNDS_MOCK, MAP_CONTAINER_MOCK } = vi.hoisted(() => ({
+const { FLY_TO_MOCK, FIT_BOUNDS_MOCK, MAP_CONTAINER_MOCK, EASE_TO_MOCK } = vi.hoisted(() => ({
   FLY_TO_MOCK: vi.fn(),
+  EASE_TO_MOCK: vi.fn(),
   FIT_BOUNDS_MOCK: vi.fn(),
   MAP_CONTAINER_MOCK: { container: null as HTMLElement | null, getContainer: vi.fn() },
 }))
@@ -86,11 +87,35 @@ vi.mock('@/components/mapas/ficha-escuela-panel', () => ({
     onCerrar: () => void
     onVerAlumnosAlcanzados: (id: string) => void
     onVerHistorialCompleto: () => void
+    urlFichaCompleta?: string
+    onAbrirFichaCompleta?: () => void
+    onQuitarSeleccion?: () => void
   }): JSX.Element => (
-    <section data-testid="mock-ficha-escuela" data-cue={props.escuela.cueAnexo}>
+    <section
+      data-testid="mock-ficha-escuela"
+      data-cue={props.escuela.cueAnexo}
+      data-url-ficha={props.urlFichaCompleta ?? ''}
+    >
       <button onClick={props.onCerrar}>Volver a la lista</button>
       <button onClick={() => props.onVerAlumnosAlcanzados('a1')}>abrir-nominal-desde-ficha</button>
       <button onClick={props.onVerHistorialCompleto}>Ver historial</button>
+      {props.urlFichaCompleta && (
+        <a
+          href={props.urlFichaCompleta}
+          data-testid="abrir-ficha-completa"
+          onClick={(e) => {
+            e.preventDefault()
+            props.onAbrirFichaCompleta?.()
+          }}
+        >
+          Abrir ficha completa
+        </a>
+      )}
+      {props.onQuitarSeleccion && (
+        <button data-testid="preview-quitar-seleccion" onClick={props.onQuitarSeleccion}>
+          Quitar selección
+        </button>
+      )}
       {props.acceso}
     </section>
   ),
@@ -489,6 +514,9 @@ vi.mock('react-map-gl/maplibre', () => {
         getMap: () => ({
           flyTo: FLY_TO_MOCK,
           fitBounds: FIT_BOUNDS_MOCK,
+          easeTo: EASE_TO_MOCK,
+          getZoom: () => 7,
+          getLayer: () => undefined,
           resize: vi.fn(),
           stop: vi.fn(),
           getContainer: MAP_CONTAINER_MOCK.getContainer,
@@ -504,7 +532,7 @@ vi.mock('react-map-gl/maplibre', () => {
           // los cues de `CUES_DESAGRUPADOS_MOCK` (por defecto, las dos
           // escuelas del padrón) como desagrupadas, así los <Marker> DOM
           // (badge de estado y riesgo) se renderizan en jsdom.
-          getSource: (id: string) => (id === 'infra-partes-src' ? {} : undefined),
+          getSource: (id: string) => (id === 'infra-partes-src' ? { getClusterExpansionZoom: async () => 9 } : undefined),
           querySourceFeatures: () =>
             CUES_DESAGRUPADOS_MOCK.cues.map((cueAnexo) => ({ properties: { cueAnexo } })),
         }),
@@ -700,6 +728,7 @@ async function renderMapa(props: OpcionesRenderMapa) {
   const vista = render(<MapInfraestructuraPage {...propsActuales} />)
   const { unmount } = vista
   desmontarMapa = unmount
+  await act(async () => { await Promise.resolve() })
   return {
     rerender: (cambios: Partial<OpcionesRenderMapa>) => {
       propsActuales = { ...propsActuales, ...cambios }
@@ -848,7 +877,7 @@ beforeEach(() => {
     'fetch',
     vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ type: 'FeatureCollection', features: [] }),
+      json: async () => JSON.parse(readFileSync(resolve(process.cwd(), 'public/data/departamentos-corrientes-georef-2026-09-27.geojson'), 'utf8')),
     }),
   )
 })
@@ -1037,7 +1066,8 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     const panelLateral = await screen.findByTestId('panel-lateral')
     expect(within(panelLateral).getByTestId('panel-radar')).toBeInTheDocument()
     expect(panelLateral).not.toBeEmptyDOMElement()
-    expect(screen.getByText('Riesgo actual (hoy) · 72 h')).toBeInTheDocument()
+    // En radar no se muestra la leyenda de situación actual.
+    expect(screen.queryByText('Riesgo actual (hoy) · 72 h')).not.toBeInTheDocument()
   })
 
   it('con Radar activo muestra el panel de riesgo y consulta el horizonte inicial', async () => {
@@ -1105,10 +1135,10 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(screen.getAllByRole('group', { name: 'Variable meteorológica' })).toHaveLength(1)
     expect(screen.queryByText('Consultando alertas…')).not.toBeInTheDocument()
     const variables = screen.getByRole('group', { name: 'Variable meteorológica' })
-    expect(within(variables).getByRole('button', { name: 'Lluvia' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(variables).getByRole('button', { name: 'Lluvia (mm)' })).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(within(variables).getByRole('button', { name: 'Viento' }))
     expect(within(variables).getByRole('button', { name: 'Viento' })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(variables).getByRole('button', { name: 'Lluvia' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(variables).getByRole('button', { name: 'Lluvia (mm)' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'Expandir leyenda: Viento' })).toBeInTheDocument()
     expect(document.querySelector('.radar-meteo-controls')).toBeNull()
     expect(screen.queryByText(/Estimación no calibrada/i)).not.toBeInTheDocument()
@@ -1206,7 +1236,8 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     await userEvent.click(screen.getByRole('button', { name: /Escuela 1, Capital/i }))
     const flotante = screen.getByTestId('ficha-flotante')
     expect(within(flotante).getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
-    expect(within(screen.getByTestId('panel-lateral')).queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    // En radar no se repite la selección arriba del panel: la vista previa ya la muestra.
+    expect(within(screen.getByTestId('panel-lateral')).queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
     expect(within(screen.getByTestId('panel-lateral')).getByTestId('panel-radar')).toBeInTheDocument()
   })
 
@@ -1321,7 +1352,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   it('muestra la lista simple de riesgo sin paneles de explicación técnica', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    expect(screen.getByText('Riesgo actual (hoy)')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo calculado (probabilístico)')).toBeInTheDocument()
     expect(screen.queryByTestId('risk-explanation-factores')).not.toBeInTheDocument()
     expect(screen.queryByText('Pronóstico por departamento')).not.toBeInTheDocument()
   })
@@ -1595,28 +1626,16 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
     expect(screen.queryByText(/En Capital hay 10 escuelas/)).not.toBeInTheDocument()
   })
 
-  it('clic de cluster muestra escuelas con situaciones abiertas', async () => {
+  it('clic de cluster acerca directo al zoom de expansión, sin popup', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
+    EASE_TO_MOCK.mockClear()
 
     await userEvent.click(screen.getByTestId('mock-click-cluster'))
 
-    expect(await screen.findByText((_contenido, element) =>
-      element?.tagName === 'P' && /8 escuelas/.test(element.textContent ?? ''),
-    )).toHaveTextContent('3 con situaciones abiertas (1 críticas, 2 altas)')
-  })
-
-  it('Esc cierra el popup de cluster', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true })
-    await userEvent.click(screen.getByTestId('mock-click-cluster'))
-
-    const popup = () => screen.queryByText((_contenido, element) =>
-      element?.tagName === 'P' && /8 escuelas/.test(element.textContent ?? ''),
-    )
-    expect(await screen.findByText((_contenido, element) =>
-      element?.tagName === 'P' && /8 escuelas/.test(element.textContent ?? ''),
-    )).toBeInTheDocument()
-    await userEvent.keyboard('{Escape}')
-    expect(popup()).not.toBeInTheDocument()
+    await waitFor(() => expect(EASE_TO_MOCK).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [-58.8, -27.5], zoom: 9 }),
+    ))
+    expect(screen.queryByText(/8 escuelas/)).not.toBeInTheDocument()
   })
 
   it('clickear el mismo departamento de nuevo quita el filtro', async () => {
@@ -1671,8 +1690,8 @@ describe('M2: panel de situación actual con padrón', () => {
 
     const panel = screen.getByTestId('panel-lateral')
     expect(within(panel).getByText('Situación actual')).toBeInTheDocument()
-    expect(within(panel).getByText('Escuelas con situaciones abiertas').previousElementSibling).toHaveTextContent('1')
-    expect(within(panel).getByText('Sin clases', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('1')
+    expect(within(panel).getByText('Escuelas sin clases').nextElementSibling).toHaveTextContent('1')
+    expect(within(panel).getByText(/con situaciones abiertas$/, { selector: '.map-sitact__kpi small' })).toHaveTextContent('De 1 con situaciones abiertas')
     expect(within(panel).getByRole('button', { name: /Escuela 1/ })).toBeInTheDocument()
   })
 
@@ -1686,7 +1705,7 @@ describe('M2: panel de situación actual con padrón', () => {
     rerender({ escuelasMapa: escuelasFiltradas })
 
     const panel = screen.getByTestId('panel-lateral')
-    expect(within(panel).getByText('Escuelas con situaciones abiertas').previousElementSibling).toHaveTextContent('0')
+    expect(within(panel).getByText(/con situaciones abiertas$/, { selector: '.map-sitact__kpi small' })).toHaveTextContent('De 0 con situaciones abiertas')
     expect(within(panel).getByText('Ninguna escuela con situaciones abiertas para estos filtros.')).toBeInTheDocument()
     desmontarMapa?.()
   })
@@ -1793,7 +1812,10 @@ describe('MapInfraestructuraPage — textos visibles con contexto completo', () 
 
       const mapa = document.querySelector('.map-shell')
       expect(mapa).not.toBeNull()
-      expect(mapa?.textContent).not.toMatch(
+      // The crossing card credits OpenStreetMap in its footer on purpose; everything else stays plain.
+      const sinCreditos = mapa!.cloneNode(true) as HTMLElement
+      sinCreditos.querySelectorAll('.tarjeta-lluvia__fuente').forEach((nodo) => nodo.remove())
+      expect(sinCreditos.textContent).not.toMatch(
         /vencid|fuente|extracto|corrida|ODbL|arcsec|Aqueduct|OpenStreetMap|\bOSM\b|physrisk|per[ií]odo de retorno|metodolog/i,
       )
     },
@@ -2085,7 +2107,7 @@ describe('Task 4: cambiar de pestaña a Radar', () => {
     rerender({ pestana: 'radar' })
     const panelRadar = within(screen.getByTestId('panel-lateral'))
     expect(panelRadar.getByTestId('panel-radar')).toBeInTheDocument()
-    expect(panelRadar.getByTestId('reabrir-ficha')).toBeInTheDocument()
+    expect(panelRadar.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
 
     rerender({ pestana: 'actual' })
 
@@ -2119,7 +2141,7 @@ describe('accesos territoriales fuera de los controles generales', () => {
 
     await userEvent.click(screen.getByTestId('mock-click-cruce'))
 
-    expect(await screen.findByText(/Cruce de agua: Sin puente registrado/)).toBeInTheDocument()
+    expect(await screen.findByText(/Sin puente registrado/)).toBeInTheDocument()
     // "Sin puente registrado" NO afirma que falte el puente: sólo que OSM no
     // tiene el tag. El popup lo dice, o el director se lleva una conclusión
     // equivocada.
@@ -2132,16 +2154,16 @@ describe('accesos territoriales fuera de los controles generales', () => {
 
     // Cualquier otro clic lo cierra.
     await userEvent.click(screen.getByTestId('mock-click-parte'))
-    await waitFor(() => expect(screen.queryByText(/Cruce de agua: Sin puente registrado/)).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/Sin puente registrado/)).not.toBeInTheDocument())
   })
 
   it('Esc cierra el popup del cruce de agua', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
     await userEvent.click(screen.getByTestId('mock-click-cruce'))
-    expect(await screen.findByText(/Cruce de agua: Sin puente registrado/)).toBeInTheDocument()
+    expect(await screen.findByText(/Sin puente registrado/)).toBeInTheDocument()
 
     await userEvent.keyboard('{Escape}')
-    expect(screen.queryByText(/Cruce de agua: Sin puente registrado/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Sin puente registrado/)).not.toBeInTheDocument()
   })
 })
 
@@ -2194,3 +2216,42 @@ describe('paddingEncuadre', () => {
     expect(padding).toEqual({ top: 40, bottom: 40, left: 400, right: 356 })
   })
 })
+
+describe('Consulta Escolar: vista previa en el mapa y retorno a ficha completa', () => {
+  it('pasa urlFichaCompleta con parámetro volver y persiste el SnapshotRetornoMapa al abrir la ficha completa', async () => {
+    window.sessionStorage.clear()
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'actual' })
+
+    const ficha = await seleccionarPorBuscador('Escuela 1')
+    expect(ficha).toHaveAttribute(
+      'data-url-ficha',
+      `/mapas/infraestructura/escuelas/${CUE}?origen=mapa`,
+    )
+
+    await userEvent.click(within(ficha).getByTestId('abrir-ficha-completa'))
+
+    const { leerSnapshotRetornoMapa } = await import('@/lib/infraestructura/mapa/estado-retorno')
+    const snapshot = leerSnapshotRetornoMapa(window.sessionStorage)
+    expect(snapshot).toMatchObject({
+      version: 1,
+      origen: 'mapa',
+      tab: 'actual',
+      seleccionCue: CUE,
+      previewAbierto: true,
+    })
+  })
+
+  it('quitar selección desde la vista previa cierra el panel flotante y limpia la selección sin dejar "Ver ficha"', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'actual' })
+
+    const ficha = await seleccionarPorBuscador('Escuela 1')
+    await userEvent.click(within(ficha).getByTestId('preview-quitar-seleccion'))
+
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
+  })
+
+})
+
+

@@ -227,7 +227,7 @@ export function AlgoNuevo({
             </div>
           </fieldset>
           {hayAlgoNuevo ? (
-            <div className="asistente__acciones">
+            <div className="asistente__acciones asistente__acciones--pegada">
               <Button type="button" onClick={() => setEtapa('datos')}>Continuar</Button>
             </div>
           ) : null}
@@ -299,7 +299,7 @@ export function AlgoNuevo({
               })}
             </div>
           </BottomSheet>
-          <div className="asistente__acciones">
+          <div className="asistente__acciones asistente__acciones--pegada">
             <Button type="button" variant="secondary" onClick={() => setEtapa('datos')}>Volver</Button>
             <Button type="button" onClick={terminar}>
               Continuar
@@ -342,7 +342,7 @@ export function AlgoNuevo({
               onChange={setBorrador}
             />
           </div>
-          <div className="asistente__acciones algo-nuevo__acciones">
+          <div className="asistente__acciones asistente__acciones--pegada algo-nuevo__acciones">
             <Button
               type="button"
               className="algo-nuevo__continuar"

@@ -276,7 +276,7 @@ describe('VeredictoModal', () => {
         fecha: hoy,
         nivel: 'alerta',
         metricas: [
-          { id: 'rio.pna-paso-de-los-libres.altura_max_m', valor: 7.25, unidad: 'm', etiqueta: 'Altura máxima PASO DE LOS LIBRES', fuenteUrl: 'https://f' },
+          { id: 'rio.pna-paso-de-los-libres.altura_max_m', valor: 7.25, unidad: 'm', etiqueta: 'Altura máxima PASO DE LOS LIBRES', estacion: { nombre: 'PASO DE LOS LIBRES', rio: 'uruguay' }, fuenteUrl: 'https://f' },
           { id: 'rio.pna-paso-de-los-libres.alerta_m', valor: 7.1, unidad: 'm', etiqueta: 'Nivel de alerta PASO DE LOS LIBRES', fuenteUrl: 'https://f' },
         ],
         traza: [{ regla: 'rio.estado', ref: 'rio.pna-paso-de-los-libres.estado_max', valor: 7.25, umbral: 'alerta', nivel: 'alerta' }],

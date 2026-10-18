@@ -6,7 +6,7 @@ import { getDb, migrarDb } from '@/lib/db'
 import { hazardSourceHealth, infraJobRun, lluviaEstacion } from '@/lib/db/schema'
 import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
 import type * as SaludFuente from '../riesgo/jobs/salud-fuente'
-import { ESTACIONES_SYNOP } from './estaciones-synop'
+import { obtenerEstacionesSynop } from './estaciones-synop'
 import { parsearRespuestaOgimet } from './synop-parser'
 import { syncSynopLluvia } from './sync-synop-lluvia'
 
@@ -61,8 +61,8 @@ describe('syncSynopLluvia', () => {
     const resultado = await syncSynopLluvia({ ahora: AHORA, fetchImpl, esperar })
 
     expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
-    expect(fetchImpl).toHaveBeenCalledTimes(ESTACIONES_SYNOP.length)
-    expect(esperar).toHaveBeenCalledTimes(ESTACIONES_SYNOP.length - 1)
+    expect(fetchImpl).toHaveBeenCalledTimes(obtenerEstacionesSynop().length)
+    expect(esperar).toHaveBeenCalledTimes(obtenerEstacionesSynop().length - 1)
     expect(esperar.mock.calls.every(([ms]) => ms === 2000)).toBe(true)
 
     const filas = await db.select().from(lluviaEstacion)
@@ -78,7 +78,7 @@ describe('syncSynopLluvia', () => {
       estado: 'completado',
     })
     expect(job?.contadores).toMatchObject({
-      estaciones: ESTACIONES_SYNOP.length,
+      estaciones: obtenerEstacionesSynop().length,
       estacionesConError: 0,
       registros: filas.length,
     })
@@ -108,7 +108,7 @@ describe('syncSynopLluvia', () => {
     })
 
     expect(segunda).toMatchObject({ ejecutado: false, estado: 'omitido' })
-    expect(fetchImpl).toHaveBeenCalledTimes(ESTACIONES_SYNOP.length)
+    expect(fetchImpl).toHaveBeenCalledTimes(obtenerEstacionesSynop().length)
     expect(await db.select().from(lluviaEstacion)).toHaveLength(filasAntes)
     expect(await db.select().from(infraJobRun)).toHaveLength(1)
   })
@@ -122,7 +122,7 @@ describe('syncSynopLluvia', () => {
 
     expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
     // Un reintento para la estación que falló.
-    expect(fetchImpl).toHaveBeenCalledTimes(ESTACIONES_SYNOP.length + 1)
+    expect(fetchImpl).toHaveBeenCalledTimes(obtenerEstacionesSynop().length + 1)
     const [job] = await db.select().from(infraJobRun)
     expect(job?.contadores).toMatchObject({ estacionesConError: 1 })
     expect((await db.select().from(lluviaEstacion)).length).toBeGreaterThan(0)

@@ -83,7 +83,7 @@ export function CampoGravedad({
           <Opcion
               key={severidad}
               tipo="radio"
-              className={`opcion--severidad opcion--sev-${CLASE_SEVERIDAD[severidad]}`}
+              className={`opcion--severidad opcion--sev-${CLASE_SEVERIDAD[severidad]}${sugerida === severidad ? ' opcion--sugerido' : ''}`}
               name={`${idPrefijo}-severidad`}
               value={severidad}
               checked={valor.severidad === severidad}

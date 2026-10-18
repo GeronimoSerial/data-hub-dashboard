@@ -38,7 +38,7 @@ const enlaceActivo: React.CSSProperties = {
   fontWeight: 700,
   textDecoration: 'underline',
 }
-const tenue: React.CSSProperties = { color: 'var(--ink-soft)', fontSize: '0.85rem' }
+const tenue: React.CSSProperties = { color: 'var(--ink-soft)', fontSize: 'var(--t-micro)' }
 
 // La regla v0.1 sólo emite 'abierto' | 'cerrado'. Cualquier otro valor se
 // muestra tal cual: es un panel interno, no un endpoint público.

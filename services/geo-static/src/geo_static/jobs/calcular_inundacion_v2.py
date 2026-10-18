@@ -5,7 +5,7 @@ porque el paquete no se instala editable, ver pyproject.toml [tool.uv]
 package = false):
     PYTHONPATH=src uv run python -m geo_static.jobs.calcular_inundacion_v2
 
-Lee el padron desde public/data/localizaciones.json (repo raiz), abre los
+Lee el padrón publicado desde la DB del entorno, abre los
 rasters JRC de .data/jrc_flood una sola vez, lee la profundidad de cada
 escuela por periodo de retorno, clasifica el rio con clasificar_rio y escribe
 output/inundacion_v2-v1-<YYYY-MM-DD>.csv. Por escuela tambien lee la proximidad a
@@ -21,6 +21,7 @@ from pathlib import Path
 from geo_static import padron_geo
 from geo_static.clase_inundacion_v2 import clasificar_rio
 from geo_static.csv_utils import escribir_csv
+from geo_static.datasets import finalizar_corrida
 from geo_static.lector_jrc import RPS_POR_DEFECTO, abrir_lector
 from geo_static.lector_laguna import abrir_lector_laguna
 from geo_static.margen_inundacion import RPS_MARGEN, abrir_lector_margen
@@ -97,7 +98,7 @@ def correr() -> None:
             filas.append({k: ("" if v is None else v) for k, v in fila.items()})
 
     out_path = OUTPUT_DIR / f"inundacion_v2-v{VERSION_JOB}-{fecha_corrida}.csv"
-    escribir_csv(out_path, CONTRATO_COLUMNAS, filas)
+    out_path = escribir_csv(out_path, CONTRATO_COLUMNAS, filas)
 
     distribucion: dict[str, int] = {}
     for fila in filas:
@@ -105,6 +106,8 @@ def correr() -> None:
     print(f"[calcular_inundacion_v2] escritas {len(filas)} filas en {out_path}", flush=True)
     print(f"[calcular_inundacion_v2] clases: {distribucion}", flush=True)
     print(f"[calcular_inundacion_v2] tiempo total: {time.monotonic() - t0:.1f}s", flush=True)
+
+    finalizar_corrida()
 
 
 if __name__ == "__main__":

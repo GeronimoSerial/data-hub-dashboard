@@ -5,7 +5,7 @@ porque el paquete no se instala editable, ver pyproject.toml [tool.uv]
 package = false):
     PYTHONPATH=src uv run python -m geo_static.jobs.calcular_susceptibilidad
 
-Lee el padron desde public/data/localizaciones.json (repo raiz), consulta
+Lee el padrón publicado desde la DB del entorno, consulta
 physrisk (bucket S3 publico y anonimo os-climate-physical-risk, ver
 docs/ejecucion-enos/G1/evidencia-physrisk.md) para cada escuela y escribe el
 CSV versionado del contrato de datos.
@@ -27,11 +27,11 @@ from geo_static.physrisk_susceptibilidad import (
 )
 from geo_static import padron_geo
 from geo_static.csv_utils import escribir_csv
+from geo_static.datasets import finalizar_corrida
 
 VERSION_JOB = "1"
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
-PADRON_PATH = padron_geo.PADRON_PATH
 cargar_padron = padron_geo.cargar_padron
 OUTPUT_DIR = Path(__file__).resolve().parents[3] / "output"
 
@@ -96,7 +96,7 @@ def correr() -> None:
         {k: ("" if fila.get(k) is None else fila.get(k)) for k in CONTRATO_COLUMNAS}
         for fila in filas
     ]
-    escribir_csv(out_path, CONTRATO_COLUMNAS, filas_finales)
+    out_path = escribir_csv(out_path, CONTRATO_COLUMNAS, filas_finales)
 
     t1 = time.monotonic()
     con_physrisk = sum(1 for f in filas if f["fuente"] == "physrisk")
@@ -106,6 +106,8 @@ def correr() -> None:
         f"({100 * con_physrisk / len(filas):.1f}%), tiempo total: {t1 - t0:.1f}s",
         flush=True,
     )
+
+    finalizar_corrida()
 
 
 if __name__ == "__main__":

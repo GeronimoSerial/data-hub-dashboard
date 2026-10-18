@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from geo_static.datasets import exportar_archivos, guardar_resultados, finalizar_corrida
 import gzip
 import json
 import sys
@@ -26,7 +27,6 @@ from geo_static.margen_inundacion import LectorMargen
 
 VERSION_JOB = 2
 RAIZ = Path(__file__).resolve().parents[3]
-GEOMETRIA_DEFAULT = RAIZ / "output" / "accesos_osm_geometria-v3-2026-09-26.ndjson.gz"
 OUTPUT_DIR = RAIZ / "output"
 CARPETA_JRC = RAIZ / ".data" / "jrc_flood"
 RUTA_DEM = RAIZ / ".data" / "dem" / "glo30.tif"
@@ -70,6 +70,8 @@ def construir_registro_ruta(
 
 
 def escribir_salida(filas: list[dict], salida_dir: Path, fecha_corrida: str) -> Path:
+    if not exportar_archivos():
+        return guardar_resultados("exposicion-ruta-v2", filas, FUENTE, f"v{VERSION_JOB}-{fecha_corrida}")
     salida_dir.mkdir(parents=True, exist_ok=True)
     destino = salida_dir / f"exposicion_ruta_inundacion-v{VERSION_JOB}-{fecha_corrida}.ndjson.gz"
     temporal = destino.with_suffix(destino.suffix + ".tmp")
@@ -87,7 +89,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limite-escuelas", type=int)
     parser.add_argument("--cues")
-    parser.add_argument("--geometria", type=Path, default=GEOMETRIA_DEFAULT)
+    parser.add_argument("--geometria", type=Path, default=None)
     parser.add_argument("--salida-dir", type=Path, default=OUTPUT_DIR)
     parser.add_argument("--carpeta-jrc", type=Path, default=CARPETA_JRC)
     args = parser.parse_args(argv)
@@ -108,6 +110,7 @@ def main(argv=None) -> int:
     destino = escribir_salida(filas, args.salida_dir, fecha)
     sin_ruta = sum(f["clase_ruta"] == "sin_ruta" for f in filas)
     print(f"[calcular_exposicion_ruta_v2] escuelas {len(filas)}, sin_ruta {sin_ruta}, {time.monotonic()-inicio:.1f}s; salida {destino}", flush=True)
+    finalizar_corrida()
     return 0
 
 

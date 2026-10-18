@@ -7,6 +7,7 @@ export default [
   {
     ignores: [
       'node_modules/**',
+      'Motor v0.4/**',
       '.next/**',
       '.codegraph/**',
       '.atl/**',

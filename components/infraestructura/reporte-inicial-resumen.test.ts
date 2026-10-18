@@ -54,6 +54,16 @@ describe('describirAlcanceServicio', () => {
 })
 
 describe('armarResumen', () => {
+  it('informa cuántas fotos quedan adjuntas, de solo lectura', () => {
+    const lineas = armarResumen({ ...base, fotosAdjuntas: 2 })
+
+    expect(lineas).toContainEqual({ etiqueta: 'Fotos adjuntas', valor: '2' })
+  })
+
+  it('no informa fotos cuando el resumen no las recibe', () => {
+    expect(armarResumen(base).some((fila) => fila.etiqueta === 'Fotos adjuntas')).toBe(false)
+  })
+
   it('muestra el motivo, la severidad y el alcance en pares de etiqueta y valor', () => {
     const lineas = armarResumen(base)
 
@@ -106,10 +116,10 @@ describe('armarResumen', () => {
 
   it('resume la asistencia pedagógica con el mismo par de etiqueta y valor', () => {
     const sinAsistencia = armarResumen({ ...base, asistenciaPedagogica: { brinda: false, modalidades: [] } })
-    const conAsistencia = armarResumen({ ...base, asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] } })
+    const conAsistencia = armarResumen({ ...base, asistenciaPedagogica: { brinda: true, modalidades: ['Asistencia virtual', 'Cuadernillos impresos'] } })
 
     expect(sinAsistencia.at(-1)).toEqual({ etiqueta: 'Asistencia pedagógica', valor: 'No' })
-    expect(conAsistencia.at(-1)).toEqual({ etiqueta: 'Asistencia pedagógica', valor: 'Sí (Clase virtual, Cuadernillo)' })
+    expect(conAsistencia.at(-1)).toEqual({ etiqueta: 'Asistencia pedagógica', valor: 'Sí (Asistencia virtual, Cuadernillos impresos)' })
   })
 
   // Vocabulario prohibido por spec §5.4.

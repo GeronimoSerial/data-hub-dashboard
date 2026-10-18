@@ -285,6 +285,63 @@ describe('importarGeometria', () => {
     ])
   })
 
+  it('persiste nombreCurso y nombrePuente y acepta cruces sin ellos', async () => {
+    const path = escribirNdjsonGz('geometria-nombres.ndjson.gz', [filaGeometriaBase({
+      cruces: [
+        { lon: -58.8, lat: -27.4, clasificacion: 'puente', nombreCurso: 'Río Corriente', nombrePuente: 'Puente Pexoa' },
+        { lon: -58.81, lat: -27.41, clasificacion: 'vado', nombreCurso: null, nombrePuente: null },
+        { lon: -58.82, lat: -27.42, clasificacion: 'sin_evidencia' },
+      ],
+    })])
+    const { db, llamadas } = crearDbFalsa()
+
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    const lote = llamadas[0].valores as Array<Record<string, unknown>>
+    expect(lote[0].cruces).toEqual([
+      { lon: -58.8, lat: -27.4, clasificacion: 'puente', nombreCurso: 'Río Corriente', nombrePuente: 'Puente Pexoa' },
+      { lon: -58.81, lat: -27.41, clasificacion: 'vado', nombreCurso: null, nombrePuente: null },
+      { lon: -58.82, lat: -27.42, clasificacion: 'sin_evidencia' },
+    ])
+  })
+
+  it('persiste tipoCurso e intermitente y acepta cruces sin ellos', async () => {
+    const cruces = [
+      { lon: -58.8, lat: -27.4, clasificacion: 'vado', tipoCurso: 'stream', intermitente: true },
+      { lon: -58.81, lat: -27.41, clasificacion: 'puente', tipoCurso: null, intermitente: null },
+      { lon: -58.82, lat: -27.42, clasificacion: 'sin_evidencia' },
+    ]
+    const path = escribirNdjsonGz('geometria-tipo-curso.ndjson.gz', [filaGeometriaBase({ cruces })])
+    const { db, llamadas } = crearDbFalsa()
+
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    const lote = llamadas[0].valores as Array<Record<string, unknown>>
+    expect(lote[0].cruces).toEqual(cruces)
+  })
+
+  it('rechaza intermitente no booleano', async () => {
+    const path = escribirNdjsonGz('geometria-intermitente-invalido.ndjson.gz', [filaGeometriaBase({
+      cruces: [{ lon: -58.8, lat: -27.4, clasificacion: 'vado', intermitente: 'yes' }],
+    })])
+    const { db } = crearDbFalsa()
+
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado.fallidas).toBe(1)
+  })
+
   it('inserta una fila valida con ruta y cruces en camelCase', async () => {
     const path = escribirNdjsonGz('geometria.ndjson.gz', [filaGeometriaBase()])
 
@@ -334,6 +391,22 @@ describe('importarGeometria', () => {
     expect(Object.keys(conflictos[0].set as object)).toEqual(expect.arrayContaining([
       'viaPrincipal', 'destinoNombre', 'distanciaDestinoM',
     ]))
+  })
+
+  it('guarda las superficies dentro del JSON de via principal', async () => {
+    const viaPrincipal = { nombre: 'Ruta Provincial 27', tipo: 'primary', pavimentada: false }
+    const superficies = { pavimentado: 8000, ripio: 3000, tierra: 1400 }
+    const path = escribirNdjsonGz('geometria-superficies.ndjson.gz', [filaGeometriaBase({
+      via_principal: viaPrincipal,
+      superficies,
+    })])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, { db: db as never, tabla: tablaGeometriaFalsa as never })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    const fila = (llamadas[0].valores as Array<Record<string, unknown>>)[0]
+    expect(JSON.parse(fila.viaPrincipal as string)).toEqual({ ...viaPrincipal, superficies })
   })
 
   it('acepta campos nuevos explicitamente nulos', async () => {
@@ -518,6 +591,7 @@ function crearDbFalsaUpdate(existentes: Set<string>) {
   const actualizaciones: Array<{ set: Record<string, unknown>; cue: unknown }> = []
   const dialecto = new PgDialect()
   const db = {
+    select() { return { from: async () => [...existentes].map((cue) => ({ cue, version: '1', fecha: '2026-10-01T00:00:00Z' })) } },
     update(_tabla: unknown) {
       return {
         set(valores: Record<string, unknown>) {
@@ -602,7 +676,7 @@ describe('importarInundacionV2', () => {
     const resultado = await importarInundacionV2(path, { db: db as never, tabla: infraSusceptibilidadEstatica })
 
     expect(resultado).toEqual({ procesadas: 1, ok: 0, sinFilaBase: 1, fallidas: 0 })
-    expect(actualizaciones).toHaveLength(1)
+    expect(actualizaciones).toHaveLength(0)
   })
 })
 

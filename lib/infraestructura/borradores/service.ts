@@ -8,7 +8,7 @@ const MAX_DEPTH = 8
 const MAX_NODES = 2_000
 const FLOWS = ['inicial', 'actualizacion'] as const
 const CLOSED_STATES = { submitted: 'enviado', discarded: 'descartado' } as const
-const ALLOWED_STATUSES = ['habitual', 'parcial', 'evacuado', 'centro_evacuados', 'normal', 'suspendido']
+const ALLOWED_STATUSES = ['habitual', 'parcial', 'evacuado', 'centro_evacuados', 'sin_clases', 'normal', 'suspendido']
 const ALLOWED_SEVERITIES = ['Baja', 'Media', 'Alta', 'Crítica']
 const FORBIDDEN_KEYS = new Set([
   'alumno', 'alumnos', 'nombrealumno', 'apellidoalumno', 'gepersonid', 'documento', 'dni',

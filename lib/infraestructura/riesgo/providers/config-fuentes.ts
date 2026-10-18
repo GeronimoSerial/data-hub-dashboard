@@ -19,7 +19,7 @@ export const CONFIG_FUENTES = {
     ruta: '/v1/ecmwf', // origen: lib/infraestructura/riesgo/providers/ecmwf.ts:23
     envApiKey: 'OPEN_METEO_API_KEY', // origen: lib/infraestructura/riesgo/providers/cupo-om.ts:534
     prefijoHostPago: 'customer-', // origen: lib/infraestructura/riesgo/providers/cupo-om.ts:519
-    timeoutMs: 10_000, // origen: lib/infraestructura/riesgo/providers/cliente-http.ts:51
+    timeoutMs: 30_000, // origen: lib/infraestructura/riesgo/providers/ecmwf.ts (TIMEOUT_MS_ECMWF)
     reintentos: 3, // origen: lib/infraestructura/riesgo/providers/cliente-http.ts:52
     tamanoLote: 50, // origen: lib/infraestructura/riesgo/providers/ecmwf.ts:35 (TAMANO_LOTE_COORDENADAS)
     diasPronostico: 10, // origen: lib/infraestructura/riesgo/providers/ecmwf.ts:108 (FORECAST_DAYS)
@@ -39,7 +39,7 @@ export const CONFIG_FUENTES = {
     ruta: '/v1/ensemble', // origen: lib/infraestructura/riesgo/providers/ensemble.ts:25
     envApiKey: 'OPEN_METEO_API_KEY', // origen: lib/infraestructura/riesgo/providers/cupo-om.ts:534
     prefijoHostPago: 'customer-', // origen: lib/infraestructura/riesgo/providers/cupo-om.ts:519
-    timeoutMs: 10_000, // origen: lib/infraestructura/riesgo/providers/cliente-http.ts:51
+    timeoutMs: 30_000, // fuente de TIMEOUT_MS_ENSEMBLE (providers/ensemble.ts)
     reintentos: 3, // origen: lib/infraestructura/riesgo/providers/cliente-http.ts:52
     modelo: 'ecmwf_ifs025', // origen: lib/infraestructura/riesgo/providers/ensemble.ts:29 (MODELO_ENSEMBLE)
     tamanoLote: 20, // origen: lib/infraestructura/riesgo/providers/ensemble.ts:35 (TAMANO_LOTE_COORDENADAS_ENSEMBLE)
@@ -115,6 +115,18 @@ export const CONFIG_FUENTES = {
     envModelo: 'OPENROUTER_MODEL', // origen: lib/infraestructura/briefing-ia/proveedor-openrouter.ts:147
     envPresupuestoMes: 'E8_PRESUPUESTO_USD_MES', // origen: lib/infraestructura/briefing-ia/generar-briefing-asistido.ts:93
     envCostoMaximoLlamada: 'E8_COSTO_MAXIMO_USD_LLAMADA', // origen: lib/infraestructura/briefing-ia/generar-briefing-asistido.ts:98
+  },
+
+  // ---------------------------------------------------------------------
+  // INA A5 (alturas Prefectura e historia diaria; API pública sin autenticación)
+  // ---------------------------------------------------------------------
+  inaA5: {
+    baseUrl: 'https://alerta.ina.gob.ar/a5', // origen: lib/infraestructura/hidrometria/ina/cliente-a5.ts (crearClienteA5)
+    timeoutMs: 30_000, // origen: lib/infraestructura/hidrometria/ina/cliente-a5.ts (respuestas de hasta ~4.000 filas)
+    reintentos: 2, // origen: lib/infraestructura/hidrometria/ina/cliente-a5.ts
+    ventanaDias: 3_650, // origen: lib/infraestructura/hidrometria/ina/sync-ina-serie-diaria.ts (≈3.650 filas por solicitud)
+    solapeIncrementalDias: 7, // origen: lib/infraestructura/hidrometria/ina/sync-ina-serie-diaria.ts
+    maxSolicitudesPorCorrida: 300, // origen: lib/infraestructura/hidrometria/ina/sync-ina-serie-diaria.ts (backfill 18 estaciones ≈ 200)
   },
 } as const
 

@@ -42,7 +42,7 @@ const parametros: React.CSSProperties = {
   border: '1px solid var(--line)',
   borderRadius: 8,
   overflowX: 'auto',
-  fontSize: '0.85rem',
+  fontSize: 'var(--t-micro)',
 }
 
 function etiquetaEstado(estado: string): string {

@@ -14,6 +14,8 @@ import type { FillLayerSpecification, LineLayerSpecification } from 'maplibre-gl
  * `public/data/departamentos-corrientes.geojson`, que se conserva sin usarse
  * por si algo más lo referencia en el futuro.
  */
+export const DEPARTAMENTOS_INFRA_URL = '/api/mapas/infraestructura/datasets/departamentos'
+export const MASCARA_INFRA_URL = '/api/mapas/infraestructura/datasets/mascara'
 export const DEPARTAMENTOS_URL = '/data/departamentos-corrientes-georef-2026-09-27.geojson'
 
 // Bounding box de la provincia de Corrientes, calculado recorriendo todas

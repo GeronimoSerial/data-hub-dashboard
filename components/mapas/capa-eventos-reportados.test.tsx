@@ -142,6 +142,12 @@ const RESPUESTAS: Record<string, unknown> = {
 
 function mockFetch() {
   global.fetch = vi.fn(async (url: string) => {
+    if (url === '/api/mapas/infraestructura/referencias/eventos') return { ok: true, json: async () => ({
+      eventos: EVENTOS, evidenciasCsv: CSV, localizaciones: [], estaciones: [],
+      gazetteer: RESPUESTAS['/data/eventos-inundaciones/gazetteer-osm.json'],
+      localidades: RESPUESTAS['/data/localities.geojson'],
+      departamentos: RESPUESTAS['/data/departamentos-corrientes-georef-2026-09-27.geojson'],
+    }) }
     if (url === '/data/eventos-inundaciones/evidencias.csv') {
       return { ok: true, text: async () => CSV, json: async () => ({}) }
     }

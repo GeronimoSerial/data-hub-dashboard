@@ -1,12 +1,13 @@
+import { cargarReferencias } from '../datasets/repositorio'
+import { referencia } from '../datasets/memoria'
+import { filasACsv, type Datos } from '../datasets/codec'
 // Eventos de terreno (inundaciones reportadas y mediciones) para el veredicto
-// diario. Lee los CSV que publica la rama hermana en
-// public/data/eventos-inundaciones/ y los reduce a filas listas para mostrar.
+// diario. Lee los registros publicados en la DB y los reduce a filas
+// listas para mostrar; no depende de CSV locales.
 //
 // TODO(merge): esta misma regla de selección y de cobertura de días debe
 // deduplicarse con lib/mapas/eventos-inundaciones.ts de la rama hermana al
 // integrar ambas ramas.
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
 
 export type EventoTerreno = {
@@ -28,7 +29,6 @@ const VERIFICACIONES_USABLES = new Set(['verificada_url', 'verificado por orques
 const RANGO_CONFIANZA: Record<string, number> = { alta: 0, media: 1, baja: 2 }
 const RANGO_CLASE: Record<string, number> = { evento_publico: 0, medicion_hidrometrica: 1 }
 const FECHA_CON_FIN = /(\d{4})-(\d{2})-(\d{2})(?:\/(\d{2}))?/
-const DIR_EVENTOS = 'public/data/eventos-inundaciones'
 
 // RFC 4180: campos entrecomillados con comas, saltos de línea y "" escapado.
 export function parsearCsv(texto: string): Fila[] {
@@ -231,14 +231,10 @@ export async function cargarEventosTerreno({
   desde: string
   hasta: string
 }): Promise<EventoTerreno[]> {
-  const carpeta = join(process.cwd(), DIR_EVENTOS)
-  try {
-    const [eventosCsv, evidenciasCsv] = await Promise.all([
-      readFile(join(carpeta, 'eventos.csv'), 'utf8'),
-      readFile(join(carpeta, 'evidencias.csv'), 'utf8'),
-    ])
-    return seleccionarEventosTerreno({ eventosCsv, evidenciasCsv, desde, hasta })
-  } catch {
-    return []
-  }
+  await cargarReferencias()
+  return seleccionarEventosTerreno({
+    eventosCsv: filasACsv(referencia<Datos[]>('registro-eventos')),
+    evidenciasCsv: filasACsv(referencia<Datos[]>('evidencias-inundaciones')),
+    desde, hasta,
+  })
 }

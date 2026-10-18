@@ -1,3 +1,5 @@
+import { leerVersion } from '@/lib/infraestructura/datasets/repositorio'
+import { validarFilasGeo } from '@/lib/infraestructura/datasets/geo-static-contratos.mjs'
 // Importa a la base el CSV diario de exposición al río (DEM estático) generado por
 // services/geo-static. Idempotente por versión y fecha de corrida.
 import { promises as fs } from 'node:fs'
@@ -160,10 +162,21 @@ export async function importarExposicionRioDem(
   if (!lease.adquirido) return { ejecutado: false, estado: 'omitido' }
 
   try {
-    const archivo = elegirUltimoArchivo(await listarArchivos(directorio))
-    if (!archivo) throw new Error(ERROR_SIN_ARCHIVO)
+    let archivo: { version: string; fecha: string }
+    let filas: FilaExposicion[]
+    if (opts.directorio || opts.leerArchivo || opts.listarArchivos) {
+      // Importación histórica explícita; el scheduler normal consulta la DB.
+      const encontrado = elegirUltimoArchivo(await listarArchivos(directorio))
+      if (!encontrado) throw new Error(ERROR_SIN_ARCHIVO)
+      archivo = encontrado
+      filas = parsearExposicionCsv(await leerArchivo(path.join(directorio, encontrado.nombre)))
+    } else {
+      const publicada = await leerVersion('geo-exposicion-rio-dem')
+      if (!publicada) throw new Error('dataset de exposición al río sin publicar')
+      filas = validarFilasGeo('exposicion-rio-dem', publicada.documento)
+      archivo = { version: filas[0].versionJob, fecha: filas[0].fechaCorrida }
+    }
 
-    const filas = parsearExposicionCsv(await leerArchivo(path.join(directorio, archivo.nombre)))
     const db = getDb()
     const yaImportadas = await filasYaImportadas(db, archivo.version, archivo.fecha)
     const omitir = yaImportadas >= filas.length

@@ -12,6 +12,11 @@ import {
 } from '@/lib/db/schema'
 import { elegirUmbralesClimatologia } from './fuente-climatologia'
 import { nivelDesdeUmbralProvisorio } from './umbrales-provisorios'
+import {
+  COBERTURA_MIN_VENTANA_V04_HORAS,
+  EDAD_MAX_ENSEMBLE_V04_HORAS,
+  type ReglasMotor,
+} from '../motor/config'
 
 export type NivelPeligro = 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato'
 
@@ -285,11 +290,48 @@ type FilaPronostico = {
   validoEn: string
   horizonteHoras: number
   valor: number
+  pasoHoras?: number
 }
 
+/**
+ * Reglas v0.4 (F5/F6): filas de la corrida más reciente con horizonte en
+ * (desde, hasta]. null si no hay filas.
+ */
+function filasVentanaCorridaReciente<T extends FilaConHorizonte>(filas: T[], desde: number, hasta: number): T[] | null {
+  if (filas.length === 0) return null
+  let reciente = filas[0].corridaEn
+  for (const fila of filas) if (Date.parse(fila.corridaEn) > Date.parse(reciente)) reciente = fila.corridaEn
+  const ventana = filas.filter((f) => f.corridaEn === reciente && f.horizonteHoras > desde && f.horizonteHoras <= hasta)
+  return ventana.length === 0 ? null : ventana
+}
+
+/**
+ * Reglas v0.4 (F5): precipitación acumulada en (desde, hasta] de la corrida
+ * más reciente; null si la ventana cubre menos de `coberturaMin` horas.
+ */
+function acumularVentana(
+  filas: FilaPronostico[],
+  desde: number,
+  hasta: number,
+  coberturaMin: number,
+): { valor: number; corridaEn: string; validoEn: string } | null {
+  const ventana = filasVentanaCorridaReciente(filas, desde, hasta)
+  if (ventana === null) return null
+  const cobertura = ventana.reduce((acc, f) => acc + (f.pasoHoras ?? 1), 0)
+  if (cobertura < coberturaMin) return null
+  const ultima = ventana.reduce((a, f) => (f.horizonteHoras > a.horizonteHoras ? f : a))
+  const valor = Math.round(ventana.reduce((acc, f) => acc + f.valor, 0) * 100) / 100
+  return { valor, corridaEn: ultima.corridaEn, validoEn: ultima.validoEn }
+}
+
+// As-of (F8, ambas reglas): sin `ahora` toda corrida vale (lectura del
+// momento); con `ahora` sólo las emitidas hasta ese instante. Reglas v0.4
+// descartan además las corridas de más de EDAD_MAX_ENSEMBLE_V04_HORAS.
 async function cargarFilasEnsemblePorLote(
   db: Db,
   geometryRefs: string[],
+  ahora?: Date,
+  reglas?: ReglasMotor,
 ): Promise<Map<string, FilaEnsemble[]>> {
   const porCelda = new Map<string, FilaEnsemble[]>()
   if (geometryRefs.length === 0) return porCelda
@@ -310,7 +352,10 @@ async function cargarFilasEnsemblePorLote(
         eq(hazardEnsembleProb.variable, VARIABLE_ENSEMBLE),
       ),
     )
+  const referenciaMs = (ahora ?? new Date()).getTime()
   for (const fila of filas) {
+    if (!emitidoHastaAhora(fila.corridaEn, ahora)) continue
+    if (reglas === 'v0.4' && referenciaMs - Date.parse(fila.corridaEn) > EDAD_MAX_ENSEMBLE_V04_HORAS * 3_600_000) continue
     const lista = porCelda.get(fila.geometryRef)
     if (lista === undefined) porCelda.set(fila.geometryRef, [fila])
     else lista.push(fila)
@@ -333,6 +378,7 @@ async function cargarPronosticosPorLote(
       validoEn: hazardForecast.validoEn,
       horizonteHoras: hazardForecast.horizonteHoras,
       valor: hazardForecast.valor,
+      pasoHoras: hazardForecast.pasoHoras,
     })
     .from(hazardForecast)
     .where(
@@ -412,6 +458,7 @@ function calcularNivelCeldaSync(
   filasEnsemble: FilaEnsemble[] | undefined,
   filasPronostico: FilaPronostico[] | undefined,
   umbrales: { p90: number; p95: number; p99: number } | null | undefined,
+  reglas?: ReglasMotor,
 ): NivelPeligroCelda {
   // El ensemble sólo alimenta 24 y 72 h: produce ventanas de 24 h hasta 3 días
   // y NUNCA es la fuente de la vigilancia de 7-10 días. Para 240 se salta
@@ -449,12 +496,19 @@ function calcularNivelCeldaSync(
   // sin_dato, no se extrapola el último horizonte disponible.
   const tolerancia = horizonte === 240 ? TOLERANCIA_HORIZONTE_240_HORAS : undefined
   const candidato = elegirMasRecienteYHorizonte(filasPronostico ?? [], horizonte)
-  const pronostico =
-    candidato !== null &&
-    !(tolerancia !== undefined && Math.abs(candidato.horizonteHoras - horizonte) > tolerancia)
-      ? candidato
-      : null
   const umbralesEfectivos = umbrales ?? null
+  // Reglas v0.4 (F5): con climatología se compara lo acumulado en el día
+  // (h − 24, h] con los percentiles diarios; sin ella, lo acumulado en (0, h]
+  // con el umbral provisorio (definido sobre el acumulado del horizonte).
+  const pronostico =
+    reglas === 'v0.4'
+      ? umbralesEfectivos !== null
+        ? acumularVentana(filasPronostico ?? [], horizonte - 24, horizonte, COBERTURA_MIN_VENTANA_V04_HORAS)
+        : acumularVentana(filasPronostico ?? [], 0, horizonte, horizonte - (24 - COBERTURA_MIN_VENTANA_V04_HORAS))
+      : candidato !== null &&
+          !(tolerancia !== undefined && Math.abs(candidato.horizonteHoras - horizonte) > tolerancia)
+        ? candidato
+        : null
 
   if (pronostico !== null && umbralesEfectivos !== null) {
     const { nivel, percentilReferencia } = nivelDesdeDeterministico(
@@ -540,6 +594,8 @@ export async function obtenerNivelesPeligro(opts?: {
   geometryRefs?: string[]
   horizontes?: HorizontePeligro[]
   ahora?: Date
+  // Reglas del motor (T10): 'v0.4' activa F5 y la edad máxima del ensemble.
+  reglas?: ReglasMotor
 }): Promise<NivelPeligroCelda[]> {
   const db = getDb()
   const ahora = opts?.ahora ?? new Date()
@@ -553,7 +609,7 @@ export async function obtenerNivelesPeligro(opts?: {
   // hasta `celdas * horizontes * 3` consultas individuales.
   const usaEnsemble = horizontes.some((horizonte) => horizonte !== 240)
   const filasEnsemblePorCelda = usaEnsemble
-    ? await cargarFilasEnsemblePorLote(db, geometryRefs)
+    ? await cargarFilasEnsemblePorLote(db, geometryRefs, opts?.ahora, opts?.reglas)
     : new Map<string, FilaEnsemble[]>()
   const pronosticosPorCelda = await cargarPronosticosPorLote(
     db,
@@ -579,6 +635,7 @@ export async function obtenerNivelesPeligro(opts?: {
           filasEnsemblePorCelda.get(geometryRef),
           pronosticosPorCelda.get(geometryRef),
           umbralesPorCelda.get(geometryRef) ?? null,
+          opts?.reglas,
         ),
       )
     }
@@ -603,19 +660,16 @@ export async function obtenerNivelesPeligro(opts?: {
  */
 export async function obtenerNivelCaudal(
   puntoId: string,
-  opts?: { ahora?: Date },
+  opts?: { ahora?: Date; reglas?: ReglasMotor; horizonteHoras?: HorizontePeligro },
 ): Promise<NivelCaudalPunto | null> {
   const db = getDb()
 
-  // El "caudal actual" es el horizonte más chico de la corrida más reciente.
-  const pronostico = await cargarPronostico(
-    db,
-    puntoId,
-    VARIABLE_PRONOSTICO_CAUDAL,
-    'menor',
-    undefined,
-    opts?.ahora,
-  )
+  // v0.3: el "caudal actual" es el horizonte más chico de la corrida más
+  // reciente. Reglas v0.4 (F6): el máximo pronosticado en (0, h].
+  const pronostico =
+    opts?.reglas === 'v0.4' && opts.horizonteHoras !== undefined
+      ? await cargarMaximoCaudalVentana(db, puntoId, opts.horizonteHoras, opts.ahora)
+      : await cargarPronostico(db, puntoId, VARIABLE_PRONOSTICO_CAUDAL, 'menor', undefined, opts?.ahora)
   const umbrales = await cargarUmbralesClimatologia(
     db,
     puntoId,
@@ -639,6 +693,32 @@ export async function obtenerNivelCaudal(
     emitidoEn: pronostico.corridaEn,
     validoHasta: pronostico.validoEn,
   }
+}
+
+// Reglas v0.4 (F6): fila de caudal máximo en (0, h] de la corrida más
+// reciente emitida hasta `ahora`.
+async function cargarMaximoCaudalVentana(
+  db: Db,
+  puntoId: string,
+  horizonte: HorizontePeligro,
+  ahora?: Date,
+): Promise<{ valor: number; corridaEn: string; validoEn: string } | null> {
+  const filas = await db
+    .select({
+      corridaEn: hazardForecast.corridaEn,
+      validoEn: hazardForecast.validoEn,
+      horizonteHoras: hazardForecast.horizonteHoras,
+      valor: hazardForecast.valor,
+    })
+    .from(hazardForecast)
+    .where(and(eq(hazardForecast.geometryRef, puntoId), eq(hazardForecast.variable, VARIABLE_PRONOSTICO_CAUDAL)))
+  const ventana = filasVentanaCorridaReciente(
+    filas.filter((f) => emitidoHastaAhora(f.corridaEn, ahora)),
+    -1,
+    horizonte,
+  )
+  if (ventana === null) return null
+  return ventana.reduce((max, f) => (f.valor > max.valor ? f : max))
 }
 
 // Orden de severidad para "peor nivel". `sin_dato` NO es una severidad: sólo

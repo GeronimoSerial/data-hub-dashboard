@@ -1,11 +1,13 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Sincronización diaria del histórico de 365 días de Prefectura Naval Argentina para
 // las estaciones de corrientes del catálogo. Calcula mediana, p10 y p90 por estación
 // y los guarda en hidro_referencia.
 import { getDb } from '@/lib/db'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
 import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
-import { CATALOGO_ESTACIONES_PREFECTURA } from './estaciones-prefectura'
-import { type FilaReferencia, guardarReferencia } from './referencia-repo'
+import { obtenerEstacionesPrefectura, obtenerVersionCatalogoPrefectura } from './estaciones-prefectura'
+import { type FilaReferencia } from './referencia-repo'
+import { publicarCorridaPrefectura } from './publicacion'
 import { USER_AGENT_PREFECTURA } from './prefectura-cliente'
 import { estadisticasNivel, parsearHistoricoPrefectura } from './historico-parser'
 
@@ -61,6 +63,7 @@ async function descargarHistorico(
 export async function syncPrefecturaHistorico(
   opts: OpcionesSyncHistorico = {},
 ): Promise<ResultadoSyncPrefectura> {
+  await cargarReferencias()
   const ahora = opts.ahora ?? new Date()
   const fetchImpl = opts.fetchImpl ?? fetch
   const esperar = opts.esperar ?? esperarReal
@@ -75,7 +78,7 @@ export async function syncPrefecturaHistorico(
   })
   if (!lease.adquirido) return { ejecutado: false, estado: 'omitido' }
 
-  const estaciones = CATALOGO_ESTACIONES_PREFECTURA.filter(
+  const estaciones = obtenerEstacionesPrefectura().filter(
     (estacion) => estacion.rol === 'corrientes' && estacion.idHistorico != null,
   )
   const contadores = {
@@ -86,12 +89,15 @@ export async function syncPrefecturaHistorico(
   }
 
   try {
-    const db = getDb()
+    const referencias: FilaReferencia[] = []
+    const originales: Record<string, unknown>[] = []
     for (const [indice, estacion] of estaciones.entries()) {
       if (indice > 0) await esperar(PAUSA_ENTRE_ESTACIONES_MS)
       try {
         const html = await descargarHistorico(estacion.idHistorico, fetchImpl)
-        const estadisticas = estadisticasNivel(parsearHistoricoPrefectura(html))
+        const lecturas = parsearHistoricoPrefectura(html)
+        originales.push({ estacionId: estacion.estacionId, lecturas })
+        const estadisticas = estadisticasNivel(lecturas)
         if (!estadisticas || estadisticas.n < minLecturas) {
           // Se conserva la fila previa de la estación: no se escribe nada.
           contadores.estacionesInsuficientes += 1
@@ -109,7 +115,7 @@ export async function syncPrefecturaHistorico(
           fuente: FUENTE,
           calculadoEn: ahora.toISOString(),
         }
-        await guardarReferencia(db, fila)
+        referencias.push(fila)
         contadores.guardadas += 1
       } catch {
         // Fallo por estación: se cuenta y no detiene el resto del lote.
@@ -120,6 +126,10 @@ export async function syncPrefecturaHistorico(
     if (estaciones.length > 0 && contadores.estacionesConError === estaciones.length) {
       throw new Error(ERROR_TODAS)
     }
+
+    await publicarCorridaPrefectura({ tipo: 'referencias', jobRunId: lease.jobRunId,
+      capturadaEn: ahora.toISOString(), catalogoVersion: obtenerVersionCatalogoPrefectura(),
+      filas: referencias, lecturasOriginales: originales, estacionesConError: contadores.estacionesConError })
 
     await publicarResultado({
       jobRunId: lease.jobRunId,

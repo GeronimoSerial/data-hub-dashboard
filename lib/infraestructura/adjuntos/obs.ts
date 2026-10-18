@@ -45,6 +45,7 @@ type ObsConfig = {
   endpoint: string
   accessKeyId: string
   secretAccessKey: string
+  forcePathStyle?: boolean
 }
 
 export class ObsConfigurationError extends Error {
@@ -62,7 +63,7 @@ export function readObsConfig(env: NodeJS.ProcessEnv = process.env): ObsConfig {
     accessKeyId: env.OBS_ACCESS_KEY_ID,
     secretAccessKey: env.OBS_SECRET_ACCESS_KEY,
   }
-  const environmentNames: Record<keyof ObsConfig, string> = {
+  const environmentNames: Record<keyof typeof config, string> = {
     bucket: 'OBS_BUCKET',
     region: 'OBS_REGION',
     endpoint: 'OBS_ENDPOINT',
@@ -71,7 +72,7 @@ export function readObsConfig(env: NodeJS.ProcessEnv = process.env): ObsConfig {
   }
   const missing = Object.entries(config)
     .filter(([, value]) => !value?.trim())
-    .map(([key]) => environmentNames[key as keyof ObsConfig])
+    .map(([key]) => environmentNames[key as keyof typeof config])
   if (missing.length > 0) throw new ObsConfigurationError(`Missing OBS configuration: ${missing.join(', ')}`)
 
   let endpointUrl: URL
@@ -82,7 +83,7 @@ export function readObsConfig(env: NodeJS.ProcessEnv = process.env): ObsConfig {
   }
   if (endpointUrl.protocol !== 'https:') throw new ObsConfigurationError('OBS_ENDPOINT must use HTTPS.')
 
-  return config as ObsConfig
+  return { ...config, forcePathStyle: env.OBS_FORCE_PATH_STYLE === 'true' } as ObsConfig
 }
 
 export function validateAttachmentDeclarations(value: unknown): value is AttachmentDeclaration[] {
@@ -104,7 +105,7 @@ const authorizationCache = new Map<string, CachedAuthorization>()
 let clientCache: { fingerprint: string; client: S3Client } | undefined
 
 function getClient(config: ObsConfig): S3Client {
-  const fingerprint = `${config.endpoint}\n${config.region}\n${config.accessKeyId}\n${config.secretAccessKey}`
+  const fingerprint = `${config.endpoint}\n${config.region}\n${config.accessKeyId}\n${config.secretAccessKey}\n${config.forcePathStyle ?? false}`
   if (!clientCache || clientCache.fingerprint !== fingerprint) {
     clientCache = {
       fingerprint,
@@ -214,7 +215,7 @@ export function opcionesClienteObs(config: ReturnType<typeof readObsConfig>) {
   return {
     region: config.region,
     endpoint: config.endpoint,
-    forcePathStyle: false,
+    forcePathStyle: config.forcePathStyle ?? false,
     credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
   }
 }

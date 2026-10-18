@@ -4,6 +4,7 @@ import { adminPageGate } from '@/lib/acl'
 import { ensureSeeded } from '@/lib/db/seed'
 import { situacionEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { obtenerEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
+import { obtenerEstadoDatosSeguro } from '@/lib/infraestructura/riesgo/estado-datos/consulta'
 import { SituacionClient } from '@/components/infraestructura/situacion-client'
 
 export const runtime = 'nodejs'
@@ -33,7 +34,7 @@ export default async function SituacionPage() {
   }
 
   await ensureSeeded()
-  const estadoInicial = await obtenerEstadoSituacion()
+  const [estadoInicial, estadoDatos] = await Promise.all([obtenerEstadoSituacion(), obtenerEstadoDatosSeguro()])
 
   return (
     <div style={contenedor}>
@@ -53,6 +54,7 @@ export default async function SituacionPage() {
           briefing: estadoInicial.briefing,
           atraso: estadoInicial.atraso,
           prioridades: estadoInicial.prioridades,
+          estadoDatos,
         }}
       />
     </div>

@@ -1,3 +1,4 @@
+import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Adapter real de PuertoRioPrefectura. Combina la localidad de la escuela
 // (ge_localizacion), el tramo aprobado de su localidad (tramos-prefectura),
 // la exposición física al río (susceptibilidad G1, distancia a punto de río
@@ -21,7 +22,7 @@ import {
   infraGeoRio,
   infraSusceptibilidadEstatica,
 } from '@/lib/db/schema'
-import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { estacionParaLocalidad } from '@/lib/infraestructura/hidrometria/tramos-prefectura'
 import {
   estadoDeLectura,
@@ -37,6 +38,12 @@ import {
   type EstacionAnomalia,
 } from '../exposicion-dinamica'
 import { ultimaFilaConservadoraPorCue } from './susceptibilidad'
+import type { ReglasMotor } from '../config'
+import type { EscenarioSubidaEstacion } from '../escenarios-subida'
+import { evaluarExposicionV04 } from '../exposicion-v04'
+import { CEROS_EFECTIVOS_V04, type CeroEfectivo, type ReferenciaNivelEstacion } from '../referencia-nivel'
+import { defensaDeLocalidad, type MaximosEscala } from '../altura-critica'
+import { evidenciaSecoS2 } from '../evidencia-seco-s2'
 
 // Valores numéricos pueden llegar como string desde pg (numeric/doublePrecision).
 type Numerico = number | string | null
@@ -91,7 +98,7 @@ function distanciaKm(a: { lat: number; lon: number }, b: { lat: number; lon: num
 
 function distanciaAEstacionKm(datos: DatosRio, cueAnexo: string, estacionId: string): number | null {
   const escuela = datos.coordenadasPorCue?.get(cueAnexo)
-  const estacion = CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.estacionId === estacionId)?.coordenadas
+  const estacion = obtenerEstacionesPrefectura().find((e) => e.estacionId === estacionId)?.coordenadas
   if (!escuela || !estacion || estacion.precisionDecimales < PRECISION_MINIMA_ESTACION) return null
   return distanciaKm(escuela, estacion)
 }
@@ -99,6 +106,23 @@ function distanciaAEstacionKm(datos: DatosRio, cueAnexo: string, estacionId: str
 export interface DependenciasAdapterRioPrefectura {
   // Punto de inyección para tests: por defecto consulta la DB real.
   cargarDatos?: () => Promise<DatosRio>
+  reglas?: ReglasMotor
+  // Reglas v0.4: escenarios de subida por estación (análogos, tendencia, onda).
+  escenarios?: ReadonlyMap<string, EscenarioSubidaEstacion>
+  // Reglas v0.4 (T10c): mediana de largo plazo y récord por estación (serie A5).
+  referencias?: ReadonlyMap<string, ReferenciaNivelEstacion>
+  // Reglas v0.4 (T10d): máximos por miembro de los análogos de cada escala.
+  maximosEscala?: ReadonlyMap<string, MaximosEscala>
+}
+
+export type OpcionesEvidenciaRio = {
+  reglas?: ReglasMotor
+  escenarios?: ReadonlyMap<string, EscenarioSubidaEstacion>
+  referencias?: ReadonlyMap<string, ReferenciaNivelEstacion>
+  maximosEscala?: ReadonlyMap<string, MaximosEscala>
+  // Ceros efectivos por estación (por defecto CEROS_EFECTIVOS_V04); los tests
+  // de la rama DEM pasan {} para ejercitarla en estaciones calibradas.
+  cerosEfectivos?: Readonly<Record<string, CeroEfectivo>>
 }
 
 // Convierte a número; null, vacío o NaN quedan como null.
@@ -114,7 +138,9 @@ function num(valor: Numerico | undefined): number | null {
 // Ventana del nivel de referencia (sync-prefectura-historico).
 const VENTANA_REFERENCIA_DIAS = 365
 
-export const ESTACIONES_CON_REPRESA_AGUAS_ARRIBA: ReadonlySet<string> = new Set(['pna-ituzaingo'])
+export function obtenerEstacionesConRepresa(): ReadonlySet<string> {
+  return new Set(obtenerEstacionesPrefectura().filter((e) => e.represaAguasArriba).map((e) => e.estacionId))
+}
 
 // Última lectura publicada de una estación válida para asOf (ignora futuras,
 // inconsistentes y no numéricas); null si no hay ninguna.
@@ -171,7 +197,7 @@ function anomaliaInterpoladaEscuela(
 ): number | null {
   const coordenadas = datos.coordenadasPorCue?.get(cueAnexo)
   if (!coordenadas) return null
-  const estaciones: EstacionAnomalia[] = CATALOGO_ESTACIONES_PREFECTURA.filter(
+  const estaciones: EstacionAnomalia[] = obtenerEstacionesPrefectura().filter(
     (e) => e.rol === 'corrientes' && e.rio === rio && e.coordenadas !== null,
   ).map((e) => ({
     estacionId: e.estacionId,
@@ -199,7 +225,9 @@ export function resolverEvidenciaRio(
   datos: DatosRio,
   cueAnexo: string,
   asOf: string,
+  opciones: OpcionesEvidenciaRio = {},
 ): EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null {
+  if (opciones.reglas === 'v0.4') return resolverEvidenciaRioV04(datos, cueAnexo, asOf, opciones)
   const localidad = datos.localidadPorCue.get(cueAnexo)
   if (!localidad) return null
 
@@ -216,7 +244,7 @@ export function resolverEvidenciaRio(
     dem,
     nivelRioDelTramo(datos, tramo.estacionId),
     anomaliaInterpoladaEscuela(datos, cueAnexo, tramo.rio, asOf, asOfMs),
-    ESTACIONES_CON_REPRESA_AGUAS_ARRIBA.has(tramo.estacionId),
+    obtenerEstacionesConRepresa().has(tramo.estacionId),
   )
   if (dinamica.tipo === 'no_aplica_embalse') {
     return { ...base, disponibilidad: 'no_aplica', motivo: `embalse aguas arriba de la represa: ${dinamica.detalle}` }
@@ -247,35 +275,130 @@ export function resolverEvidenciaRio(
     return null
   }
 
-  const ultima = ultimaLectura(datos, tramo.estacionId, asOfMs)
+  const lectura = lecturaOficial(datos, tramo.estacionId, asOf, asOfMs)
+  if ('motivo' in lectura) return { ...base, disponibilidad: 'sin_dato', motivo: lectura.motivo }
+  return { ...base, ...lectura, criterioExposicion: criterio }
+}
+
+type LecturaOficial = Pick<EvidenciaRioPrefectura, 'lecturaM' | 'alertaM' | 'evacuacionM' | 'variacionM' | 'medidaEn' | 'estado'>
+
+// Lectura vigente (<= 24 h) con estado oficial, o el motivo de sin_dato.
+function lecturaOficial(datos: DatosRio, estacionId: string, asOf: string, asOfMs: number): LecturaOficial | { motivo: string } {
+  const ultima = ultimaLectura(datos, estacionId, asOfMs)
   if (ultima === null || !lecturaVigente(ultima.medidaEn, asOf)) {
-    return { ...base, disponibilidad: 'sin_dato', motivo: `sin lectura vigente (<= 24 h) de ${tramo.estacionId}` }
+    return { motivo: `sin lectura vigente (<= 24 h) de ${estacionId}` }
   }
   const lecturaM = num(ultima.lecturaM)
-  if (lecturaM === null) {
-    return { ...base, disponibilidad: 'sin_dato', motivo: `lectura no numérica de ${tramo.estacionId}` }
-  }
+  if (lecturaM === null) return { motivo: `lectura no numérica de ${estacionId}` }
   const alertaM = num(ultima.alertaM)
   const evacuacionM = num(ultima.evacuacionM)
   const estado = estadoDeLectura(lecturaM, alertaM, evacuacionM)
-  if (estado === null) {
-    return { ...base, disponibilidad: 'sin_dato', motivo: `${tramo.estacionId} sin umbrales oficiales` }
-  }
+  if (estado === null) return { motivo: `${estacionId} sin umbrales oficiales` }
+  return { lecturaM, alertaM, evacuacionM, variacionM: num(ultima.variacionM), medidaEn: ultima.medidaEn, estado }
+}
 
+// Reglas v0.4 (F3, motor/exposicion-v04.ts): el terreno contra el agua
+// posible por horizonte decide el piso; las capas gruesas (WRI, ruta RP100,
+// agua GSW, punto de río, cercanía a la estación) salen de la exposición y
+// sólo `clase_rio` JRC queda como respaldo no evaluable. Con lectura vigente la
+// evidencia se devuelve aunque ningún horizonte alcance: el cálculo decide (la
+// zona modelada usa la probabilidad; el resto registra un factor sin peso).
+// Referencia v0.4 de una estación (T10c): mediana de largo plazo; sin ella, la
+// mediana de 365 días marcada como inestable.
+function referenciaV04(
+  datos: DatosRio,
+  referencias: ReadonlyMap<string, ReferenciaNivelEstacion> | undefined,
+  estacionId: string,
+): { medianaM: number; inestable: boolean } | null {
+  const larga = referencias?.get(estacionId)?.medianaLargoPlazoM ?? null
+  if (larga !== null) return { medianaM: larga, inestable: false }
+  const corta = datos.medianaPorEstacion?.get(estacionId)
+  return corta === undefined || corta === null ? null : { medianaM: corta, inestable: true }
+}
+
+function lecturaVigenteM(datos: DatosRio, estacionId: string, asOf: string, asOfMs: number): number | null {
+  const ultima = ultimaLectura(datos, estacionId, asOfMs)
+  return ultima === null || !lecturaVigente(ultima.medidaEn, asOf) ? null : num(ultima.lecturaM)
+}
+
+// Anomalía interpolada v0.4; inestable si alguna estación usada no tiene
+// referencia de largo plazo.
+function anomaliaV04(
+  datos: DatosRio,
+  referencias: ReadonlyMap<string, ReferenciaNivelEstacion> | undefined,
+  cueAnexo: string,
+  rio: 'parana' | 'uruguay',
+  asOf: string,
+  asOfMs: number,
+): { anomaliaM: number; inestable: boolean } | null {
+  const coordenadas = datos.coordenadasPorCue?.get(cueAnexo)
+  if (!coordenadas) return null
+  const inestables = new Set<string>()
+  const estaciones: EstacionAnomalia[] = obtenerEstacionesPrefectura().filter(
+    (e) => e.rol === 'corrientes' && e.rio === rio && e.coordenadas !== null,
+  ).map((e) => {
+    const ref = referenciaV04(datos, referencias, e.estacionId)
+    const h = lecturaVigenteM(datos, e.estacionId, asOf, asOfMs)
+    if (ref?.inestable) inestables.add(e.estacionId)
+    return { estacionId: e.estacionId, lat: e.coordenadas!.lat, lon: e.coordenadas!.lon, anomaliaM: ref && h !== null ? h - ref.medianaM : null }
+  })
+  const r = anomaliaInterpolada(coordenadas, estaciones)
+  if (!r) return null
+  return { anomaliaM: r.anomaliaM, inestable: inestables.has(r.desde) || (r.t > 0 && inestables.has(r.hasta)) }
+}
+
+function resolverEvidenciaRioV04(
+  datos: DatosRio,
+  cueAnexo: string,
+  asOf: string,
+  { escenarios, referencias, maximosEscala, cerosEfectivos = CEROS_EFECTIVOS_V04 }: OpcionesEvidenciaRio,
+): EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null {
+  const localidad = datos.localidadPorCue.get(cueAnexo)
+  if (!localidad) return null
+  const tramo = estacionParaLocalidad(localidad)
+  if (!tramo) return null
+  const asOfMs = Date.parse(asOf)
+  if (Number.isNaN(asOfMs)) return null
+  const base = { cueAnexo, estacionId: tramo.estacionId, rio: tramo.rio }
+
+  const anomalia = anomaliaV04(datos, referencias, cueAnexo, tramo.rio, asOf, asOfMs)
+  const exposicion = evaluarExposicionV04({
+    dem: datos.demPorCue?.get(cueAnexo) ?? null,
+    nivelRioTramoM: nivelRioDelTramo(datos, tramo.estacionId),
+    anomaliaM: anomalia?.anomaliaM ?? null,
+    referencia: anomalia?.inestable ? 'mediana_365_inestable' : 'largo_plazo',
+    h0M: lecturaVigenteM(datos, tramo.estacionId, asOf, asOfMs),
+    ceroEfectivo: cerosEfectivos[tramo.estacionId] ?? null,
+    hReferenciaM: referenciaV04(datos, referencias, tramo.estacionId)?.medianaM ?? null,
+    record: referencias?.get(tramo.estacionId)?.record ?? null,
+    represaAguasArriba: obtenerEstacionesConRepresa().has(tramo.estacionId),
+    claseRio: datos.susceptibilidadPorCue.get(cueAnexo)?.claseRio ?? null,
+    escenario: escenarios?.get(tramo.estacionId) ?? null,
+    estacionId: tramo.estacionId,
+    maximosEscala: maximosEscala?.get(tramo.estacionId) ?? null,
+    evidenciaSeco: evidenciaSecoS2(cueAnexo),
+    defensa: defensaDeLocalidad(localidad),
+  })
+  if (exposicion.tipo === 'no_aplica_embalse') {
+    return { ...base, disponibilidad: 'no_aplica', motivo: `embalse aguas arriba de la represa: ${exposicion.detalle}` }
+  }
+  if (exposicion.tipo === 'sin_dato') {
+    return { ...base, disponibilidad: 'sin_dato', motivo: `exposición v0.4 no evaluable: ${exposicion.detalle}` }
+  }
+  const alcanzable = Object.values(exposicion.porHorizonte).some((e) => e.alcance !== 'ninguno')
+  const lectura = lecturaOficial(datos, tramo.estacionId, asOf, asOfMs)
+  if ('motivo' in lectura) return alcanzable ? { ...base, disponibilidad: 'sin_dato', motivo: lectura.motivo } : null
   return {
     ...base,
-    lecturaM,
-    alertaM,
-    evacuacionM,
-    variacionM: num(ultima.variacionM),
-    medidaEn: ultima.medidaEn,
-    estado,
-    criterioExposicion: criterio,
+    ...lectura,
+    criterioExposicion: alcanzable ? 'exposicion_v0.4' : 'no_alcanzable_v0.4',
+    exposicionV04: exposicion.porHorizonte,
   }
 }
 
 // Carga única de todas las fuentes necesarias. Cada tabla se lee en batch.
 export async function cargarDatosRioDesdeDb(): Promise<DatosRio> {
+  await cargarReferencias()
   const db = getDb()
   const [
     resLocalidad,
@@ -396,6 +519,7 @@ export function crearAdapterRioPrefectura(
   deps: DependenciasAdapterRioPrefectura = {},
 ): PuertoRioPrefectura {
   const cargarDatos = deps.cargarDatos ?? cargarDatosRioDesdeDb
+  const opciones: OpcionesEvidenciaRio = { reglas: deps.reglas, escenarios: deps.escenarios, referencias: deps.referencias, maximosEscala: deps.maximosEscala }
   let cache: Promise<DatosRio> | null = null
 
   function cargar(): Promise<DatosRio> {
@@ -406,7 +530,7 @@ export function crearAdapterRioPrefectura(
   return {
     async obtenerEvidencia({ cueAnexo, asOf }) {
       const datos = await cargar()
-      return resolverEvidenciaRio(datos, cueAnexo, asOf)
+      return resolverEvidenciaRio(datos, cueAnexo, asOf, opciones)
     },
   }
 }

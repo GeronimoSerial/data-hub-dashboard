@@ -21,6 +21,7 @@ import {
   MAX_OPTIMIZED_BYTES,
   MAX_THUMBNAIL_BYTES,
   readObsConfig,
+  opcionesClienteObs,
   validateAttachmentDeclarations,
 } from './obs'
 
@@ -38,6 +39,12 @@ function configureObs() {
 }
 
 describe('OBS batch authorization', () => {
+  it('permite S3 de dev por path sin cambiar el modo virtual-host de Huawei', () => {
+    const base = { NODE_ENV: 'test' as const, OBS_BUCKET: 'dev-reportes', OBS_REGION: 'us-east-1', OBS_ENDPOINT: 'https://obs-dev.example',
+      OBS_ACCESS_KEY_ID: 'dev-key', OBS_SECRET_ACCESS_KEY: 'dev-secret' }
+    expect(opcionesClienteObs(readObsConfig(base)).forcePathStyle).toBe(false)
+    expect(opcionesClienteObs(readObsConfig({ ...base, OBS_FORCE_PATH_STYLE: 'true' })).forcePathStyle).toBe(true)
+  })
   beforeEach(() => {
     clearAuthorizationCacheForTests()
     configureObs()

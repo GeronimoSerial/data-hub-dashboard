@@ -22,6 +22,50 @@ export const EDAD_MAXIMA_LECTURA_HORAS = 18
 const UMBRAL_ESTABLE_M = 0.005
 const MILISEGUNDOS_POR_HORA = 3_600_000
 
+export type CalidadLectura =
+  | 'vigente'
+  | 'vencida'
+  | 'inconsistente'
+  | 'sin_umbrales'
+  | 'sin_lectura'
+
+export type CalidadPuntoHistorico =
+  | 'valida'
+  | 'inconsistente'
+  | 'sin_umbrales'
+  | 'sin_lectura'
+
+export type LecturaParaMonitoreo = LecturaParaEstado & {
+  periodoHoras?: number | null
+  estadoPublicado?: string | null
+  motivosInconsistencia?: readonly string[]
+}
+
+export type VariacionPublicadaEvaluada = {
+  variacionM: number | null
+  periodoHoras: number | null
+  estadoPublicado: string | null
+  tendencia: TendenciaAltura
+  confiable: boolean
+}
+
+export type EvaluacionMonitoreoLectura = {
+  estadoNivel: EstadoAltura
+  calidad: CalidadLectura
+  lecturaVencida: boolean
+  inconsistente: boolean
+  motivosInconsistencia: string[]
+  tieneUmbrales: boolean
+  variacionPublicada: VariacionPublicadaEvaluada
+}
+
+export type EvaluacionPuntoHistorico = {
+  estadoNivel: EstadoAltura
+  calidad: CalidadPuntoHistorico
+  tieneUmbrales: boolean
+  variacionPublicada: VariacionPublicadaEvaluada
+}
+
 export function estadoAltura(
   lectura: LecturaParaEstado | null,
   opciones: { ahora?: Date; edadMaximaHoras?: number } = {},
@@ -43,6 +87,101 @@ export function estadoAltura(
     tendencia: tendenciaDe(lectura.variacionM),
     vencida: false,
   }
+}
+
+// Separates level classification, reading quality, and published variation reliability
+// so inconsistent or expired readings never expose an active trend arrow.
+export function evaluarLecturaMonitoreo(
+  lectura: LecturaParaMonitoreo | null,
+  opciones: { ahora?: Date; edadMaximaHoras?: number } = {},
+): EvaluacionMonitoreoLectura {
+  if (!lectura) {
+    return {
+      estadoNivel: 'sin_dato',
+      calidad: 'sin_lectura',
+      lecturaVencida: false,
+      inconsistente: false,
+      motivosInconsistencia: [],
+      tieneUmbrales: false,
+      variacionPublicada: {
+        variacionM: null,
+        periodoHoras: null,
+        estadoPublicado: null,
+        tendencia: 'sin_dato',
+        confiable: false,
+      },
+    }
+  }
+
+  const ahora = opciones.ahora ?? new Date()
+  const edadMaximaHoras = opciones.edadMaximaHoras ?? EDAD_MAXIMA_LECTURA_HORAS
+  const vencida = estaVencida(lectura.medidaEn, ahora, edadMaximaHoras)
+  const tieneUmbrales = lectura.alertaM !== null || lectura.evacuacionM !== null
+  const calidad = calidadDeLectura(lectura, vencida, tieneUmbrales)
+  const estadoNivel = vencida ? 'sin_dato' : estadoDeNivel(lectura)
+  const variacionConfiable =
+    !lectura.inconsistente && !vencida && lectura.lecturaM !== null && lectura.variacionM !== null
+
+  return {
+    estadoNivel,
+    calidad,
+    lecturaVencida: vencida,
+    inconsistente: lectura.inconsistente,
+    motivosInconsistencia: lectura.motivosInconsistencia ? [...lectura.motivosInconsistencia] : [],
+    tieneUmbrales,
+    variacionPublicada: {
+      variacionM: lectura.variacionM,
+      periodoHoras: lectura.periodoHoras ?? null,
+      estadoPublicado: lectura.estadoPublicado ?? null,
+      tendencia: variacionConfiable ? tendenciaDe(lectura.variacionM) : 'sin_dato',
+      confiable: variacionConfiable,
+    },
+  }
+}
+
+// Evaluates a stored observation at its measurement instant without applying the
+// 18 h current-staleness cutoff used for live monitoring.
+export function evaluarPuntoHistorico(lectura: LecturaParaMonitoreo): EvaluacionPuntoHistorico {
+  const tieneUmbrales = lectura.alertaM !== null || lectura.evacuacionM !== null
+  const calidad = calidadDePuntoHistorico(lectura, tieneUmbrales)
+  const estadoNivel = estadoDeNivel(lectura)
+  const variacionConfiable =
+    !lectura.inconsistente && lectura.lecturaM !== null && lectura.variacionM !== null
+
+  return {
+    estadoNivel,
+    calidad,
+    tieneUmbrales,
+    variacionPublicada: {
+      variacionM: lectura.variacionM,
+      periodoHoras: lectura.periodoHoras ?? null,
+      estadoPublicado: lectura.estadoPublicado ?? null,
+      tendencia: variacionConfiable ? tendenciaDe(lectura.variacionM) : 'sin_dato',
+      confiable: variacionConfiable,
+    },
+  }
+}
+
+function calidadDeLectura(
+  lectura: LecturaParaEstado,
+  vencida: boolean,
+  tieneUmbrales: boolean,
+): CalidadLectura {
+  if (lectura.inconsistente) return 'inconsistente'
+  if (lectura.lecturaM === null) return 'sin_lectura'
+  if (vencida) return 'vencida'
+  if (!tieneUmbrales) return 'sin_umbrales'
+  return 'vigente'
+}
+
+function calidadDePuntoHistorico(
+  lectura: LecturaParaEstado,
+  tieneUmbrales: boolean,
+): CalidadPuntoHistorico {
+  if (lectura.inconsistente) return 'inconsistente'
+  if (lectura.lecturaM === null) return 'sin_lectura'
+  if (!tieneUmbrales) return 'sin_umbrales'
+  return 'valida'
 }
 
 function estaVencida(

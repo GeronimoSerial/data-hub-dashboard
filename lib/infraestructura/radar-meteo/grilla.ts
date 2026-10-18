@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { referencia } from '@/lib/infraestructura/datasets/memoria'
 
 export const GRID_VERSION = 'corrientes-0.2-v1'
 export const ESPACIADO_GRILLA = 0.2
@@ -36,8 +35,7 @@ function enGeometria(lon: number, lat: number, poligonos: Poligono[], bufferKm: 
 }
 
 function cargarPoligonos(): Poligono[] {
-  const archivo = join(process.cwd(), 'public/data/departamentos-corrientes-georef-2026-09-27.geojson')
-  const geo = JSON.parse(readFileSync(archivo, 'utf8')) as { features: Array<{ geometry: { type: string; coordinates: unknown } }> }
+  const geo = referencia('departamentos') as { features: Array<{ geometry: { type: string; coordinates: unknown } }> }
   const salida: Poligono[] = []
   for (const f of geo.features) {
     const g = f.geometry

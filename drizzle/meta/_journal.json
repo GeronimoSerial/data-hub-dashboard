@@ -148,6 +148,62 @@
       "when": 1792110490103,
       "tag": "0020_infra_adjuntos_fotograficos",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792164910970,
+      "tag": "0021_infra_datasets_versionados",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792166348931,
+      "tag": "0022_infra_dataset_vacio",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792186700412,
+      "tag": "0023_prefectura_entregas",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792293711464,
+      "tag": "0024_acceso_osm_edificio",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792293771464,
+      "tag": "0025_motor_v04_candidato",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792293831464,
+      "tag": "0026_altimetria_escolar_v04",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792293891464,
+      "tag": "0027_ina_serie_diaria",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792293951464,
+      "tag": "0028_ina_pronostico",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
-import { readFile } from 'node:fs/promises'
-import path from 'node:path'
+import { z } from 'zod'
+import { leerVersion } from './datasets/repositorio'
 import { ensureGeSchema, crearEjecutorSql } from './ge-db'
 import { getRawClient } from '../db'
 
@@ -22,8 +22,7 @@ const UPSERT_SQL = `INSERT INTO ge.ge_localizacion
     geo_calidad=excluded.geo_calidad`
 
 /**
- * Carga `ge_localizacion` desde `public/data/localizaciones.json`, que viaja
- * dentro de la imagen, cuando la tabla está vacía.
+ * Carga `ge_localizacion` desde el dataset publicado en la DB, cuando la tabla está vacía.
  *
  * Existe porque `ge.sqlite` vive en el volumen y no en la imagen: una
  * instalación nueva arrancaba sin una sola escuela y el formulario por CUE no
@@ -42,16 +41,12 @@ export async function ensureLocalizacionesSeeded(): Promise<void> {
   const existentes = await client.execute('SELECT COUNT(*) AS n FROM ge.ge_localizacion')
   if (Number(existentes.rows[0]?.n ?? 0) > 0) return
 
-  const jsonPath = path.join(process.cwd(), 'public', 'data', 'localizaciones.json')
-  let registros: LocalizacionJson[]
-  try {
-    registros = JSON.parse(await readFile(jsonPath, 'utf8')) as LocalizacionJson[]
-  } catch {
-    console.warn(
-      '[infraestructura] localizaciones.json no disponible; ge_localizacion queda vacía',
-    )
-    return
-  }
+  const seleccion = await leerVersion('localizaciones')
+  if (!seleccion) return
+  const registros: LocalizacionJson[] = z.array(z.object({
+    cueAnexo: z.string(), nombre: z.string(), departamento: z.string(), localidad: z.string(),
+    lat: z.number().nullable(), lon: z.number().nullable(), geoCalidad: z.string().nullable().optional().default(null),
+  })).parse(seleccion.documento)
   if (!Array.isArray(registros) || registros.length === 0) return
 
   await client.execute('BEGIN')

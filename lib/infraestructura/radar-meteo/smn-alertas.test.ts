@@ -12,7 +12,7 @@ vi.mock('../riesgo/jobs/salud-fuente', async (importOriginal) => {
   const real = await importOriginal<typeof SaludFuente>()
   return { ...real, actualizarSaludFuente: vi.fn(real.actualizarSaludFuente) }
 })
-const base='docs/radar-meteo/muestras/'
+const base='lib/infraestructura/radar-meteo/__fixtures__/'
 usarDbTemporal('smn-alertas-')
 describe('ingesta CAP del SMN',()=>{
  it('interpreta las muestras CAP oficiales conservando severidad y polígono',()=>{for(const f of ['smn-cap-tormentas-2026-09-29.xml','smn-cap-corrientes-expired-2026-09-29.xml']){const a=parsearCAP(readFileSync(base+f,'utf8'));expect(a.identifier).toContain('urn:oid');expect(a.severity).toBeTruthy();expect(a.poligonos.length).toBeGreaterThan(0)}})

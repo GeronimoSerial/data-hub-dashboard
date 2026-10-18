@@ -1,8 +1,6 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { estadoReferencias } from '../datasets/memoria'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cargarEventosTerreno, seleccionarEventosTerreno } from './eventos-terreno'
+import { cargarEventosTerreno, seleccionarEventosTerreno, parsearCsv } from './eventos-terreno'
 
 const EV_HEADER =
   'id_evento,clase,tipo_afectacion,departamento,localidad,inicio_evento,fin_evento,estado_temporal,ultima_actualizacion,evidencias,confianza'
@@ -190,41 +188,20 @@ describe('seleccionarEventosTerreno', () => {
 })
 
 describe('cargarEventosTerreno', () => {
-  let dirs: string[] = []
-
-  afterEach(async () => {
-    vi.restoreAllMocks()
-    await Promise.all(dirs.map((d) => rm(d, { recursive: true, force: true })))
-    dirs = []
-  })
-
-  async function raizConDatos(eventos?: string, evidencias?: string): Promise<string> {
-    const raiz = await mkdtemp(join(tmpdir(), 'evt-terreno-'))
-    dirs.push(raiz)
-    const carpeta = join(raiz, 'public/data/eventos-inundaciones')
-    await mkdir(carpeta, { recursive: true })
-    if (eventos !== undefined) await writeFile(join(carpeta, 'eventos.csv'), eventos)
-    if (evidencias !== undefined) await writeFile(join(carpeta, 'evidencias.csv'), evidencias)
-    return raiz
-  }
-
-  it('lee los CSV de public/data/eventos-inundaciones y filtra por rango', async () => {
-    const raiz = await raizConDatos(
-      csv(EV_HEADER, [
-        'EVT-1,evento_publico,Crecida,Capital,Ciudad,2026-10-12,,ocurrido,2026-10-12,EVD-001,alta',
-      ]),
-      EVIDENCIAS_BASE,
-    )
-    vi.spyOn(process, 'cwd').mockReturnValue(raiz)
+  afterEach(() => { vi.restoreAllMocks() })
+  it('lee los registros publicados y filtra por rango sin filesystem', async () => {
+    const estado = estadoReferencias()
+    estado.cargadoEn = Date.now()
+    estado.referencias.set('registro-eventos', { versionId: 'eventos-test', revision: 'v1', documento: parsearCsv(csv(EV_HEADER, [
+      'EVT-1,evento_publico,Crecida,Capital,Ciudad,2026-10-12,,ocurrido,2026-10-12,EVD-001,alta',
+    ])) })
+    estado.referencias.set('evidencias-inundaciones', { versionId: 'evidencias-test', revision: 'v1', documento: parsearCsv(EVIDENCIAS_BASE) })
     const eventos = await cargarEventosTerreno({ desde: '2026-10-12', hasta: '2026-10-12' })
     expect(eventos.map((e) => e.id)).toEqual(['EVT-1'])
   })
-
-  it('devuelve [] cuando faltan los archivos', async () => {
-    const raiz = await mkdtemp(join(tmpdir(), 'evt-terreno-vacio-'))
-    dirs.push(raiz)
-    vi.spyOn(process, 'cwd').mockReturnValue(raiz)
-    await expect(cargarEventosTerreno({ desde: '2026-10-01', hasta: '2026-10-31' })).resolves.toEqual([])
+  it('informa un dataset ausente sin ocultarlo como ausencia de eventos', async () => {
+    estadoReferencias().referencias.delete('registro-eventos')
+    await expect(cargarEventosTerreno({ desde: '2026-10-01', hasta: '2026-10-31' })).rejects.toThrow('Dataset sin publicar')
   })
 })
 

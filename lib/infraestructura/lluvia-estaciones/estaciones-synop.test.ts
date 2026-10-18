@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { ESTACIONES_SYNOP, estacionSynopMasCercana } from './estaciones-synop'
+import { obtenerEstacionesSynop, estacionSynopMasCercana } from './estaciones-synop'
 
-describe('ESTACIONES_SYNOP', () => {
+describe('obtenerEstacionesSynop()', () => {
   it('declara las nueve estaciones SMN verificadas en Ogimet, con WMO único', () => {
-    expect(ESTACIONES_SYNOP.map((e) => e.wmo)).toEqual([
+    expect(obtenerEstacionesSynop().map((e) => e.wmo)).toEqual([
       '87155',
       '87166',
       '87173',
@@ -14,11 +14,11 @@ describe('ESTACIONES_SYNOP', () => {
       '87289',
       '87393',
     ])
-    expect(new Set(ESTACIONES_SYNOP.map((e) => e.wmo)).size).toBe(ESTACIONES_SYNOP.length)
+    expect(new Set(obtenerEstacionesSynop().map((e) => e.wmo)).size).toBe(obtenerEstacionesSynop().length)
   })
 
   it('no incluye Goya ni Santo Tomé, que no publican SYNOP en Ogimet', () => {
-    const nombres = ESTACIONES_SYNOP.map((e) => e.nombre.toLowerCase())
+    const nombres = obtenerEstacionesSynop().map((e) => e.nombre.toLowerCase())
     expect(nombres.some((n) => n.includes('goya'))).toBe(false)
     expect(nombres.some((n) => n.includes('santo tom'))).toBe(false)
   })

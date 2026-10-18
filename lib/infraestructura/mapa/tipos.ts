@@ -35,7 +35,6 @@ export interface EscuelaMapaEnriquecida {
 export interface FiltrosMapa {
   q: string
   departamentos: string[]
-  niveles: string[]
   direcciones: number[]
   gravedades: GravedadMapa[]
   clases: EstadoClases[]
@@ -45,5 +44,5 @@ export interface FiltrosMapa {
 }
 
 export const FILTROS_MAPA_VACIOS: FiltrosMapa = {
-  q: '', departamentos: [], niveles: [], direcciones: [], gravedades: [], clases: [], apoyo: [], sinActualizar: false, solucionadasRecientes: false,
+  q: '', departamentos: [], direcciones: [], gravedades: [], clases: [], apoyo: [], sinActualizar: false, solucionadasRecientes: false,
 }

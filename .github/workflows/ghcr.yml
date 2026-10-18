@@ -5,6 +5,7 @@ on:
     branches:
       - prod
       - staging
+      - dev
 
 permissions:
   contents: read
@@ -21,8 +22,8 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.ref_name == 'prod' && 'production' || 'staging' }}
-      url: ${{ github.ref_name == 'prod' && 'https://analisis.sistemas.mec.gob.ar' || 'https://staging.analisis.sistemas.mec.gob.ar' }}
+      name: ${{ github.ref_name == 'prod' && 'production' || github.ref_name }}
+      url: ${{ github.ref_name == 'prod' && 'https://analisis.sistemas.mec.gob.ar' || format('https://{0}.analisis.sistemas.mec.gob.ar', github.ref_name) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -51,6 +52,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/prod' }}
             type=raw,value=staging,enable=${{ github.ref == 'refs/heads/staging' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=sha,prefix=,format=short
 
       - name: Build and push
@@ -58,6 +60,7 @@ jobs:
         with:
           context: .
           push: true
+          build-args: APP_REVISION=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -73,12 +76,14 @@ jobs:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_PROD_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
           COOLIFY_STAGING_APP_UUID: ${{ secrets.COOLIFY_STAGING_APP_UUID }}
+          COOLIFY_DEV_APP_UUID: ${{ secrets.COOLIFY_DEV_APP_UUID }}
         run: |
           # Resolved in shell on purpose: an `&& ||` expression would silently fall
           # back to production when the staging secret is empty.
           case "$GITHUB_REF" in
             refs/heads/prod) COOLIFY_APP_UUID="$COOLIFY_PROD_APP_UUID" ;;
             refs/heads/staging) COOLIFY_APP_UUID="$COOLIFY_STAGING_APP_UUID" ;;
+            refs/heads/dev) COOLIFY_APP_UUID="$COOLIFY_DEV_APP_UUID" ;;
             *) echo "Unexpected ref ${GITHUB_REF}: no deploy target"; exit 1 ;;
           esac
 
