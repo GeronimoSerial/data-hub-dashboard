@@ -76,7 +76,6 @@ describe('estado-retorno', () => {
         ...FILTROS_MAPA_VACIOS,
         q: 'Escuela 12',
         departamentos: ['Capital', 'Goya'],
-        niveles: ['Primario'],
         direcciones: [2],
         gravedades: [3, 4],
         clases: ['sin', 'evacuado'],
@@ -109,7 +108,6 @@ describe('estado-retorno', () => {
       expect(recuperado.filtrosParciales).toEqual({
         q: 'Escuela 12',
         departamentos: ['Capital', 'Goya'],
-        niveles: ['Primario'],
         direcciones: [2],
         gravedades: [3, 4],
         clases: ['sin', 'evacuado'],

@@ -5566,7 +5566,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--card);
-  box-shadow: var(--e-float);
 }
 .map-filtros-mas-grupo { display: grid; gap: var(--s-2); }
 .map-filtros-mas-titulo {
@@ -5633,6 +5632,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .filtros-chip--activo:hover { border-color: var(--ink); }
 .filtros-chip svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+/* Long selections (e.g. a Dirección name) truncate so the chip width stays bounded. */
+.filtros-chip__texto { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; }
 .filtros-chip-grupo--activo .filtros-chip { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .filtros-chip__quitar {
   display: inline-flex;
@@ -5660,7 +5661,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-radius: var(--r-md);
   background: var(--page);
   color: var(--ink);
-  box-shadow: var(--e-float);
 }
 .filtros-opcion {
   display: flex;

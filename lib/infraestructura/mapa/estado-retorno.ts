@@ -250,9 +250,6 @@ export function serializarContextoMapaEnQuery(input: {
   if (filtros.departamentos.length > 0) {
     params.set('depto', filtros.departamentos.join(','))
   }
-  if (filtros.niveles.length > 0) {
-    params.set('nivel', filtros.niveles.join(','))
-  }
   if (filtros.direcciones.length > 0) {
     params.set('direccion', filtros.direcciones.join(','))
   }
@@ -333,12 +330,6 @@ export function parsearContextoMapaDeQuery(
   ]
   if (departamentos.length > 0) {
     filtrosParciales.departamentos = [...new Set(departamentos)]
-    tieneFiltrosEnUrl = true
-  }
-
-  const niveles = separarValoresParametro(params, 'nivel')
-  if (niveles.length > 0) {
-    filtrosParciales.niveles = [...new Set(niveles)]
     tieneFiltrosEnUrl = true
   }
 
@@ -491,9 +482,6 @@ function validarFiltros(raw: unknown): FiltrosMapa {
     q: typeof obj.q === 'string' ? obj.q.slice(0, 120) : '',
     departamentos: Array.isArray(obj.departamentos)
       ? obj.departamentos.filter((d): d is string => typeof d === 'string')
-      : [],
-    niveles: Array.isArray(obj.niveles)
-      ? obj.niveles.filter((n): n is string => typeof n === 'string')
       : [],
     direcciones: Array.isArray(obj.direcciones)
       ? obj.direcciones.filter((d): d is number => typeof d === 'number' && Number.isInteger(d))

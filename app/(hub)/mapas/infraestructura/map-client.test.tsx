@@ -94,12 +94,12 @@ afterEach(() => {
 })
 
 describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
-  it('muestra cuatro chips en línea y Más filtros con asistencia y switches', async () => {
+  it('muestra tres chips en línea y Más filtros con asistencia y switches', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     const principales = document.querySelector<HTMLElement>('.filtros-chips-principales')
     if (!principales) throw new Error('No se encontró el grupo de chips principales')
     expect(within(principales).getAllByRole('button').map((boton) => boton.textContent?.trim())).toEqual([
-      'Departamento', 'Nivel', 'Gravedad', 'Clases',
+      'Departamento', 'Gravedad', 'Clases',
     ])
 
     await userEvent.click(screen.getByRole('button', { name: 'Más filtros' }))
@@ -128,8 +128,8 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(pestaña.querySelector('.map-sitact__pill')).toHaveTextContent('2')
     expect(pestaña.querySelector('.map-sitact__pill')).toHaveClass('ui-tabs-tab__contador')
 
-    await userEvent.click(chipPrincipal('Nivel'))
-    await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
+    await userEvent.click(chipPrincipal('Departamento'))
+    await userEvent.click(screen.getByRole('checkbox', { name: /Goya/ }))
 
     const pestañaFiltrada = screen.getByRole('tab', { name: 'Situación actual, 1 escuela con situaciones abiertas' })
     expect(pestañaFiltrada.querySelector('.map-sitact__pill')).toHaveTextContent('1')
@@ -171,26 +171,26 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
   it('pasa los filtros activos a la sección de evolución', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
-    await userEvent.click(chipPrincipal('Nivel'))
-    await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
+    await userEvent.click(chipPrincipal('Departamento'))
+    await userEvent.click(screen.getByRole('checkbox', { name: /Goya/ }))
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
 
     expect(screen.getByTestId('mock-evolucion')).toHaveAttribute(
       'data-filtros',
-      expect.stringContaining('"niveles":["Primario"]'),
+      expect.stringContaining('"departamentos":["Goya"]'),
     )
   })
 
-  it('filtra las escuelas del mapa por nivel, conserva el mapa montado y permite limpiar', async () => {
+  it('filtra las escuelas del mapa por departamento, conserva el mapa montado y permite limpiar', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     const mapa = await screen.findByTestId('mock-mapa')
     expect(mapa).toHaveAttribute('data-escuelas', '4')
     expect(montajesMapa.total).toBe(1)
 
-    await userEvent.click(chipPrincipal('Nivel'))
-    await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
-    expect(mapa).toHaveAttribute('data-escuelas', '3')
-    expect(mapa).toHaveAttribute('data-cues', '180001-00,180003-00,1800087-00')
+    await userEvent.click(chipPrincipal('Departamento'))
+    await userEvent.click(screen.getByRole('checkbox', { name: /Goya/ }))
+    expect(mapa).toHaveAttribute('data-escuelas', '1')
+    expect(mapa).toHaveAttribute('data-cues', '180002-00')
     expect(montajesMapa.total).toBe(1)
 
     await userEvent.click(screen.getByRole('button', { name: 'Más filtros' }))
