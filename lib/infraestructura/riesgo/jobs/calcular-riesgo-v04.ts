@@ -17,6 +17,7 @@ import { infraPeriodo, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import { adquirirLease, inicioDeBloqueUtc, publicarResultado, renovarLease } from '../job-run'
 import { CONFIG_V04, HORIZONTES_V04, MOTOR_V04_VERSION, hashCanonico } from '../motor-v04/config'
 import { esquemaMetadatosRunV04, type ResultadoEscuelaV04 } from '../motor-v04/contratos'
+import { crearAdapterAltimetriaV04, type PuertoAltimetriaV04 } from '../motor-v04/altimetria-adaptador'
 import { crearAdapterPadronV04, type PuertoPadronV04 } from '../motor-v04/padron'
 import { construirResultadoPendienteV04, resumirCoberturaV04 } from '../motor-v04/resultado'
 
@@ -35,6 +36,7 @@ export type ResultadoJobCandidatoV04 =
 export async function calcularRiesgoCandidatoV04(params?: {
   ahora?: Date
   padron?: PuertoPadronV04
+  altimetria?: PuertoAltimetriaV04
 }): Promise<ResultadoJobCandidatoV04> {
   const ahora = params?.ahora ?? new Date()
   const asOf = ahora.toISOString()
@@ -62,6 +64,13 @@ export async function calcularRiesgoCandidatoV04(params?: {
       return { ejecutado: false, motivo: 'padron_no_disponible' }
     }
 
+    // Altimetría (T2) disponible como insumo para tareas posteriores: todavía
+    // no se calcula ninguna probabilidad. null = sin versión importada.
+    const altimetria = await (params?.altimetria ?? crearAdapterAltimetriaV04()).obtener(padron.map((e) => e.cueAnexo))
+    const conAltimetria = altimetria
+      ? [...altimetria.porCue.values()].filter((r) => r?.estado === 'candidata').length
+      : 0
+
     const [periodo] = await db.select().from(infraPeriodo).where(eq(infraPeriodo.estado, 'vigente')).limit(1)
     if (!periodo) {
       await publicarResultado({ jobRunId, leaseOwner, estado: 'fallido', errorSaneado: 'sin periodo vigente', ahora })
@@ -83,7 +92,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
       publicadaEn: null,
       padronVersion: `padron-${hashCanonico(padron.map((e) => e.cueAnexo).sort())}`,
       configHash: hashCanonico(CONFIG_V04),
-      insumosHash: hashCanonico({ padron }),
+      insumosHash: hashCanonico({ padron, altimetriaVersion: altimetria?.version ?? null }),
       estadoCalibracionEscolar: 'pendiente',
       cobertura,
     })
@@ -131,7 +140,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
       jobRunId,
       leaseOwner,
       estado: 'completado',
-      contadores: { procesadas: resultados.length, totalPadron: cobertura.totalPadron },
+      contadores: { procesadas: resultados.length, totalPadron: cobertura.totalPadron, conAltimetria },
       ahora,
     })
     return { ejecutado: true, runId: idRun, resultadosEmitidos: resultados.length }

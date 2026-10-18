@@ -47,7 +47,7 @@ Código, migraciones aditivas, pruebas y docs en las ramas del chain. Sin push, 
 ## Checklist
 
 - [x] T1 (U0+U1) Contratos v0.4 (zod), migración 0024 aditiva (`modo`, `metadatos`, CHECK candidato≠vigente, `resultado_v04`), job candidato `calcular-riesgo-v04` con universo completo y todos los eventos `no_estimable`, publicador explícito que rechaza candidatos; doc de reconciliación U0.
-- [ ] T2 (U2) Altimetría por fuente: tabla + importador del CSV conservador (1.994 candidatas, 7 observadas, 4 ausentes), adaptador de puerto, cota principal (Copernicus) y conservadora (mínimo admisible).
+- [x] T2 (U2) Altimetría por fuente: tabla + importador del CSV conservador (1.994 candidatas, 7 observadas, 4 ausentes), adaptador de puerto, cota principal (Copernicus) y conservadora (mínimo admisible).
 - [ ] T3 (U3a) INA A5: cliente/parser zod, catálogo de estaciones (`cero_ign`, alerta, evacuación, km de río) como dataset versionado, serie diaria histórica de alturas con raw hash.
 - [ ] T4 (U3b) INA pronósticos 499/289: corridas, valores, `qualifier`, soporte semanal, dedupe por corrida/emisión, raw inmutable.
 - [ ] T5 (U4) Modelo temporal por estación: distribución empírica condicional del máximo en 24/72/240 h (análogos históricos, trayectorias conjuntas entre estaciones), evaluación retrospectiva por años excluidos.
@@ -72,7 +72,8 @@ Tracker: `GeronimoSerial/motor-v0.4` (base `origin/dev` f07002f7). Cada tarea = 
 - T1 — ruta: delegated direct (writer trigger: 2+ archivos no triviales). RED/GREEN por comportamiento: contratos 14/14, publicador + CHECK 8/8, padrón, job candidato 5/5, registro; `calcular-riesgo.test.ts` 5/5 tras usar el publicador. Checks: `tsc --noEmit` ok; eslint 0 errores; vitest suite `riesgo+hidrometria+db` 892/892 (2 skip) con `--maxWorkers=6` — sin ese flag fallan hooks `beforeAll` por timeout bajo carga de la máquina, igual en checkout limpio (ambiental). Re-ejecución del padre: 5 archivos de T1, 33/33. Commit 853f4e88 (`feat(riesgo): isolate v0.4 contracts and candidate runs`), ~1.340 líneas autoradas (~550 tests) + snapshot drizzle generado; supera la heurística porque une U0+U1. Excepción: "entradas posteriores a `asOf`" sin insumos fechados en T1 → se prueba en T3/T4. Decisiones: snapshot legado con scores/nivel null, `evidenciaValida=false`, `confianza='baja'` (NOT NULL); publicador sólo acepta `motor-v0.3` operativo.
 - Seguimiento: el universo usa todo `ge.ge_localizacion`; prod (lectura 2026-10-17) tiene publicación `localizaciones` que contiene los 2.005 CUE, así que hoy coincide con el filtro de `parte-mapa.ts:650`. Si divergen, alinear.
 - RDD off → sin review nativa; candidato de revisión = commit del slice.
+- T2 — ruta: delegated direct (Opus low; writer trigger). RED/GREEN: regla 9/9 (incluye harness sobre el CSV real), importador 5/5, job candidato +1. Harness real: 1.918 Copernicus + 76 IGN candidatas, 7 `revisar_georreferencia`, 4 `sin_coordenadas`, 0 discrepancias con el CSV. El writer se bloqueó por `jobs-esperados.test.ts` (lista fija de jobs deshabilitados, fuera de su superficie); el padre agregó `importar-altimetria-v04`. Re-ejecución del padre: vitest `riesgo+db` 774/774 (2 skip) con `--maxWorkers=6`, `tsc --noEmit` ok; eslint ok (writer). Ambiental: `scripts/backup-postgres.test.ts` no carga (`spawn podman ENOENT`). ~800 líneas autoradas (~300 tests) + snapshot drizzle. Decisiones: versión = sha256 del archivo; reversión = borrar sólo las filas de la versión más nueva (el archivo origen se conserva con hash); el importador no usa lease; IGN MDE-Ar v2.1 tratado como SRVN16 nativo (sin verificar); motivos de exclusión de pendientes no se persisten por separado.
 
 ## Próximo paso
 
-T2 en `motor-v0.4/02-altimetria`.
+T3 en `motor-v0.4/03-ina-catalogo-serie`.

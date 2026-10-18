@@ -93,4 +93,11 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     intervaloMinutos: 1440,
     habilitado: true,
   },
+  // Motor v0.4 (T2): importación manual del CSV de altimetría; no programada.
+  {
+    nombre: 'importar-altimetria-v04',
+    tipo: 'importar-altimetria-v04',
+    intervaloMinutos: 1440,
+    habilitado: false,
+  },
 ]

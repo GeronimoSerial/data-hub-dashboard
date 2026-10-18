@@ -5,6 +5,7 @@ import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { infraJobRun, infraPeriodo, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import { esquemaMetadatosRunV04, esquemaResultadoEscuelaV04 } from '../motor-v04/contratos'
+import type { PuertoAltimetriaV04 } from '../motor-v04/altimetria-adaptador'
 import type { EscuelaPadronV04, PuertoPadronV04 } from '../motor-v04/padron'
 import type { calcularRiesgoCandidatoV04 as CalcularRiesgoCandidatoV04 } from './calcular-riesgo-v04'
 
@@ -177,4 +178,43 @@ describe('calcularRiesgoCandidatoV04', () => {
     expect(await candidatosDelBloque(bloque)).toHaveLength(0)
     expect((await jobRunDelBloque(bloque))?.estado).toBe('fallido')
   })
+
+  it('carga la altimetría como insumo sin calcular probabilidades y la refleja en contadores e insumosHash', async () => {
+    const ahora = new Date('2026-10-18T12:10:00.000Z')
+    const altimetria: PuertoAltimetriaV04 = {
+      obtener: async (cues) => ({
+        version: 'altimetria-v04-prueba',
+        porCue: new Map(
+          cues.map((c) => [
+            c,
+            c === CON_COORD_A.cueAnexo
+              ? {
+                  estado: 'candidata' as const,
+                  cotaPrincipalM: 60.5,
+                  cotaConservadoraM: 60.1,
+                  fuenteConservadora: 'ign' as const,
+                  fuentesValidas: 2 as const,
+                  referenciaVertical: 'SRVN16_con_conversion_aproximada_de_Copernicus',
+                  operador: 'p10_espacial_50m',
+                  motivos: [],
+                }
+              : null,
+          ]),
+        ),
+      }),
+    }
+    const conAlt = await calcularRiesgoCandidatoV04({ ahora, padron: padronFake(PADRON), altimetria })
+    if (!conAlt.ejecutado) throw new Error('se esperaba ejecución')
+    const [job] = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(and(eq(infraJobRun.tipo, 'calcular-riesgo-v04-candidato'), eq(infraJobRun.claveIdempotente, '2026-10-18T12:00:00.000Z')))
+    expect(job?.contadores).toMatchObject({ conAltimetria: 1 })
+    const snapshots = await snapshotsDe(conAlt.runId)
+    for (const s of snapshots) {
+      const r = esquemaResultadoEscuelaV04.parse(s.resultadoV04)
+      expect(r.superacionTerreno.principal.probabilidad).toBeNull()
+    }
+  })
 })
+

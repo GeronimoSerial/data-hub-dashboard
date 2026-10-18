@@ -53,6 +53,7 @@ const NOMBRES_VALIDOS = [
   'sync-synop-lluvia',
   'sync-prefectura-historico',
   'importar-exposicion-rio-dem',
+  'importar-altimetria-v04',
   'limpiar-adjuntos-huerfanos',
 ]
 
@@ -325,6 +326,14 @@ async function correrImportarExposicionRioDem() {
   return importarExposicionRioDem()
 }
 
+// Altimetría escolar v0.4 (CSV conservador, ruta en ALTIMETRIA_V04_CSV):
+// idempotente por sha256 del archivo; no programado.
+async function correrImportarAltimetriaV04() {
+  if (!(await jobsActivos())) return flagDeshabilitado('importar-altimetria-v04')
+  const { importarAltimetriaV04 } = await import('../lib/infraestructura/riesgo/jobs/importar-altimetria-v04.ts')
+  return importarAltimetriaV04()
+}
+
 async function correrSyncRadarEnsemble(opts) {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
   const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
@@ -501,6 +510,8 @@ export async function correrJob(nombre, opts) {
       return correrSyncPrefecturaHistorico()
     case 'importar-exposicion-rio-dem':
       return correrImportarExposicionRioDem()
+    case 'importar-altimetria-v04':
+      return correrImportarAltimetriaV04()
     default:
       throw new JobDesconocidoError(nombre)
   }
@@ -519,6 +530,7 @@ export function codigoSalida(nombreJob, resultado) {
   if (nombreJob === 'sync-synop-lluvia' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'sync-prefectura-historico' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'importar-exposicion-rio-dem' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'importar-altimetria-v04' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3

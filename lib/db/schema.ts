@@ -1145,6 +1145,36 @@ export const infraExposicionRioDem = pgTable(
   (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })],
 )
 
+// Motor v0.4 (U2): altimetría escolar por fuente importada del CSV
+// conservador. Una versión por archivo (sha256); las versiones anteriores se
+// conservan y el rollback consiste en leer la versión previa. La cota
+// conservadora es un escenario (mínimo admisible), no una cota de piso.
+export const infraAltimetriaEscolar = pgTable(
+  'infra_altimetria_escolar',
+  {
+    cueAnexo: text('cue_anexo').notNull(),
+    version: text('version').notNull(),
+    estado: text('estado').notNull(),
+    motivo: text('motivo'),
+    ignP10M: doublePrecision('ign_p10_m'),
+    copernicusP10M: doublePrecision('copernicus_p10_m'),
+    cotaPrincipalM: doublePrecision('cota_principal_m'),
+    cotaConservadoraM: doublePrecision('cota_conservadora_m'),
+    fuenteConservadora: text('fuente_conservadora'),
+    fuentesValidas: integer('fuentes_validas').notNull(),
+    referenciaVertical: text('referencia_vertical').notNull(),
+    operador: text('operador').notNull(),
+    conversion: text('conversion').notNull(),
+    origenSha256: text('origen_sha256').notNull(),
+    importadoEn: text('importado_en').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.cueAnexo, t.version] }),
+    index('infra_altimetria_escolar_version_idx').on(t.version, t.importadoEn),
+    check('infra_altimetria_escolar_estado_check', sql`${t.estado} IN ('candidata', 'pendiente')`),
+  ],
+)
+
 // E7a: episodios derivados (calculados automáticamente)
 // Episodio por unidad territorial (hoy sólo 'departamento'; el tipo queda
 // parametrizado para poder pasar a 'cuenca' en una versión futura de la
