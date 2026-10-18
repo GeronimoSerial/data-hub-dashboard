@@ -299,6 +299,10 @@ export interface CruceAccesoProps {
   clasificacion: ClasificacionCruce
   icono: string
   etiqueta: string
+  // Position of the crossing in `GeometriaAccesoRespuesta.cruces`.
+  indice: number
+  nombreCurso: string | null
+  nombrePuente: string | null
 }
 
 export interface ResumenCobertura {
@@ -442,13 +446,16 @@ export function construirCrucesAcceso(
   }
 
   const features = g.cruces.map(
-    (cruce): GeoJSON.Feature<GeoJSON.Point, CruceAccesoProps> => ({
+    (cruce, indice): GeoJSON.Feature<GeoJSON.Point, CruceAccesoProps> => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [cruce.lon, cruce.lat] },
       properties: {
         clasificacion: cruce.clasificacion,
         icono: ID_ICONO_CRUCE[cruce.clasificacion],
         etiqueta: ETIQUETAS_CRUCE[cruce.clasificacion],
+        indice,
+        nombreCurso: cruce.nombreCurso ?? null,
+        nombrePuente: cruce.nombrePuente ?? null,
       },
     }),
   )

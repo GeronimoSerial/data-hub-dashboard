@@ -289,6 +289,9 @@ const cruceGeometriaSchema = z.object({
   lon: lonSchema,
   lat: latSchema,
   clasificacion: z.enum(['puente', 'vado', 'vado_probable', 'sin_evidencia']),
+  // Optional: extracts produced before the job exported names omit them.
+  nombreCurso: z.string().nullable().optional(),
+  nombrePuente: z.string().nullable().optional(),
 })
 
 const viaPrincipalObjetoSchema = z.object({

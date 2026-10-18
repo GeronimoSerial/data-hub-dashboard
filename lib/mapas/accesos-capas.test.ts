@@ -232,6 +232,28 @@ describe('construirCrucesAcceso', () => {
     }
   })
 
+  it('pasa índice y nombres, con null cuando la fila vieja no los trae', () => {
+    const resultado = construirCrucesAcceso({
+      cueAnexo: 'A',
+      disponible: true,
+      cruces: [
+        { lon: -64, lat: -31, clasificacion: 'puente', nombreCurso: 'Río Santa Lucía', nombrePuente: 'Puente Viejo' },
+        { lon: -64.1, lat: -31.1, clasificacion: 'vado' },
+      ],
+    })
+
+    expect(resultado.features[0].properties).toMatchObject({
+      indice: 0,
+      nombreCurso: 'Río Santa Lucía',
+      nombrePuente: 'Puente Viejo',
+    })
+    expect(resultado.features[1].properties).toMatchObject({
+      indice: 1,
+      nombreCurso: null,
+      nombrePuente: null,
+    })
+  })
+
   it('devuelve una colección vacía cuando no está disponible', () => {
     expect(construirCrucesAcceso(null).features).toHaveLength(0)
     expect(construirCrucesAcceso({ cueAnexo: 'A', disponible: false }).features).toHaveLength(0)

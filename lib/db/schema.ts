@@ -1506,6 +1506,10 @@ export type CruceAccesoOsm = {
   lon: number
   lat: number
   clasificacion: 'puente' | 'vado' | 'vado_probable' | 'sin_evidencia'
+  // OSM `name` of the crossed waterway; absent in rows imported before it existed.
+  nombreCurso?: string | null
+  // Bridge `bridge:name`/`name` for bridge crossings; absent in older rows.
+  nombrePuente?: string | null
 }
 
 export type RutaGeoJson = {
@@ -1527,7 +1531,7 @@ export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
   cueAnexo: text('cue_anexo').notNull(),
   versionJob: text('version_job').notNull(),
   ruta: jsonb('ruta').$type<RutaGeoJson>(),        // GeoJSON LineString | null
-  cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion}]
+  cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion, nombreCurso?, nombrePuente?}]
   viaPrincipal: text('via_principal'),
   destinoNombre: text('destino_nombre'),
   distanciaDestinoM: real('distancia_destino_m'),

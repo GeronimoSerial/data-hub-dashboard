@@ -285,6 +285,30 @@ describe('importarGeometria', () => {
     ])
   })
 
+  it('persiste nombreCurso y nombrePuente y acepta cruces sin ellos', async () => {
+    const path = escribirNdjsonGz('geometria-nombres.ndjson.gz', [filaGeometriaBase({
+      cruces: [
+        { lon: -58.8, lat: -27.4, clasificacion: 'puente', nombreCurso: 'Río Corriente', nombrePuente: 'Puente Pexoa' },
+        { lon: -58.81, lat: -27.41, clasificacion: 'vado', nombreCurso: null, nombrePuente: null },
+        { lon: -58.82, lat: -27.42, clasificacion: 'sin_evidencia' },
+      ],
+    })])
+    const { db, llamadas } = crearDbFalsa()
+
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    const lote = llamadas[0].valores as Array<Record<string, unknown>>
+    expect(lote[0].cruces).toEqual([
+      { lon: -58.8, lat: -27.4, clasificacion: 'puente', nombreCurso: 'Río Corriente', nombrePuente: 'Puente Pexoa' },
+      { lon: -58.81, lat: -27.41, clasificacion: 'vado', nombreCurso: null, nombrePuente: null },
+      { lon: -58.82, lat: -27.42, clasificacion: 'sin_evidencia' },
+    ])
+  })
+
   it('inserta una fila valida con ruta y cruces en camelCase', async () => {
     const path = escribirNdjsonGz('geometria.ndjson.gz', [filaGeometriaBase()])
 
