@@ -8,7 +8,9 @@
 // - los lectores operativos filtran `estado = 'vigente'`, así que el candidato
 //   no aparece en ninguna consulta pública.
 // Universo: padrón completo (motor-v04/padron.ts), una fila por CUE/anexo ×
-// 24/72/240 h. En T1 todas las estimaciones son `no_estimable` con motivo.
+// 24/72/240 h. Desde T6 la superación del terreno se modela por transferencia
+// por km de río donde es estimable (motor-v04/superacion-terreno.ts); el resto
+// de los eventos sigue `no_estimable` con motivo.
 import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
@@ -20,6 +22,19 @@ import { esquemaMetadatosRunV04, type ResultadoEscuelaV04 } from '../motor-v04/c
 import { crearAdapterAltimetriaV04, type PuertoAltimetriaV04 } from '../motor-v04/altimetria-adaptador'
 import { crearAdapterPadronV04, type PuertoPadronV04 } from '../motor-v04/padron'
 import { construirResultadoPendienteV04, resumirCoberturaV04 } from '../motor-v04/resultado'
+import { crearAdapterTerrenoV04, type InsumosTerrenoV04, type PuertoTerrenoV04 } from '../motor-v04/terreno-adaptador'
+import {
+  estacionesDelEnsamble,
+  estimarSuperacionTerreno,
+  fechaLocal,
+  type EventoTerreno,
+  type UbicacionNoEstimable,
+} from '../motor-v04/superacion-terreno'
+import { tramoDeLocalidad, ubicarEscuelaEnRio, type UbicacionRio } from '../motor-v04/transferencia-nivel'
+import { crearSerieDiaria, type EnsambleConjunto } from '../motor-v04/hidrologia/analogos'
+import { ensambleConjuntoV2 } from '../motor-v04/hidrologia/analogos-v2'
+import type { AltimetriaPorCue } from '../motor-v04/altimetria-adaptador'
+import type { EscuelaPadronV04 } from '../motor-v04/padron'
 
 const TIPO_JOB = 'calcular-riesgo-v04-candidato'
 const VERSION_JOB = 'v1'
@@ -37,6 +52,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
   ahora?: Date
   padron?: PuertoPadronV04
   altimetria?: PuertoAltimetriaV04
+  terreno?: PuertoTerrenoV04
 }): Promise<ResultadoJobCandidatoV04> {
   const ahora = params?.ahora ?? new Date()
   const asOf = ahora.toISOString()
@@ -71,6 +87,10 @@ export async function calcularRiesgoCandidatoV04(params?: {
       ? [...altimetria.porCue.values()].filter((r) => r?.estado === 'candidata').length
       : 0
 
+    // Insumos de superación del terreno (T6): null = no pudieron cargarse.
+    const terreno = await (params?.terreno ?? crearAdapterTerrenoV04()).cargar(padron.map((e) => e.cueAnexo), asOf)
+    const superacion = estimarSuperacionPorEscuela({ padron, terreno, altimetria, asOf })
+
     const [periodo] = await db.select().from(infraPeriodo).where(eq(infraPeriodo.estado, 'vigente')).limit(1)
     if (!periodo) {
       await publicarResultado({ jobRunId, leaseOwner, estado: 'fallido', errorSaneado: 'sin periodo vigente', ahora })
@@ -80,7 +100,8 @@ export async function calcularRiesgoCandidatoV04(params?: {
     const resultados: ResultadoEscuelaV04[] = []
     for (const escuela of padron) {
       for (const horizonteHoras of HORIZONTES_V04) {
-        resultados.push(construirResultadoPendienteV04({ escuela, horizonteHoras, asOf, modo: 'candidato' }))
+        const superacionTerreno = superacion.get(escuela.cueAnexo)?.[horizonteHoras]
+        resultados.push(construirResultadoPendienteV04({ escuela, horizonteHoras, asOf, modo: 'candidato', superacionTerreno }))
       }
     }
     const cobertura = resumirCoberturaV04({ padron, resultados })
@@ -92,7 +113,13 @@ export async function calcularRiesgoCandidatoV04(params?: {
       publicadaEn: null,
       padronVersion: `padron-${hashCanonico(padron.map((e) => e.cueAnexo).sort())}`,
       configHash: hashCanonico(CONFIG_V04),
-      insumosHash: hashCanonico({ padron, altimetriaVersion: altimetria?.version ?? null }),
+      insumosHash: hashCanonico({
+        padron,
+        altimetriaVersion: altimetria?.version ?? null,
+        catalogoA5Version: terreno?.catalogoVersion ?? null,
+        tramosVersion: terreno?.tramosVersion ?? null,
+        ultimaFechaSerie: terreno ? Object.fromEntries([...terreno.series].map(([id, f]) => [id, f.at(-1)?.fecha ?? null])) : null,
+      }),
       estadoCalibracionEscolar: 'pendiente',
       cobertura,
     })
@@ -140,7 +167,12 @@ export async function calcularRiesgoCandidatoV04(params?: {
       jobRunId,
       leaseOwner,
       estado: 'completado',
-      contadores: { procesadas: resultados.length, totalPadron: cobertura.totalPadron, conAltimetria },
+      contadores: {
+        procesadas: resultados.length,
+        totalPadron: cobertura.totalPadron,
+        conAltimetria,
+        conSuperacionTerreno: new Set(resultados.filter((r) => r.superacionTerreno.conservador.estado === 'modelada').map((r) => r.cueAnexo)).size,
+      },
       ahora,
     })
     return { ejecutado: true, runId: idRun, resultadosEmitidos: resultados.length }
@@ -167,6 +199,48 @@ export async function calcularRiesgoCandidatoV04(params?: {
     })
     throw error
   }
+}
+
+// Superación del terreno por escuela y horizonte. El ensamble conjunto se
+// calcula una vez por par (estación del tramo, compañera) y se reutiliza.
+function estimarSuperacionPorEscuela(params: {
+  padron: readonly EscuelaPadronV04[]
+  terreno: InsumosTerrenoV04 | null
+  altimetria: AltimetriaPorCue | null
+  asOf: string
+}): Map<string, Record<number, EventoTerreno>> {
+  const { terreno } = params
+  const asOfFecha = fechaLocal(params.asOf)
+  const series = new Map([...(terreno?.series ?? [])].map(([id, filas]) => [id, crearSerieDiaria(filas)]))
+  const ensambles = new Map<string, EnsambleConjunto | null>()
+  const ensambleDe = (u: Extract<UbicacionRio, { estado: 'ubicada' }>) => {
+    const { referencia, companera } = estacionesDelEnsamble(u)
+    const clave = `${referencia}|${companera}`
+    if (!ensambles.has(clave)) {
+      const ref = series.get(referencia)
+      const otra = series.get(companera)
+      ensambles.set(clave, ref && otra ? ensambleConjuntoV2(ref, { [companera]: otra }, asOfFecha) : null)
+    }
+    return ensambles.get(clave) ?? null
+  }
+  const salida = new Map<string, Record<number, EventoTerreno>>()
+  for (const escuela of params.padron) {
+    const altimetria = params.altimetria?.porCue.get(escuela.cueAnexo) ?? null
+    const geo = terreno?.escuelas.get(escuela.cueAnexo)
+    // La falta de ubicación precede a cualquier otro motivo.
+    const ubicacion: UbicacionNoEstimable | UbicacionRio =
+      escuela.motivoUbicacion !== null ? { estado: 'no_estimable', motivo: escuela.motivoUbicacion }
+      : !terreno ? { estado: 'no_estimable', motivo: 'insumos_terreno_no_disponibles' }
+      : !geo ? { estado: 'no_estimable', motivo: 'ubicacion_escuela_no_disponible' }
+      : ubicarEscuelaEnRio({
+          punto: { lat: geo.lat, lon: geo.lon },
+          estacionTramoId: tramoDeLocalidad(geo.localidad, terreno.tramos),
+          estaciones: terreno.estaciones,
+        })
+    const ensamble = ubicacion.estado === 'ubicada' ? ensambleDe(ubicacion) : null
+    salida.set(escuela.cueAnexo, estimarSuperacionTerreno({ ubicacion, ensamble, altimetria }))
+  }
+  return salida
 }
 
 // Columnas heredadas de infra_risk_snapshot. El candidato no calcula el score

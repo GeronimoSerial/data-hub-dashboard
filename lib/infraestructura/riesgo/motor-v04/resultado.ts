@@ -32,6 +32,8 @@ export function construirResultadoPendienteV04(params: {
   horizonteHoras: HorizonteV04
   asOf: string
   modo: ModoRun
+  /** Superación del terreno ya estimada (T6); si falta, queda pendiente como en T1. */
+  superacionTerreno?: ResultadoEscuelaV04['superacionTerreno']
 }): ResultadoEscuelaV04 {
   const { escuela, horizonteHoras: h } = params
   const ubicacion = ubicacionDe(escuela)
@@ -45,7 +47,7 @@ export function construirResultadoPendienteV04(params: {
     horizonteHoras: h,
     asOf: params.asOf,
     ubicacion,
-    superacionTerreno: {
+    superacionTerreno: params.superacionTerreno ?? {
       principal: noEstimable(h, [
         ...previos,
         MOTIVOS_V04.cotaTerrenoPendiente,

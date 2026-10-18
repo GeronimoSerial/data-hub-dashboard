@@ -7,6 +7,8 @@ import { infraJobRun, infraPeriodo, infraRiskRun, infraRiskSnapshot } from '@/li
 import { esquemaMetadatosRunV04, esquemaResultadoEscuelaV04 } from '../motor-v04/contratos'
 import type { PuertoAltimetriaV04 } from '../motor-v04/altimetria-adaptador'
 import type { EscuelaPadronV04, PuertoPadronV04 } from '../motor-v04/padron'
+import { crearAdapterTerrenoV04 } from '../motor-v04/terreno-adaptador'
+import { guardarLoteSerieDiaria } from '@/lib/infraestructura/hidrometria/ina/serie-diaria-repo'
 import type { calcularRiesgoCandidatoV04 as CalcularRiesgoCandidatoV04 } from './calcular-riesgo-v04'
 
 usarDbTemporal('calcular-riesgo-v04-')
@@ -216,5 +218,69 @@ describe('calcularRiesgoCandidatoV04', () => {
       expect(r.superacionTerreno.principal.probabilidad).toBeNull()
     }
   })
-})
 
+  it('modela la superación del terreno dentro del tramo interpolable y abstiene con motivo fuera de él', async () => {
+    // Dos hidrómetros con historia diaria sintética corta (≈ 2 años) en PGlite.
+    const desde = Date.parse('2024-09-01T00:00:00Z')
+    const hasta = Date.parse('2026-10-19T00:00:00Z')
+    for (const [estacionId, serieId, desplazamiento] of [['pna-corrientes', 19, 0], ['pna-empedrado', 21, -0.5]] as const) {
+      const filas = []
+      for (let ms = desde, i = 0; ms <= hasta; ms += 86_400_000, i++) {
+        filas.push({ fecha: new Date(ms).toISOString().slice(0, 10), valorM: 4 + desplazamiento + 2 * Math.sin((2 * Math.PI * i) / 365) + 0.8 * Math.sin((2 * Math.PI * i) / 9) })
+      }
+      await guardarLoteSerieDiaria(getDb(), {
+        estacionId, serieId, url: `https://alerta.ina.gob.ar/a5/obs/puntual/series/${serieId}/observaciones`,
+        payload: [{ estacionId }], sha256: (estacionId === 'pna-corrientes' ? 'c' : 'e').repeat(64), descargadoEn: '2026-10-19T12:00:00.000Z', filas,
+      })
+    }
+    const DENTRO: EscuelaPadronV04 = { cueAnexo: '1800011-00', motivoUbicacion: null }
+    const FUERA: EscuelaPadronV04 = { cueAnexo: '1800012-00', motivoUbicacion: null }
+    const SIN: EscuelaPadronV04 = { cueAnexo: '1800013-00', motivoUbicacion: 'sin_coordenadas' }
+    const terreno = crearAdapterTerrenoV04({
+      escuelas: async () => new Map([
+        // 40 % del segmento Corrientes–Empedrado.
+        [DENTRO.cueAnexo, { localidad: 'Riachuelo', lat: -27.46 + 0.4 * (-27.958948 + 27.46), lon: -58.84 + 0.4 * (-58.820198 + 58.84) }],
+        // Localidad del tramo Corrientes, pero aguas arriba de la estación.
+        [FUERA.cueAnexo, { localidad: 'CORRIENTES', lat: -27.3, lon: -58.85 }],
+      ]),
+    })
+    const cota = { cotaPrincipalM: 46, cotaConservadoraM: 45.5 }
+    const altimetria: PuertoAltimetriaV04 = {
+      obtener: async (cues) => ({
+        version: 'altimetria-v04-prueba',
+        porCue: new Map(cues.map((c) => [c, c === SIN.cueAnexo ? null : {
+          estado: 'candidata' as const, ...cota, fuenteConservadora: 'ign' as const, fuentesValidas: 2 as const,
+          referenciaVertical: 'SRVN16_con_conversion_aproximada_de_Copernicus', operador: 'p10_espacial_50m', motivos: [],
+        }])),
+      }),
+    }
+    const resultado = await calcularRiesgoCandidatoV04({
+      ahora: new Date('2026-10-19T12:10:00.000Z'), padron: padronFake([DENTRO, FUERA, SIN]), altimetria, terreno,
+    })
+    if (!resultado.ejecutado) throw new Error('se esperaba ejecución')
+    const porCue = new Map<string, ReturnType<typeof esquemaResultadoEscuelaV04.parse>[]>()
+    for (const s of await snapshotsDe(resultado.runId)) {
+      const r = esquemaResultadoEscuelaV04.parse(s.resultadoV04)
+      porCue.set(r.cueAnexo, [...(porCue.get(r.cueAnexo) ?? []), r])
+    }
+    for (const r of porCue.get(DENTRO.cueAnexo)!) {
+      for (const e of [r.superacionTerreno.principal, r.superacionTerreno.conservador]) {
+        expect(e).toMatchObject({ estado: 'modelada', metodo: 'analogos-v2+transferencia-km' })
+        expect(e.diagnostico).toMatchObject({ datumCeroSupuesto: true, estacionReferencia: 'pna-corrientes', estacionCompanera: 'pna-empedrado' })
+      }
+      expect(r.superacionTerreno.conservador.probabilidad!).toBeGreaterThanOrEqual(r.superacionTerreno.principal.probabilidad!)
+      expect(r.interrupcionEducativa.principal.estado).toBe('no_estimable')
+    }
+    for (const r of porCue.get(FUERA.cueAnexo)!) {
+      expect(r.superacionTerreno.principal).toMatchObject({ estado: 'no_estimable', probabilidad: null, motivos: ['fuera_de_tramo_interpolable'] })
+    }
+    for (const r of porCue.get(SIN.cueAnexo)!) {
+      expect(r.superacionTerreno.principal).toMatchObject({ estado: 'no_estimable', probabilidad: null })
+      expect(r.superacionTerreno.principal.motivos[0]).toBe('sin_coordenadas')
+    }
+    const [run] = await getDb().select().from(infraRiskRun).where(eq(infraRiskRun.id, resultado.runId))
+    const { cobertura } = esquemaMetadatosRunV04.parse(run?.metadatos)
+    expect(cobertura.abstencionesPorMotivo.fuera_de_tramo_interpolable).toBe(6)
+    expect(cobertura.porEventoHorizonte.find((c) => c.evento === 'superacionTerreno' && c.escenario === 'principal' && c.horizonteHoras === 240)?.modeladas).toBe(1)
+  })
+})

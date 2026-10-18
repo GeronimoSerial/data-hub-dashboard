@@ -35,6 +35,9 @@ export const esquemaEstimacionV04 = z
     metodo: z.string().min(1).optional(),
     version: z.string().min(1).optional(),
     ventanaHoras: esquemaHorizonteV04,
+    // Supuestos y medidas auxiliares de la estimación (p. ej. km de río,
+    // datum supuesto). Informativo: nunca altera la probabilidad.
+    diagnostico: z.record(z.string(), z.union([z.number(), z.string(), z.boolean(), z.null()])).optional(),
   })
   .strict()
   .superRefine((e, ctx) => {
