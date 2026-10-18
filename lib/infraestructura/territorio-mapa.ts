@@ -49,7 +49,22 @@ export interface AislamientoEscuelaMapa {
   // evidencia" (no hay un conteo separado de cruces sin evidencia).
   sinPuente: number | null
   alternativaSinCruce: boolean | null
+  // Viene de `distancia_cabecera_departamental_m`: pese al nombre, esa columna
+  // guarda la distancia POR CAMINO hasta la localidad urbana más cercana
+  // (2.000 habitantes o más), no hasta la cabecera departamental.
+  // Opcionales en el tipo: ausente equivale a null (sin dato).
+  distanciaLocalidadM?: number | null
+  kmSinPavimentar?: number | null
+  distanciaViaPavimentadaM?: number | null
+  // Nombre de esa localidad (infra_acceso_osm_geometria.destino_nombre).
+  destinoNombre?: string | null
 }
+
+// Sólo las columnas de geometría que el mapa necesita para nombrar el destino.
+export type FilaDestinoAcceso = Pick<
+  typeof infraAccesoOsmGeometria.$inferSelect,
+  'cueAnexo' | 'versionJob' | 'destinoNombre'
+>
 
 export interface SusceptibilidadEscuelaMapa {
   // v1 (physrisk, profundidad en m). Sigue disponible para quien lo necesite.
@@ -219,11 +234,30 @@ function ultimaGeometriaDeCue(
   return elegida
 }
 
+function redondear(valor: number | null, decimales: number): number | null {
+  if (valor === null || !Number.isFinite(valor)) return null
+  const factor = 10 ** decimales
+  return Math.round(valor * factor) / factor
+}
+
+// Destino de la geometría con mayor `versionJob` por escuela. El pipeline
+// principal usa esa misma localidad como destino de la distancia.
+function ultimoDestinoPorCue(filas: readonly FilaDestinoAcceso[]): Map<string, string | null> {
+  const elegidas = new Map<string, FilaDestinoAcceso>()
+  for (const fila of filas) {
+    const actual = elegidas.get(fila.cueAnexo)
+    if (!actual || compararVersionJob(fila.versionJob, actual.versionJob) > 0) elegidas.set(fila.cueAnexo, fila)
+  }
+  return new Map([...elegidas].map(([cue, fila]) => [cue, fila.destinoNombre?.trim() || null]))
+}
+
 export function construirTerritorioMapa(
   filasAislamiento: readonly FilaAislamientoOsm[],
   filasSusceptibilidad: readonly FilaSusceptibilidadEstatica[],
+  filasDestino: readonly FilaDestinoAcceso[] = [],
 ): TerritorioMapa {
   const seleccionAislamiento = ultimaVersionPorCue(filasAislamiento)
+  const destinoPorCue = ultimoDestinoPorCue(filasDestino)
   const seleccionSusceptibilidad = ultimaFilaConservadoraPorCue(filasSusceptibilidad)
 
   let aislamiento: TerritorioMapa['aislamiento'] = null
@@ -236,6 +270,10 @@ export function construirTerritorioMapa(
         conPuente: fila.crucesAguaConPuenteCount,
         sinPuente: fila.crucesAguaConVadoCount,
         alternativaSinCruce: fila.tieneAlternativaSinCruce,
+        distanciaLocalidadM: redondear(fila.distanciaCabeceraDepartamentalM, 0),
+        kmSinPavimentar: redondear(fila.tramosSinPavimentarKm, 1),
+        distanciaViaPavimentadaM: redondear(fila.distanciaViaPavimentadaM, 0),
+        destinoNombre: destinoPorCue.get(cueAnexo) ?? null,
       }
     }
     aislamiento = {
@@ -322,7 +360,25 @@ export async function cargarTerritorioMapa(): Promise<TerritorioMapa> {
     )
   }
 
-  return construirTerritorioMapa(filasAislamiento, filasSusceptibilidad)
+  let filasDestino: FilaDestinoAcceso[] = []
+  if (filasAislamiento.length > 0) {
+    try {
+      filasDestino = await db
+        .select({
+          cueAnexo: infraAccesoOsmGeometria.cueAnexo,
+          versionJob: infraAccesoOsmGeometria.versionJob,
+          destinoNombre: infraAccesoOsmGeometria.destinoNombre,
+        })
+        .from(infraAccesoOsmGeometria)
+    } catch (error) {
+      console.error(
+        'cargarTerritorioMapa: fallo al cargar infra_acceso_osm_geometria, el destino queda sin nombre',
+        error,
+      )
+    }
+  }
+
+  return construirTerritorioMapa(filasAislamiento, filasSusceptibilidad, filasDestino)
 }
 
 export function construirRespuestaGeometria(

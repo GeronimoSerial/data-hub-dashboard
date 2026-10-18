@@ -1,6 +1,7 @@
 'use client'
 
 import type { JSX } from 'react'
+import { EscuelasAisladas } from '@/components/mapas/escuelas-aisladas'
 import { EscuelasEnRiesgo } from '@/components/mapas/escuelas-en-riesgo'
 import { Segmentado } from '@/components/mapas/segmentado'
 import { SelectorHorizonteMotor } from '@/components/mapas/selector-horizonte-motor'
@@ -85,6 +86,8 @@ function PrioridadEstructural(props: Omit<PanelPlanificacionProps, 'vista'> & { 
     <p role="status" className="map-sitact__vacio">No se pudieron cargar los datos de esta vista. Intente de nuevo más tarde.</p>
   ) : !hayDatosVista ? (
     <p className="map-sitact__vacio">Todavía no hay datos para esta vista.</p>
+  ) : vista === 'aisladas' && territorio ? (
+    <EscuelasAisladas escuelas={escuelas} territorio={territorio} onSeleccionar={onSeleccionar} />
   ) : (
     <section aria-labelledby="map-planificacion-prioridad-titulo">
       <h3 id="map-planificacion-prioridad-titulo" className="map-sitact__titulo-seccion">Prioridad de planificación (exposición estructural)</h3>

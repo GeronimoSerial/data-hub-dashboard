@@ -71,6 +71,25 @@ function filaGeometria(
 }
 
 describe('construirTerritorioMapa', () => {
+  it('expone distancia a la localidad urbana, km de tierra y el nombre del destino de la última geometría', () => {
+    const territorio = construirTerritorioMapa(
+      [filaAislamiento({ cueAnexo: 'A', versionJob: '2', indiceAislamiento: 3, distanciaCabeceraDepartamentalM: 42_345.6, tramosSinPavimentarKm: 18.24, distanciaViaPavimentadaM: 5_000.4 }),
+        filaAislamiento({ cueAnexo: 'B', versionJob: '2', indiceAislamiento: 1 })],
+      [],
+      [
+        { cueAnexo: 'A', versionJob: '1', destinoNombre: 'Viejo' },
+        { cueAnexo: 'A', versionJob: '10', destinoNombre: 'Goya' },
+        { cueAnexo: 'A', versionJob: '9', destinoNombre: 'Otro' },
+      ],
+    )
+    expect(territorio.aislamiento?.escuelas.A).toMatchObject({
+      distanciaLocalidadM: 42_346, kmSinPavimentar: 18.2, distanciaViaPavimentadaM: 5_000, destinoNombre: 'Goya',
+    })
+    expect(territorio.aislamiento?.escuelas.B).toMatchObject({
+      distanciaLocalidadM: null, kmSinPavimentar: null, distanciaViaPavimentadaM: null, destinoNombre: null,
+    })
+  })
+
   it('se queda con la última versión por cueAnexo (importadoEn y, en empate, versionJob)', () => {
     const territorio = construirTerritorioMapa(
       [

@@ -11,7 +11,7 @@ const escuelas: EscuelaMapaEnriquecida[] = [
   { cueAnexo: '2', nombre: 'Escuela Dos', departamento: 'Bella Vista', localidad: 'Centro', lat: null, lon: null, niveles: ['Inicial'], alumnos: 40, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 5, solucionadasRecientes: 0 },
 ]
 const territorio: TerritorioMapa = {
-  aislamiento: { fuente: 'OpenStreetMap', atribucion: '© OpenStreetMap contributors', licencia: 'licencia', fechaExtractoOsm: '2026-01-01', versionJob: '1', escuelas: { '1': { nivel: 2, cruces: 0, conPuente: 0, sinPuente: 0, alternativaSinCruce: true }, '2': { nivel: 3, cruces: 1, conPuente: 0, sinPuente: 1, alternativaSinCruce: false } } },
+  aislamiento: { fuente: 'OpenStreetMap', atribucion: '© OpenStreetMap contributors', licencia: 'licencia', fechaExtractoOsm: '2026-01-01', versionJob: '1', escuelas: { '1': { nivel: 2, cruces: 0, conPuente: 0, sinPuente: 0, alternativaSinCruce: true, distanciaLocalidadM: 12_000, kmSinPavimentar: 16, destinoNombre: 'Goya' }, '2': { nivel: 3, cruces: 1, conPuente: 0, sinPuente: 1, alternativaSinCruce: false, distanciaLocalidadM: 42_000, kmSinPavimentar: 4, destinoNombre: 'Bella Vista' } } },
   susceptibilidad: { fuente: 'physrisk', indicador: 'inundacion_fluvial', escenario: 'historico', unidad: 'm', periodoRetornoAnios: 100, fechaCorrida: '2026-01-01', licencia: 'licencia', escuelas: { '1': { inundacionFluvialM: 0.2, claseRio: null, juntoLaguna: null }, '2': { inundacionFluvialM: 0.8, claseRio: null, juntoLaguna: null } } },
 }
 
@@ -34,12 +34,30 @@ function props(overrides: Partial<React.ComponentProps<typeof PanelPlanificacion
 describe('PanelPlanificacion', () => {
   afterEach(cleanup)
 
-  it('muestra prioridad ordenada y solo escuelas con nivel para la vista', () => {
+  it('lista escuelas aisladas con detalle, resumen y orden', () => {
     render(<PanelPlanificacion {...props()} />)
-    const filas = screen.getAllByRole('button').filter((boton) => boton.className.includes('map-sitact__fila'))
-    expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual(['Escuela Dos, Bella Vista', 'Escuela Uno, Goya'])
-    expect(filas[0]).toHaveTextContent('Alto')
-    expect(filas[1]).toHaveTextContent('Goya · Primario')
+    expect(screen.getByRole('heading', { name: 'Escuelas aisladas' })).toBeInTheDocument()
+    const filas = () => screen.getAllByRole('button').filter((boton) => boton.className.includes('map-sitact__fila'))
+    expect(filas().map((fila) => fila.getAttribute('aria-label'))).toEqual(['Escuela Dos, Bella Vista', 'Escuela Uno, Goya'])
+    expect(filas()[0]).toHaveTextContent('Alto')
+    expect(filas()[0]).toHaveTextContent('42 km hasta Bella Vista · 4 km de tierra · 1 vado sin puente · sin alternativa')
+    expect(filas()[1]).toHaveTextContent('12 km hasta Goya · 16 km de tierra')
+    const resumen = screen.getByRole('list', { name: 'Resumen de aislamiento' })
+    expect(resumen).toHaveTextContent('2Escuelas')
+    expect(resumen).toHaveTextContent('60Alumnos')
+    expect(resumen).toHaveTextContent('1A más de 30 km de una localidad urbana')
+    expect(resumen).toHaveTextContent('1Sin camino alternativo')
+    fireEvent.click(screen.getByRole('button', { name: 'Más km de tierra' }))
+    expect(filas().map((fila) => fila.getAttribute('aria-label'))).toEqual(['Escuela Uno, Goya', 'Escuela Dos, Bella Vista'])
+  })
+
+  it('explica cómo funciona con un enlace a la metodología, sin fechas', () => {
+    render(<PanelPlanificacion {...props()} />)
+    fireEvent.click(screen.getByRole('button', { name: '¿Cómo funciona?' }))
+    expect(screen.getByText(/Distancia por camino hasta la localidad urbana más cercana \(2\.000 habitantes o más\)/)).toBeInTheDocument()
+    const enlace = screen.getByRole('link', { name: 'Ver metodología' })
+    expect(enlace).toHaveAttribute('href', '#metodologia/metodologia-aislamiento')
+    expect(document.body.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4}/)
   })
 
   it('cambia la vista y la lista, y notifica la selección de escuela', () => {
@@ -67,7 +85,7 @@ describe('PanelPlanificacion', () => {
     expect(screen.getByText('Todavía no hay datos para esta vista.')).toBeInTheDocument()
     sinDatos.unmount()
     render(<PanelPlanificacion {...props({ escuelas: [] })} />)
-    expect(screen.getByText('Ninguna escuela con prioridad para estos filtros.')).toBeInTheDocument()
+    expect(screen.getByText('Ninguna escuela aislada para estos filtros.')).toBeInTheDocument()
   })
 
   it('en Riesgo hoy muestra el horizonte y las escuelas en riesgo del motor', () => {
