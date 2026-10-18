@@ -25,26 +25,11 @@ export type CeldaRio = {
 
 type Punto = [number, number]
 
-/**
- * Margin (degrees) around the stations. Kept tight so the band stays on the
- * stretch the stations actually measure, not the river's course in Brazil or Paraguay.
- */
-const MARGEN_GRADOS = 0.5
+/** Margin (degrees) around the stations so every cell spans the whole river course. */
+const MARGEN_GRADOS = 3
 
-/**
- * Below this zoom OpenMapTiles merges each river into one long line spanning
- * several cells, and `within` (whole geometry inside) matches nothing reliably.
- */
-export const ZOOM_MINIMO_RIO_TENIDO = 8
-
-/**
- * Exact OSM names of the main channel. A substring match also caught branches
- * such as "Río Paraná Miní", which the stations do not measure.
- */
-export const NOMBRES_RIO: Record<RioTenido, string[]> = {
-  parana: ['Río Paraná', 'Rio Paraná'],
-  uruguay: ['Río Uruguay', 'Rio Uruguay'],
-}
+/** OSM names as they come in OpenMapTiles (`name`), matched by substring. */
+export const NOMBRE_RIO: Record<RioTenido, string> = { parana: 'Paraná', uruguay: 'Uruguay' }
 
 /** Stale (>18 h) or missing readings paint as sin dato. */
 export function estadoTenido(estacion: EstacionTenido): EstadoAlturaRio {
@@ -77,7 +62,7 @@ function recortarMitad(poligono: Punto[], a: Punto, b: Punto): Punto[] {
 /** One cell per station with coordinates, per river. */
 export function celdasRio(estaciones: EstacionTenido[]): CeldaRio[] {
   const celdas: CeldaRio[] = []
-  for (const rio of Object.keys(NOMBRES_RIO) as RioTenido[]) {
+  for (const rio of Object.keys(NOMBRE_RIO) as RioTenido[]) {
     const delRio = estaciones.filter((e) => e.rio === rio && Number.isFinite(e.lat) && Number.isFinite(e.lon))
     if (!delRio.length) continue
     // Work in locally equal-area units so the bisectors are true midpoints on the ground.
@@ -112,7 +97,7 @@ const TRANSPARENTE = 'rgba(0,0,0,0)'
 export function colorRioTenido(celdas: CeldaRio[]): unknown {
   if (!celdas.length) return TRANSPARENTE
   const ramas = celdas.flatMap((celda) => [
-    ['all', ['in', ['coalesce', ['get', 'name'], ''], ['literal', NOMBRES_RIO[celda.rio]]], ['within', celda.poligono]],
+    ['all', ['in', NOMBRE_RIO[celda.rio], ['coalesce', ['get', 'name'], '']], ['within', celda.poligono]],
     PALETA_ESTADO_ALTURA[celda.estado],
   ])
   return ['case', ...ramas, TRANSPARENTE]
