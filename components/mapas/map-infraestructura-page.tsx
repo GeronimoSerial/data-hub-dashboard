@@ -2307,6 +2307,7 @@ export default function MapInfraestructuraPage(props: {
                 onAbrirFichaCompleta={guardarSnapshotAlAbrirFicha}
                 onQuitarSeleccion={quitarSeleccion}
                 extraVistaPrevia={radarActivo ? <PronosticoEscuelaBloque cueAnexo={escuelaSeleccionada.cueAnexo} /> : null}
+                aislamiento={territorio?.aislamiento?.escuelas[escuelaSeleccionada.cueAnexo]?.nivel ?? null}
               />
         </aside>
       )}

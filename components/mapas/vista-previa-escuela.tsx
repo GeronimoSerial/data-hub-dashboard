@@ -13,6 +13,8 @@ import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
+import { DESCRIPCIONES_AISLAMIENTO } from '@/lib/mapas/accesos-capas'
+import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
 import styles from './vista-previa-escuela.module.css'
 
 export interface VistaPreviaEscuelaProps {
@@ -28,6 +30,8 @@ export interface VistaPreviaEscuelaProps {
   cargandoParte?: boolean
   /** Contenido propio de la pestaña (p. ej. el pronóstico en Radar), antes de las acciones. */
   extra?: ReactNode
+  /** Static OSM access isolation level; omitted when the school has no row. */
+  aislamiento?: NivelAislamientoMapa | null
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -56,6 +60,7 @@ export function VistaPreviaEscuela({
   onAbrirFichaCompleta,
   cargandoParte = false,
   extra = null,
+  aislamiento = null,
 }: VistaPreviaEscuelaProps) {
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const sinUbicacion =
@@ -247,6 +252,17 @@ export function VistaPreviaEscuela({
               ) : (escuela.parte || escuela.ultimaNovedad) ? (
                 <span className={styles.atenuado} data-testid="chip-vigente">Vigente</span>
               ) : null}
+            </dd>
+          </div>
+        )}
+        {aislamiento !== null && (
+          <div data-testid="preview-aislamiento">
+            <dt>Aislamiento</dt>
+            <dd
+              className={aislamiento === 3 ? styles.alerta : aislamiento === 2 ? styles.aviso : undefined}
+              title={DESCRIPCIONES_AISLAMIENTO[aislamiento].detalle}
+            >
+              {DESCRIPCIONES_AISLAMIENTO[aislamiento].nombre}
             </dd>
           </div>
         )}

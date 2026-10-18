@@ -23,6 +23,7 @@ import { desde } from '@/components/infraestructura/actualizar/entrada-actualiza
 import { BorradoresPendientes } from '@/components/infraestructura/borradores/borradores-pendientes'
 import { GaleriaEvidencia } from '@/components/infraestructura/fotos/galeria-evidencia'
 import { VistaPreviaEscuela } from './vista-previa-escuela'
+import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
 
 interface FichaEscuelaPanelProps {
   escuela: EscuelaMapaEnriquecida
@@ -40,6 +41,7 @@ interface FichaEscuelaPanelProps {
   onAbrirFichaCompleta?: () => void
   onQuitarSeleccion?: () => void
   extraVistaPrevia?: ReactNode
+  aislamiento?: NivelAislamientoMapa | null
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -111,6 +113,7 @@ export function FichaEscuelaPanel({
   onAbrirFichaCompleta,
   onQuitarSeleccion,
   extraVistaPrevia = null,
+  aislamiento = null,
 }: FichaEscuelaPanelProps) {
   const { estado, historial } = useFichaParte(escuela.cueAnexo)
   const tituloRef = useRef<HTMLHeadingElement>(null)
@@ -187,6 +190,7 @@ export function FichaEscuelaPanel({
         onCerrarVistaPrevia={onCerrar}
         onQuitarSeleccion={onQuitarSeleccion ?? (() => {})}
         extra={extraVistaPrevia}
+        aislamiento={aislamiento}
         onAbrirFichaCompleta={onAbrirFichaCompleta}
         cargandoParte={estado.fase === 'cargando'}
       />
