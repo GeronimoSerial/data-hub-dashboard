@@ -55,6 +55,15 @@ const MAX_INTENTOS_DEFAULT = 3
 const BACKOFF_BASE_MS_DEFAULT = 500
 const BACKOFF_MAX_MS_DEFAULT = 8_000
 
+/**
+ * Cooldown ante un 429 de Open-Meteo que no trae `Retry-After`. El cuerpo
+ * real del 429 dice "Minutely API request limit exceeded. Please try again in
+ * one minute." (verificado el 2026-10-18 contra ensemble-api, sin header
+ * `Retry-After`): reintentar a los 0,5–1 s sólo quemaba cupo propio sin
+ * obtener datos (~294 unidades por corrida de sync-ensemble).
+ */
+export const COOLDOWN_429_SIN_RETRY_AFTER_MS = 60_000
+
 function backoffMs(intento: number, baseMs: number, maxMs: number): number {
   return Math.min(baseMs * 2 ** (intento - 1), maxMs)
 }
@@ -65,8 +74,9 @@ function esperar(ms: number): Promise<void> {
 
 /**
  * Ejecuta una solicitud HTTP con timeout, reintentos acotados con backoff
- * exponencial, tratamiento explícito de 429 (respeta `Retry-After` si viene,
- * si no usa el backoff calculado) y cuarentena de payload inválido: si
+ * exponencial, tratamiento explícito de 429 (con guarda de cupo: cooldown y
+ * sin reintento; sin guarda: respeta `Retry-After` si viene, si no usa el
+ * backoff calculado) y cuarentena de payload inválido: si
  * `parsearPayload` lanza, NO reintenta (el payload ya llegó, reintentar no lo
  * arregla) — devuelve `payload_invalido` con el cuerpo crudo saneado a 500
  * caracteres para diagnóstico, sin secretos.
@@ -126,15 +136,24 @@ export async function ejecutarConReintentos<T>(
       if (respuesta.status === 429) {
         const retryAfterHeader = respuesta.headers.get('retry-after')
         const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : NaN
-        // OM-cupo (requisito 2): un 429 con Retry-After pone al HOST entero
-        // en cooldown (persistido, ver cupo-om.ts) para que otras llamadas
-        // — de este mismo lote o de otro job — dejen de golpearlo mientras
-        // dure, en vez de reintentar en loop ciego. Sin header no sabemos
-        // cuánto durar el cooldown: no se registra nada y se sigue con el
-        // backoff interno de siempre.
-        if (params.cupo && Number.isFinite(retryAfterMs)) {
-          await params.cupo.registrar429(retryAfterMs)
+        if (params.cupo) {
+          // Cuota Open-Meteo (C2): con guarda de cupo, un 429 NUNCA se
+          // reintenta dentro de la misma llamada. Se pone la cuenta entera en
+          // cooldown (persistido, ver cupo-om.ts) por `Retry-After` o, si no
+          // viene, por COOLDOWN_429_SIN_RETRY_AFTER_MS; así el resto del lote
+          // y los otros jobs dejan de golpear el host en vez de reservar cupo
+          // para intentos que Open-Meteo va a rechazar igual.
+          const cooldownMs =
+            Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : COOLDOWN_429_SIN_RETRY_AFTER_MS
+          await params.cupo.registrar429(cooldownMs)
+          return {
+            ok: false,
+            motivo: 'rate_limited',
+            detalle: `HTTP 429 en intento ${intento}/${maxIntentos}; cooldown de ${Math.round(cooldownMs / 1000)} s sin reintento`,
+          }
         }
+        // Sin guarda de cupo (clientes que no son Open-Meteo, p. ej.
+        // Prefectura): backoff interno de siempre, respetando Retry-After.
         ultimoError = {
           ok: false,
           motivo: 'rate_limited',

@@ -21,7 +21,7 @@ import { z } from 'zod'
 import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
 import { isoUtc, parsearTimestampUtc } from './timestamps'
 import { ejecutarConReintentos } from './cliente-http'
-import { apiKeyDesdeEntorno, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
+import { apiKeyDesdeEntorno, limiteVentana, MOTIVOS_CORTAN_LOTES, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import { CONFIG_FUENTES } from './config-fuentes'
 
@@ -53,16 +53,38 @@ const NOMBRES_MIEMBROS: string[] = [
 const MIEMBROS_TOTAL_ENSEMBLE = NOMBRES_MIEMBROS.length
 
 // OM-cupo: cuántas "weather variables" cuenta este request para la fórmula
-// de peso (ver providers/cupo-om.ts `pesoLlamada`). SUPUESTO documentado
-// (ver docs/ejecucion-enos/OM-cupo/registro.md, sección "Ensemble"): se
-// pidieron por query string ("hourly=precipitation", ver
-// `construirUrlLote`), no la cantidad de columnas que el endpoint Ensemble
-// expande internamente (51 miembros). Es la lectura literal de la fuente
-// ("select 200 weather variables simultaneously" — variables SELECCIONADAS
-// por query param, no derivadas). El registro documenta también el
-// escenario conservador (51) por si Open-Meteo en la práctica cuenta los
-// miembros como variables.
-const VARIABLES_SOLICITADAS_ENSEMBLE = 1
+// de peso (ver providers/cupo-om.ts `pesoLlamada`). Open-Meteo cuenta cada
+// miembro del ensemble como una variable: el 2026-10-18 una request de 120
+// ubicaciones (`hourly=precipitation`, 1 día) respondió 200 y otra de 110
+// ubicaciones en el mismo minuto respondió 429 "Minutely API request limit
+// exceeded". Con 1 variable por ubicación serían 230 de 600; con 51 son
+// 612 + 561. Antes se contaba 1 y la guarda interna subestimaba 5,1 veces el
+// consumo real (mismo criterio que radar-meteo/ensemble.ts `PESO_ENSEMBLE`).
+const VARIABLES_CONTADAS_ENSEMBLE = MIEMBROS_TOTAL_ENSEMBLE
+
+/** Peso Open-Meteo de un lote de `ubicaciones` puntos del ensemble. */
+export function pesoLoteEnsemble(ubicaciones: number): number {
+  return pesoLlamada({
+    ubicaciones,
+    variables: VARIABLES_CONTADAS_ENSEMBLE,
+    dias: DIAS_PRONOSTICO_ENSEMBLE,
+  })
+}
+
+/**
+ * Espera tras un lote de `ubicaciones` puntos para que el ritmo sostenido no
+ * supere el límite operativo por minuto (`limiteVentana('minuto')`, 480 en el
+ * plan gratuito). La ventana de minuto de la guarda es de reloj; Open-Meteo
+ * puede medirla deslizante, así que espaciar evita ráfagas que crucen el
+ * borde del minuto. Un lote de 20 puntos (102) espera 12,75 s.
+ */
+export function esperaEntreLotesEnsembleMs(ubicaciones: number, apiKeyPresente: boolean): number {
+  return Math.ceil((pesoLoteEnsemble(ubicaciones) / limiteVentana('minuto', apiKeyPresente)) * 60_000)
+}
+
+function esperarReal(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
 /**
@@ -244,6 +266,11 @@ export async function obtenerProbabilidadesEnsemble(params: {
   apiKey?: string
   /** OM-cupo (opt-in): ver el mismo parámetro en providers/ecmwf.ts. */
   controladorCupoFactory?: (peso: number) => ControladorCupoOM
+  /**
+   * Seam de test para el espaciado entre lotes. El espaciado sólo se aplica
+   * con guarda de cupo (producción); sin ella el provider no espera.
+   */
+  esperar?: (ms: number) => Promise<void>
 }): Promise<{
   puntos: HazardEnsembleProbPunto[]
   erroresPorCelda: Record<string, string>
@@ -263,6 +290,7 @@ export async function obtenerProbabilidadesEnsemble(params: {
     controladorCupoFactory,
   } = params
   const apiKey = params.apiKey ?? apiKeyDesdeEntorno()
+  const esperar = params.esperar ?? esperarReal
 
   const puntos: HazardEnsembleProbPunto[] = []
   const erroresPorCelda: Record<string, string> = {}
@@ -270,13 +298,14 @@ export async function obtenerProbabilidadesEnsemble(params: {
 
   const lotes = agruparEnLotes(geometryRefsConCoordenada, TAMANO_LOTE_COORDENADAS_ENSEMBLE)
 
+  let ubicacionesLoteAnterior = 0
+
   for (let indiceLote = 0; indiceLote < lotes.length; indiceLote++) {
     const lote = lotes[indiceLote]
-    const peso = pesoLlamada({
-      ubicaciones: lote.length,
-      variables: VARIABLES_SOLICITADAS_ENSEMBLE,
-      dias: DIAS_PRONOSTICO_ENSEMBLE,
-    })
+    if (controladorCupoFactory && ubicacionesLoteAnterior > 0) {
+      await esperar(esperaEntreLotesEnsembleMs(ubicacionesLoteAnterior, Boolean(apiKey)))
+    }
+    const peso = pesoLoteEnsemble(lote.length)
     const cupo = controladorCupoFactory?.(peso)
     const resultado = await ejecutarConReintentos<PayloadEnsembleElemento[]>({
       url: construirUrlLote(lote, apiKey),
@@ -287,10 +316,14 @@ export async function obtenerProbabilidadesEnsemble(params: {
 
     if (!resultado.ok) {
       const detalle = `${resultado.motivo}: ${resultado.detalle}`
-      if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) llamadasRealizadas += 1
-      if (MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) {
-        // Ver mismo razonamiento que ecmwf.ts: cupo agotado en ventana larga
-        // o host en cooldown afecta a todos los lotes restantes por igual.
+      if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) {
+        llamadasRealizadas += 1
+        ubicacionesLoteAnterior = lote.length
+      }
+      if (MOTIVOS_CORTAN_LOTES.has(resultado.motivo)) {
+        // Ver mismo razonamiento que ecmwf.ts: cupo agotado en ventana
+        // larga, host en cooldown o 429 afecta a todos los lotes restantes
+        // por igual.
         for (const loteRestante of lotes.slice(indiceLote + 1)) {
           for (const celda of loteRestante) erroresPorCelda[celda.geometryRef] = detalle
         }
@@ -304,6 +337,7 @@ export async function obtenerProbabilidadesEnsemble(params: {
     }
 
     llamadasRealizadas += 1
+    ubicacionesLoteAnterior = lote.length
 
     // El array de respuesta viene en el mismo orden que las coordenadas
     // enviadas: se empareja por índice, no por el lat/lon de la respuesta.

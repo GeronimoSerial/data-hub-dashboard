@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   calcularDispersion,
   contarProbabilidadSuperarUmbral,
+  esperaEntreLotesEnsembleMs,
   obtenerProbabilidadesEnsemble,
+  pesoLoteEnsemble,
   TAMANO_LOTE_COORDENADAS_ENSEMBLE,
 } from './ensemble'
 import type { HazardEnsembleProbPunto } from './ensemble'
@@ -239,4 +241,95 @@ describe('obtenerProbabilidadesEnsemble', () => {
     expect(refs).toContain('-27_20')
     expect(refs).toContain('-27_44')
   }, 15_000)
+  it('un 429 corta los lotes restantes: no se consultan y quedan con rate_limited', async () => {
+    const fetchImpl = vi.fn(async () => new Response('Minutely API request limit exceeded', { status: 429 }))
+    const celdas = celdasSinteticas(45)
+    const { umbralP95PorCelda, umbralP99PorCelda } = mapasUmbral(
+      celdas.map((c) => c.geometryRef),
+      -1,
+      -1,
+    )
+
+    const { puntos, erroresPorCelda, llamadasRealizadas } = await obtenerProbabilidadesEnsemble({
+      geometryRefsConCoordenada: celdas,
+      corridaEn: CORRIDA_EN,
+      acumuladoHoras: 24,
+      umbralP95PorCelda,
+      umbralP99PorCelda,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      controladorCupoFactory: () => ({
+        reservar: async () => ({ ok: true, esperoMs: 0 }),
+        registrar429: async () => {},
+      }),
+      esperar: async () => {},
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(llamadasRealizadas).toBe(1)
+    expect(puntos).toEqual([])
+    expect(Object.keys(erroresPorCelda)).toHaveLength(45)
+    expect(Object.values(erroresPorCelda).every((detalle) => detalle.startsWith('rate_limited'))).toBe(true)
+  })
+
+  it('reserva cupo contando los 51 miembros como variables, igual que Open-Meteo', async () => {
+    const fetchImpl = fetchJsonPorUrl((url) => payloadEnsembleParaLongitudes(longitudesDeUrl(url)))
+    const celdas = celdasSinteticas(45)
+    const { umbralP95PorCelda, umbralP99PorCelda } = mapasUmbral(
+      celdas.map((c) => c.geometryRef),
+      -1,
+      -1,
+    )
+    const pesos: number[] = []
+
+    await obtenerProbabilidadesEnsemble({
+      geometryRefsConCoordenada: celdas,
+      corridaEn: CORRIDA_EN,
+      acumuladoHoras: 24,
+      umbralP95PorCelda,
+      umbralP99PorCelda,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      controladorCupoFactory: (peso) => {
+        pesos.push(peso)
+        return { reservar: async () => ({ ok: true, esperoMs: 0 }), registrar429: async () => {} }
+      },
+      esperar: async () => {},
+    })
+
+    // 20 ubicaciones × max(1, 51/10) × max(1, 3/14) = 102 por lote completo.
+    expect(pesos).toEqual([
+      pesoLoteEnsemble(20),
+      pesoLoteEnsemble(20),
+      pesoLoteEnsemble(5),
+    ])
+    expect(pesoLoteEnsemble(20)).toBeCloseTo(102, 10)
+  })
+
+  it('con guarda de cupo espacia los lotes para no superar el límite por minuto', async () => {
+    const fetchImpl = fetchJsonPorUrl((url) => payloadEnsembleParaLongitudes(longitudesDeUrl(url)))
+    const celdas = celdasSinteticas(45)
+    const { umbralP95PorCelda, umbralP99PorCelda } = mapasUmbral(
+      celdas.map((c) => c.geometryRef),
+      -1,
+      -1,
+    )
+    const esperar = vi.fn(async (_ms: number) => {})
+
+    await obtenerProbabilidadesEnsemble({
+      geometryRefsConCoordenada: celdas,
+      corridaEn: CORRIDA_EN,
+      acumuladoHoras: 24,
+      umbralP95PorCelda,
+      umbralP99PorCelda,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      controladorCupoFactory: () => ({
+        reservar: async () => ({ ok: true, esperoMs: 0 }),
+        registrar429: async () => {},
+      }),
+      esperar,
+    })
+
+    // Antes del 2do y del 3er lote: 102 / 480 por minuto = 12,75 s.
+    expect(esperar.mock.calls.map(([ms]) => ms)).toEqual([12_750, 12_750])
+    expect(esperaEntreLotesEnsembleMs(20, false)).toBe(12_750)
+  })
 })

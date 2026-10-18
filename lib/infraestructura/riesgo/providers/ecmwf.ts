@@ -18,7 +18,7 @@ import { z } from 'zod'
 import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
 import { isoUtc, parsearTimestampUtc } from './timestamps'
 import { ejecutarConReintentos } from './cliente-http'
-import { apiKeyDesdeEntorno, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
+import { apiKeyDesdeEntorno, MOTIVOS_CORTAN_LOTES, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import type { HazardForecastPunto, HazardProvider } from '../tipos-hazard'
 
@@ -229,10 +229,10 @@ export function crearProviderEcmwf(opts?: {
       if (!resultado.ok) {
         if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) celdasPorLlamada.push(lote.length)
         const detalle = `${resultado.motivo}: ${resultado.detalle}`
-        if (MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) {
-          // Cupo agotado en ventana larga o host en cooldown: los lotes que
-          // faltan van a chocar exactamente igual (misma guarda, mismo
-          // host). Se marcan como no consultados y se corta el loop en vez
+        if (MOTIVOS_CORTAN_LOTES.has(resultado.motivo)) {
+          // Cupo agotado en ventana larga, host en cooldown o 429 (que deja
+          // la cuenta en cooldown): los lotes que faltan van a chocar
+          // exactamente igual (misma guarda, mismo host). Se marcan como no consultados y se corta el loop en vez
           // de seguir golpeando la guarda lote por lote sin necesidad.
           for (const loteRestante of lotes.slice(indiceLote + 1)) {
             for (const celda of loteRestante) erroresPorCelda[celda.geometryRef] = detalle

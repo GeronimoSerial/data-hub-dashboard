@@ -208,6 +208,15 @@ export const MOTIVOS_CUPO_SIN_RED: ReadonlySet<string> = new Set([
 ])
 
 /**
+ * Motivos que cortan el loop de lotes de un provider: los de
+ * `MOTIVOS_CUPO_SIN_RED` más `rate_limited`. Tras un 429 la cuenta queda en
+ * cooldown (ver cliente-http.ts), así que los lotes que faltan chocarían
+ * igual; se marcan como no consultados sin tocar la red ni reservar cupo.
+ * A diferencia de los otros, `rate_limited` SÍ disparó un request real.
+ */
+export const MOTIVOS_CORTAN_LOTES: ReadonlySet<string> = new Set([...MOTIVOS_CUPO_SIN_RED, 'rate_limited'])
+
+/**
  * Guarda contra un peso de request que NINGUNA espera puede satisfacer: el
  * límite de cada ventana se evalúa completo por request (no se "consume a
  * medias" esperando), así que si `peso` por sí solo ya supera el límite de

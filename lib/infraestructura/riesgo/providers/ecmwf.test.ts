@@ -191,4 +191,32 @@ describe('crearProviderEcmwf', () => {
     expect(precipPorRef.get('-27_100')).toEqual([100, 100])
     expect(precipPorRef.get('-27_119')).toEqual([119, 119])
   }, 15_000)
+  it('un 429 corta los lotes restantes: no se consultan y quedan con rate_limited', async () => {
+    const fetchImpl = vi.fn(async () => new Response('Minutely API request limit exceeded', { status: 429 }))
+    const reservas: number[] = []
+    const provider = crearProviderEcmwf({
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      controladorCupoFactory: (peso) => ({
+        reservar: async () => {
+          reservas.push(peso)
+          return { ok: true, esperoMs: 0 }
+        },
+        registrar429: async () => {},
+      }),
+    })
+
+    const { puntos, erroresPorCelda, llamadasRealizadas } = await provider.obtenerPronosticoConDiagnostico({
+      geometryRefs: celdasSinteticas(120),
+      ahora: AHORA,
+    })
+
+    // Primer lote: un único request (429 sin reintento); los otros dos lotes
+    // no tocan la red ni reservan cupo.
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(reservas).toHaveLength(1)
+    expect(llamadasRealizadas).toBe(1)
+    expect(puntos).toEqual([])
+    expect(Object.keys(erroresPorCelda)).toHaveLength(120)
+    expect(Object.values(erroresPorCelda).every((detalle) => detalle.startsWith('rate_limited'))).toBe(true)
+  })
 })
