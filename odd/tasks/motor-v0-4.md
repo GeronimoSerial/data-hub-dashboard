@@ -55,7 +55,7 @@ Código, migraciones aditivas, pruebas y docs en las ramas del chain. Sin push, 
 - [x] T4 (U3b) INA pronósticos 499/289: corridas, valores, `qualifier`, soporte semanal, dedupe por corrida/emisión, raw inmutable.
 - [x] T5 (U4) Modelo temporal por estación: distribución empírica condicional del máximo en 24/72/240 h (análogos históricos, trayectorias conjuntas entre estaciones), evaluación retrospectiva por años excluidos.
 - [x] T6 (U5) Transferencia por km de río entre estaciones con cero y P(superación del terreno) principal y conservadora, sólo tramos aprobados del cauce principal; resto `no_estimable` con motivo.
-- [ ] T7 (U6) Contexto de acceso: cruces por tipo de curso, vados sobre río aforado; `interrupcionEducativa` `no_estimable` con motivo hasta tener umbrales.
+- [ ] T7 (U6) Contexto de acceso — **diferida** (2026-10-17): el motor único conserva `riesgo_acceso` de v0.3; `interrupcionEducativa` sigue `no_estimable`. La importación de hidrografía IGN / esteros IDE / red vial DPV vive en el job geo-static de accesos OSM, que otro agente está modificando en otra rama; se coordina después para no pisarlo.
 - [x] T5b `analogos-v2`: vecinos más cercanos (sin abstención por nivel extremo salvo distancia máxima), parámetros elegidos sólo con datos anteriores a 1990, evaluación del período reservado incluyendo abstenciones; v1 queda para comparación.
 - [ ] T8 (U7, redefinida) Integrar el factor río probabilístico en `calcularRiesgoEscuela` (cálculo v0.3 completo en el job candidato), proyectar a `nivel`/score existentes por horizonte, fallback al factor río v0.3 donde no sea estimable; sin cambios de frontend ni rutas.
 - [ ] T9 (U8) Informe de evaluación: calibración de excedencia de alerta/evacuación por estación, cobertura, abstenciones, escuelas que suben/bajan de nivel frente a v0.3; procedimiento de promoción y retiro de la ruta v0.3 (sin promover).
@@ -71,7 +71,8 @@ Tracker: `GeronimoSerial/motor-v0.4` (base `origin/dev` f07002f7). Cada tarea = 
 | 03 | `motor-v0.4/03-ina-catalogo-serie` | T3 | 0139e672 |
 | 04 | `motor-v0.4/04-ina-pronosticos` | T4 | 9d803fb2 |
 | 05 | `motor-v0.4/05-modelo-temporal` | T5, T5b | 14557cd2, e464feb6 |
-| 06 | `motor-v0.4/06-transferencia-terreno` | T6 | (ver evidencia T6) |
+| 06 | `motor-v0.4/06-transferencia-terreno` | T6 | 12015ca0 |
+| 07 | `motor-v0.4/07-integracion-v03` | T8 | — |
 
 ## Progreso y evidencia
 
@@ -90,4 +91,4 @@ Tracker: `GeronimoSerial/motor-v0.4` (base `origin/dev` f07002f7). Cada tarea = 
 
 ## Próximo paso
 
-T7 (U6): contexto de acceso (cruces por tipo de curso, vados sobre río aforado); `interrupcionEducativa` `no_estimable` con motivo hasta tener umbrales. Pendiente de T6 para T8/T9: medir en una corrida real la cobertura de `superacionTerreno` por motivo y revisar la regla de "recodo" con escuelas reales de Corrientes y Esquina.
+T8 en `motor-v0.4/07-integracion-v03`.
