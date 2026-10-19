@@ -1,3 +1,5 @@
+import { conAuditoria, respuestaAuditada } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
@@ -36,7 +38,7 @@ function mensajeMotivo(motivo: string): string {
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 
-export async function POST(
+async function atenderPOST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
@@ -46,6 +48,7 @@ export async function POST(
   if (guard) return respuestaGuard(guard)
 
   const { id } = await context.params
+  describirAuditoria({ objetoTipo: 'verificacion', objetoId: id, metadatos: { verificacionId: id } })
 
   let body: unknown
   try {
@@ -59,16 +62,21 @@ export async function POST(
     return jsonError(parsed.error.issues[0]?.message ?? 'Cuerpo inválido', 400, NO_STORE)
   }
 
-  const resultado = await responderAsistida({
-    verificacionId: id,
-    actorUserId: user!.id,
-    canal: parsed.data.canal,
-    resultado: parsed.data.resultado,
+  return respuestaAuditada(async () => {
+    const resultado = await responderAsistida({
+      verificacionId: id,
+      actorUserId: user!.id,
+      canal: parsed.data.canal,
+      resultado: parsed.data.resultado,
+    })
+
+    if (!resultado.ok) {
+      return jsonError(mensajeMotivo(resultado.motivo), resultado.status, NO_STORE)
+    }
+
+    describirAuditoria({ cueAnexo: resultado.verificacion.cueAnexo, resultado: resultado.replay ? 'repetido' : 'exito' })
+    return jsonNoStore({ ok: true, verificacion: sinTokenHash(resultado.verificacion) })
   })
-
-  if (!resultado.ok) {
-    return jsonError(mensajeMotivo(resultado.motivo), resultado.status, NO_STORE)
-  }
-
-  return jsonNoStore({ ok: true, verificacion: sinTokenHash(resultado.verificacion) })
 }
+
+export const POST = conAuditoria('verificacion.responder_asistida', '/api/infraestructura/verificaciones/[id]/responder-asistida', atenderPOST)

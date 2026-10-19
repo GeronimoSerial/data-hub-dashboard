@@ -1,3 +1,4 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { z } from 'zod'
 import { responderPorEnlace } from '@/lib/infraestructura/verificaciones'
 import {
@@ -15,7 +16,7 @@ const bodySchema = z.object({
   resultado: z.enum(['sin_afectacion', 'no_disponible']),
 })
 
-export const POST = crearPostVerificacion({
+const atenderPOST = crearPostVerificacion({
   bodySchema,
   mensajes: {
     ...MENSAJES_CREDENCIAL,
@@ -29,3 +30,5 @@ export const POST = crearPostVerificacion({
     movimientoId: null,
   }),
 })
+
+export const POST = conAuditoria('verificacion.responder', '/api/problematicas/verificaciones/[id]/responder', atenderPOST)

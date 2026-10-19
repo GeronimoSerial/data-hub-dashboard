@@ -1,3 +1,8 @@
+vi.mock('@/lib/infraestructura/auditoria/servidor', () => ({
+  conAuditoria: (_accion: string, _ruta: string, ejecutar: unknown) => ejecutar,
+  respuestaAuditada: (ejecutar: () => Promise<Response>) => ejecutar(),
+}))
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { POST } from './route'
 

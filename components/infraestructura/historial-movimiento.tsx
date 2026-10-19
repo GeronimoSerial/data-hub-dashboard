@@ -24,7 +24,11 @@ export interface MovimientoHistorial {
   severidad?: Severidad | null
 }
 
-const ROL_TEXTO: Record<RolMovimiento, string> = {
+const ROL_TEXTO: Partial<Record<RolMovimiento, string>> = {
+  compartido: 'Acceso compartido',
+  enlace: 'Enlace de verificación',
+  anonimo: 'Sin identidad personal',
+  sin_identificar: 'Sin identidad personal',
   director: 'Director',
   supervisor: 'Supervisor',
 }

@@ -14,6 +14,8 @@ if (comando === 'replicar' && new URL(process.env.TARGET_DATABASE_URL).pathname 
 const { getDb, getRawClient, migrarDb } = await import('../lib/db/index.ts')
 const { guardarVersion, leerVersion, listarVersiones, publicarVersion } = await import('../lib/infraestructura/datasets/repositorio.ts')
 const { esTipoGeo, publicarGeo } = await import('../lib/infraestructura/datasets/geo-static.ts')
+const { comandoAtomicoAuditado } = await import('../lib/infraestructura/auditoria/servidor.ts')
+const { describirAuditoria } = await import('../lib/infraestructura/auditoria/contexto.ts')
 
 async function replicar() {
   if (!process.env.SOURCE_DATABASE_URL || !process.env.TARGET_DATABASE_URL) throw new Error('Faltan SOURCE_DATABASE_URL/TARGET_DATABASE_URL')
@@ -68,28 +70,35 @@ try {
   await migrarDb()
   const { ensureGeSchema, crearEjecutorSql } = await import('../lib/infraestructura/ge-db.ts')
   await ensureGeSchema(crearEjecutorSql(getRawClient()))
-  let resultado
-  if (comando === 'importar') {
-    let texto = ''
-    if (id) texto = readFileSync(id, 'utf8')
-    else for await (const bloque of process.stdin) texto += bloque
-    const entradas = JSON.parse(texto)
-    const lista = Array.isArray(entradas) ? entradas : [entradas]
-    resultado = await getDb().transaction(async (tx) => {
-      const versiones = []
-      for (const entrada of lista) versiones.push({ datasetId: entrada.datasetId, versionId: await guardarVersion(entrada, tx) })
-      return versiones
-    })
-  } else if (comando === 'leer') {
-    resultado = await leerVersion(id, versionId)
-    if (!resultado) throw new Error('Dataset no publicado')
-  } else if (comando === 'historial') resultado = await listarVersiones(id)
-  else if (comando === 'publicar') {
-    const tipo = id?.replace(/^geo-/, '')
-    if (id?.startsWith('geo-') && esTipoGeo(tipo)) await publicarGeo(tipo, versionId)
-    else await publicarVersion(id, versionId)
-    resultado = { datasetId: id, versionId }
-  } else resultado = await replicar()
+  async function ejecutarComando() {
+    describirAuditoria({ objetoTipo: 'dataset', objetoId: ['leer', 'historial', 'publicar'].includes(comando) ? id : null })
+    let resultado
+    if (comando === 'importar') {
+      let texto = ''
+      if (id) texto = readFileSync(id, 'utf8')
+      else for await (const bloque of process.stdin) texto += bloque
+      const entradas = JSON.parse(texto)
+      const lista = Array.isArray(entradas) ? entradas : [entradas]
+      resultado = await getDb().transaction(async (tx) => {
+        const versiones = []
+        for (const entrada of lista) versiones.push({ datasetId: entrada.datasetId, versionId: await guardarVersion(entrada, tx) })
+        return versiones
+      })
+    } else if (comando === 'leer') {
+      resultado = await leerVersion(id, versionId)
+      if (!resultado) throw new Error('Dataset no publicado')
+    } else if (comando === 'historial') resultado = await listarVersiones(id)
+    else if (comando === 'publicar') {
+      const tipo = id?.replace(/^geo-/, '')
+      if (id?.startsWith('geo-') && esTipoGeo(tipo)) await publicarGeo(tipo, versionId)
+      else await publicarVersion(id, versionId)
+      resultado = { datasetId: id, versionId }
+    } else resultado = await replicar()
+    describirAuditoria({ metadatos: { cantidad: Array.isArray(resultado) ? resultado.length : undefined,
+      datasetId: comando === 'publicar' ? id : undefined, versionId: comando === 'publicar' ? versionId : undefined } })
+    return resultado
+  }
+  const resultado = await comandoAtomicoAuditado(comando, ejecutarComando)
   console.log(JSON.stringify(resultado))
 } catch (error) {
   console.error(`${error.cause?.code ?? error.code ?? 'validacion'}: ${String(error.cause?.message ?? error.message ?? 'Error de datasets').slice(0, 1000)}`)

@@ -1,3 +1,5 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { and, desc, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
@@ -14,7 +16,7 @@ export const dynamic = 'force-dynamic'
 const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
 const ID_SEGURO = /^[a-zA-Z0-9_-]{1,128}$/
 
-export async function GET(request: Request) {
+async function atenderGET(request: Request) {
   if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
@@ -25,6 +27,7 @@ export async function GET(request: Request) {
   await ensureSeeded()
 
   const attachmentId = searchParams.get('attachmentId')
+  describirAuditoria({ objetoTipo: 'adjunto', cueAnexo: cue.value, objetoId: attachmentId })
   const variant = searchParams.get('variant')
   if (attachmentId !== null) {
     if (!ID_SEGURO.test(attachmentId) || variant !== 'optimizada') {
@@ -88,5 +91,8 @@ export async function GET(request: Request) {
     }
     movement.photos.push({ attachmentId: row.attachmentId, thumbnailUrl })
   }
+  describirAuditoria({ metadatos: { cantidad: signedRows.length } })
   return Response.json({ movements: [...movements.values()] }, { headers: CACHE_HEADERS })
 }
+
+export const GET = conAuditoria('foto.autorizar_lectura', '/api/infraestructura/adjuntos', atenderGET)

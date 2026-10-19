@@ -8,12 +8,19 @@ import {
   infraPeriodo,
 } from '@/lib/db/schema'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { conFalloAuditoria } from '@/lib/test-utils/fallo-auditoria'
+import { conAuditoria } from '../auditoria/servidor'
+import { confirmarAdjunto } from './confirmacion'
+
+vi.mock('./obs', () => ({
+  getObsBucket: () => 'bucket-local',
+  headAttachmentObject: async (_bucket: string, key: string) => ({
+    size: key.includes('optimizada') ? 120_000 : 12_000, contentType: 'image/webp', etag: 'local-etag',
+  }),
+}))
 
 vi.mock('@/lib/infraestructura/acceso-parte', () => ({
   tieneAccesoAlParteParaCue: vi.fn(async () => true),
-}))
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn(async () => null) } },
 }))
 
 const MOMENTO = '2026-10-15T12:00:00.000Z'
@@ -54,6 +61,34 @@ beforeAll(async () => {
 })
 
 describe('photo evidence movement', () => {
+  it('revierte reserva y confirmación cuando falla el evento obligatorio', async () => {
+    const { crearEvidenciaFotografica } = await import('./evidencia-fotografica')
+    const crear = conAuditoria('evidencia.crear', '/api/problematicas/parte/evidencia', async () => {
+      const result = await crearEvidenciaFotografica(new Request('https://example.test'), {
+        movimientoBaseId: 'base-movement', idempotencyKey: 'evidence-fallo', fotos: [foto('photo-fallo')],
+      })
+      return Response.json(result)
+    })
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      await conFalloAuditoria(async () => {
+        expect((await crear()).status).toBe(503)
+        expect(await getDb().select().from(infraMovimiento).where(eq(infraMovimiento.idempotencyKey, 'evidence-fallo'))).toHaveLength(0)
+        expect(await getDb().select().from(infraAdjunto).where(eq(infraAdjunto.id, 'photo-fallo'))).toHaveLength(0)
+      })
+      const response = await crear()
+      const { movimientoId } = await response.json()
+      const confirmar = conAuditoria('foto.confirmar', '/api/problematicas/parte/adjuntos/[attachmentId]/confirmacion', async () => {
+        return Response.json(await confirmarAdjunto({ attachmentId: 'photo-fallo', movimientoId }))
+      })
+      await conFalloAuditoria(async () => {
+        expect((await confirmar()).status).toBe(503)
+        const [row] = await getDb().select().from(infraAdjunto).where(eq(infraAdjunto.id, 'photo-fallo'))
+        expect(row).toMatchObject({ estado: 'pending', optimizadaEtag: null, miniaturaEtag: null })
+      })
+      expect((await confirmar()).status).toBe(200)
+    } finally { log.mockRestore() }
+  })
   it('creates pending OBS metadata without changing the source movement', async () => {
     const { crearEvidenciaFotografica } = await import('./evidencia-fotografica')
     const result = await crearEvidenciaFotografica(new Request('https://example.test'), {
@@ -80,7 +115,7 @@ describe('photo evidence movement', () => {
       miniaturaObsKey: expect.stringContaining('/miniatura.webp'),
       optimizadaEtag: null,
       miniaturaEtag: null,
-      creadaPor: 'public-parte',
+      creadaPor: 'sin_identificar',
     })
 
     const replay = await crearEvidenciaFotografica(new Request('https://example.test'), {

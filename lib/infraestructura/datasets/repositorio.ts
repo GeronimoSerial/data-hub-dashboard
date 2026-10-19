@@ -5,6 +5,7 @@ import { infraDataset, infraDatasetVersion, infraDatasetRegistro, infraDatasetDe
 import { DATASETS_REFERENCIA } from './catalogo'
 import { prepararVersion, reconstruirDocumento, type Datos, type EntradaVersion } from './codec'
 import { estadoReferencias } from './memoria'
+import { describirAuditoria } from '../auditoria/contexto'
 
 type Db = ReturnType<typeof getDb>
 export type TxDataset = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -24,6 +25,8 @@ async function proyectarLocalizaciones(tx: TxDataset, datos: Datos[]) {
 export async function guardarVersion(entrada: EntradaVersion, db: Db = getDb(), publicar = true, proyectar?: (tx: TxDataset, versionId: string) => Promise<void>) {
   validarReferencia(entrada)
   const preparada = prepararVersion(entrada)
+  describirAuditoria({ objetoTipo: 'dataset', objetoId: entrada.datasetId,
+    metadatos: { datasetId: entrada.datasetId, versionId: preparada.id } })
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('infra-datasets-publicacion'))`)
     await tx.insert(infraDataset).values({ id: entrada.datasetId, nombre: entrada.nombre }).onConflictDoNothing()
@@ -70,6 +73,7 @@ export async function listarVersiones(datasetId: string, db: Db = getDb()) {
 }
 
 export async function publicarVersion(datasetId: string, versionId: string, db: Db = getDb(), proyectar?: (tx: TxDataset) => Promise<void>) {
+  describirAuditoria({ objetoTipo: 'dataset', objetoId: datasetId, metadatos: { datasetId, versionId } })
   const seleccion = await leerVersion(datasetId, versionId, db)
   if (!seleccion) throw new Error('Versión inexistente para el dataset')
   await db.transaction(async (tx) => {

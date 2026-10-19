@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { lecturaAuditada } from '@/lib/infraestructura/auditoria/servidor'
 import { VeredictoPublico } from '@/components/veredicto/veredicto-publico'
 import { getDb } from '@/lib/db'
 import { aDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
@@ -17,7 +18,9 @@ function ddMm(venceEn: string): string {
 
 export default async function PaginaVeredictoCompartido({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const enlace = await resolverEnlace(getDb(), token)
+  const enlace = await lecturaAuditada('enlace.consultar', '/veredicto/compartido/[token]',
+    () => resolverEnlace(getDb(), token),
+    enlace => ({ status: enlace.estado === 'valido' ? 200 : enlace.estado === 'inexistente' ? 404 : 410 }))
 
   if (enlace.estado === 'inexistente') {
     return (

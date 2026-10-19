@@ -1,3 +1,4 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { z } from 'zod'
 import { validarCredencial } from '@/lib/infraestructura/verificaciones'
 import {
@@ -12,9 +13,11 @@ const bodySchema = z.object({ token: z.string().trim().min(1) })
 
 // Lectura sin sesión: validarCredencial no consume ni rota el token.
 // POST carries the token in the body; a GET query would expose it in access logs.
-export const POST = crearPostVerificacion({
+const atenderPOST = crearPostVerificacion({
   bodySchema,
   mensajes: MENSAJES_CREDENCIAL,
   mensajeDefault: 'No se pudo validar el enlace.',
   ejecutar: (id, body) => validarCredencial({ verificacionId: id, token: body.token }),
 })
+
+export const POST = conAuditoria('verificacion.validar_token', '/api/problematicas/verificaciones/[id]/validar-token', atenderPOST)

@@ -1,3 +1,8 @@
+vi.mock('@/lib/infraestructura/auditoria/servidor', () => ({
+  conAuditoria: (_accion: string, _ruta: string, ejecutar: unknown) => ejecutar,
+  respuestaAuditada: (ejecutar: () => Promise<Response>) => ejecutar(),
+}))
+
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Ruta from './route'
 import type { FilaVeredicto } from '@/lib/infraestructura/veredicto/repositorio'

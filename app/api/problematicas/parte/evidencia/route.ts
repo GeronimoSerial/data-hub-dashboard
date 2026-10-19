@@ -1,3 +1,4 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
   crearEvidenciaFotografica,
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic'
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 const MAX_BODY_BYTES = 16 * 1024
 
-export async function POST(request: Request): Promise<Response> {
+async function atenderPOST(request: Request): Promise<Response> {
   if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   let body: unknown
   try {
@@ -59,3 +60,5 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ code: 'error_interno' }, { status: 500, headers: NO_STORE })
   }
 }
+
+export const POST = conAuditoria('evidencia.crear', '/api/problematicas/parte/evidencia', atenderPOST)

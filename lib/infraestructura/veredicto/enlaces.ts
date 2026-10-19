@@ -6,6 +6,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { getDb } from '@/lib/db'
 import { infraVeredictoEnlace } from '@/lib/db/schema'
 import { fechaArt } from './dia'
+import { actorAuditoria, describirAuditoria } from '../auditoria/contexto'
 
 export type Db = ReturnType<typeof getDb>
 
@@ -30,12 +31,13 @@ export function venceEnFinDelDiaArt(ahora: Date): string {
 export async function crearEnlace(
   db: Db,
   params: { desde: string; hasta: string; creadoPor: string; ahora?: Date },
-): Promise<{ token: string; venceEn: string }> {
+): Promise<{ token: string; venceEn: string; id: string }> {
   const ahora = params.ahora ?? new Date()
   const token = randomBytes(32).toString('base64url')
   const venceEn = venceEnFinDelDiaArt(ahora)
+  const id = randomUUID()
   await db.insert(infraVeredictoEnlace).values({
-    id: randomUUID(),
+    id,
     tokenHash: hashToken(token),
     fechaDesde: params.desde,
     fechaHasta: params.hasta,
@@ -45,7 +47,7 @@ export async function crearEnlace(
     revocadoEn: null,
     revocadoPor: null,
   })
-  return { token, venceEn }
+  return { token, venceEn, id }
 }
 
 export async function resolverEnlace(
@@ -59,11 +61,13 @@ export async function resolverEnlace(
     .where(eq(infraVeredictoEnlace.tokenHash, hashToken(token)))
     .limit(1)
   if (!fila) return { estado: 'inexistente' }
+  describirAuditoria({ objetoTipo: 'enlace', objetoId: fila.id, metadatos: { enlaceId: fila.id } })
   if (fila.revocadoEn) return { estado: 'revocado' }
   const venceEn = fila.venceEn ?? ''
   // Fail-closed: un vencimiento ausente o ilegible cuenta como vencido.
   const venceMs = Date.parse(venceEn)
   if (!Number.isFinite(venceMs) || ahora.getTime() > venceMs) return { estado: 'vencido', venceEn }
+  actorAuditoria({ actorTipo: 'enlace', actorId: fila.id, actorRol: null, viaAcceso: 'enlace_veredicto' })
   return {
     estado: 'valido',
     desde: fila.fechaDesde ?? '',

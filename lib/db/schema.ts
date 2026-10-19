@@ -1814,3 +1814,28 @@ export const infraDatasetPublicacion = pgTable('infra_dataset_publicacion', {
   foreignColumns: [infraDatasetVersion.datasetId, infraDatasetVersion.id],
   name: 'infra_dataset_publicacion_version_fk',
 })])
+
+
+export const auditoriaEvento = pgTable('auditoria_evento', {
+  id: text('id').primaryKey(),
+  requestId: text('request_id').notNull(),
+  ocurridoEn: timestamp('ocurrido_en', { withTimezone: true }).notNull(),
+  actorTipo: text('actor_tipo').notNull(),
+  actorId: text('actor_id'),
+  actorRol: text('actor_rol'),
+  viaAcceso: text('via_acceso').notNull(),
+  accion: text('accion').notNull(),
+  metodo: text('metodo').notNull(),
+  rutaPlantilla: text('ruta_plantilla').notNull(),
+  objetoTipo: text('objeto_tipo'),
+  objetoId: text('objeto_id'),
+  cueAnexo: text('cue_anexo'),
+  resultado: text('resultado').notNull(),
+  httpStatus: integer('http_status'),
+  duracionMs: integer('duracion_ms').notNull(),
+  metadatos: jsonb('metadatos').$type<Record<string, unknown>>().notNull().default({}),
+}, (t) => [
+  index('auditoria_evento_fecha_idx').on(t.ocurridoEn, t.id),
+  index('auditoria_evento_actor_fecha_idx').on(t.actorId, t.ocurridoEn, t.id),
+  check('auditoria_evento_metadatos_limite', sql`octet_length(${t.metadatos}::text) <= 4096`),
+])

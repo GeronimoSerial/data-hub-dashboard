@@ -1,3 +1,8 @@
+vi.mock('@/lib/infraestructura/auditoria/servidor', () => ({
+  conAuditoria: (_accion: string, _ruta: string, ejecutar: unknown) => ejecutar,
+  respuestaAuditada: (ejecutar: () => Promise<Response>) => ejecutar(),
+}))
+
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Ruta from './route'
 import { crearEnlace, revocarEnlacesDelDia } from '@/lib/infraestructura/veredicto/enlaces'
@@ -49,6 +54,7 @@ function peticion(body?: unknown): Request {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(crearEnlace).mockResolvedValue({
+    id: 'enlace-1',
     token: 'tok-abc',
     venceEn: '2026-10-13T02:59:59.999Z',
   })

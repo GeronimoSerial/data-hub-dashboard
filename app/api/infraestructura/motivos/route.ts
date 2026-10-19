@@ -1,3 +1,5 @@
+import { conAuditoria, respuestaAuditada } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { asc, count, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraAfectacion, infraMotivo } from '@/lib/db/schema'
@@ -49,7 +51,7 @@ export async function GET() {
   return Response.json({ motivos })
 }
 
-export async function POST(request: Request) {
+async function atenderPOST(request: Request) {
   await ensureSeeded()
   const denied = adminDenied(await getSessionUser())
   if (denied) return Response.json({ error: denied.error }, { status: denied.status })
@@ -104,23 +106,26 @@ export async function POST(request: Request) {
     return jsonError('Ya existe un motivo con ese nombre', 400)
   }
 
-  await db
-    .insert(infraMotivo)
-    .values(row)
-    .onConflictDoUpdate({
-      target: infraMotivo.id,
-      set: {
-        nombre: row.nombre,
-        categoria: row.categoria,
-        orden: row.orden,
-        severidadSugerida: row.severidadSugerida,
-      },
-    })
+  describirAuditoria({ objetoTipo: 'motivo', objetoId: row.id, metadatos: { campos: ['nombre', 'categoria', 'orden', 'severidadSugerida'] } })
+  return respuestaAuditada(async () => {
+    await getDb()
+      .insert(infraMotivo)
+      .values(row)
+      .onConflictDoUpdate({
+        target: infraMotivo.id,
+        set: {
+          nombre: row.nombre,
+          categoria: row.categoria,
+          orden: row.orden,
+          severidadSugerida: row.severidadSugerida,
+        },
+      })
 
-  return Response.json({ ok: true })
+    return Response.json({ ok: true })
+  })
 }
 
-export async function DELETE(request: Request) {
+async function atenderDELETE(request: Request) {
   await ensureSeeded()
   const denied = adminDenied(await getSessionUser())
   if (denied) return Response.json({ error: denied.error }, { status: denied.status })
@@ -148,6 +153,13 @@ export async function DELETE(request: Request) {
     return jsonError('No se puede eliminar: hay afectaciones que usan este motivo', 400)
   }
 
-  await db.delete(infraMotivo).where(eq(infraMotivo.id, id))
-  return Response.json({ ok: true })
+  describirAuditoria({ objetoTipo: 'motivo', objetoId: id })
+  return respuestaAuditada(async () => {
+    await getDb().delete(infraMotivo).where(eq(infraMotivo.id, id))
+    return Response.json({ ok: true })
+  })
 }
+
+export const POST = conAuditoria('motivo.guardar', '/api/infraestructura/motivos', atenderPOST)
+
+export const DELETE = conAuditoria('motivo.eliminar', '/api/infraestructura/motivos', atenderDELETE)

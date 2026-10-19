@@ -1,3 +1,5 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { actorAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { NextResponse } from 'next/server'
 import {
   NOMBRE_COOKIE,
@@ -13,7 +15,7 @@ export const dynamic = 'force-dynamic'
 // Ruta pública a propósito: es la que otorga la sesión de acceso al resto del
 // formulario. El mensaje de error nunca distingue "no existe" de
 // "incorrecta" porque acá sólo hay una contraseña, no cuentas.
-export async function POST(request: Request) {
+async function atenderPOST(request: Request) {
   // El bucket se comparte por IP con las demás rutas públicas.
   if (ipExcedeLimite(getClientIp(request))) {
     return Response.json(
@@ -39,7 +41,10 @@ export async function POST(request: Request) {
   }
 
   const { token, expiraEn } = crearTokenSesion()
+  actorAuditoria({ actorTipo: 'compartido', actorId: null, actorRol: null, viaAcceso: 'password_compartida' })
   const respuesta = NextResponse.json({ ok: true }, { status: 200 })
   respuesta.cookies.set(NOMBRE_COOKIE, token, opcionesCookieSesion(expiraEn))
   return respuesta
 }
+
+export const POST = conAuditoria('acceso.ingresar', '/api/problematicas/acceso', atenderPOST)
