@@ -117,6 +117,8 @@ export interface CamposQuePasoProps extends CamposComunes {
   esNueva?: boolean
   /** Advertencias de consistencia (no bloquean); se filtran por campo. */
   avisos?: Regla[]
+  /** Descartes compartidos con el formulario; sin esto cada aviso los guarda en su estado. */
+  descartes?: Descartes
 }
 
 /*
@@ -124,15 +126,17 @@ export interface CamposQuePasoProps extends CamposComunes {
   resuelve la advertencia; "Está bien así" la descarta sólo para las respuestas
   actuales (si cambian, vuelve).
 */
-export function AvisosConsistencia({
-  reglas,
-  campos,
-  onAplicar,
-}: {
-  reglas: Regla[]
-  campos: CampoConsistencia[]
-  onAplicar?: (sugerencia: Sugerencia) => void
-}): JSX.Element | null {
+/** Descartes de avisos por código, guardados con la firma de las respuestas que los originaron. */
+export interface Descartes {
+  descartadas: Record<string, string>
+  onDescartar: (codigo: string, firma: string) => void
+}
+
+/**
+ * Estado de descartes de un conjunto de avisos. Un formulario lo levanta a su
+ * nivel (y lo pasa como `descartes`) para que sobreviva a cambiar de paso.
+ */
+export function useDescartes(reglas: Regla[]): Descartes {
   const [descartadas, setDescartadas] = useState<Record<string, string>>({})
   // Una regla que deja de cumplirse olvida su descarte: si vuelve a cumplirse, se muestra.
   const codigosActivos = reglas.map((regla) => regla.codigo).join('\n')
@@ -142,6 +146,26 @@ export function AvisosConsistencia({
     const activas = new Set(reglas.map((regla) => regla.codigo))
     setDescartadas((actual) => Object.fromEntries(Object.entries(actual).filter(([codigo]) => activas.has(codigo))))
   }
+  return {
+    descartadas,
+    onDescartar: (codigo, firma) => setDescartadas((actual) => ({ ...actual, [codigo]: firma })),
+  }
+}
+
+export function AvisosConsistencia({
+  reglas,
+  campos,
+  onAplicar,
+  descartes,
+}: {
+  reglas: Regla[]
+  campos: CampoConsistencia[]
+  onAplicar?: (sugerencia: Sugerencia) => void
+  /** Sin esto, el aviso guarda sus descartes en su propio estado. */
+  descartes?: Descartes
+}): JSX.Element | null {
+  const propios = useDescartes(reglas)
+  const { descartadas, onDescartar } = descartes ?? propios
   const visibles = reglas.filter((regla) => campos.includes(regla.campo) && descartadas[regla.codigo] !== (regla.firma ?? ''))
   if (visibles.length === 0) return null
   return (
@@ -159,7 +183,7 @@ export function AvisosConsistencia({
             <button
               type="button"
               className="aviso-badge__accion aviso-badge__accion--secundaria"
-              onClick={() => setDescartadas((actual) => ({ ...actual, [regla.codigo]: regla.firma ?? '' }))}
+              onClick={() => onDescartar(regla.codigo, regla.firma ?? '')}
             >
               Está bien así
             </button>
@@ -190,6 +214,7 @@ export function CamposQuePaso({
   otrasAfectaciones,
   esNueva = false,
   avisos = [],
+  descartes,
   onChange,
   disabled = false,
 }: CamposQuePasoProps): JSX.Element {
@@ -328,7 +353,7 @@ export function CamposQuePaso({
         </p>
       )}
 
-      <AvisosConsistencia reglas={avisos} campos={['motivo', 'severidad', 'justificacionCritica']} />
+      <AvisosConsistencia reglas={avisos} campos={['motivo', 'severidad', 'justificacionCritica']} descartes={descartes} />
     </>
   )
 }
@@ -343,6 +368,7 @@ export interface CamposAQuienAfectaProps extends CamposComunes {
   /** "Otro" exige describir la situación: la etiqueta lo dice y la validación del paso lo exige. */
   descripcionObligatoria?: boolean
   avisos?: Regla[]
+  descartes?: Descartes
 }
 
 export function CamposAQuienAfecta({
@@ -355,6 +381,7 @@ export function CamposAQuienAfecta({
   ocultarDescripcion = false,
   descripcionObligatoria = false,
   avisos = [],
+  descartes,
   onChange,
   disabled = false,
 }: CamposAQuienAfectaProps): JSX.Element {
@@ -511,7 +538,7 @@ export function CamposAQuienAfecta({
         </div>
       )}
 
-      <AvisosConsistencia reglas={avisos} campos={['alcance']} />
+      <AvisosConsistencia reglas={avisos} campos={['alcance']} descartes={descartes} />
 
       <ConfirmSheet
         open={recomendacion !== null}

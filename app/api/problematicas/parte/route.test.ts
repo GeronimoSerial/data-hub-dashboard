@@ -38,6 +38,10 @@ const raceHook = vi.hoisted(() => ({
   parteId: null as string | null,
 }))
 
+// Hook de test para simular un error inesperado en el camino de escritura y
+// verificar que el catch final de POST lo registra y responde 500 genérico.
+const failHook = vi.hoisted(() => ({ armed: false }))
+
 vi.mock('@/lib/infraestructura/motivos', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   const listarMotivosReal = actual.listarMotivos as (...args: unknown[]) => Promise<unknown>
@@ -87,6 +91,21 @@ vi.mock('@/lib/infraestructura/motivos', async (importOriginal) => {
           })
       }
       return listarMotivosReal(...args)
+    },
+  }
+})
+
+vi.mock('@/lib/db/reintento', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  const conReintentoReal = actual.conReintentoPorBloqueo as (...args: unknown[]) => Promise<unknown>
+  return {
+    ...actual,
+    conReintentoPorBloqueo: async (...args: unknown[]) => {
+      if (failHook.armed) {
+        failHook.armed = false
+        throw new Error('boom-test-r1')
+      }
+      return conReintentoReal(...args)
     },
   }
 })
@@ -142,6 +161,12 @@ const CUE_V = '1801605-67'
 // CUE exclusivos del cierre de la evacuación preventiva (T8).
 const CUE_W = '1801605-68'
 const CUE_X = '1801605-69'
+// CUE exclusivo del test de error inesperado (500 genérico + log).
+const CUE_ERROR_INESPERADO = '1801605-70'
+// CUE exclusivo de las pruebas de reloj del cliente (rigeDesde futuro).
+const CUE_RELOJ_CLIENTE = '1801605-71'
+// CUE exclusivo del test de dos POST en paralelo con la MISMA idempotencyKey.
+const CUE_PARALELO = '1801605-73'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -162,6 +187,7 @@ beforeAll(async () => {
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
     CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U, CUE_V, CUE_W, CUE_X,
+    CUE_ERROR_INESPERADO, CUE_RELOJ_CLIENTE, CUE_PARALELO,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -365,6 +391,56 @@ describe('POST /api/problematicas/parte', () => {
     expect((await res.json()).error).toBe('Cada sección elegida debe incluir al menos un alumno')
   })
 
+  it('ante un error inesperado responde 500 genérico y lo registra en el log sin exponerlo al cliente', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    failHook.armed = true
+    try {
+      const res = await POST(postReq({
+        cue: CUE_ERROR_INESPERADO, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+        afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [seccionId(CUE_ERROR_INESPERADO, '10')] }],
+      }))
+      expect(res.status).toBe(500)
+      expect(await res.json()).toEqual({ error: 'No se pudo guardar la actualización' })
+      expect(spy).toHaveBeenCalledWith(expect.stringContaining('[problematicas/parte]'), expect.anything())
+      expect(JSON.stringify(spy.mock.calls)).toContain('boom-test-r1')
+    } finally {
+      failHook.armed = false
+      spy.mockRestore()
+    }
+  })
+
+  // R2: el reloj del cliente no decide la vigencia. Un rigeDesde adelantado
+  // dentro de la tolerancia se persiste recortado al ahora del servidor; más
+  // allá de la tolerancia el envío se rechaza.
+  it('un rigeDesde adelantado dentro de la tolerancia se persiste recortado al ahora del servidor', async () => {
+    const antes = Date.now()
+    const adelantado = new Date(antes + 10 * 60_000).toISOString()
+    const res = await POST(postReq({
+      cue: CUE_RELOJ_CLIENTE, idempotencyKey: crypto.randomUUID(), rigeDesde: adelantado,
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [seccionId(CUE_RELOJ_CLIENTE, '10')] }],
+    }))
+    expect(res.status).toBe(201)
+    const { parteId } = await res.json()
+    const despues = Date.now()
+
+    const movimientos = await getDb().select().from(infraMovimiento).where(eq(infraMovimiento.parteId, parteId))
+    expect(movimientos).toHaveLength(1)
+    const persistido = new Date(movimientos[0]!.rigeDesde).getTime()
+    expect(persistido).toBeGreaterThanOrEqual(antes)
+    expect(persistido).toBeLessThanOrEqual(despues)
+    expect(movimientos[0]!.rigeDesde).not.toBe(adelantado)
+  })
+
+  it('rechaza un rigeDesde adelantado más allá de la tolerancia de reloj', async () => {
+    const res = await POST(postReq({
+      cue: CUE_RELOJ_CLIENTE, idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [seccionId(CUE_RELOJ_CLIENTE, '10')] }],
+    }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('La fecha debe estar entre hace 12 meses y el momento actual.')
+  })
+
   it('el primer POST crea el parte con el corteId del corte vigente y un movimiento reporte_inicial', async () => {
     const idempotencyKey = crypto.randomUUID()
     const rigeDesde = new Date().toISOString()
@@ -526,6 +602,31 @@ describe('POST /api/problematicas/parte', () => {
     for (const cuerpo of cuerpos) {
       if (cuerpo.ok) expect(cuerpo.parteId).toBe(partes[0]!.id)
     }
+  })
+
+  it('dos POST en paralelo con la misma idempotencyKey escriben un solo movimiento y el otro responde 200 como replay', async () => {
+    const idempotencyKey = crypto.randomUUID()
+    const payload = {
+      cue: CUE_PARALELO,
+      idempotencyKey,
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [
+        { motivo: 'Tormenta severa', severidad: 'Baja' as const, secciones: [seccionId(CUE_PARALELO, '10')] },
+      ],
+    }
+
+    const respuestas = await Promise.all([POST(postReq(payload)), POST(postReq(payload))])
+    const cuerpos = await Promise.all(respuestas.map((r) => r.json()))
+
+    expect(respuestas.map((r) => r.status).sort()).toEqual([200, 201])
+    expect(cuerpos[0]!.movimientoId).toBeTruthy()
+    expect(cuerpos[1]!.movimientoId).toBe(cuerpos[0]!.movimientoId)
+
+    const movimientos = await getDb()
+      .select()
+      .from(infraMovimiento)
+      .where(eq(infraMovimiento.idempotencyKey, idempotencyKey))
+    expect(movimientos).toHaveLength(1)
   })
 
   it('el segundo POST (actualización) escribe tipo actualizacion y no crea un segundo parte', async () => {

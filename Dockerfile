@@ -37,8 +37,9 @@ ENV APP_REVISION=$APP_REVISION
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+ENV TZ=America/Argentina/Buenos_Aires
 
-RUN apk add --no-cache wget \
+RUN apk add --no-cache wget tzdata \
   && addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
 

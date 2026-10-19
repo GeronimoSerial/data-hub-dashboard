@@ -607,6 +607,32 @@ describe('ReporteInicialForm', () => {
     vi.useRealTimers()
   })
 
+  it('clasifica el borde de 12 meses con el calendario de Buenos Aires aunque el equipo esté en otra zona', async () => {
+    const previa = process.env.TZ
+    process.env.TZ = 'America/New_York'
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-18T12:30:00.000Z'))
+    try {
+      renderFormulario()
+      completarQuePaso()
+      continuar()
+      completarAQuienAfecta()
+      continuar()
+      completarEstadoEstablecimiento()
+      continuar()
+      fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
+      fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2025-10-18' } })
+      fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '09:15' } })
+      continuar()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('La fecha no puede ser anterior a hace 12 meses.')
+    } finally {
+      vi.useRealTimers()
+      if (previa === undefined) delete process.env.TZ
+      else process.env.TZ = previa
+    }
+  })
+
   it('enfoca y desplaza la fecha futura al mostrar su error', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))
@@ -1456,7 +1482,7 @@ describe('foto del reporte en el primer paso (T5)', () => {
     fireEvent.click(hoja.getAllByRole('radio')[0])
     fireEvent.click(hoja.getByRole('button', { name: 'Confirmar' }))
     expect(await screen.findByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeInTheDocument()
-    process.stdout.write('\nDBGT before '+Date.now()%100000+'\n'); const el = await selectorFotos(); process.stdout.write('\nDBGT found '+Date.now()%100000+' '+el.isConnected+' '+(document.querySelector('[role=dialog]')?.textContent ?? 'nodialog').slice(0,400)+'\n')
+    const el = await selectorFotos()
     expect(el).toBeInTheDocument()
   })
 
@@ -1476,5 +1502,25 @@ describe('foto del reporte en el primer paso (T5)', () => {
 
     await act(async () => { await new Promise((resolver) => setTimeout(resolver, 0)) })
     expect(screen.queryByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeNull()
+  })
+})
+
+describe('ReporteInicialForm — descartes de avisos entre pasos (R6)', () => {
+  it('un aviso descartado sigue descartado al avanzar y volver al paso', async () => {
+    stubFetch()
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    const texto = await screen.findByText(/Una inundación suele afectar al edificio/)
+    fireEvent.click(within(texto.closest('[role="note"]') as HTMLElement).getByRole('button', { name: 'Está bien así' }))
+    expect(screen.queryByText(/Una inundación suele afectar/)).toBeNull()
+
+    continuar()
+    volver()
+
+    expect(screen.queryByText(/Una inundación suele afectar/)).toBeNull()
   })
 })

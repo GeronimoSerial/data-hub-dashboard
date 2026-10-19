@@ -12,6 +12,7 @@ import {
   esAfectacionParcial,
   totalAlumnosDe,
   AvisosConsistencia,
+  useDescartes,
   type AfectacionBorrador,
 } from '@/components/infraestructura/afectacion-campos'
 import {
@@ -51,6 +52,7 @@ import {
   type EleccionVigencia,
 } from '@/lib/infraestructura/vigencia-eleccion'
 import { MENSAJE_FUERA_DE_RANGO_VIGENCIA, rangoVigencia } from '@/lib/infraestructura/vigencia-rango'
+import { instanteBA } from '@/lib/infraestructura/zona-horaria'
 import { VERSION_BORRADOR_ACTUAL, migrarPasoBorrador } from '@/lib/infraestructura/parte/borrador-migracion'
 import {
   colapsarHistorial,
@@ -106,7 +108,7 @@ function mensajeErrorVigencia(eleccion: EleccionVigencia): string | null {
 
   const [año, mes, dia] = eleccion.fecha.split('-').map(Number)
   const [hora, minuto] = eleccion.hora.split(':').map(Number)
-  const momento = new Date(año, mes - 1, dia, hora, minuto)
+  const momento = instanteBA(año, mes, dia, hora, minuto)
   const { min, max } = rangoVigencia()
   if (momento.getTime() > max.getTime()) return MENSAJE_FECHA_FUTURA
   if (momento.getTime() < min.getTime()) return MENSAJE_FECHA_ANTIGUA
@@ -757,6 +759,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     vigencia,
   })
   const consistencia = evaluarConsistenciaParte(respuestasConsistencia)
+  // Los descartes viven aquí, no en cada aviso: cada paso monta los suyos y se pierden al cambiar.
+  const descartes = useDescartes(consistencia.advertencias)
 
   // Gravedad sugerida con el alcance real de las secciones elegidas: la misma que
   // usa el servidor para decidir si la justificación de Crítica hace falta.
@@ -982,6 +986,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             motivos={motivos}
             otrasAfectaciones={[]}
             avisos={consistencia.advertencias}
+            descartes={descartes}
             onChange={(siguiente) => {
               cambiarAfectacion(siguiente)
               const sugerida = sugeridaDeAfectacion(siguiente)
@@ -1026,6 +1031,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             ocultarPreguntaAlcance
             descripcionObligatoria={evaluarConsistenciaParte({ ...respuestasConsistencia, descripcion: '' }).bloqueos.some((r) => r.campo === 'descripcion')}
             avisos={consistencia.advertencias}
+            descartes={descartes}
             onChange={cambiarAfectacion}
             disabled={enviando}
           />
@@ -1043,6 +1049,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
               alcanceParcial={afectacion.alcanceEstablecimiento !== 'toda'}
               respuestas={respuestasConsistencia}
               advertencias={consistencia.advertencias}
+              descartes={descartes}
               alcanceAlgunas={afectacion.alcanceEstablecimiento === 'algunas'}
               onInterrumpirTodaLaEscuela={() => {
                 setAfectacion((a) => ({
@@ -1073,7 +1080,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
                   />
                 </div>
               )}
-              <AvisosConsistencia reglas={consistencia.advertencias} campos={['asistencia']} />
+              <AvisosConsistencia reglas={consistencia.advertencias} campos={['asistencia']} descartes={descartes} />
             </fieldset>
           </>
         )}

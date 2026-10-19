@@ -189,7 +189,7 @@ const ADVERTENCIAS: DefinicionRegla[] = [
   },
   {
     // Sin energía o agua con clases suspendidas: el estado que lo describe es "Sin clases".
-    codigo: 'habitual-clases-suspendidas',
+    codigo: 'habitual-clases-suspendidas-sin-energia',
     campo: 'clases',
     mensaje: 'El edificio figura habitual pero las clases están suspendidas. Si falta energía o agua en toda la escuela, indique que el edificio está sin clases.',
     sugerencia: CAMBIAR_A_SIN_CLASES,
@@ -290,6 +290,10 @@ function evaluarRegla(definicion: DefinicionRegla, respuestas: RespuestasConsist
   return aRegla(definicion, firma)
 }
 
+export function codigosDeReglas(): string[] {
+  return [...BLOQUEOS, ...ADVERTENCIAS].map((definicion) => definicion.codigo)
+}
+
 export function evaluarConsistenciaParte(
   respuestas: RespuestasConsistencia,
   ahora: Date = new Date(),
@@ -351,4 +355,12 @@ export function alcanceDeSecciones(seccionIds: number[], todasLasSecciones: numb
   const elegidas = new Set(seccionIds)
   if (todasLasSecciones.length > 0 && todasLasSecciones.every((id) => elegidas.has(id))) return { tipo: 'toda' }
   return { tipo: 'algunas', secciones: seccionIds.length }
+}
+
+// Exención de alumnos: "alumnos" no pregunta por edificio ni clases, así que
+// esas respuestas no existen para esa categoría y no bloquean nada. La usan
+// cliente (consistencia-actualizacion) y servidor (consistencia-parte-servidor)
+// para que la misma afectación evalúe igual en los dos lados.
+export function preguntaEdificioYClases(categoria: CategoriaAfectacion | null): boolean {
+  return categoria !== 'alumnos'
 }

@@ -1,5 +1,6 @@
 import type { CategoriaAfectacion } from './categorias'
 import { dentroDeRangoVigencia, MENSAJE_FUERA_DE_RANGO_VIGENCIA } from './vigencia-rango'
+import { calendarioBA, type CalendarioBA, instanteBA } from './zona-horaria'
 
 export const MENSAJE_HORA_FUTURA = 'Esa hora todavía no pasó. Elija una hora anterior a la actual.'
 
@@ -19,31 +20,30 @@ function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-function combinar(fecha: Date, hora: string): Date | null {
+/** Combina un día del calendario de Buenos Aires con una hora `HH:mm` de ese día. */
+function combinar(dia: CalendarioBA, hora: string): Date | null {
   const m = /^(\d{2}):(\d{2})$/.exec(hora)
   if (!m) return null
   const horas = Number(m[1])
   const minutos = Number(m[2])
   if (horas > 23 || minutos > 59) return null
-  const d = new Date(fecha)
-  d.setHours(horas, minutos, 0, 0)
-  return d
+  return instanteBA(dia.año, dia.mes, dia.dia, horas, minutos)
 }
 
-function fechaLocal(texto: string): Date | null {
+function fechaCalendario(texto: string): CalendarioBA | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(texto)
   if (!m) return null
   const año = Number(m[1])
   const mes = Number(m[2])
   const dia = Number(m[3])
-  const fecha = new Date(año, mes - 1, dia)
-  if (fecha.getFullYear() !== año || fecha.getMonth() !== mes - 1 || fecha.getDate() !== dia) return null
-  return fecha
+  const fecha = new Date(Date.UTC(año, mes - 1, dia))
+  if (fecha.getUTCFullYear() !== año || fecha.getUTCMonth() !== mes - 1 || fecha.getUTCDate() !== dia) return null
+  return { año, mes, dia, diaSemana: fecha.getUTCDay() }
 }
 
 export function resolverVigencia(eleccion: EleccionVigencia, ahora: Date = new Date()): string | null {
   if (eleccion.modo === 'ahora') return ahora.toISOString()
-  const base = eleccion.modo === 'hoy' ? ahora : fechaLocal(eleccion.fecha)
+  const base = eleccion.modo === 'hoy' ? calendarioBA(ahora) : fechaCalendario(eleccion.fecha)
   if (!base) return null
   const momento = combinar(base, eleccion.hora)
   if (!momento || !dentroDeRangoVigencia(momento, ahora)) return null
@@ -54,7 +54,7 @@ export function resolverVigencia(eleccion: EleccionVigencia, ahora: Date = new D
 export function errorVigencia(eleccion: EleccionVigencia, ahora: Date = new Date()): string | null {
   if (eleccion.modo === 'ahora' || resolverVigencia(eleccion, ahora) !== null) return null
   if (eleccion.modo === 'hoy' && eleccion.hora) {
-    const momento = combinar(ahora, eleccion.hora)
+    const momento = combinar(calendarioBA(ahora), eleccion.hora)
     if (momento && momento.getTime() > ahora.getTime()) return MENSAJE_HORA_FUTURA
   }
   return MENSAJE_FUERA_DE_RANGO_VIGENCIA
@@ -63,9 +63,9 @@ export function errorVigencia(eleccion: EleccionVigencia, ahora: Date = new Date
 export function resumenVigencia(eleccion: EleccionVigencia, etiquetaMomento = 'Desde'): string {
   if (eleccion.modo === 'ahora') return `${etiquetaMomento} ahora`
   if (eleccion.modo === 'hoy') return eleccion.hora ? `${etiquetaMomento} hoy a las ${eleccion.hora}` : 'Elija la hora'
-  const fecha = fechaLocal(eleccion.fecha)
+  const fecha = fechaCalendario(eleccion.fecha)
   if (!fecha || !eleccion.hora) return 'Elija la fecha y la hora'
-  return `${etiquetaMomento} el ${DIAS[fecha.getDay()]} ${pad(fecha.getDate())}/${pad(fecha.getMonth() + 1)} a las ${eleccion.hora}`
+  return `${etiquetaMomento} el ${DIAS[fecha.diaSemana]} ${pad(fecha.dia)}/${pad(fecha.mes)} a las ${eleccion.hora}`
 }
 
 export function etiquetaVigencia(categoria: CategoriaAfectacion | ''): string {

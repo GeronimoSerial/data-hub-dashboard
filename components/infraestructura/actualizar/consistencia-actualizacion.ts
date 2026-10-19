@@ -1,5 +1,7 @@
 import {
+  alcanceDeSecciones,
   evaluarConsistenciaParte,
+  preguntaEdificioYClases,
   type AlcanceSecciones,
   type EstadoClasesConsistencia,
   type EstadoEdificioConsistencia,
@@ -37,6 +39,17 @@ export function respuestasDeSituacion(datos: DatosSituacionConsistencia): Respue
   }
 }
 
+// Situación nueva: misma exención que el servidor (consistencia-parte-servidor),
+// alumnos no pregunta por edificio ni clases.
+export function respuestasNuevaDeActualizacion(datos: DatosSituacionConsistencia): RespuestasConsistencia {
+  const pregunta = preguntaEdificioYClases(datos.categoria)
+  return respuestasDeSituacion({
+    ...datos,
+    clases: pregunta ? datos.clases : null,
+    edificio: pregunta ? datos.edificio : null,
+  })
+}
+
 // Mensajes de bloqueo de una situación que esta actualización toca. La
 // descripción sólo se exige en situaciones nuevas: las existentes no la
 // editan aquí.
@@ -47,7 +60,5 @@ export function mensajesDeBloqueo(respuestas: RespuestasConsistencia, { descripc
 }
 
 export function alcanceDe(secciones: number[] | undefined, seccionesDeLaEscuela: number[]): AlcanceSecciones | null {
-  if (!secciones || secciones.length === 0) return null
-  const todas = seccionesDeLaEscuela.length > 0 && seccionesDeLaEscuela.every((id) => secciones.includes(id))
-  return todas ? { tipo: 'toda' } : { tipo: 'algunas', secciones: secciones.length }
+  return alcanceDeSecciones(secciones ?? [], seccionesDeLaEscuela)
 }

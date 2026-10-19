@@ -3,6 +3,7 @@
 import { useId, type JSX } from 'react'
 import { rangoVigencia } from '@/lib/infraestructura/vigencia-rango'
 import { resumenVigencia, type EleccionVigencia } from '@/lib/infraestructura/vigencia-eleccion'
+import { calendarioBA } from '@/lib/infraestructura/zona-horaria'
 
 const OPCIONES: Array<{ modo: EleccionVigencia['modo']; etiqueta: string }> = [
   { modo: 'ahora', etiqueta: 'Ahora' },
@@ -14,8 +15,9 @@ function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-function fechaInput(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+function fechaInput(instante: Date): string {
+  const { año, mes, dia } = calendarioBA(instante)
+  return `${año}-${pad(mes)}-${pad(dia)}`
 }
 
 export interface VigenciaChipsProps {
