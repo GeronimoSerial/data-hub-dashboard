@@ -1,3 +1,5 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
@@ -17,7 +19,7 @@ export const dynamic = 'force-dynamic'
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 const MAX_BODY_BYTES = 16 * 1024
 
-export async function POST(request: Request): Promise<Response> {
+async function atenderPOST(request: Request): Promise<Response> {
   if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   const contentLength = Number(request.headers.get('content-length') ?? 0)
   if (contentLength > MAX_BODY_BYTES) {
@@ -61,6 +63,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
+    describirAuditoria({ objetoTipo: 'movimiento', objetoId: requestBody.movimientoId,
+      metadatos: { movimientoId: requestBody.movimientoId, cantidad: requestBody.adjuntos.length } })
     const autorizaciones = await authorizeAttachments(requestBody.movimientoId, movement.cueAnexo, requestBody.adjuntos)
     return Response.json({ movimientoId: requestBody.movimientoId, autorizaciones }, { status: 200, headers: NO_STORE })
   } catch (error) {
@@ -70,3 +74,5 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ code: 'obs_error', error: 'OBS could not authorize the photo upload.' }, { status: 502, headers: NO_STORE })
   }
 }
+
+export const POST = conAuditoria('foto.autorizar_carga', '/api/problematicas/parte/adjuntos/autorizaciones', atenderPOST)

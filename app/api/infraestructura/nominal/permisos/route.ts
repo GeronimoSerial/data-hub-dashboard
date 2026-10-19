@@ -1,3 +1,5 @@
+import { conAuditoria, respuestaAuditada } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser } from '@/lib/session'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
@@ -30,7 +32,7 @@ export async function GET() {
   return Response.json({ permisos })
 }
 
-export async function POST(request: Request) {
+async function atenderPOST(request: Request) {
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = adminGuard(user)
@@ -48,15 +50,18 @@ export async function POST(request: Request) {
     return Response.json({ error: 'venceEn debe ser una fecha futura' }, { status: 400 })
   }
 
-  const permiso = await otorgarPermisoNominal({
-    userId,
-    otorgadoPor: user!.id,
-    venceEn,
+  return respuestaAuditada(async () => {
+    const permiso = await otorgarPermisoNominal({
+      userId,
+      otorgadoPor: user!.id,
+      venceEn,
+    })
+    describirAuditoria({ objetoTipo: 'permiso_nominal', objetoId: permiso.id, metadatos: { permisoId: permiso.id } })
+    return Response.json({ permiso }, { status: 201 })
   })
-  return Response.json({ permiso }, { status: 201 })
 }
 
-export async function DELETE(request: Request) {
+async function atenderDELETE(request: Request) {
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = adminGuard(user)
@@ -66,6 +71,13 @@ export async function DELETE(request: Request) {
   const id = searchParams.get('id')
   if (!id) return Response.json({ error: 'Falta id' }, { status: 400 })
 
-  await revocarPermisoNominal(id)
-  return Response.json({ ok: true })
+  describirAuditoria({ objetoTipo: 'permiso_nominal', objetoId: id, metadatos: { permisoId: id } })
+  return respuestaAuditada(async () => {
+    await revocarPermisoNominal(id)
+    return Response.json({ ok: true })
+  })
 }
+
+export const POST = conAuditoria('permiso_nominal.otorgar', '/api/infraestructura/nominal/permisos', atenderPOST)
+
+export const DELETE = conAuditoria('permiso_nominal.revocar', '/api/infraestructura/nominal/permisos', atenderDELETE)

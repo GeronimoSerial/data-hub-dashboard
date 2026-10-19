@@ -1,11 +1,11 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { and, count, eq, isNull } from 'drizzle-orm'
+import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, getRawClient } from '@/lib/db'
 import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
-import { infraAfectacion, infraBorrador, infraBorradorCierre, infraMovimiento, infraParte, infraVerificacionEvento } from '@/lib/db/schema'
+import { auditoriaEvento, infraAfectacion, infraBorrador, infraBorradorCierre, infraMovimiento, infraParte, infraVerificacionEvento } from '@/lib/db/schema'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
@@ -1382,5 +1382,35 @@ describe('POST /api/problematicas/parte — estado activo al pasar a habitual (T
       afectacionesSolucionadas: [{ id: afectacion!.id }],
     }))
     expect(res.status).toBe(201)
+  })
+})
+
+describe('auditoría del parte', () => {
+  it('revierte el parte si falla el evento y permite reintentar la misma clave', async () => {
+    const idempotencyKey = crypto.randomUUID()
+    const body = { cue: CUE_B, idempotencyKey, rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [seccionId(CUE_B, '10')] }] }
+    const db = getDb()
+    await db.execute(sql`CREATE OR REPLACE FUNCTION test_fallar_auditoria_parte() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulado'; END $$`)
+    await db.execute(sql`CREATE TRIGGER test_fallar_auditoria_parte BEFORE INSERT ON auditoria_evento FOR EACH ROW EXECUTE FUNCTION test_fallar_auditoria_parte()`)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const response = await POST(postReq(body))
+      expect(response.status).toBe(503)
+      expect(await db.select().from(infraMovimiento).where(eq(infraMovimiento.idempotencyKey, idempotencyKey))).toHaveLength(0)
+    } finally {
+      await db.execute(sql`DROP TRIGGER test_fallar_auditoria_parte ON auditoria_evento`)
+      log.mockRestore()
+    }
+    const response = await POST(postReq(body))
+    expect(response.status).toBe(201)
+    const datos = await response.json()
+    const replay = await POST(postReq(body))
+    expect(replay.status).toBe(200)
+    const eventos = await db.select().from(auditoriaEvento).where(and(
+      eq(auditoriaEvento.accion, 'parte.guardar'), eq(auditoriaEvento.objetoId, datos.parteId),
+    ))
+    expect(eventos.filter(e => e.metadatos.movimientoId === datos.movimientoId).map(e => e.resultado).sort()).toEqual(['exito', 'repetido'])
+    expect(eventos.at(-1)).toMatchObject({ actorTipo: 'compartido', actorId: null, viaAcceso: 'password_compartida', cueAnexo: CUE_B })
   })
 })

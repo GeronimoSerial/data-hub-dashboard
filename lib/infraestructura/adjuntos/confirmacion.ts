@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { cambioAuditado } from '../auditoria/servidor'
 import { infraAdjunto } from '@/lib/db/schema'
 import { getObsBucket, headAttachmentObject, ObsObjectMissingError, type AttachmentObjectMetadata } from './obs'
 
@@ -68,20 +69,23 @@ export async function confirmarAdjunto(input: ConfirmarAdjuntoInput): Promise<Co
   const repetido = adjunto.estado === 'confirmed'
     && adjunto.optimizadaEtag === objects.optimizada.etag
     && adjunto.miniaturaEtag === objects.miniatura.etag
-  if (!repetido) {
-    await db.update(infraAdjunto).set({
-      estado: 'confirmed',
+  return cambioAuditado(async tx => {
+    if (!repetido) {
+      await tx.update(infraAdjunto).set({
+        estado: 'confirmed',
+        optimizadaEtag: objects.optimizada.etag,
+        miniaturaEtag: objects.miniatura.etag,
+      }).where(and(
+        eq(infraAdjunto.id, input.attachmentId),
+        eq(infraAdjunto.movimientoId, input.movimientoId),
+      ))
+    }
+    return {
+      ok: true as const,
+      repetido,
       optimizadaEtag: objects.optimizada.etag,
       miniaturaEtag: objects.miniatura.etag,
-    }).where(and(
-      eq(infraAdjunto.id, input.attachmentId),
-      eq(infraAdjunto.movimientoId, input.movimientoId),
-    ))
-  }
-  return {
-    ok: true,
-    repetido,
-    optimizadaEtag: objects.optimizada.etag,
-    miniaturaEtag: objects.miniatura.etag,
-  }
+    }
+  }, () => ({ status: 200, objetoTipo: 'adjunto', objetoId: input.attachmentId,
+    resultado: repetido ? 'repetido' : 'exito', metadatos: { attachmentId: input.attachmentId, movimientoId: input.movimientoId } }), db)
 }

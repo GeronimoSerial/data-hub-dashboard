@@ -34,6 +34,7 @@ function buildSections(role: Role, flags: AdminFlags) {
   if (flags.riskEngineEnabled) operacion.push({ label: 'Motor de riesgo', href: '/admin/riesgo', icon: ShieldAlert })
   if (flags.episodiosDerivadosEnabled) operacion.push({ label: 'Episodios derivados', href: '/admin/episodios-derivados', icon: Waves })
   if (role === 'admin') {
+    operacion.push({ label: 'Auditoría de infraestructura', href: '/admin/auditoria', icon: ClipboardCheck })
     operacion.push({ label: 'Salud', href: '/admin/operacion', icon: Activity })
   }
   sections.push({ label: 'Operación', items: operacion })
@@ -49,7 +50,7 @@ export function AdminShell({ children, role, flags = EMPTY_FLAGS }: { children: 
         {visibleSections.map((section) => (
           <div className="admin-sidebar__section" key={section.label}>
             <span className="eyebrow">{section.label}</span>
-            {section.items.map(({ label, href, icon: Icon }) => <Link href={href} key={href}><Icon size={16} /> {label}</Link>)}
+            {section.items.map(({ label, href, icon: Icon }) => <Link href={href} key={href} prefetch={href === '/admin/auditoria' ? false : undefined}><Icon size={16} /> {label}</Link>)}
           </div>
         ))}
         <Link className="admin-sidebar__back" href="/"><ArrowLeft size={16} /> Volver al Hub</Link>

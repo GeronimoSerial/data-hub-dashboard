@@ -598,7 +598,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? { ...(desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : {}), apply: true }
     : desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : undefined
   try {
-    const resultado = await correrJob(nombre, opts)
+    if (!NOMBRES_VALIDOS.includes(nombre)) throw new JobDesconocidoError(nombre)
+    const { jobAuditado } = await import('../lib/infraestructura/auditoria/servidor.ts')
+    const resultado = await jobAuditado(nombre, () => correrJob(nombre, opts), resultado => codigoSalida(nombre, resultado) === 0)
     console.log(JSON.stringify(resultado))
     process.exit(codigoSalida(nombre, resultado))
   } catch (error) {

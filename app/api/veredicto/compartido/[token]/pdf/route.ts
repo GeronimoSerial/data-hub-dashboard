@@ -1,3 +1,4 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { getDb } from '@/lib/db'
 import { aDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import { resolverEnlace } from '@/lib/infraestructura/veredicto/enlaces'
@@ -9,7 +10,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // Ruta pública: no hay sesión. Sin datos para enlaces inexistentes, vencidos o revocados.
-export async function GET(
+async function atenderGET(
   _request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
@@ -39,3 +40,5 @@ export async function GET(
     },
   })
 }
+
+export const GET = conAuditoria('enlace.pdf', '/api/veredicto/compartido/[token]/pdf', atenderGET)

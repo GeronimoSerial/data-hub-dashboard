@@ -1,3 +1,8 @@
+import { getDb } from '@/lib/db'
+vi.mock('@/lib/infraestructura/auditoria/servidor', () => ({
+  cambioAuditado: (ejecutar: (db: unknown) => Promise<unknown>) => ejecutar(getDb()),
+}))
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { confirmarAdjunto } from './confirmacion'
 

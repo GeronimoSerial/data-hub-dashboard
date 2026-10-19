@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { transaccionContextual } from './contexto'
 import { Pool, types } from 'pg'
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
@@ -111,7 +112,9 @@ export interface OpcionesGetDb {
 //   memoria, resetear los módulos crea una base vacía nueva y el dato
 //   sembrado por el "proceso anterior" desaparece. Sin esta variable, el
 //   resto de los tests sigue usando la PGlite en memoria de siempre.
-export function getDb(_opciones?: OpcionesGetDb) {
+export function getDb(_opciones?: OpcionesGetDb): Db {
+  const contextual = transaccionContextual.getStore()
+  if (contextual) return contextual
   if (_db) return _db
 
   if (resolveDriver() === 'postgres') {

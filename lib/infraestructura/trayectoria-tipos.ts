@@ -51,7 +51,7 @@ export type TipoMovimiento =
   // CONTRACT.md). Ninguna función de este batch produce este valor.
   | 'resolucion'
 
-export type RolMovimiento = 'director' | 'supervisor'
+export type RolMovimiento = 'director' | 'supervisor' | 'admin' | 'editor' | 'consulta' | 'operador_establecimiento' | 'director_nivel' | 'compartido' | 'enlace' | 'anonimo' | 'sistema' | 'sin_identificar'
 
 // Derivado, nunca persistido (spec §3.4, §10; CONTRACT.md "Derived, never
 // stored"). Lo calcula calcularEstadoServicioGeneral a partir del alcance

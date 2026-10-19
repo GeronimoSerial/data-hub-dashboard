@@ -1,3 +1,6 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getRawClient } from '@/lib/db'
 import {
   codigoSinAccesoParte,
@@ -34,7 +37,7 @@ const STATUS_ERROR: Record<ContextoErrorKind, number> = {
 // lib/infraestructura/acceso-publico.ts (reemplazo provisorio de la
 // autenticación por token que viene después) porque ahora el contexto puede
 // incluir identidad de alumnos (ver lib/infraestructura/contexto.ts).
-export async function GET(request: Request) {
+async function atenderGET(request: Request) {
   const url = new URL(request.url)
   let cue = url.searchParams.get('cue')
 
@@ -56,6 +59,7 @@ export async function GET(request: Request) {
   const client = crearEjecutorSql(getRawClient())
   await ensureGeSchema(client)
   const resultado = await resolverContextoPorCue(client, cue)
+  describirAuditoria({ objetoTipo: 'establecimiento', cueAnexo: normalizeCue(cue ?? '')?.value })
 
   if (!resultado.ok) {
     return jsonError(MENSAJES_ERROR[resultado.error.kind], STATUS_ERROR[resultado.error.kind])
@@ -63,3 +67,5 @@ export async function GET(request: Request) {
 
   return Response.json(resultado.contexto)
 }
+
+export const GET = conAuditoria('contexto.consultar', '/api/problematicas/contexto', atenderGET)

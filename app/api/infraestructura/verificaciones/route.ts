@@ -1,3 +1,5 @@
+import { conAuditoria, respuestaAuditada } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
@@ -45,7 +47,7 @@ export async function GET(request: Request) {
   return jsonNoStore({ ok: true, verificaciones: verificaciones.map(sinTokenHash) })
 }
 
-export async function POST(request: Request) {
+async function atenderPOST(request: Request) {
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = staffGuard(user)
@@ -63,21 +65,27 @@ export async function POST(request: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? 'Cuerpo inválido', 400, NO_STORE)
   }
 
-  const resultado = await crearVerificacion({
-    cueAnexo: parsed.data.cueAnexo,
-    solicitadaPorUserId: user!.id,
-    vencimientoEn: parsed.data.vencimientoEn ?? null,
+  return respuestaAuditada(async () => {
+    const resultado = await crearVerificacion({
+      cueAnexo: parsed.data.cueAnexo,
+      solicitadaPorUserId: user!.id,
+      vencimientoEn: parsed.data.vencimientoEn ?? null,
+    })
+
+    if (!resultado.ok) {
+      return jsonError('No hay un período vigente', resultado.status, NO_STORE)
+    }
+    describirAuditoria({ objetoTipo: 'verificacion', objetoId: resultado.verificacion.id,
+      cueAnexo: resultado.verificacion.cueAnexo, metadatos: { verificacionId: resultado.verificacion.id } })
+
+    // El token en claro viaja SOLO en esta respuesta: quien llama arma el enlace
+    // público (origin + /problematicas/verificaciones/{id}?token=...). La ruta no
+    // compone la URL completa, sólo devuelve el token crudo.
+    return jsonNoStore(
+      { ok: true, verificacion: sinTokenHash(resultado.verificacion), token: resultado.token },
+      201,
+    )
   })
-
-  if (!resultado.ok) {
-    return jsonError('No hay un período vigente', resultado.status, NO_STORE)
-  }
-
-  // El token en claro viaja SOLO en esta respuesta: quien llama arma el enlace
-  // público (origin + /problematicas/verificaciones/{id}?token=...). La ruta no
-  // compone la URL completa, sólo devuelve el token crudo.
-  return jsonNoStore(
-    { ok: true, verificacion: sinTokenHash(resultado.verificacion), token: resultado.token },
-    201,
-  )
 }
+
+export const POST = conAuditoria('verificacion.crear', '/api/infraestructura/verificaciones', atenderPOST)

@@ -6,6 +6,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { GET, PUT } from './route'
 import { POST } from '../route'
 import { POST as discardDraftRoute } from './descarte/route'
+import { conFalloAuditoria } from '@/lib/test-utils/fallo-auditoria'
 
 vi.mock('@/lib/infraestructura/acceso-parte', () => ({
   tieneAccesoAlParteParaCue: vi.fn(async () => true),
@@ -45,6 +46,28 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllEnvs())
 
 describe('draft detail and revisioned sync', () => {
+  it('revierte creación, sincronización y descarte si no se guarda su auditoría', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      await conFalloAuditoria(async () => {
+        expect((await create()).status).toBe(503)
+        expect(await getDb().select().from(infraBorrador).where(eq(infraBorrador.id, draftId))).toHaveLength(0)
+      })
+      expect((await create()).status).toBe(201)
+      await conFalloAuditoria(async () => {
+        const sync = await PUT(req(`/api/problematicas/parte/borradores/${draftId}`, {
+          version: 1, baseRevision: 0, paso: 'evidencias', actividadEn: fecha,
+        }, 'PUT'), { params: Promise.resolve({ draftId }) })
+        expect(sync.status).toBe(503)
+        const discarded = await discardDraftRoute(req(`/api/problematicas/parte/borradores/${draftId}/descarte`, {
+          version: 1, baseRevision: 0,
+        }, 'POST'), { params: Promise.resolve({ draftId }) })
+        expect(discarded.status).toBe(503)
+        const [row] = await getDb().select().from(infraBorrador).where(eq(infraBorrador.id, draftId))
+        expect(row).toMatchObject({ revision: 0, estado: 'open', paso: 'situacion' })
+      })
+    } finally { log.mockRestore() }
+  })
   it('accepts only the current revision and returns the remote revision on conflict', async () => {
     await create()
     const first = await PUT(req(`/api/problematicas/parte/borradores/${draftId}`, {

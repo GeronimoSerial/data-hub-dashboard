@@ -1,3 +1,4 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
@@ -14,7 +15,7 @@ const ETAG = /^(?:W\/)?"?[\da-f-]{1,128}"?$/i
 
 type RouteContext = { params: Promise<{ attachmentId: string }> }
 
-export async function POST(request: Request, context: RouteContext): Promise<Response> {
+async function atenderPOST(request: Request, context: RouteContext): Promise<Response> {
   if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   const { attachmentId } = await context.params
   if (!/^[0-9a-f-]{36}$/i.test(attachmentId)) {
@@ -78,3 +79,5 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     return Response.json({ code: 'obs_error', error: 'The photo objects could not be verified.' }, { status: 502, headers: NO_STORE })
   }
 }
+
+export const POST = conAuditoria('foto.confirmar', '/api/problematicas/parte/adjuntos/[attachmentId]/confirmacion', atenderPOST)

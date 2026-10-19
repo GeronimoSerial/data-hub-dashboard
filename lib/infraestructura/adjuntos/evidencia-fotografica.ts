@@ -3,7 +3,8 @@ import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraAdjunto, infraMovimiento, infraParte } from '@/lib/db/schema'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
-import { auth } from '@/lib/auth'
+import { autorAuditoria, rolAuditoria } from '../auditoria/contexto'
+import { cambioAuditado } from '../auditoria/servidor'
 
 const LIMITE_FOTOS = 3
 const LIMITE_OPTIMIZADA = 600 * 1024
@@ -77,13 +78,12 @@ export async function crearEvidenciaFotografica(
     throw new ErrorEvidenciaFotografica('Evidence cannot be attached to evidence movements', 400)
   }
 
-  const session = await auth.api.getSession({ headers: request.headers })
-  const creadaPor = session?.user.id ?? 'public-parte'
+  const creadaPor = autorAuditoria()
   const dbTime = ahora.toISOString()
   const movimientoId = randomUUID()
   const extensionPorTipo = (contentType: string) => contentType === 'image/webp' ? 'webp' : 'jpg'
 
-  return db.transaction(async (tx) => {
+  return cambioAuditado(async (tx) => {
     // Serialize evidence updates for this source movement before creating a
     // new evidence movement. The trigger independently guards every target.
     await tx.execute(
@@ -140,7 +140,7 @@ export async function crearEvidenciaFotografica(
       id: movimientoId,
       parteId: base.parteId,
       tipo: 'evidencia_fotografica',
-      rol: 'director',
+      rol: rolAuditoria(),
       resumen: {
         documentaMovimientoId: base.id,
         attachmentIds: input.fotos.map((foto) => foto.attachmentId),
@@ -175,7 +175,9 @@ export async function crearEvidenciaFotografica(
       attachmentIds: input.fotos.map((foto) => foto.attachmentId),
       repetido: false,
     }
-  })
+  }, resultado => ({ status: 200, objetoTipo: 'movimiento', objetoId: resultado.movimientoId,
+    cueAnexo: base.cueAnexo, resultado: resultado.repetido ? 'repetido' : 'exito',
+    metadatos: { movimientoId: resultado.movimientoId, cantidad: resultado.attachmentIds.length } }), db)
 }
 
 /**

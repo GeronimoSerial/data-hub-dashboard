@@ -1,3 +1,5 @@
+import { conAuditoria, respuestaAuditada } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { ensureSeeded } from '@/lib/db/seed'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { BorradorError, createDraft, readJsonBody } from '@/lib/infraestructura/borradores/service'
@@ -18,7 +20,7 @@ function errorResponse(error: unknown): Response {
   throw error
 }
 
-export async function POST(request: Request) {
+async function atenderPOST(request: Request) {
   if (!getReportesOfflineFeatures().borradoresSync) return reportesOfflineFlagDisabledResponse()
   let body: unknown
   try {
@@ -34,9 +36,15 @@ export async function POST(request: Request) {
       return Response.json({ error: 'No autorizado' }, { status: 401, headers: NO_STORE })
     }
     await ensureSeeded()
-    const result = await createDraft(body)
-    return Response.json(result.draft, { status: result.created ? 201 : 200, headers: NO_STORE })
+    return await respuestaAuditada(async () => {
+      const result = await createDraft(body)
+      describirAuditoria({ objetoTipo: 'borrador', objetoId: result.draft.draftId,
+        resultado: result.created ? 'exito' : 'repetido', metadatos: { draftId: result.draft.draftId, revision: result.draft.revision } })
+      return Response.json(result.draft, { status: result.created ? 201 : 200, headers: NO_STORE })
+    })
   } catch (error) {
     return errorResponse(error)
   }
 }
+
+export const POST = conAuditoria('borrador.crear', '/api/problematicas/parte/borradores', atenderPOST)

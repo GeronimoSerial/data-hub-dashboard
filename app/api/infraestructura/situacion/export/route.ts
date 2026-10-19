@@ -1,3 +1,5 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
@@ -48,7 +50,7 @@ function aCsv(filas: string[][]): string {
     .join('\r\n')
 }
 
-export async function GET(request: Request) {
+async function atenderGET(request: Request) {
   const user = await getSessionUser()
   const guard = staffGuard(user)
   if (guard) return respuestaGuard(guard)
@@ -65,6 +67,7 @@ export async function GET(request: Request) {
   if (!corte) {
     return jsonError('Todavía no hay ningún corte generado', 404, { 'Cache-Control': 'private, no-store' })
   }
+  describirAuditoria({ objetoTipo: 'corte', objetoId: corte.id, metadatos: { formato: parsed.data.formato } })
 
   if (parsed.data.formato === 'csv') {
     const cuerpo = aCsv(filasCsv(corte))
@@ -86,3 +89,5 @@ export async function GET(request: Request) {
     },
   })
 }
+
+export const GET = conAuditoria('situacion.exportar', '/api/infraestructura/situacion/export', atenderGET)

@@ -1,4 +1,8 @@
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getDb } from '@/lib/db'
+import { auditoriaEvento } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+import { conFalloAuditoria } from '@/lib/test-utils/fallo-auditoria'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { ensureSeeded } from '@/lib/db/seed'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
@@ -43,6 +47,21 @@ function contexto(id: string) {
 }
 
 describe('POST /api/problematicas/verificaciones/[id]/responder', () => {
+  it('revierte la respuesta si falla la auditoría y registra el enlace al reintentar', async () => {
+    const { token, verificacion } = await verificacionPendiente()
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      await conFalloAuditoria(async () => {
+        const response = await POST(postReq(verificacion.id, { token, resultado: 'sin_afectacion' }), contexto(verificacion.id))
+        expect(response.status).toBe(503)
+        expect((await obtenerVerificacion(verificacion.id))?.estado).toBe('pendiente')
+      })
+      expect((await POST(postReq(verificacion.id, { token, resultado: 'sin_afectacion' }), contexto(verificacion.id))).status).toBe(200)
+      const [evento] = await getDb().select().from(auditoriaEvento).where(eq(auditoriaEvento.objetoId, verificacion.id))
+      expect(evento).toMatchObject({ actorTipo: 'enlace', actorId: verificacion.id, resultado: 'exito' })
+      expect(JSON.stringify(evento)).not.toContain(token)
+    } finally { log.mockRestore() }
+  })
   it("'sin_afectacion' con token válido: 200 y estado respondida", async () => {
     const { token, verificacion } = await verificacionPendiente()
 

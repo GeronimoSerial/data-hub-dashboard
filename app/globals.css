@@ -2128,6 +2128,17 @@ time {
 
 .admin-layout .ui-table td:last-child .ui-actions { flex-wrap: nowrap; }
 .admin-motivos { min-width: 0; width: 100%; }
+.auditoria-visor { min-width: 0; color: var(--ink); }
+.auditoria-visor header { margin-bottom: var(--s-5); }
+.auditoria-visor__filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--s-4); align-items: end; margin-bottom: var(--s-5); }
+.auditoria-visor__eventos { list-style: none; padding: 0; margin: 0 0 var(--s-5); }
+.auditoria-visor__eventos > li { border-top: 1px solid var(--line); padding: var(--s-4) 0; overflow-wrap: anywhere; }
+.auditoria-visor__resumen { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: baseline; }
+.auditoria-visor__resumen strong { margin-right: auto; }
+.auditoria-visor__eventos p { margin: var(--s-2) 0; }
+.auditoria-visor details { font-size: var(--t-small); }
+.auditoria-visor summary { cursor: pointer; }
+.auditoria-visor pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .admin-motivos__table-wrap { min-width: 0; max-width: 100%; overflow-x: hidden; }
 .admin-layout .admin-motivos .ui-table {
   width: 100%;

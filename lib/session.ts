@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import { observarUsuarioAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
@@ -17,6 +18,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!session?.user) return null
   const role = (session.user.role as Role | undefined) ?? 'consulta'
   const banned = Boolean(session.user.banned)
+  observarUsuarioAuditoria({ id: session.user.id, role })
   const db = getDb()
   // acceso_recursos no viene en session.user (better-auth no la conoce), así
   // que se lee directo de la tabla `user`; en paralelo con las dos listas de

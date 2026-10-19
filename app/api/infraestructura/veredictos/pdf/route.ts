@@ -1,3 +1,4 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getDb } from '@/lib/db'
 import { aDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
@@ -23,7 +24,7 @@ function esFechaValida(valor: string): boolean {
   return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === valor
 }
 
-export async function GET(request: Request) {
+async function atenderGET(request: Request) {
   await ensureSeeded()
 
   const user = await getSessionUser()
@@ -61,3 +62,5 @@ export async function GET(request: Request) {
     },
   })
 }
+
+export const GET = conAuditoria('veredicto.pdf', '/api/infraestructura/veredictos/pdf', atenderGET)

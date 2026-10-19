@@ -1,3 +1,5 @@
+import { conAuditoria, respuestaAuditada } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { ensureSeeded } from '@/lib/db/seed'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { BorradorError, discardDraft, getDraftCue, readJsonBody } from '@/lib/infraestructura/borradores/service'
@@ -9,7 +11,7 @@ export const dynamic = 'force-dynamic'
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 type Context = { params: Promise<{ draftId: string }> }
 
-export async function POST(request: Request, context: Context) {
+async function atenderPOST(request: Request, context: Context) {
   if (!getReportesOfflineFeatures().borradoresSync) return reportesOfflineFlagDisabledResponse()
   try {
     await ensureSeeded()
@@ -19,8 +21,13 @@ export async function POST(request: Request, context: Context) {
     if (!(await tieneAccesoAlParteParaCue(request, cue))) {
       return Response.json({ error: 'No autorizado' }, { status: 401, headers: NO_STORE })
     }
-    const result = await discardDraft(draftId, await readJsonBody(request))
-    return Response.json(result, { status: 200, headers: NO_STORE })
+    const body = await readJsonBody(request)
+    describirAuditoria({ objetoTipo: 'borrador', objetoId: draftId, metadatos: { draftId } })
+    return await respuestaAuditada(async () => {
+      const result = await discardDraft(draftId, body)
+      describirAuditoria({ metadatos: { revision: result.revision } })
+      return Response.json(result, { status: 200, headers: NO_STORE })
+    })
   } catch (error) {
     if (!(error instanceof BorradorError)) throw error
     if (error.code === 'invalid') return Response.json({ code: 'validacion', campos: error.fields }, { status: 422, headers: NO_STORE })
@@ -31,3 +38,5 @@ export async function POST(request: Request, context: Context) {
     throw error
   }
 }
+
+export const POST = conAuditoria('borrador.descartar', '/api/problematicas/parte/borradores/[draftId]/descarte', atenderPOST)

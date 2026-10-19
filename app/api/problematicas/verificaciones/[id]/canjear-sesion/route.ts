@@ -1,3 +1,4 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
@@ -22,7 +23,7 @@ const bodySchema = z.object({ token: z.string().trim().min(1) })
 
 // POST carries the token in its body, never in a GET URL or access log.
 // no-store protects credential responses; no-referrer prevents outbound leakage.
-export const POST = crearPostVerificacion({
+const atenderPOST = crearPostVerificacion({
   bodySchema,
   mensajes: {
     ...MENSAJES_CREDENCIAL,
@@ -53,3 +54,5 @@ export const POST = crearPostVerificacion({
     return respuesta
   },
 })
+
+export const POST = conAuditoria('verificacion.canjear_sesion', '/api/problematicas/verificaciones/[id]/canjear-sesion', atenderPOST)

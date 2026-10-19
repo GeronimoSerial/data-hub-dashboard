@@ -1,3 +1,4 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 // Historial del parte (spec §15): movimientos en orden cronológico inverso.
 // Mismo pipeline de guardas que GET /api/problematicas/parte (acceso
 // público, ensureSeeded, CUE válido, corte vigente) — la ausencia de parte o
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
 
 const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
 
-export async function GET(request: Request) {
+async function atenderGET(request: Request) {
   const { searchParams } = new URL(request.url)
   const cue = normalizeCue(searchParams.get('cue') ?? '')
   if (!cue) {
@@ -47,3 +48,5 @@ export async function GET(request: Request) {
 
   return Response.json({ ok: true, movimientos }, { status: 200, headers: CACHE_HEADERS })
 }
+
+export const GET = conAuditoria('parte.historial', '/api/problematicas/parte/historial', atenderGET)

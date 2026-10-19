@@ -1,3 +1,5 @@
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { archivoResponseHeaders } from '@/lib/archivo'
 import { consultarExportacion } from '@/lib/exportaciones/consulta'
 import { tituloExportacion } from '@/lib/exportaciones/escuelas'
@@ -13,7 +15,7 @@ export const dynamic = 'force-dynamic'
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const CABECERAS_PRIVADAS = { 'Cache-Control': 'private, no-cache', Vary: 'Cookie, Accept-Encoding' }
 
-export async function GET(request: Request) {
+async function atenderGET(request: Request) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) {
     const error = acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
@@ -41,6 +43,7 @@ export async function GET(request: Request) {
     )
   }
   const { filas, columnas, opciones, direcciones, totalAlumnos } = consulta
+  describirAuditoria({ metadatos: { formato: solicitud.formato, cantidad: filas.length } })
 
   if (solicitud.formato === 'json') {
     const { tamanoPagina } = solicitud
@@ -82,3 +85,5 @@ export async function GET(request: Request) {
     }),
   })
 }
+
+export const GET = conAuditoria('mapa.exportar', '/api/infraestructura/exportar', atenderGET)

@@ -1,4 +1,6 @@
 import type { z } from 'zod'
+import { respuestaAuditada } from './auditoria/servidor'
+import { actorAuditoria, describirAuditoria } from './auditoria/contexto'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import type { VerificacionRow } from '@/lib/infraestructura/verificaciones'
@@ -50,6 +52,7 @@ export function crearPostVerificacion<T>(opciones: OpcionesPost<T>) {
     }
 
     const { id } = await context.params
+    describirAuditoria({ objetoTipo: 'verificacion', objetoId: id })
     let body: unknown
     try {
       body = await request.json()
@@ -62,18 +65,24 @@ export function crearPostVerificacion<T>(opciones: OpcionesPost<T>) {
       return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: CACHE_HEADERS })
     }
 
-    const resultado = await opciones.ejecutar(id, parsed.data)
-    if (!resultado.ok) {
-      return Response.json(
-        { error: opciones.mensajes[resultado.motivo] ?? opciones.mensajeDefault },
-        { status: resultado.status, headers: CACHE_HEADERS },
-      )
-    }
+    return respuestaAuditada(async () => {
+      const resultado = await opciones.ejecutar(id, parsed.data)
+      if (!resultado.ok) {
+        return Response.json(
+          { error: opciones.mensajes[resultado.motivo] ?? opciones.mensajeDefault },
+          { status: resultado.status, headers: CACHE_HEADERS },
+        )
+      }
 
-    const verificacion = sinTokenHash(resultado.verificacion)
-    return opciones.responderExito?.(verificacion, id) ?? Response.json(
-      { ok: true, verificacion },
-      { status: 200, headers: CACHE_HEADERS },
-    )
+      const verificacion = sinTokenHash(resultado.verificacion)
+      actorAuditoria({ actorTipo: 'enlace', actorId: verificacion.id, actorRol: null, viaAcceso: 'token_verificacion' })
+      describirAuditoria({ cueAnexo: verificacion.cueAnexo,
+        resultado: 'replay' in resultado && resultado.replay ? 'repetido' : 'exito',
+        metadatos: { verificacionId: verificacion.id, movimientoId: verificacion.movimientoId } })
+      return opciones.responderExito?.(verificacion, id) ?? Response.json(
+        { ok: true, verificacion },
+        { status: 200, headers: CACHE_HEADERS },
+      )
+    })
   }
 }

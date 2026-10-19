@@ -1,3 +1,5 @@
+import { conAuditoria, respuestaAuditada } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getDb } from '@/lib/db'
 import { fechasVentana } from '@/lib/infraestructura/veredicto/entradas'
@@ -30,7 +32,7 @@ async function leerCuerpo(request: Request): Promise<{ desde?: unknown; hasta?: 
   }
 }
 
-export async function POST(request: Request) {
+async function atenderPOST(request: Request) {
   await ensureSeeded()
 
   const user = await getSessionUser()
@@ -54,22 +56,32 @@ export async function POST(request: Request) {
     return jsonError(`El rango no puede superar ${MAX_DIAS} días`, 400, CABECERAS_ERROR)
   }
 
-  const { token, venceEn } = await crearEnlace(getDb(), {
-    desde,
-    hasta,
-    creadoPor: user!.id,
-    ahora,
+  return respuestaAuditada(async () => {
+    const { token, venceEn, id } = await crearEnlace(getDb(), {
+      desde,
+      hasta,
+      creadoPor: user!.id,
+      ahora,
+    })
+    describirAuditoria({ objetoTipo: 'enlace', objetoId: id, metadatos: { enlaceId: id } })
+    return jsonNoStore({ url: `/veredicto/compartido/${token}`, venceEn }, 201)
   })
-  return jsonNoStore({ url: `/veredicto/compartido/${token}`, venceEn }, 201)
 }
 
-export async function DELETE() {
+async function atenderDELETE() {
   await ensureSeeded()
 
   const user = await getSessionUser()
   const guard = staffGuard(user)
   if (guard) return respuestaGuard(guard)
 
-  const revocados = await revocarEnlacesDelDia(getDb(), { revocadoPor: user!.id })
-  return jsonNoStore({ revocados })
+  return respuestaAuditada(async () => {
+    const revocados = await revocarEnlacesDelDia(getDb(), { revocadoPor: user!.id })
+    describirAuditoria({ objetoTipo: 'enlace', metadatos: { cantidad: revocados }, resultado: revocados ? 'exito' : 'sin_cambio' })
+    return jsonNoStore({ revocados })
+  })
 }
+
+export const POST = conAuditoria('enlace.crear', '/api/infraestructura/veredictos/enlaces', atenderPOST)
+
+export const DELETE = conAuditoria('enlace.revocar', '/api/infraestructura/veredictos/enlaces', atenderDELETE)
