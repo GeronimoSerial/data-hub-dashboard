@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
@@ -12,6 +12,7 @@ import {
 import { manejarGeCallback, manejarGeLogin, responderPreflightGe } from './handlers'
 import { emitirTicket, consumirTicket, hashTicket } from './ticket'
 import { geRateLimit } from './seguridad'
+import { esStagingForwardActivo } from './staging-forward'
 
 usarDbTemporal('ge-sso')
 
@@ -23,16 +24,25 @@ const ENV_PREVIA = {
   GE_SSO_API_KEY: process.env.GE_SSO_API_KEY,
   GE_SSO_ALLOWED_ORIGIN: process.env.GE_SSO_ALLOWED_ORIGIN,
   BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+  GE_SSO_STAGING_FORWARD_URL: process.env.GE_SSO_STAGING_FORWARD_URL,
+  GE_SSO_STAGING_FORWARD_UNTIL: process.env.GE_SSO_STAGING_FORWARD_UNTIL,
+  GE_SSO_STAGING_FORWARD_ENABLED: process.env.GE_SSO_STAGING_FORWARD_ENABLED,
+  GE_SSO_STAGING_FORWARD_API_KEY: process.env.GE_SSO_STAGING_FORWARD_API_KEY,
 }
 
 beforeEach(() => {
   process.env.GE_SSO_API_KEY = API_KEY
   delete process.env.GE_SSO_ALLOWED_ORIGIN
+  delete process.env.GE_SSO_STAGING_FORWARD_URL
+  delete process.env.GE_SSO_STAGING_FORWARD_UNTIL
+  delete process.env.GE_SSO_STAGING_FORWARD_ENABLED
+  delete process.env.GE_SSO_STAGING_FORWARD_API_KEY
   process.env.BETTER_AUTH_URL = BASE
   geRateLimit.reset()
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   for (const [clave, valor] of Object.entries(ENV_PREVIA)) {
     if (valor === undefined) delete process.env[clave]
     else process.env[clave] = valor
@@ -58,6 +68,19 @@ function pedidoLogin(
     method: 'POST',
     headers,
     body: JSON.stringify({ api_key: API_KEY, ...body }),
+  })
+}
+
+function pedidoLegacy(body: Record<string, unknown>, opts: { origin?: string | null } = {}): Request {
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'x-forwarded-for': ipNueva(),
+  }
+  if (opts.origin !== null) headers.origin = opts.origin ?? ORIGEN
+  return new Request(`${BASE}/api/auth/ge-login`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
   })
 }
 
@@ -346,18 +369,6 @@ describe('callback /auth/ge-callback', () => {
 })
 
 describe('formato legacy (asistencias) en el mismo endpoint', () => {
-  function pedidoLegacy(body: Record<string, unknown>, opts: { origin?: string | null } = {}): Request {
-    const headers: Record<string, string> = {
-      'content-type': 'application/json',
-      'x-forwarded-for': ipNueva(),
-    }
-    if (opts.origin !== null) headers.origin = opts.origin ?? ORIGEN
-    return new Request(`${BASE}/api/auth/ge-login`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    })
-  }
 
   it('responde 200 con la URL de callback y el callback deja un operador con su CUE', async () => {
     const res = await manejarGeLogin(pedidoLegacy({ CUE: '1800554-00', USUARIO: 1001, secret: API_KEY }))
@@ -414,5 +425,157 @@ describe('formato legacy (asistencias) en el mismo endpoint', () => {
     const segundo = await usuarioPorEmail('ge-1004@ge-sso.invalid')
     expect(segundo.id).toBe(primero.id)
     expect(segundo.geCueAnexo).toBe('1800554-01')
+  })
+})
+
+describe('Reenvío a staging para operador_establecimiento', () => {
+  it('evalúa correctamente la vigencia del reenvío según variables de entorno', () => {
+    expect(esStagingForwardActivo({ url: null })).toBe(false)
+    expect(esStagingForwardActivo({ url: 'https://staging.example', enabled: 'false' })).toBe(false)
+    // Expirado
+    expect(
+      esStagingForwardActivo(
+        { url: 'https://staging.example', until: '2026-10-18T00:00:00Z' },
+        Date.parse('2026-10-19T00:00:00Z'),
+      ),
+    ).toBe(false)
+    // Vigente (dentro de los 2 días)
+    expect(
+      esStagingForwardActivo(
+        { url: 'https://staging.example', until: '2026-10-21T23:59:59Z' },
+        Date.parse('2026-10-19T20:00:00Z'),
+      ),
+    ).toBe(true)
+  })
+
+  it('reenvía login moderno de operador_establecimiento a staging y audita reenviado_staging', async () => {
+    process.env.GE_SSO_STAGING_FORWARD_URL = 'https://staging.example'
+    const OPERADOR_STAGING = {
+      email: 'operador.staging@ejemplo.gob.ar',
+      nombre: 'Marta',
+      apellido: 'Gómez',
+      rol: 'operador_establecimiento',
+      cue: '1800554-00',
+    }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ redirectUrl: 'https://staging.example/auth/ge-callback?token=tk-stag' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    const res = await manejarGeLogin(pedidoLogin(OPERADOR_STAGING))
+    expect(res.status).toBe(201)
+    const json = await res.json()
+    expect(json).toEqual({ redirectUrl: 'https://staging.example/auth/ge-callback?token=tk-stag' })
+    expect(res.headers.get('access-control-allow-origin')).toBe(ORIGEN)
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const [llamadaUrl, llamadaInit] = fetchSpy.mock.calls[0]
+    expect(llamadaUrl).toBe('https://staging.example/api/auth/ge-login')
+    expect(llamadaInit?.method).toBe('POST')
+    expect((llamadaInit?.headers as Record<string, string>)?.['x-ge-sso-forwarded']).toBe('true')
+    expect((llamadaInit?.headers as Record<string, string>)?.Origin).toBe(ORIGEN)
+
+    // No se crea usuario en la base de prod
+    expect(await usuarioPorEmail(OPERADOR_STAGING.email)).toBeUndefined()
+
+    // Se registró auditoría en prod
+    const eventos = await getDb()
+      .select()
+      .from(geSsoEvento)
+      .where(eq(geSsoEvento.email, OPERADOR_STAGING.email))
+    expect(eventos.map((e) => e.resultado)).toContain('reenviado_staging')
+  })
+
+  it('reenvía login legacy (asistencias) a staging', async () => {
+    process.env.GE_SSO_STAGING_FORWARD_URL = 'https://staging.example'
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ url: 'https://staging.example/auth/ge-callback?token=tk-leg' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    const res = await manejarGeLogin(pedidoLegacy({ CUE: '1800554-00', USUARIO: 8888, secret: API_KEY }))
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json).toEqual({ url: 'https://staging.example/auth/ge-callback?token=tk-leg' })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(fetchSpy.mock.calls[0][0]).toBe('https://staging.example/api/auth/ge-login')
+
+    expect(await usuarioPorEmail('ge-8888@ge-sso.invalid')).toBeUndefined()
+
+    const eventos = await getDb()
+      .select()
+      .from(geSsoEvento)
+      .where(eq(geSsoEvento.email, 'ge-8888@ge-sso.invalid'))
+    expect(eventos.map((e) => e.resultado)).toContain('reenviado_staging')
+  })
+
+  it('NO reenvía login de director_nivel ni administrador a staging', async () => {
+    process.env.GE_SSO_STAGING_FORWARD_URL = 'https://staging.example'
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+
+    const nivelId = await nivelValido()
+    const directorNivel = {
+      email: 'director.nivel@ejemplo.gob.ar',
+      nombre: 'Carlos',
+      apellido: 'Nivel',
+      rol: 'director_nivel',
+      nivelJurisdiccionalId: nivelId,
+    }
+    const res = await manejarGeLogin(pedidoLogin(directorNivel))
+    expect(res.status).toBe(201)
+    const json = (await res.json()) as { redirectUrl: string }
+    expect(json.redirectUrl).toContain(BASE)
+
+    // El fetch a staging nunca debió llamarse
+    expect(fetchSpy).not.toHaveBeenCalled()
+    // Se creó en la DB local (prod)
+    expect(await usuarioPorEmail(directorNivel.email)).toBeDefined()
+  })
+
+  it('responde 502 con CORS si la comunicación con staging falla', async () => {
+    process.env.GE_SSO_STAGING_FORWARD_URL = 'https://staging.example'
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Network error'))
+
+    const OPERADOR_FALLO = {
+      email: 'operador.fallo@ejemplo.gob.ar',
+      nombre: 'Pedro',
+      apellido: 'Fallo',
+      rol: 'operador_establecimiento',
+      cue: '1800554-00',
+    }
+    const res = await manejarGeLogin(pedidoLogin(OPERADOR_FALLO))
+    expect(res.status).toBe(502)
+    expect(res.headers.get('access-control-allow-origin')).toBe(ORIGEN)
+    const json = await res.json()
+    expect(json).toHaveProperty('error')
+
+    const eventos = await getDb()
+      .select()
+      .from(geSsoEvento)
+      .where(eq(geSsoEvento.email, OPERADOR_FALLO.email))
+    expect(eventos.map((e) => e.resultado)).toContain('fallo_red_reenvio_staging')
+  })
+
+  it('no reenvía si la petición ya tiene cabecera x-ge-sso-forwarded', async () => {
+    process.env.GE_SSO_STAGING_FORWARD_URL = 'https://staging.example'
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+
+    const OPERADOR_LOCAL = {
+      email: 'operador.local@ejemplo.gob.ar',
+      nombre: 'Local',
+      apellido: 'Local',
+      rol: 'operador_establecimiento',
+      cue: '1800554-00',
+    }
+    const req = pedidoLogin(OPERADOR_LOCAL)
+    req.headers.set('x-ge-sso-forwarded', 'true')
+    const res = await manejarGeLogin(req)
+    expect(res.status).toBe(201)
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(await usuarioPorEmail(OPERADOR_LOCAL.email)).toBeDefined()
   })
 })
