@@ -4679,6 +4679,24 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--ink-faint);
 }
 
+.encabezado-parte__materiales {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.encabezado-parte__materiales:hover { color: var(--accent); }
+.encabezado-parte__materiales:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
 .encabezado-parte__escuela {
   display: grid;
   gap: 2px;
