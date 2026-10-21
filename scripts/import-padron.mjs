@@ -750,6 +750,10 @@ export async function correrImport(opciones, conexion, deps = {}) {
   let corteId = null
   let rssPico = rssMb()
   try {
+    // Pasos previos que dependen del origen (p. ej. incorporar escuelas de GE
+    // al catálogo): corren con el lease tomado para que su error quede en el job.
+    if (deps.prepararOrigen) await deps.prepararOrigen(conexion)
+
     const previa = await mantenerCortes(conexion.client, {
       ...politica,
       ahora,
@@ -887,13 +891,31 @@ async function main() {
   }
 
   await ensureGeSchema(conexion.client)
+  // Con --ge, antes de leer ge_localizacion se incorporan las escuelas de GE
+  // ausentes del catálogo geográfico (hotfix 90111292, que ya corre en prod).
+  const prepararOrigen =
+    opciones.modo === 'ge'
+      ? async (cx) => {
+          const { leerLocalizacionesDesdeGe, publicarLocalizacionesGe } = await import('./localizaciones-ge.mjs')
+          const { getDb } = await import('../lib/db/index.ts')
+          const resultado = await publicarLocalizacionesGe(
+            getDb(),
+            await leerLocalizacionesDesdeGe({ cicloLectivo: opciones.ciclo }),
+          )
+          console.log(
+            `Localizaciones incorporadas desde GE: ${resultado.nuevas.length}; excluidas: ${resultado.excluidas.length}`,
+          )
+          const res = await cx.client.execute('SELECT cue_anexo FROM ge.ge_localizacion')
+          cx.cuesConocidos = new Set(res.rows.map((r) => String(r.cue_anexo)))
+        }
+      : undefined
   const locRes = await conexion.client.execute('SELECT cue_anexo FROM ge.ge_localizacion')
   conexion.cuesConocidos = new Set(locRes.rows.map((r) => String(r.cue_anexo)))
   if (conexion.cuesConocidos.size === 0) {
     throw new Error('ge_localizacion está vacía: corré primero `node scripts/sync-ge.mjs --fixture`')
   }
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  return correrImport(opciones, conexion, { version: process.env.APP_REVISION ?? pkg.version })
+  return correrImport(opciones, conexion, { version: process.env.APP_REVISION ?? pkg.version, prepararOrigen })
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
