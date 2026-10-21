@@ -139,9 +139,9 @@ export function PantallaParteOffline(): JSX.Element {
   useLocalUpdateReads(flujoSeleccionado?.contexto ?? null)
 
   if (carga.tipo === 'cargando') return <main className="publico-content"><p role="status">Buscando trabajo guardado en este dispositivo…</p></main>
-  if (carga.tipo === 'error') return <main className="publico-content"><h1>Reportes guardados</h1><p role="alert">{carga.mensaje}</p></main>
+  if (carga.tipo === 'error') return <main className="publico-content"><h1>No se pudo abrir el reporte</h1><p role="alert">{carga.mensaje}</p></main>
   if (carga.tipo === 'vacio') {
-    return <main className="publico-content"><h1>Reportes guardados</h1><p role="status">No hay un reporte guardado para este recorrido en este dispositivo. Conéctese a internet para abrir el reporte de su escuela.</p></main>
+    return <main className="publico-content"><h1>Reporte no disponible sin conexión</h1><p role="status">No hay un reporte guardado para este recorrido en este dispositivo. Conéctese a internet para abrir el reporte de su escuela.</p></main>
   }
 
   if (!flujoSeleccionado) {

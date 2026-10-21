@@ -115,7 +115,7 @@ describe('sw-parte offline shell assets', () => {
     const fetchImpl = vi.fn(async () => { throw new Error('The network should not be used.') })
 
     await expect(sw.servirRecursoEstatico(request, cacheStorage, fetchImpl)).resolves.toBe(cached)
-    expect(open).toHaveBeenCalledWith('parte-offline-shell-v1')
+    expect(open).toHaveBeenCalledWith('parte-offline-shell-v3')
     expect(match).toHaveBeenCalledWith(request)
     expect(fetchImpl).not.toHaveBeenCalled()
   })
@@ -338,7 +338,7 @@ describe('sw-parte offline shell cache', () => {
 
     const deleteCache = (storage as unknown as { delete: ReturnType<typeof vi.fn> }).delete
     expect(deleteCache).toHaveBeenCalledTimes(1)
-    expect(deleteCache).toHaveBeenCalledWith('parte-offline-shell-v1')
+    expect(deleteCache).toHaveBeenCalledWith('parte-offline-shell-v3')
   })
 
   it('rejects a resource response that varies by authentication state', async () => {
@@ -355,7 +355,7 @@ describe('sw-parte offline shell cache', () => {
 
     await expect(sw.prepararOffline(storage, fetchImpl, 'https://example.test')).rejects.toThrow()
 
-    const cache = await storage.open('parte-offline-shell-v1')
+    const cache = await storage.open('parte-offline-shell-v3')
     expect(await cache.match('https://example.test/_next/static/chunks/private.js')).toBeUndefined()
   })
 
@@ -372,13 +372,13 @@ describe('sw-parte offline shell cache', () => {
 
     await dispararEvento(listeners, 'install')
 
-    expect(messages).toContainEqual({ tipo: 'parte-offline-disponible', version: 'v1' })
+    expect(messages).toContainEqual({ tipo: 'parte-offline-disponible', version: 'v3' })
     vi.unstubAllGlobals()
   })
 
   it('removes the previous version only during activation after the new worker installed', async () => {
     const { listeners } = await cargarSw()
-    const cacheNames = ['parte-offline-shell-old', 'parte-offline-shell-v1', 'unrelated-cache']
+    const cacheNames = ['parte-offline-shell-old', 'parte-offline-shell-v3', 'unrelated-cache']
     const deleted: string[] = []
     const selfMock = (globalThis as unknown as { self: { clients: { claim: () => Promise<void> } } }).self
     selfMock.clients.claim = async () => {}
@@ -390,6 +390,19 @@ describe('sw-parte offline shell cache', () => {
     await dispararEvento(listeners, 'activate')
 
     expect(deleted).toEqual(['parte-offline-shell-old'])
+    vi.unstubAllGlobals()
+  })
+
+  it.each([401, 403, 404, 500, 503])('conserva el error HTTP %s sin mostrar reportes guardados', async (status) => {
+    const { listeners } = await cargarSw()
+    const original = new Response('Error del servidor', { status })
+    vi.stubGlobal('fetch', vi.fn(async () => original))
+    let response: Promise<Response> | undefined
+    listeners.fetch({
+      request: { url: 'https://example.test/problematicas/parte/nuevo?cue=1801605-04', method: 'GET', mode: 'navigate' },
+      respondWith: (promise: Promise<Response>) => { response = promise },
+    })
+    expect(await response!).toBe(original)
     vi.unstubAllGlobals()
   })
 
