@@ -474,6 +474,15 @@ async function main() {
 
   await ensureGeSchema(conexion.client)
 
+  if (process.argv[2] === '--ge') {
+    const { leerLocalizacionesDesdeGe, publicarLocalizacionesGe } = await import('./localizaciones-ge.mjs')
+    const { getDb } = await import('../lib/db/index.ts')
+    const indiceCiclo = process.argv.indexOf('--ciclo')
+    const cicloLectivo = indiceCiclo === -1 ? String(new Date().getFullYear()) : process.argv[indiceCiclo + 1]
+    const resultado = await publicarLocalizacionesGe(getDb(), await leerLocalizacionesDesdeGe({ cicloLectivo }))
+    console.log(`Localizaciones incorporadas desde GE: ${resultado.nuevas.length}; excluidas: ${resultado.excluidas.length}`)
+  }
+
   const locRes = await conexion.client.execute('SELECT cue_anexo FROM ge.ge_localizacion')
   const cuesConocidos = new Set(locRes.rows.map((r) => String(r.cue_anexo)))
   if (cuesConocidos.size === 0) {
