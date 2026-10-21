@@ -4,6 +4,7 @@ import { impactoAlumnosEnContexto } from '@/lib/infraestructura/prioridad-alumno
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CircleCheck } from 'lucide-react'
+import { MaterialesTrasReporte } from '@/components/infraestructura/materiales-tras-reporte'
 import type { FormEvent, JSX } from 'react'
 import {
   CamposAQuienAfecta,
@@ -896,6 +897,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             Cargar otra situación
           </Button>
         </div>
+        <MaterialesTrasReporte />
       </div>
     )
   }

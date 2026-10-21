@@ -34,3 +34,7 @@ Ministerio de Educación.zip
 # Paquete local de insumos de Motor v0.4 (~1 GB: DEM, respuestas INA, copia
 # del repositorio). Se lee como referencia y nunca se versiona.
 Motor v0.4/
+
+# Copias locales de PDF y renders de control de materiales.
+output/pdf/
+tmp/pdfs/

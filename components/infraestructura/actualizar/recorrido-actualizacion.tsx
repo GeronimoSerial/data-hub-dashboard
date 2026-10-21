@@ -4,6 +4,7 @@ import { impactoAlumnosEnContexto, textoImpactoAlumnos } from '@/lib/infraestruc
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { CircleCheck } from 'lucide-react'
+import { MaterialesTrasReporte } from '@/components/infraestructura/materiales-tras-reporte'
 import { Button } from '@/components/ui/button'
 import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
 import { Opcion } from '@/components/ui/opcion'
@@ -1026,6 +1027,7 @@ function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () 
           Actualizar de nuevo
         </Button>
       </div>
+      <MaterialesTrasReporte />
     </div>
   )
 }
