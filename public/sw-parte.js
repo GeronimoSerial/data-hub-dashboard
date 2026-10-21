@@ -118,6 +118,7 @@ async function servirRecursoEstatico(request, cacheStorage = caches, fetchImpl =
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const result = await prepararOffline()
+    await self.skipWaiting()
     const clients = await self.clients.matchAll({ includeUncontrolled: true })
     for (const client of clients) client.postMessage({ tipo: 'parte-offline-disponible', version: CACHE_PREPARACION_VERSION })
     return result

@@ -32,6 +32,7 @@ async function cargarSw(): Promise<{ listeners: Record<string, Escucha>; sw: SwP
   ;(globalThis as Record<string, unknown>).self = {
     addEventListener: (t: string, f: Escucha) => { listeners[t] = f },
     clients: { matchAll: async () => [] },
+    skipWaiting: vi.fn(async () => {}),
     location: { origin: 'https://example.test' },
   }
   // @ts-expect-error El worker es un script clásico sin exportaciones.
@@ -373,6 +374,7 @@ describe('sw-parte offline shell cache', () => {
     await dispararEvento(listeners, 'install')
 
     expect(messages).toContainEqual({ tipo: 'parte-offline-disponible', version: 'v3' })
+    expect((globalThis as unknown as { self: { skipWaiting: ReturnType<typeof vi.fn> } }).self.skipWaiting).toHaveBeenCalledOnce()
     vi.unstubAllGlobals()
   })
 
