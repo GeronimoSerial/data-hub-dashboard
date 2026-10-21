@@ -55,7 +55,7 @@ try {
     target: ['es2022'],
     outfile: 'e2e/reportes-offline/.generated-photo-processor.js',
   })
-  run('corepack', ['pnpm', 'exec', 'playwright', 'test'])
+  run('corepack', ['pnpm', 'exec', 'playwright', 'test', ...process.argv.slice(2)])
 } finally {
   await rm(runtimeDir, { recursive: true, force: true })
   await rm(path.join(root, 'e2e/reportes-offline/.generated-photo-processor.js'), { force: true })

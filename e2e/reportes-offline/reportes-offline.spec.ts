@@ -183,10 +183,9 @@ test('offline reopen restores local draft and retries one idempotent report', as
     controller: navigator.serviceWorker.controller?.scriptURL ?? null,
     dbNames: 'databases' in indexedDB ? await indexedDB.databases() : [],
   }))
-  const savedReport = reopened.getByRole('button', { name: `Reporte inicial · CUE ${cue}` })
-  await expect(savedReport, JSON.stringify({ ...offlinePageState, offlineRuntimeErrors })).toBeVisible({ timeout: 5_000 })
-  await savedReport.click()
-  await expect(reopened.getByText('Tiene un parte sin enviar.')).toBeVisible()
+  await expect(reopened.getByText('Tiene un parte sin enviar.'), JSON.stringify({ ...offlinePageState, offlineRuntimeErrors })).toBeVisible({ timeout: 5_000 })
+  await expect(reopened.getByRole('heading', { name: 'Continuar sin conexión' })).toHaveCount(0)
+  await expect(reopened.getByRole('button', { name: `Reporte inicial · CUE ${cue}` })).toHaveCount(0)
   await reopened.getByRole('button', { name: 'Continuar donde lo dejé' }).click()
   await expect(reopened.getByText('Paso 2 de 5')).toBeVisible()
 
