@@ -88,6 +88,9 @@ describe('RecorridoActualizacion: envío', () => {
     const fetchMock = stub(); montar(); await enviar()
     await screen.findByText(guardado)
     expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
+    const materiales = screen.getByRole('link', { name: /Ver manuales y cuadernillos/ })
+    expect(materiales).toHaveAttribute('href', '/materiales')
+    expect(materiales).toHaveAttribute('target', '_blank')
     const [, init] = posteos(fetchMock)[0]
     const cuerpo = JSON.parse(String((init as RequestInit).body))
     expect(cuerpo).toMatchObject({ cue: CUE, afectacionesConfirmadas: ['a', 'b'] })
@@ -211,6 +214,7 @@ describe('RecorridoActualizacion: envío', () => {
     expect(await screen.findByText(MENSAJES_ESTADO['pendiente-envio'])).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(MENSAJES_ESTADO['pendiente-envio'])
     expect(screen.getByRole('button', { name: 'Envío pendiente' })).toBeDisabled()
+    expect(screen.queryByRole('link', { name: /Ver manuales y cuadernillos/ })).not.toBeInTheDocument()
     expect(screen.getByText(/Inundación/)).toBeInTheDocument()
     expect(screen.queryByText(guardado)).toBeNull()
     expect(posteos(fetchMock)).toHaveLength(1)
