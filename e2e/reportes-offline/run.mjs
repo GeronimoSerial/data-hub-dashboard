@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -14,6 +15,7 @@ const env = {
   ...process.env,
   PATH: `${binDir}:${process.env.PATH ?? ''}`,
   DATA_DIR: runtimeDir,
+  NOMINAL_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
   DATABASE_URL: '',
   NODE_ENV: 'production',
   PROBLEMATICAS_ACCESO_PASSWORD: e2eSessionSecret,

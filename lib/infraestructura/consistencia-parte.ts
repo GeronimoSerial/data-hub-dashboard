@@ -232,7 +232,7 @@ const ADVERTENCIAS: DefinicionRegla[] = [
     codigo: 'critica-seccion-unica',
     campo: 'alcance',
     mensaje: 'Una gravedad Crítica con una sola sección afectada es poco frecuente. Verifique el alcance.',
-    cuando: (r) => r.severidad === 'Crítica' && esSeccionUnica(r.alcance),
+    cuando: (r) => r.categoria !== 'alumnos' && r.severidad === 'Crítica' && esSeccionUnica(r.alcance),
   },
   {
     codigo: 'mas-personas-seccion-unica',
@@ -296,6 +296,7 @@ export function evaluarConsistenciaParte(
 ): ResultadoConsistencia {
   const aplicables = (definiciones: DefinicionRegla[]) =>
     definiciones.flatMap((d) => {
+      if (respuestas.categoria === 'alumnos' && ['severidad', 'justificacionCritica'].includes(d.campo)) return []
       const regla = evaluarRegla(d, respuestas, ahora)
       return regla ? [regla] : []
     })

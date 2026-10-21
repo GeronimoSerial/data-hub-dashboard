@@ -120,10 +120,10 @@ test('offline reopen restores local draft and retries one idempotent report', as
   await page.getByRole('button', { name: /continuar|siguiente/i }).last().click()
   await expect(page.getByText('Paso 2 de 5')).toBeVisible()
 
-  await page.waitForFunction(async () => {
+  await expect.poll(() => page.evaluate(async () => {
     const registrations = await navigator.serviceWorker.getRegistrations()
     return registrations.some(({ active }) => active?.state === 'activated')
-  }, undefined, { timeout: 20_000 }).catch(() => {})
+  }), { timeout: 20_000 }).toBe(true)
   const serviceWorkerStatus = await page.evaluate(async () => {
     const registrations = await navigator.serviceWorker.getRegistrations()
     const workerAsset = await fetch('/sw-parte.js', { cache: 'no-store' }).then(async (response) => ({
@@ -328,4 +328,34 @@ test('process 4000x3000 JPEG at four-times CPU slowdown in Chromium', async ({ p
   await record('photo processing', testInfo.project.name, rows, { ...result, cpuThrottle: '4x', sourcePixels: '4000x3000' })
   await session.send('Emulation.setCPUThrottlingRate', { rate: 1 })
   await session.detach()
+})
+
+test('inaccesibilidad calcula prioridad y sincroniza offline sin severidad manual', async ({ page, context, browserName }) => {
+  const cue = browserName === 'webkit' ? '1801605-89' : '1801605-90'
+  await visitNewFlow(page, cue)
+  await page.getByText('Inaccesibilidad de alumnos', { exact: true }).click()
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click()
+  await page.getByText('Anegamiento', { exact: true }).click()
+  await expect(page.getByRole('radio', { name: 'Alta', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click()
+  await page.getByRole('button', { name: /elegir alumnos/i }).click()
+  for (const indice of [1, 2, 3]) await page.getByText(`Prueba, Alumno ${indice}`, { exact: true }).click()
+  await expect(page.getByText('3 de 5 alumnos · 60% · Prioridad Media')).toBeVisible()
+  await expect(page.getByText(/mayoría de los alumnos/)).toHaveCount(0)
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click()
+  await page.getByText('No', { exact: true }).click()
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click()
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click()
+  await expect(page.getByText('3 de 5 alumnos · 60% · Prioridad Media')).toBeVisible()
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Guardar situación', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Envío pendiente', exact: true })).toBeVisible()
+  const enviada = page.waitForResponse((response) => response.url().endsWith('/api/problematicas/parte') && response.request().method() === 'POST' && response.status() === 201)
+  await context.setOffline(false)
+  const response = await enviada
+  const payload = response.request().postDataJSON()
+  expect(payload.afectacionesNuevas[0]).not.toHaveProperty('severidad')
+  await expect(page.getByText('Situación guardada', { exact: true })).toBeVisible()
+  const ficha = await page.evaluate(async (cue) => (await fetch(`/api/problematicas/parte?cue=${cue}`)).json(), cue)
+  expect(ficha.afectaciones[0]).toMatchObject({ severidad: 'Media', impactoAlumnos: { afectados: 3, matricula: 5, porcentaje: 60, prioridad: 'Media', version: 1 } })
 })

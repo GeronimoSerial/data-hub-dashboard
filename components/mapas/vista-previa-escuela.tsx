@@ -1,5 +1,7 @@
 'use client'
 
+import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
+
 import { useEffect, useRef, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Clock, MapPinOff, X } from 'lucide-react'
@@ -163,7 +165,7 @@ export function VistaPreviaEscuela({
             />
             <div className={styles.situacionCuerpo}>
               <p className={styles.gravedad}>
-                Gravedad {severidad}
+                {principal?.categoria === 'alumnos' || escuela.categoriaPrincipal === 'alumnos' ? 'Prioridad' : 'Gravedad'} {severidad}
               </p>
               {cargandoParte && !principal ? (
                 <p className={styles.situacionMeta} role="status">Cargando situación…</p>
@@ -172,6 +174,7 @@ export function VistaPreviaEscuela({
               <p className={styles.motivo}>
                 {principal ? principal.motivo : (categoriaLabel ?? 'Situación activa')}
               </p>
+              {principal?.categoria === 'alumnos' && <p><ImpactoAlumnosResumen impacto={principal.impactoAlumnos} /></p>}
               <p className={styles.situacionMeta}>
                 {afectaciones.length > 0
                   ? `${afectaciones.length} ${afectaciones.length === 1 ? 'situación abierta' : 'situaciones abiertas'}`
@@ -183,6 +186,8 @@ export function VistaPreviaEscuela({
               )}
             </div>
           </>
+        ) : principal ? (
+          <p><strong>{principal.motivo}</strong> · <ImpactoAlumnosResumen impacto={principal.impactoAlumnos} /></p>
         ) : escuela.parte ? (
           <p className={styles.sinReporte} data-testid="preview-sin-situaciones">
             Sin situaciones abiertas reportadas

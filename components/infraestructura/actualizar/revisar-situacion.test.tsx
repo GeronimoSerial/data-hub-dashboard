@@ -160,3 +160,17 @@ describe('RevisarSituacion: consistencia de la actualización (T7)', () => {
     expect(onDecidirAfectacionesHabitual).toHaveBeenCalledWith({ a: 'solucionada', b: 'sigue' })
   })
 })
+
+it('al actualizar alumnos sólo permite cambiar el alcance y recalcula su prioridad', () => {
+  const p = base()
+  p.situacion = { ...p.situacion, motivo: 'Anegamiento', categoria: 'alumnos', secciones: [10], alumnos: [1001] }
+  render(<RevisarSituacion {...p} />)
+  fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
+  const sheet = screen.getByRole('dialog')
+  expect(within(sheet).queryByRole('checkbox', { name: 'La gravedad' })).not.toBeInTheDocument()
+  expect(within(sheet).queryByRole('checkbox', { name: 'Las clases o el edificio' })).not.toBeInTheDocument()
+  fireEvent.click(within(sheet).getByRole('checkbox', { name: 'A quién afecta (secciones / alumnos)' }))
+  fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+  expect(screen.getByText(/1 de 83 alumnos · 1,2% · Prioridad Baja/)).toBeInTheDocument()
+  expect(p.onResponder).toHaveBeenLastCalledWith({ tipo: 'cambio', cambio: { aspectos: ['alcance'], secciones: [10], alumnos: [1001] } })
+})

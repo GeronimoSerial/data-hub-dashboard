@@ -1,3 +1,4 @@
+import type { ImpactoAlumnos } from './prioridad-alumnos'
 // Motor de diffing de movimientos (spec §13, §15). Compara dos fotografías
 // (`before`/`after`) de un mismo parte y produce un diff estructurado, el
 // mismo objeto que se persiste en infra_movimiento.resumen (JSON) y que
@@ -103,6 +104,7 @@ export interface DiffAsistenciaPedagogicaCambio {
 }
 
 export interface DiffParte {
+  impactosAlumnos?: Array<ImpactoAlumnos & { afectacionId: string }>
   afectacionesAgregadas: DiffAfectacionAgregada[]
   afectacionesRetiradas: DiffAfectacionRetirada[]
   severidadesCambiadas: DiffSeveridadCambio[]

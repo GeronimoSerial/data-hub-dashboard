@@ -1,3 +1,5 @@
+import { proyectarImpactoAlumnos, prioridadEfectiva } from './prioridad-alumnos'
+import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // Proyección de los partes vigentes para el mapa de infraestructura (Fase 1
 // de odd/tasks/mapa-parte-operativo.md). Es la proyección, sobre el modelo de
@@ -56,6 +58,7 @@ export interface FiltrosMapa {
 }
 
 export interface AfectacionMapa {
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   motivo: string
   categoria: CategoriaAfectacion
@@ -320,7 +323,7 @@ export async function cargarAfectacionesDeVariosPartes(
     const secciones: AfectacionAlcanceSeccion[] = seccionIds.map((geSectionId) => {
       const matriculados = membresia.get(geSectionId) ?? new Set<number>()
       const interseccion = [...matriculados].filter((personId) => alumnosSeleccionados.has(personId))
-      if (interseccion.length > 0) {
+      if (interseccion.length > 0 || (fila.categoria === 'alumnos' && alumnosSeleccionados.size > 0)) {
         return { geSectionId, seccionCompleta: false, alumnos: interseccion }
       }
       return { geSectionId, seccionCompleta: true, alumnos: [...matriculados] }
@@ -372,7 +375,7 @@ export async function cargarServicioAlcanceDeVariosPartes(
 
 function coincideFiltrosAfectacion(afectacion: Afectacion, filtros: FiltrosMapa): boolean {
   if (activo(filtros.motivo) && afectacion.motivo !== filtros.motivo) return false
-  if (activo(filtros.severidad) && afectacion.severidad !== filtros.severidad) return false
+  if (activo(filtros.severidad) && prioridadEfectiva(afectacion) !== filtros.severidad) return false
   if (filtros.categoria !== undefined && afectacion.categoria !== filtros.categoria) return false
   return true
 }
@@ -439,13 +442,15 @@ export async function listarPartesVigentes(
     // mapa (nada que mostrar, aunque el parte exista).
     if (vigentes.length === 0) continue
 
-    const filtradas = vigentes.filter((a) => coincideFiltrosAfectacion(a, filtros))
+    const secciones = seccionesPorCue.get(parteRow.cueAnexo) ?? []
+    const matriculados = new Set(secciones.flatMap((s) => [...(padronCompleto.get(s.geSectionId) ?? [])]))
+    const calculadas = vigentes.map((a) => proyectarImpactoAlumnos(a, matriculados, corte?.id ?? null))
+    const filtradas = calculadas.filter((a) => coincideFiltrosAfectacion(a, filtros))
     // Un parte cuyas afectaciones vigentes no matchean el filtro tampoco
     // aparece: el filtro no oculta afectaciones dentro de una escuela que sí
     // se muestra, oculta la escuela entera si no le queda ninguna.
     if (filtradas.length === 0) continue
 
-    const secciones = seccionesPorCue.get(parteRow.cueAnexo) ?? []
     // El estado del edificio puede quedar viejo al solucionar una situación de establecimiento: sólo se
     // proyecta si existe alguna abierta. El servicio se deriva igual que en la ficha (parte-consulta),
     // sin importar la categoría de las situaciones abiertas.
@@ -462,14 +467,14 @@ export async function listarPartesVigentes(
     const alumnosAlcanzados = new Set<number>()
     const seccionesAlcanzadas = new Set<number>()
     const categorias = new Set<CategoriaAfectacion>()
-    let peorSeveridad = filtradas[0].severidad
+    let peorSeveridad = prioridadEfectiva(filtradas[0]) ?? ''
     let peorIndice = SEVERIDADES.indexOf(peorSeveridad as Severidad)
     let rigeDesdeMasAntiguo = filtradas[0].rigeDesde
 
     for (const afectacion of filtradas) {
       categorias.add(afectacion.categoria)
 
-      const indice = SEVERIDADES.indexOf(afectacion.severidad as Severidad)
+      const indice = SEVERIDADES.indexOf(prioridadEfectiva(afectacion) as Severidad)
       if (indice > peorIndice) {
         peorIndice = indice
         peorSeveridad = afectacion.severidad
@@ -519,6 +524,7 @@ export async function listarPartesVigentes(
         motivo: a.motivo,
         categoria: a.categoria,
         severidad: a.severidad,
+        impactoAlumnos: a.impactoAlumnos,
         descripcion: a.descripcion,
         rigeDesde: a.rigeDesde,
         creadaEn: a.creadaEn,

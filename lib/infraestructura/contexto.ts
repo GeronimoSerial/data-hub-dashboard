@@ -18,6 +18,7 @@ export interface SeccionContexto {
   nivel: string
   turno: string
   matricula: number
+  alumnosMatriculados?: number[]
   // Antes este comentario decía que ge_person_id y cualquier identidad de
   // alumno estaban prohibidos en este payload. Eso cambió: el titular del
   // dato pidió que el formulario público permita seleccionar alumnos
@@ -184,6 +185,7 @@ export async function resolverContextoPorCue(
       nivel: String(row.nivel),
       turno: String(row.turno),
       matricula: Number(row.matricula ?? 0),
+      alumnosMatriculados: personIds,
       alumnos: personIds
         .map((id) => identidadPorPersona.get(id))
         .filter((a): a is AlumnoContexto => a !== undefined),

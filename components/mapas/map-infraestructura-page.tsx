@@ -392,7 +392,8 @@ const anilloColor = (oscuro = false) => coloresMapa(oscuro).tinta
 export function colorPorSeveridadRango(oscuro = false): ExpressionSpecification {
   const colorFondo = coloresMapa(oscuro).clusterNeutro
   const expresion: ExpressionSpecification = [
-    'case', ['==', ['get', 'escuelasAfectadas'], 0], colorFondo, colorSeveridad(SEVERIDADES[0]),
+    'case', ['==', ['get', 'escuelasAfectadas'], 0], colorFondo,
+    ['==', ['get', 'gravedad'], 0], colorFondo, colorSeveridad(SEVERIDADES[0]),
   ]
   for (let i = SEVERIDADES.length - 1; i >= 1; i--) {
     expresion.splice(expresion.length - 1, 0, ['>=', ['get', 'gravedad'], i + 1], colorSeveridad(SEVERIDADES[i]))

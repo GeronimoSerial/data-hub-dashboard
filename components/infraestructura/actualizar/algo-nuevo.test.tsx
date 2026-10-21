@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { RECORRIDO_INICIAL, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { AlgoNuevo } from './algo-nuevo'
 
-afterEach(cleanup)
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-05T12:00:00Z')) })
+afterEach(() => { cleanup(); vi.useRealTimers() })
 
 const candidatasCausa = [
   { id: 'reciente', motivo: 'Tormenta severa', fecha: '2026-10-04T08:10:00.000Z', activa: false, severidad: 'Alta' as const },
@@ -297,7 +298,7 @@ describe('AlgoNuevo', () => {
     entrarDatosIndependiente()
     elegirCategoria('Inaccesibilidad de alumnos')
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Baja' }))
+    expect(screen.queryByRole('radio', { name: 'Baja' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /1° "A".*elegir alumnos/i }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'García, Ana' }))
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))

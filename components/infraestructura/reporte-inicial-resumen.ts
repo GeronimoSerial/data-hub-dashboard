@@ -1,3 +1,4 @@
+import { textoImpactoAlumnos, type ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Resumen en lenguaje llano de lo que el director está por declarar, para el
 // último paso del asistente de reporte inicial.
 //
@@ -15,6 +16,7 @@ import {
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 
 export interface AfectacionResumen {
+  impactoAlumnos?: ImpactoAlumnos
   motivo: string
   severidad: string
   secciones: number
@@ -82,7 +84,8 @@ export function armarResumen(entrada: EntradaResumen): FilaResumen[] {
   const { afectacion, servicio, estadoEstablecimiento, rigeDesde, asistenciaPedagogica, fotosAdjuntas } = entrada
 
   const lineas: FilaResumen[] = [
-    { etiqueta: 'Situación', valor: afectacion.motivo, severidad: afectacion.severidad },
+    { etiqueta: 'Situación', valor: afectacion.motivo, severidad: afectacion.impactoAlumnos ? undefined : afectacion.severidad },
+    ...(afectacion.impactoAlumnos ? [{ etiqueta: 'Impacto', valor: textoImpactoAlumnos(afectacion.impactoAlumnos) }] : []),
     { etiqueta: 'Afecta a', valor: resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos }) },
   ]
 

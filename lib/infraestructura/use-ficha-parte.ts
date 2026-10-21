@@ -1,5 +1,8 @@
 'use client'
 
+import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
+
+
 import { useEffect, useState } from 'react'
 import type { DatosPadronEscuela } from './datos-padron-escuela'
 import type {
@@ -15,6 +18,7 @@ import type { MovimientoHistorial } from '@/components/infraestructura/historial
 
 // Forma de GET /api/mapas/infraestructura/parte. No incluye nombres de alumnos.
 export interface AfectacionFicha {
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   motivo: string
   categoria: Categoria

@@ -76,7 +76,7 @@ export function construirEscuelasMapaFeatureCollection(
         ? {
             cueAnexo: escuela.cueAnexo,
             nombre: escuela.nombre,
-            color: colorSeveridad(parte.peorSeveridad),
+            color: parte.peorSeveridad ? colorSeveridad(parte.peorSeveridad) : COLOR_SIN_AFECTACION,
             servicio: parte.servicio,
             alumnosAlcanzados: parte.alumnosAlcanzados,
             severidad: parte.peorSeveridad,

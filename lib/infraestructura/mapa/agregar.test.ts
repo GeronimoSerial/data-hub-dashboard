@@ -186,3 +186,14 @@ describe('agrupar', () => {
     expect(agrupar([], 'departamento')).toEqual([])
   })
 })
+
+it('a igual prioridad ordena alumnos por volumen y después porcentaje, antes de la novedad', async () => {
+  const { calcularPrioridadAlumnos } = await import('../prioridad-alumnos')
+  const casos = [
+    escuela({ cueAnexo: '3-de-5', gravedad: 2, categoriaPrincipal: 'alumnos', impactoAlumnos: calcularPrioridadAlumnos(3, 5), ultimaNovedad: '2026-10-20T12:00:00Z' }),
+    escuela({ cueAnexo: '40-de-100', gravedad: 2, categoriaPrincipal: 'alumnos', impactoAlumnos: calcularPrioridadAlumnos(40, 100), ultimaNovedad: '2026-10-01T12:00:00Z' }),
+    escuela({ cueAnexo: '40-de-120', gravedad: 2, categoriaPrincipal: 'alumnos', impactoAlumnos: calcularPrioridadAlumnos(40, 120), ultimaNovedad: '2026-10-19T12:00:00Z' }),
+    escuela({ cueAnexo: '700-de-1000', gravedad: 4, categoriaPrincipal: 'alumnos', impactoAlumnos: calcularPrioridadAlumnos(700, 1000) }),
+  ]
+  expect(ordenarReportes(casos).map((e) => e.cueAnexo)).toEqual(['700-de-1000', '40-de-100', '40-de-120', '3-de-5'])
+})

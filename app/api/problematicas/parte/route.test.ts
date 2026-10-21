@@ -570,7 +570,7 @@ describe('POST /api/problematicas/parte', () => {
     const [inundacionDespues] = await db.select().from(infraAfectacion).where(eq(infraAfectacion.id, inundacion.id))
     const [anegamientoDespues] = await db.select().from(infraAfectacion).where(eq(infraAfectacion.id, anegamiento.id))
     expect(inundacionDespues!.severidad).toBe('Crítica')
-    expect(anegamientoDespues!.severidad).toBe('Baja')
+    expect(anegamientoDespues!.severidad).toBe('Media')
   })
 
   it('retirar una afectación marca retiradaEn sin borrar la fila', async () => {
@@ -1383,4 +1383,35 @@ describe('POST /api/problematicas/parte — estado activo al pasar a habitual (T
     }))
     expect(res.status).toBe(201)
   })
+})
+
+describe('prioridad automática de alumnos', () => {
+  it('acepta alta sin severidad y recalcula una modificación manipulada', async () => {
+    const cue = CUE_X
+    const alta = await POST(postReq({ cue, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Anegamiento', secciones: [seccionId(cue, '10')], alumnos: alumnoIds(cue, '000', 3) }],
+    }))
+    expect(alta.status, await alta.clone().text()).toBe(201)
+    const ficha = await (await GET(getReq(cue))).json()
+    const afectacion = ficha.afectaciones.find((a: { motivo: string }) => a.motivo === 'Anegamiento')
+    expect(afectacion).toMatchObject({ severidad: 'Media', impactoAlumnos: { afectados: 3, matricula: 10, porcentaje: 30, prioridad: 'Media', corteId: 1, version: 1 } })
+    const cambio = await POST(postReq({ cue, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesModificadas: [{ id: afectacion.id, severidad: 'Crítica', alumnos: alumnoIds(cue, '000', 1) }],
+    }))
+    expect(cambio.status, await cambio.clone().text()).toBe(201)
+    const despues = await (await GET(getReq(cue))).json()
+    expect(despues.afectaciones.find((a: { id: string }) => a.id === afectacion.id)).toMatchObject({ severidad: 'Baja', impactoAlumnos: { afectados: 1, porcentaje: 10, prioridad: 'Baja' } })
+    const [guardada] = await getDb().select().from(infraAfectacion).where(eq(infraAfectacion.id, afectacion.id))
+    expect(guardada.severidad).toBe('Baja')
+    const movimientos = await getDb().select().from(infraMovimiento).where(eq(infraMovimiento.parteId, guardada.parteId))
+    expect(movimientos.some((m) => JSON.stringify(m.resumen).includes('impactosAlumnos'))).toBe(true)
+  })
+})
+
+it('mantiene obligatoria la severidad manual del establecimiento', async () => {
+  const response = await POST(postReq({ cue: CUE_X, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+    afectacionesNuevas: [{ motivo: 'Inundación', secciones: [seccionId(CUE_X, '10')] }],
+  }))
+  expect(response.status).toBe(400)
+  expect(await response.json()).toMatchObject({ error: 'La severidad es obligatoria para afectaciones del establecimiento' })
 })

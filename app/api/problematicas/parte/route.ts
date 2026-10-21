@@ -1,3 +1,4 @@
+import { impactoDeAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Estado actual del parte (spec §6, §17) y alta/actualización (spec §7, §8,
 // §13). Un único POST cubre ambos casos — la decisión del producto mató
 // "Continuar como otro episodio" (ver docs/trayectoria-contrato-implementacion.md):
@@ -246,6 +247,7 @@ export async function GET(request: Request) {
     motivo: afectacion.motivo,
     categoria: afectacion.categoria,
     severidad: afectacion.severidad,
+    impactoAlumnos: afectacion.impactoAlumnos,
     descripcion: afectacion.descripcion,
     rigeDesde: afectacion.rigeDesde,
     creadaEn: afectacion.creadaEn,
@@ -463,8 +465,11 @@ export async function POST(request: Request) {
   // --- Validación contra la base, igual que POST /api/problematicas ---
 
   const motivos = await listarMotivos()
+  const secciones = await listarSeccionesDelCue(client, corteId, cue.value)
+  const padronPorSeccion = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: secciones.map((s) => s.geSectionId) })
+  const matriculados = new Set([...padronPorSeccion.values()].flatMap((ids) => [...ids]))
   const nuevasConCategoria: Array<{
-    input: (typeof input.afectacionesNuevas)[number]
+    input: (typeof input.afectacionesNuevas)[number] & { severidad: Severidad }
     categoria: CategoriaAfectacion
   }> = []
   for (const entrada of input.afectacionesNuevas) {
@@ -476,7 +481,17 @@ export async function POST(request: Request) {
     if (!permitido.ok) {
       return Response.json({ error: permitido.error }, { status: 400 })
     }
-    nuevasConCategoria.push({ input: entrada, categoria: resuelto.categoria })
+    let severidad = entrada.severidad
+    if (resuelto.categoria === 'alumnos') {
+      const impacto = impactoDeAlumnos(entrada.alumnos ?? [], matriculados, corteId)
+      if (!impacto.prioridad) return jsonError('Seleccione alumnos con matrícula vigente para calcular la prioridad', 400)
+      severidad = impacto.prioridad
+      entrada.justificacionCritica = undefined
+      entrada.justificacionCriticaDetalle = undefined
+      entrada.alumnos = [...new Set(entrada.alumnos)]
+    }
+    if (!severidad) return jsonError('La severidad es obligatoria para afectaciones del establecimiento', 400)
+    nuevasConCategoria.push({ input: { ...entrada, severidad, secciones: [...new Set(entrada.secciones)] }, categoria: resuelto.categoria })
   }
 
   // Reglas de consistencia (mismo módulo que el asistente): una combinación
@@ -500,7 +515,6 @@ export async function POST(request: Request) {
     return Response.json({ error: bloqueo.mensaje, codigo: bloqueo.codigo }, { status: 400 })
   }
 
-  const secciones = await listarSeccionesDelCue(client, corteId, cue.value)
   const seccionesCueSet = new Set(secciones.map((s) => s.geSectionId))
   const turnosCueSet = new Set(secciones.map((s) => s.turno))
   const seccionInvalida = (ids: number[]) => ids.some((id) => !seccionesCueSet.has(id))
@@ -508,10 +522,11 @@ export async function POST(request: Request) {
   // que en el formulario: sólo así cliente y servidor exigen lo mismo.
   const todasLasSecciones = secciones.map((s) => s.geSectionId)
 
-  for (const { input: entrada } of nuevasConCategoria) {
+  for (const { input: entrada, categoria } of nuevasConCategoria) {
     if (seccionInvalida(entrada.secciones)) {
       return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
     }
+    if (categoria === 'alumnos') continue
     const sugerida = severidadSugeridaPorAlcance(
       motivos.find((m) => m.nombre === entrada.motivo)?.id ?? null,
       alcanceDeSecciones(entrada.secciones, todasLasSecciones),
@@ -608,8 +623,26 @@ export async function POST(request: Request) {
     }
 
     for (const modificacion of input.afectacionesModificadas) {
+      const fila = existentesPorId.get(modificacion.id)!
+      if (fila.categoria === 'alumnos') {
+        const seccionesEfectivas = modificacion.secciones ?? (await db.select().from(infraAfectacionSeccion).where(eq(infraAfectacionSeccion.afectacionId, fila.id))).map((s) => s.geSectionId)
+        const alumnosEfectivos = modificacion.alumnos ?? (await db.select().from(infraAfectacionAlumno).where(eq(infraAfectacionAlumno.afectacionId, fila.id))).map((a) => a.gePersonId)
+        if (!(await alumnosPertenecenASecciones(seccionesEfectivas, alumnosEfectivos)) ||
+          !seccionesEfectivas.length || !seccionesEfectivas.every((id) => [...(padronPorSeccion.get(id) ?? [])].some((alumno) => alumnosEfectivos.includes(alumno)))) {
+          return jsonError('Cada sección elegida debe incluir al menos un alumno con matrícula vigente', 400)
+        }
+        const impacto = impactoDeAlumnos(alumnosEfectivos, matriculados, corteId)
+        if (!impacto.prioridad) return jsonError('Seleccione alumnos con matrícula vigente para calcular la prioridad', 400)
+        modificacion.severidad = impacto.prioridad
+        modificacion.justificacionCritica = undefined
+        modificacion.justificacionCriticaDetalle = undefined
+        if (modificacion.alumnos) modificacion.alumnos = [...new Set(modificacion.alumnos)]
+        if (modificacion.secciones) modificacion.secciones = [...new Set(modificacion.secciones)]
+        continue
+      }
+      const permitido = validarAlumnosPermitidos('establecimiento', modificacion.alumnos)
+      if (!permitido.ok) return jsonError(permitido.error, 400)
       if (modificacion.severidad === undefined) continue
-      const fila = existentesPorId.get(modificacion.id)
       // Sin secciones en el cambio, el alcance es el que la afectación ya tiene.
       const seccionesActuales = modificacion.secciones ?? (await db
         .select({ geSectionId: infraAfectacionSeccion.geSectionId })
@@ -951,6 +984,10 @@ export async function POST(request: Request) {
       )
 
       const diff = diffParte(antes, despues, { seccionesEstablecimiento: secciones.map((s) => s.geSectionId) })
+      const impactos = new Map([...antes.afectaciones, ...despues.afectaciones]
+        .filter((a) => a.impactoAlumnos)
+        .map((a) => [a.id, { afectacionId: a.id, ...a.impactoAlumnos! }]))
+      diff.impactosAlumnos = [...impactos.values()]
       const motivoPorId = new Map(afectacionesActuales.map((a) => [a.id, a.motivo]))
       diff.afectacionesConfirmadas = input.afectacionesConfirmadas.map((id) => ({ afectacionId: id, motivo: motivoPorId.get(id) ?? '' }))
       const solucionadas = new Set(input.afectacionesSolucionadas.map((s) => s.id))

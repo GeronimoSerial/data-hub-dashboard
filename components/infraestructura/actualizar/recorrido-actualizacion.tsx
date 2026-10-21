@@ -1,5 +1,7 @@
 'use client'
 
+import { impactoAlumnosEnContexto, textoImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { CircleCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -91,6 +93,7 @@ function mapearSituaciones(datos: EstadoActualRespuesta): SituacionConAlcance[] 
     motivo: a.motivo,
     categoria: a.categoria,
     severidad: a.severidad,
+    impactoAlumnos: a.impactoAlumnos,
     rigeDesde: a.rigeDesde,
     creadaEn: a.creadaEn,
     causadaPorId: a.causadaPorId,
@@ -142,10 +145,10 @@ function crearLineasResumen(
     }
 
     const filas: FilaResumenActualizacion[] = []
-    if (respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: respuesta.cambio.severidad === situacion.severidad ? `${situacion.severidad} (sin cambios)` : `${situacion.severidad} → ${respuesta.cambio.severidad}` })
+    if (situacion.categoria !== 'alumnos' && respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: respuesta.cambio.severidad === situacion.severidad ? `${situacion.severidad} (sin cambios)` : `${situacion.severidad} → ${respuesta.cambio.severidad}` })
     if (respuesta.cambio.secciones) {
       const alumnos = respuesta.cambio.alumnos?.length ?? contarAlumnos(respuesta.cambio.secciones, turnos)
-      filas.push({ etiqueta: 'Alcance', valor: detalleAlcance(respuesta.cambio.secciones, alumnos) })
+      filas.push({ etiqueta: 'Alcance', valor: situacion.categoria === 'alumnos' ? textoImpactoAlumnos(impactoAlumnosEnContexto(respuesta.cambio.alumnos ?? situacion.alumnos, turnos)) : detalleAlcance(respuesta.cambio.secciones, alumnos) })
     }
     if (respuesta.cambio.aspectos.includes('clases-edificio') && recorrido.clasesEdificio) {
       filas.push({ etiqueta: 'Clases', valor: etiquetaServicio(estadoServicio) === etiquetaServicio(recorrido.clasesEdificio.servicioEstado) ? `${etiquetaServicio(estadoServicio)} (sin cambios)` : `${etiquetaServicio(estadoServicio)} → ${etiquetaServicio(recorrido.clasesEdificio.servicioEstado)}` })
@@ -160,7 +163,7 @@ function crearLineasResumen(
     const alcance = detalleAlcance(nueva.secciones, cantidadAlumnos)
     const todaLaEscuela = !nueva.alumnos && todasLasSecciones.length > 0 && nueva.secciones.length === todasLasSecciones.length
     const prefijoAlcance = nueva.alumnos ? 'Algunos alumnos' : todaLaEscuela ? 'Toda la escuela' : ''
-    const valor = `${nueva.motivo} · ${nueva.severidad} · ${prefijoAlcance ? `${prefijoAlcance} (${alcance})` : alcance}`
+    const valor = nueva.alumnos ? `${nueva.motivo} · ${textoImpactoAlumnos(impactoAlumnosEnContexto(nueva.alumnos, turnos))}` : `${nueva.motivo} · ${nueva.severidad} · ${prefijoAlcance ? `${prefijoAlcance} (${alcance})` : alcance}`
     const causa = nueva.causadaPorId ? situaciones.find((situacion) => situacion.id === nueva.causadaPorId)?.motivo : null
     bloques.push({
       titulo: 'Situación nueva',
@@ -692,7 +695,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       ? mensajesDeBloqueo(respuestasDeSituacion({
         categoria: null,
         motivoId: motivoIdDe(recorrido.nueva.motivo),
-        severidad: recorrido.nueva.severidad,
+        severidad: recorrido.nueva.severidad ?? null,
         justificacionCritica: recorrido.nueva.justificacionCritica ?? null,
         descripcion: recorrido.nueva.descripcion ?? '',
         alcance: alcanceDe(recorrido.nueva.secciones, seccionesEscuela),

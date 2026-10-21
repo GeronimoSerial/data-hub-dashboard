@@ -1,5 +1,7 @@
 'use client'
 
+import { impactoAlumnosEnContexto, textoImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
+
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
@@ -58,7 +60,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   const cambioGuardado = p.respuesta?.tipo === 'cambio' ? p.respuesta.cambio : undefined
   const [modo, setModo] = useState<Modo>(cambioGuardado ? 'cambio' : 'eligiendo')
   const [preguntandoAspectos, setPreguntandoAspectos] = useState(false)
-  const [aspectos, setAspectos] = useState<AspectoCambio[]>(cambioGuardado?.aspectos ?? [])
+  const [aspectos, setAspectos] = useState<AspectoCambio[]>((cambioGuardado?.aspectos ?? []).filter((a) => p.situacion.categoria !== 'alumnos' || a === 'alcance'))
   const [gravedad, setGravedad] = useState<ValorGravedad>({
     severidad: cambioGuardado?.severidad ?? p.situacion.severidad,
     justificacionCritica: cambioGuardado?.justificacionCritica ?? '',
@@ -185,7 +187,8 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   return (
     <section className="revisar-situacion" aria-label={`Situación ${p.posicion.actual} de ${p.posicion.total}`}>
       <p className="asistente__contador">{`Lo que ya reportó · ${p.posicion.actual} de ${p.posicion.total}`}</p>
-      <h3>{p.situacion.motivo} <EstadoActualSeveridad severidad={p.situacion.severidad} prefijo={false} /></h3>
+      <h3>{p.situacion.motivo} {p.situacion.categoria !== 'alumnos' && <EstadoActualSeveridad severidad={p.situacion.severidad} prefijo={false} />}</h3>
+      {p.situacion.categoria === 'alumnos' && <p aria-live="polite">{textoImpactoAlumnos(impactoAlumnosEnContexto(alcance.alumnos, p.turnos))}</p>}
       <p className="revisar-situacion__fecha">{`Reportada ${formatearMomentoHistorial(p.situacion.creadaEn).replace(/^Hoy/, 'hoy').replace(/^(\d)/, 'el $1')}`}</p>
 
       <fieldset className="afectacion-campos__grupo revisar-situacion__respuesta" aria-describedby={p.faltaRespuesta && modo !== 'solucion' ? 'revisar-situacion-error' : undefined}>
@@ -262,7 +265,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
         onCancelar={() => setPreguntandoAspectos(false)}
         onConfirmar={() => { setPreguntandoAspectos(false); setModo('cambio'); guardarCambio() }}
       >
-        {ASPECTOS.map((aspecto) => (
+        {ASPECTOS.filter((aspecto) => p.situacion.categoria !== 'alumnos' || aspecto.id === 'alcance').map((aspecto) => (
           <Opcion key={aspecto.id} tipo="checkbox" label={aspecto.etiqueta} checked={aspectos.includes(aspecto.id)} onChange={(event) => {
             const marcado = event.currentTarget.checked
             const siguientes = marcado ? [...aspectos, aspecto.id] : aspectos.filter((id) => id !== aspecto.id)

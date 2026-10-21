@@ -32,6 +32,7 @@ const escuela: EscuelaMapaEnriquecida = {
 
 const afectaciones: AfectacionFicha[] = [{
   id: 'afectacion-1', motivo: 'Inaccesibilidad', categoria: 'alumnos', severidad: 'Alta',
+  impactoAlumnos: { afectados: 30, matricula: 50, porcentaje: 60, prioridad: 'Alta', corteId: 1, version: 1 },
   descripcion: 'Dos aulas sin acceso', rigeDesde: '2026-10-02T15:00:00.000Z', creadaEn: '2026-10-02T15:00:00.000Z', causadaPorId: null, totales: { secciones: 2, alumnos: 30 },
 }]
 
@@ -155,7 +156,7 @@ describe('FichaEscuelaPanel', () => {
     const situaciones = (await screen.findByText('Situaciones (2 abiertas)')).closest('details')
 
     expect(await screen.findByText('Inaccesibilidad')).toBeInTheDocument()
-    expect(situaciones).toHaveTextContent('Gravedad Alta')
+    expect(situaciones).toHaveTextContent('30 de 50 alumnos · 60% · Prioridad Alta')
     expect(situaciones).toHaveTextContent('2 secciones · 30 alumnos')
     expect(situaciones).toHaveTextContent('Desde2 de octubre, 12:00')
     expect(situaciones).toHaveTextContent('Causada porInundación')
@@ -332,8 +333,8 @@ describe('FichaEscuelaPanel', () => {
 
   it('usa la situación de igual gravedad con rigeDesde más reciente', async () => {
     instalarFetch({ situaciones: [
-      { ...afectaciones[0], id: 'reciente', motivo: 'Inundación', categoria: 'establecimiento', severidad: 'Alta', rigeDesde: '2026-10-04T15:00:00.000Z' },
-      { ...afectaciones[0], id: 'antigua', motivo: 'Inaccesibilidad', categoria: 'alumnos', severidad: 'Alta', rigeDesde: '2026-10-02T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'reciente', motivo: 'Inundación', categoria: 'establecimiento', impactoAlumnos: undefined, severidad: 'Alta', rigeDesde: '2026-10-04T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'antigua', motivo: 'Inaccesibilidad', categoria: 'establecimiento', impactoAlumnos: undefined, severidad: 'Alta', rigeDesde: '2026-10-02T15:00:00.000Z' },
     ] })
     renderFicha()
 
@@ -345,7 +346,7 @@ describe('FichaEscuelaPanel', () => {
   it('prioriza una situación de mayor severidad sobre una más reciente', async () => {
     instalarFetch({ situaciones: [
       { ...afectaciones[0], id: 'alta-antigua', categoria: 'alumnos', severidad: 'Alta', rigeDesde: '2026-10-02T15:00:00.000Z' },
-      { ...afectaciones[0], id: 'media-reciente', motivo: 'Inundación', categoria: 'establecimiento', severidad: 'Media', rigeDesde: '2026-10-04T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'media-reciente', motivo: 'Inundación', categoria: 'establecimiento', impactoAlumnos: undefined, severidad: 'Media', rigeDesde: '2026-10-04T15:00:00.000Z' },
     ] })
     renderFicha()
 
@@ -356,8 +357,8 @@ describe('FichaEscuelaPanel', () => {
 
   it('desempata por creadaEn más reciente cuando rigeDesde coincide', async () => {
     instalarFetch({ situaciones: [
-      { ...afectaciones[0], id: 'creada-antigua', categoria: 'alumnos', creadaEn: '2026-10-03T15:00:00.000Z' },
-      { ...afectaciones[0], id: 'creada-reciente', motivo: 'Inundación', categoria: 'establecimiento', creadaEn: '2026-10-04T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'creada-antigua', categoria: 'establecimiento', impactoAlumnos: undefined, creadaEn: '2026-10-03T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'creada-reciente', motivo: 'Inundación', categoria: 'establecimiento', impactoAlumnos: undefined, creadaEn: '2026-10-04T15:00:00.000Z' },
     ] })
     renderFicha()
 

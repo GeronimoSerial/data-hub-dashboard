@@ -22,7 +22,7 @@ export function filtrarEscuelas<T extends EscuelaMapaEnriquecida>(escuelas: T[],
   return escuelas.filter((escuela) => {
     if (f.departamentos.length > 0 && !f.departamentos.includes(escuela.departamento)) return false
     if (f.direcciones.length > 0 && (typeof escuela.nivelJurisdiccionalId !== 'number' || !f.direcciones.includes(escuela.nivelJurisdiccionalId))) return false
-    if (f.gravedades.length > 0 && !f.gravedades.includes(escuela.gravedad)) return false
+    if (f.gravedades.length > 0 && (!f.gravedades.includes(escuela.gravedad) || (escuela.gravedad === 0 && escuela.impactoAlumnos?.prioridad === null))) return false
     if (f.clases.length > 0 && !f.clases.includes(escuela.clases)) return false
     if (f.apoyo.length > 0 && !f.apoyo.some((opcion) => coincideApoyo(escuela, opcion))) return false
     if (f.sinActualizar && !escuela.sinActualizar) return false

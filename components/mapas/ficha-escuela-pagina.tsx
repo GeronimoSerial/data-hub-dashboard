@@ -1,5 +1,9 @@
 'use client'
 
+import { prioridadEfectiva } from '@/lib/infraestructura/prioridad-alumnos'
+
+import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
+
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowUpRight, Clock, Cloud, MapPinOff } from 'lucide-react'
@@ -393,9 +397,10 @@ export function FichaEscuelaPagina({
                     className={styles.incidenteDot}
                     aria-hidden="true"
                   />
-                  Situación activa · Gravedad {incidente.severidad.toLowerCase()}
+                  Situación activa · {incidente.categoria === 'alumnos' ? 'Prioridad' : 'Gravedad'} {prioridadEfectiva(incidente)?.toLowerCase() ?? 'sin datos'}
                 </span>
                 <h2 className={styles.incidenteTitulo}>{incidente.motivo}</h2>
+                {incidente.categoria === 'alumnos' && <p><ImpactoAlumnosResumen impacto={incidente.impactoAlumnos} /></p>}
                 <p className={styles.incidenteTexto}>
                   {incidente.descripcion ?? CATEGORIA_META[incidente.categoria].label}
                 </p>
@@ -444,7 +449,7 @@ export function FichaEscuelaPagina({
                     <article className={styles.itemSecundario} key={afectacion.id}>
                       <div className={styles.itemSecundarioTop}>
                         <h4 className={styles.itemSecundarioTitulo}>{afectacion.motivo}</h4>
-                        <EstadoActualSeveridad severidad={afectacion.severidad} />
+                        {afectacion.categoria === 'alumnos' ? <ImpactoAlumnosResumen impacto={afectacion.impactoAlumnos} /> : <EstadoActualSeveridad severidad={afectacion.severidad} />}
                       </div>
                       <p className={styles.itemSecundarioTexto}>
                         {[

@@ -214,3 +214,8 @@ describe('construirEscuelasMapaFeatureCollection', () => {
     })
   })
 })
+
+it('mantiene un reporte sin prioridad como afectado, con color neutro', () => {
+  const fc = construirEscuelasMapaFeatureCollection([escuelaAfectada({ gravedad: 0, parte: parte({ peorSeveridad: '' }) })])
+  expect(fc.features[0].properties).toMatchObject({ color: COLOR_SIN_AFECTACION, gravedad: 0, estado: 'afectada', severidad: '' })
+})

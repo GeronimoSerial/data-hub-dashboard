@@ -511,7 +511,7 @@ describe('listarEscuelasMapaEnriquecidas', () => {
     const resultado = await listarEscuelasMapaEnriquecidas({ cueAnexo: cue })
     const { partes, indicadores } = await listarPartesVigentes({ cueAnexo: cue })
 
-    expect(resultado.escuelas[0]).toMatchObject({ clases: 'sin', gravedad: 3 })
+    expect(resultado.escuelas[0]).toMatchObject({ clases: 'sin', gravedad: 2 })
     expect(partes[0]).toMatchObject({ estadoEstablecimiento: 'habitual', servicio: 'suspendido', alumnosAlcanzados: 1 })
     expect(indicadores).toMatchObject({ evacuadas: 0, conServicioSuspendido: 1, alumnosAlcanzados: 1 })
   })
@@ -739,3 +739,33 @@ describe('obtenerEscuelaFichaEnriquecida', () => {
   })
 })
 
+
+describe('prioridad calculada antes de filtrar el mapa', () => {
+  it('reemplaza la severidad manual anterior, deduplica matrícula y coincide con la ficha', async () => {
+    const client = crearEjecutorSql(getRawClient())
+    const cue = '1801999-90'
+    await client.execute({ sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, nombre, departamento, localidad, lat, lon) VALUES (?, ?, ?, ?, ?, ?)', args: [cue, 'Prioridad', 'Goya', 'Goya', -29.14, -59.26] })
+    for (const id of [999901, 999902]) {
+      await client.execute({ sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)', args: [id, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'] })
+      for (let alumno = 1; alumno <= 5; alumno++) await client.execute({ sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)', args: [id, 9999000 + alumno] })
+    }
+    const parteId = await crearParte(cue)
+    const id = await crearAfectacion({ parteId, categoria: 'alumnos', motivo: 'Anegamiento', severidad: 'Crítica', secciones: [999901, 999902], alumnos: [9999001, 9999002, 9999003] })
+    const { partes } = await listarPartesVigentes({ cueAnexo: cue, severidad: 'Media' })
+    expect(partes).toHaveLength(1)
+    expect(partes[0].peorSeveridad).toBe('Media')
+    expect(partes[0].afectaciones[0]).toMatchObject({ id, severidad: 'Media', impactoAlumnos: { afectados: 3, matricula: 5, porcentaje: 60, prioridad: 'Media', corteId: 1 } })
+    expect((await listarPartesVigentes({ cueAnexo: cue, severidad: 'Crítica' })).partes).toHaveLength(0)
+    const { armarFichaParte } = await import('./parte-consulta')
+    const ficha = await armarFichaParte(cue, 1)
+    expect(ficha?.afectaciones[0].impactoAlumnos).toEqual(partes[0].afectaciones[0].impactoAlumnos)
+    const [persistida] = await getDb().select().from(infraAfectacion).where(eq(infraAfectacion.id, id))
+    expect(persistida.severidad).toBe('Crítica') // La lectura no reescribe el reporte anterior.
+
+    await client.execute('DELETE FROM ge.ge_alumno_seccion WHERE ge_person_id IN (9999001, 9999002, 9999003)')
+    const sinSeleccionVigente = (await listarPartesVigentes({ cueAnexo: cue })).partes[0]
+    expect(sinSeleccionVigente.afectaciones[0].impactoAlumnos).toMatchObject({ afectados: 0, matricula: 2, prioridad: null })
+    expect(sinSeleccionVigente.alumnosDelHecho).toBe(0)
+    expect((await listarPartesVigentes({ cueAnexo: cue, severidad: 'Crítica' })).partes).toHaveLength(0)
+  })
+})

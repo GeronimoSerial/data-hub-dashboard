@@ -1,5 +1,7 @@
 'use client'
 
+import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
+
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { BookMinus, BookX, ChevronDown, Clock, DoorOpen, House, X } from 'lucide-react'
@@ -175,6 +177,7 @@ export function FichaEscuelaPanel({
                   motivo: a.motivo,
                   categoria: a.categoria,
                   severidad: a.severidad,
+                  impactoAlumnos: a.impactoAlumnos,
                   descripcion: a.descripcion,
                   rigeDesde: a.rigeDesde,
                   creadaEn: a.creadaEn,
@@ -222,11 +225,11 @@ export function FichaEscuelaPanel({
           className="map-ficha-escuela__gravedad"
           style={{ backgroundColor: colorSeveridad(severidad), color: TINTA_POR_SEVERIDAD[severidad] }}
         >
-          <strong>Gravedad {severidad}</strong>
+          <strong>{principal?.categoria === 'alumnos' ? 'Prioridad' : 'Gravedad'} {severidad}</strong>
           <span>{principal ? `${categoria} · desde ${desde(principal.rigeDesde)}` : categoria}</span>
         </div>
       ) : (
-        <p className="map-ficha-escuela__sin-reportes">Sin situaciones abiertas</p>
+        <p className="map-ficha-escuela__sin-reportes">{afectaciones.length ? 'Sin datos para calcular la prioridad' : 'Sin situaciones abiertas'}</p>
       )}
 
       <FilaEstado escuela={escuela} />
@@ -264,7 +267,7 @@ export function FichaEscuelaPanel({
                 return (
                   <div className="map-ficha-escuela__situacion" key={afectacion.id}>
                     <h3>{afectacion.motivo}</h3>
-                    <EstadoActualSeveridad severidad={afectacion.severidad} />
+                    {afectacion.categoria === 'alumnos' ? <ImpactoAlumnosResumen impacto={afectacion.impactoAlumnos} /> : <EstadoActualSeveridad severidad={afectacion.severidad} />}
                     <dl className="map-ficha-escuela__kv">
                       <dt>Alcance</dt><dd>{resumirAlcance(afectacion.totales)}</dd>
                       {rigeDesde && <><dt>Desde</dt><dd>{rigeDesde}</dd></>}
@@ -339,7 +342,7 @@ export function FichaEscuelaPanel({
       )}
 
       <a className="ui-button ui-button--secondary ui-button--sm" href={`/infraestructura/cargar?cue=${encodeURIComponent(escuela.cueAnexo)}`}>
-        {escuela.gravedad > 0 ? 'Actualizar el parte' : 'Cargar una situación'}
+        {escuela.gravedad > 0 || afectaciones.length > 0 ? 'Actualizar el parte' : 'Cargar una situación'}
       </a>
 
       {onQuitarSeleccion && (

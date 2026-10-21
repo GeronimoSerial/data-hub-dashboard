@@ -1,3 +1,4 @@
+import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Tipos de dominio para la trayectoria de situaciones hidrometeorológicas.
 // Ver docs/especificacion-funcional-trayectoria-evento-hidrometeorologico.md y
 // el CONTRACT.md del batch de esquema (lib/db/schema.ts:284+ es la fuente de
@@ -92,6 +93,7 @@ export interface AfectacionAlcanceSeccion {
 }
 
 export interface Afectacion extends FilaConVigencia {
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   parteId: string
   causadaPorId?: string | null

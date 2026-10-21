@@ -1,3 +1,4 @@
+import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 import type { CategoriaAfectacion } from '../categorias'
 import type { JustificacionCritica } from '../justificacion-critica'
 import { compararRelevancia } from '../relevancia'
@@ -26,6 +27,7 @@ export type RespuestaSituacion =
   | { tipo: 'solucionada'; solucionadaEn: string }
 
 export interface SituacionRecorrido {
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   motivo: string
   categoria: CategoriaAfectacion
@@ -38,7 +40,7 @@ export interface SituacionRecorrido {
 export interface NuevaSituacion {
   causadaPorId: string | null
   motivo: string
-  severidad: Severidad
+  severidad?: Severidad
   justificacionCritica?: JustificacionCritica
   justificacionCriticaDetalle?: string
   secciones: number[]
@@ -119,7 +121,7 @@ export function construirEnvio(situaciones: SituacionRecorrido[], estado: Estado
       solucionadas.push({ id: situacion.id, solucionadaEn: respuesta.solucionadaEn })
     } else {
       const modificacion: Envio['afectacionesModificadas'][number] = { id: situacion.id }
-      if (respuesta.cambio.aspectos.includes('gravedad') && respuesta.cambio.severidad) {
+      if (situacion.categoria !== 'alumnos' && respuesta.cambio.aspectos.includes('gravedad') && respuesta.cambio.severidad) {
         modificacion.severidad = respuesta.cambio.severidad
         if (respuesta.cambio.justificacionCritica) {
           modificacion.justificacionCritica = respuesta.cambio.justificacionCritica
@@ -140,7 +142,7 @@ export function construirEnvio(situaciones: SituacionRecorrido[], estado: Estado
   const nuevas: Envio['afectacionesNuevas'] = []
   if (estado.nueva) {
     const { causadaPorId, ...resto } = estado.nueva
-    nuevas.push({ ...resto, ...(causadaPorId ? { causadaPorId } : {}) })
+    nuevas.push({ ...resto, ...(resto.alumnos ? { severidad: undefined, justificacionCritica: undefined, justificacionCriticaDetalle: undefined } : {}), ...(causadaPorId ? { causadaPorId } : {}) })
   }
 
   const clasesEdificio = estado.clasesEdificio

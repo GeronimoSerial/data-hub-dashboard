@@ -1,3 +1,4 @@
+import { prioridadEfectiva, type ImpactoAlumnos } from './prioridad-alumnos'
 import type { EstadoEstablecimiento } from './trayectoria-tipos'
 import type { Severidad } from './validacion'
 
@@ -14,6 +15,7 @@ const PESO_EDIFICIO: Record<EstadoEstablecimiento, number> = {
 }
 
 export interface SituacionRelevancia {
+  impactoAlumnos?: ImpactoAlumnos
   severidad: Severidad
   estadoEstablecimiento: EstadoEstablecimiento
   rigeDesde: string
@@ -22,8 +24,10 @@ export interface SituacionRelevancia {
 
 export function compararRelevancia(a: SituacionRelevancia, b: SituacionRelevancia): number {
   return (
-    PESO_SEVERIDAD[b.severidad] - PESO_SEVERIDAD[a.severidad] ||
+    (PESO_SEVERIDAD[prioridadEfectiva(b)!] ?? 0) - (PESO_SEVERIDAD[prioridadEfectiva(a)!] ?? 0) ||
     PESO_EDIFICIO[b.estadoEstablecimiento] - PESO_EDIFICIO[a.estadoEstablecimiento] ||
+    (b.impactoAlumnos?.afectados ?? 0) - (a.impactoAlumnos?.afectados ?? 0) ||
+    (b.impactoAlumnos?.porcentaje ?? 0) - (a.impactoAlumnos?.porcentaje ?? 0) ||
     Date.parse(b.rigeDesde) - Date.parse(a.rigeDesde) ||
     Date.parse(b.creadaEn) - Date.parse(a.creadaEn)
   )
