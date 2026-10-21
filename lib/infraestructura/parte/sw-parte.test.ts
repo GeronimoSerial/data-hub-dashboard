@@ -393,6 +393,25 @@ describe('sw-parte offline shell cache', () => {
     vi.unstubAllGlobals()
   })
 
+  it.each(['nuevo', 'actualizar'])('conserva la redirección de navegación desde %s', async (ruta) => {
+    const { listeners } = await cargarSw()
+    // Navigation fetches expose server redirects as opaque responses (status 0).
+    const redireccion = new Response(null)
+    Object.defineProperties(redireccion, {
+      status: { value: 0 },
+      ok: { value: false },
+      type: { value: 'opaqueredirect' },
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => redireccion))
+    let response: Promise<Response> | undefined
+    listeners.fetch({
+      request: { url: `https://example.test/problematicas/parte/${ruta}?cue=1801605-04`, method: 'GET', mode: 'navigate', redirect: 'manual' },
+      respondWith: (promise: Promise<Response>) => { response = promise },
+    })
+    expect(await response!).toBe(redireccion)
+    vi.unstubAllGlobals()
+  })
+
   it.each([401, 403, 404, 500, 503])('conserva el error HTTP %s sin mostrar reportes guardados', async (status) => {
     const { listeners } = await cargarSw()
     const original = new Response('Error del servidor', { status })
