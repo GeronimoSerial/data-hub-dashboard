@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { RECORRIDO_INICIAL, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { AlgoNuevo } from './algo-nuevo'
 
-afterEach(cleanup)
+beforeEach(() => {
+  vi.setSystemTime(new Date('2026-10-05T12:00:00.000Z'))
+})
+
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 const candidatasCausa = [
   { id: 'reciente', motivo: 'Tormenta severa', fecha: '2026-10-04T08:10:00.000Z', activa: false, severidad: 'Alta' as const },

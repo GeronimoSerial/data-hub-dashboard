@@ -1,0 +1,15 @@
+.offer {
+  display: flex;
+  gap: 14px;
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid currentColor;
+  color: var(--ink);
+  font-weight: 400;
+}
+.offer > svg { flex-shrink: 0; margin-top: 3px; }
+.offer h3 { margin: 0 0 8px; font-size: var(--t-body); line-height: 1.4; }
+.offer p { margin: 0; color: var(--ink-soft); font-size: var(--t-small); line-height: 1.5; }
+.offer a { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 10px 0; color: var(--accent); font-weight: 600; text-underline-offset: 3px; }
+.offer a svg { flex-shrink: 0; }
+.offer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }

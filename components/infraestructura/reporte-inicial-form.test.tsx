@@ -168,6 +168,9 @@ describe('ReporteInicialForm', () => {
     renderFormulario()
 
     expect(await screen.findByRole('heading', { name: 'Situación guardada' })).toBeInTheDocument()
+    const materiales = screen.getByRole('link', { name: /Ver manuales y cuadernillos/ })
+    expect(materiales).toHaveAttribute('href', '/materiales')
+    expect(materiales).toHaveAttribute('target', '_blank')
     await waitFor(async () => expect(await almacen.obtenerBorrador(id)).toBeNull())
     expect(await almacen.obtenerTrabajosEnvio()).toMatchObject([{ idempotencyKey: 'photo-initial', tipo: 'foto' }])
   })
@@ -961,6 +964,7 @@ describe('ReporteInicialForm', () => {
     expect(await screen.findByText(MENSAJES_ESTADO['pendiente-envio'])).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(MENSAJES_ESTADO['pendiente-envio'])
     expect(screen.getByRole('button', { name: 'Envío pendiente' })).toBeDisabled()
+    expect(screen.queryByRole('link', { name: /Ver manuales y cuadernillos/ })).not.toBeInTheDocument()
     expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
   })
 
@@ -1370,7 +1374,8 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(JSON.parse(init.body as string).idempotencyKey).toBe('k-vieja')
-    await waitFor(() => expect(screen.queryByText(/sin conexión/i)).not.toBeInTheDocument())
+    await screen.findByRole('heading', { name: 'Situación guardada' })
+    expect(screen.queryByText(MENSAJES_ESTADO['pendiente-envio'])).not.toBeInTheDocument()
   })
 
   it('al reabrir con una cola de timeout, la reintenta sin intervención', async () => {

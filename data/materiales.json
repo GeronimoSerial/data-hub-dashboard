@@ -1,0 +1,32 @@
+[
+  {
+    "id": "cuadernillo-1-grado",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo para estudiantes de 1.er grado",
+    "archivo": "cuadernillo-1-grado-69784f11b2f4.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-1-grado-69784f11b2f4.pdf",
+    "bytes": 16220175,
+    "paginas": 129,
+    "sha256": "69784f11b2f41f2571ede85863d818faaefda9669ee32b3665d9be5a007f8b41"
+  },
+  {
+    "id": "cuadernillo-2-grado",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo para estudiantes de 2.º grado",
+    "archivo": "cuadernillo-2-grado-620fe9594257.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-2-grado-620fe9594257.pdf",
+    "bytes": 12589818,
+    "paginas": 132,
+    "sha256": "620fe95942579b3ff515cdd2804ae82d492abb29fb060ccecfc63a8953cb05f1"
+  },
+  {
+    "id": "manual-1",
+    "coleccion": "manuales",
+    "titulo": "Manual Nº 1 · Registro y seguimiento de eventos ENOS",
+    "archivo": "manual-1-2b09090d0f86.pdf",
+    "storageKey": "materiales/manuales/manual-1-2b09090d0f86.pdf",
+    "bytes": 1660267,
+    "paginas": 15,
+    "sha256": "2b09090d0f865bbcc1775756ba8dddb4a6cfc50e09665de0d0f0be951d101832"
+  }
+]

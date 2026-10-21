@@ -16,6 +16,7 @@ import {
   ipCliente,
   origenGePermitido,
 } from './seguridad'
+import { esStagingForwardActivo, reenviarGeLoginAStaging } from './staging-forward'
 
 const CABECERAS_BASE = {
   'Cache-Control': 'no-store',
@@ -88,6 +89,42 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
   const recibida = typeof valorClave === 'string' ? valorClave : ''
   if (!recibida || !apiKeyCoincide(recibida, esperada)) {
     return rechazar(401, 'api_key_invalida', 'api_key inválida')
+  }
+
+  const esReenvioInterno = request.headers.get('x-ge-sso-forwarded') === 'true'
+  if (!esReenvioInterno && esStagingForwardActivo()) {
+    if (legacy) {
+      const parsedLegacy = geLoginLegacySchema.safeParse(raw)
+      if (parsedLegacy.success) {
+        return reenviarGeLoginAStaging({
+          raw,
+          origin: origin!,
+          ip,
+          cors,
+          evento: {
+            email: parsedLegacy.data.email,
+            rol: parsedLegacy.data.rol,
+            cue: parsedLegacy.data.cue ?? null,
+          },
+        })
+      }
+    } else {
+      const parsed = geLoginSchema.safeParse(raw)
+      if (parsed.success && parsed.data.rol === 'operador_establecimiento') {
+        return reenviarGeLoginAStaging({
+          raw,
+          origin: origin!,
+          ip,
+          cors,
+          evento: {
+            email: parsed.data.email,
+            rol: parsed.data.rol,
+            cue: parsed.data.cue ?? null,
+            nivelJurisdiccionalId: null,
+          },
+        })
+      }
+    }
   }
 
   if (legacy) {
