@@ -147,14 +147,29 @@ export async function listarAfectadosNominal(
   })
 
   const personIdsPorSeccion = new Map<number, number[]>()
-  const todosLosPersonIds = new Set<number>()
+  const seleccionRes = await hostClient.execute({
+    sql: `SELECT a.categoria, aa.ge_person_id FROM infra_afectacion a
+          LEFT JOIN infra_afectacion_alumno aa ON aa.afectacion_id = a.id
+          WHERE a.id = ?`,
+    args: [afectacionId],
+  })
+  const seleccionados = new Set(seleccionRes.rows
+    .filter((r) => r.ge_person_id !== null)
+    .map((r) => Number(r.ge_person_id)))
+  const seleccionExplicita = seleccionRes.rows[0]?.categoria === 'alumnos' && seleccionados.size > 0
   for (const r of membresiasRes.rows) {
     const sectionId = Number(r.ge_section_id)
     const personId = Number(r.ge_person_id)
-    todosLosPersonIds.add(personId)
     const lista = personIdsPorSeccion.get(sectionId) ?? []
     lista.push(personId)
     personIdsPorSeccion.set(sectionId, lista)
+  }
+  const todosLosPersonIds = new Set<number>()
+  for (const [sectionId, matriculados] of personIdsPorSeccion) {
+    const interseccion = matriculados.filter((id) => seleccionados.has(id))
+    const alcanzados = seleccionExplicita || interseccion.length > 0 ? interseccion : matriculados
+    personIdsPorSeccion.set(sectionId, alcanzados)
+    for (const id of alcanzados) todosLosPersonIds.add(id)
   }
 
   const identidades = await listarIdentidadesPorPersonas(

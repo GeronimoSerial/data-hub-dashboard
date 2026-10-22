@@ -221,22 +221,26 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
 
   if (props.pestana === 'actual') {
     return (
-      <ul className="map-leyenda__fila map-leyenda__gravedades">
-        {[...SEVERIDADES].reverse().map((severidad) => (
-          <li className="map-leyenda__elemento" key={severidad}>
-            <span
-              aria-hidden="true"
-              className="map-leyenda__muestra"
-              style={{ backgroundColor: colorSeveridad(severidad) }}
-            />
-            <span>{severidad}</span>
+      <>
+        <p>El color indica la gravedad del establecimiento o la prioridad calculada de inaccesibilidad de alumnos, según la situación principal.</p>
+        <p>La prioridad de alumnos combina el porcentaje de la matrícula afectada y la cantidad de alumnos. Sin matrícula o selección vigente, no se asigna un nivel.</p>
+        <ul className="map-leyenda__fila map-leyenda__gravedades">
+          {[...SEVERIDADES].reverse().map((severidad) => (
+            <li className="map-leyenda__elemento" key={severidad}>
+              <span
+                aria-hidden="true"
+                className="map-leyenda__muestra"
+                style={{ backgroundColor: colorSeveridad(severidad) }}
+              />
+              <span>{severidad}</span>
+            </li>
+          ))}
+          <li className="map-leyenda__elemento" key="sin-situaciones">
+            <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--neutra" />
+            <span>Sin situaciones</span>
           </li>
-        ))}
-        <li className="map-leyenda__elemento" key="sin-situaciones">
-          <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--neutra" />
-          <span>Sin situaciones</span>
-        </li>
-      </ul>
+        </ul>
+      </>
     )
   }
 
@@ -268,7 +272,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
       )}
       {props.pestana !== 'estadisticas' && (
         <details className="map-leyenda__seccion" open={!estrecha || props.pestana === 'radar' || props.pestana === 'planificacion'}>
-          <summary className="map-leyenda__seccion-titulo">Riesgo / gravedad</summary>
+          <summary className="map-leyenda__seccion-titulo">{props.pestana === 'actual' ? 'Gravedad / prioridad' : 'Riesgo / gravedad'}</summary>
           <div className="map-leyenda__seccion-cuerpo">
             <ReferenciasRiesgo props={props} />
           </div>

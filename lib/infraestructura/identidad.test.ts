@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '../db'
-import { infraAfectacion, infraAfectacionSeccion, infraParte } from '../db/schema'
+import { infraAfectacion, infraAfectacionAlumno, infraAfectacionSeccion, infraParte } from '../db/schema'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import {
   cifrarIdentidad,
@@ -114,6 +114,57 @@ describe('importarIdentidad / listarIdentidadesPorPersonas', () => {
 // archivo) seguiría escribiendo contra el directorio del primero, ya borrado
 // por el afterEach.
 describe('listarAfectadosNominal / consultarYRegistrarAfectados sobre el modelo nuevo (infra_afectacion)', () => {
+  it('filtra antes de descifrar y no amplía una selección sin membresía vigente', async () => {
+    const client = crearEjecutorSql(getRawClient())
+    await ensureGeSchema(client)
+    const { ensureSeeded, PERIODO_ENOS_2026_2027_ID } = await import('../db/seed')
+    await ensureSeeded()
+    await client.execute("INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (2, 2026, '2026-01-01T00:00:00Z', 'vigente')")
+    await client.execute(`INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES
+      (2, 30, '1801605-77', '1', 'A', 'PRIMARIA', 'MAÑANA'),
+      (2, 40, '1801605-77', '1', 'B', 'PRIMARIA', 'MAÑANA')`)
+    await client.execute(`INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES
+      (2, 30, 70), (2, 30, 71), (2, 40, 72), (2, 40, 73), (2, 40, 70), (1, 30, 74)`)
+    await importarIdentidad(client, 70, 'Ana', 'Pérez')
+    await importarIdentidad(client, 72, 'Luis', 'Díaz')
+    await importarIdentidad(client, 73, 'Eva', 'Ruiz')
+    await client.execute("INSERT INTO ge.ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (71, 'invalid-unselected-payload')")
+    const db = getDb()
+    const parteId = crypto.randomUUID()
+    const afectacionId = crypto.randomUUID()
+    const ahora = new Date().toISOString()
+    await db.insert(infraParte).values({
+      id: parteId, periodoId: PERIODO_ENOS_2026_2027_ID, cueAnexo: '1801605-78',
+      estadoEstablecimiento: 'habitual', estadoEstablecimientoRigeDesde: ahora,
+      corteId: 2, creadaEn: ahora, actualizadaEn: ahora,
+    })
+    await db.insert(infraAfectacion).values({
+      id: afectacionId, parteId, motivo: 'Inundación', categoria: 'alumnos',
+      severidad: 'Alta', rigeDesde: ahora, creadaEn: ahora,
+    })
+    await db.insert(infraAfectacionSeccion).values([
+      { afectacionId, geSectionId: 30 }, { afectacionId, geSectionId: 40 },
+    ])
+    await db.insert(infraAfectacionAlumno).values({ afectacionId, gePersonId: 70 })
+    const parcial = await consultarYRegistrarAfectados(client, 'partial-user', afectacionId, new Date())
+    expect(parcial?.cantidad).toBe(1)
+    expect(parcial?.secciones).toHaveLength(2)
+    for (const seccion of parcial!.secciones) {
+      expect(seccion.alumnos).toEqual([{ nombre: 'Ana', apellido: 'Pérez' }])
+    }
+    const logs = await client.execute("SELECT cantidad FROM infra_acceso_nominal_log WHERE user_id = 'partial-user'")
+    expect(Number(logs.rows[0].cantidad)).toBe(1)
+    await client.execute('DELETE FROM ge.ge_alumno_seccion WHERE corte_id = 2 AND ge_person_id = 70')
+    const sinSeleccion = await listarAfectadosNominal(client, afectacionId)
+    expect(sinSeleccion?.cantidad).toBe(0)
+    expect(sinSeleccion?.secciones.every((s) => s.alumnos.length === 0)).toBe(true)
+
+    await client.execute({ sql: "UPDATE infra_afectacion SET categoria = 'establecimiento' WHERE id = ?", args: [afectacionId] })
+    await client.execute('INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (2, 30, 70)')
+    const mixto = await listarAfectadosNominal(client, afectacionId)
+    expect(mixto?.cantidad).toBe(3)
+    expect(mixto?.secciones.find((s) => s.geSectionId === 40)?.alumnos).toHaveLength(2)
+  })
   const CUE = '1801605-77'
 
   it('resuelve corte y secciones vía infra_afectacion + infra_parte, registra el acceso con afectacion_id, y una afectacionId inexistente no registra nada', async () => {

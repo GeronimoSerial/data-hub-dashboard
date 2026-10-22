@@ -4,7 +4,7 @@ import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, getRawClient } from '@/lib/db'
-import { infraAfectacion, infraAfectacionSeccion, infraParte } from '@/lib/db/schema'
+import { infraAfectacion, infraAfectacionAlumno, infraAfectacionSeccion, infraParte } from '@/lib/db/schema'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { importarIdentidad } from '@/lib/infraestructura/identidad'
 import { otorgarPermisoNominal } from '@/lib/infraestructura/permiso-nominal'
@@ -20,6 +20,7 @@ let dir: string
 let prevDataDir: string | undefined
 let prevKey: string | undefined
 let afectacionId: string
+let afectacionParcialId: string
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'mapas-infraestructura-nominal-route-'))
@@ -41,6 +42,8 @@ beforeAll(async () => {
     args: [7],
   })
   await importarIdentidad(client, 7, 'Facundo', 'Quiroga')
+  await client.execute('INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, 8)')
+  await importarIdentidad(client, 8, 'Manuela', 'Rosas')
 
   const { ensureSeeded, PERIODO_ENOS_2026_2027_ID } = await import('@/lib/db/seed')
   await ensureSeeded()
@@ -73,6 +76,13 @@ beforeAll(async () => {
     retiradaEn: null,
   })
   await db.insert(infraAfectacionSeccion).values({ afectacionId, geSectionId: 10 })
+  afectacionParcialId = crypto.randomUUID()
+  await db.insert(infraAfectacion).values({
+    id: afectacionParcialId, parteId, motivo: 'Anegamiento', categoria: 'alumnos',
+    severidad: 'Alta', rigeDesde: ahora, creadaEn: ahora,
+  })
+  await db.insert(infraAfectacionSeccion).values({ afectacionId: afectacionParcialId, geSectionId: 10 })
+  await db.insert(infraAfectacionAlumno).values({ afectacionId: afectacionParcialId, gePersonId: 7 })
 })
 
 afterAll(() => {
@@ -100,6 +110,23 @@ async function contarLogsDe(userId: string): Promise<number> {
 }
 
 describe('GET /api/mapas/infraestructura/nominal', () => {
+  it('entrega sólo los alumnos seleccionados y audita la cantidad parcial', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({
+      id: 'admin-partial', role: 'admin', banned: false, nivelJurIds: [],
+      accesoRecursos: 'todos', recursoIds: [],
+    })
+    const { GET } = await import('./route')
+    const res = await GET(req(afectacionParcialId))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.cantidad).toBe(1)
+    expect(body.secciones[0].alumnos).toEqual([{ nombre: 'Facundo', apellido: 'Quiroga' }])
+    const logs = await crearEjecutorSql(getRawClient()).execute({
+      sql: 'SELECT cantidad FROM infra_acceso_nominal_log WHERE user_id = ?', args: ['admin-partial'],
+    })
+    expect(logs.rows).toHaveLength(1)
+    expect(Number(logs.rows[0].cantidad)).toBe(1)
+  })
   it('rechaza sin sesión con 401', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     const { GET } = await import('./route')
@@ -147,7 +174,8 @@ describe('GET /api/mapas/infraestructura/nominal', () => {
     expect(res.status).toBe(200)
 
     const body = await res.json()
-    expect(body.cantidad).toBe(1)
+    expect(body.cantidad).toBe(2)
+    expect(body.secciones[0].alumnos).toHaveLength(2)
     expect(body.secciones[0].alumnos).toEqual(
       expect.arrayContaining([{ nombre: 'Facundo', apellido: 'Quiroga' }]),
     )

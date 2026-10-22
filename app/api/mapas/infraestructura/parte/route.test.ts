@@ -65,8 +65,10 @@ beforeAll(async () => {
     parteId,
     motivo: 'Inundación',
     categoria: 'establecimiento',
-    severidad: 'Alta',
+    severidad: 'Crítica',
     descripcion: null,
+    justificacionCritica: 'otro',
+    justificacionCriticaDetalle: 'Cayó un árbol sobre el aula',
     rigeDesde: ahora,
     creadaEn: ahora,
     retiradaEn: null,
@@ -186,10 +188,12 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       expect(afectacion).not.toHaveProperty('secciones')
       expect(afectacion).not.toHaveProperty('alumnos')
       expect(Object.keys(afectacion).sort()).toEqual(
-        ['categoria', 'causadaPorId', 'creadaEn', 'descripcion', 'id', 'motivo', 'rigeDesde', 'severidad', 'totales'].sort(),
+        ['categoria', 'causadaPorId', 'creadaEn', 'descripcion', 'id', 'justificacionCritica', 'justificacionCriticaDetalle', 'motivo', 'rigeDesde', 'severidad', 'totales'].sort(),
       )
     }
 
+    expect(body.afectaciones[0].justificacionCritica).toBe('otro')
+    expect(body.afectaciones[0].justificacionCriticaDetalle).toBe('Cayó un árbol sobre el aula')
     expect(body.datosPadron).toEqual({
       niveles: ['PRIMARIA'],
       secciones: 1,
@@ -288,4 +292,3 @@ describe('GET /api/mapas/infraestructura/parte', () => {
     expect(res.status).toBe(403)
   })
 })
-

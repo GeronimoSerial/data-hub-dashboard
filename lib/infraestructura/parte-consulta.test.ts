@@ -86,6 +86,8 @@ describe('obtenerParteActual', () => {
       categoria: 'establecimiento',
       severidad: 'Alta',
       descripcion: null,
+      justificacionCritica: null,
+      justificacionCriticaDetalle: null,
       rigeDesde: ahora,
       creadaEn: ahora,
       retiradaEn: null,
@@ -100,6 +102,8 @@ describe('obtenerParteActual', () => {
       categoria: 'alumnos',
       severidad: 'Media',
       descripcion: null,
+      justificacionCritica: 'otro',
+      justificacionCriticaDetalle: 'Cayó un árbol sobre el aula',
       rigeDesde: ahora,
       creadaEn: ahora,
       retiradaEn: null,
@@ -256,6 +260,10 @@ describe('armarFichaParte', () => {
 
     const parcial = ficha!.afectaciones.find((a) => a.motivo === 'Anegamiento')!
     expect(parcial.totales).toEqual({ secciones: 1, alumnos: 2 })
+    expect(parcial.justificacionCritica).toBe('otro')
+    expect(parcial.justificacionCriticaDetalle).toBe('Cayó un árbol sobre el aula')
+    expect(completa.justificacionCritica).toBeNull()
+    expect(completa.justificacionCriticaDetalle).toBeNull()
 
     // Nunca resuelve nombres: cada sección sólo trae ids de alumno crudos.
     expect(completa.secciones[0].alumnos.every((id) => typeof id === 'number')).toBe(true)

@@ -79,6 +79,14 @@ function escuelaSinAfectacion(overrides: Partial<EscuelaMapaPadron> = {}): Escue
 }
 
 describe('construirEscuelasMapaFeatureCollection', () => {
+  it('usa el nivel calculado para el color y etiqueta aunque el parte tenga la severidad anterior', () => {
+    const fc = construirEscuelasMapaFeatureCollection([
+      escuelaAfectada({ gravedad: 2, parte: parte({ peorSeveridad: 'Crítica' }) }),
+      escuelaAfectada({ gravedad: 0, parte: parte({ peorSeveridad: 'Crítica' }) }),
+    ])
+    expect(fc.features[0].properties).toMatchObject({ gravedad: 2, severidad: 'Media', color: '#f87171' })
+    expect(fc.features[1].properties).toMatchObject({ gravedad: 0, severidad: '', color: COLOR_SIN_AFECTACION, severidadRango: 0, estado: 'afectada' })
+  })
   it('incluye gravedad e icono en las propiedades del punto', () => {
     const escuela = escuelaAfectada({ gravedad: 4, clases: 'evacuado', sinActualizar: true })
 
@@ -89,7 +97,7 @@ describe('construirEscuelasMapaFeatureCollection', () => {
   })
 
   it("una escuela 'afectada' usa el color de severidad y estado 'afectada'", () => {
-    const escuela = escuelaAfectada({ parte: parte({ peorSeveridad: 'Crítica' }) })
+    const escuela = escuelaAfectada({ gravedad: 4, parte: parte({ peorSeveridad: 'Crítica' }) })
     // peorSeveridad se lleve al parte; el cueAnexo/nombre de la escuela también.
     escuela.cueAnexo = '1800001'
 

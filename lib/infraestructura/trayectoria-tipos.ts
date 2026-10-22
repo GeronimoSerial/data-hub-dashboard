@@ -101,6 +101,8 @@ export interface Afectacion extends FilaConVigencia {
   categoria: Categoria
   severidad: Severidad
   descripcion: string | null
+  justificacionCritica?: string | null
+  justificacionCriticaDetalle?: string | null
   creadaEn: string
   secciones: AfectacionAlcanceSeccion[]
 }

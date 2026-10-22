@@ -14,6 +14,7 @@ import type { EscuelaMapaPadron } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { rangoSeveridad } from '@/lib/mapas/severidad-visual'
 import { iconoPunto, type IconoPunto } from '@/lib/infraestructura/mapa/punto'
+import { severidadDeGravedad } from '@/lib/infraestructura/mapa/gravedad'
 
 // Mismo gris "sin dato" que COLOR_NIVEL_PELIGRO.sin_dato de peligro-capas.ts
 // (token --ink-faint, globals.css). Se repite el literal EN VEZ de importarlo
@@ -71,16 +72,17 @@ export function construirEscuelasMapaFeatureCollection(
     .filter((escuela) => escuela.lat !== null && escuela.lon !== null)
     .map((escuela) => {
       const parte = escuela.estado === 'afectada' ? escuela.parte : undefined
+      const severidad = severidadDeGravedad(escuela.gravedad)
 
       const properties: PropiedadesEscuelaMapa = parte
         ? {
             cueAnexo: escuela.cueAnexo,
             nombre: escuela.nombre,
-            color: parte.peorSeveridad ? colorSeveridad(parte.peorSeveridad) : COLOR_SIN_AFECTACION,
+            color: severidad ? colorSeveridad(severidad) : COLOR_SIN_AFECTACION,
             servicio: parte.servicio,
             alumnosAlcanzados: parte.alumnosAlcanzados,
-            severidad: parte.peorSeveridad,
-            severidadRango: rangoSeveridad(parte.peorSeveridad),
+            severidad: severidad ?? '',
+            severidadRango: severidad ? rangoSeveridad(severidad) : 0,
             gravedad: escuela.gravedad,
             icono: iconoPunto(escuela),
             sinActualizar: escuela.sinActualizar,

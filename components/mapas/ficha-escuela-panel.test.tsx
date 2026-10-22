@@ -75,6 +75,51 @@ function renderFicha(opciones: {
 }
 
 describe('FichaEscuelaPanel', () => {
+  it('actualiza la banda con la prioridad calculada, aunque el mapa conserve una gravedad anterior', async () => {
+    instalarFetch({ situaciones: [{
+      ...afectaciones[0], severidad: 'Crítica',
+      impactoAlumnos: { afectados: 3, matricula: 5, porcentaje: 60, prioridad: 'Media', corteId: 1, version: 1 },
+    }] })
+    renderFicha({ escuela: { ...escuela, gravedad: 4 } })
+    expect(await screen.findByText('Prioridad Media')).toBeInTheDocument()
+    expect(screen.queryByText('Prioridad Crítica')).not.toBeInTheDocument()
+    expect(document.querySelector('.map-ficha-escuela__gravedad')).toHaveStyle({ backgroundColor: colorSeveridad('Media') })
+  })
+
+  it('no conserva la gravedad anterior cuando no se puede calcular la prioridad', async () => {
+    instalarFetch({ situaciones: [{
+      ...afectaciones[0], severidad: 'Crítica',
+      impactoAlumnos: { afectados: 0, matricula: 5, porcentaje: null, prioridad: null, corteId: 1, version: 1 },
+    }] })
+    renderFicha({ escuela: { ...escuela, gravedad: 4 } })
+    expect(await screen.findAllByText('Sin datos para calcular la prioridad')).toHaveLength(2)
+    expect(document.querySelector('.map-ficha-escuela__gravedad')).toBeNull()
+  })
+
+  it('no muestra una justificación manual anterior para la prioridad calculada de alumnos', async () => {
+    instalarFetch({ situaciones: [{
+      ...afectaciones[0], severidad: 'Crítica', justificacionCritica: 'otro',
+      justificacionCriticaDetalle: 'Justificación anterior',
+      impactoAlumnos: { afectados: 700, matricula: 1000, porcentaje: 70, prioridad: 'Crítica', corteId: 1, version: 1 },
+    }] })
+    renderFicha()
+    expect(await screen.findByText('Prioridad Crítica')).toBeInTheDocument()
+    expect(screen.queryByText('Justificación de gravedad crítica')).not.toBeInTheDocument()
+    expect(screen.queryByText('Justificación anterior')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { codigo: 'riesgo_fisico', detalle: null, texto: 'Hay riesgo eléctrico, estructural o sanitario' },
+    { codigo: 'otro', detalle: 'Cayó un árbol sobre el aula', texto: 'Otro: Cayó un árbol sobre el aula' },
+  ])('muestra la justificación crítica $codigo con su etiqueta y detalle', async ({ codigo, detalle, texto }) => {
+    instalarFetch({ situaciones: [{
+      ...afectaciones[0], categoria: 'establecimiento', severidad: 'Crítica', impactoAlumnos: undefined,
+      justificacionCritica: codigo, justificacionCriticaDetalle: detalle,
+    }] })
+    renderFicha()
+    expect(await screen.findByText('Justificación de gravedad crítica')).toBeInTheDocument()
+    expect(screen.getByText(texto)).toBeInTheDocument()
+  })
   beforeEach(() => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-05T15:00:00.000Z'))
   })
@@ -132,7 +177,7 @@ describe('FichaEscuelaPanel', () => {
     instalarFetch()
     renderFicha()
 
-    expect(screen.getByText('Gravedad Alta')).toBeInTheDocument()
+    expect(screen.getByText('Prioridad Alta')).toBeInTheDocument()
     expect(screen.getByText('CUE 180000123-00 · Capital · Inicial, Primario · 1.234 alumnos')).toBeInTheDocument()
     expect(screen.getAllByText('Funcionamiento interrumpido').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Asistencia pedagógica: clase virtual').length).toBeGreaterThan(0)

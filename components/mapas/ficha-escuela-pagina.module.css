@@ -281,6 +281,10 @@
   color: var(--f-ink-3);
 }
 
+.incidenteTexto + .incidenteTexto {
+  margin-top: 0.5rem;
+}
+
 .incidenteMetricas {
   display: flex;
   align-items: flex-end;

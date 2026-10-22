@@ -14,6 +14,7 @@ import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
+import { prioridadEfectiva } from '@/lib/infraestructura/prioridad-alumnos'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { DESCRIPCIONES_AISLAMIENTO } from '@/lib/mapas/accesos-capas'
 import { etiquetaKm, etiquetaSuperficie, type SuperficieVia } from '@/lib/infraestructura/mapa/acceso'
@@ -75,7 +76,6 @@ export function VistaPreviaEscuela({
     escuela.lon === null
 
   const afectaciones = escuela.parte?.afectaciones ?? []
-  const severidad = escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
   const principal =
     afectaciones.length > 0 && escuela.parte
       ? situacionPrincipal(
@@ -86,6 +86,9 @@ export function VistaPreviaEscuela({
         )
       : null
 
+  const severidad = principal
+    ? prioridadEfectiva(principal)
+    : escuela.parte ? null : escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
   const categoriaLabel = principal
     ? CATEGORIA_META[principal.categoria].label
     : etiquetaCategoria(escuela.categoriaPrincipal)
