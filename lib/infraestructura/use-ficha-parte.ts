@@ -24,6 +24,8 @@ export interface AfectacionFicha {
   categoria: Categoria
   severidad: Severidad
   descripcion: string | null
+  justificacionCritica?: string | null
+  justificacionCriticaDetalle?: string | null
   causadaPorId: string | null
   rigeDesde: string
   creadaEn: string

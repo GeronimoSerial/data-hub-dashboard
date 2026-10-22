@@ -193,6 +193,8 @@ async function cargarAfectaciones(
       categoria: fila.categoria as Categoria,
       severidad: fila.severidad as Severidad,
       descripcion: fila.descripcion,
+      justificacionCritica: fila.justificacionCritica,
+      justificacionCriticaDetalle: fila.justificacionCriticaDetalle,
       rigeDesde: fila.rigeDesde,
       creadaEn: fila.creadaEn,
       retiradaEn: fila.retiradaEn,
@@ -321,6 +323,8 @@ export interface AfectacionFicha {
   categoria: Categoria
   severidad: Severidad
   descripcion: string | null
+  justificacionCritica: string | null
+  justificacionCriticaDetalle: string | null
   rigeDesde: string
   creadaEn: string
   causadaPorId: string | null
@@ -370,6 +374,8 @@ export async function armarFichaParte(cueAnexo: string, corteId: number): Promis
       severidad: afectacion.severidad,
       impactoAlumnos: afectacion.impactoAlumnos,
       descripcion: afectacion.descripcion,
+      justificacionCritica: afectacion.justificacionCritica ?? null,
+      justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle ?? null,
       rigeDesde: afectacion.rigeDesde,
       creadaEn: afectacion.creadaEn,
       causadaPorId: afectacion.causadaPorId ?? null,

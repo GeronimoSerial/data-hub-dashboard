@@ -87,6 +87,8 @@ export async function GET(request: Request) {
         severidad: afectacion.severidad,
     impactoAlumnos: afectacion.impactoAlumnos,
         descripcion: afectacion.descripcion,
+        justificacionCritica: afectacion.justificacionCritica,
+        justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle,
         causadaPorId: afectacion.causadaPorId,
         rigeDesde: afectacion.rigeDesde,
         creadaEn: afectacion.creadaEn,

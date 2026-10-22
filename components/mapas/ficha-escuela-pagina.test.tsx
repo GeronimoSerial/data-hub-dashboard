@@ -77,6 +77,25 @@ function crearEscuelaFicha(
 }
 
 describe('FichaEscuelaPagina', () => {
+  it('muestra la justificación crítica de la situación principal y de las secundarias', () => {
+    const base = {
+      categoria: 'establecimiento', severidad: 'Crítica', descripcion: null,
+      causadaPorId: null, rigeDesde: '2026-04-10T08:00:00Z', creadaEn: '2026-04-10T08:00:00Z',
+      totales: { secciones: 1, alumnos: 10 },
+    }
+    mockUseFichaParte.mockReturnValue({
+      estado: { fase: 'listo', datos: { parte: null, afectaciones: [
+        { ...base, id: 'critical-1', motivo: 'Árbol caído', justificacionCritica: 'otro', justificacionCriticaDetalle: 'Bloquea la salida de emergencia' },
+        { ...base, id: 'critical-2', motivo: 'Cables expuestos', justificacionCritica: 'riesgo_fisico', justificacionCriticaDetalle: null },
+        { ...base, id: 'legacy', motivo: 'Sin justificación registrada' },
+      ] } },
+      historial: { fase: 'listo', movimientos: [] },
+    })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 4 })} mostrarEnlaceNominal={false} />)
+    expect(screen.getByText('Justificación de gravedad crítica: Otro: Bloquea la salida de emergencia')).toBeInTheDocument()
+    expect(screen.getByText('Justificación de gravedad crítica: Hay riesgo eléctrico, estructural o sanitario')).toBeInTheDocument()
+    expect(screen.getAllByText(/Justificación de gravedad crítica:/)).toHaveLength(2)
+  })
   afterEach(() => {
     cleanup()
   })

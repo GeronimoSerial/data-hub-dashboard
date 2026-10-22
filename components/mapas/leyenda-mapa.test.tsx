@@ -46,7 +46,8 @@ describe('LeyendaMapa · secciones', () => {
   it('ordena Situación actual, Riesgo / gravedad y Símbolos, con Situación y Riesgo abiertas', () => {
     const { container } = render(<LeyendaMapa pestana="actual" estacionesRio lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
 
-    expect(titulosSecciones(container)).toEqual(['Situación actual', 'Riesgo / gravedad', 'Símbolos'])
+    expect(titulosSecciones(container)).toEqual(['Situación actual', 'Gravedad / prioridad', 'Símbolos'])
+    expect(within(container).getByText(/La prioridad de alumnos combina el porcentaje/)).toBeInTheDocument()
     const detalles = Array.from(container.querySelectorAll('aside.map-leyenda details')) as HTMLDetailsElement[]
     expect(detalles.map((detalle) => detalle.open)).toEqual([true, true, false])
   })
@@ -153,7 +154,7 @@ describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
     ])
     expect(container.querySelector('.map-leyenda__simbolos li:last-child .map-insignia')).toHaveAttribute('aria-hidden', 'true')
     expect(container.querySelector('.map-leyenda__simbolos li:last-child .map-insignia svg')).not.toBeNull()
-    expect(container.querySelector('p')).toBeNull()
+    expect(within(container).getByText(/El color indica la gravedad del establecimiento o la prioridad calculada/)).toBeInTheDocument()
   })
 
   it('muestra título y escala de riesgo para el horizonte del Radar', () => {

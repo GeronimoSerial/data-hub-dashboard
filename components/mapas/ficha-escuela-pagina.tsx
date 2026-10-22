@@ -11,6 +11,7 @@ import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actua
 import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
+import { describirJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
@@ -270,6 +271,7 @@ export function FichaEscuelaPagina({
       ? (afectaciones.find((afectacion) => afectacion.id === principal?.id) ?? afectaciones[0])
       : null
   const otrasAfectaciones = afectaciones.filter((afectacion) => afectacion.id !== incidente?.id)
+  const justificacionIncidente = incidente ? describirJustificacionCritica(incidente) : null
   const severidadIncidente = incidente?.severidad ?? severidad
   const estadoEdificio = tieneParteRegistrado
     ? ETIQUETA_ESTABLECIMIENTO[
@@ -404,6 +406,11 @@ export function FichaEscuelaPagina({
                 <p className={styles.incidenteTexto}>
                   {incidente.descripcion ?? CATEGORIA_META[incidente.categoria].label}
                 </p>
+                {justificacionIncidente && (
+                  <p className={styles.incidenteTexto}>
+                    Justificación de gravedad crítica: {justificacionIncidente}
+                  </p>
+                )}
                 <div className={styles.incidenteMetricas}>
                   <div>
                     <p className={styles.metricaValor}>
@@ -444,6 +451,7 @@ export function FichaEscuelaPagina({
                   Otras situaciones abiertas ({otrasAfectaciones.length})
                 </h3>
                 {otrasAfectaciones.map((afectacion) => {
+                  const justificacion = describirJustificacionCritica(afectacion)
                   const causadaPor = afectaciones.find((otra) => otra.id === afectacion.causadaPorId)
                   return (
                     <article className={styles.itemSecundario} key={afectacion.id}>
@@ -461,6 +469,11 @@ export function FichaEscuelaPagina({
                           .join(' · ')}
                       </p>
                       {verAlumnos(afectacion.id, styles.linkAccion)}
+                      {justificacion && (
+                        <p className={styles.itemSecundarioTexto}>
+                          Justificación de gravedad crítica: {justificacion}
+                        </p>
+                      )}
                     </article>
                   )
                 })}
