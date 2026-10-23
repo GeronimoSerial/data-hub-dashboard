@@ -12,6 +12,7 @@ import {
 import { ensureSeeded } from '@/lib/db/seed'
 import { riskEngineEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { ETIQUETA_CONFIANZA, ETIQUETA_NIVEL, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -102,6 +103,7 @@ export default async function RiesgoModoEvaluacionPage({
     page?: string
   }>
 }) {
+  await requireServerHubPageAccess('/admin/riesgo', 'infrastructure')
   const user = await getSessionUser()
   const gate = adminPageGate(user)
   if (gate === 'login') redirect('/login?callbackUrl=/admin/riesgo')

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { and, eq, getTableColumns } from 'drizzle-orm'
 import { getSessionUser } from '@/lib/session'
 import { adminPageGate } from '@/lib/acl'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 import { getDb } from '@/lib/db'
 import { infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
@@ -54,6 +55,7 @@ export default async function RiesgoSnapshotPage({
 }: {
   params: Promise<{ snapshotId: string }>
 }) {
+  await requireServerHubPageAccess('/admin/riesgo', 'infrastructure')
   const user = await getSessionUser()
   const gate = adminPageGate(user)
   if (gate === 'login') redirect('/login?callbackUrl=/admin/riesgo')

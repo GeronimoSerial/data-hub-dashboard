@@ -17,6 +17,7 @@ import {
   tipoNombre,
 } from '@/lib/model'
 import { useHubData } from '@/components/hub-data'
+import { HUB_DESTINATIONS, HUB_SECTIONS, type HubSection, type SectionPolicy } from '@/lib/hub-sections'
 import type { Role } from '@/lib/acl'
 import { nivelesJurisdiccionales } from '@/lib/model'
 import { isAllowedUpload } from '@/lib/upload'
@@ -59,6 +60,26 @@ type HubUserRow = {
   nivelJurIds: number[]
   accesoRecursos: AccesoRecursos
   recursoIds: string[]
+  hubPolicy: SectionPolicy
+  hubDestination: string | null
+}
+
+type UserAdminOptions = {
+  recursos: { id: string; titulo: string; nivelId: string; nivelNombre?: string }[]
+  destinos: string[]
+}
+
+const SECTION_LABELS: Record<HubSection, string> = {
+  explore: 'Exploración', reports: 'Reportes', maps: 'Mapas',
+  dashboards: 'Tableros', infrastructure: 'Infraestructura', situation: 'Situación',
+}
+
+const DESTINATION_LABELS: Record<string, string> = {
+  '/': 'Inicio', '/explorar': 'Exploración', '/reportes': 'Reportes',
+  '/mapas': 'Mapas', '/tableros': 'Tableros', '/mapas/infraestructura': 'Mapa de infraestructura',
+  '/situacion': 'Situación', '/mapas/matricula': 'Mapa de matrícula', '/mapas/natalidad': 'Mapa de natalidad',
+  '/tablero': 'Tablero', '/mapa_interactivo': 'Mapa interactivo', '/mapa_sobreedad': 'Mapa de sobreedad',
+  '/mapa_notas': 'Mapa de notas', '/problematicas/parte/nuevo': 'Nuevo parte de infraestructura',
 }
 
 const ROLES: Role[] = ['admin', 'editor', 'consulta', 'director_nivel', 'operador_establecimiento']
@@ -119,13 +140,16 @@ type AdminFieldProps = {
 
 function AdminField({ label, hint, error, required, children }: AdminFieldProps) {
   const id = React.useId()
+  const control = React.isValidElement<{ id?: string }>(children)
+    ? React.cloneElement(children, { id: children.props.id ?? id })
+    : children
   return (
     <div className="ui-field">
       <label className="ui-field__label" htmlFor={id}>
         {label}
         {required ? <span aria-hidden>*</span> : null}
       </label>
-      <div className="ui-field__control">{children}</div>
+      <div className="ui-field__control">{control}</div>
       {error ? <span className="ui-field__error" role="alert">{error}</span> : hint ? <span className="ui-field__description">{hint}</span> : null}
     </div>
   )
@@ -938,14 +962,12 @@ function UserDialog({
   onClose,
   editing,
   niveles,
-  recursos,
   onSaved,
 }: {
   open: boolean
   onClose: () => void
   editing: HubUserRow | null
   niveles: Nivel[]
-  recursos: Recurso[]
   onSaved: () => Promise<void>
 }) {
   return (
@@ -954,7 +976,6 @@ function UserDialog({
           key={editing?.id ?? 'nuevo'}
           editing={editing}
           niveles={niveles}
-          recursos={recursos}
           onClose={onClose}
           onSaved={onSaved}
       />
@@ -966,13 +987,11 @@ function UserForm({
   onClose,
   editing,
   niveles,
-  recursos,
   onSaved,
 }: {
   onClose: () => void
   editing: HubUserRow | null
   niveles: Nivel[]
-  recursos: Recurso[]
   onSaved: () => Promise<void>
 }) {
   const empty = {
@@ -984,6 +1003,9 @@ function UserForm({
     nivelJurIds: [] as string[],
     accesoRecursos: 'todos' as AccesoRecursos,
     recursoIds: [] as string[],
+    enabledSections: [] as HubSection[],
+    landing: false,
+    destination: null as string | null,
   }
   const [draft, setDraft] = React.useState(() =>
     editing
@@ -996,19 +1018,75 @@ function UserForm({
           nivelJurIds: idsADirecciones(editing.nivelJurIds),
           accesoRecursos: editing.accesoRecursos,
           recursoIds: editing.recursoIds,
+          enabledSections: editing.hubPolicy.enabledSections === undefined ? [...HUB_SECTIONS] : [...editing.hubPolicy.enabledSections],
+          landing: editing.hubPolicy.landing ?? true,
+          destination: editing.hubDestination ?? (editing.hubPolicy.enabledSections === undefined && editing.hubPolicy.landing === undefined ? '/' : null),
         }
       : empty,
   )
   const esStaff = draft.role === 'admin' || draft.role === 'editor'
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [managedResources, setManagedResources] = React.useState<UserAdminOptions['recursos']>([])
+  const [optionsLoading, setOptionsLoading] = React.useState(true)
+  const [resourcesError, setResourcesError] = React.useState<string | null>(null)
+  const [destinationResult, setDestinationResult] = React.useState<{ key: string; destinos: string[]; error: string | null } | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    fetch('/api/usuarios/opciones').then(async (res) => {
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(leerErrorApi(data, 'No se pudieron cargar los recursos administrables.'))
+      return data as { recursos?: UserAdminOptions['recursos'] }
+    }).then((data) => { if (!cancelled) setManagedResources(data.recursos ?? []) })
+      .catch((cause: unknown) => { if (!cancelled) setResourcesError(cause instanceof Error ? cause.message : 'No se pudieron cargar las opciones.') })
+      .finally(() => { if (!cancelled) setOptionsLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const targetAcl = React.useMemo(() => ({
+    ...(editing ? { userId: editing.id } : {}),
+    role: draft.role,
+    nivelJurIds: direccionesAIds(draft.nivelJurIds),
+    accesoRecursos: draft.accesoRecursos,
+    recursoIds: draft.recursoIds,
+  }), [editing, draft.role, draft.nivelJurIds, draft.accesoRecursos, draft.recursoIds])
+  const targetAclKey = JSON.stringify(targetAcl)
+  const destinationLoading = destinationResult?.key !== targetAclKey
+  const allowedDestinations = destinationLoading ? [] : destinationResult.destinos
+  const destinationError = destinationLoading ? null : destinationResult.error
+
+  React.useEffect(() => {
+    let cancelled = false
+    fetch('/api/usuarios/opciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(targetAcl) })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null)
+        if (!res.ok) throw new Error(leerErrorApi(data, 'No se pudieron validar los destinos.'))
+        return data as { destinos?: string[] }
+      }).then((data) => {
+        if (!cancelled) setDestinationResult({ key: targetAclKey, destinos: data.destinos ?? [], error: null })
+      }).catch((cause: unknown) => {
+        if (!cancelled) setDestinationResult({ key: targetAclKey, destinos: [], error: cause instanceof Error ? cause.message : 'No se pudieron validar los destinos.' })
+      })
+    return () => { cancelled = true }
+  }, [targetAcl, targetAclKey])
+
+  const destinationOptions = HUB_DESTINATIONS
+    .filter((entry) => allowedDestinations.includes(entry.path))
+    .filter((entry) => entry.kind === 'landing' ? draft.landing : entry.kind === 'special' || draft.enabledSections.includes(entry.section))
+    .map((entry) => ({ value: entry.path, label: DESTINATION_LABELS[entry.path] ?? entry.path }))
+  const destinationInvalid = Boolean(draft.destination && !destinationOptions.some((item) => item.value === draft.destination))
+  const noAccessPolicy = draft.enabledSections.length === 0 && !draft.landing
+  const noDestinationNeeded = noAccessPolicy && draft.destination === null
 
   const passwordOk =
     draft.password.length === 0 || draft.password.length >= 8
   const valido =
     draft.name.trim().length > 0 &&
     draft.email.trim().length > 0 &&
-    (editing ? passwordOk : draft.password.length >= 8)
+    (editing ? passwordOk : draft.password.length >= 8) &&
+    (noDestinationNeeded || Boolean(draft.destination && !destinationInvalid)) &&
+    !optionsLoading && !destinationLoading && !resourcesError && !destinationError
 
   const save = async () => {
     setSaving(true)
@@ -1026,6 +1104,7 @@ function UserForm({
               nivelJurIds: direccionesAIds(draft.nivelJurIds),
               accesoRecursos: draft.accesoRecursos,
               recursoIds: draft.recursoIds,
+              hubAccess: { enabledSections: draft.enabledSections, landing: draft.landing, destination: draft.destination },
             }),
           })
         : await fetch('/api/usuarios', {
@@ -1039,6 +1118,7 @@ function UserForm({
               nivelJurIds: direccionesAIds(draft.nivelJurIds),
               accesoRecursos: draft.accesoRecursos,
               recursoIds: draft.recursoIds,
+              hubAccess: { enabledSections: draft.enabledSections, landing: draft.landing, destination: draft.destination },
             }),
           })
       if (!res.ok) {
@@ -1137,16 +1217,51 @@ function UserForm({
               <MultiSelect<string>
                 value={draft.recursoIds}
                 onChange={(next) => setDraft((prev) => ({ ...prev, recursoIds: next }))}
-                options={[...recursos]
+                options={[...managedResources]
                   .sort((a, b) => a.titulo.localeCompare(b.titulo))
                   .map((r) => ({
                     value: r.id,
-                    label: `${r.titulo} — ${nivelNombre(niveles, r.nivelId)}`,
+                    label: `${r.titulo} - ${r.nivelNombre ?? nivelNombre(niveles, r.nivelId)}`,
                   }))}
                 placeholder="Seleccione recursos"
               />
             </AdminField>
           ) : null}
+          <fieldset className="ui-field" aria-describedby="hub-access-help">
+            <legend className="ui-field__label">Acceso al Hub</legend>
+            <p id="hub-access-help" className="ui-field__description">
+              {editing && editing.hubPolicy.enabledSections === undefined && editing.hubPolicy.landing === undefined
+                ? 'Este usuario conserva el acceso heredado: todas las secciones e Inicio.'
+                : 'Elija las secciones que puede abrir. Estos permisos no reemplazan las restricciones de rol, recursos ni jurisdicción.'}
+            </p>
+            <div className="ui-form-grid">
+              {HUB_SECTIONS.map((section) => (
+                <label key={section}>
+                  <input type="checkbox" checked={draft.enabledSections.includes(section)} onChange={(event) => setDraft((prev) => ({
+                    ...prev,
+                    enabledSections: event.currentTarget.checked ? [...prev.enabledSections, section] : prev.enabledSections.filter((item) => item !== section),
+                  }))} />{' '}{SECTION_LABELS[section]}
+                </label>
+              ))}
+              <label><input type="checkbox" checked={draft.landing} onChange={(event) => setDraft((prev) => ({ ...prev, landing: event.currentTarget.checked }))} />{' '}Permitir Inicio</label>
+            </div>
+          </fieldset>
+          {optionsLoading || destinationLoading ? <p role="status">Cargando destinos y recursos administrables…</p> : null}
+          {resourcesError || destinationError ? <div className="ui-messagebar ui-messagebar--error" role="alert">{resourcesError ?? destinationError}</div> : null}
+          {!noDestinationNeeded ? (
+            <SelectField
+              label="Destino inicial"
+              required
+              value={draft.destination ?? ''}
+              options={[
+                { value: '', label: 'Seleccione un destino' },
+                ...destinationOptions,
+                ...(destinationInvalid && draft.destination ? [{ value: draft.destination, label: `${DESTINATION_LABELS[draft.destination] ?? draft.destination} (ya no válido)` }] : []),
+              ]}
+              hint={destinationInvalid ? 'El destino guardado ya no es válido con los permisos actuales. Elija otro antes de guardar.' : 'Solo se ofrecen destinos válidos para el rol, los recursos y el alcance de este usuario.'}
+              onChange={(destination) => setDraft((prev) => ({ ...prev, destination: destination || null }))}
+            />
+          ) : <p className="ui-messagebar ui-messagebar--info">Sin secciones ni Inicio: la cuenta quedará sin un destino disponible.</p>}
           {editing ? (
             <AdminField label="Estado">
               <Switch
@@ -1163,7 +1278,7 @@ function UserForm({
   }
 
 function UsersAdmin() {
-  const { niveles, recursos } = useHubData()
+  const { niveles } = useHubData()
   const {
     items: usuarios,
     loadError,
@@ -1198,6 +1313,7 @@ function UsersAdmin() {
               <th>Correo</th>
               <th>Rol</th>
               <th>Direcciones</th>
+              <th>Acceso al Hub</th>
               <th>Estado</th>
               <th>Acciones</th>
             </tr>
@@ -1220,6 +1336,11 @@ function UsersAdmin() {
                   ) : null}
                 </td>
                 <td>
+                  {`${u.hubPolicy.enabledSections === undefined ? 'Todas las secciones (heredado)' : u.hubPolicy.enabledSections.map((section) => SECTION_LABELS[section]).join(', ') || 'Sin secciones'}; Inicio ${u.hubPolicy.landing === undefined ? 'permitido (heredado)' : u.hubPolicy.landing ? 'permitido' : 'no permitido'}`}
+                  <br />
+                  <span className="ui-hint">Destino: {u.hubDestination ? DESTINATION_LABELS[u.hubDestination] ?? u.hubDestination : u.hubPolicy.enabledSections === undefined && u.hubPolicy.landing === undefined ? u.role === 'operador_establecimiento' ? 'Entrada GE según CUE; si no aplica, Inicio heredado' : 'Inicio (heredado)' : 'Sin configurar'}</span>
+                </td>
+                <td>
                   <span className={u.banned ? 'badge badge--warning' : 'badge badge--success'}>
                     {u.banned ? 'Desactivado' : 'Activo'}
                   </span>
@@ -1239,7 +1360,6 @@ function UsersAdmin() {
         open={open}
         editing={editing}
         niveles={niveles}
-        recursos={recursos}
         onClose={onClose}
         onSaved={reload}
       />

@@ -13,6 +13,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { apiKeyDesdeEntorno, obtenerResumenCupo } from '@/lib/infraestructura/riesgo/providers/cupo-om'
 import { obtenerAvanceClimatologia } from '@/lib/infraestructura/riesgo/avance-climatologia'
 import { listarFlagsOperativas } from '@/lib/infraestructura/riesgo/flags'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 const contenedor: React.CSSProperties = { padding: '2rem', color: 'var(--ink)' }
 const bloque: React.CSSProperties = {
@@ -44,6 +45,7 @@ function calcularFrescura(
 }
 
 export default async function OperacionSalud() {
+  await requireServerHubPageAccess('/admin/operacion', 'infrastructure')
   const user = await getSessionUser()
   const gate = adminPageGate(user)
   if (gate === 'login') redirect('/login?callbackUrl=/admin/operacion')
