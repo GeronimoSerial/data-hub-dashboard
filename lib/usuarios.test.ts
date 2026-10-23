@@ -10,9 +10,11 @@ import {
   mutateUsuariosDenied,
   parseCreateUserBody,
   parsePatchUserBody,
+  persistUserAccessConfiguration,
   replaceUserRecursos,
   setAccesoRecursos,
   unknownRecursoIds,
+  validateHubAccessSettings,
   wouldRemoveLastAdmin,
 } from './usuarios'
 
@@ -114,6 +116,8 @@ describe('parseCreateUserBody', () => {
       ...base,
       accesoRecursos: 'todos',
       recursoIds: [],
+      hubPolicy: {},
+      hubDestination: null,
     })
   })
 
@@ -146,6 +150,8 @@ describe('parseCreateUserBody', () => {
       ...base,
       accesoRecursos: 'seleccionados',
       recursoIds: ['r1', 'r2'],
+      hubPolicy: {},
+      hubDestination: null,
     })
   })
 
@@ -153,6 +159,18 @@ describe('parseCreateUserBody', () => {
     expect(
       parseCreateUserBody({ ...base, accesoRecursos: 'todo' }),
     ).toBeNull()
+  })
+
+  it('validates persisted access settings without collapsing explicit empty policy', async () => {
+    const hubAccess = { enabledSections: ['infrastructure'], landing: false, destination: '/mapas/infraestructura' }
+    expect(parseCreateUserBody({ ...base, hubAccess })?.hubPolicy).toEqual({ enabledSections: ['infrastructure'], landing: false })
+    expect(parseCreateUserBody({ ...base, hubAccess: { enabledSections: [], landing: false, destination: null } })?.hubPolicy).toEqual({ enabledSections: [], landing: false })
+    expect(parseCreateUserBody({ ...base, hubAccess: { enabledSections: ['bogus'], landing: true, destination: '/' } })).toBeNull()
+    expect(parseCreateUserBody({ ...base, hubAccess: { enabledSections: ['reports'], landing: false, destination: '/reportes' } })?.hubDestination).toBe('/reportes')
+    expect(parseCreateUserBody({ ...base, hubAccess: { enabledSections: [], landing: false, destination: '/problematicas/parte/nuevo' } })?.hubDestination).toBe('/problematicas/parte/nuevo')
+    expect(parseCreateUserBody({ ...base, hubAccess: { enabledSections: ['reports'], landing: false, destination: 'https://evil.test' } })).toBeNull()
+    await expect(validateHubAccessSettings({ hubPolicy: { enabledSections: ['reports'], landing: false }, hubDestination: '/reportes' }, () => false)).resolves.toBe(false)
+    await expect(validateHubAccessSettings({ hubPolicy: { enabledSections: ['reports'], landing: false }, hubDestination: '/reportes' }, () => true)).resolves.toBe(true)
   })
 })
 
@@ -190,6 +208,27 @@ describe('parsePatchUserBody', () => {
         recursoIds: ['r1'],
       }),
     ).toEqual({ accesoRecursos: 'seleccionados', recursoIds: ['r1'] })
+  })
+
+  it('validates typed hub access patch fields', () => {
+    expect(parsePatchUserBody({ hubAccess: { enabledSections: ['reports'], landing: false, destination: '/reportes' } })).toEqual({ hubPolicy: { enabledSections: ['reports'], landing: false }, hubDestination: '/reportes' })
+    expect(parsePatchUserBody({ hubAccess: { enabledSections: ['explore'], landing: false, destination: '/reportes' } })).toBeNull()
+  })
+
+  it('requires the existing landing ACL when destination is omitted', async () => {
+    const landingSettings = { hubPolicy: { enabledSections: [], landing: true }, hubDestination: null }
+    await expect(validateHubAccessSettings(landingSettings, (path) => path === '/')).resolves.toBe(true)
+    await expect(validateHubAccessSettings(landingSettings, () => false)).resolves.toBe(false)
+    const banned = { ...consulta, banned: true }
+    await expect(validateHubAccessSettings(landingSettings, (path) => path === '/' && !banned.banned)).resolves.toBe(false)
+    await expect(validateHubAccessSettings({ ...landingSettings, hubPolicy: { enabledSections: [], landing: false } }, () => true)).resolves.toBe(false)
+  })
+
+  it('treats an unset legacy landing policy as enabled during partial ACL updates', async () => {
+    const aclPaths: string[] = []
+    await expect(validateHubAccessSettings({ hubPolicy: {}, hubDestination: null }, (path) => { aclPaths.push(path); return true })).resolves.toBe(true)
+    expect(aclPaths).toEqual(['/'])
+    await expect(validateHubAccessSettings({ hubPolicy: {}, hubDestination: null }, () => false)).resolves.toBe(false)
   })
 
   it('rejects an invalid accesoRecursos value', () => {
@@ -301,6 +340,60 @@ describe('recursoIds contra la base', () => {
     const afterClear = (await listHubUsers()).find((u) => u.id === userId)
     expect(afterClear?.recursoIds).toEqual([])
 
+    await db.delete(user).where(eq(user.id, userId))
+  })
+
+  it('rolls back the full ACL/policy write if any replacement fails', async () => {
+    const { getDb } = await import('./db')
+    const { user } = await import('./db/schema')
+    const { eq } = await import('drizzle-orm')
+    const db = getDb()
+    const userId = 'usuarios-atomic-test'
+    await db.insert(user).values({
+      id: userId, name: 'Atomic', email: 'usuarios-atomic-test@example.com', emailVerified: false, role: 'consulta', banned: true,
+    } as typeof user.$inferInsert)
+    const original = { hubPolicy: { enabledSections: ['maps'] as const, landing: false }, hubDestination: '/mapas' }
+    await persistUserAccessConfiguration(userId, {
+      accesoRecursos: 'seleccionados', recursoIds: ['r1'], hubAccess: original,
+    })
+
+    await expect(persistUserAccessConfiguration(userId, {
+      accesoRecursos: 'todos', recursoIds: ['missing-resource'],
+      hubAccess: { hubPolicy: { enabledSections: ['infrastructure'] }, hubDestination: '/mapas/infraestructura' },
+      activateProvisionedUser: true,
+    })).rejects.toThrow()
+
+    const found = (await listHubUsers()).find((item) => item.id === userId)
+    expect(found?.accesoRecursos).toBe('seleccionados')
+    expect(found?.recursoIds).toEqual(['r1'])
+    expect(found?.hubPolicy).toEqual(original.hubPolicy)
+    expect(found?.hubDestination).toBe('/mapas')
+    expect(found?.banned).toBe(true)
+    await db.delete(user).where(eq(user.id, userId))
+  })
+
+  it('commits the complete restricted access configuration before enabling a provisioned user', async () => {
+    const { getDb } = await import('./db')
+    const { user } = await import('./db/schema')
+    const { eq } = await import('drizzle-orm')
+    const db = getDb()
+    const userId = 'usuarios-provisioning-atomic-test'
+    await db.insert(user).values({
+      id: userId, name: 'Provisioned', email: 'usuarios-provisioning-test@example.com', emailVerified: false,
+      role: 'consulta', banned: true, banReason: 'Provisioning', accesoRecursos: 'todos',
+    } as typeof user.$inferInsert)
+
+    await persistUserAccessConfiguration(userId, {
+      nivelJurIds: [], accesoRecursos: 'seleccionados', recursoIds: [],
+      hubAccess: { hubPolicy: { enabledSections: [], landing: false }, hubDestination: null },
+      activateProvisionedUser: true,
+    })
+
+    const saved = (await listHubUsers()).find((item) => item.id === userId)
+    expect(saved).toMatchObject({
+      banned: false, accesoRecursos: 'seleccionados', recursoIds: [],
+      hubPolicy: { enabledSections: [], landing: false }, hubDestination: null,
+    })
     await db.delete(user).where(eq(user.id, userId))
   })
 })

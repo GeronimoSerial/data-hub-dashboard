@@ -158,6 +158,10 @@ export const user = pgTable('user', {
   accesoRecursos: text('acceso_recursos').notNull().default('todos'),
   // CUE-anexo del establecimiento asignado al operador_establecimiento (T6).
   geCueAnexo: text('ge_cue_anexo'),
+  // NULL keeps legacy/unconfigured behavior; [] is an explicit deny-all policy.
+  hubSecciones: jsonb('hub_secciones').$type<string[] | null>(),
+  hubLanding: boolean('hub_landing'),
+  hubDestino: text('hub_destino'),
 })
 
 export const session = pgTable(
