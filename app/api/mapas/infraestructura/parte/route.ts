@@ -94,6 +94,7 @@ export async function GET(request: Request) {
                 : {}),
             }
           : {}),
+        impactoAlumnos: afectacion.impactoAlumnos,
         descripcion: afectacion.descripcion,
         ...(afectacion.carreras ? { carreras: afectacion.carreras } : {}),
         causadaPorId: afectacion.causadaPorId,

@@ -1,5 +1,7 @@
 'use client'
 
+import { impactoAlumnosEnContexto } from '@/lib/infraestructura/prioridad-alumnos'
+
 import { useEffect, useState, type JSX } from 'react'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type AfectacionBorrador } from '@/components/infraestructura/afectacion-campos'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
@@ -90,12 +92,13 @@ function detalleCausa(candidata: CandidataCausa, cantidadSeccionesEscuela: numbe
   return partes.filter(Boolean).join(' · ')
 }
 
-function crearNuevaSituacion(borrador: AfectacionBorrador, causadaPorId: string | null): NuevaSituacion | null {
-  if (borrador.categoria === '' || borrador.severidad === '' || borrador.motivo === '') return null
+function crearNuevaSituacion(borrador: AfectacionBorrador, causadaPorId: string | null, turnos: TurnoContexto[]): NuevaSituacion | null {
+  const severidad = borrador.categoria === 'alumnos' ? impactoAlumnosEnContexto(borrador.alumnos, turnos).prioridad : borrador.severidad
+  if (borrador.categoria === '' || (borrador.categoria !== 'alumnos' && !severidad) || borrador.motivo === '') return null
   return {
     causadaPorId,
     motivo: borrador.motivo,
-    severidad: borrador.severidad,
+    severidad: severidad || undefined,
     secciones: borrador.secciones,
     ...(borrador.carreras?.length ? { carreras: borrador.carreras } : {}),
     ...(borrador.categoria === 'alumnos' ? { alumnos: borrador.alumnos } : {}),
@@ -130,7 +133,7 @@ export function AlgoNuevo({
       ...vacia,
       categoria,
       motivo: nueva.motivo,
-      severidad: nueva.severidad,
+      severidad: nueva.severidad ?? '',
       justificacionCritica: nueva.justificacionCritica ?? '',
       justificacionCriticaDetalle: nueva.justificacionCriticaDetalle ?? '',
       descripcion: nueva.descripcion ?? '',
@@ -159,7 +162,7 @@ export function AlgoNuevo({
   const anteriorElegida = candidatasCerradas.find((candidata) => candidata.id === causadaPorId)
   const candidatasVisibles = anteriorElegida ? [...candidatasActivas, anteriorElegida] : candidatasActivas
   const sugerida = motivos.find((motivo) => motivo.nombre === borrador.motivo)?.severidadSugerida ?? null
-  const completaLaGravedad = gravedadCompleta(borrador, sugerida)
+  const completaLaGravedad = borrador.categoria === 'alumnos' || gravedadCompleta(borrador, sugerida)
   const alcanceCompleto = carreras.length > 0
     ? (borrador.carreras?.length ?? 0) > 0 && (borrador.carreras ?? []).every((carrera) => carreras.includes(carrera))
     : borrador.secciones.length > 0 && (borrador.categoria !== 'establecimiento' || borrador.alcanceEstablecimiento !== '')
@@ -229,7 +232,7 @@ export function AlgoNuevo({
   }
 
   function terminar(): void {
-    const nueva = crearNuevaSituacion(borrador, causadaPorId ?? null)
+    const nueva = crearNuevaSituacion(borrador, causadaPorId ?? null, turnos)
     if (nueva && datosCompletos) onTerminar(nueva)
   }
 

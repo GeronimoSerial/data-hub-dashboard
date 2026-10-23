@@ -1,5 +1,7 @@
 'use client'
 
+import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
+
 import { useState, type ReactNode } from 'react'
 import { BookMinus, BookX, Check, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
@@ -94,10 +96,10 @@ export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: Pan
   const [ahoraMs] = useState(() => Date.now())
   const [filtro, setFiltro] = useState<FiltroLista>('todas')
   const resumen = resumir(escuelas)
-  const abiertas = ordenarReportes(escuelas).filter((escuela) => escuela.gravedad > 0)
+  const abiertas = ordenarReportes(escuelas).filter((escuela) => escuela.gravedad > 0 || (escuela.parte?.afectaciones.length ?? 0) > 0)
   const reportes = abiertas.filter((escuela) => cumpleFiltro(escuela, filtro))
   const solucionadasRecientes = escuelas
-    .filter((escuela) => escuela.solucionadasRecientes > 0 && escuela.gravedad === 0)
+    .filter((escuela) => escuela.solucionadasRecientes > 0 && escuela.gravedad === 0 && !(escuela.parte?.afectaciones.length))
     .sort((a, b) => {
       if (a.ultimaNovedad === null && b.ultimaNovedad !== null) return 1
       if (a.ultimaNovedad !== null && b.ultimaNovedad === null) return -1
@@ -178,6 +180,7 @@ export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: Pan
                       <span className="map-sitact__meta">{departamento}{nivel}</span>
                       {novedad && <span className="map-sitact__cuando">{novedad}</span>}
                     </span>
+                    {escuela.impactoAlumnos && <span className="map-sitact__meta"><ImpactoAlumnosResumen impacto={escuela.impactoAlumnos} /></span>}
                     {chipsEscuela(escuela)}
                   </span>
                 </button>

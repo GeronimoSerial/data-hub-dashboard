@@ -1,5 +1,7 @@
 'use client'
 
+import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
+
 import { useEffect, useRef, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Clock, MapPinOff, X } from 'lucide-react'
@@ -13,6 +15,7 @@ import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
+import { prioridadEfectiva } from '@/lib/infraestructura/prioridad-alumnos'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { DESCRIPCIONES_AISLAMIENTO } from '@/lib/mapas/accesos-capas'
 import { etiquetaKm, etiquetaSuperficie, type SuperficieVia } from '@/lib/infraestructura/mapa/acceso'
@@ -75,7 +78,6 @@ export function VistaPreviaEscuela({
     escuela.lon === null
 
   const afectaciones = escuela.parte?.afectaciones ?? []
-  const severidad = escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
   const principal =
     afectaciones.length > 0 && escuela.parte
       ? situacionPrincipal(
@@ -87,6 +89,9 @@ export function VistaPreviaEscuela({
       : null
   const justificacionPrincipal = principal ? presentarJustificacionCritica(principal) : null
 
+  const severidad = principal
+    ? prioridadEfectiva(principal)
+    : escuela.parte ? null : escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
   const categoriaLabel = principal
     ? CATEGORIA_META[principal.categoria].label
     : etiquetaCategoria(escuela.categoriaPrincipal)
@@ -166,7 +171,7 @@ export function VistaPreviaEscuela({
             />
             <div className={styles.situacionCuerpo}>
               <p className={styles.gravedad}>
-                Gravedad {severidad}
+                {principal?.categoria === 'alumnos' || escuela.categoriaPrincipal === 'alumnos' ? 'Prioridad' : 'Gravedad'} {severidad}
               </p>
               {cargandoParte && !principal ? (
                 <p className={styles.situacionMeta} role="status">Cargando situación…</p>
@@ -175,6 +180,7 @@ export function VistaPreviaEscuela({
               <p className={styles.motivo}>
                 {principal ? principal.motivo : (categoriaLabel ?? 'Situación activa')}
               </p>
+              {principal?.categoria === 'alumnos' && <p><ImpactoAlumnosResumen impacto={principal.impactoAlumnos} /></p>}
               <p className={styles.situacionMeta}>
                 {afectaciones.length > 0
                   ? `${afectaciones.length} ${afectaciones.length === 1 ? 'situación abierta' : 'situaciones abiertas'}`
@@ -193,6 +199,8 @@ export function VistaPreviaEscuela({
               )}
             </div>
           </>
+        ) : principal ? (
+          <p><strong>{principal.motivo}</strong> · <ImpactoAlumnosResumen impacto={principal.impactoAlumnos} /></p>
         ) : escuela.parte ? (
           <p className={styles.sinReporte} data-testid="preview-sin-situaciones">
             Sin situaciones abiertas reportadas

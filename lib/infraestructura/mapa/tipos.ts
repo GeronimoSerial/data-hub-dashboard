@@ -1,3 +1,4 @@
+import type { ImpactoAlumnos } from '../prioridad-alumnos'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 
 export type PestanaMapa = 'actual' | 'radar' | 'planificacion' | 'estadisticas' | 'capas' | 'metodologia' | 'exportar'
@@ -7,6 +8,7 @@ export type ApoyoPedagogico = 'virtual' | 'cuadernillo' | 'ambos' | 'brinda' | '
 export type GravedadMapa = 0 | 1 | 2 | 3 | 4 // 0 sin reporte, 1 Baja … 4 Crítica
 
 export interface EscuelaMapaEnriquecida {
+  impactoAlumnos?: ImpactoAlumnos
   cueAnexo: string
   nombre: string
   departamento: string

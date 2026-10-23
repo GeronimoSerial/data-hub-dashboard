@@ -1,3 +1,5 @@
+import { proyectarImpactoAlumnos } from './prioridad-alumnos'
+import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Capa de lectura del parte (spec §6, §7, §8): tanto GET /parte como
 // POST /parte la necesitan — POST para armar la fotografía "antes" contra la
 // que diffParte compara. Framework-free salvo por el acceso a Drizzle y al
@@ -168,13 +170,18 @@ async function cargarAfectaciones(
     geSectionIds: todasLasSecciones,
   })
 
+  const [parte] = await dbEjecutor.select({ cueAnexo: infraParte.cueAnexo }).from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
+  const seccionesCue = parte ? await listarSeccionesDelCue(client, corteId, parte.cueAnexo) : []
+  const padron = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: seccionesCue.map((s) => s.geSectionId) })
+  const matriculados = new Set([...padron.values()].flatMap((ids) => [...ids]))
+
   return filas.map((fila): Afectacion => {
     const seccionIds = seccionesPorAfectacion.get(fila.id) ?? []
     const alumnosSeleccionados = new Set(alumnosPorAfectacion.get(fila.id) ?? [])
     const secciones: AfectacionAlcanceSeccion[] = seccionIds.map((geSectionId) => {
       const matriculados = membresia.get(geSectionId) ?? new Set<number>()
       const interseccion = [...matriculados].filter((id) => alumnosSeleccionados.has(id))
-      if (interseccion.length > 0) {
+      if (interseccion.length > 0 || (fila.categoria === 'alumnos' && alumnosSeleccionados.size > 0)) {
         return { geSectionId, seccionCompleta: false, alumnos: interseccion }
       }
       return { geSectionId, seccionCompleta: true, alumnos: [...matriculados] }
@@ -184,7 +191,7 @@ async function cargarAfectaciones(
         ? fila.justificacionCritica
         : undefined
 
-    return {
+    const afectacion: Afectacion = {
       id: fila.id,
       parteId: fila.parteId,
       causadaPorId: fila.causadaPorId,
@@ -206,6 +213,7 @@ async function cargarAfectaciones(
       secciones,
       ...(fila.carreras ? { carreras: fila.carreras } : {}),
     }
+    return fila.retiradaEn === null ? proyectarImpactoAlumnos(afectacion, matriculados, corteId || null) : afectacion
   })
 }
 
@@ -323,13 +331,14 @@ export function snapshotDesde(actual: ParteActual, referencia?: Date | string): 
 // llamador del mapa (F3.2) descarta ese campo antes de responder.
 export interface AfectacionFicha {
   carreras?: string[]
-  justificacionCritica?: Afectacion['justificacionCritica']
-  justificacionCriticaDetalle?: Afectacion['justificacionCriticaDetalle']
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   motivo: string
   categoria: Categoria
   severidad: Severidad
   descripcion: string | null
+  justificacionCritica: string | null
+  justificacionCriticaDetalle: string | null
   rigeDesde: string
   creadaEn: string
   causadaPorId: string | null
@@ -385,7 +394,10 @@ export async function armarFichaParte(cueAnexo: string, corteId: number): Promis
               : {}),
           }
         : {}),
+      impactoAlumnos: afectacion.impactoAlumnos,
       descripcion: afectacion.descripcion,
+      justificacionCritica: afectacion.justificacionCritica ?? null,
+      justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle ?? null,
       rigeDesde: afectacion.rigeDesde,
       creadaEn: afectacion.creadaEn,
       causadaPorId: afectacion.causadaPorId ?? null,

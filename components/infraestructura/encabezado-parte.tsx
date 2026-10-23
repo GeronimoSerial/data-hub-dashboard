@@ -62,6 +62,10 @@ export function EncabezadoParte({
     <header className="encabezado-parte">
       <h1 className="publico-content__title encabezado-parte__programa">{TITULO_PROGRAMA}</h1>
       <p className="encabezado-parte__glosa">{GLOSA_PROGRAMA}</p>
+      <a className="encabezado-parte__materiales" href="/materiales" target="_blank" rel="noopener noreferrer">
+        Manuales y cuadernillos
+        <span className="sr-only"> (abre en otra pestaña)</span>
+      </a>
 
       {escuela && (
         <div className="encabezado-parte__escuela">

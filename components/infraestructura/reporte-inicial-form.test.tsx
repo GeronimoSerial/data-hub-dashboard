@@ -445,7 +445,7 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
     confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    expect(screen.queryByRole('radio', { name: 'Alta' })).not.toBeInTheDocument()
     continuar()
     completarAQuienAfecta('alumnos')
     continuar()
@@ -733,7 +733,7 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
     confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    expect(screen.queryByRole('radio', { name: 'Alta' })).not.toBeInTheDocument()
     expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     continuar()
     expect(screen.getByText('Paso 2 de 5')).toBeInTheDocument()
@@ -761,7 +761,7 @@ describe('ReporteInicialForm', () => {
     expect(within(resumen).getByText('Asistencia pedagógica')).toBeInTheDocument()
   })
 
-  it('al recomendar cambiar a establecimiento vuelve al paso 1 para elegir el motivo', () => {
+  it('mantiene inaccesibilidad de alumnos al seleccionar toda la matrícula', () => {
     const turnosConMayoria = turnos.map((turno) => ({
       ...turno,
       niveles: turno.niveles.map((nivel) => ({
@@ -769,6 +769,7 @@ describe('ReporteInicialForm', () => {
         secciones: nivel.secciones.map((seccion) => ({
           ...seccion,
           matricula: seccion.geSectionId === 10 ? 2 : 0,
+          alumnosMatriculados: seccion.geSectionId === 10 ? seccion.alumnos.map((a) => a.gePersonId) : [],
         })),
       })),
     }))
@@ -777,17 +778,17 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
     confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    expect(screen.queryByRole('radio', { name: 'Alta' })).not.toBeInTheDocument()
     continuar()
     const seccion = turnosConMayoria[0].niveles[0].secciones[0]
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`${seccion.curso} "${seccion.division}"`) }))
     for (const alumno of seccion.alumnos) {
       fireEvent.click(screen.getByRole('checkbox', { name: `${alumno.apellido}, ${alumno.nombre}` }))
     }
-    fireEvent.click(screen.getByRole('button', { name: 'Cambiar a establecimiento' }))
-
-    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo de la situación del establecimiento.')
+    expect(screen.queryByRole('button', { name: 'Cambiar a establecimiento' })).not.toBeInTheDocument()
+    expect(screen.getByText('2 de 2 alumnos · 100% · Prioridad Media')).toBeInTheDocument()
+    continuar()
+    expect(screen.getByRole('heading', { name: 'Asistencia pedagógica' })).toBeInTheDocument()
   })
 
   it('volver conserva lo ya cargado', () => {

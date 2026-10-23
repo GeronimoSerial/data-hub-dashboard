@@ -6,6 +6,7 @@ import { RECORRIDO_INICIAL, type SituacionRecorrido } from '@/lib/infraestructur
 import { AlgoNuevo } from './algo-nuevo'
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-05T12:00:00.000Z'))
 })
 
@@ -326,7 +327,7 @@ describe('AlgoNuevo', () => {
     entrarDatosIndependiente()
     elegirCategoria('Inaccesibilidad de alumnos')
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Baja' }))
+    expect(screen.queryByRole('radio', { name: 'Baja' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /1° "A".*elegir alumnos/i }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'García, Ana' }))
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))

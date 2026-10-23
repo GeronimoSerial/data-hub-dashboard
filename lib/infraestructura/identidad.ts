@@ -143,7 +143,18 @@ export async function listarAfectadosNominal(
   })
 
   const membresiaPorSeccion = await obtenerMembresiaSecciones(hostClient, { corteId, geSectionIds })
-  const personIdsPorSeccion = seleccionarAlumnosPorSeccion(membresiaPorSeccion, alumnoIds)
+  const categoriaRes = await hostClient.execute({
+    sql: 'SELECT categoria FROM infra_afectacion WHERE id = ?',
+    args: [afectacionId],
+  })
+  const seleccionExplicita = categoriaRes.rows[0]?.categoria === 'alumnos' && alumnoIds.length > 0
+  const alumnosSeleccionados = new Set(alumnoIds)
+  const personIdsPorSeccion = seleccionExplicita
+    ? new Map([...membresiaPorSeccion].map(([sectionId, personIds]) => [
+        sectionId,
+        [...personIds].filter((personId) => alumnosSeleccionados.has(personId)),
+      ]))
+    : seleccionarAlumnosPorSeccion(membresiaPorSeccion, alumnoIds)
   const todosLosPersonIds = new Set([...personIdsPorSeccion.values()].flat())
 
   const identidades = await listarIdentidadesPorPersonas(

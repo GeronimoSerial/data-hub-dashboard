@@ -1,5 +1,7 @@
 'use client'
 
+import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
+
 import { useState, type JSX } from 'react'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
@@ -35,7 +37,7 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
       {principal ? (
         <section aria-label="Situación principal" className="entrada-actualizar__principal">
           <p className="entrada-actualizar__motivo">
-            <strong>{principal.motivo}</strong> <EstadoActualSeveridad severidad={principal.severidad} prefijo={false} />
+            <strong>{principal.motivo}</strong> {principal.categoria === 'alumnos' ? <ImpactoAlumnosResumen impacto={principal.impactoAlumnos} /> : <EstadoActualSeveridad severidad={principal.severidad} prefijo={false} />}
           </p>
           <p className="entrada-actualizar__detalle">
             {`${ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento]} · ${ETIQUETA_SERVICIO[estadoServicio]} · desde ${desde(principal.rigeDesde)}`}
@@ -66,7 +68,7 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
             {otras.map((situacion) => (
               <li key={situacion.id}>
                 <span className="entrada-actualizar__otra-motivo">{situacion.motivo}</span>
-                <EstadoActualSeveridad severidad={situacion.severidad} prefijo={false} />
+                {situacion.categoria === 'alumnos' ? <ImpactoAlumnosResumen impacto={situacion.impactoAlumnos} /> : <EstadoActualSeveridad severidad={situacion.severidad} prefijo={false} />}
                 <span className="entrada-actualizar__detalle">{`desde ${desde(situacion.rigeDesde)}`}</span>
               </li>
             ))}

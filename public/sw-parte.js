@@ -23,7 +23,7 @@ const DURACION_BLOQUEO_MS = 15000
 const ESPERA_MAXIMA_MS = 30000
 const CACHE_PREPARACION_PREFIX = 'parte-offline-shell-'
 // Increment when the offline shell or its static resource graph changes.
-const CACHE_PREPARACION_VERSION = 'v1'
+const CACHE_PREPARACION_VERSION = 'v2'
 const CACHE_PREPARACION = `${CACHE_PREPARACION_PREFIX}${CACHE_PREPARACION_VERSION}`
 const RUTA_OFFLINE = '/problematicas/parte/offline'
 const RUTAS_PARTE = ['/problematicas/parte/nuevo', '/problematicas/parte/actualizar']

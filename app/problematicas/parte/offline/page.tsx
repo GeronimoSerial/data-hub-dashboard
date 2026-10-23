@@ -5,7 +5,7 @@ import { TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezad
 export const dynamic = 'force-static'
 
 export const metadata: Metadata = {
-  title: `Continuar sin conexión · ${TITULO_PROGRAMA_COMPLETO}`,
+  title: `Reportes guardados · ${TITULO_PROGRAMA_COMPLETO}`,
 }
 
 /** Static shell only. Flow data is read by the client from the shared IndexedDB database. */

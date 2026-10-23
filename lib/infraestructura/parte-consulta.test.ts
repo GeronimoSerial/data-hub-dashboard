@@ -87,6 +87,7 @@ describe('obtenerParteActual', () => {
       severidad: 'Crítica',
       justificacionCritica: 'mas_personas',
       descripcion: null,
+      justificacionCriticaDetalle: null,
       rigeDesde: ahora,
       creadaEn: ahora,
       retiradaEn: null,
@@ -100,9 +101,9 @@ describe('obtenerParteActual', () => {
       motivo: 'Anegamiento',
       categoria: 'alumnos',
       severidad: 'Media',
-      justificacionCritica: 'mas_personas',
-      justificacionCriticaDetalle: 'Dato histórico inconsistente',
       descripcion: null,
+      justificacionCritica: null,
+      justificacionCriticaDetalle: null,
       rigeDesde: ahora,
       creadaEn: ahora,
       retiradaEn: null,
@@ -307,6 +308,9 @@ describe('armarFichaParte', () => {
       justificacionCritica: 'otro',
       justificacionCriticaDetalle: 'Cableado expuesto',
     })
+    expect(parcial.justificacionCritica).toBeNull()
+    expect(parcial.justificacionCriticaDetalle).toBeNull()
+    expect(parcial.impactoAlumnos?.afectados).toBe(2)
 
     // Nunca resuelve nombres: cada sección sólo trae ids de alumno crudos.
     expect(completa.secciones[0].alumnos.every((id) => typeof id === 'number')).toBe(true)

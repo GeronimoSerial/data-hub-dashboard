@@ -84,23 +84,21 @@ describe('GET /api/problematicas/contexto', () => {
         niveles: [
           {
             nivel: 'Primario',
-            secciones: [{ geSectionId: 10, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 1, alumnos: [] }],
+            secciones: [{ geSectionId: 10, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 1, alumnosMatriculados: [900001], alumnos: [] }],
           },
         ],
       },
     ])
   })
 
-  // El invariante anterior era "nunca incluye ge_person_id": eso cambió a
-  // propósito (ver lib/infraestructura/contexto.ts). Acá no aparece porque la
-  // identidad de este alumno nunca se importó (no hay fila en
-  // ge_alumno_identidad), no porque el payload lo prohíba.
-  it('no incluye identidad de un alumno que no tiene padrón nominal importado', async () => {
+  it('incluye la matrícula sin inventar identidad cuando no hay padrón nominal importado', async () => {
     await seedEscuelaConSeccion()
 
     const res = await GET(conAcceso('http://localhost/api/problematicas/contexto?cue=1801605-04'))
-    const raw = await res.text()
-    expect(raw).not.toContain('900001')
+    const body = await res.json()
+    const seccion = body.turnos[0].niveles[0].secciones[0]
+    expect(seccion.alumnosMatriculados).toEqual([900001])
+    expect(seccion.alumnos).toEqual([])
   })
 
   it('responde 401 sin la cookie de acceso', async () => {

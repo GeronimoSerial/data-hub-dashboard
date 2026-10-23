@@ -1,5 +1,9 @@
 'use client'
 
+import { prioridadEfectiva } from '@/lib/infraestructura/prioridad-alumnos'
+
+import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
+
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowUpRight, Clock, Cloud, MapPinOff } from 'lucide-react'
@@ -267,8 +271,8 @@ export function FichaEscuelaPagina({
     afectaciones.length > 0
       ? (afectaciones.find((afectacion) => afectacion.id === principal?.id) ?? afectaciones[0])
       : null
-  const justificacionIncidente = incidente ? presentarJustificacionCritica(incidente) : null
   const otrasAfectaciones = afectaciones.filter((afectacion) => afectacion.id !== incidente?.id)
+  const justificacionIncidente = incidente ? presentarJustificacionCritica(incidente) : null
   const severidadIncidente = incidente?.severidad ?? severidad
   const estadoEdificio = tieneParteRegistrado
     ? ETIQUETA_ESTABLECIMIENTO[
@@ -396,7 +400,7 @@ export function FichaEscuelaPagina({
                     className={styles.incidenteDot}
                     aria-hidden="true"
                   />
-                  Situación activa · Gravedad {incidente.severidad.toLowerCase()}
+                  Situación activa · {incidente.categoria === 'alumnos' ? 'Prioridad' : 'Gravedad'} {prioridadEfectiva(incidente)?.toLowerCase() ?? 'sin datos'}
                 </span>
                 <h2 className={styles.incidenteTitulo}>{incidente.motivo}</h2>
                 {!incidente.descripcion && (
@@ -405,6 +409,7 @@ export function FichaEscuelaPagina({
                   </p>
                 )}
                 <ObservacionReporte texto={incidente.descripcion} />
+                {incidente.categoria === 'alumnos' && <p><ImpactoAlumnosResumen impacto={incidente.impactoAlumnos} /></p>}
                 {justificacionIncidente && (
                   <p className={styles.incidenteTexto}>
                     <strong>Justificación de gravedad:</strong> {justificacionIncidente.etiqueta}
@@ -457,7 +462,7 @@ export function FichaEscuelaPagina({
                     <article className={styles.itemSecundario} key={afectacion.id}>
                       <div className={styles.itemSecundarioTop}>
                         <h4 className={styles.itemSecundarioTitulo}>{afectacion.motivo}</h4>
-                        <EstadoActualSeveridad severidad={afectacion.severidad} />
+                        {afectacion.categoria === 'alumnos' ? <ImpactoAlumnosResumen impacto={afectacion.impactoAlumnos} /> : <EstadoActualSeveridad severidad={afectacion.severidad} />}
                       </div>
                       <p className={styles.itemSecundarioTexto}>
                         {[
@@ -475,6 +480,7 @@ export function FichaEscuelaPagina({
                         </p>
                       )}
                       <ObservacionReporte texto={afectacion.descripcion} />
+                      {afectacion.categoria === 'alumnos' && <ImpactoAlumnosResumen impacto={afectacion.impactoAlumnos} />}
                       {verAlumnos(afectacion.id, styles.linkAccion)}
                     </article>
                   )

@@ -66,7 +66,7 @@ const carrerasSchema = z.array(z.string().trim().min(1).max(500)).max(100)
 
 export const afectacionNuevaInputSchema = z.object({
   motivo: z.string().trim().min(1, 'Motivo requerido'),
-  severidad: z.enum(SEVERIDADES),
+  severidad: z.enum(SEVERIDADES).optional(),
   justificacionCritica: z.enum(JUSTIFICACIONES_CRITICA).optional(),
   justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),

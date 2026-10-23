@@ -19,11 +19,12 @@ export const ETIQUETA_JUSTIFICACION_CRITICA: Record<JustificacionCritica, string
 }
 
 export function presentarJustificacionCritica(input: {
+  categoria?: string
   severidad: unknown
   justificacionCritica?: unknown
   justificacionCriticaDetalle?: unknown
 }): { etiqueta: string; detalle: string | null } | null {
-  if (input.severidad !== 'Crítica' || !esJustificacionCritica(input.justificacionCritica)) return null
+  if (input.categoria === 'alumnos' || input.severidad !== 'Crítica' || !esJustificacionCritica(input.justificacionCritica)) return null
 
   const detalle =
     input.justificacionCritica === 'otro' &&
@@ -32,6 +33,19 @@ export function presentarJustificacionCritica(input: {
       ? input.justificacionCriticaDetalle
       : null
   return { etiqueta: ETIQUETA_JUSTIFICACION_CRITICA[input.justificacionCritica], detalle }
+}
+
+export function describirJustificacionCritica(afectacion: {
+  categoria?: string
+  severidad: Severidad
+  justificacionCritica?: string | null
+  justificacionCriticaDetalle?: string | null
+}): string | null {
+  if (afectacion.categoria === 'alumnos' || afectacion.severidad !== 'Crítica' || !afectacion.justificacionCritica) return null
+  const codigo = afectacion.justificacionCritica
+  const etiqueta = JUSTIFICACIONES_CRITICA.find((valor) => valor === codigo)
+  const texto = etiqueta ? ETIQUETA_JUSTIFICACION_CRITICA[etiqueta] : codigo
+  return [texto, afectacion.justificacionCriticaDetalle?.trim()].filter(Boolean).join(': ')
 }
 
 export function requiereJustificacionCritica(severidad: Severidad, sugerida: Severidad | null | undefined): boolean {
