@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import catalogo from '@/data/carreras-superior-2026.json'
 import {
@@ -12,6 +13,17 @@ const [cue, carreras] = entradas[0]
 const cueAjeno = entradas.find(([otroCue]) => otroCue !== cue)?.[0] ?? ''
 
 describe('catálogo de carreras Superior', () => {
+  it('carga el catálogo desde Node sin el empaquetador de Next ni Vitest', () => {
+    const script = `
+      import { registerTsResolver } from './scripts/lib/register-ts-resolver.mjs'
+      registerTsResolver(process.cwd())
+      const { carrerasDelCue } = await import('./lib/infraestructura/carreras-superior.ts')
+      process.stdout.write(JSON.stringify(carrerasDelCue(${JSON.stringify(cue)})))
+    `
+    const result = execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' })
+    expect(JSON.parse(result)).toEqual(carreras)
+  })
+
   it('contiene las 82 instituciones y 409 relaciones CUE-carrera del workbook', () => {
     expect(entradas).toHaveLength(82)
     expect(entradas.reduce((total, [, opciones]) => total + opciones.length, 0)).toBe(409)
