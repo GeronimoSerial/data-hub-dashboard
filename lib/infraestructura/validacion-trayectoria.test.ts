@@ -44,6 +44,12 @@ describe('afectacionNuevaInputSchema', () => {
     expect(afectacionNuevaInputSchema.safeParse({ ...baseAfectacionNueva, secciones: [] }).success).toBe(false)
   })
 
+  it('acepta alcance sólo por carreras y rechaza carreras duplicadas', () => {
+    expect(afectacionNuevaInputSchema.safeParse({ ...baseAfectacionNueva, secciones: [], carreras: ['Carrera A'] }).success).toBe(true)
+    expect(afectacionNuevaInputSchema.safeParse({ ...baseAfectacionNueva, secciones: [], carreras: ['Carrera A', 'Carrera A'] }).success).toBe(false)
+    expect(afectacionNuevaInputSchema.safeParse({ ...baseAfectacionNueva, secciones: [], carreras: [] }).success).toBe(false)
+  })
+
   it('rechaza severidad fuera de catálogo', () => {
     expect(
       afectacionNuevaInputSchema.safeParse({ ...baseAfectacionNueva, severidad: 'Extrema' }).success,
@@ -67,6 +73,10 @@ describe('afectacionModificacionInputSchema', () => {
     expect(result.success).toBe(true)
   })
 
+  it('rechaza carreras duplicadas en una modificación', () => {
+    expect(afectacionModificacionInputSchema.safeParse({ id: 'af-1', carreras: ['Carrera A', 'Carrera A'] }).success).toBe(false)
+  })
+
   it('rechaza sin id', () => {
     expect(afectacionModificacionInputSchema.safeParse({ severidad: 'Alta' }).success).toBe(false)
   })
@@ -79,6 +89,12 @@ describe('servicioAlcanceInputSchema', () => {
 
   it('acepta turnos', () => {
     expect(servicioAlcanceInputSchema.safeParse({ tipo: 'turno', turnos: ['Mañana'] }).success).toBe(true)
+  })
+
+  it('acepta carreras no vacías y rechaza duplicados o listas vacías', () => {
+    expect(servicioAlcanceInputSchema.safeParse({ tipo: 'carrera', carreras: ['Carrera A'] }).success).toBe(true)
+    expect(servicioAlcanceInputSchema.safeParse({ tipo: 'carrera', carreras: ['Carrera A', 'Carrera A'] }).success).toBe(false)
+    expect(servicioAlcanceInputSchema.safeParse({ tipo: 'carrera', carreras: [] }).success).toBe(false)
   })
 
   it('rechaza turno sin turnos', () => {

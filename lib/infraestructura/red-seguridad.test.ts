@@ -4,8 +4,9 @@ import { evaluarRedesSeguridad } from './red-seguridad'
 const base = { categoria: 'alumnos' as const, alumnosMarcados: 0, matricula: 100, seccionesMarcadas: 0, seccionesTotales: 4, alcanceEstablecimiento: '' as const }
 
 describe('evaluarRedesSeguridad', () => {
-  it('avisa cuando en alumnos se marca más de la mitad de la matrícula', () => {
-    expect(evaluarRedesSeguridad({ ...base, alumnosMarcados: 51 }).map((a) => a.id)).toEqual(['mayoria-alumnos'])
+  it('no sugiere cambiar de categoría aunque la mayoría no pueda acceder', () => {
+    expect(evaluarRedesSeguridad({ ...base, alumnosMarcados: 51 })).toEqual([])
+    expect(evaluarRedesSeguridad({ ...base, alumnosMarcados: 100 })).toEqual([])
     expect(evaluarRedesSeguridad({ ...base, alumnosMarcados: 50 })).toEqual([])
   })
   it('avisa cuando en establecimiento se marcaron todas las secciones a mano', () => {

@@ -34,7 +34,7 @@ function esRespuesta(valor: unknown): boolean {
 function esNuevaSituacion(valor: unknown): boolean {
   if (typeof valor !== 'object' || valor === null) return false
   const nueva = valor as Record<string, unknown>
-  return typeof nueva.motivo === 'string' && typeof nueva.severidad === 'string' &&
+  return typeof nueva.motivo === 'string' && (typeof nueva.severidad === 'string' || (nueva.severidad === undefined && Array.isArray(nueva.alumnos))) &&
     Array.isArray(nueva.secciones) && nueva.secciones.every((n) => typeof n === 'number') &&
     (nueva.alumnos === undefined || (Array.isArray(nueva.alumnos) && nueva.alumnos.every((n) => typeof n === 'number'))) &&
     (nueva.causadaPorId === null || typeof nueva.causadaPorId === 'string')

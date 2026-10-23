@@ -1,22 +1,27 @@
 'use client'
 
+import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
+
 import { useEffect, useRef, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Clock, MapPinOff, X } from 'lucide-react'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
+import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
+import { prioridadEfectiva } from '@/lib/infraestructura/prioridad-alumnos'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { DESCRIPCIONES_AISLAMIENTO } from '@/lib/mapas/accesos-capas'
 import { etiquetaKm, etiquetaSuperficie, type SuperficieVia } from '@/lib/infraestructura/mapa/acceso'
 import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
 import styles from './vista-previa-escuela.module.css'
+import { ObservacionReporte } from './observacion-reporte'
 
 export interface VistaPreviaEscuelaProps {
   escuela: EscuelaMapaEnriquecida & {
@@ -73,7 +78,6 @@ export function VistaPreviaEscuela({
     escuela.lon === null
 
   const afectaciones = escuela.parte?.afectaciones ?? []
-  const severidad = escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
   const principal =
     afectaciones.length > 0 && escuela.parte
       ? situacionPrincipal(
@@ -83,7 +87,11 @@ export function VistaPreviaEscuela({
           })),
         )
       : null
+  const justificacionPrincipal = principal ? presentarJustificacionCritica(principal) : null
 
+  const severidad = principal
+    ? prioridadEfectiva(principal)
+    : escuela.parte ? null : escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
   const categoriaLabel = principal
     ? CATEGORIA_META[principal.categoria].label
     : etiquetaCategoria(escuela.categoriaPrincipal)
@@ -163,7 +171,7 @@ export function VistaPreviaEscuela({
             />
             <div className={styles.situacionCuerpo}>
               <p className={styles.gravedad}>
-                Gravedad {severidad}
+                {principal?.categoria === 'alumnos' || escuela.categoriaPrincipal === 'alumnos' ? 'Prioridad' : 'Gravedad'} {severidad}
               </p>
               {cargandoParte && !principal ? (
                 <p className={styles.situacionMeta} role="status">Cargando situación…</p>
@@ -172,6 +180,7 @@ export function VistaPreviaEscuela({
               <p className={styles.motivo}>
                 {principal ? principal.motivo : (categoriaLabel ?? 'Situación activa')}
               </p>
+              {principal?.categoria === 'alumnos' && <p><ImpactoAlumnosResumen impacto={principal.impactoAlumnos} /></p>}
               <p className={styles.situacionMeta}>
                 {afectaciones.length > 0
                   ? `${afectaciones.length} ${afectaciones.length === 1 ? 'situación abierta' : 'situaciones abiertas'}`
@@ -179,10 +188,19 @@ export function VistaPreviaEscuela({
                 {categoriaLabel ? ` · ${categoriaLabel}` : ''}
                 {principal ? ` · desde ${desde(principal.rigeDesde)}` : ''}
               </p>
+              {justificacionPrincipal && (
+                <p className={styles.situacionMeta} data-testid="preview-justificacion-critica">
+                  <strong>Justificación de gravedad:</strong> {justificacionPrincipal.etiqueta}
+                  {justificacionPrincipal.detalle && ` · ${justificacionPrincipal.detalle}`}
+                </p>
+              )}
+              {principal && <ObservacionReporte texto={principal.descripcion} />}
                 </>
               )}
             </div>
           </>
+        ) : principal ? (
+          <p><strong>{principal.motivo}</strong> · <ImpactoAlumnosResumen impacto={principal.impactoAlumnos} /></p>
         ) : escuela.parte ? (
           <p className={styles.sinReporte} data-testid="preview-sin-situaciones">
             Sin situaciones abiertas reportadas

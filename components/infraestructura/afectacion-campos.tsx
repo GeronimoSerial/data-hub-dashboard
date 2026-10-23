@@ -1,5 +1,7 @@
 'use client'
 
+import { impactoAlumnosEnContexto, textoImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
+
 import { useState, type JSX } from 'react'
 import type { TurnoContexto, SeccionContexto } from '@/lib/infraestructura/contexto'
 import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
@@ -15,6 +17,8 @@ import { CampoGravedad } from '@/components/infraestructura/campo-gravedad'
 import type { JustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { SelectorEstablecimiento } from '@/components/infraestructura/selector-establecimiento'
+import { SelectorCarreras } from '@/components/infraestructura/selector-carreras'
+import { alcanceDeCarreras } from '@/lib/infraestructura/carreras-superior'
 import { Label } from '@/components/ui/label'
 import { Opcion } from '@/components/ui/opcion'
 import { Textarea } from '@/components/ui/textarea'
@@ -40,6 +44,7 @@ export interface AfectacionBorrador {
   justificacionCriticaDetalle: string
   alcanceEstablecimiento: '' | 'toda' | 'algunas'
   secciones: number[]
+  carreras?: string[]
   alumnos: number[]
   descripcion: string
 }
@@ -61,14 +66,16 @@ export function totalAlumnosDe(borrador: AfectacionBorrador, turnos: TurnoContex
 }
 
 /**
- * Una fila está lista para enviar sólo cuando sus cuatro datos obligatorios
- * están completos. Una fila a medio llenar no se manda ni habilita el botón.
+ * Alumnos deriva la prioridad del alcance; establecimiento exige gravedad manual.
  */
 export function esAfectacionLista(a: AfectacionBorrador): a is AfectacionBorrador & {
   categoria: CategoriaAfectacion
-  severidad: Severidad
 } {
-  return a.categoria !== '' && a.motivo !== '' && a.severidad !== '' && a.secciones.length > 0
+  return a.categoria !== '' && a.motivo !== '' && (
+    a.categoria === 'alumnos'
+      ? a.alumnos.length > 0 && a.secciones.length > 0
+      : a.severidad !== '' && (a.secciones.length > 0 || (a.carreras?.length ?? 0) > 0)
+  )
 }
 
 export function esAfectacionParcial(a: AfectacionBorrador): boolean {
@@ -78,6 +85,7 @@ export function esAfectacionParcial(a: AfectacionBorrador): boolean {
     a.motivo !== '' ||
     a.severidad !== '' ||
     a.secciones.length > 0 ||
+    (a.carreras?.length ?? 0) > 0 ||
     a.alumnos.length > 0 ||
     a.descripcion.trim() !== ''
   )
@@ -107,6 +115,7 @@ interface CamposComunes {
 }
 
 export interface CamposQuePasoProps extends CamposComunes {
+  esSuperior?: boolean
   motivos: MotivoRow[]
   otrasAfectaciones: AfectacionBorrador[]
   /**
@@ -184,6 +193,7 @@ export function AvisosConsistencia({
   algo que el modelo no puede representar.
 */
 export function CamposQuePaso({
+  esSuperior = false,
   borrador,
   idPrefijo,
   motivos,
@@ -208,6 +218,7 @@ export function CamposQuePaso({
       justificacionCriticaDetalle: '',
       alcanceEstablecimiento: '',
       secciones: [],
+      carreras: [],
       alumnos: [],
     })
   }
@@ -259,7 +270,7 @@ export function CamposQuePaso({
                   if (c === borrador.categoria) return
                   setCategoriaPendiente(c)
                 }}
-                disabled={disabled}
+                disabled={disabled || (esSuperior && c === 'alumnos')}
                 label={CATEGORIA_META[c].label}
                 ayuda={CATEGORIA_META[c].descripcion}
               />
@@ -278,7 +289,7 @@ export function CamposQuePaso({
           setCategoriaPendiente(null)
         }}
       >
-        <p>{categoriaPendiente ? TEXTO_CONFIRMAR_CATEGORIA[categoriaPendiente] : null}</p>
+        <p>{esSuperior && categoriaPendiente === 'establecimiento' ? 'Va a seleccionar las carreras donde el establecimiento no puede funcionar con normalidad.' : categoriaPendiente ? TEXTO_CONFIRMAR_CATEGORIA[categoriaPendiente] : null}</p>
       </ConfirmSheet>
 
       <fieldset className="afectacion-campos__grupo" disabled={disabled || !borrador.categoria}>
@@ -310,14 +321,14 @@ export function CamposQuePaso({
         )}
       </fieldset>
 
-      <CampoGravedad
+      {borrador.categoria !== 'alumnos' && <CampoGravedad
         idPrefijo={idPrefijo}
         categoria={borrador.categoria}
         sugerida={motivosDeLaCategoria.find((m) => m.nombre === borrador.motivo)?.severidadSugerida ?? null}
         valor={borrador}
         onCambiar={(gravedad) => onChange({ ...borrador, ...gravedad })}
         disabled={disabled}
-      />
+      />}
 
       {duplicado?.coincidenciaExacta && (
         <p className="aviso-badge" role="status">
@@ -334,6 +345,7 @@ export function CamposQuePaso({
 }
 
 export interface CamposAQuienAfectaProps extends CamposComunes {
+  carreras?: readonly string[]
   turnos: TurnoContexto[]
   /** Catálogo de motivos: de aquí sale la gravedad sugerida del motivo elegido. */
   motivos?: MotivoRow[]
@@ -346,6 +358,7 @@ export interface CamposAQuienAfectaProps extends CamposComunes {
 }
 
 export function CamposAQuienAfecta({
+  carreras = [],
   borrador,
   idPrefijo,
   turnos,
@@ -363,6 +376,17 @@ export function CamposAQuienAfecta({
   const [razonCritica, setRazonCritica] = useState<JustificacionCritica | ''>('')
   const [detalleCritica, setDetalleCritica] = useState('')
 
+  function cambiarSeleccionAlumnos(secciones: number[], alumnos: number[]) {
+    onChange({
+      ...borrador,
+      secciones,
+      alumnos,
+      severidad: impactoAlumnosEnContexto(alumnos, turnos).prioridad ?? '',
+      justificacionCritica: '',
+      justificacionCriticaDetalle: '',
+    })
+  }
+
   const totalAlumnos = totalAlumnosDe(borrador, turnos)
   const seccionesDisponibles = aplanarSecciones(turnos)
   const matriculaDisponible = seccionesDisponibles.reduce((suma, seccion) => suma + seccion.matricula, 0)
@@ -378,7 +402,7 @@ export function CamposAQuienAfecta({
   // del CUE). Es la misma que usa el servidor para exigir la justificación.
   const sugeridaEfectiva = severidadSugeridaPorAlcance(
     motivoElegido?.id ?? null,
-    alcanceDeSecciones(borrador.secciones, seccionesDisponibles.map((s) => s.geSectionId)),
+    carreras.length > 0 ? alcanceDeCarreras(borrador.carreras ?? [], carreras) : alcanceDeSecciones(borrador.secciones, seccionesDisponibles.map((s) => s.geSectionId)),
   )
   const razonCriticaValida = razonCritica !== '' && (razonCritica !== 'otro' || detalleCritica.trim() !== '')
 
@@ -414,41 +438,20 @@ export function CamposAQuienAfecta({
 
   return (
     <>
-      {borrador.categoria === 'alumnos' ? (
+      {carreras.length > 0 ? (
+        <SelectorCarreras carreras={carreras} seleccionadas={borrador.carreras ?? []} disabled={disabled}
+          onCambiar={(seleccionadas) => onChange({ ...borrador, carreras: seleccionadas, secciones: [], alumnos: [], alcanceEstablecimiento: seleccionadas.length === carreras.length ? 'toda' : 'algunas' })} />
+      ) : borrador.categoria === 'alumnos' ? (
         <div className="afectacion-campos__grupo">
           <Label>Alumnos afectados</Label>
+          <p className="afectacion-borrador__resumen" aria-live="polite">{textoImpactoAlumnos(impactoAlumnosEnContexto(borrador.alumnos, turnos))}</p>
           <SelectorAlumnos
             turnos={turnos}
             alumnosSeleccionados={borrador.alumnos}
-            onCambiar={(secciones, alumnos) => onChange({ ...borrador, secciones, alumnos })}
+            onCambiar={cambiarSeleccionAlumnos}
             disabled={disabled}
           />
           <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
-          <AvisosRedSeguridad
-            avisos={evaluarRedesSeguridad({
-              categoria: 'alumnos',
-              alumnosMarcados: borrador.alumnos.length,
-              matricula: matriculaDisponible,
-              seccionesMarcadas: borrador.secciones.length,
-              seccionesTotales: seccionesDisponibles.length,
-              alcanceEstablecimiento: '',
-            })}
-            onAccion={(tipo) => {
-              if (tipo === 'cambiar-a-establecimiento') {
-                onChange({
-                  ...borrador,
-                  categoria: 'establecimiento',
-                  motivo: '',
-                  severidad: '',
-                  justificacionCritica: '',
-                  justificacionCriticaDetalle: '',
-                  alumnos: [],
-                  secciones: [],
-                  alcanceEstablecimiento: '',
-                })
-              }
-            }}
-          />
         </div>
       ) : usaSelectorEstablecimiento && borrador.categoria === 'establecimiento' ? (
         <div className="afectacion-campos__grupo">

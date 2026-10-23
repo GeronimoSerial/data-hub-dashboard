@@ -84,8 +84,10 @@ describe('obtenerParteActual', () => {
       parteId,
       motivo: 'Inundación',
       categoria: 'establecimiento',
-      severidad: 'Alta',
+      severidad: 'Crítica',
+      justificacionCritica: 'mas_personas',
       descripcion: null,
+      justificacionCriticaDetalle: null,
       rigeDesde: ahora,
       creadaEn: ahora,
       retiradaEn: null,
@@ -100,6 +102,8 @@ describe('obtenerParteActual', () => {
       categoria: 'alumnos',
       severidad: 'Media',
       descripcion: null,
+      justificacionCritica: null,
+      justificacionCriticaDetalle: null,
       rigeDesde: ahora,
       creadaEn: ahora,
       retiradaEn: null,
@@ -110,6 +114,36 @@ describe('obtenerParteActual', () => {
       { afectacionId: afectacionParcialId, gePersonId: 101 },
     ])
 
+    const afectacionOtroId = crypto.randomUUID()
+    await db.insert(infraAfectacion).values({
+      id: afectacionOtroId,
+      parteId,
+      motivo: 'Riesgo eléctrico',
+      categoria: 'establecimiento',
+      severidad: 'Crítica',
+      justificacionCritica: 'otro',
+      justificacionCriticaDetalle: 'Cableado expuesto',
+      descripcion: null,
+      rigeDesde: ahora,
+      creadaEn: ahora,
+      retiradaEn: null,
+    })
+
+    const afectacionHistoricaInvalidaId = crypto.randomUUID()
+    await db.insert(infraAfectacion).values({
+      id: afectacionHistoricaInvalidaId,
+      parteId,
+      motivo: 'Situación histórica',
+      categoria: 'establecimiento',
+      severidad: 'Crítica',
+      justificacionCritica: 'valor_desconocido',
+      justificacionCriticaDetalle: 'Detalle legado inválido',
+      descripcion: null,
+      rigeDesde: ahora,
+      creadaEn: ahora,
+      retiradaEn: new Date(Date.now() - 60_000).toISOString(),
+    })
+
     const actual = await obtenerParteActual(CUE, 1)
     expect(actual).not.toBeNull()
     expect(actual?.parte?.id).toBe(parteId)
@@ -119,6 +153,17 @@ describe('obtenerParteActual', () => {
     expect(completa.secciones[0].alumnos).toHaveLength(5)
 
     const parcial = actual!.afectaciones.find((a) => a.id === afectacionParcialId)!
+    expect(completa.justificacionCritica).toBe('mas_personas')
+    expect(completa).not.toHaveProperty('justificacionCriticaDetalle')
+    expect(parcial).not.toHaveProperty('justificacionCritica')
+    expect(actual!.afectaciones.find((a) => a.id === afectacionOtroId)).toMatchObject({
+      justificacionCritica: 'otro',
+      justificacionCriticaDetalle: 'Cableado expuesto',
+    })
+    const historicaInvalida = actual!.afectaciones.find((a) => a.id === afectacionHistoricaInvalidaId)!
+    expect(historicaInvalida.severidad).toBe('Crítica')
+    expect(historicaInvalida).not.toHaveProperty('justificacionCritica')
+    expect(historicaInvalida).not.toHaveProperty('justificacionCriticaDetalle')
     expect(parcial.secciones).toEqual([
       { geSectionId: 20, seccionCompleta: false, alumnos: expect.arrayContaining([100, 101]) },
     ])
@@ -256,6 +301,16 @@ describe('armarFichaParte', () => {
 
     const parcial = ficha!.afectaciones.find((a) => a.motivo === 'Anegamiento')!
     expect(parcial.totales).toEqual({ secciones: 1, alumnos: 2 })
+    expect(ficha!.afectaciones.find((a) => a.motivo === 'Inundación')).toMatchObject({
+      justificacionCritica: 'mas_personas',
+    })
+    expect(ficha!.afectaciones.find((a) => a.motivo === 'Riesgo eléctrico')).toMatchObject({
+      justificacionCritica: 'otro',
+      justificacionCriticaDetalle: 'Cableado expuesto',
+    })
+    expect(parcial.justificacionCritica).toBeNull()
+    expect(parcial.justificacionCriticaDetalle).toBeNull()
+    expect(parcial.impactoAlumnos?.afectados).toBe(2)
 
     // Nunca resuelve nombres: cada sección sólo trae ids de alumno crudos.
     expect(completa.secciones[0].alumnos.every((id) => typeof id === 'number')).toBe(true)

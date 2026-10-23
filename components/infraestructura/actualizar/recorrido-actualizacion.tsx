@@ -1,5 +1,7 @@
 'use client'
 
+import { impactoAlumnosEnContexto, textoImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { CircleCheck } from 'lucide-react'
 import { MaterialesTrasReporte } from '@/components/infraestructura/materiales-tras-reporte'
@@ -12,6 +14,7 @@ import { SelectorFotosFormulario } from '@/components/infraestructura/fotos/sele
 import { EntradaActualizar } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { RevisarSituacion } from '@/components/infraestructura/actualizar/revisar-situacion'
 import { AlgoNuevo } from '@/components/infraestructura/actualizar/algo-nuevo'
+import { SelectorCarreras } from '@/components/infraestructura/selector-carreras'
 import { MENSAJE_ACCESO_VENCIDO, MENSAJE_ERROR_LECTURA, MENSAJE_SIN_CORTE, MENSAJE_SIN_SITUACION, type EstadoActualRespuesta } from '@/components/infraestructura/estado-actual-textos'
 import { ETIQUETA_CLASES, ETIQUETA_ESTABLECIMIENTO, formatearMomento, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
@@ -26,6 +29,7 @@ import { bloqueoOpcion } from '@/lib/infraestructura/consistencia-parte'
 import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
+import { carrerasDelCue, validarCarrerasDeServicio } from '@/lib/infraestructura/carreras-superior'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import { MODALIDADES_ASISTENCIA_PEDAGOGICA, type EstadoServicioGeneral, type ModalidadAsistenciaPedagogica } from '@/lib/infraestructura/trayectoria-tipos'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
@@ -49,10 +53,10 @@ type Etapa = EtapaActualizacion | 'enviado'
 type ModalidadAsistencia = ModalidadAsistenciaPedagogica
 const MODALIDADES_ASISTENCIA: { value: ModalidadAsistencia; label: string }[] = MODALIDADES_ASISTENCIA_PEDAGOGICA.map((m) => ({ value: m, label: m }))
 type PayloadActualizacion = ReturnType<typeof construirEnvio> & { cue: string; rigeDesde: string; asistenciaPedagogica?: { brinda: boolean; modalidades: ModalidadAsistencia[] } }
-type SituacionConAlcance = SituacionRecorrido & { secciones: number[]; alumnos: number[] }
+type SituacionConAlcance = SituacionRecorrido & { secciones: number[]; alumnos: number[]; carreras?: string[] }
 
 const DRAFT_ID_PREFIX = 'parte-actualizacion:'
-type BorradorActualizacionConFotos = BorradorRecorridoActualizacion & { referenciasFotos?: string[] }
+type BorradorActualizacionConFotos = BorradorRecorridoActualizacion & { referenciasFotos?: string[]; servicioCarreras?: string[] }
 
 function esBorradorActualizacionConFotos(valor: unknown): valor is BorradorActualizacionConFotos {
   if (!esBorradorRecorridoActualizacion(valor)) return false
@@ -92,11 +96,13 @@ function mapearSituaciones(datos: EstadoActualRespuesta): SituacionConAlcance[] 
     motivo: a.motivo,
     categoria: a.categoria,
     severidad: a.severidad,
+    impactoAlumnos: a.impactoAlumnos,
     rigeDesde: a.rigeDesde,
     creadaEn: a.creadaEn,
     causadaPorId: a.causadaPorId,
     secciones: a.secciones.map((s) => s.geSectionId),
     alumnos: a.secciones.filter((s) => !s.seccionCompleta).flatMap((s) => s.alumnos.map((alumno) => alumno.gePersonId)),
+    ...(a.carreras ? { carreras: [...a.carreras] } : {}),
   }))
 }
 
@@ -125,6 +131,8 @@ function crearLineasResumen(
   recorrido: EstadoRecorrido,
   turnos: TurnoContexto[],
   estadoServicio: EstadoServicioGeneral,
+  carrerasServicio: string[],
+  servicioVigente: NonNullable<EstadoActualRespuesta['servicio']>['alcanceVigente'],
 ): BloqueResumenActualizacion[] {
   const bloques: BloqueResumenActualizacion[] = []
   const sinCambios: string[] = []
@@ -143,10 +151,12 @@ function crearLineasResumen(
     }
 
     const filas: FilaResumenActualizacion[] = []
-    if (respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: respuesta.cambio.severidad === situacion.severidad ? `${situacion.severidad} (sin cambios)` : `${situacion.severidad} → ${respuesta.cambio.severidad}` })
-    if (respuesta.cambio.secciones) {
+    if (situacion.categoria !== 'alumnos' && respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: respuesta.cambio.severidad === situacion.severidad ? `${situacion.severidad} (sin cambios)` : `${situacion.severidad} → ${respuesta.cambio.severidad}` })
+    if (respuesta.cambio.carreras) {
+      filas.push({ etiqueta: 'Carreras afectadas', valor: respuesta.cambio.carreras.join(', ') || 'Sin carreras seleccionadas' })
+    } else if (respuesta.cambio.secciones) {
       const alumnos = respuesta.cambio.alumnos?.length ?? contarAlumnos(respuesta.cambio.secciones, turnos)
-      filas.push({ etiqueta: 'Alcance', valor: detalleAlcance(respuesta.cambio.secciones, alumnos) })
+      filas.push({ etiqueta: 'Alcance', valor: situacion.categoria === 'alumnos' ? textoImpactoAlumnos(impactoAlumnosEnContexto(respuesta.cambio.alumnos ?? situacion.alumnos, turnos)) : detalleAlcance(respuesta.cambio.secciones, alumnos) })
     }
     if (respuesta.cambio.aspectos.includes('clases-edificio') && recorrido.clasesEdificio) {
       filas.push({ etiqueta: 'Clases', valor: etiquetaServicio(estadoServicio) === etiquetaServicio(recorrido.clasesEdificio.servicioEstado) ? `${etiquetaServicio(estadoServicio)} (sin cambios)` : `${etiquetaServicio(estadoServicio)} → ${etiquetaServicio(recorrido.clasesEdificio.servicioEstado)}` })
@@ -158,10 +168,14 @@ function crearLineasResumen(
     const nueva = recorrido.nueva
     const todasLasSecciones = turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones))
     const cantidadAlumnos = nueva.alumnos?.length ?? contarAlumnos(nueva.secciones, turnos)
-    const alcance = detalleAlcance(nueva.secciones, cantidadAlumnos)
-    const todaLaEscuela = !nueva.alumnos && todasLasSecciones.length > 0 && nueva.secciones.length === todasLasSecciones.length
-    const prefijoAlcance = nueva.alumnos ? 'Algunos alumnos' : todaLaEscuela ? 'Toda la escuela' : ''
-    const valor = `${nueva.motivo} · ${nueva.severidad} · ${prefijoAlcance ? `${prefijoAlcance} (${alcance})` : alcance}`
+    const alcance = nueva.carreras?.length
+      ? nueva.carreras.join(', ')
+      : detalleAlcance(nueva.secciones, cantidadAlumnos)
+    const todaLaEscuela = !nueva.carreras && !nueva.alumnos && todasLasSecciones.length > 0 && nueva.secciones.length === todasLasSecciones.length
+    const prefijoAlcance = nueva.carreras?.length ? 'Carreras' : nueva.alumnos ? 'Algunos alumnos' : todaLaEscuela ? 'Toda la escuela' : ''
+    const valor = nueva.alumnos
+      ? `${nueva.motivo} · ${textoImpactoAlumnos(impactoAlumnosEnContexto(nueva.alumnos, turnos))}`
+      : `${nueva.motivo} · ${nueva.severidad} · ${prefijoAlcance ? `${prefijoAlcance}: ${alcance}` : alcance}`
     const causa = nueva.causadaPorId ? situaciones.find((situacion) => situacion.id === nueva.causadaPorId)?.motivo : null
     bloques.push({
       titulo: 'Situación nueva',
@@ -169,6 +183,16 @@ function crearLineasResumen(
         { etiqueta: 'Detalle', valor: causa ? `${valor} · Consecuencia de ${causa}` : valor },
         ...(nueva.descripcion ? [{ etiqueta: 'Descripción', valor: nueva.descripcion }] : []),
       ],
+    })
+  }
+  if (carrerasServicio.length > 0) {
+    bloques.push({ titulo: 'Alcance del servicio', filas: [{ etiqueta: 'Carreras', valor: carrerasServicio.join(', ') }] })
+  }
+  const porCarrera = servicioVigente.filter((alcance) => alcance.tipo === 'carrera' && alcance.referenciaId)
+  if (porCarrera.length > 0) {
+    bloques.push({
+      titulo: 'Servicio vigente por carrera',
+      filas: porCarrera.map((alcance) => ({ etiqueta: alcance.referenciaId!, valor: etiquetaServicio(alcance.estado) })),
     })
   }
   return bloques
@@ -212,12 +236,14 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const almacenRef = useRef<Promise<AlmacenClaveValor> | null>(null)
   const almacen = useCallback(() => (almacenRef.current ??= crearAlmacenParte()), [])
   const situaciones = useMemo(() => mapearSituaciones(datos), [datos])
+  const carreras = useMemo(() => carrerasDelCue(cue), [cue])
   const ordenadas = useMemo(() => ordenarSituaciones(situaciones, datos.parte?.estadoEstablecimiento ?? 'habitual'), [situaciones, datos.parte?.estadoEstablecimiento])
   const claveBorrador = `parte-actualizar:draft:${cue}`
   const asistenciaVigente = datos.parte?.asistenciaPedagogica ?? { brinda: false, modalidades: [] }
   const [etapa, setEtapa] = useState<Etapa>('entrada')
   const [etapaAlgoNuevo, setEtapaAlgoNuevo] = useState<'pregunta' | 'datos' | 'causa'>('pregunta')
   const [recorrido, setRecorrido] = useState<EstadoRecorrido>(RECORRIDO_INICIAL)
+  const [servicioCarreras, setServicioCarreras] = useState<string[]>([])
   // Llega sin nada marcado: el director responde siempre, aunque ya haya un
   // valor vigente. Si coincide con el vigente, no se envía.
   const [asistenciaPedagogica, setAsistenciaPedagogica] = useState<AsistenciaSeleccionada>({ brinda: '', modalidades: [] })
@@ -268,8 +294,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const asistenciaSeleccionada = crearAsistenciaSeleccionada(asistenciaPedagogica.brinda, asistenciaPedagogica.modalidades)
   const asistenciaCambiada = !asistenciaCoincide(asistenciaVigente, asistenciaSeleccionada)
   const lineasResumen = useMemo(() => {
-    return crearLineasResumen(situaciones, recorrido, turnos, datos.servicio?.estadoGeneral ?? 'normal')
-  }, [situaciones, recorrido, turnos, datos.servicio?.estadoGeneral])
+    return crearLineasResumen(situaciones, recorrido, turnos, datos.servicio?.estadoGeneral ?? 'normal', servicioCarreras, datos.servicio?.alcanceVigente ?? [])
+  }, [situaciones, recorrido, turnos, datos.servicio?.estadoGeneral, datos.servicio?.alcanceVigente, servicioCarreras])
 
   function moverEtapa(siguiente: EtapaActualizacion): void {
     setEtapa(siguiente)
@@ -297,12 +323,22 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         if (guardado) {
           borradorCompartidoRef.current = guardado
           generacionAlmacenRef.current = guardado.registro.generacion
-          const dato = guardado.datos
+          const dato = guardado.datos as BorradorActualizacionConFotos
           if (!coincidenIdsSituaciones(dato.idsSituaciones, situaciones.map((situacion) => situacion.id))) {
             persistenciaBloqueadaRef.current = true
             setAvisoBorrador('La situación cambió desde que empezó. El borrador anterior se conservó en este dispositivo y no se aplicó a esta actualización.')
           } else {
             setBorradorPendiente(dato)
+            setServicioCarreras(dato.servicioCarreras ?? [])
+            const carrerasGuardadas = [
+              ...(dato.servicioCarreras ?? []),
+              ...(dato.recorrido.nueva?.carreras ?? []),
+              ...Object.values(dato.recorrido.respuestas).flatMap((respuesta) => respuesta.tipo === 'cambio' ? respuesta.cambio.carreras ?? [] : []),
+            ]
+            const obsoletas = [...new Set(carrerasGuardadas.filter((carrera) => !carreras.includes(carrera)))]
+            if (obsoletas.length > 0) {
+              setAvisoBorrador(`El borrador incluye carreras que ya no pertenecen a este establecimiento: ${obsoletas.join(', ')}. Revise la selección antes de enviar.`)
+            }
             if (dato.referenciasFotos?.length) {
               // Restaura antes de marcar el borrador como leído: así ningún guardado pisa las referencias.
               const { fotos, faltantes } = await restaurarFotosPreparadas(dato.referenciasFotos)
@@ -348,7 +384,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       }
     })()
     return () => { cancelado = true }
-  }, [claveBorrador, cue, situaciones])
+  }, [carreras, claveBorrador, cue, situaciones])
 
   useEffect(() => {
     if (!borradorLeido || !interaccionIniciada || borradorPendiente || persistenciaBloqueadaRef.current) return
@@ -359,6 +395,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       etapa: etapa === 'enviado' ? 'resumen' : etapa,
       recorrido,
       asistenciaPedagogica,
+      servicioCarreras,
       idsSituaciones: situaciones.map((situacion) => situacion.id),
     }
     const actual = borradorCompartidoRef.current ?? {
@@ -378,7 +415,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     }).catch((error: unknown) => {
       setAvisoAlmacen(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo guardar el borrador local. Puede enviar las respuestas.')
     })
-  }, [borradorLeido, interaccionIniciada, borradorPendiente, claveBorrador, cue, etapa, recorrido, asistenciaPedagogica, situaciones, fotosElegidas])
+  }, [borradorLeido, interaccionIniciada, borradorPendiente, claveBorrador, cue, etapa, recorrido, asistenciaPedagogica, servicioCarreras, situaciones, fotosElegidas])
 
   useEffect(() => {
     const vistas = vistasRestauradasRef.current
@@ -462,7 +499,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     setGuardado(true)
     setEnviando(false)
     enviandoRef.current = false
-  }, [claveBorrador, cue, vincularFotosPreparadas])
+  }, [claveBorrador, cue, setAvisoBorrador, setBorradorPendiente, vincularFotosPreparadas])
 
   useEffect(() => {
     const movimientoId = movimientoFotosConfirmadoRef.current
@@ -534,6 +571,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     setEtapa(borradorPendiente.etapa)
     setRecorrido(borradorPendiente.recorrido)
     setAsistenciaPedagogica(borradorPendiente.asistenciaPedagogica)
+    setServicioCarreras((borradorPendiente as BorradorActualizacionConFotos).servicioCarreras ?? [])
     setInteraccionIniciada(true)
     setBorradorPendiente(null)
   }
@@ -552,14 +590,25 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       setError('Indique cómo sigue cada situación antes de enviar.')
       return
     }
+    if (carreras.length > 0 && recorridoEnvio.clasesEdificio && servicioCarreras.length > 0) {
+      const errorCarreras = validarCarrerasDeServicio(cue, servicioCarreras)
+      if (errorCarreras) {
+        setError(errorCarreras)
+        return
+      }
+    }
     enviandoRef.current = true
     setEnviando(true)
     setError(null)
     setMotivoEnvio(null)
+    const envioConstruido = construirEnvio(situaciones, recorridoEnvio)
     const payload: PayloadActualizacion = {
       cue,
       rigeDesde: new Date().toISOString(),
-      ...construirEnvio(situaciones, recorridoEnvio),
+      ...envioConstruido,
+      ...(carreras.length > 0 && envioConstruido.servicioEducativo && servicioCarreras.length > 0
+        ? { servicioEducativo: { estado: envioConstruido.servicioEducativo.estado, alcance: { tipo: 'carrera' as const, carreras: servicioCarreras } } }
+        : {}),
       ...(asistenciaCambiada && asistenciaSeleccionada ? { asistenciaPedagogica: asistenciaSeleccionada } : {}),
     }
     let exito = false
@@ -693,7 +742,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       ? mensajesDeBloqueo(respuestasDeSituacion({
         categoria: null,
         motivoId: motivoIdDe(recorrido.nueva.motivo),
-        severidad: recorrido.nueva.severidad,
+        severidad: recorrido.nueva.severidad ?? null,
         justificacionCritica: recorrido.nueva.justificacionCritica ?? null,
         descripcion: recorrido.nueva.descripcion ?? '',
         alcance: alcanceDe(recorrido.nueva.secciones, seccionesEscuela),
@@ -702,7 +751,25 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       }), { descripcion: true })
       : []),
   ]
-  const bloqueos = [...new Set([...mensajesDeCambios, ...habitual.bloqueos.map((regla) => regla.mensaje)])]
+  const bloqueoCarrerasServicio = carreras.length > 0 && recorridoEnvio.clasesEdificio
+    ? [servicioCarreras.length === 0
+        ? 'Elija al menos una carrera para aplicar el cambio de servicio.'
+        : validarCarrerasDeServicio(cue, servicioCarreras)]
+      .filter((mensaje): mensaje is string => mensaje !== null)
+    : []
+  const bloqueoCarrerasNueva = carreras.length > 0 && recorridoEnvio.nueva
+    ? recorridoEnvio.nueva.carreras?.length
+      ? recorridoEnvio.nueva.carreras.some((carrera) => !carreras.includes(carrera))
+        ? ['La situación nueva incluye carreras que ya no pertenecen al establecimiento. Vuelva a revisar su selección.']
+        : []
+      : ['Elija al menos una carrera para la situación nueva.']
+    : []
+  const bloqueos = [...new Set([
+    ...mensajesDeCambios,
+    ...habitual.bloqueos.map((regla) => regla.mensaje),
+    ...bloqueoCarrerasServicio,
+    ...bloqueoCarrerasNueva,
+  ])]
   function decidirAfectacionesHabitual(decisiones: Record<string, 'solucionada' | 'sigue'>): void {
     const ahora = new Date().toISOString()
     setRecorrido((r) => Object.entries(decisiones).reduce(
@@ -728,6 +795,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         setEtapa('entrada')
         setRecorrido(RECORRIDO_INICIAL)
         setAsistenciaPedagogica({ brinda: '', modalidades: [] })
+        setServicioCarreras([])
         setEstadoEnvio(null)
         setEstadoAvisoEnvio(null)
         setMotivoEnvio(null)
@@ -795,6 +863,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           <RevisarSituacion
             key={actual.id}
             situacion={actual}
+            carrerasDisponibles={carreras}
             turnos={turnos}
             sugerida={motivos.find((motivo) => motivo.nombre === actual.motivo)?.severidadSugerida ?? null}
             respuesta={recorrido.respuestas[actual.id]}
@@ -881,6 +950,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             estado={recorrido}
             turnos={turnos}
             motivos={motivos}
+            carreras={carreras}
             onEtapaChange={setEtapaAlgoNuevo}
             onTerminar={(nueva) => {
               setRecorrido((r) => ({ ...r, nueva }))
@@ -916,6 +986,14 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         <ResumenEnvio
           lineasResumen={restablecer ? [...lineasResumen, { titulo: 'Edificio y clases', filas: [{ etiqueta: 'Edificio', valor: ETIQUETA_ESTABLECIMIENTO[clasesEdificio.estadoEstablecimiento] }, { etiqueta: 'Clases', valor: ETIQUETA_CLASES[clasesEdificio.servicioEstado] }] }] : lineasResumen}
           asistenciaVigente={asistenciaVigente.brinda ? 'Sí' : 'No'}
+          carreras={carreras}
+          servicioCarreras={servicioCarreras}
+          requiereAlcanceServicio={carreras.length > 0 && recorridoEnvio.clasesEdificio !== null}
+          onCambiarServicioCarreras={(seleccionadas) => {
+            setServicioCarreras(seleccionadas)
+            setInteraccionIniciada(true)
+            setError(null)
+          }}
           asistenciaPedagogica={asistenciaPedagogica}
           enviando={enviando}
           onCambiarAsistencia={(seleccion) => {
@@ -979,6 +1057,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
               setFotosElegidas([])
               setFotosPreparadas([])
               setRecorrido(RECORRIDO_INICIAL)
+              setServicioCarreras([])
               setEtapa('entrada')
               setInteraccionIniciada(false)
               setError(null)
@@ -1032,6 +1111,10 @@ function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () 
 function ResumenEnvio({
   lineasResumen,
   asistenciaVigente,
+  carreras,
+  servicioCarreras,
+  requiereAlcanceServicio,
+  onCambiarServicioCarreras,
   asistenciaPedagogica,
   enviando,
   onCambiarAsistencia,
@@ -1046,6 +1129,10 @@ function ResumenEnvio({
 }: {
   lineasResumen: BloqueResumenActualizacion[]
   asistenciaVigente: 'Sí' | 'No'
+  carreras: readonly string[]
+  servicioCarreras: string[]
+  requiereAlcanceServicio: boolean
+  onCambiarServicioCarreras: (carreras: string[]) => void
   asistenciaPedagogica: AsistenciaSeleccionada
   enviando: boolean
   onCambiarAsistencia: (seleccion: AsistenciaSeleccionada) => void
@@ -1077,6 +1164,9 @@ function ResumenEnvio({
           </section>
         ))}
       </div>
+      {requiereAlcanceServicio ? (
+        <SelectorCarreras carreras={carreras} seleccionadas={servicioCarreras} onCambiar={onCambiarServicioCarreras} disabled={enviando} />
+      ) : null}
       <fieldset className="afectacion-campos__grupo" disabled={enviando}>
         <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
         {(['si', 'no'] as const).map((valor) => (

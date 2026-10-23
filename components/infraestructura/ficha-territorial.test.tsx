@@ -61,7 +61,7 @@ function climatologiaLluvia(valor: number) {
     geometryRef: GEOMETRY_REF,
     variable: 'precipitacion',
     percentil: 'p95',
-    muestra: 30,
+    muestra: 'todos_los_dias',
     valor,
     unidad: 'mm',
     periodoDesde: '1991-01-01',
@@ -83,12 +83,18 @@ function punto(variable: string, horizonteHoras: number, valor: number, unidad: 
   }
 }
 
-function climatologia(variable: string, percentil: 'p90' | 'p95' | 'p99', valor: number, unidad: string) {
+function climatologia(
+  variable: string,
+  percentil: 'p90' | 'p95' | 'p99',
+  valor: number,
+  unidad: string,
+  muestra: 'todos_los_dias' | 'dias_humedos' = 'todos_los_dias',
+) {
   return {
     geometryRef: GEOMETRY_REF,
     variable,
     percentil,
-    muestra: 30,
+    muestra,
     valor,
     unidad,
     periodoDesde: '1991-01-01',
@@ -388,6 +394,34 @@ describe('FichaTerritorial', () => {
     expect(bloque).toHaveTextContent(
       'Umbrales de referencia relativos a la climatología local; no son probabilidades.',
     )
+  })
+
+  it('usa todos_los_dias para los umbrales aunque dias_humedos venga primero', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          niveles: [nivel(24, 'verde')],
+          pronostico: [punto('precipitacion', 12, 8, 'mm')],
+          climatologia: [
+            climatologia('precipitacion', 'p99', 93, 'mm', 'dias_humedos'),
+            climatologia('precipitacion', 'p95', 92, 'mm', 'dias_humedos'),
+            climatologia('precipitacion', 'p90', 91, 'mm', 'dias_humedos'),
+            climatologia('precipitacion', 'p99', 40, 'mm', 'todos_los_dias'),
+            climatologia('precipitacion', 'p95', 22.5, 'mm', 'todos_los_dias'),
+            climatologia('precipitacion', 'p90', 15, 'mm', 'todos_los_dias'),
+          ],
+        }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    const bloque = await screen.findByTestId('ficha-territorial-umbrales')
+    expect(bloque).toHaveTextContent('15 mm')
+    expect(bloque).toHaveTextContent('23 mm')
+    expect(bloque).toHaveTextContent('40 mm')
+    expect(bloque).not.toHaveTextContent('91 mm')
+    expect(bloque).not.toHaveTextContent('92 mm')
+    expect(bloque).not.toHaveTextContent('93 mm')
   })
 
   it('muestra "Sin dato" para una variable sin climatología, nunca "Bajo"', async () => {

@@ -211,6 +211,27 @@
       "when": 1792344000000,
       "tag": "0029_riesgo_operativo_solo_v04",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792719713736,
+      "tag": "0030_superior_carreras",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792724803368,
+      "tag": "0031_romantic_black_widow",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792733607587,
+      "tag": "0032_radar_forecast_lookup",
+      "breakpoints": true
     }
   ]
 }

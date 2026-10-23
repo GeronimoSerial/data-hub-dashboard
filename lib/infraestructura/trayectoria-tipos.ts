@@ -1,3 +1,4 @@
+import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Tipos de dominio para la trayectoria de situaciones hidrometeorológicas.
 // Ver docs/especificacion-funcional-trayectoria-evento-hidrometeorologico.md y
 // el CONTRACT.md del batch de esquema (lib/db/schema.ts:284+ es la fuente de
@@ -11,8 +12,9 @@
 
 import type { Severidad } from './validacion'
 import type { CategoriaAfectacion as Categoria } from './categorias'
+import type { JustificacionCritica } from './justificacion-critica'
 
-export type { Severidad, Categoria }
+export type { Severidad, Categoria, JustificacionCritica }
 
 // --- Enums / uniones (mismos nombres que CONTRACT.md) ---
 
@@ -39,7 +41,7 @@ export interface AsistenciaPedagogica {
 // una opción de carga, ver EstadoServicioGeneral más abajo.
 export type ServicioEstado = 'normal' | 'suspendido'
 
-export type ServicioAlcanceTipo = 'establecimiento' | 'turno' | 'seccion'
+export type ServicioAlcanceTipo = 'establecimiento' | 'turno' | 'seccion' | 'carrera'
 
 export type TipoMovimiento =
   | 'reporte_inicial'
@@ -92,15 +94,19 @@ export interface AfectacionAlcanceSeccion {
 }
 
 export interface Afectacion extends FilaConVigencia {
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   parteId: string
   causadaPorId?: string | null
   motivo: string
   categoria: Categoria
   severidad: Severidad
+  justificacionCritica?: JustificacionCritica
+  justificacionCriticaDetalle?: string
   descripcion: string | null
   creadaEn: string
   secciones: AfectacionAlcanceSeccion[]
+  carreras?: string[]
 }
 
 export interface SituacionReciente {

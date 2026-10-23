@@ -6,6 +6,7 @@ import { RECORRIDO_INICIAL, type SituacionRecorrido } from '@/lib/infraestructur
 import { AlgoNuevo } from './algo-nuevo'
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-05T12:00:00.000Z'))
 })
 
@@ -87,6 +88,28 @@ describe('AlgoNuevo', () => {
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
     expect(screen.queryByText('Alcance')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Descripción (opcional)')).toBeInTheDocument()
+  })
+
+  it('restaura una situación Superior guardada y permite corregir su carrera obsoleta', () => {
+    const estado = {
+      ...RECORRIDO_INICIAL,
+      nueva: {
+        causadaPorId: null,
+        motivo: 'Tormenta severa',
+        severidad: 'Alta' as const,
+        secciones: [],
+        carreras: ['Carrera cerrada'],
+      },
+    }
+    renderAlgo({ estado, carreras: ['Tecnicatura A'] })
+
+    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ })).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Carrera cerrada')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Carrera cerrada (ya no disponible)' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Tecnicatura A' }))
+
+    expect(screen.getByText('1 carrera seleccionada')).toBeInTheDocument()
   })
 
   it('organiza los datos en los dos bloques del asistente', () => {
@@ -304,7 +327,7 @@ describe('AlgoNuevo', () => {
     entrarDatosIndependiente()
     elegirCategoria('Inaccesibilidad de alumnos')
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Baja' }))
+    expect(screen.queryByRole('radio', { name: 'Baja' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /1° "A".*elegir alumnos/i }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'García, Ana' }))
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))

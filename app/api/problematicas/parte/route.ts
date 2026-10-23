@@ -1,3 +1,4 @@
+import { impactoDeAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Estado actual del parte (spec §6, §17) y alta/actualización (spec §7, §8,
 // §13). Un único POST cubre ambos casos — la decisión del producto mató
 // "Continuar como otro episodio" (ver docs/trayectoria-contrato-implementacion.md):
@@ -23,12 +24,14 @@ import {
 import { codigoSinAccesoParte, tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { normalizeCue } from '@/lib/infraestructura/cue'
+import { alcanceDeCarreras, carrerasDelCue, validarAlcanceCarreras, validarCarrerasDeServicio } from '@/lib/infraestructura/carreras-superior'
 import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from '@/lib/infraestructura/impacto'
 import { listarIdentidadesPorPersonas } from '@/lib/infraestructura/identidad'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import { validarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
+import { validarConsistenciaCentroEvacuados } from '@/lib/infraestructura/consistencia-centro-evacuados'
 import { primerBloqueoParte } from '@/lib/infraestructura/consistencia-parte-servidor'
 import { alcanceDeSecciones, severidadSugeridaPorAlcance } from '@/lib/infraestructura/consistencia-parte'
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
@@ -164,11 +167,13 @@ async function buscarAfectacionEquivalente(
     causadaPorId?: string | null
     secciones: number[]
     alumnos?: number[]
+    carreras?: string[]
   },
   categoria: CategoriaAfectacion,
 ): Promise<Afectacion | undefined> {
   const posibles = candidatas.filter((existente) =>
     motivoCategoriaSeveridadDescripcionCoinciden(existente, entrada, categoria) &&
+    JSON.stringify([...(existente.carreras ?? [])].sort()) === JSON.stringify([...(entrada.carreras ?? [])].sort()) &&
     (existente.causadaPorId ?? null) === (entrada.causadaPorId ?? null),
   )
   if (posibles.length === 0) return undefined
@@ -246,7 +251,9 @@ export async function GET(request: Request) {
     motivo: afectacion.motivo,
     categoria: afectacion.categoria,
     severidad: afectacion.severidad,
+    impactoAlumnos: afectacion.impactoAlumnos,
     descripcion: afectacion.descripcion,
+    ...(afectacion.carreras ? { carreras: afectacion.carreras } : {}),
     rigeDesde: afectacion.rigeDesde,
     creadaEn: afectacion.creadaEn,
     causadaPorId: afectacion.causadaPorId,
@@ -463,8 +470,11 @@ export async function POST(request: Request) {
   // --- Validación contra la base, igual que POST /api/problematicas ---
 
   const motivos = await listarMotivos()
+  const secciones = await listarSeccionesDelCue(client, corteId, cue.value)
+  const padronPorSeccion = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: secciones.map((s) => s.geSectionId) })
+  const matriculados = new Set([...padronPorSeccion.values()].flatMap((ids) => [...ids]))
   const nuevasConCategoria: Array<{
-    input: (typeof input.afectacionesNuevas)[number]
+    input: (typeof input.afectacionesNuevas)[number] & { severidad: Severidad }
     categoria: CategoriaAfectacion
   }> = []
   for (const entrada of input.afectacionesNuevas) {
@@ -476,7 +486,19 @@ export async function POST(request: Request) {
     if (!permitido.ok) {
       return Response.json({ error: permitido.error }, { status: 400 })
     }
-    nuevasConCategoria.push({ input: entrada, categoria: resuelto.categoria })
+    const errorCarreras = validarAlcanceCarreras(cue.value, resuelto.categoria, entrada, true)
+    if (errorCarreras) return jsonError(errorCarreras, 400)
+    let severidad = entrada.severidad
+    if (resuelto.categoria === 'alumnos') {
+      const impacto = impactoDeAlumnos(entrada.alumnos ?? [], matriculados, corteId)
+      if (!impacto.prioridad) return jsonError('Seleccione alumnos con matrícula vigente para calcular la prioridad', 400)
+      severidad = impacto.prioridad
+      entrada.justificacionCritica = undefined
+      entrada.justificacionCriticaDetalle = undefined
+      entrada.alumnos = [...new Set(entrada.alumnos)]
+    }
+    if (!severidad) return jsonError('La severidad es obligatoria para afectaciones del establecimiento', 400)
+    nuevasConCategoria.push({ input: { ...entrada, severidad, secciones: [...new Set(entrada.secciones)] }, categoria: resuelto.categoria })
   }
 
   // Reglas de consistencia (mismo módulo que el asistente): una combinación
@@ -488,7 +510,7 @@ export async function POST(request: Request) {
       severidad: entrada.severidad,
       justificacionCritica: entrada.justificacionCritica,
       descripcion: entrada.descripcion,
-      seccionesCantidad: entrada.secciones.length,
+      seccionesCantidad: entrada.secciones.length + (entrada.carreras?.length ?? 0),
     })),
     {
       estadoEstablecimiento: input.estadoEstablecimiento?.estado ?? null,
@@ -500,7 +522,18 @@ export async function POST(request: Request) {
     return Response.json({ error: bloqueo.mensaje, codigo: bloqueo.codigo }, { status: 400 })
   }
 
-  const secciones = await listarSeccionesDelCue(client, corteId, cue.value)
+  const alcanceServicio = input.servicioEducativo?.alcance
+  if (alcanceServicio?.tipo === 'carrera') {
+    const errorCarrerasServicio = validarCarrerasDeServicio(cue.value, alcanceServicio.carreras)
+    if (errorCarrerasServicio) return jsonError(errorCarrerasServicio, 400)
+  } else if (
+    carrerasDelCue(cue.value).length > 0 &&
+    alcanceServicio &&
+    alcanceServicio.tipo !== 'establecimiento'
+  ) {
+    return jsonError('Para Superior indique el servicio por carrera o por establecimiento', 400)
+  }
+
   const seccionesCueSet = new Set(secciones.map((s) => s.geSectionId))
   const turnosCueSet = new Set(secciones.map((s) => s.turno))
   const seccionInvalida = (ids: number[]) => ids.some((id) => !seccionesCueSet.has(id))
@@ -508,13 +541,14 @@ export async function POST(request: Request) {
   // que en el formulario: sólo así cliente y servidor exigen lo mismo.
   const todasLasSecciones = secciones.map((s) => s.geSectionId)
 
-  for (const { input: entrada } of nuevasConCategoria) {
+  for (const { input: entrada, categoria } of nuevasConCategoria) {
     if (seccionInvalida(entrada.secciones)) {
       return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
     }
+    if (categoria === 'alumnos') continue
     const sugerida = severidadSugeridaPorAlcance(
       motivos.find((m) => m.nombre === entrada.motivo)?.id ?? null,
-      alcanceDeSecciones(entrada.secciones, todasLasSecciones),
+      entrada.carreras ? alcanceDeCarreras(entrada.carreras, carrerasDelCue(cue.value)) : alcanceDeSecciones(entrada.secciones, todasLasSecciones),
     )
     const justificada = validarJustificacionCritica({
       severidad: entrada.severidad,
@@ -608,8 +642,28 @@ export async function POST(request: Request) {
     }
 
     for (const modificacion of input.afectacionesModificadas) {
+      const fila = existentesPorId.get(modificacion.id)!
+      const errorCarreras = validarAlcanceCarreras(cue.value, fila.categoria as CategoriaAfectacion, modificacion, false)
+      if (errorCarreras) return jsonError(errorCarreras, 400)
+      if (fila.categoria === 'alumnos') {
+        const seccionesEfectivas = modificacion.secciones ?? (await db.select().from(infraAfectacionSeccion).where(eq(infraAfectacionSeccion.afectacionId, fila.id))).map((s) => s.geSectionId)
+        const alumnosEfectivos = modificacion.alumnos ?? (await db.select().from(infraAfectacionAlumno).where(eq(infraAfectacionAlumno.afectacionId, fila.id))).map((a) => a.gePersonId)
+        if (!(await alumnosPertenecenASecciones(seccionesEfectivas, alumnosEfectivos)) ||
+          !seccionesEfectivas.length || !seccionesEfectivas.every((id) => [...(padronPorSeccion.get(id) ?? [])].some((alumno) => alumnosEfectivos.includes(alumno)))) {
+          return jsonError('Cada sección elegida debe incluir al menos un alumno con matrícula vigente', 400)
+        }
+        const impacto = impactoDeAlumnos(alumnosEfectivos, matriculados, corteId)
+        if (!impacto.prioridad) return jsonError('Seleccione alumnos con matrícula vigente para calcular la prioridad', 400)
+        modificacion.severidad = impacto.prioridad
+        modificacion.justificacionCritica = undefined
+        modificacion.justificacionCriticaDetalle = undefined
+        if (modificacion.alumnos) modificacion.alumnos = [...new Set(modificacion.alumnos)]
+        if (modificacion.secciones) modificacion.secciones = [...new Set(modificacion.secciones)]
+        continue
+      }
+      const permitido = validarAlumnosPermitidos('establecimiento', modificacion.alumnos)
+      if (!permitido.ok) return jsonError(permitido.error, 400)
       if (modificacion.severidad === undefined) continue
-      const fila = existentesPorId.get(modificacion.id)
       // Sin secciones en el cambio, el alcance es el que la afectación ya tiene.
       const seccionesActuales = modificacion.secciones ?? (await db
         .select({ geSectionId: infraAfectacionSeccion.geSectionId })
@@ -618,7 +672,7 @@ export async function POST(request: Request) {
       ).map((s) => s.geSectionId)
       const sugerida = severidadSugeridaPorAlcance(
         motivos.find((m) => m.nombre === fila?.motivo)?.id ?? null,
-        alcanceDeSecciones(seccionesActuales, todasLasSecciones),
+        (modificacion.carreras ?? fila?.carreras) ? alcanceDeCarreras(modificacion.carreras ?? fila?.carreras ?? [], carrerasDelCue(cue.value)) : alcanceDeSecciones(seccionesActuales, todasLasSecciones),
       )
       const justificada = validarJustificacionCritica({
         severidad: modificacion.severidad,
@@ -768,22 +822,6 @@ export async function POST(request: Request) {
       const antes = snapshotDesde(actualAntesReal, input.rigeDesde)
       const afectacionesVigentesActuales = afectacionesActuales.filter((a) => a.retiradaEn === null)
 
-      // Contradicción con la situación activa (T6), evaluada contra el estado
-      // releído con el lock de escritura: cubre a dos personas que reportan a
-      // la vez. Una combinación bloqueada aborta la transacción entera.
-      const cambioAHabitual = evaluarCambioAHabitual({
-        estadoActual: (parteFilaActual?.estadoEstablecimiento as EstadoEdificioActivo | undefined) ?? null,
-        nuevoEstado: input.estadoEstablecimiento?.estado ?? null,
-        servicioActual: calcularEstadoServicioGeneral(servicioAlcanceActual, secciones),
-        servicioEnvio: input.servicioEducativo?.estado ?? null,
-        afectacionesActivas: afectacionesVigentesActuales.map((a) => ({ id: a.id })),
-        solucionadas: [...input.afectacionesSolucionadas.map((s) => s.id), ...input.afectacionesRetiradas],
-        sigueActiva: input.afectacionesConfirmadas,
-      })
-      const bloqueoActivo = cambioAHabitual.bloqueos[0]
-      if (bloqueoActivo) {
-        throw new ErrorCierreBorrador(409, bloqueoActivo.mensaje, bloqueoActivo.codigo)
-      }
       const causaPorNuevaId = new Map<string, string>()
 
       for (const { input: entrada, categoria } of nuevasConCategoria) {
@@ -811,14 +849,16 @@ export async function POST(request: Request) {
           justificacionCritica: entrada.justificacionCritica ?? null,
           justificacionCriticaDetalle: entrada.justificacionCriticaDetalle ?? null,
           descripcion: entrada.descripcion ?? null,
+          carreras: entrada.carreras ?? null,
           causadaPorId: entrada.causadaPorId ?? null,
           rigeDesde: input.rigeDesde,
           creadaEn: ahora,
           retiradaEn: null,
         })
-        await tx
-          .insert(infraAfectacionSeccion)
-          .values(entrada.secciones.map((geSectionId) => ({ afectacionId: id, geSectionId })))
+        if (entrada.secciones.length > 0) {
+          await tx.insert(infraAfectacionSeccion)
+            .values(entrada.secciones.map((geSectionId) => ({ afectacionId: id, geSectionId })))
+        }
         if (entrada.alumnos && entrada.alumnos.length > 0) {
           await tx
             .insert(infraAfectacionAlumno)
@@ -830,6 +870,7 @@ export async function POST(request: Request) {
         const cambios: {
           severidad?: string
           descripcion?: string | null
+          carreras?: string[]
           justificacionCritica?: string | null
           justificacionCriticaDetalle?: string | null
         } = {}
@@ -839,6 +880,7 @@ export async function POST(request: Request) {
           cambios.justificacionCriticaDetalle = modificacion.justificacionCriticaDetalle ?? null
         }
         if (modificacion.descripcion !== undefined) cambios.descripcion = modificacion.descripcion
+        if (modificacion.carreras !== undefined) cambios.carreras = modificacion.carreras
         if (Object.keys(cambios).length > 0) {
           await tx.update(infraAfectacion).set(cambios).where(eq(infraAfectacion.id, modificacion.id))
         }
@@ -875,13 +917,15 @@ export async function POST(request: Request) {
       }
 
       if (input.servicioEducativo) {
-        const claves: Array<{ tipo: 'establecimiento' | 'turno' | 'seccion'; referenciaId: string | null }> = []
+        const claves: Array<{ tipo: 'establecimiento' | 'turno' | 'seccion' | 'carrera'; referenciaId: string | null }> = []
         if (input.servicioEducativo.alcance.tipo === 'establecimiento') {
           claves.push({ tipo: 'establecimiento', referenciaId: null })
         } else if (input.servicioEducativo.alcance.tipo === 'turno') {
           for (const turno of input.servicioEducativo.alcance.turnos) {
             claves.push({ tipo: 'turno', referenciaId: turno })
           }
+        } else if (input.servicioEducativo.alcance.tipo === 'carrera') {
+          for (const carrera of input.servicioEducativo.alcance.carreras) claves.push({ tipo: 'carrera', referenciaId: carrera })
         } else {
           for (const seccionId of input.servicioEducativo.alcance.secciones) {
             claves.push({ tipo: 'seccion', referenciaId: String(seccionId) })
@@ -937,6 +981,37 @@ export async function POST(request: Request) {
       const { afectaciones: afectacionesDespues, servicioAlcance: servicioAlcanceDespues } =
         await obtenerAfectacionesYServicio(tx, clienteGeEnTx, parteId, corteId)
       const [parteDespues] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
+      const consistenciaCentroEvacuados = validarConsistenciaCentroEvacuados({
+        estadoEstablecimiento: (parteDespues?.estadoEstablecimiento as EstadoEstablecimiento | undefined) ?? 'habitual',
+        afectaciones: afectacionesDespues.map((afectacion) => ({
+          motivoId: motivos.find((motivo) => motivo.nombre === afectacion.motivo)?.id ?? null,
+          retiradaEn: afectacion.retiradaEn,
+        })),
+      })
+      if (!consistenciaCentroEvacuados.ok) {
+        throw new ErrorCierreBorrador(
+          400,
+          consistenciaCentroEvacuados.mensaje,
+          consistenciaCentroEvacuados.codigo,
+        )
+      }
+      // Contradicción con la situación activa (T6), evaluada contra el estado
+      // releído con el lock de escritura y después de validar la consistencia
+      // bidireccional de Centro de evacuados. Una combinación bloqueada
+      // aborta la transacción entera.
+      const cambioAHabitual = evaluarCambioAHabitual({
+        estadoActual: (parteFilaActual?.estadoEstablecimiento as EstadoEdificioActivo | undefined) ?? null,
+        nuevoEstado: input.estadoEstablecimiento?.estado ?? null,
+        servicioActual: calcularEstadoServicioGeneral(servicioAlcanceActual, secciones),
+        servicioEnvio: input.servicioEducativo?.estado ?? null,
+        afectacionesActivas: afectacionesVigentesActuales.map((a) => ({ id: a.id })),
+        solucionadas: [...input.afectacionesSolucionadas.map((s) => s.id), ...input.afectacionesRetiradas],
+        sigueActiva: input.afectacionesConfirmadas,
+      })
+      const bloqueoActivo = cambioAHabitual.bloqueos[0]
+      if (bloqueoActivo) {
+        throw new ErrorCierreBorrador(409, bloqueoActivo.mensaje, bloqueoActivo.codigo)
+      }
       const despues = snapshotDesde(
         {
           periodo,
@@ -951,6 +1026,10 @@ export async function POST(request: Request) {
       )
 
       const diff = diffParte(antes, despues, { seccionesEstablecimiento: secciones.map((s) => s.geSectionId) })
+      const impactos = new Map([...antes.afectaciones, ...despues.afectaciones]
+        .filter((a) => a.impactoAlumnos)
+        .map((a) => [a.id, { afectacionId: a.id, ...a.impactoAlumnos! }]))
+      diff.impactosAlumnos = [...impactos.values()]
       const motivoPorId = new Map(afectacionesActuales.map((a) => [a.id, a.motivo]))
       diff.afectacionesConfirmadas = input.afectacionesConfirmadas.map((id) => ({ afectacionId: id, motivo: motivoPorId.get(id) ?? '' }))
       const solucionadas = new Set(input.afectacionesSolucionadas.map((s) => s.id))

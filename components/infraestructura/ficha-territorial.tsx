@@ -120,7 +120,7 @@ interface ClimatologiaPeligro {
   geometryRef: string
   variable: string
   percentil: 'p90' | 'p95' | 'p99'
-  muestra: number
+  muestra: 'todos_los_dias' | 'dias_humedos'
   valor: number
   unidad: string
   periodoDesde: string
@@ -179,6 +179,9 @@ const HORIZONTE_MAX_HORAS = 72
 // muestran tal cual, se traducen a "pronóstico" con su frescura).
 const PREFIJO_PROVIDER_PRONOSTICO = 'open-meteo'
 const VARIABLE_LLUVIA_OBSERVADA = 'precipitacion_observada_satelital'
+// The hazard-level calculation compares daily forecast totals against this
+// sample (`MUESTRA_CLIMATOLOGIA` in peligro/nivel.ts), so the ficha must use it too.
+const MUESTRA_UMBRAL_TERRITORIAL = 'todos_los_dias'
 
 const VARIABLES_UMBRAL = [
   { variable: 'precipitacion', etiqueta: 'Lluvia' },
@@ -476,7 +479,9 @@ function DatosTerritoriales({
     const actual = delVariable.reduce((proximo, punto) =>
       punto.horizonteHoras < proximo.horizonteHoras ? punto : proximo,
     )
-    const climVariable = (peligro.climatologia ?? []).filter((fila) => fila.variable === variable)
+    const climVariable = (peligro.climatologia ?? []).filter(
+      (fila) => fila.variable === variable && fila.muestra === MUESTRA_UMBRAL_TERRITORIAL,
+    )
     const umbral = (percentil: ClimatologiaPeligro['percentil']) =>
       climVariable.find((fila) => fila.percentil === percentil) ?? null
     const percentiles = [

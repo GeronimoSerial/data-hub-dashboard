@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { Barlow, Barlow_Semi_Condensed, Inter, Montserrat } from 'next/font/google'
+import 'lightgallery/css/lightgallery.css'
+import 'lightgallery/css/lg-thumbnail.css'
+import 'lightgallery/css/lg-zoom.css'
 import './globals.css'
 import { Providers } from './providers'
 

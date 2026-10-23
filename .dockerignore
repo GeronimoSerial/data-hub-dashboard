@@ -1,12 +1,15 @@
 node_modules
 .next
 .git
+.orca
 .github
 .superpowers
 openspec
 FILES
 *.md
 !docs/DEPLOY.md
+!THIRD-PARTY-NOTICES.md
+*.xlsx
 .env*
 !.env.example
 Dockerfile

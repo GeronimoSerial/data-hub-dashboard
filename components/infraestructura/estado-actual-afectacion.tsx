@@ -1,3 +1,4 @@
+import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
 import type { JSX } from 'react'
 import { EstadoActualSeveridad } from './estado-actual-severidad'
 import { resumirAlcance, type AfectacionVigente } from './estado-actual-textos'
@@ -23,7 +24,7 @@ export function EstadoActualAfectacion({ afectacion }: { afectacion: AfectacionV
     <li className="estado-actual-afectacion">
       <div className="estado-actual-afectacion__encabezado">
         <span className="estado-actual-afectacion__motivo">{afectacion.motivo}</span>
-        <EstadoActualSeveridad severidad={afectacion.severidad} />
+        {afectacion.categoria === 'alumnos' ? <ImpactoAlumnosResumen impacto={afectacion.impactoAlumnos} /> : <EstadoActualSeveridad severidad={afectacion.severidad} />}
       </div>
 
       <p className="estado-actual-afectacion__alcance">{resumirAlcance(afectacion.totales)}</p>

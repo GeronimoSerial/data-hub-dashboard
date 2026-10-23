@@ -32,6 +32,7 @@ const escuela: EscuelaMapaEnriquecida = {
 
 const afectaciones: AfectacionFicha[] = [{
   id: 'afectacion-1', motivo: 'Inaccesibilidad', categoria: 'alumnos', severidad: 'Alta',
+  impactoAlumnos: { afectados: 30, matricula: 50, porcentaje: 60, prioridad: 'Alta', corteId: 1, version: 1 },
   descripcion: 'Dos aulas sin acceso', rigeDesde: '2026-10-02T15:00:00.000Z', creadaEn: '2026-10-02T15:00:00.000Z', causadaPorId: null, totales: { secciones: 2, alumnos: 30 },
 }]
 
@@ -60,6 +61,7 @@ function renderFicha(opciones: {
   onCerrar?: () => void
   onVerAlumnosAlcanzados?: (id: string) => void
   onVerHistorialCompleto?: () => void
+  urlFichaCompleta?: string
 } = {}) {
   return render(
     <FichaEscuelaPanel
@@ -69,11 +71,57 @@ function renderFicha(opciones: {
       onCerrar={opciones.onCerrar ?? vi.fn()}
       onVerAlumnosAlcanzados={opciones.onVerAlumnosAlcanzados ?? vi.fn()}
       onVerHistorialCompleto={opciones.onVerHistorialCompleto ?? vi.fn()}
+      urlFichaCompleta={opciones.urlFichaCompleta}
     />,
   )
 }
 
 describe('FichaEscuelaPanel', () => {
+  it('actualiza la banda con la prioridad calculada, aunque el mapa conserve una gravedad anterior', async () => {
+    instalarFetch({ situaciones: [{
+      ...afectaciones[0], severidad: 'Crítica',
+      impactoAlumnos: { afectados: 3, matricula: 5, porcentaje: 60, prioridad: 'Media', corteId: 1, version: 1 },
+    }] })
+    renderFicha({ escuela: { ...escuela, gravedad: 4 } })
+    expect(await screen.findByText('Prioridad Media')).toBeInTheDocument()
+    expect(screen.queryByText('Prioridad Crítica')).not.toBeInTheDocument()
+    expect(document.querySelector('.map-ficha-escuela__gravedad')).toHaveStyle({ backgroundColor: colorSeveridad('Media') })
+  })
+
+  it('no conserva la gravedad anterior cuando no se puede calcular la prioridad', async () => {
+    instalarFetch({ situaciones: [{
+      ...afectaciones[0], severidad: 'Crítica',
+      impactoAlumnos: { afectados: 0, matricula: 5, porcentaje: null, prioridad: null, corteId: 1, version: 1 },
+    }] })
+    renderFicha({ escuela: { ...escuela, gravedad: 4 } })
+    expect(await screen.findAllByText('Sin datos para calcular la prioridad')).toHaveLength(2)
+    expect(document.querySelector('.map-ficha-escuela__gravedad')).toBeNull()
+  })
+
+  it('no muestra una justificación manual anterior para la prioridad calculada de alumnos', async () => {
+    instalarFetch({ situaciones: [{
+      ...afectaciones[0], severidad: 'Crítica', justificacionCritica: 'otro',
+      justificacionCriticaDetalle: 'Justificación anterior',
+      impactoAlumnos: { afectados: 700, matricula: 1000, porcentaje: 70, prioridad: 'Crítica', corteId: 1, version: 1 },
+    }] })
+    renderFicha()
+    expect(await screen.findByText('Prioridad Crítica')).toBeInTheDocument()
+    expect(screen.queryByText('Justificación de gravedad')).not.toBeInTheDocument()
+    expect(screen.queryByText('Justificación anterior')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { codigo: 'riesgo_fisico', detalle: null, texto: 'Hay riesgo eléctrico, estructural o sanitario' },
+    { codigo: 'otro', detalle: 'Cayó un árbol sobre el aula', texto: 'Otro: Cayó un árbol sobre el aula' },
+  ] as const)('muestra la justificación crítica $codigo con su etiqueta y detalle', async ({ codigo, detalle, texto }) => {
+    instalarFetch({ situaciones: [{
+      ...afectaciones[0], categoria: 'establecimiento', severidad: 'Crítica', impactoAlumnos: undefined,
+      justificacionCritica: codigo, justificacionCriticaDetalle: detalle ?? undefined,
+    }] })
+    renderFicha()
+    expect(await screen.findByText('Justificación de gravedad')).toBeInTheDocument()
+    expect(screen.getByText(texto.includes(': ') ? texto.slice(texto.indexOf(': ') + 2) : texto)).toBeInTheDocument()
+  })
   beforeEach(() => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-05T15:00:00.000Z'))
   })
@@ -131,7 +179,7 @@ describe('FichaEscuelaPanel', () => {
     instalarFetch()
     renderFicha()
 
-    expect(screen.getByText('Gravedad Alta')).toBeInTheDocument()
+    expect(screen.getByText('Prioridad Alta')).toBeInTheDocument()
     expect(screen.getByText('CUE 180000123-00 · Capital · Inicial, Primario · 1.234 alumnos')).toBeInTheDocument()
     expect(screen.getAllByText('Funcionamiento interrumpido').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Asistencia pedagógica: clase virtual').length).toBeGreaterThan(0)
@@ -155,14 +203,47 @@ describe('FichaEscuelaPanel', () => {
     const situaciones = (await screen.findByText('Situaciones (2 abiertas)')).closest('details')
 
     expect(await screen.findByText('Inaccesibilidad')).toBeInTheDocument()
-    expect(situaciones).toHaveTextContent('Gravedad Alta')
+    expect(situaciones).toHaveTextContent('30 de 50 alumnos · 60% · Prioridad Alta')
     expect(situaciones).toHaveTextContent('2 secciones · 30 alumnos')
     expect(situaciones).toHaveTextContent('Desde2 de octubre, 12:00')
     expect(situaciones).toHaveTextContent('Causada porInundación')
-    expect(situaciones).toHaveTextContent('DescripciónDos aulas sin acceso')
+    expect(situaciones).toHaveTextContent('Observación registrada en el reporte:Dos aulas sin acceso')
+    expect(situaciones?.querySelector('blockquote p')?.textContent).toBe('Dos aulas sin acceso')
     expect(situaciones).not.toHaveTextContent('Afecta')
     expect(situaciones?.querySelectorAll('strong')).toHaveLength(1)
     expect(situaciones).toHaveTextContent('Última novedad: hace 3 h')
+  })
+
+  it('muestra la justificación crítica y el detalle de otro, pero omite justificaciones no críticas', async () => {
+    instalarFetch({ situaciones: [
+      { ...afectaciones[0], categoria: 'establecimiento', severidad: 'Crítica', justificacionCritica: 'mas_personas' },
+      { ...afectaciones[0], id: 'afectacion-2', categoria: 'establecimiento', motivo: 'Riesgo eléctrico', severidad: 'Crítica', justificacionCritica: 'otro', justificacionCriticaDetalle: 'Cableado expuesto' },
+      { ...afectaciones[0], id: 'afectacion-3', categoria: 'establecimiento', motivo: 'Filtración', justificacionCritica: 'riesgo_fisico' },
+    ] })
+    renderFicha()
+
+    const situaciones = (await screen.findByText('Situaciones (3 abiertas)')).closest('details')
+    expect(situaciones).toHaveTextContent('Justificación de gravedadAfecta a más personas o secciones de lo habitual')
+    expect(situaciones).toHaveTextContent('Justificación de gravedadOtro')
+    expect(situaciones).toHaveTextContent('Detalle de la justificaciónCableado expuesto')
+    expect(screen.getAllByText('Justificación de gravedad')).toHaveLength(2)
+  })
+
+  it('muestra la justificación en la vista previa usada cuando hay enlace a la ficha completa', async () => {
+    instalarFetch({ situaciones: [
+      {
+        ...afectaciones[0],
+        categoria: 'establecimiento',
+        severidad: 'Crítica',
+        justificacionCritica: 'otro',
+        justificacionCriticaDetalle: 'Cableado expuesto',
+      },
+    ] })
+    renderFicha({ escuela: { ...escuela, gravedad: 4 }, urlFichaCompleta: '/escuelas/180000123-00' })
+
+    const justificacion = await screen.findByTestId('preview-justificacion-critica')
+    expect(justificacion).toHaveTextContent('Justificación de gravedad: Otro · Cableado expuesto')
+    expect(screen.getByTestId('vista-previa-escuela')).toBeInTheDocument()
   })
 
   it('muestra las situaciones solucionadas recientes con gravedad y fecha absoluta', async () => {
@@ -332,8 +413,8 @@ describe('FichaEscuelaPanel', () => {
 
   it('usa la situación de igual gravedad con rigeDesde más reciente', async () => {
     instalarFetch({ situaciones: [
-      { ...afectaciones[0], id: 'reciente', motivo: 'Inundación', categoria: 'establecimiento', severidad: 'Alta', rigeDesde: '2026-10-04T15:00:00.000Z' },
-      { ...afectaciones[0], id: 'antigua', motivo: 'Inaccesibilidad', categoria: 'alumnos', severidad: 'Alta', rigeDesde: '2026-10-02T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'reciente', motivo: 'Inundación', categoria: 'establecimiento', impactoAlumnos: undefined, severidad: 'Alta', rigeDesde: '2026-10-04T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'antigua', motivo: 'Inaccesibilidad', categoria: 'establecimiento', impactoAlumnos: undefined, severidad: 'Alta', rigeDesde: '2026-10-02T15:00:00.000Z' },
     ] })
     renderFicha()
 
@@ -345,7 +426,7 @@ describe('FichaEscuelaPanel', () => {
   it('prioriza una situación de mayor severidad sobre una más reciente', async () => {
     instalarFetch({ situaciones: [
       { ...afectaciones[0], id: 'alta-antigua', categoria: 'alumnos', severidad: 'Alta', rigeDesde: '2026-10-02T15:00:00.000Z' },
-      { ...afectaciones[0], id: 'media-reciente', motivo: 'Inundación', categoria: 'establecimiento', severidad: 'Media', rigeDesde: '2026-10-04T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'media-reciente', motivo: 'Inundación', categoria: 'establecimiento', impactoAlumnos: undefined, severidad: 'Media', rigeDesde: '2026-10-04T15:00:00.000Z' },
     ] })
     renderFicha()
 
@@ -356,8 +437,8 @@ describe('FichaEscuelaPanel', () => {
 
   it('desempata por creadaEn más reciente cuando rigeDesde coincide', async () => {
     instalarFetch({ situaciones: [
-      { ...afectaciones[0], id: 'creada-antigua', categoria: 'alumnos', creadaEn: '2026-10-03T15:00:00.000Z' },
-      { ...afectaciones[0], id: 'creada-reciente', motivo: 'Inundación', categoria: 'establecimiento', creadaEn: '2026-10-04T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'creada-antigua', categoria: 'establecimiento', impactoAlumnos: undefined, creadaEn: '2026-10-03T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'creada-reciente', motivo: 'Inundación', categoria: 'establecimiento', impactoAlumnos: undefined, creadaEn: '2026-10-04T15:00:00.000Z' },
     ] })
     renderFicha()
 

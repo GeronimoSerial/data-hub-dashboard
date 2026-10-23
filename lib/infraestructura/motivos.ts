@@ -63,6 +63,13 @@ export const MOTIVOS_SEED: MotivoRow[] = [
     severidadSugerida: 'Alta',
   },
   {
+    id: 'centro-evacuados',
+    nombre: 'Centro de evacuados',
+    categoria: 'establecimiento',
+    orden: 60,
+    severidadSugerida: 'Crítica',
+  },
+  {
     id: 'otro-establecimiento',
     nombre: 'Otro problema en el establecimiento',
     categoria: 'establecimiento',

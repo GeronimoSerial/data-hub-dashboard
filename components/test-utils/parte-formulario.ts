@@ -1,6 +1,7 @@
+import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 
-export const turnos = [
+export const turnos: TurnoContexto[] = [
   {
     turno: 'Mañana',
     niveles: [
@@ -36,6 +37,15 @@ export const turnos = [
     ],
   },
 ]
+
+for (const turno of turnos) {
+  for (const nivel of turno.niveles) {
+    for (const seccion of nivel.secciones) {
+      const conocidos = seccion.alumnos.map((a) => a.gePersonId)
+      seccion.alumnosMatriculados = [...conocidos, ...Array.from({ length: seccion.matricula - conocidos.length }, (_, i) => seccion.geSectionId * 10000 + i)]
+    }
+  }
+}
 
 export const TURNOS_FIXTURE = turnos
 

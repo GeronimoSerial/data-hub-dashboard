@@ -55,6 +55,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
 COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+COPY --from=builder /app/LICENSE ./LICENSE
+COPY --from=builder /app/THIRD-PARTY-NOTICES.md ./THIRD-PARTY-NOTICES.md
 # Las referencias y resultados geográficos se leen de PostgreSQL; no se
 # empaquetan archivos de resultados ni las dependencias Python de geo-static.
 # pg ya viaja en .next/standalone: el servidor lo importa (lib/db/driver.ts) y el

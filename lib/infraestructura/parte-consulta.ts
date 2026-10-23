@@ -1,3 +1,5 @@
+import { proyectarImpactoAlumnos } from './prioridad-alumnos'
+import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Capa de lectura del parte (spec §6, §7, §8): tanto GET /parte como
 // POST /parte la necesitan — POST para armar la fotografía "antes" contra la
 // que diffParte compara. Framework-free salvo por el acceso a Drizzle y al
@@ -22,6 +24,8 @@ import { severidadDelMovimiento } from './severidad-movimiento'
 import type { DiffParte } from './movimiento-diff'
 import { listarSeccionesDelCue } from './secciones-cue'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
+import { carrerasDelCue } from './carreras-superior'
+import { esJustificacionCritica } from './justificacion-critica'
 import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import type {
@@ -166,31 +170,50 @@ async function cargarAfectaciones(
     geSectionIds: todasLasSecciones,
   })
 
+  const [parte] = await dbEjecutor.select({ cueAnexo: infraParte.cueAnexo }).from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
+  const seccionesCue = parte ? await listarSeccionesDelCue(client, corteId, parte.cueAnexo) : []
+  const padron = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: seccionesCue.map((s) => s.geSectionId) })
+  const matriculados = new Set([...padron.values()].flatMap((ids) => [...ids]))
+
   return filas.map((fila): Afectacion => {
     const seccionIds = seccionesPorAfectacion.get(fila.id) ?? []
     const alumnosSeleccionados = new Set(alumnosPorAfectacion.get(fila.id) ?? [])
     const secciones: AfectacionAlcanceSeccion[] = seccionIds.map((geSectionId) => {
       const matriculados = membresia.get(geSectionId) ?? new Set<number>()
       const interseccion = [...matriculados].filter((id) => alumnosSeleccionados.has(id))
-      if (interseccion.length > 0) {
+      if (interseccion.length > 0 || (fila.categoria === 'alumnos' && alumnosSeleccionados.size > 0)) {
         return { geSectionId, seccionCompleta: false, alumnos: interseccion }
       }
       return { geSectionId, seccionCompleta: true, alumnos: [...matriculados] }
     })
+    const justificacionCritica =
+      fila.severidad === 'Crítica' && esJustificacionCritica(fila.justificacionCritica)
+        ? fila.justificacionCritica
+        : undefined
 
-    return {
+    const afectacion: Afectacion = {
       id: fila.id,
       parteId: fila.parteId,
       causadaPorId: fila.causadaPorId,
       motivo: fila.motivo,
       categoria: fila.categoria as Categoria,
       severidad: fila.severidad as Severidad,
+      ...(justificacionCritica
+        ? {
+            justificacionCritica,
+            ...(justificacionCritica === 'otro' && fila.justificacionCriticaDetalle?.trim()
+              ? { justificacionCriticaDetalle: fila.justificacionCriticaDetalle }
+              : {}),
+          }
+        : {}),
       descripcion: fila.descripcion,
       rigeDesde: fila.rigeDesde,
       creadaEn: fila.creadaEn,
       retiradaEn: fila.retiradaEn,
       secciones,
+      ...(fila.carreras ? { carreras: fila.carreras } : {}),
     }
+    return fila.retiradaEn === null ? proyectarImpactoAlumnos(afectacion, matriculados, corteId || null) : afectacion
   })
 }
 
@@ -307,11 +330,15 @@ export function snapshotDesde(actual: ParteActual, referencia?: Date | string): 
 // resuelva nombres — hoy sólo la ruta del director — pueda hacerlo; el
 // llamador del mapa (F3.2) descarta ese campo antes de responder.
 export interface AfectacionFicha {
+  carreras?: string[]
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   motivo: string
   categoria: Categoria
   severidad: Severidad
   descripcion: string | null
+  justificacionCritica: string | null
+  justificacionCriticaDetalle: string | null
   rigeDesde: string
   creadaEn: string
   causadaPorId: string | null
@@ -347,7 +374,7 @@ export async function armarFichaParte(cueAnexo: string, corteId: number): Promis
   if (!actual) return null
 
   const snapshot = snapshotDesde(actual)
-  const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, actual.secciones)
+  const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, actual.secciones, carrerasDelCue(cueAnexo))
 
   const afectaciones: AfectacionFicha[] = snapshot.afectaciones.map((afectacion) => {
     const alumnosUnicos = new Set<number>()
@@ -359,11 +386,23 @@ export async function armarFichaParte(cueAnexo: string, corteId: number): Promis
       motivo: afectacion.motivo,
       categoria: afectacion.categoria,
       severidad: afectacion.severidad,
+      ...(afectacion.justificacionCritica
+        ? {
+            justificacionCritica: afectacion.justificacionCritica,
+            ...(afectacion.justificacionCritica === 'otro' && afectacion.justificacionCriticaDetalle
+              ? { justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle }
+              : {}),
+          }
+        : {}),
+      impactoAlumnos: afectacion.impactoAlumnos,
       descripcion: afectacion.descripcion,
+      justificacionCritica: afectacion.justificacionCritica ?? null,
+      justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle ?? null,
       rigeDesde: afectacion.rigeDesde,
       creadaEn: afectacion.creadaEn,
       causadaPorId: afectacion.causadaPorId ?? null,
       secciones: afectacion.secciones,
+      ...(afectacion.carreras ? { carreras: afectacion.carreras } : {}),
       totales: { secciones: afectacion.secciones.length, alumnos: alumnosUnicos.size },
     }
   })

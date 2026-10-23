@@ -5,9 +5,11 @@ import { and, count, eq, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, getRawClient } from '@/lib/db'
 import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
-import { infraAfectacion, infraBorrador, infraBorradorCierre, infraMovimiento, infraParte, infraVerificacionEvento } from '@/lib/db/schema'
+import { infraAfectacion, infraAfectacionSeccion, infraBorrador, infraBorradorCierre, infraMovimiento, infraParte, infraServicioAlcance, infraVerificacionEvento } from '@/lib/db/schema'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
+import { carrerasDelCue } from '@/lib/infraestructura/carreras-superior'
+import catalogoSuperior from '@/data/carreras-superior-2026.json'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import { BorradorError, syncDraft } from '@/lib/infraestructura/borradores/service'
@@ -142,6 +144,10 @@ const CUE_V = '1801605-67'
 // CUE exclusivos del cierre de la evacuación preventiva (T8).
 const CUE_W = '1801605-68'
 const CUE_X = '1801605-69'
+const CUE_CENTRO_EVACUADOS = '1801605-70'
+const CUE_SUPERIOR = Object.keys(catalogoSuperior).find((cue) => !cue.startsWith('1801605-'))!
+// Workbook-backed institutional CUE with both ABIERTA and CERRADA careers.
+const CUE_SUPERIOR_CARRERA_CERRADA = '1801426-00'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -161,7 +167,7 @@ beforeAll(async () => {
   )
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
-    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U, CUE_V, CUE_W, CUE_X,
+    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3, CUE_T, CUE_U, CUE_V, CUE_W, CUE_X, CUE_CENTRO_EVACUADOS,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -185,6 +191,12 @@ beforeAll(async () => {
       })
     }
   }
+  await client.execute(
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SUPERIOR}', NULL, 'Escuela Superior de prueba', 'ER', 'Parana')`,
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SUPERIOR_CARRERA_CERRADA}', NULL, 'Escuela Superior con carreras cerradas', 'ER', 'Parana')`,
+  )
   await client.execute(
     `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SIN_SECCIONES}', NULL, 'Escuela sin secciones', 'ER', 'Parana')`,
   )
@@ -570,7 +582,7 @@ describe('POST /api/problematicas/parte', () => {
     const [inundacionDespues] = await db.select().from(infraAfectacion).where(eq(infraAfectacion.id, inundacion.id))
     const [anegamientoDespues] = await db.select().from(infraAfectacion).where(eq(infraAfectacion.id, anegamiento.id))
     expect(inundacionDespues!.severidad).toBe('Crítica')
-    expect(anegamientoDespues!.severidad).toBe('Baja')
+    expect(anegamientoDespues!.severidad).toBe('Media')
   })
 
   it('retirar una afectación marca retiradaEn sin borrar la fila', async () => {
@@ -1383,4 +1395,376 @@ describe('POST /api/problematicas/parte — estado activo al pasar a habitual (T
     }))
     expect(res.status).toBe(201)
   })
+})
+
+describe('POST /api/problematicas/parte — Superior career scope', () => {
+  it('persists and reads multiple catalog careers including a workbook CERRADA career, and records an idempotent career-only update', async () => {
+    const carrerasDisponibles = carrerasDelCue(CUE_SUPERIOR_CARRERA_CERRADA)
+    const carreraAbierta = 'PROFESORADO DE ARTES VISUALES'
+    // Carrera Estado = CERRADA in the institutional Estatales workbook sheet.
+    const carreraCerrada = 'TECNICATURA SUPERIOR EN BROMATOLOGIA'
+    expect(carrerasDisponibles).toContain(carreraAbierta)
+    expect(carrerasDisponibles).toContain(carreraCerrada)
+
+    const payloadInicial = {
+      cue: CUE_SUPERIOR_CARRERA_CERRADA,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{
+        motivo: 'Inundación',
+        severidad: 'Alta' as const,
+        secciones: [],
+        carreras: [carreraAbierta, carreraCerrada],
+      }],
+    }
+    const creada = await POST(postReq(payloadInicial))
+    expect(creada.status, await creada.clone().text()).toBe(201)
+    const cuerpoInicial = await creada.json()
+    const db = getDb()
+    const [afectacion] = await db.select().from(infraAfectacion)
+      .where(eq(infraAfectacion.parteId, cuerpoInicial.parteId))
+    expect(afectacion?.carreras).toEqual([carreraAbierta, carreraCerrada])
+
+    const lecturaInicial = await GET(getReq(CUE_SUPERIOR_CARRERA_CERRADA))
+    expect(lecturaInicial.status).toBe(200)
+    const fichaInicial = await lecturaInicial.json()
+    expect(fichaInicial.afectaciones.find((a: { id: string }) => a.id === afectacion!.id)?.carreras)
+      .toEqual([carreraAbierta, carreraCerrada])
+
+    const movimientosAntes = await db.select().from(infraMovimiento)
+      .where(eq(infraMovimiento.parteId, cuerpoInicial.parteId))
+    expect(movimientosAntes).toHaveLength(1)
+
+    const payloadActualizacion = {
+      cue: CUE_SUPERIOR_CARRERA_CERRADA,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesModificadas: [{ id: afectacion!.id, carreras: [carreraCerrada] }],
+    }
+    const actualizada = await POST(postReq(payloadActualizacion))
+    expect(actualizada.status, await actualizada.clone().text()).toBe(201)
+    const cuerpoActualizado = await actualizada.json()
+    expect(cuerpoActualizado.cambios).toEqual([
+      `Carreras afectadas de "Inundación" actualizadas: ${carreraAbierta}\n${carreraCerrada} → ${carreraCerrada}`,
+    ])
+
+    const movimientosDespues = await db.select().from(infraMovimiento)
+      .where(eq(infraMovimiento.parteId, cuerpoInicial.parteId))
+    expect(movimientosDespues).toHaveLength(movimientosAntes.length + 1)
+    const movimientoActualizacion = movimientosDespues.find((movimiento) => movimiento.id === cuerpoActualizado.movimientoId)
+    expect(movimientoActualizacion).toBeDefined()
+    expect(movimientoActualizacion?.resumen).toMatchObject({
+      afectacionesAgregadas: [],
+      afectacionesRetiradas: [],
+      severidadesCambiadas: [],
+      alcancesCambiados: [],
+      datosCambiados: [{
+        afectacionId: afectacion!.id,
+        motivo: 'Inundación',
+        campos: [{
+          campo: 'carreras',
+          de: `${carreraAbierta}\n${carreraCerrada}`,
+          a: carreraCerrada,
+        }],
+        seccionesConSeleccionCambiada: [],
+      }],
+      serviciosCambiados: [],
+      establecimientoCambiado: null,
+    })
+
+    const replay = await POST(postReq(payloadActualizacion))
+    expect(replay.status).toBe(200)
+    const movimientosTrasReplay = await db.select().from(infraMovimiento)
+      .where(eq(infraMovimiento.parteId, cuerpoInicial.parteId))
+    expect(movimientosTrasReplay).toHaveLength(movimientosDespues.length)
+    expect(movimientosTrasReplay.filter((movimiento) => movimiento.id === cuerpoActualizado.movimientoId)).toHaveLength(1)
+
+    const lecturaActualizada = await GET(getReq(CUE_SUPERIOR_CARRERA_CERRADA))
+    expect(lecturaActualizada.status).toBe(200)
+    const fichaActualizada = await lecturaActualizada.json()
+    expect(fichaActualizada.afectaciones.find((a: { id: string }) => a.id === afectacion!.id)?.carreras)
+      .toEqual([carreraCerrada])
+  })
+
+  it('validates and persists career affectation/service scopes on create and update without losing scope', async () => {
+    const disponibles = carrerasDelCue(CUE_SUPERIOR)
+    const carreraA = disponibles[0]!
+    const carreraB = disponibles[1]!
+    const cueAjeno = Object.keys(catalogoSuperior).find((cue) => cue !== CUE_SUPERIOR)!
+    const carreraAjena = carrerasDelCue(cueAjeno)[0]!
+    const rigeDesde = new Date().toISOString()
+    const initialKey = crypto.randomUUID()
+    const initialPayload = {
+      cue: CUE_SUPERIOR,
+      idempotencyKey: initialKey,
+      rigeDesde,
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta' as const, secciones: [], carreras: [carreraA] }],
+      servicioEducativo: { estado: 'suspendido' as const, alcance: { tipo: 'carrera' as const, carreras: [carreraA] } },
+    }
+
+    const created = await POST(postReq(initialPayload))
+    expect(created.status).toBe(201)
+    const createdBody = await created.json()
+    const db = getDb()
+    const [storedAffectation] = await db.select().from(infraAfectacion)
+      .where(eq(infraAfectacion.parteId, createdBody.parteId))
+    expect(storedAffectation?.carreras).toEqual([carreraA])
+    expect(await db.select().from(infraAfectacionSeccion).where(eq(infraAfectacionSeccion.afectacionId, storedAffectation!.id))).toEqual([])
+    const serviceRows = await db.select().from(infraServicioAlcance)
+      .where(eq(infraServicioAlcance.parteId, createdBody.parteId))
+    expect(serviceRows).toContainEqual(expect.objectContaining({ tipo: 'carrera', referenciaId: carreraA, estado: 'suspendido' }))
+
+    const replay = await POST(postReq(initialPayload))
+    expect(replay.status).toBe(200)
+    expect(await db.select().from(infraMovimiento).where(eq(infraMovimiento.idempotencyKey, initialKey))).toHaveLength(1)
+
+    const readInitial = await GET(getReq(CUE_SUPERIOR))
+    const initialView = await readInitial.json()
+    expect(initialView.afectaciones.find((a: { id: string }) => a.id === storedAffectation!.id)?.carreras).toEqual([carreraA])
+
+    const updateKey = crypto.randomUUID()
+    const updatePayload = {
+      cue: CUE_SUPERIOR,
+      idempotencyKey: updateKey,
+      rigeDesde: new Date().toISOString(),
+      afectacionesModificadas: [{ id: storedAffectation!.id, carreras: [carreraB] }],
+      servicioEducativo: { estado: 'normal', alcance: { tipo: 'carrera', carreras: [carreraA] } },
+    }
+    const changed = await POST(postReq(updatePayload))
+    expect(changed.status).toBe(201)
+    expect((await changed.json()).cambios).toContain(`Carreras afectadas de "Inundación" actualizadas: ${carreraA} → ${carreraB}`)
+    expect(await POST(postReq(updatePayload)).then((response) => response.status)).toBe(200)
+    expect(await db.select().from(infraMovimiento).where(eq(infraMovimiento.idempotencyKey, updateKey))).toHaveLength(1)
+    const activeServiceRows = await db.select().from(infraServicioAlcance).where(and(
+      eq(infraServicioAlcance.parteId, createdBody.parteId),
+      eq(infraServicioAlcance.tipo, 'carrera'),
+      eq(infraServicioAlcance.referenciaId, carreraA),
+      isNull(infraServicioAlcance.retiradaEn),
+    ))
+    expect(activeServiceRows).toHaveLength(1)
+    expect(activeServiceRows[0]?.estado).toBe('normal')
+    const readChanged = await GET(getReq(CUE_SUPERIOR))
+    expect((await readChanged.json()).afectaciones.find((a: { id: string }) => a.id === storedAffectation!.id)?.carreras).toEqual([carreraB])
+
+    for (const seleccion of [[], [carreraB, carreraB], [carreraAjena]]) {
+      const invalidUpdate = await POST(postReq({
+        cue: CUE_SUPERIOR,
+        idempotencyKey: crypto.randomUUID(),
+        rigeDesde: new Date().toISOString(),
+        afectacionesModificadas: [{ id: storedAffectation!.id, carreras: seleccion }],
+      }))
+      expect(invalidUpdate.status).toBe(400)
+    }
+
+    const forgedStudents = await POST(postReq({
+      cue: CUE_SUPERIOR,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Anegamiento', severidad: 'Alta', secciones: [], carreras: [carreraA], alumnos: [123] }],
+    }))
+    expect(forgedStudents.status).toBe(400)
+
+    const invalidService = await POST(postReq({
+      cue: CUE_SUPERIOR,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      servicioEducativo: { estado: 'suspendido', alcance: { tipo: 'carrera', carreras: [carreraAjena] } },
+    }))
+    expect(invalidService.status).toBe(400)
+
+    const unchanged = await db.select().from(infraAfectacion).where(eq(infraAfectacion.id, storedAffectation!.id))
+    expect(unchanged[0]?.carreras).toEqual([carreraB])
+  })
+})
+
+describe('POST /api/problematicas/parte — WU6 consistency boundary: evacuation center', () => {
+  it('validates the effective report, rolls back mismatches, and honors persisted, retired, draft, and replay state', async () => {
+    const db = getDb()
+    const draftId = crypto.randomUUID()
+    const ahora = new Date().toISOString()
+    await db.insert(infraBorrador).values({
+      id: draftId,
+      generacion: 1,
+      cueAnexo: CUE_CENTRO_EVACUADOS,
+      contexto: {},
+      paso: 'revision',
+      respuestas: {},
+      revision: 0,
+      estado: 'open',
+      creadoEn: ahora,
+      actividadEn: ahora,
+      sincronizadoEn: null,
+    })
+
+    const sectionA = seccionId(CUE_CENTRO_EVACUADOS, '10')
+    const sectionB = seccionId(CUE_CENTRO_EVACUADOS, '20')
+    const centro = (section: number) => ({
+      motivo: 'Centro de evacuados',
+      severidad: 'Crítica' as const,
+      secciones: [section],
+    })
+    const base = {
+      cue: CUE_CENTRO_EVACUADOS,
+      rigeDesde: ahora,
+      draftId,
+    }
+    const mismatchMotivoSinEstado = {
+      ...base,
+      idempotencyKey: crypto.randomUUID(),
+      afectacionesNuevas: [centro(sectionA)],
+    }
+
+    const reasonWithoutBuildingStatus = await POST(postReq(mismatchMotivoSinEstado))
+    expect(reasonWithoutBuildingStatus.status).toBe(400)
+    expect(await reasonWithoutBuildingStatus.json()).toMatchObject({
+      codigo: 'centro-evacuados-requiere-estado',
+      error: expect.stringContaining('requiere que el estado del edificio'),
+    })
+    expect(await db.select().from(infraParte).where(eq(infraParte.cueAnexo, CUE_CENTRO_EVACUADOS))).toEqual([])
+    expect((await db.select().from(infraBorrador).where(eq(infraBorrador.id, draftId)))[0]?.estado).toBe('open')
+
+    const statusWithoutReason = await POST(postReq({
+      ...base,
+      idempotencyKey: crypto.randomUUID(),
+      estadoEstablecimiento: { estado: 'centro_evacuados' },
+    }))
+    expect(statusWithoutReason.status).toBe(400)
+    expect(await statusWithoutReason.json()).toMatchObject({
+      codigo: 'estado-centro-evacuados-requiere-motivo',
+      error: expect.stringContaining('requiere una afectación activa'),
+    })
+    expect(await db.select().from(infraParte).where(eq(infraParte.cueAnexo, CUE_CENTRO_EVACUADOS))).toEqual([])
+
+    const validInitial = {
+      ...base,
+      idempotencyKey: crypto.randomUUID(),
+      estadoEstablecimiento: { estado: 'centro_evacuados' as const },
+      confirmarInterrupcionTotal: true,
+      afectacionesNuevas: [centro(sectionA), centro(sectionB)],
+    }
+    const created = await POST(postReq(validInitial))
+    expect(created.status, await created.clone().text()).toBe(201)
+    const createdBody = await created.json()
+    const replay = await POST(postReq(validInitial))
+    expect(replay.status).toBe(200)
+    expect((await db.select().from(infraMovimiento).where(eq(infraMovimiento.idempotencyKey, validInitial.idempotencyKey)))).toHaveLength(1)
+    expect((await db.select().from(infraBorrador).where(eq(infraBorrador.id, draftId)))[0]?.estado).toBe('submitted')
+
+    const centerRows = await db.select().from(infraAfectacion)
+      .where(and(eq(infraAfectacion.parteId, createdBody.parteId), eq(infraAfectacion.motivo, 'Centro de evacuados')))
+    expect(centerRows).toHaveLength(2)
+    const bySection = await db.select({ id: infraAfectacion.id, geSectionId: infraAfectacionSeccion.geSectionId })
+      .from(infraAfectacion)
+      .innerJoin(infraAfectacionSeccion, eq(infraAfectacionSeccion.afectacionId, infraAfectacion.id))
+      .where(eq(infraAfectacion.parteId, createdBody.parteId))
+    const affectationA = bySection.find((row) => row.geSectionId === sectionA)!.id
+    const affectationB = bySection.find((row) => row.geSectionId === sectionB)!.id
+
+    const addOtherAffectation = await POST(postReq({
+      cue: CUE_CENTRO_EVACUADOS,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{
+        motivo: 'Otro problema en el establecimiento',
+        severidad: 'Alta',
+        descripcion: 'Acceso alternativo en uso',
+        secciones: [sectionA],
+      }],
+    }))
+    expect(addOtherAffectation.status).toBe(201)
+    const [otherAffectation] = await db.select().from(infraAfectacion).where(and(
+      eq(infraAfectacion.parteId, createdBody.parteId),
+      eq(infraAfectacion.motivo, 'Otro problema en el establecimiento'),
+    ))
+
+    const removeOneOfSeveral = await POST(postReq({
+      cue: CUE_CENTRO_EVACUADOS,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesRetiradas: [affectationA, otherAffectation!.id],
+    }))
+    expect(removeOneOfSeveral.status).toBe(201)
+
+    const removeLastWithoutChangingStatus = await POST(postReq({
+      cue: CUE_CENTRO_EVACUADOS,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesRetiradas: [affectationB],
+    }))
+    expect(removeLastWithoutChangingStatus.status).toBe(400)
+    expect((await removeLastWithoutChangingStatus.json()).codigo).toBe('estado-centro-evacuados-requiere-motivo')
+    expect((await db.select().from(infraAfectacion).where(eq(infraAfectacion.id, affectationB)))[0]?.retiradaEn).toBeNull()
+
+    const changeStatusWithActiveReason = await POST(postReq({
+      cue: CUE_CENTRO_EVACUADOS,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'habitual' },
+    }))
+    expect(changeStatusWithActiveReason.status).toBe(400)
+    expect((await changeStatusWithActiveReason.json()).codigo).toBe('centro-evacuados-requiere-estado')
+
+    const resolveLastReasonAndChangeStatus = await POST(postReq({
+      cue: CUE_CENTRO_EVACUADOS,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'habitual' },
+      afectacionesRetiradas: [affectationB],
+    }))
+    expect(resolveLastReasonAndChangeStatus.status).toBe(201)
+    expect((await db.select().from(infraAfectacion).where(eq(infraAfectacion.motivo, 'Centro de evacuados')))
+      .every((row) => row.retiradaEn !== null)).toBe(true)
+
+    // Simulate a legacy active row that predates this API invariant. An
+    // unrelated update with omitted status must still validate the full report.
+    await db.update(infraAfectacion).set({ retiradaEn: null, cierre: null }).where(eq(infraAfectacion.id, affectationB))
+    const legacyMismatch = await POST(postReq({
+      cue: CUE_CENTRO_EVACUADOS,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{
+        motivo: 'Otro problema en el establecimiento',
+        severidad: 'Alta',
+        descripcion: 'Señalización temporal',
+        secciones: [sectionB],
+      }],
+    }))
+    expect(legacyMismatch.status).toBe(400)
+    expect((await legacyMismatch.json()).codigo).toBe('centro-evacuados-requiere-estado')
+    expect((await db.select().from(infraAfectacion).where(and(
+      eq(infraAfectacion.parteId, createdBody.parteId),
+      eq(infraAfectacion.descripcion, 'Señalización temporal'),
+    )))).toEqual([])
+  })
+})
+
+describe('prioridad automática de alumnos', () => {
+  it('acepta alta sin severidad y recalcula una modificación manipulada', async () => {
+    const cue = CUE_X
+    const alta = await POST(postReq({ cue, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Anegamiento', secciones: [seccionId(cue, '10')], alumnos: alumnoIds(cue, '000', 3) }],
+    }))
+    expect(alta.status, await alta.clone().text()).toBe(201)
+    const ficha = await (await GET(getReq(cue))).json()
+    const afectacion = ficha.afectaciones.find((a: { motivo: string }) => a.motivo === 'Anegamiento')
+    expect(afectacion).toMatchObject({ severidad: 'Media', impactoAlumnos: { afectados: 3, matricula: 10, porcentaje: 30, prioridad: 'Media', corteId: 1, version: 1 } })
+    const cambio = await POST(postReq({ cue, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesModificadas: [{ id: afectacion.id, severidad: 'Crítica', alumnos: alumnoIds(cue, '000', 1) }],
+    }))
+    expect(cambio.status, await cambio.clone().text()).toBe(201)
+    const despues = await (await GET(getReq(cue))).json()
+    expect(despues.afectaciones.find((a: { id: string }) => a.id === afectacion.id)).toMatchObject({ severidad: 'Baja', impactoAlumnos: { afectados: 1, porcentaje: 10, prioridad: 'Baja' } })
+    const [guardada] = await getDb().select().from(infraAfectacion).where(eq(infraAfectacion.id, afectacion.id))
+    expect(guardada.severidad).toBe('Baja')
+    const movimientos = await getDb().select().from(infraMovimiento).where(eq(infraMovimiento.parteId, guardada.parteId))
+    expect(movimientos.some((m) => JSON.stringify(m.resumen).includes('impactosAlumnos'))).toBe(true)
+  })
+})
+
+it('mantiene obligatoria la severidad manual del establecimiento', async () => {
+  const response = await POST(postReq({ cue: CUE_X, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+    afectacionesNuevas: [{ motivo: 'Inundación', secciones: [seccionId(CUE_X, '10')] }],
+  }))
+  expect(response.status).toBe(400)
+  expect(await response.json()).toMatchObject({ error: 'La severidad es obligatoria para afectaciones del establecimiento' })
 })

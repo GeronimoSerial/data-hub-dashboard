@@ -7,11 +7,13 @@ import {
   hazardEnsembleProb,
   hazardForecast,
   infraGeoProfile,
+  infraRadarRunCache,
   infraRiskFactor,
   infraRiskRun,
   infraRiskSnapshot,
 } from '@/lib/db/schema'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { listarCuesAfectadosEnMapa } from '@/lib/infraestructura/parte-mapa'
 import { obtenerNivelesPeligro } from '@/lib/infraestructura/riesgo/peligro/nivel'
 import type * as NivelPeligroModule from '@/lib/infraestructura/riesgo/peligro/nivel'
 import {
@@ -27,6 +29,10 @@ import {
 // antes de que el beforeAll fije DATA_DIR.
 vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
   verificarAccesoLectura: vi.fn(),
+}))
+
+vi.mock('@/lib/infraestructura/parte-mapa', () => ({
+  listarCuesAfectadosEnMapa: vi.fn(async () => []),
 }))
 
 // Se envuelve el obtenerNivelesPeligro real (no se reemplaza): el test quiere
@@ -63,6 +69,7 @@ let GET: typeof Ruta.GET
 
 async function limpiarMotor() {
   const db = getDb()
+  await db.delete(infraRadarRunCache)
   await db.delete(infraRiskFactor)
   await db.delete(infraRiskSnapshot)
   await db.delete(infraRiskRun)
@@ -145,6 +152,7 @@ async function sembrarClimatologiaCompleta() {
 
 beforeEach(async () => {
   vi.mocked(verificarAccesoLectura).mockReset()
+  vi.mocked(listarCuesAfectadosEnMapa).mockReset().mockResolvedValue([])
   vi.mocked(obtenerNivelesPeligro).mockClear()
   await sembrarFixture()
 })
@@ -279,7 +287,69 @@ describe('GET /api/infraestructura/radar', () => {
     expect(obtenerNivelesPeligro).toHaveBeenCalledTimes(1)
     expect(obtenerNivelesPeligro).toHaveBeenCalledWith({
       ahora: new Date(PUBLICADO_EN),
+      horizontes: [24, 72, 240],
     })
+  })
+
+  it('reusa el peligro warm y mantiene frescos overlay y KPI de afectación', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { eq } = await import('drizzle-orm')
+    await getDb().update(infraRiskSnapshot)
+      .set({ nivelRiesgoAcceso: 'alto', exposicionMatricula: 42 })
+      .where(eq(infraRiskSnapshot.id, 's1'))
+
+    const respuestaInicial = await GET(req())
+    expect(respuestaInicial.headers.get('X-Radar-Cache')).toBe('miss')
+    const primero = await respuestaInicial.json()
+    expect(primero.kpis.accesoCondicionado).toEqual({ escuelas: 1, matricula: 42 })
+    vi.mocked(listarCuesAfectadosEnMapa).mockResolvedValue(['1000000-01'])
+    const respuestaWarm = await GET(req())
+    expect(respuestaWarm.headers.get('X-Radar-Cache')).toBe('hit')
+    expect(respuestaWarm.headers.get('Server-Timing')).toMatch(/inputs;dur=\d+\.\d/)
+    expect(respuestaWarm.headers.get('Server-Timing')).toMatch(/live_reports;dur=\d+\.\d/)
+    expect(respuestaWarm.headers.get('Cache-Control')).toBe('private, no-store')
+    const segundo = await respuestaWarm.json()
+
+    expect(segundo.departamentos).toEqual(primero.departamentos)
+    expect(segundo.kpis.accesoCondicionado).toEqual({ escuelas: 0, matricula: 0 })
+    expect(obtenerNivelesPeligro).toHaveBeenCalledTimes(1)
+    expect(listarCuesAfectadosEnMapa).toHaveBeenCalledTimes(2)
+  })
+
+  it('comparte el mismo cálculo entre 24, 72 y 240 horas y expone el hit real', async () => {
+    mockAcceso({ ok: true, user: USER })
+    for (const [indice, horizonte] of [24, 72, 240].entries()) {
+      const respuesta = await GET(req(`horizonte=${horizonte}`))
+      expect(respuesta.status).toBe(200)
+      expect(respuesta.headers.get('X-Radar-Cache')).toBe(indice === 0 ? 'miss' : 'hit')
+      expect(respuesta.headers.get('Server-Timing')).toMatch(/total;dur=\d+\.\d/)
+    }
+    expect(obtenerNivelesPeligro).toHaveBeenCalledTimes(1)
+    expect(listarCuesAfectadosEnMapa).toHaveBeenCalledTimes(3)
+  })
+
+  it('un run publicado nuevo no reutiliza el resultado del run anterior', async () => {
+    mockAcceso({ ok: true, user: USER })
+    await GET(req())
+    const db = getDb()
+    const { eq } = await import('drizzle-orm')
+    await db.update(infraRiskRun).set({ estado: 'vencido' }).where(eq(infraRiskRun.id, RUN_VIGENTE))
+    await db.insert(infraRiskRun).values({
+      id: 'run-radar-nuevo',
+      periodoId: PERIODO,
+      modeloVersion: 'motor-v0.4',
+      iniciadoEn: '2026-01-03T00:00:00Z',
+      publicadoEn: '2026-01-03T00:00:00Z',
+      estado: 'vigente',
+      cobertura: { procesadas: 0, conEvidencia: 0, sinEvidencia: 0 },
+      creadaEn: '2026-01-03T00:00:00Z',
+      modo: 'operativo',
+      metadatos: null,
+    })
+
+    const body = await (await GET(req())).json()
+    expect(body.corte.runId).toBe('run-radar-nuevo')
+    expect(obtenerNivelesPeligro).toHaveBeenCalledTimes(2)
   })
 
   it('filtra escuelas y kpis por horizonte sin recortar los horizontes del peligro', async () => {

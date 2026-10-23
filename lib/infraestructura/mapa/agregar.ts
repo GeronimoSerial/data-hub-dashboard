@@ -32,7 +32,7 @@ export function ultimaActualizacion(escuelas: EscuelaMapaEnriquecida[]): string 
 
 export function resumir(escuelas: EscuelaMapaEnriquecida[]): ResumenMapa {
   return escuelas.reduce<ResumenMapa>((resumen, escuela) => {
-    if (escuela.gravedad > 0) resumen.conReporte += 1
+    if (escuela.gravedad > 0 || (escuela.parte?.afectaciones.length ?? 0) > 0) resumen.conReporte += 1
     if (escuela.clases !== 'normal') {
       resumen.sinClases += 1
       resumen.alumnosSinClases += escuela.alumnosSinClases
@@ -68,7 +68,7 @@ export function agrupar(escuelas: EscuelaMapaEnriquecida[], por: AgruparPor): Fi
         claves = [...new Set(escuela.niveles)]
         break
       case 'gravedad':
-        claves = [ETIQUETA_GRAVEDAD[escuela.gravedad]]
+        claves = [escuela.impactoAlumnos?.prioridad === null && escuela.gravedad === 0 ? 'Sin datos para calcular' : ETIQUETA_GRAVEDAD[escuela.gravedad]]
         break
       case 'categoria':
         claves = [escuela.categoriaPrincipal ?? 'Sin categoría']
@@ -84,7 +84,7 @@ export function agrupar(escuelas: EscuelaMapaEnriquecida[], por: AgruparPor): Fi
         alumnosSinClases: 0,
       }
       fila.escuelas += 1
-      if (escuela.gravedad > 0) fila.afectadas += 1
+      if (escuela.gravedad > 0 || (escuela.parte?.afectaciones.length ?? 0) > 0) fila.afectadas += 1
       if (escuela.clases !== 'normal') fila.alumnosSinClases += escuela.alumnosSinClases
       grupos.set(clave, fila)
     }
@@ -107,6 +107,11 @@ export function ordenarReportes(escuelas: EscuelaMapaEnriquecida[]): EscuelaMapa
 
     const porClases = Number(b.clases !== 'normal') - Number(a.clases !== 'normal')
     if (porClases !== 0) return porClases
+
+    const porAlumnos = (b.impactoAlumnos?.afectados ?? 0) - (a.impactoAlumnos?.afectados ?? 0)
+    if (porAlumnos !== 0) return porAlumnos
+    const porPorcentaje = (b.impactoAlumnos?.porcentaje ?? 0) - (a.impactoAlumnos?.porcentaje ?? 0)
+    if (porPorcentaje !== 0) return porPorcentaje
 
     const novedadA = a.ultimaNovedad === null ? Number.NEGATIVE_INFINITY : Date.parse(a.ultimaNovedad)
     const novedadB = b.ultimaNovedad === null ? Number.NEGATIVE_INFINITY : Date.parse(b.ultimaNovedad)

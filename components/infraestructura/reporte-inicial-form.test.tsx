@@ -11,8 +11,10 @@ import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 import { MENSAJES_ESTADO, guardarBorrador as guardarBorradorEnvio } from '@/lib/infraestructura/parte/envio-offline'
 import { crearAlmacenParte, abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 import { crearColaTrabajosEnvio } from '@/lib/infraestructura/parte/cola-trabajos-envio'
+import catalogoSuperior from '@/data/carreras-superior-2026.json'
 
 const props = { cue: '12345678', turnos, motivos }
+const CUE_SUPERIOR = Object.keys(catalogoSuperior)[0]!
 
 const MENSAJE_REPORTE_EXITOSO =
   'Ya figura en el estado actual de su escuela.'
@@ -152,6 +154,45 @@ afterEach(() => {
 })
 
 describe('ReporteInicialForm', () => {
+  it('uses career-only scope for catalogued Superior CUEs and keeps the student option available elsewhere', () => {
+    const carreras = catalogoSuperior[CUE_SUPERIOR as keyof typeof catalogoSuperior]
+    renderFormulario({ cue: CUE_SUPERIOR })
+    expect(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ })).toBeDisabled()
+
+    completarQuePaso()
+    continuar()
+    const selector = screen.getByRole('group', { name: 'Carreras afectadas' })
+    fireEvent.click(within(selector).getByRole('checkbox', { name: carreras[0] }))
+    fireEvent.click(within(selector).getByRole('checkbox', { name: carreras[1] }))
+    expect(within(selector).getByText('2 carreras seleccionadas')).toBeInTheDocument()
+    expect(screen.queryByText('Secciones afectadas')).not.toBeInTheDocument()
+
+    cleanup()
+    renderFormulario()
+    expect(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ })).toBeEnabled()
+  })
+
+  it('restores a Superior draft with an obsolete career and requires replacing it before continuing', async () => {
+    const carreras = catalogoSuperior[CUE_SUPERIOR as keyof typeof catalogoSuperior]
+    sembrarBorradorWizard({ paso: 2, categoria: 'establecimiento', cue: CUE_SUPERIOR })
+    const clave = `parte-nuevo:draft:${CUE_SUPERIOR}`
+    const borrador = JSON.parse(localStorage.getItem(clave) ?? '{}')
+    borrador.afectacion.carreras = ['Carrera cerrada']
+    localStorage.setItem(clave, JSON.stringify(borrador))
+
+    renderFormulario({ cue: CUE_SUPERIOR })
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+    const selector = screen.getByRole('group', { name: 'Carreras afectadas' })
+    expect(within(selector).getByRole('alert')).toHaveTextContent('Carrera cerrada')
+    continuar()
+    expect(textoAlertas()).toContain('no pertenece al establecimiento')
+
+    fireEvent.click(within(selector).getByRole('checkbox', { name: 'Carrera cerrada (ya no disponible)' }))
+    fireEvent.click(within(selector).getByRole('checkbox', { name: carreras[0] }))
+    continuar()
+    expect(await screen.findByText('¿Hay clases?')).toBeInTheDocument()
+  })
+
   it('shows a B2 confirmation on reopen without restoring the sent draft or removing photo work', async () => {
     const id = `parte-inicial:${props.cue}`
     const almacen = await abrirAlmacenParte()
@@ -404,7 +445,7 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
     confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    expect(screen.queryByRole('radio', { name: 'Alta' })).not.toBeInTheDocument()
     continuar()
     completarAQuienAfecta('alumnos')
     continuar()
@@ -692,7 +733,7 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
     confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    expect(screen.queryByRole('radio', { name: 'Alta' })).not.toBeInTheDocument()
     expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     continuar()
     expect(screen.getByText('Paso 2 de 5')).toBeInTheDocument()
@@ -720,7 +761,7 @@ describe('ReporteInicialForm', () => {
     expect(within(resumen).getByText('Asistencia pedagógica')).toBeInTheDocument()
   })
 
-  it('al recomendar cambiar a establecimiento vuelve al paso 1 para elegir el motivo', () => {
+  it('mantiene inaccesibilidad de alumnos al seleccionar toda la matrícula', () => {
     const turnosConMayoria = turnos.map((turno) => ({
       ...turno,
       niveles: turno.niveles.map((nivel) => ({
@@ -728,6 +769,7 @@ describe('ReporteInicialForm', () => {
         secciones: nivel.secciones.map((seccion) => ({
           ...seccion,
           matricula: seccion.geSectionId === 10 ? 2 : 0,
+          alumnosMatriculados: seccion.geSectionId === 10 ? seccion.alumnos.map((a) => a.gePersonId) : [],
         })),
       })),
     }))
@@ -736,17 +778,17 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
     confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    expect(screen.queryByRole('radio', { name: 'Alta' })).not.toBeInTheDocument()
     continuar()
     const seccion = turnosConMayoria[0].niveles[0].secciones[0]
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`${seccion.curso} "${seccion.division}"`) }))
     for (const alumno of seccion.alumnos) {
       fireEvent.click(screen.getByRole('checkbox', { name: `${alumno.apellido}, ${alumno.nombre}` }))
     }
-    fireEvent.click(screen.getByRole('button', { name: 'Cambiar a establecimiento' }))
-
-    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo de la situación del establecimiento.')
+    expect(screen.queryByRole('button', { name: 'Cambiar a establecimiento' })).not.toBeInTheDocument()
+    expect(screen.getByText('2 de 2 alumnos · 100% · Prioridad Media')).toBeInTheDocument()
+    continuar()
+    expect(screen.getByRole('heading', { name: 'Asistencia pedagógica' })).toBeInTheDocument()
   })
 
   it('volver conserva lo ya cargado', () => {

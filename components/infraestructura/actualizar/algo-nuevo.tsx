@@ -1,5 +1,7 @@
 'use client'
 
+import { impactoAlumnosEnContexto } from '@/lib/infraestructura/prioridad-alumnos'
+
 import { useEffect, useState, type JSX } from 'react'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type AfectacionBorrador } from '@/components/infraestructura/afectacion-campos'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
@@ -27,6 +29,7 @@ export interface AlgoNuevoProps {
   estado: EstadoRecorrido
   turnos: TurnoContexto[]
   motivos: MotivoRow[]
+  carreras?: readonly string[]
   onTerminar: (nueva: NuevaSituacion | null) => void
   onEtapaChange?: (etapa: Etapa) => void
   onActualizarExistente: (id: string) => void
@@ -89,13 +92,15 @@ function detalleCausa(candidata: CandidataCausa, cantidadSeccionesEscuela: numbe
   return partes.filter(Boolean).join(' · ')
 }
 
-function crearNuevaSituacion(borrador: AfectacionBorrador, causadaPorId: string | null): NuevaSituacion | null {
-  if (borrador.categoria === '' || borrador.severidad === '' || borrador.motivo === '') return null
+function crearNuevaSituacion(borrador: AfectacionBorrador, causadaPorId: string | null, turnos: TurnoContexto[]): NuevaSituacion | null {
+  const severidad = borrador.categoria === 'alumnos' ? impactoAlumnosEnContexto(borrador.alumnos, turnos).prioridad : borrador.severidad
+  if (borrador.categoria === '' || (borrador.categoria !== 'alumnos' && !severidad) || borrador.motivo === '') return null
   return {
     causadaPorId,
     motivo: borrador.motivo,
-    severidad: borrador.severidad,
+    severidad: severidad || undefined,
     secciones: borrador.secciones,
+    ...(borrador.carreras?.length ? { carreras: borrador.carreras } : {}),
     ...(borrador.categoria === 'alumnos' ? { alumnos: borrador.alumnos } : {}),
     ...(borrador.justificacionCritica ? { justificacionCritica: borrador.justificacionCritica } : {}),
     ...(borrador.justificacionCriticaDetalle ? { justificacionCriticaDetalle: borrador.justificacionCriticaDetalle } : {}),
@@ -109,15 +114,37 @@ export function AlgoNuevo({
   estado,
   turnos,
   motivos,
+  carreras = [],
   onTerminar,
   onEtapaChange,
   onActualizarExistente,
   onSolucionarExistente,
 }: AlgoNuevoProps): JSX.Element {
-  const [etapa, setEtapa] = useState<Etapa>('pregunta')
-  const [hayAlgoNuevo, setHayAlgoNuevo] = useState<boolean | null>(null)
-  const [causadaPorId, setCausadaPorId] = useState<string | null>(null)
-  const [borrador, setBorrador] = useState<AfectacionBorrador>(() => crearAfectacionVacia('nueva-situacion'))
+  const [etapa, setEtapa] = useState<Etapa>(() => estado.nueva ? 'datos' : 'pregunta')
+  const [hayAlgoNuevo, setHayAlgoNuevo] = useState<boolean | null>(() => estado.nueva ? true : null)
+  const [causadaPorId, setCausadaPorId] = useState<string | null>(() => estado.nueva?.causadaPorId ?? null)
+  const [borrador, setBorrador] = useState<AfectacionBorrador>(() => {
+    const vacia = crearAfectacionVacia('nueva-situacion')
+    const nueva = estado.nueva
+    if (!nueva) return vacia
+    const categoria = nueva.alumnos !== undefined ? 'alumnos' : 'establecimiento'
+    const todasLasSecciones = turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones.map((seccion) => seccion.geSectionId)))
+    return {
+      ...vacia,
+      categoria,
+      motivo: nueva.motivo,
+      severidad: nueva.severidad ?? '',
+      justificacionCritica: nueva.justificacionCritica ?? '',
+      justificacionCriticaDetalle: nueva.justificacionCriticaDetalle ?? '',
+      descripcion: nueva.descripcion ?? '',
+      secciones: nueva.secciones,
+      carreras: nueva.carreras,
+      alumnos: nueva.alumnos ?? [],
+      alcanceEstablecimiento: nueva.carreras?.length
+        ? nueva.carreras.length === carreras.length ? 'toda' : 'algunas'
+        : nueva.secciones.length === todasLasSecciones.length ? 'toda' : 'algunas',
+    }
+  })
   const [motivoPendiente, setMotivoPendiente] = useState<string | null>(null)
   const [situacionPendiente, setSituacionPendiente] = useState<SituacionRecorrido | null>(null)
   const [decisionDuplicado, setDecisionDuplicado] = useState<DecisionDuplicado | null>(null)
@@ -135,9 +162,10 @@ export function AlgoNuevo({
   const anteriorElegida = candidatasCerradas.find((candidata) => candidata.id === causadaPorId)
   const candidatasVisibles = anteriorElegida ? [...candidatasActivas, anteriorElegida] : candidatasActivas
   const sugerida = motivos.find((motivo) => motivo.nombre === borrador.motivo)?.severidadSugerida ?? null
-  const completaLaGravedad = gravedadCompleta(borrador, sugerida)
-  const alcanceCompleto = borrador.secciones.length > 0 &&
-    (borrador.categoria !== 'establecimiento' || borrador.alcanceEstablecimiento !== '')
+  const completaLaGravedad = borrador.categoria === 'alumnos' || gravedadCompleta(borrador, sugerida)
+  const alcanceCompleto = carreras.length > 0
+    ? (borrador.carreras?.length ?? 0) > 0 && (borrador.carreras ?? []).every((carrera) => carreras.includes(carrera))
+    : borrador.secciones.length > 0 && (borrador.categoria !== 'establecimiento' || borrador.alcanceEstablecimiento !== '')
   const datosCompletos = borrador.categoria !== '' && borrador.motivo !== '' && completaLaGravedad && alcanceCompleto
 
   function mensajeFaltantes(): string | null {
@@ -145,7 +173,9 @@ export function AlgoNuevo({
     if (!borrador.categoria) faltantes.push('el tipo')
     if (!borrador.motivo) faltantes.push('el motivo')
     if (!completaLaGravedad) faltantes.push('la gravedad')
-    if (borrador.categoria === 'establecimiento' && !borrador.alcanceEstablecimiento) {
+    if (carreras.length > 0 && (!borrador.carreras?.length || borrador.carreras.some((carrera) => !carreras.includes(carrera)))) {
+      faltantes.push('una o más carreras vigentes del establecimiento')
+    } else if (borrador.categoria === 'establecimiento' && !borrador.alcanceEstablecimiento) {
       faltantes.push('el alcance del establecimiento')
     } else if (borrador.secciones.length === 0) {
       faltantes.push('al menos una sección')
@@ -202,7 +232,7 @@ export function AlgoNuevo({
   }
 
   function terminar(): void {
-    const nueva = crearNuevaSituacion(borrador, causadaPorId ?? null)
+    const nueva = crearNuevaSituacion(borrador, causadaPorId ?? null, turnos)
     if (nueva && datosCompletos) onTerminar(nueva)
   }
 
@@ -313,6 +343,7 @@ export function AlgoNuevo({
           <div className="asistente__cuerpo">
             <h2 className="asistente__titulo">¿Qué pasó?</h2>
             <CamposQuePaso
+              esSuperior={carreras.length > 0}
               borrador={borrador}
               idPrefijo="algo-nuevo"
               motivos={motivos}
@@ -333,6 +364,7 @@ export function AlgoNuevo({
           <div className="asistente__cuerpo">
             <h2 className="asistente__titulo">¿A quiénes afecta?</h2>
             <CamposAQuienAfecta
+              carreras={carreras}
               borrador={borrador}
               idPrefijo="algo-nuevo"
               turnos={turnos}

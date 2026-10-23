@@ -1,3 +1,4 @@
+import { prioridadEfectiva } from '../prioridad-alumnos'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import type { AfectacionMapa, EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import type {
@@ -63,7 +64,7 @@ function situacionPrincipalDe(parte: ParteMapa | undefined) {
 
 export function gravedadDe(parte: ParteMapa | undefined): GravedadMapa {
   const principal = situacionPrincipalDe(parte)
-  return principal ? gravedadDeSeveridad(principal.severidad) : 0
+  return principal && prioridadEfectiva(principal) ? gravedadDeSeveridad(prioridadEfectiva(principal)!) : 0
 }
 
 export function enriquecerEscuela(
@@ -93,8 +94,9 @@ export function enriquecerEscuela(
     nivelJurisdiccionalId: e.nivelJurisdiccional?.id ?? null,
     nivelJurisdiccionalNombre: e.nivelJurisdiccional?.nombre ?? null,
     alumnos: extra.alumnos,
-    gravedad: principal ? gravedadDeSeveridad(principal.severidad) : 0,
+    gravedad: principal && prioridadEfectiva(principal) ? gravedadDeSeveridad(prioridadEfectiva(principal)!) : 0,
     categoriaPrincipal: principal?.categoria ?? null,
+    impactoAlumnos: principal?.impactoAlumnos,
     clases,
     apoyo: derivarApoyo(clases, extra.asistencia),
     sinActualizar: esSinActualizar(parte, ahoraMs),

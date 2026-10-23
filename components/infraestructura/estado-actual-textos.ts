@@ -1,3 +1,4 @@
+import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Textos y formatos de la pantalla "estado actual" del director (spec §6 y
 // §17). Puro: sin React, sin fetch, sin base — así los tres componentes de
 // la pantalla comparten un único lugar donde vive el vocabulario exacto de
@@ -44,6 +45,7 @@ export interface TotalesAfectacion {
 }
 
 export interface AfectacionVigente {
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   motivo: string
   categoria: Categoria
@@ -52,6 +54,7 @@ export interface AfectacionVigente {
   rigeDesde: string
   creadaEn: string
   causadaPorId: string | null
+  carreras?: string[]
   secciones: SeccionAfectada[]
   totales: TotalesAfectacion
 }

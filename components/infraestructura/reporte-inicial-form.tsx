@@ -1,5 +1,7 @@
 'use client'
 
+import { impactoAlumnosEnContexto } from '@/lib/infraestructura/prioridad-alumnos'
+
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CircleCheck } from 'lucide-react'
 import { MaterialesTrasReporte } from '@/components/infraestructura/materiales-tras-reporte'
@@ -38,6 +40,7 @@ import { Opcion } from '@/components/ui/opcion'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
+import { alcanceDeCarreras, carrerasDelCue, validarAlcanceCarreras } from '@/lib/infraestructura/carreras-superior'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import { JUSTIFICACIONES_CRITICA } from '@/lib/infraestructura/justificacion-critica'
@@ -140,8 +143,8 @@ function respuestasDeConsistencia(datos: {
   const alcance: AlcanceSecciones | null =
     afectacion.alcanceEstablecimiento === 'toda'
       ? { tipo: 'toda' }
-      : afectacion.secciones.length > 0
-        ? { tipo: 'algunas', secciones: afectacion.secciones.length }
+      : afectacion.secciones.length + (afectacion.carreras?.length ?? 0) > 0
+        ? { tipo: 'algunas', secciones: afectacion.secciones.length + (afectacion.carreras?.length ?? 0) }
         : null
   return {
     categoria: afectacion.categoria || null,
@@ -241,6 +244,7 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   }
   if (!Array.isArray(a.secciones) || !a.secciones.every((n) => typeof n === 'number')) return false
   if (!Array.isArray(a.alumnos) || !a.alumnos.every((n) => typeof n === 'number')) return false
+  if (a.carreras !== undefined && (!Array.isArray(a.carreras) || !a.carreras.every((c) => typeof c === 'string'))) return false
   if (a.justificacionCritica !== undefined && a.justificacionCritica !== '' && !JUSTIFICACIONES_CRITICA.includes(a.justificacionCritica as (typeof JUSTIFICACIONES_CRITICA)[number])) return false
   if (a.justificacionCriticaDetalle !== undefined && typeof a.justificacionCriticaDetalle !== 'string') return false
   if (a.alcanceEstablecimiento !== undefined && a.alcanceEstablecimiento !== '' && a.alcanceEstablecimiento !== 'toda' && a.alcanceEstablecimiento !== 'algunas') return false
@@ -288,6 +292,7 @@ function sincronizarHistorialTrasRestaurar(
  * vacías, igual que antes.
  */
 export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: ReporteInicialFormProps): JSX.Element {
+  const carreras = carrerasDelCue(cue)
   const almacenRef = useRef<Promise<AlmacenClaveValor> | null>(null)
   function almacen(): Promise<AlmacenClaveValor> {
     almacenRef.current ??= crearAlmacenParte()
@@ -506,18 +511,19 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
 
     // El servidor rechaza una justificación que no corresponde: sólo se envía si
     // la sugerida efectiva (con el alcance elegido) deja Crítica sin respaldo.
-    const justificacionRequerida = requiereJustificacionCritica(afectacion.severidad as Severidad, sugeridaDeAfectacion(afectacion))
+    const justificacionRequerida = afectacion.categoria !== 'alumnos' && requiereJustificacionCritica(afectacion.severidad as Severidad, sugeridaDeAfectacion(afectacion))
     const datosEnvio = {
       cue,
       rigeDesde,
       afectacionesNuevas: [
         {
           motivo: afectacion.motivo,
-          severidad: afectacion.severidad as Severidad,
+          severidad: afectacion.categoria === 'alumnos' ? undefined : afectacion.severidad as Severidad,
           justificacionCritica: justificacionRequerida ? afectacion.justificacionCritica || undefined : undefined,
           justificacionCriticaDetalle: justificacionRequerida ? afectacion.justificacionCriticaDetalle || undefined : undefined,
           descripcion: afectacion.descripcion.trim() || undefined,
           secciones: afectacion.secciones,
+          ...(carreras.length > 0 ? { carreras: afectacion.carreras ?? [] } : {}),
           alumnos: afectacion.alumnos.length > 0 ? afectacion.alumnos : undefined,
         },
       ],
@@ -531,7 +537,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           ? undefined
           : {
               estado: servicioEstado,
-              alcance: { tipo: 'seccion' as const, secciones: afectacion.secciones },
+              alcance: carreras.length > 0
+                ? { tipo: 'carrera' as const, carreras: afectacion.carreras ?? [] }
+                : { tipo: 'seccion' as const, secciones: afectacion.secciones },
             },
       estadoEstablecimiento:
         afectacion.categoria === 'alumnos' || estadoEstablecimiento === ''
@@ -763,7 +771,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   // usa el servidor para decidir si la justificación de Crítica hace falta.
   function sugeridaDeAfectacion(a: AfectacionBorrador): Severidad | null {
     const motivoId = motivos.find((m) => m.nombre === a.motivo)?.id ?? null
-    return severidadSugeridaPorAlcance(motivoId, alcanceDeSecciones(a.secciones, aplanarSecciones(turnos).map((s) => s.geSectionId)))
+    return severidadSugeridaPorAlcance(motivoId, carreras.length > 0 ? alcanceDeCarreras(a.carreras ?? [], carreras) : alcanceDeSecciones(a.secciones, aplanarSecciones(turnos).map((s) => s.geSectionId)))
   }
 
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
@@ -777,7 +785,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     if (bloqueosDelPaso.length > 0) return bloqueosDelPaso.join(' ')
     if (actual === 1) {
       const sugerida = sugeridaDeAfectacion(afectacion)
-      const completo = afectacion.categoria !== '' && afectacion.motivo !== '' && gravedadCompleta(afectacion, sugerida)
+      const completo = afectacion.categoria !== '' && afectacion.motivo !== '' && (afectacion.categoria === 'alumnos' || gravedadCompleta(afectacion, sugerida))
       if (
         !completo &&
         afectacion.categoria !== '' &&
@@ -787,13 +795,17 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       ) {
         return 'Indique por qué la situación es crítica.'
       }
-      return completo ? null : MENSAJE_FALTA_QUE_PASO
+      return completo ? null : afectacion.categoria === 'alumnos' ? 'Elija el motivo de la inaccesibilidad.' : MENSAJE_FALTA_QUE_PASO
     }
     if (actual === 2) {
+      if (carreras.length > 0) {
+        return validarAlcanceCarreras(cue, 'establecimiento', { carreras: afectacion.carreras ?? [] }, true)
+      }
       if (afectacion.categoria === 'establecimiento' && afectacion.alcanceEstablecimiento === '') {
         return MENSAJE_FALTA_ALCANCE_AFECTACION
       }
       if (afectacion.secciones.length === 0) return MENSAJE_FALTA_ALCANCE_AFECTACION
+      if (afectacion.categoria === 'alumnos' && afectacion.alumnos.length === 0) return 'Seleccione al menos un alumno afectado.'
       return null
     }
     if (actual === 3) {
@@ -903,16 +915,19 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     afectacion: {
       motivo: afectacion.motivo,
       severidad: afectacion.severidad,
+      impactoAlumnos: afectacion.categoria === 'alumnos' ? impactoAlumnosEnContexto(afectacion.alumnos, turnos) : undefined,
       secciones: afectacion.secciones.length,
       alumnos: totalAlumnosDe(afectacion, turnos),
       descripcion: afectacion.descripcion,
+      carreras: afectacion.carreras,
     },
     servicio:
       afectacion.categoria === 'alumnos' || servicioEstado === ''
         ? null
         : {
             estado: servicioEstado,
-            alcanceTipo: 'seccion',
+            alcanceTipo: carreras.length > 0 ? 'carrera' : 'seccion',
+            carreras: afectacion.carreras,
             turnos: [],
             secciones: afectacion.secciones.length,
           },
@@ -979,6 +994,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       <section className="asistente__cuerpo" aria-labelledby="asistente-paso-titulo">
         {paso === 1 && (
           <CamposQuePaso
+            esSuperior={carreras.length > 0}
             borrador={afectacion}
             idPrefijo="reporte"
             motivos={motivos}
@@ -987,7 +1003,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             onChange={(siguiente) => {
               cambiarAfectacion(siguiente)
               const sugerida = sugeridaDeAfectacion(siguiente)
-              if (error === MENSAJE_FALTA_QUE_PASO && siguiente.categoria !== '' && siguiente.motivo !== '' && gravedadCompleta(siguiente, sugerida)) {
+              if (error === MENSAJE_FALTA_QUE_PASO && siguiente.categoria !== '' && siguiente.motivo !== '' && (siguiente.categoria === 'alumnos' || gravedadCompleta(siguiente, sugerida))) {
                 setError(null)
               }
             }}
@@ -1001,7 +1017,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           opcionales: la nota de Crítica es una recomendación.
         */}
         <div hidden={paso !== 1}>
-          {fotosHabilitadas && afectacion.severidad === 'Crítica' ? (
+          {fotosHabilitadas && afectacion.categoria !== 'alumnos' && afectacion.severidad === 'Crítica' ? (
             <p className="aviso-badge" role="note">
               <span className="aviso-badge__sello">Recomendado</span>
               <span className="aviso-badge__texto">Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.</span>
@@ -1020,6 +1036,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
 
         {paso === 2 && (
           <CamposAQuienAfecta
+            carreras={carreras}
             borrador={afectacion}
             idPrefijo="reporte"
             turnos={turnos}
@@ -1051,6 +1068,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
                   ...a,
                   alcanceEstablecimiento: 'toda',
                   secciones: aplanarSecciones(turnos).map((s) => s.geSectionId),
+                  ...(carreras.length > 0 ? { carreras: [...carreras] } : {}),
                 }))
                 setConfirmarInterrupcionTotal(true)
               }}

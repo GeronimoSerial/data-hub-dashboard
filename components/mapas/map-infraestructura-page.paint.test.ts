@@ -25,7 +25,7 @@ describe('colorPorSeveridadRango', () => {
     expect(expresion[0]).toBe('case')
     // Guarda de cluster sin escuelas afectadas, tres rangos de gravedad y
     // color de Baja como default.
-    expect(expresion.length).toBe(2 + 2 * SEVERIDADES.length)
+    expect(expresion.length).toBe(4 + 2 * SEVERIDADES.length)
     expect(expresion[1]).toEqual(['==', ['get', 'escuelasAfectadas'], 0])
     expect(expresion[2]).toBe('#dcd8d3')
     expect(expresion[expresion.length - 1]).toBe(colorSeveridad('Baja'))
@@ -35,7 +35,7 @@ describe('colorPorSeveridadRango', () => {
     const expresion = colorPorSeveridadRango(false) as unknown[]
     for (let i = 1; i < SEVERIDADES.length; i++) {
       // Los pares de gravedad arrancan después de la guarda de cluster.
-      const indiceCondicion = 3 + (i - 1) * 2
+      const indiceCondicion = 5 + (i - 1) * 2
       expect(expresion[indiceCondicion]).toEqual([
         '>=',
         ['get', 'gravedad'],
@@ -70,6 +70,7 @@ describe('colorPorSeveridadRango', () => {
   it('con 0 escuelas afectadas en el cluster el color es el fondo del tema', () => {
     const expresion = colorPorSeveridadRango(false) as unknown[]
     expect(evaluarColorCluster(expresion, { escuelasAfectadas: 0, gravedad: 0 })).toBe('#dcd8d3')
+    expect(evaluarColorCluster(expresion, { escuelasAfectadas: 1, gravedad: 0 })).toBe('#dcd8d3')
   })
 
   it('con al menos una escuela afectada el color es el de su severidad', () => {
