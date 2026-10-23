@@ -1,10 +1,12 @@
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
-import { getSessionUser, staffGuard } from '@/lib/session'
+import { staffGuard } from '@/lib/session'
 import { obtenerEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
 import { obtenerEstadoDatosSeguro } from '@/lib/infraestructura/riesgo/estado-datos/consulta'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
+import { verificarAccesoSeccion } from '@/lib/infraestructura/acceso-lectura'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,8 +20,9 @@ const filtrosSchema = z.object({
 })
 
 export async function GET(request: Request) {
-  const user = await getSessionUser()
-  const guard = staffGuard(user)
+  const acceso = await verificarAccesoSeccion('situation')
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
+  const guard = staffGuard(acceso.user)
   if (guard) return respuestaGuard(guard)
 
   await ensureSeeded()

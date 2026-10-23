@@ -5,6 +5,7 @@ import { listarVigentes } from '@/lib/infraestructura/veredicto/repositorio'
 import { generarPdfVeredictos } from '@/lib/infraestructura/veredicto/pdf'
 import { cargarEventosTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { getSessionUser } from '@/lib/session'
+import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 
 // Factory puro para no arrastrar @/lib/session -> @/lib/db antes de fijar DATA_DIR.
 vi.mock('@/lib/session', () => ({
@@ -16,6 +17,9 @@ vi.mock('@/lib/session', () => ({
     }
     return null
   },
+}))
+vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
+  verificarAccesoLectura: vi.fn(async () => ({ ok: true, user: { id: 'staff', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })),
 }))
 
 vi.mock('@/lib/db/seed', () => ({
@@ -82,6 +86,7 @@ const BYTES = new Uint8Array([37, 80, 68, 70]) // "%PDF"
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
+  vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user: { id: 'staff', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })
   vi.mocked(listarVigentes).mockReset()
   vi.mocked(listarVigentes).mockResolvedValue([FILA])
   vi.mocked(generarPdfVeredictos).mockReset()
@@ -91,6 +96,12 @@ beforeEach(() => {
 })
 
 describe('GET /api/infraestructura/veredictos/pdf', () => {
+  it('rechaza una sección de infraestructura deshabilitada con 403', async () => {
+    vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 403 })
+    const res = await GET(req('?desde=2026-10-01&hasta=2026-10-05'))
+    expect(res.status).toBe(403)
+    expect(vi.mocked(listarVigentes)).not.toHaveBeenCalled()
+  })
   it('rechaza sin sesión con 401 y no genera PDF', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     const res = await GET(req('?desde=2026-10-01&hasta=2026-10-05'))

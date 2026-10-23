@@ -23,7 +23,7 @@ const cueAnexoSchema = z.string().min(1).max(50)
 // 200, nunca 404.
 export async function GET(request: Request, ctx: Ctx) {
   // ACL PRIMERO.
-  const acceso = await verificarAccesoLectura()
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()

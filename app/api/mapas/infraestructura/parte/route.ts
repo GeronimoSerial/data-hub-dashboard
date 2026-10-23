@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic'
 const SIN_CORTE = 0
 
 export async function GET(request: Request) {
-  const acceso = await verificarAccesoLectura()
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   const alcance = alcanceMapa(acceso.user)

@@ -6,6 +6,8 @@ import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,6 +21,8 @@ function esFechaValida(valor: string): boolean {
 }
 
 export async function GET(request: Request) {
+  const acceso = await verificarAccesoLectura()
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
   await ensureSeeded()
 
   const user = await getSessionUser()

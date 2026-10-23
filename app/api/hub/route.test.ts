@@ -61,14 +61,13 @@ function consulta(over: Partial<Awaited<ReturnType<typeof getSessionUser>>> = {}
 type MarkedRecurso = { id: string; acceso: 'abrir' | 'ingresar' | 'restringido' }
 
 describe('GET /api/hub', () => {
-  it('sin sesión devuelve todo el catálogo publicado, marcado como ingresar', async () => {
+  it('sin sesión devuelve JSON 401 y no carga metadatos del catálogo', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     const res = await GET()
-    const data = await res.json()
-    expect(data.recursos.length).toBeGreaterThan(0)
-    expect(
-      (data.recursos as MarkedRecurso[]).every((r) => r.acceso === 'ingresar'),
-    ).toBe(true)
+    expect(res.status).toBe(401)
+    expect(res.headers.get('content-type')).toContain('application/json')
+    expect(res.headers.get('cache-control')).toBe('private, no-store')
+    expect(await res.json()).toEqual({ error: 'No autenticado' })
   })
 
   it('consulta+todos: el recurso restringido a otro nivel queda restringido, no se oculta', async () => {
@@ -124,5 +123,15 @@ describe('GET /api/hub', () => {
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]
     expect(recursos.every((r) => r.acceso === 'abrir')).toBe(true)
+  })
+
+  it('denies a signed-in user whose explore section is disabled', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(consulta({
+      hubPolicy: { enabledSections: ['maps'], landing: false },
+    }))
+    const res = await GET()
+    expect(res.status).toBe(403)
+    expect(res.headers.get('cache-control')).toBe('private, no-store')
+    expect(await res.json()).toEqual({ error: 'No tiene acceso a este recurso' })
   })
 })

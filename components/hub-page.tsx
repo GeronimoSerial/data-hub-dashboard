@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Search } from 'lucide-react'
 import { useHubData } from '@/components/hub-data'
+import { useSectionAccess } from '@/components/app-shell'
 import { ResourceCard } from '@/components/resource-card'
 import { FORMATOS, type Formato } from '@/lib/model'
 import { exploreHref } from '@/lib/explore-filters'
@@ -44,6 +45,7 @@ function BrowseCard({
 export function HubPage() {
   const router = useRouter()
   const { recursos, categorias, niveles } = useHubData()
+  const canAccessPath = useSectionAccess()
   const [query, setQuery] = React.useState('')
   const published = recursos.filter((item) => item.estado === 'publicado')
   const recent = [...published].sort((a, b) => b.actualizado.localeCompare(a.actualizado)).slice(0, 3)
@@ -66,7 +68,7 @@ export function HubPage() {
             Reportes, tableros y mapas publicados por las direcciones del
             Ministerio. Algunos requieren ingresar con cuenta.
           </p>
-          <form
+          {canAccessPath('/explorar') ? <form
             className="hero-search"
             role="search"
             onSubmit={(event) => {
@@ -89,7 +91,7 @@ export function HubPage() {
                 <Search size={17} /> Buscar
               </Button>
             </div>
-          </form>
+          </form> : null}
         </div>
 
         <div className="stat-block">
@@ -111,7 +113,7 @@ export function HubPage() {
       {/* Acción, no catálogo: el resto del home lleva a consultar recursos y
           esta tarjeta lleva a cargar un dato. Va primero porque durante una
           emergencia es lo que se viene a hacer, no lo que se viene a leer. */}
-      <section className="section">
+      {canAccessPath('/infraestructura/cargar') ? <section className="section">
         <div className="section-head">
           <h2>Registrar una problemática</h2>
         </div>
@@ -122,23 +124,23 @@ export function HubPage() {
             abierto, la pantalla lleva a actualizarlo.
           </span>
         </Link>
-      </section>
+      </section> : null}
 
-      <section className="section">
+      {canAccessPath('/explorar') ? <section className="section">
         <div className="section-head">
           <h2>Actualizaciones recientes</h2>
-          <Link className="section-link" href="/explorar">
+          {canAccessPath('/explorar') ? <Link className="section-link" href="/explorar">
             Ver el catálogo
-          </Link>
+          </Link> : null}
         </div>
         <div className="card-grid">
           {recent.map((resource) => (
             <ResourceCard key={resource.id} recurso={resource} />
           ))}
         </div>
-      </section>
+      </section> : null}
 
-      <section className="section">
+      {canAccessPath('/explorar') ? <section className="section">
         <div className="section-head">
           <h2>Explorar por tema</h2>
         </div>
@@ -154,9 +156,9 @@ export function HubPage() {
             />
           ))}
         </div>
-      </section>
+      </section> : null}
 
-      <section className="section">
+      {canAccessPath('/explorar') ? <section className="section">
         <div className="section-head">
           <h2>Explorar por formato</h2>
         </div>
@@ -172,9 +174,9 @@ export function HubPage() {
             />
           ))}
         </div>
-      </section>
+      </section> : null}
 
-      <section className="section">
+      {canAccessPath('/explorar') ? <section className="section">
         <div className="section-head">
           <h2>Explorar por nivel educativo</h2>
         </div>
@@ -186,7 +188,7 @@ export function HubPage() {
             </Link>
           ))}
         </div>
-      </section>
+      </section> : null}
     </div>
   )
 }

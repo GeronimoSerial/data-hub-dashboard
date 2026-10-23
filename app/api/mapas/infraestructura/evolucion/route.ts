@@ -16,7 +16,7 @@ const parametrosSchema = z.object({
 export async function GET(request: Request) {
   await ensureSeeded()
 
-  const acceso = await verificarAccesoLectura()
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   const url = new URL(request.url)

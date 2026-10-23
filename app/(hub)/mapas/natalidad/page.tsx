@@ -4,10 +4,12 @@ import { puedeAbrir } from '@/lib/acl'
 import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
 import { ensureSeeded } from '@/lib/db/seed'
 import { NatalidadMapClient } from './map-client'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 export const runtime = 'nodejs'
 
 export default async function NatalidadMapRoute() {
+  await requireServerHubPageAccess('/mapas/natalidad')
   await ensureSeeded()
   const user = await getSessionUser()
   if (!user) redirect('/login?callbackUrl=/mapas/natalidad')

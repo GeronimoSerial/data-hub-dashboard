@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { getSessionUser } from '@/lib/session'
 import { adminPageGate } from '@/lib/acl'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 import { getDb } from '@/lib/db'
 import { infraEpisodioDerivado } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
@@ -93,6 +94,7 @@ export default async function EpisodiosDerivadosPage({
     page?: string
   }>
 }) {
+  await requireServerHubPageAccess('/admin/episodios-derivados', 'infrastructure')
   const user = await getSessionUser()
   const gate = adminPageGate(user)
   if (gate === 'login') {

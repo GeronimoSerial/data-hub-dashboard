@@ -225,6 +225,13 @@
       "when": 1792724803368,
       "tag": "0031_romantic_black_widow",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792795723148,
+      "tag": "0032_hub_access_policy",
+      "breakpoints": true
     }
   ]
 }

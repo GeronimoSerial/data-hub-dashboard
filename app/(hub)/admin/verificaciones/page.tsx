@@ -4,6 +4,7 @@ import { adminPageGate } from '@/lib/acl'
 import { obtenerPeriodoVigente } from '@/lib/infraestructura/parte-consulta'
 import { listarVerificaciones } from '@/lib/infraestructura/verificaciones'
 import { VerificacionesCola } from '@/components/infraestructura/verificaciones-cola'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 // UI de operador (staff) para la cola de verificaciones del protocolo ENOS
 // (batch E1). El monitoreo es continuo, no episódico: se descartó el
@@ -20,6 +21,7 @@ const bloque: React.CSSProperties = {
 }
 
 export default async function VerificacionesAdmin() {
+  await requireServerHubPageAccess('/admin/verificaciones', 'infrastructure')
   const user = await getSessionUser()
   const gate = adminPageGate(user)
   if (gate === 'login') redirect('/login?callbackUrl=/admin/verificaciones')

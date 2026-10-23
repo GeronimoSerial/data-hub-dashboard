@@ -40,11 +40,12 @@ describe('GET /api/infraestructura/borradores/conteos', () => {
     expect(verificarAccesoLectura).not.toHaveBeenCalled()
   })
 
-  it('requires map read access', async () => {
-    vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 401 })
+  it('denies users without infrastructure access before loading map draft counts', async () => {
+    vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 403 })
     const { GET } = await import('./route')
     const response = await GET(request())
-    expect(response.status).toBe(401)
+    expect(response.status).toBe(403)
+    expect(verificarAccesoLectura).toHaveBeenCalledWith()
     expect(getDraftCounts).not.toHaveBeenCalled()
   })
 

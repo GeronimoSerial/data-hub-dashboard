@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Ruta from './route'
 import { cargarEventosTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { getSessionUser } from '@/lib/session'
+import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 
 // Factory puro para no arrastrar @/lib/session antes de fijar DATA_DIR.
 vi.mock('@/lib/session', () => ({
@@ -13,6 +14,9 @@ vi.mock('@/lib/session', () => ({
     }
     return null
   },
+}))
+vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
+  verificarAccesoLectura: vi.fn(async () => ({ ok: true, user: { id: 'staff', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })),
 }))
 
 vi.mock('@/lib/infraestructura/veredicto/eventos-terreno', () => ({
@@ -35,11 +39,18 @@ function req(query = '') {
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
+  vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user: { id: 'staff', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })
   vi.mocked(cargarEventosTerreno).mockReset()
   vi.mocked(cargarEventosTerreno).mockResolvedValue([])
 })
 
 describe('GET /api/infraestructura/veredictos/eventos', () => {
+  it('rechaza una sección de infraestructura deshabilitada con 403', async () => {
+    vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 403 })
+    const res = await GET(req('?desde=2026-10-01&hasta=2026-10-05'))
+    expect(res.status).toBe(403)
+    expect(vi.mocked(cargarEventosTerreno)).not.toHaveBeenCalled()
+  })
   it('rechaza sin sesión con 401', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     const res = await GET(req('?desde=2026-10-01&hasta=2026-10-05'))

@@ -3,6 +3,7 @@ import type * as Ruta from './route'
 import type { FilaVeredicto } from '@/lib/infraestructura/veredicto/repositorio'
 import { historialVeredicto } from '@/lib/infraestructura/veredicto/repositorio'
 import { getSessionUser } from '@/lib/session'
+import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 
 vi.mock('@/lib/session', () => ({
   getSessionUser: vi.fn(),
@@ -13,6 +14,9 @@ vi.mock('@/lib/session', () => ({
     }
     return null
   },
+}))
+vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
+  verificarAccesoLectura: vi.fn(async () => ({ ok: true, user: { id: 'staff', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })),
 }))
 
 vi.mock('@/lib/db/seed', () => ({
@@ -69,11 +73,18 @@ function req(query: string) {
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
+  vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user: { id: 'staff', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })
   vi.mocked(historialVeredicto).mockReset()
   vi.mocked(historialVeredicto).mockResolvedValue([])
 })
 
 describe('GET /api/infraestructura/veredictos/historial', () => {
+  it('rechaza una sección de infraestructura deshabilitada con 403', async () => {
+    vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 403 })
+    const res = await GET(req('?fecha=2026-10-12&ambito=provincia'))
+    expect(res.status).toBe(403)
+    expect(vi.mocked(historialVeredicto)).not.toHaveBeenCalled()
+  })
   it('rechaza sin sesión con 401', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     const res = await GET(req('?fecha=2026-10-12&ambito=provincia'))
