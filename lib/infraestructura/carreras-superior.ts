@@ -1,4 +1,4 @@
-import catalogo from '@/data/carreras-superior-2026.json'
+import catalogo from '../../data/carreras-superior-2026.json' with { type: 'json' }
 import { normalizeCue } from './cue'
 import type { CategoriaAfectacion } from './categorias'
 import type { AlcanceSecciones } from './consistencia-parte'
