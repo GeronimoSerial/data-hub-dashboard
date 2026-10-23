@@ -10,10 +10,10 @@ const errors: string[] = []
 function isExpectedResourceError(text: string, url: string) {
   // Deliberate wrong-password attempts (401) and Better Auth's shared-IP rate limit (429) on sign-in.
   if (url.includes('/api/auth/sign-in') && /status of (401|429) /.test(text)) return true
-  // Denied routes are asserted by status (hubRead, route denial); the page's own probes fail with 403.
-  if (url.includes('/api/') && /status of 403 /.test(text)) return true
-  // Infrastructure datasets are unpublished in this throwaway database, so the API answers 503 by design.
-  if (url.includes('/api/mapas/infraestructura/datasets/') && /status of 503 /.test(text)) return true
+  // The infrastructure test probes the catalog directly and asserts its 403 (hubRead).
+  if (new URL(url, 'http://localhost').pathname === '/api/hub' && /status of 403 /.test(text)) return true
+  // The departamentos dataset is unpublished in this throwaway database, so the API answers 503 by design.
+  if (url.endsWith('/api/mapas/infraestructura/datasets/departamentos') && /status of 503 /.test(text)) return true
   return false
 }
 
