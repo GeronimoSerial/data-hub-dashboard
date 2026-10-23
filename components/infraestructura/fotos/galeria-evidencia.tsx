@@ -199,6 +199,7 @@ export function GaleriaEvidencia({
         </section>
       ))}
       <LightGallery
+        className={styles.viewer}
         slides={gallerySlides}
         open={galleryOpen}
         index={galleryIndex}

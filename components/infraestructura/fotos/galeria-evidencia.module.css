@@ -167,3 +167,12 @@
 }
 .photos button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .photos img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Fullscreen portals use inline mode, whose default layers sit below the sticky school header. */
+.viewer:global(.lg-inline) :global(.lg-backdrop) {
+  z-index: var(--z-overlay);
+}
+
+.viewer:global(.lg-inline) :global(.lg-outer) {
+  z-index: var(--z-modal);
+}

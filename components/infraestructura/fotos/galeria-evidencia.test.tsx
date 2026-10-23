@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { GaleriaEvidencia } from './galeria-evidencia'
+import styles from './galeria-evidencia.module.css'
 
 const groups = [{
   id: 'movement-1',
@@ -79,11 +80,14 @@ describe('GaleriaEvidencia con LightGallery v3', () => {
     fireEvent(document, new Event('fullscreenchange'))
     await waitFor(() => expect(fullscreenRoot.querySelector('.lg-container')).not.toBeNull())
     expect(fullscreenRoot).toContainElement(document.querySelector('.lg-container'))
+    expect(fullscreenRoot.querySelector('.lg-container')).toHaveClass(styles.viewer, 'lg-inline')
 
     Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null })
     fireEvent(document, new Event('fullscreenchange'))
     await waitFor(() => expect(document.body).toContainElement(document.querySelector('.lg-container')))
     expect(fullscreenRoot.querySelector('.lg-container')).toBeNull()
+    expect(document.querySelector('.lg-container')).toHaveClass(styles.viewer)
+    expect(document.querySelector('.lg-container')).not.toHaveClass('lg-inline')
     expect(container).toContainElement(screen.getByRole('region', { name: 'Evidencia fotográfica' }))
     fullscreenRoot.remove()
     Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null })
