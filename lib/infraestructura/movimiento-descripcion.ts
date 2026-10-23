@@ -98,6 +98,9 @@ function lineasServicio(cambios: DiffServicioCambio[], secciones: SeccionEstable
     } else if (cambio.alcance.tipo === 'turno') {
       const nombre = cambio.alcance.etiqueta ?? cambio.alcance.referenciaId
       if (nombre) grupo.nombres.push(`turno ${nombre}`)
+    } else if (cambio.alcance.tipo === 'carrera') {
+      const nombre = cambio.alcance.etiqueta ?? cambio.alcance.referenciaId
+      if (nombre) grupo.nombres.push(`carrera ${nombre}`)
     }
   }
 
@@ -202,6 +205,7 @@ export function describirMovimiento(
     lineas.push(`Gravedad ${agregada.severidad}`)
     if (agregada.todaLaEscuela) lineas.push('Toda la escuela')
     else if (agregada.secciones > 0 || agregada.alumnos > 0) lineas.push(detalleAlcance(agregada.secciones, agregada.alumnos))
+    else if (agregada.carreras?.length) lineas.push(`Carreras afectadas: ${agregada.carreras.join(', ')}`)
     if (agregada.causadaPor) lineas.push(`Causado por "${agregada.causadaPor.motivo}"`)
   })
 
@@ -234,6 +238,8 @@ export function describirMovimiento(
         lineas.push(`Categoría de "${cambio.motivo}" actualizada`)
       } else if (campo.campo === 'descripcion') {
         lineas.push(`Descripción de "${cambio.motivo}" actualizada`)
+      } else if (campo.campo === 'carreras') {
+        lineas.push(`Carreras afectadas de "${cambio.motivo}" actualizadas: ${campo.de ?? 'ninguna'} → ${campo.a ?? 'ninguna'}`)
       }
     }
     if (cambio.seccionesConSeleccionCambiada.length > 0) {

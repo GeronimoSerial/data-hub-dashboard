@@ -165,10 +165,44 @@ describe('FichaEscuelaPagina', () => {
     expect(screen.getByTestId('seccion-historial-inline').textContent).toContain(
       'Se reportó Filtraciones en techo (Alta)',
     )
+    expect(screen.getByTestId('observacion-reporte')).toHaveTextContent('Observación registrada en el reporte:')
+    expect(screen.getByTestId('observacion-reporte').querySelector('blockquote p')?.textContent).toBe('Sector norte clausurado')
 
     // El botón nominal abre el modal de alumnos alcanzados
     fireEvent.click(screen.getByTestId('ver-alumnos-af-99'))
     expect(screen.getByTestId('mock-nominal-modal').textContent).toContain('Nominal af-99')
+  })
+
+  it('muestra las justificaciones de situaciones críticas principales y secundarias', () => {
+    mockUseFichaParte.mockReturnValue({
+      estado: {
+        fase: 'listo',
+        datos: {
+          periodo: null,
+          parte: null,
+          afectaciones: [
+            {
+              id: 'af-principal', motivo: 'Riesgo eléctrico', categoria: 'establecimiento', severidad: 'Crítica',
+              justificacionCritica: 'otro', justificacionCriticaDetalle: 'Cableado expuesto',
+              descripcion: null, causadaPorId: null, rigeDesde: '2026-04-10T08:00:00Z', creadaEn: '2026-04-10T08:00:00Z',
+              totales: { secciones: 0, alumnos: 0 },
+            },
+            {
+              id: 'af-secundaria', motivo: 'Sin agua', categoria: 'establecimiento', severidad: 'Crítica',
+              justificacionCritica: 'mas_personas', descripcion: null, causadaPorId: null,
+              rigeDesde: '2026-04-10T08:00:00Z', creadaEn: '2026-04-10T08:00:00Z', totales: { secciones: 0, alumnos: 0 },
+            },
+          ],
+          recientes: [],
+        },
+      },
+      historial: { fase: 'listo', movimientos: [] },
+    })
+
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ estado: 'afectada', gravedad: 4 })} mostrarEnlaceNominal={false} />)
+
+    expect(screen.getByText(/Cableado expuesto/)).toBeInTheDocument()
+    expect(screen.getByText(/Afecta a más personas o secciones de lo habitual/)).toBeInTheDocument()
   })
 
   it('muestra "Ir al mapa" en entrada directa sin origen=mapa, oculta enlace nominal si no tiene permiso y avisa falta de ubicación', () => {

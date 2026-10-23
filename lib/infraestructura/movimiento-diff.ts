@@ -34,6 +34,7 @@ export interface DiffAfectacionAgregada {
   severidad: Severidad
   secciones: number
   alumnos: number
+  carreras?: string[]
   /** Cubre completas todas las secciones del establecimiento. Ausente en diffs viejos. */
   todaLaEscuela?: boolean
   causadaPor?: { afectacionId: string; motivo: string }
@@ -69,7 +70,7 @@ export interface DiffAlcanceCambio {
 }
 
 export interface DiffCampoCambio {
-  campo: 'motivo' | 'categoria' | 'descripcion'
+  campo: 'motivo' | 'categoria' | 'descripcion' | 'carreras'
   de: string | null
   a: string | null
 }
@@ -214,6 +215,11 @@ function diffAlcanceAfectacion(
 
 function diffDatosAfectacion(antes: Afectacion, despues: Afectacion): DiffDatosCambio | null {
   const campos: DiffCampoCambio[] = []
+  const carrerasAntes = [...(antes.carreras ?? [])].sort().join('\n')
+  const carrerasDespues = [...(despues.carreras ?? [])].sort().join('\n')
+  if (carrerasAntes !== carrerasDespues) {
+    campos.push({ campo: 'carreras', de: carrerasAntes || null, a: carrerasDespues || null })
+  }
   if (antes.motivo !== despues.motivo) {
     campos.push({ campo: 'motivo', de: antes.motivo, a: despues.motivo })
   }
@@ -264,6 +270,7 @@ function diffAfectaciones(antes: Afectacion[], despues: Afectacion[], seccionesE
         severidad: afectacion.severidad,
         secciones,
         alumnos,
+        ...(afectacion.carreras?.length ? { carreras: [...afectacion.carreras] } : {}),
         ...(cubreTodaLaEscuela(afectacion, seccionesEstablecimiento) ? { todaLaEscuela: true } : {}),
       })
       continue

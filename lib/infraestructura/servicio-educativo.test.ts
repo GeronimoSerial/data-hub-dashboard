@@ -68,6 +68,19 @@ describe('calcularEstadoServicioGeneral', () => {
     expect(calcularEstadoServicioGeneral(alcance, secciones2A2B)).toBe('suspendido')
   })
 
+  it('resuelve suspensiones por carrera, con precedencia específica sobre el establecimiento', () => {
+    const carreras = ['Carrera A', 'Carrera B']
+    const alcance: ServicioAlcance[] = [
+      { ...BASE_FILA, id: 'establecimiento', tipo: 'establecimiento', referenciaId: null, estado: 'suspendido' },
+      { ...BASE_FILA, id: 'carrera-a', tipo: 'carrera', referenciaId: 'Carrera A', estado: 'normal' },
+    ]
+    expect(calcularEstadoServicioGeneral(alcance, [], carreras)).toBe('parcial')
+    expect(calcularEstadoServicioGeneral([
+      { ...BASE_FILA, id: 'carrera-a', tipo: 'carrera', referenciaId: 'Carrera A', estado: 'suspendido' },
+      { ...BASE_FILA, id: 'carrera-b', tipo: 'carrera', referenciaId: 'Carrera B', estado: 'suspendido' },
+    ], [], carreras)).toBe('suspendido')
+  })
+
   it('todas las secciones con clases normales explícitas da normal', () => {
     const alcance: ServicioAlcance[] = [
       { ...BASE_FILA, id: 'a', tipo: 'seccion', referenciaId: '1', estado: 'normal' },

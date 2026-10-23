@@ -79,6 +79,7 @@ const SEVERIDAD_SUGERIDA_POR_MOTIVO: Partial<Record<string, Severidad>> = {
   'sin-energia-o-agua': 'Media',
   'evacuacion-preventiva': 'Crítica',
   'inaccesibilidad-docentes': 'Alta',
+  'centro-evacuados': 'Crítica',
   anegamiento: 'Alta',
   'acceso-interrumpido': 'Alta',
 }

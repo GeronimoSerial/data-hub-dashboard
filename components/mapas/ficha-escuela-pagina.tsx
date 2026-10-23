@@ -7,6 +7,8 @@ import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actua
 import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
+import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
+import { ObservacionReporte } from './observacion-reporte'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
@@ -265,6 +267,7 @@ export function FichaEscuelaPagina({
     afectaciones.length > 0
       ? (afectaciones.find((afectacion) => afectacion.id === principal?.id) ?? afectaciones[0])
       : null
+  const justificacionIncidente = incidente ? presentarJustificacionCritica(incidente) : null
   const otrasAfectaciones = afectaciones.filter((afectacion) => afectacion.id !== incidente?.id)
   const severidadIncidente = incidente?.severidad ?? severidad
   const estadoEdificio = tieneParteRegistrado
@@ -396,9 +399,18 @@ export function FichaEscuelaPagina({
                   Situación activa · Gravedad {incidente.severidad.toLowerCase()}
                 </span>
                 <h2 className={styles.incidenteTitulo}>{incidente.motivo}</h2>
-                <p className={styles.incidenteTexto}>
-                  {incidente.descripcion ?? CATEGORIA_META[incidente.categoria].label}
-                </p>
+                {!incidente.descripcion && (
+                  <p className={styles.incidenteTexto}>
+                    {CATEGORIA_META[incidente.categoria].label}
+                  </p>
+                )}
+                <ObservacionReporte texto={incidente.descripcion} />
+                {justificacionIncidente && (
+                  <p className={styles.incidenteTexto}>
+                    <strong>Justificación de gravedad:</strong> {justificacionIncidente.etiqueta}
+                    {justificacionIncidente.detalle && ` · ${justificacionIncidente.detalle}`}
+                  </p>
+                )}
                 <div className={styles.incidenteMetricas}>
                   <div>
                     <p className={styles.metricaValor}>
@@ -440,6 +452,7 @@ export function FichaEscuelaPagina({
                 </h3>
                 {otrasAfectaciones.map((afectacion) => {
                   const causadaPor = afectaciones.find((otra) => otra.id === afectacion.causadaPorId)
+                  const justificacion = presentarJustificacionCritica(afectacion)
                   return (
                     <article className={styles.itemSecundario} key={afectacion.id}>
                       <div className={styles.itemSecundarioTop}>
@@ -455,6 +468,13 @@ export function FichaEscuelaPagina({
                           .filter(Boolean)
                           .join(' · ')}
                       </p>
+                      {justificacion && (
+                        <p className={styles.itemSecundarioTexto}>
+                          <strong>Justificación de gravedad:</strong> {justificacion.etiqueta}
+                          {justificacion.detalle && ` · ${justificacion.detalle}`}
+                        </p>
+                      )}
+                      <ObservacionReporte texto={afectacion.descripcion} />
                       {verAlumnos(afectacion.id, styles.linkAccion)}
                     </article>
                   )

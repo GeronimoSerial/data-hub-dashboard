@@ -406,6 +406,7 @@ export const infraAfectacion = pgTable(
     // sugería (spec rediseño §4.3). `detalle` sólo con justificación 'otro'.
     justificacionCritica: text('justificacion_critica'),
     justificacionCriticaDetalle: text('justificacion_critica_detalle'),
+    carreras: jsonb('carreras').$type<string[]>(),
     // Situación que provocó ésta (spec rediseño §4.4). Sin FK declarada: las
     // afectaciones nunca se borran y la causa puede vivir en otro parte
     // (otro período) de la misma escuela.
@@ -894,6 +895,35 @@ export const infraRiskRun = pgTable(
     check('infra_risk_run_modo_check', sql`${t.modo} IN ('operativo', 'candidato')`),
     check('infra_risk_run_candidato_no_vigente', sql`${t.modo} <> 'candidato' OR ${t.estado} <> 'vigente'`),
     check('infra_risk_run_vigente_solo_v04', sql`${t.estado} <> 'vigente' OR ${t.modeloVersion} = 'motor-v0.4'`),
+  ],
+)
+
+// Shared immutable Radar danger projection. The row is also its cross-process
+// lease: only the current owner may publish, and ready payloads are write-once.
+export const infraRadarRunCache = pgTable(
+  'infra_radar_run_cache',
+  {
+    cacheKey: text('cache_key').primaryKey(),
+    environment: text('environment').notNull(),
+    riskRunId: text('risk_run_id').notNull().references(() => infraRiskRun.id),
+    modeloVersion: text('modelo_version').notNull(),
+    publicadoEn: text('publicado_en').notNull(),
+    reglasVersion: text('reglas_version').notNull(),
+    referenciasFingerprint: text('referencias_fingerprint').notNull(),
+    estado: text('estado').notNull(),
+    leaseOwner: text('lease_owner'),
+    leaseExpiraEn: text('lease_expira_en'),
+    payload: jsonb('payload').$type<Record<string, unknown>>(),
+    creadaEn: text('creada_en').notNull(),
+    actualizadaEn: text('actualizada_en').notNull(),
+  },
+  (t) => [
+    index('infra_radar_run_cache_run_idx').on(t.riskRunId),
+    check('infra_radar_run_cache_estado_check', sql`${t.estado} IN ('building', 'ready', 'failed')`),
+    check(
+      'infra_radar_run_cache_payload_check',
+      sql`(${t.estado} = 'ready' AND ${t.payload} IS NOT NULL AND ${t.leaseOwner} IS NULL AND ${t.leaseExpiraEn} IS NULL) OR (${t.estado} = 'building' AND ${t.payload} IS NULL AND ${t.leaseOwner} IS NOT NULL AND ${t.leaseExpiraEn} IS NOT NULL) OR (${t.estado} = 'failed' AND ${t.payload} IS NULL AND ${t.leaseOwner} IS NULL AND ${t.leaseExpiraEn} IS NULL)`,
+    ),
   ],
 )
 

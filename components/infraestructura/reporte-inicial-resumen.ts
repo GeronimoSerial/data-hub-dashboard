@@ -20,11 +20,13 @@ export interface AfectacionResumen {
   secciones: number
   alumnos: number
   descripcion: string
+  carreras?: string[]
 }
 
 export interface ServicioResumen {
   estado: 'normal' | 'suspendido'
-  alcanceTipo: 'establecimiento' | 'turno' | 'seccion' | ''
+  alcanceTipo: 'establecimiento' | 'turno' | 'seccion' | 'carrera' | ''
+  carreras?: string[]
   turnos: string[]
   secciones: number
 }
@@ -60,6 +62,7 @@ export function describirAlcanceServicio(servicio: ServicioResumen): string {
 
   const etiqueta = ETIQUETA_SERVICIO.suspendido
   if (servicio.alcanceTipo === 'establecimiento') return `${etiqueta} en todo el establecimiento`
+  if (servicio.alcanceTipo === 'carrera') return `${etiqueta} en ${(servicio.carreras ?? []).join(', ')}`
   if (servicio.alcanceTipo === 'turno') {
     return servicio.turnos.length > 0
       ? `${etiqueta} en el turno ${servicio.turnos.join(', ')}`
@@ -83,7 +86,7 @@ export function armarResumen(entrada: EntradaResumen): FilaResumen[] {
 
   const lineas: FilaResumen[] = [
     { etiqueta: 'Situación', valor: afectacion.motivo, severidad: afectacion.severidad },
-    { etiqueta: 'Afecta a', valor: resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos }) },
+    { etiqueta: 'Afecta a', valor: afectacion.carreras?.length ? afectacion.carreras.join(', ') : resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos }) },
   ]
 
   const descripcion = afectacion.descripcion.trim()

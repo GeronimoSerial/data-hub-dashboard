@@ -7,6 +7,7 @@ import type {
   AsistenciaPedagogica,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
+  JustificacionCritica,
   SeccionEstablecimiento,
   ServicioAlcance,
   Severidad,
@@ -19,11 +20,14 @@ export interface AfectacionFicha {
   motivo: string
   categoria: Categoria
   severidad: Severidad
+  justificacionCritica?: JustificacionCritica
+  justificacionCriticaDetalle?: string
   descripcion: string | null
   causadaPorId: string | null
   rigeDesde: string
   creadaEn: string
   totales: { secciones: number; alumnos: number }
+  carreras?: string[]
 }
 
 export interface SolucionadaFicha {

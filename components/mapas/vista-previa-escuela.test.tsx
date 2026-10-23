@@ -92,6 +92,8 @@ describe('VistaPreviaEscuela', () => {
     expect(screen.getByText('Escuela N° 42 Belgrano')).toBeDefined()
     expect(screen.getByText(/CUE 1800123-00/)).toBeDefined()
     expect(screen.getByText('Inundación del patio')).toBeDefined()
+    expect(screen.getByTestId('observacion-reporte')).toHaveTextContent('Observación registrada en el reporte:')
+    expect(screen.getByTestId('observacion-reporte').querySelector('blockquote p')?.textContent).toBe('Agua en ingreso')
     expect(screen.getByText('Gravedad Alta')).toBeDefined()
     expect(screen.getByTestId('chip-sin-actualizar').textContent).toContain('Sin actualizar (>72 h)')
     expect(screen.getByTestId('preview-bloque-riesgo').textContent).toContain('4 situaciones históricas')

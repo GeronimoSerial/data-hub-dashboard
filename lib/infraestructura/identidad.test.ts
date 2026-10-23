@@ -2,7 +2,12 @@ import { randomBytes } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '../db'
-import { infraAfectacion, infraAfectacionSeccion, infraParte } from '../db/schema'
+import {
+  infraAfectacion,
+  infraAfectacionAlumno,
+  infraAfectacionSeccion,
+  infraParte,
+} from '../db/schema'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import {
   cifrarIdentidad,
@@ -123,13 +128,22 @@ describe('listarAfectadosNominal / consultarYRegistrarAfectados sobre el modelo 
       "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
     )
     await client.execute(
-      `INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 10, '${CUE}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
+      `INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES
+       (1, 10, '${CUE}', '1', 'A', 'PRIMARIA', 'MAÑANA'),
+       (1, 20, '${CUE}', '2', 'A', 'PRIMARIA', 'MAÑANA'),
+       (1, 30, '${CUE}', '3', 'A', 'PRIMARIA', 'MAÑANA'),
+       (1, 40, '${CUE}', '4', 'A', 'PRIMARIA', 'MAÑANA')`,
     )
-    await client.execute({
-      sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, ?)',
-      args: [7],
-    })
+    await client.execute(
+      `INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES
+       (1, 10, 7), (1, 10, 8),
+       (1, 20, 8), (1, 20, 9),
+       (1, 30, 7), (1, 30, 10)`,
+    )
     await importarIdentidad(client, 7, 'Facundo', 'Quiroga')
+    await importarIdentidad(client, 8, 'Manuela', 'Rosas')
+    await importarIdentidad(client, 9, 'Juana', 'Azurduy')
+    await importarIdentidad(client, 10, 'Martin', 'Güemes')
 
     const { ensureSeeded, PERIODO_ENOS_2026_2027_ID } = await import('../db/seed')
     await ensureSeeded()
@@ -160,13 +174,31 @@ describe('listarAfectadosNominal / consultarYRegistrarAfectados sobre el modelo 
       creadaEn: ahora,
       retiradaEn: null,
     })
-    await db.insert(infraAfectacionSeccion).values({ afectacionId, geSectionId: 10 })
+    await db.insert(infraAfectacionSeccion).values([
+      { afectacionId, geSectionId: 10 },
+      { afectacionId, geSectionId: 20 },
+      { afectacionId, geSectionId: 30 },
+      { afectacionId, geSectionId: 40 },
+    ])
+    // Sections 10 and 30 use their matching selections. The stale ID matches
+    // no membership, section 20 therefore keeps full membership, and 40 is empty.
+    await db.insert(infraAfectacionAlumno).values([
+      { afectacionId, gePersonId: 7 },
+      { afectacionId, gePersonId: 10 },
+      { afectacionId, gePersonId: 9999 },
+    ])
 
     const afectados = await listarAfectadosNominal(client, afectacionId)
-    expect(afectados?.cantidad).toBe(1)
-    expect(afectados?.secciones[0]?.alumnos).toEqual(
-      expect.arrayContaining([{ nombre: 'Facundo', apellido: 'Quiroga' }]),
-    )
+    expect(afectados?.cantidad).toBe(4)
+    expect(afectados?.secciones.map((seccion) => [
+      seccion.geSectionId,
+      seccion.alumnos.map(({ nombre }) => nombre).sort(),
+    ]).sort(([a], [b]) => Number(a) - Number(b))).toEqual([
+      [10, ['Facundo']],
+      [20, ['Juana', 'Manuela']],
+      [30, ['Facundo', 'Martin']],
+      [40, []],
+    ])
 
     const resultado = await consultarYRegistrarAfectados(
       client,
@@ -174,7 +206,7 @@ describe('listarAfectadosNominal / consultarYRegistrarAfectados sobre el modelo 
       afectacionId,
       new Date(),
     )
-    expect(resultado?.cantidad).toBe(1)
+    expect(resultado?.cantidad).toBe(4)
 
     const logs = await client.execute({
       sql: 'SELECT afectacion_id, cantidad FROM infra_acceso_nominal_log WHERE user_id = ?',
@@ -182,7 +214,7 @@ describe('listarAfectadosNominal / consultarYRegistrarAfectados sobre el modelo 
     })
     expect(logs.rows).toHaveLength(1)
     expect(logs.rows[0]?.afectacion_id).toBe(afectacionId)
-    expect(Number(logs.rows[0]?.cantidad)).toBe(1)
+    expect(Number(logs.rows[0]?.cantidad)).toBe(4)
 
     // Afectación inexistente: null, y sin fila huérfana de auditoría.
     const resultadoInexistente = await consultarYRegistrarAfectados(

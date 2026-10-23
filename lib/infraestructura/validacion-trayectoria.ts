@@ -59,6 +59,8 @@ const asistenciaPedagogicaSchema = z.object({
   brinda: z.boolean(),
   modalidades: z.array(z.enum(MODALIDADES_ASISTENCIA_PEDAGOGICA)).max(MODALIDADES_ASISTENCIA_PEDAGOGICA.length),
 }).refine((v) => v.brinda ? v.modalidades.length > 0 : v.modalidades.length === 0, 'Indique una modalidad si brinda asistencia pedagógica')
+const carrerasSchema = z.array(z.string().trim().min(1).max(500)).max(100)
+  .refine((carreras) => new Set(carreras).size === carreras.length, 'No repita carreras en la selección')
 
 // --- Afectaciones (spec §9) ---
 
@@ -68,12 +70,13 @@ export const afectacionNuevaInputSchema = z.object({
   justificacionCritica: z.enum(JUSTIFICACIONES_CRITICA).optional(),
   justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),
-  secciones: z.array(z.number().int().positive()).min(1, 'Debe incluir al menos una sección'),
+  secciones: z.array(z.number().int().positive()),
+  carreras: carrerasSchema.optional(),
   causadaPorId: z.string().trim().min(1).optional(),
   // Misma semántica que en problematicaInputSchema: sección sin alumnos acá =
   // sección completa.
   alumnos: z.array(z.number().int().positive()).optional(),
-})
+}).refine((a) => a.secciones.length > 0 || (a.carreras?.length ?? 0) > 0, 'Debe incluir al menos una sección o carrera')
 
 export type AfectacionNuevaInput = z.infer<typeof afectacionNuevaInputSchema>
 
@@ -88,6 +91,7 @@ export const afectacionModificacionInputSchema = z.object({
   justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),
   secciones: z.array(z.number().int().positive()).optional(),
+  carreras: carrerasSchema.optional(),
   alumnos: z.array(z.number().int().positive()).optional(),
 })
 
@@ -97,6 +101,7 @@ export type AfectacionModificacionInput = z.infer<typeof afectacionModificacionI
 
 export const servicioAlcanceInputSchema = z.discriminatedUnion('tipo', [
   z.object({ tipo: z.literal('establecimiento') }),
+  z.object({ tipo: z.literal('carrera'), carreras: carrerasSchema.min(1) }),
   z.object({
     tipo: z.literal('turno'),
     turnos: z.array(z.string().trim().min(1)).min(1, 'Debe incluir al menos un turno'),

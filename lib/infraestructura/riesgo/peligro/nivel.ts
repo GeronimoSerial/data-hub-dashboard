@@ -2,7 +2,7 @@
 // plan base §5.3). E3b (motor de riesgo v0) consume este puerto por su nombre
 // exacto de tipos y funciones — no renombrar sin decisión de N1.
 
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, like, lte, notLike, or, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import {
   hazardClimatology,
@@ -149,6 +149,50 @@ function percentilAproximado(
 
 type Db = ReturnType<typeof getDb>
 
+async function cargarUltimosUmbralesPorFuente(
+  db: Db,
+  geometryRefs: string[],
+  variable: 'precipitacion_diaria' | 'caudal_diario',
+  ahora?: Date,
+) {
+  if (geometryRefs.length === 0) return []
+  const columnas = {
+    geometryRef: hazardClimatology.geometryRef,
+    percentil: hazardClimatology.percentil,
+    valor: hazardClimatology.valor,
+    calculadoEn: hazardClimatology.calculadoEn,
+    version: hazardClimatology.version,
+    periodoDesde: hazardClimatology.periodoDesde,
+    periodoHasta: hazardClimatology.periodoHasta,
+    id: hazardClimatology.id,
+  }
+  const filtros = [
+    inArray(hazardClimatology.geometryRef, geometryRefs),
+    eq(hazardClimatology.variable, variable),
+    eq(hazardClimatology.muestra, MUESTRA_CLIMATOLOGIA),
+    inArray(hazardClimatology.percentil, [...PERCENTILES_CLIMATOLOGIA]),
+    ...(ahora ? [lte(hazardClimatology.calculadoEn, ahora.toISOString())] : []),
+  ]
+  const filasPorFuente = await Promise.all(
+    [like(hazardClimatology.version, 'climatologia-imerg%'), notLike(hazardClimatology.version, 'climatologia-imerg%')].map((fuente) =>
+      db
+        .selectDistinctOn([hazardClimatology.geometryRef, hazardClimatology.percentil], columnas)
+        .from(hazardClimatology)
+        .where(and(...filtros, fuente))
+        .orderBy(
+          hazardClimatology.geometryRef,
+          hazardClimatology.percentil,
+          desc(hazardClimatology.periodoHasta),
+          desc(hazardClimatology.version),
+          desc(hazardClimatology.calculadoEn),
+          desc(hazardClimatology.periodoDesde),
+          asc(hazardClimatology.id),
+        ),
+    ),
+  )
+  return filasPorFuente.flat()
+}
+
 type FilaConHorizonte = { corridaEn: string; horizonteHoras: number }
 
 /**
@@ -186,16 +230,6 @@ function elegirMasRecienteYHorizonte<T extends FilaConHorizonte>(
   })
 }
 
-/**
- * Consulta as-of: sólo cuentan las filas emitidas o calculadas en `ahora` o
- * antes (`corridaEn` de pronósticos, `calculadoEn` de climatología). Sin `ahora`
- * (lectura del momento actual) toda fila es vigente.
- */
-function emitidoHastaAhora(emitidoEn: string, ahora: Date | undefined): boolean {
-  if (ahora === undefined) return true
-  return Date.parse(emitidoEn) <= ahora.getTime()
-}
-
 async function cargarPronostico(
   db: Db,
   geometryRef: string,
@@ -204,6 +238,18 @@ async function cargarPronostico(
   toleranciaHoras?: number,
   ahora?: Date,
 ): Promise<{ valor: number; corridaEn: string; validoEn: string; horizonteHoras: number } | null> {
+  const [corrida] = await db
+    .selectDistinctOn([hazardForecast.geometryRef], { corridaEn: hazardForecast.corridaEn })
+    .from(hazardForecast)
+    .where(
+      and(
+        eq(hazardForecast.geometryRef, geometryRef),
+        eq(hazardForecast.variable, variable),
+        ...(ahora ? [lte(hazardForecast.corridaEn, ahora.toISOString())] : []),
+      ),
+    )
+    .orderBy(hazardForecast.geometryRef, desc(hazardForecast.corridaEn))
+  if (!corrida) return null
   const filas = await db
     .select({
       corridaEn: hazardForecast.corridaEn,
@@ -212,11 +258,14 @@ async function cargarPronostico(
       valor: hazardForecast.valor,
     })
     .from(hazardForecast)
-    .where(and(eq(hazardForecast.geometryRef, geometryRef), eq(hazardForecast.variable, variable)))
-  const fila = elegirMasRecienteYHorizonte(
-    filas.filter((f) => emitidoHastaAhora(f.corridaEn, ahora)),
-    objetivo,
-  )
+    .where(
+      and(
+        eq(hazardForecast.geometryRef, geometryRef),
+        eq(hazardForecast.variable, variable),
+        eq(hazardForecast.corridaEn, corrida.corridaEn),
+      ),
+    )
+  const fila = elegirMasRecienteYHorizonte(filas, objetivo)
   if (fila === null) return null
   // La tolerancia sólo aplica a un horizonte numérico puntual (ej. 240h); con
   // objetivo 'menor' (el caudal "actual") no hay una distancia que tolerar.
@@ -247,30 +296,8 @@ async function cargarUmbralesClimatologia(
   variable: 'precipitacion_diaria' | 'caudal_diario',
   ahora?: Date,
 ): Promise<{ p90: number; p95: number; p99: number } | null> {
-  const filas = await db
-    .select({
-      percentil: hazardClimatology.percentil,
-      valor: hazardClimatology.valor,
-      calculadoEn: hazardClimatology.calculadoEn,
-      version: hazardClimatology.version,
-    })
-    .from(hazardClimatology)
-    .where(
-      and(
-        eq(hazardClimatology.geometryRef, geometryRef),
-        eq(hazardClimatology.variable, variable),
-        eq(hazardClimatology.muestra, MUESTRA_CLIMATOLOGIA),
-        inArray(hazardClimatology.percentil, [...PERCENTILES_CLIMATOLOGIA]),
-      ),
-    )
-    .orderBy(
-      desc(hazardClimatology.periodoHasta),
-      desc(hazardClimatology.version),
-      desc(hazardClimatology.calculadoEn),
-    )
-
-  const filasVigentes = filas.filter((fila) => emitidoHastaAhora(fila.calculadoEn, ahora))
-  return elegirUmbralesClimatologia(filasVigentes)
+  const filas = await cargarUltimosUmbralesPorFuente(db, [geometryRef], variable, ahora)
+  return elegirUmbralesClimatologia(filas)
 }
 
 // ---------------------------------------------------------------------------
@@ -342,13 +369,15 @@ function acumularVentanaConRespaldo(
   hasta: number,
   coberturaMin: number,
   ahora: Date,
+  corridaMasReciente: string | undefined,
 ): { valor: number; corridaEn: string; validoEn: string; respaldoIngestaPrevia?: true } | null {
   const corridas = [...new Set(filas.map((f) => f.corridaEn))].sort(
     (a, b) => Date.parse(b) - Date.parse(a),
   )
   const edadMaxMs = EDAD_MAX_INGESTA_RESPALDO_V04_HORAS * 3_600_000
-  for (const [indice, corrida] of corridas.entries()) {
-    if (indice > 0 && ahora.getTime() - Date.parse(corrida) > edadMaxMs) return null
+  for (const corrida of corridas) {
+    const esCorridaMasReciente = corrida === corridaMasReciente
+    if (!esCorridaMasReciente && ahora.getTime() - Date.parse(corrida) > edadMaxMs) return null
     const acumulado = acumularVentana(
       filas.filter((f) => f.corridaEn === corrida),
       desde,
@@ -356,7 +385,7 @@ function acumularVentanaConRespaldo(
       coberturaMin,
     )
     if (acumulado === null) continue
-    return indice === 0 ? acumulado : { ...acumulado, respaldoIngestaPrevia: true }
+    return esCorridaMasReciente ? acumulado : { ...acumulado, respaldoIngestaPrevia: true }
   }
   return null
 }
@@ -367,32 +396,64 @@ function acumularVentanaConRespaldo(
 async function cargarFilasEnsemblePorLote(
   db: Db,
   geometryRefs: string[],
+  horizontes: HorizontePeligro[],
   ahora?: Date,
   reglas?: ReglasMotor,
 ): Promise<Map<string, FilaEnsemble[]>> {
   const porCelda = new Map<string, FilaEnsemble[]>()
   if (geometryRefs.length === 0) return porCelda
-  const filas = await db
-    .select({
+  const referencia = ahora ?? new Date()
+  const filtrosElegibles = [
+    inArray(hazardEnsembleProb.geometryRef, geometryRefs),
+    eq(hazardEnsembleProb.variable, VARIABLE_ENSEMBLE),
+    ...(ahora ? [lte(hazardEnsembleProb.corridaEn, ahora.toISOString())] : []),
+    ...(reglas === 'v0.4'
+      ? [gte(hazardEnsembleProb.corridaEn, new Date(referencia.getTime() - EDAD_MAX_ENSEMBLE_V04_HORAS * 3_600_000).toISOString())]
+      : []),
+  ]
+  const corridas = await db
+    .selectDistinctOn([hazardEnsembleProb.geometryRef], {
       geometryRef: hazardEnsembleProb.geometryRef,
       corridaEn: hazardEnsembleProb.corridaEn,
-      validoEn: hazardEnsembleProb.validoEn,
-      horizonteHoras: hazardEnsembleProb.horizonteHoras,
-      probabilidadP95: hazardEnsembleProb.probabilidadP95,
-      probabilidadP99: hazardEnsembleProb.probabilidadP99,
-      miembrosValidos: hazardEnsembleProb.miembrosValidos,
     })
     .from(hazardEnsembleProb)
-    .where(
-      and(
-        inArray(hazardEnsembleProb.geometryRef, geometryRefs),
-        eq(hazardEnsembleProb.variable, VARIABLE_ENSEMBLE),
-      ),
-    )
-  const referenciaMs = (ahora ?? new Date()).getTime()
+    .where(and(...filtrosElegibles))
+    .orderBy(hazardEnsembleProb.geometryRef, desc(hazardEnsembleProb.corridaEn))
+  if (corridas.length === 0) return porCelda
+  const filasPorHorizonte = await Promise.all(
+    horizontes.map((horizonte) =>
+      db
+        .selectDistinctOn([hazardEnsembleProb.geometryRef], {
+          geometryRef: hazardEnsembleProb.geometryRef,
+          corridaEn: hazardEnsembleProb.corridaEn,
+          validoEn: hazardEnsembleProb.validoEn,
+          horizonteHoras: hazardEnsembleProb.horizonteHoras,
+          probabilidadP95: hazardEnsembleProb.probabilidadP95,
+          probabilidadP99: hazardEnsembleProb.probabilidadP99,
+          miembrosValidos: hazardEnsembleProb.miembrosValidos,
+        })
+        .from(hazardEnsembleProb)
+        .where(
+          and(
+            inArray(hazardEnsembleProb.geometryRef, geometryRefs),
+            eq(hazardEnsembleProb.variable, VARIABLE_ENSEMBLE),
+            or(...corridas.map((corrida) => and(
+              eq(hazardEnsembleProb.geometryRef, corrida.geometryRef),
+              eq(hazardEnsembleProb.corridaEn, corrida.corridaEn),
+            ))),
+          ),
+        )
+        .orderBy(
+          hazardEnsembleProb.geometryRef,
+          sql`abs(${hazardEnsembleProb.horizonteHoras} - ${horizonte})`,
+          asc(hazardEnsembleProb.horizonteHoras),
+          asc(hazardEnsembleProb.validoEn),
+          asc(hazardEnsembleProb.id),
+        ),
+    ),
+  )
+  const filas = filasPorHorizonte.flat()
   for (const fila of filas) {
-    if (!emitidoHastaAhora(fila.corridaEn, ahora)) continue
-    if (reglas === 'v0.4' && referenciaMs - Date.parse(fila.corridaEn) > EDAD_MAX_ENSEMBLE_V04_HORAS * 3_600_000) continue
     const lista = porCelda.get(fila.geometryRef)
     if (lista === undefined) porCelda.set(fila.geometryRef, [fila])
     else lista.push(fila)
@@ -404,30 +465,99 @@ async function cargarPronosticosPorLote(
   db: Db,
   geometryRefs: string[],
   variable: 'precipitacion' | 'caudal',
+  horizontes: HorizontePeligro[],
   ahora?: Date,
-): Promise<Map<string, FilaPronostico[]>> {
+  reglas?: ReglasMotor,
+): Promise<{
+  filasPorCelda: Map<string, FilaPronostico[]>
+  corridaMasRecientePorCelda: Map<string, string>
+}> {
   const porCelda = new Map<string, FilaPronostico[]>()
-  if (geometryRefs.length === 0) return porCelda
-  const filas = await db
-    .select({
+  const corridaMasRecientePorCelda = new Map<string, string>()
+  if (geometryRefs.length === 0 || horizontes.length === 0) {
+    return { filasPorCelda: porCelda, corridaMasRecientePorCelda }
+  }
+  const filtrosBase = [
+    inArray(hazardForecast.geometryRef, geometryRefs),
+    eq(hazardForecast.variable, variable),
+    ...(ahora ? [lte(hazardForecast.corridaEn, ahora.toISOString())] : []),
+  ]
+  const corridas = await db
+    .selectDistinctOn([hazardForecast.geometryRef], {
       geometryRef: hazardForecast.geometryRef,
       corridaEn: hazardForecast.corridaEn,
-      validoEn: hazardForecast.validoEn,
-      horizonteHoras: hazardForecast.horizonteHoras,
-      valor: hazardForecast.valor,
-      pasoHoras: hazardForecast.pasoHoras,
     })
     .from(hazardForecast)
-    .where(
-      and(inArray(hazardForecast.geometryRef, geometryRefs), eq(hazardForecast.variable, variable)),
-    )
+    .where(and(...filtrosBase))
+    .orderBy(hazardForecast.geometryRef, desc(hazardForecast.corridaEn))
+  if (corridas.length === 0) return { filasPorCelda: porCelda, corridaMasRecientePorCelda }
+  for (const corrida of corridas) corridaMasRecientePorCelda.set(corrida.geometryRef, corrida.corridaEn)
+  const corridasMasRecientes = or(...corridas.map((corrida) => and(
+    eq(hazardForecast.geometryRef, corrida.geometryRef),
+    eq(hazardForecast.corridaEn, corrida.corridaEn),
+  )))
+  const filtroCorridas =
+    reglas === 'v0.4'
+      ? or(
+          gte(
+            hazardForecast.corridaEn,
+            new Date((ahora ?? new Date()).getTime() - EDAD_MAX_INGESTA_RESPALDO_V04_HORAS * 3_600_000).toISOString(),
+          ),
+          corridasMasRecientes,
+        )
+      : corridasMasRecientes
+  const filas = reglas === 'v0.4'
+    ? await db
+        .select({
+          geometryRef: hazardForecast.geometryRef,
+          corridaEn: hazardForecast.corridaEn,
+          validoEn: hazardForecast.validoEn,
+          horizonteHoras: hazardForecast.horizonteHoras,
+          valor: hazardForecast.valor,
+          pasoHoras: hazardForecast.pasoHoras,
+        })
+        .from(hazardForecast)
+        .where(
+          and(
+            ...filtrosBase,
+            filtroCorridas,
+            gt(hazardForecast.horizonteHoras, 0),
+            lte(hazardForecast.horizonteHoras, Math.max(...horizontes)),
+          ),
+        )
+    : (
+        await Promise.all(
+          horizontes.map((horizonte) =>
+            db
+              .selectDistinctOn([hazardForecast.geometryRef], {
+                geometryRef: hazardForecast.geometryRef,
+                corridaEn: hazardForecast.corridaEn,
+                validoEn: hazardForecast.validoEn,
+                horizonteHoras: hazardForecast.horizonteHoras,
+                valor: hazardForecast.valor,
+                pasoHoras: hazardForecast.pasoHoras,
+              })
+              .from(hazardForecast)
+              .where(and(...filtrosBase, corridasMasRecientes))
+              .orderBy(
+                hazardForecast.geometryRef,
+                sql`abs(${hazardForecast.horizonteHoras} - ${horizonte})`,
+                asc(hazardForecast.horizonteHoras),
+                // No expresa prioridad científica: si dos proveedores ofrecen
+                // el mismo horizonte, el nombre lexical hace estable la selección.
+                asc(hazardForecast.provider),
+                asc(hazardForecast.validoEn),
+                asc(hazardForecast.id),
+              ),
+          ),
+        )
+      ).flat()
   for (const fila of filas) {
-    if (!emitidoHastaAhora(fila.corridaEn, ahora)) continue
     const lista = porCelda.get(fila.geometryRef)
     if (lista === undefined) porCelda.set(fila.geometryRef, [fila])
     else lista.push(fila)
   }
-  return porCelda
+  return { filasPorCelda: porCelda, corridaMasRecientePorCelda }
 }
 
 async function cargarUmbralesPorLote(
@@ -438,34 +568,12 @@ async function cargarUmbralesPorLote(
 ): Promise<Map<string, { p90: number; p95: number; p99: number } | null>> {
   const porCelda = new Map<string, { p90: number; p95: number; p99: number } | null>()
   if (geometryRefs.length === 0) return porCelda
-  const filas = await db
-    .select({
-      geometryRef: hazardClimatology.geometryRef,
-      percentil: hazardClimatology.percentil,
-      valor: hazardClimatology.valor,
-      calculadoEn: hazardClimatology.calculadoEn,
-      version: hazardClimatology.version,
-    })
-    .from(hazardClimatology)
-    .where(
-      and(
-        inArray(hazardClimatology.geometryRef, geometryRefs),
-        eq(hazardClimatology.variable, variable),
-        eq(hazardClimatology.muestra, MUESTRA_CLIMATOLOGIA),
-        inArray(hazardClimatology.percentil, [...PERCENTILES_CLIMATOLOGIA]),
-      ),
-    )
-    .orderBy(
-      desc(hazardClimatology.periodoHasta),
-      desc(hazardClimatology.version),
-      desc(hazardClimatology.calculadoEn),
-    )
+  const filas = await cargarUltimosUmbralesPorFuente(db, geometryRefs, variable, ahora)
 
   // El orderBy global ordena TODAS las filas del lote; el orden se conserva al
   // agrupar por celda, así cada celda recibe sus filas ya ordenadas por recencia.
   const filasPorCelda = new Map<string, Array<(typeof filas)[number]>>()
   for (const fila of filas) {
-    if (!emitidoHastaAhora(fila.calculadoEn, ahora)) continue
     const lista = filasPorCelda.get(fila.geometryRef)
     if (lista === undefined) filasPorCelda.set(fila.geometryRef, [fila])
     else lista.push(fila)
@@ -494,6 +602,7 @@ function calcularNivelCeldaSync(
   ahora: Date,
   filasEnsemble: FilaEnsemble[] | undefined,
   filasPronostico: FilaPronostico[] | undefined,
+  corridaMasRecientePronostico: string | undefined,
   umbrales: { p90: number; p95: number; p99: number } | null | undefined,
   reglas?: ReglasMotor,
 ): NivelPeligroCelda {
@@ -546,6 +655,7 @@ function calcularNivelCeldaSync(
             horizonte,
             COBERTURA_MIN_VENTANA_V04_HORAS,
             ahora,
+            corridaMasRecientePronostico,
           )
         : acumularVentanaConRespaldo(
             filasPronostico ?? [],
@@ -553,6 +663,7 @@ function calcularNivelCeldaSync(
             horizonte,
             horizonte - (24 - COBERTURA_MIN_VENTANA_V04_HORAS),
             ahora,
+            corridaMasRecientePronostico,
           )
       : candidato !== null &&
           !(tolerancia !== undefined && Math.abs(candidato.horizonteHoras - horizonte) > tolerancia)
@@ -656,17 +767,26 @@ export async function obtenerNivelesPeligro(opts?: {
   // Con 0 celdas no se toca la DB: `inArray` con array vacío no es confiable.
   if (geometryRefs.length === 0) return []
 
-  // Lecturas por lote: a lo sumo 3 consultas para TODAS las celdas, en vez de
-  // hasta `celdas * horizontes * 3` consultas individuales.
+  // Lecturas por lote para todas las celdas: v0.3 devuelve como máximo una fila
+  // por celda/horizonte; v0.4 conserva las filas de ventanas acumulables de la
+  // corrida más reciente y sus respaldos vigentes. No se limita la cobertura.
   const usaEnsemble = horizontes.some((horizonte) => horizonte !== 240)
   const filasEnsemblePorCelda = usaEnsemble
-    ? await cargarFilasEnsemblePorLote(db, geometryRefs, opts?.ahora, opts?.reglas)
+    ? await cargarFilasEnsemblePorLote(
+        db,
+        geometryRefs,
+        horizontes.filter((horizonte) => horizonte !== 240),
+        opts?.ahora,
+        opts?.reglas,
+      )
     : new Map<string, FilaEnsemble[]>()
-  const pronosticosPorCelda = await cargarPronosticosPorLote(
+  const pronosticos = await cargarPronosticosPorLote(
     db,
     geometryRefs,
     VARIABLE_PRONOSTICO_PRECIPITACION,
+    horizontes,
     opts?.ahora,
+    opts?.reglas,
   )
   const umbralesPorCelda = await cargarUmbralesPorLote(
     db,
@@ -684,7 +804,8 @@ export async function obtenerNivelesPeligro(opts?: {
           horizonte,
           ahora,
           filasEnsemblePorCelda.get(geometryRef),
-          pronosticosPorCelda.get(geometryRef),
+          pronosticos.filasPorCelda.get(geometryRef),
+          pronosticos.corridaMasRecientePorCelda.get(geometryRef),
           umbralesPorCelda.get(geometryRef) ?? null,
           opts?.reglas,
         ),
@@ -754,6 +875,18 @@ async function cargarMaximoCaudalVentana(
   horizonte: HorizontePeligro,
   ahora?: Date,
 ): Promise<{ valor: number; corridaEn: string; validoEn: string } | null> {
+  const [corrida] = await db
+    .selectDistinctOn([hazardForecast.geometryRef], { corridaEn: hazardForecast.corridaEn })
+    .from(hazardForecast)
+    .where(
+      and(
+        eq(hazardForecast.geometryRef, puntoId),
+        eq(hazardForecast.variable, VARIABLE_PRONOSTICO_CAUDAL),
+        ...(ahora ? [lte(hazardForecast.corridaEn, ahora.toISOString())] : []),
+      ),
+    )
+    .orderBy(hazardForecast.geometryRef, desc(hazardForecast.corridaEn))
+  if (!corrida) return null
   const filas = await db
     .select({
       corridaEn: hazardForecast.corridaEn,
@@ -762,12 +895,16 @@ async function cargarMaximoCaudalVentana(
       valor: hazardForecast.valor,
     })
     .from(hazardForecast)
-    .where(and(eq(hazardForecast.geometryRef, puntoId), eq(hazardForecast.variable, VARIABLE_PRONOSTICO_CAUDAL)))
-  const ventana = filasVentanaCorridaReciente(
-    filas.filter((f) => emitidoHastaAhora(f.corridaEn, ahora)),
-    -1,
-    horizonte,
-  )
+    .where(
+      and(
+        eq(hazardForecast.geometryRef, puntoId),
+        eq(hazardForecast.variable, VARIABLE_PRONOSTICO_CAUDAL),
+        eq(hazardForecast.corridaEn, corrida.corridaEn),
+        gt(hazardForecast.horizonteHoras, -1),
+        lte(hazardForecast.horizonteHoras, horizonte),
+      ),
+    )
+  const ventana = filas.length === 0 ? null : filas
   if (ventana === null) return null
   return ventana.reduce((max, f) => (f.valor > max.valor ? f : max))
 }

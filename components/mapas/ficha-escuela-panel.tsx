@@ -8,6 +8,7 @@ import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestr
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
+import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa, valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
@@ -24,6 +25,7 @@ import { BorradoresPendientes } from '@/components/infraestructura/borradores/bo
 import { GaleriaEvidencia } from '@/components/infraestructura/fotos/galeria-evidencia'
 import { VistaPreviaEscuela, type VistaPreviaEscuelaProps } from './vista-previa-escuela'
 import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
+import { ObservacionReporte } from './observacion-reporte'
 
 interface FichaEscuelaPanelProps {
   escuela: EscuelaMapaEnriquecida
@@ -175,6 +177,14 @@ export function FichaEscuelaPanel({
                   motivo: a.motivo,
                   categoria: a.categoria,
                   severidad: a.severidad,
+                  ...(a.justificacionCritica
+                    ? {
+                        justificacionCritica: a.justificacionCritica,
+                        ...(a.justificacionCritica === 'otro' && a.justificacionCriticaDetalle
+                          ? { justificacionCriticaDetalle: a.justificacionCriticaDetalle }
+                          : {}),
+                      }
+                    : {}),
                   descripcion: a.descripcion,
                   rigeDesde: a.rigeDesde,
                   creadaEn: a.creadaEn,
@@ -261,6 +271,7 @@ export function FichaEscuelaPanel({
               {afectaciones.map((afectacion) => {
                 const causadaPor = afectaciones.find((otra) => otra.id === afectacion.causadaPorId)
                 const rigeDesde = formatearMomentoHistorial(afectacion.rigeDesde).replace(/^Hoy/, 'hoy')
+                const justificacionCritica = presentarJustificacionCritica(afectacion)
                 return (
                   <div className="map-ficha-escuela__situacion" key={afectacion.id}>
                     <h3>{afectacion.motivo}</h3>
@@ -269,7 +280,8 @@ export function FichaEscuelaPanel({
                       <dt>Alcance</dt><dd>{resumirAlcance(afectacion.totales)}</dd>
                       {rigeDesde && <><dt>Desde</dt><dd>{rigeDesde}</dd></>}
                       {causadaPor && <><dt>Causada por</dt><dd>{causadaPor.motivo}</dd></>}
-                      {afectacion.descripcion && <><dt>Descripción</dt><dd>{afectacion.descripcion}</dd></>}
+                      {justificacionCritica && <><dt>Justificación de gravedad</dt><dd>{justificacionCritica.etiqueta}</dd></>}
+                      {justificacionCritica?.detalle && <><dt>Detalle de la justificación</dt><dd>{justificacionCritica.detalle}</dd></>}
                       <dt>Categoría</dt><dd>{CATEGORIA_META[afectacion.categoria].label}</dd>
                       {mostrarEnlaceNominal && (
                         <dd className="map-ficha-escuela__accion">
@@ -279,6 +291,7 @@ export function FichaEscuelaPanel({
                         </dd>
                       )}
                     </dl>
+                    <ObservacionReporte texto={afectacion.descripcion} />
                   </div>
                 )
               })}

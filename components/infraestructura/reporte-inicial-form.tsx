@@ -38,6 +38,7 @@ import { Opcion } from '@/components/ui/opcion'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
+import { alcanceDeCarreras, carrerasDelCue, validarAlcanceCarreras } from '@/lib/infraestructura/carreras-superior'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import { JUSTIFICACIONES_CRITICA } from '@/lib/infraestructura/justificacion-critica'
@@ -140,8 +141,8 @@ function respuestasDeConsistencia(datos: {
   const alcance: AlcanceSecciones | null =
     afectacion.alcanceEstablecimiento === 'toda'
       ? { tipo: 'toda' }
-      : afectacion.secciones.length > 0
-        ? { tipo: 'algunas', secciones: afectacion.secciones.length }
+      : afectacion.secciones.length + (afectacion.carreras?.length ?? 0) > 0
+        ? { tipo: 'algunas', secciones: afectacion.secciones.length + (afectacion.carreras?.length ?? 0) }
         : null
   return {
     categoria: afectacion.categoria || null,
@@ -241,6 +242,7 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   }
   if (!Array.isArray(a.secciones) || !a.secciones.every((n) => typeof n === 'number')) return false
   if (!Array.isArray(a.alumnos) || !a.alumnos.every((n) => typeof n === 'number')) return false
+  if (a.carreras !== undefined && (!Array.isArray(a.carreras) || !a.carreras.every((c) => typeof c === 'string'))) return false
   if (a.justificacionCritica !== undefined && a.justificacionCritica !== '' && !JUSTIFICACIONES_CRITICA.includes(a.justificacionCritica as (typeof JUSTIFICACIONES_CRITICA)[number])) return false
   if (a.justificacionCriticaDetalle !== undefined && typeof a.justificacionCriticaDetalle !== 'string') return false
   if (a.alcanceEstablecimiento !== undefined && a.alcanceEstablecimiento !== '' && a.alcanceEstablecimiento !== 'toda' && a.alcanceEstablecimiento !== 'algunas') return false
@@ -288,6 +290,7 @@ function sincronizarHistorialTrasRestaurar(
  * vacías, igual que antes.
  */
 export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: ReporteInicialFormProps): JSX.Element {
+  const carreras = carrerasDelCue(cue)
   const almacenRef = useRef<Promise<AlmacenClaveValor> | null>(null)
   function almacen(): Promise<AlmacenClaveValor> {
     almacenRef.current ??= crearAlmacenParte()
@@ -518,6 +521,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           justificacionCriticaDetalle: justificacionRequerida ? afectacion.justificacionCriticaDetalle || undefined : undefined,
           descripcion: afectacion.descripcion.trim() || undefined,
           secciones: afectacion.secciones,
+          ...(carreras.length > 0 ? { carreras: afectacion.carreras ?? [] } : {}),
           alumnos: afectacion.alumnos.length > 0 ? afectacion.alumnos : undefined,
         },
       ],
@@ -531,7 +535,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           ? undefined
           : {
               estado: servicioEstado,
-              alcance: { tipo: 'seccion' as const, secciones: afectacion.secciones },
+              alcance: carreras.length > 0
+                ? { tipo: 'carrera' as const, carreras: afectacion.carreras ?? [] }
+                : { tipo: 'seccion' as const, secciones: afectacion.secciones },
             },
       estadoEstablecimiento:
         afectacion.categoria === 'alumnos' || estadoEstablecimiento === ''
@@ -763,7 +769,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   // usa el servidor para decidir si la justificación de Crítica hace falta.
   function sugeridaDeAfectacion(a: AfectacionBorrador): Severidad | null {
     const motivoId = motivos.find((m) => m.nombre === a.motivo)?.id ?? null
-    return severidadSugeridaPorAlcance(motivoId, alcanceDeSecciones(a.secciones, aplanarSecciones(turnos).map((s) => s.geSectionId)))
+    return severidadSugeridaPorAlcance(motivoId, carreras.length > 0 ? alcanceDeCarreras(a.carreras ?? [], carreras) : alcanceDeSecciones(a.secciones, aplanarSecciones(turnos).map((s) => s.geSectionId)))
   }
 
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
@@ -790,6 +796,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       return completo ? null : MENSAJE_FALTA_QUE_PASO
     }
     if (actual === 2) {
+      if (carreras.length > 0) {
+        return validarAlcanceCarreras(cue, 'establecimiento', { carreras: afectacion.carreras ?? [] }, true)
+      }
       if (afectacion.categoria === 'establecimiento' && afectacion.alcanceEstablecimiento === '') {
         return MENSAJE_FALTA_ALCANCE_AFECTACION
       }
@@ -906,13 +915,15 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       secciones: afectacion.secciones.length,
       alumnos: totalAlumnosDe(afectacion, turnos),
       descripcion: afectacion.descripcion,
+      carreras: afectacion.carreras,
     },
     servicio:
       afectacion.categoria === 'alumnos' || servicioEstado === ''
         ? null
         : {
             estado: servicioEstado,
-            alcanceTipo: 'seccion',
+            alcanceTipo: carreras.length > 0 ? 'carrera' : 'seccion',
+            carreras: afectacion.carreras,
             turnos: [],
             secciones: afectacion.secciones.length,
           },
@@ -979,6 +990,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       <section className="asistente__cuerpo" aria-labelledby="asistente-paso-titulo">
         {paso === 1 && (
           <CamposQuePaso
+            esSuperior={carreras.length > 0}
             borrador={afectacion}
             idPrefijo="reporte"
             motivos={motivos}
@@ -1020,6 +1032,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
 
         {paso === 2 && (
           <CamposAQuienAfecta
+            carreras={carreras}
             borrador={afectacion}
             idPrefijo="reporte"
             turnos={turnos}
@@ -1051,6 +1064,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
                   ...a,
                   alcanceEstablecimiento: 'toda',
                   secciones: aplanarSecciones(turnos).map((s) => s.geSectionId),
+                  ...(carreras.length > 0 ? { carreras: [...carreras] } : {}),
                 }))
                 setConfirmarInterrupcionTotal(true)
               }}

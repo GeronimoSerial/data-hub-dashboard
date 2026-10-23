@@ -22,6 +22,8 @@ import { severidadDelMovimiento } from './severidad-movimiento'
 import type { DiffParte } from './movimiento-diff'
 import { listarSeccionesDelCue } from './secciones-cue'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
+import { carrerasDelCue } from './carreras-superior'
+import { esJustificacionCritica } from './justificacion-critica'
 import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import type {
@@ -177,6 +179,10 @@ async function cargarAfectaciones(
       }
       return { geSectionId, seccionCompleta: true, alumnos: [...matriculados] }
     })
+    const justificacionCritica =
+      fila.severidad === 'Crítica' && esJustificacionCritica(fila.justificacionCritica)
+        ? fila.justificacionCritica
+        : undefined
 
     return {
       id: fila.id,
@@ -185,11 +191,20 @@ async function cargarAfectaciones(
       motivo: fila.motivo,
       categoria: fila.categoria as Categoria,
       severidad: fila.severidad as Severidad,
+      ...(justificacionCritica
+        ? {
+            justificacionCritica,
+            ...(justificacionCritica === 'otro' && fila.justificacionCriticaDetalle?.trim()
+              ? { justificacionCriticaDetalle: fila.justificacionCriticaDetalle }
+              : {}),
+          }
+        : {}),
       descripcion: fila.descripcion,
       rigeDesde: fila.rigeDesde,
       creadaEn: fila.creadaEn,
       retiradaEn: fila.retiradaEn,
       secciones,
+      ...(fila.carreras ? { carreras: fila.carreras } : {}),
     }
   })
 }
@@ -307,6 +322,9 @@ export function snapshotDesde(actual: ParteActual, referencia?: Date | string): 
 // resuelva nombres — hoy sólo la ruta del director — pueda hacerlo; el
 // llamador del mapa (F3.2) descarta ese campo antes de responder.
 export interface AfectacionFicha {
+  carreras?: string[]
+  justificacionCritica?: Afectacion['justificacionCritica']
+  justificacionCriticaDetalle?: Afectacion['justificacionCriticaDetalle']
   id: string
   motivo: string
   categoria: Categoria
@@ -347,7 +365,7 @@ export async function armarFichaParte(cueAnexo: string, corteId: number): Promis
   if (!actual) return null
 
   const snapshot = snapshotDesde(actual)
-  const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, actual.secciones)
+  const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, actual.secciones, carrerasDelCue(cueAnexo))
 
   const afectaciones: AfectacionFicha[] = snapshot.afectaciones.map((afectacion) => {
     const alumnosUnicos = new Set<number>()
@@ -359,11 +377,20 @@ export async function armarFichaParte(cueAnexo: string, corteId: number): Promis
       motivo: afectacion.motivo,
       categoria: afectacion.categoria,
       severidad: afectacion.severidad,
+      ...(afectacion.justificacionCritica
+        ? {
+            justificacionCritica: afectacion.justificacionCritica,
+            ...(afectacion.justificacionCritica === 'otro' && afectacion.justificacionCriticaDetalle
+              ? { justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle }
+              : {}),
+          }
+        : {}),
       descripcion: afectacion.descripcion,
       rigeDesde: afectacion.rigeDesde,
       creadaEn: afectacion.creadaEn,
       causadaPorId: afectacion.causadaPorId ?? null,
       secciones: afectacion.secciones,
+      ...(afectacion.carreras ? { carreras: afectacion.carreras } : {}),
       totales: { secciones: afectacion.secciones.length, alumnos: alumnosUnicos.size },
     }
   })

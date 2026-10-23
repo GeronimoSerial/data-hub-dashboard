@@ -6,6 +6,7 @@ import { Clock, MapPinOff, X } from 'lucide-react'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
+import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
@@ -17,6 +18,7 @@ import { DESCRIPCIONES_AISLAMIENTO } from '@/lib/mapas/accesos-capas'
 import { etiquetaKm, etiquetaSuperficie, type SuperficieVia } from '@/lib/infraestructura/mapa/acceso'
 import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
 import styles from './vista-previa-escuela.module.css'
+import { ObservacionReporte } from './observacion-reporte'
 
 export interface VistaPreviaEscuelaProps {
   escuela: EscuelaMapaEnriquecida & {
@@ -83,6 +85,7 @@ export function VistaPreviaEscuela({
           })),
         )
       : null
+  const justificacionPrincipal = principal ? presentarJustificacionCritica(principal) : null
 
   const categoriaLabel = principal
     ? CATEGORIA_META[principal.categoria].label
@@ -179,6 +182,13 @@ export function VistaPreviaEscuela({
                 {categoriaLabel ? ` · ${categoriaLabel}` : ''}
                 {principal ? ` · desde ${desde(principal.rigeDesde)}` : ''}
               </p>
+              {justificacionPrincipal && (
+                <p className={styles.situacionMeta} data-testid="preview-justificacion-critica">
+                  <strong>Justificación de gravedad:</strong> {justificacionPrincipal.etiqueta}
+                  {justificacionPrincipal.detalle && ` · ${justificacionPrincipal.detalle}`}
+                </p>
+              )}
+              {principal && <ObservacionReporte texto={principal.descripcion} />}
                 </>
               )}
             </div>

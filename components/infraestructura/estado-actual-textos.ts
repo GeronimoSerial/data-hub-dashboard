@@ -52,6 +52,7 @@ export interface AfectacionVigente {
   rigeDesde: string
   creadaEn: string
   causadaPorId: string | null
+  carreras?: string[]
   secciones: SeccionAfectada[]
   totales: TotalesAfectacion
 }

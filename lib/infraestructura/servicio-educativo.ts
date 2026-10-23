@@ -18,7 +18,14 @@ import type {
 export function calcularEstadoServicioGeneral(
   alcanceVigente: ServicioAlcance[],
   secciones: SeccionEstablecimiento[],
+  carreras: readonly string[] = [],
 ): EstadoServicioGeneral {
+  if (carreras.length > 0) {
+    const recientes = [...alcanceVigente].sort((a, b) => b.creadaEn.localeCompare(a.creadaEn) || b.id.localeCompare(a.id))
+    const establecimiento = recientes.find((fila) => fila.tipo === 'establecimiento')
+    const suspendidas = carreras.filter((carrera) => (recientes.find((fila) => fila.tipo === 'carrera' && fila.referenciaId === carrera)?.estado ?? establecimiento?.estado ?? 'normal') === 'suspendido').length
+    return suspendidas === 0 ? 'normal' : suspendidas === carreras.length ? 'suspendido' : 'parcial'
+  }
   // Sin roster nominal, una suspensión por turno sigue siendo parcial: el
   // alcance es operativo y no depende de contar alumnos. Una suspensión de
   // establecimiento sí aplica a toda la escuela.

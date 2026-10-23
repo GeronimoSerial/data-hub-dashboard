@@ -11,8 +11,9 @@
 
 import type { Severidad } from './validacion'
 import type { CategoriaAfectacion as Categoria } from './categorias'
+import type { JustificacionCritica } from './justificacion-critica'
 
-export type { Severidad, Categoria }
+export type { Severidad, Categoria, JustificacionCritica }
 
 // --- Enums / uniones (mismos nombres que CONTRACT.md) ---
 
@@ -39,7 +40,7 @@ export interface AsistenciaPedagogica {
 // una opción de carga, ver EstadoServicioGeneral más abajo.
 export type ServicioEstado = 'normal' | 'suspendido'
 
-export type ServicioAlcanceTipo = 'establecimiento' | 'turno' | 'seccion'
+export type ServicioAlcanceTipo = 'establecimiento' | 'turno' | 'seccion' | 'carrera'
 
 export type TipoMovimiento =
   | 'reporte_inicial'
@@ -98,9 +99,12 @@ export interface Afectacion extends FilaConVigencia {
   motivo: string
   categoria: Categoria
   severidad: Severidad
+  justificacionCritica?: JustificacionCritica
+  justificacionCriticaDetalle?: string
   descripcion: string | null
   creadaEn: string
   secciones: AfectacionAlcanceSeccion[]
+  carreras?: string[]
 }
 
 export interface SituacionReciente {

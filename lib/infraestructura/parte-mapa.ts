@@ -29,6 +29,7 @@ import type {
   AsistenciaPedagogica,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
+  JustificacionCritica,
   ServicioAlcance,
 } from './trayectoria-tipos'
 import { esModalidadAsistenciaPedagogica } from './trayectoria-tipos'
@@ -60,6 +61,8 @@ export interface AfectacionMapa {
   motivo: string
   categoria: CategoriaAfectacion
   severidad: Severidad
+  justificacionCritica?: JustificacionCritica
+  justificacionCriticaDetalle?: string
   descripcion: string | null
   rigeDesde: string
   creadaEn: string
@@ -984,4 +987,3 @@ export async function obtenerEscuelaFichaEnriquecida(
     },
   }
 }
-

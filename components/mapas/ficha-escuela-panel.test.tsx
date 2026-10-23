@@ -60,6 +60,7 @@ function renderFicha(opciones: {
   onCerrar?: () => void
   onVerAlumnosAlcanzados?: (id: string) => void
   onVerHistorialCompleto?: () => void
+  urlFichaCompleta?: string
 } = {}) {
   return render(
     <FichaEscuelaPanel
@@ -69,6 +70,7 @@ function renderFicha(opciones: {
       onCerrar={opciones.onCerrar ?? vi.fn()}
       onVerAlumnosAlcanzados={opciones.onVerAlumnosAlcanzados ?? vi.fn()}
       onVerHistorialCompleto={opciones.onVerHistorialCompleto ?? vi.fn()}
+      urlFichaCompleta={opciones.urlFichaCompleta}
     />,
   )
 }
@@ -159,10 +161,42 @@ describe('FichaEscuelaPanel', () => {
     expect(situaciones).toHaveTextContent('2 secciones · 30 alumnos')
     expect(situaciones).toHaveTextContent('Desde2 de octubre, 12:00')
     expect(situaciones).toHaveTextContent('Causada porInundación')
-    expect(situaciones).toHaveTextContent('DescripciónDos aulas sin acceso')
+    expect(situaciones).toHaveTextContent('Observación registrada en el reporte:Dos aulas sin acceso')
+    expect(situaciones?.querySelector('blockquote p')?.textContent).toBe('Dos aulas sin acceso')
     expect(situaciones).not.toHaveTextContent('Afecta')
     expect(situaciones?.querySelectorAll('strong')).toHaveLength(1)
     expect(situaciones).toHaveTextContent('Última novedad: hace 3 h')
+  })
+
+  it('muestra la justificación crítica y el detalle de otro, pero omite justificaciones no críticas', async () => {
+    instalarFetch({ situaciones: [
+      { ...afectaciones[0], severidad: 'Crítica', justificacionCritica: 'mas_personas' },
+      { ...afectaciones[0], id: 'afectacion-2', motivo: 'Riesgo eléctrico', severidad: 'Crítica', justificacionCritica: 'otro', justificacionCriticaDetalle: 'Cableado expuesto' },
+      { ...afectaciones[0], id: 'afectacion-3', motivo: 'Filtración', justificacionCritica: 'riesgo_fisico' },
+    ] })
+    renderFicha()
+
+    const situaciones = (await screen.findByText('Situaciones (3 abiertas)')).closest('details')
+    expect(situaciones).toHaveTextContent('Justificación de gravedadAfecta a más personas o secciones de lo habitual')
+    expect(situaciones).toHaveTextContent('Justificación de gravedadOtro')
+    expect(situaciones).toHaveTextContent('Detalle de la justificaciónCableado expuesto')
+    expect(screen.getAllByText('Justificación de gravedad')).toHaveLength(2)
+  })
+
+  it('muestra la justificación en la vista previa usada cuando hay enlace a la ficha completa', async () => {
+    instalarFetch({ situaciones: [
+      {
+        ...afectaciones[0],
+        severidad: 'Crítica',
+        justificacionCritica: 'otro',
+        justificacionCriticaDetalle: 'Cableado expuesto',
+      },
+    ] })
+    renderFicha({ escuela: { ...escuela, gravedad: 4 }, urlFichaCompleta: '/escuelas/180000123-00' })
+
+    const justificacion = await screen.findByTestId('preview-justificacion-critica')
+    expect(justificacion).toHaveTextContent('Justificación de gravedad: Otro · Cableado expuesto')
+    expect(screen.getByTestId('vista-previa-escuela')).toBeInTheDocument()
   })
 
   it('muestra las situaciones solucionadas recientes con gravedad y fecha absoluta', async () => {

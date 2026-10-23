@@ -17,6 +17,7 @@ export interface CambioSituacion {
   justificacionCritica?: JustificacionCritica
   justificacionCriticaDetalle?: string
   secciones?: number[]
+  carreras?: string[]
   alumnos?: number[]
 }
 
@@ -42,6 +43,7 @@ export interface NuevaSituacion {
   justificacionCritica?: JustificacionCritica
   justificacionCriticaDetalle?: string
   secciones: number[]
+  carreras?: string[]
   alumnos?: number[]
   descripcion?: string
 }
@@ -130,6 +132,7 @@ export function construirEnvio(situaciones: SituacionRecorrido[], estado: Estado
       }
       if (respuesta.cambio.aspectos.includes('alcance')) {
         if (respuesta.cambio.secciones) modificacion.secciones = respuesta.cambio.secciones
+        if (respuesta.cambio.carreras) modificacion.carreras = respuesta.cambio.carreras
         if (respuesta.cambio.alumnos) modificacion.alumnos = respuesta.cambio.alumnos
       }
       if (Object.keys(modificacion).length > 1) modificadas.push(modificacion)

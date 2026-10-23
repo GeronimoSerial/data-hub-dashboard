@@ -1,0 +1,1 @@
+ALTER TABLE "infra_afectacion" ADD COLUMN "carreras" jsonb;

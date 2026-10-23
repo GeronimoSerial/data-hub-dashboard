@@ -15,6 +15,11 @@ import { listarEscuelasMapa } from '@/lib/infraestructura/parte-mapa'
 import { clasificarNivel } from '@/lib/infraestructura/riesgo/motor/calculo'
 import { calcularMatriculaCondicionadaPorAcceso } from '@/lib/infraestructura/riesgo/kpi-acceso'
 import {
+  EsperaCacheRadarAgotada,
+  fingerprintReferenciasRadar,
+  obtenerOCrearCacheRadar,
+} from '@/lib/infraestructura/riesgo/cache-radar-run'
+import {
   agregarNivelPorDepartamento,
   obtenerNivelesPeligro,
   type HorizontePeligro,
@@ -211,12 +216,37 @@ export async function GET(request: Request) {
   // Corte consistente: el peligro se evalúa "as-of" el instante en que se
   // publicó el run de riesgo vigente, no con Date.now(), para que ninguna
   // corrida de peligro más nueva se cuele en el mismo corte.
-  const niveles = await obtenerNivelesPeligro({ ahora: new Date(publicadoEn) })
-  const hayNivelProvisorio = niveles.some(
-    (fila) => fila.metodo === 'umbral_provisorio',
-  )
-  const celdasPorDepartamento = await cargarCeldasPorDepartamento(departamento)
-  const departamentos = construirDepartamentos(niveles, celdasPorDepartamento)
+  let peligroCacheado
+  try {
+    const referenciasFingerprint = await fingerprintReferenciasRadar(publicadoEn)
+    peligroCacheado = await obtenerOCrearCacheRadar(
+      {
+        runId: runVigente.id,
+        modeloVersion: runVigente.modeloVersion,
+        publicadoEn,
+        referenciasFingerprint,
+      },
+      async () => {
+        const [niveles, celdasPorDepartamento] = await Promise.all([
+          obtenerNivelesPeligro({ ahora: new Date(publicadoEn), horizontes: HORIZONTES_PELIGRO }),
+          cargarCeldasPorDepartamento(undefined),
+        ])
+        return {
+          departamentos: construirDepartamentos(niveles, celdasPorDepartamento),
+          hayNivelProvisorio: niveles.some((fila) => fila.metodo === 'umbral_provisorio'),
+        }
+      },
+    )
+  } catch (error) {
+    if (!(error instanceof EsperaCacheRadarAgotada)) throw error
+    return Response.json(
+      { error: 'El pronóstico está en preparación. Intente de nuevo en unos segundos.' },
+      { status: 503, headers: { 'Cache-Control': 'private, no-store', 'Retry-After': '1' } },
+    )
+  }
+  const departamentos = (peligroCacheado.value.departamentos as DepartamentoRadar[])
+    .filter((fila) => departamento === undefined || fila.departamento === departamento)
+  const hayNivelProvisorio = peligroCacheado.value.hayNivelProvisorio as boolean
 
   const condiciones = [eq(infraRiskSnapshot.runId, runVigente.id)]
   if (horizonte !== undefined) {

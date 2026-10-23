@@ -15,6 +15,8 @@ import { CampoGravedad } from '@/components/infraestructura/campo-gravedad'
 import type { JustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { SelectorEstablecimiento } from '@/components/infraestructura/selector-establecimiento'
+import { SelectorCarreras } from '@/components/infraestructura/selector-carreras'
+import { alcanceDeCarreras } from '@/lib/infraestructura/carreras-superior'
 import { Label } from '@/components/ui/label'
 import { Opcion } from '@/components/ui/opcion'
 import { Textarea } from '@/components/ui/textarea'
@@ -40,6 +42,7 @@ export interface AfectacionBorrador {
   justificacionCriticaDetalle: string
   alcanceEstablecimiento: '' | 'toda' | 'algunas'
   secciones: number[]
+  carreras?: string[]
   alumnos: number[]
   descripcion: string
 }
@@ -68,7 +71,7 @@ export function esAfectacionLista(a: AfectacionBorrador): a is AfectacionBorrado
   categoria: CategoriaAfectacion
   severidad: Severidad
 } {
-  return a.categoria !== '' && a.motivo !== '' && a.severidad !== '' && a.secciones.length > 0
+  return a.categoria !== '' && a.motivo !== '' && a.severidad !== '' && (a.secciones.length > 0 || (a.carreras?.length ?? 0) > 0)
 }
 
 export function esAfectacionParcial(a: AfectacionBorrador): boolean {
@@ -78,6 +81,7 @@ export function esAfectacionParcial(a: AfectacionBorrador): boolean {
     a.motivo !== '' ||
     a.severidad !== '' ||
     a.secciones.length > 0 ||
+    (a.carreras?.length ?? 0) > 0 ||
     a.alumnos.length > 0 ||
     a.descripcion.trim() !== ''
   )
@@ -107,6 +111,7 @@ interface CamposComunes {
 }
 
 export interface CamposQuePasoProps extends CamposComunes {
+  esSuperior?: boolean
   motivos: MotivoRow[]
   otrasAfectaciones: AfectacionBorrador[]
   /**
@@ -184,6 +189,7 @@ export function AvisosConsistencia({
   algo que el modelo no puede representar.
 */
 export function CamposQuePaso({
+  esSuperior = false,
   borrador,
   idPrefijo,
   motivos,
@@ -208,6 +214,7 @@ export function CamposQuePaso({
       justificacionCriticaDetalle: '',
       alcanceEstablecimiento: '',
       secciones: [],
+      carreras: [],
       alumnos: [],
     })
   }
@@ -259,7 +266,7 @@ export function CamposQuePaso({
                   if (c === borrador.categoria) return
                   setCategoriaPendiente(c)
                 }}
-                disabled={disabled}
+                disabled={disabled || (esSuperior && c === 'alumnos')}
                 label={CATEGORIA_META[c].label}
                 ayuda={CATEGORIA_META[c].descripcion}
               />
@@ -278,7 +285,7 @@ export function CamposQuePaso({
           setCategoriaPendiente(null)
         }}
       >
-        <p>{categoriaPendiente ? TEXTO_CONFIRMAR_CATEGORIA[categoriaPendiente] : null}</p>
+        <p>{esSuperior && categoriaPendiente === 'establecimiento' ? 'Va a seleccionar las carreras donde el establecimiento no puede funcionar con normalidad.' : categoriaPendiente ? TEXTO_CONFIRMAR_CATEGORIA[categoriaPendiente] : null}</p>
       </ConfirmSheet>
 
       <fieldset className="afectacion-campos__grupo" disabled={disabled || !borrador.categoria}>
@@ -334,6 +341,7 @@ export function CamposQuePaso({
 }
 
 export interface CamposAQuienAfectaProps extends CamposComunes {
+  carreras?: readonly string[]
   turnos: TurnoContexto[]
   /** Catálogo de motivos: de aquí sale la gravedad sugerida del motivo elegido. */
   motivos?: MotivoRow[]
@@ -346,6 +354,7 @@ export interface CamposAQuienAfectaProps extends CamposComunes {
 }
 
 export function CamposAQuienAfecta({
+  carreras = [],
   borrador,
   idPrefijo,
   turnos,
@@ -378,7 +387,7 @@ export function CamposAQuienAfecta({
   // del CUE). Es la misma que usa el servidor para exigir la justificación.
   const sugeridaEfectiva = severidadSugeridaPorAlcance(
     motivoElegido?.id ?? null,
-    alcanceDeSecciones(borrador.secciones, seccionesDisponibles.map((s) => s.geSectionId)),
+    carreras.length > 0 ? alcanceDeCarreras(borrador.carreras ?? [], carreras) : alcanceDeSecciones(borrador.secciones, seccionesDisponibles.map((s) => s.geSectionId)),
   )
   const razonCriticaValida = razonCritica !== '' && (razonCritica !== 'otro' || detalleCritica.trim() !== '')
 
@@ -414,7 +423,10 @@ export function CamposAQuienAfecta({
 
   return (
     <>
-      {borrador.categoria === 'alumnos' ? (
+      {carreras.length > 0 ? (
+        <SelectorCarreras carreras={carreras} seleccionadas={borrador.carreras ?? []} disabled={disabled}
+          onCambiar={(seleccionadas) => onChange({ ...borrador, carreras: seleccionadas, secciones: [], alumnos: [], alcanceEstablecimiento: seleccionadas.length === carreras.length ? 'toda' : 'algunas' })} />
+      ) : borrador.categoria === 'alumnos' ? (
         <div className="afectacion-campos__grupo">
           <Label>Alumnos afectados</Label>
           <SelectorAlumnos
