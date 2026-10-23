@@ -11,7 +11,7 @@ import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
-import { listarEscuelasMapa } from '@/lib/infraestructura/parte-mapa'
+import { listarCuesAfectadosEnMapa } from '@/lib/infraestructura/parte-mapa'
 import { clasificarNivel } from '@/lib/infraestructura/riesgo/motor/calculo'
 import { calcularMatriculaCondicionadaPorAcceso } from '@/lib/infraestructura/riesgo/kpi-acceso'
 import {
@@ -161,12 +161,22 @@ function construirDepartamentos(
 }
 
 export async function GET(request: Request) {
+  const inicio = performance.now()
+  let anterior = inicio
+  const tiempos: string[] = []
+  const medir = (etapa: string) => {
+    const ahora = performance.now()
+    tiempos.push(`${etapa};dur=${(ahora - anterior).toFixed(1)}`)
+    anterior = ahora
+  }
   // ACL primero: una request sin sesión no debe disparar trabajo de DB
   // (ensureSeeded) antes de fallar.
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
+  medir('auth')
 
   await ensureSeeded()
+  medir('seed')
 
   const { searchParams } = new URL(request.url)
 
@@ -198,6 +208,7 @@ export async function GET(request: Request) {
     .from(infraRiskRun)
     .where(eq(infraRiskRun.estado, 'vigente'))
     .limit(1)
+  medir('run')
 
   // Estado legítimo: el motor todavía no publicó ningún corte. No es un error.
   if (!runVigente) {
@@ -219,6 +230,7 @@ export async function GET(request: Request) {
   let peligroCacheado
   try {
     const referenciasFingerprint = await fingerprintReferenciasRadar(publicadoEn)
+    medir('inputs')
     peligroCacheado = await obtenerOCrearCacheRadar(
       {
         runId: runVigente.id,
@@ -237,6 +249,7 @@ export async function GET(request: Request) {
         }
       },
     )
+    medir('cache')
   } catch (error) {
     if (!(error instanceof EsperaCacheRadarAgotada)) throw error
     return Response.json(
@@ -310,9 +323,8 @@ export async function GET(request: Request) {
 
   // KPI de acceso: mismo universo filtrado que `escuelas`, pero con las filas
   // crudas que la función pura necesita (nivel de acceso + matrícula expuesta).
-  // La afectación confirmada sale de `listarEscuelasMapa` (la MISMA fuente que
-  // usa el mapa), así una escuela con daño confirmado nunca vuelve a sumar su
-  // matrícula acá.
+  // La afectación confirmada se reevalúa desde los partes y localizaciones
+  // vigentes, sin proyectar el padrón completo para obtener sólo sus CUEs.
   // Esta consulta es la ÚNICA sin paginar del universo filtrado: además del
   // KPI, alimenta `puntos` (cobertura del mapa) sin round-trips extra.
   const snapshotsAcceso = await db
@@ -333,6 +345,7 @@ export async function GET(request: Request) {
       eq(infraRiskSnapshot.cueAnexo, infraGeoProfile.cueAnexo),
     )
     .where(where)
+  medir('ranking')
 
   // `puntos` existe para que el mapa cubra TODO el universo filtrado (una
   // escuela = un punto), no sólo la página del ranking. `escuelas` sigue
@@ -352,16 +365,14 @@ export async function GET(request: Request) {
     departamento: snapshot.departamento,
   }))
 
-  const { escuelas: escuelasMapa } = await listarEscuelasMapa()
-  const cuesConAfectacionConfirmada = new Set(
-    escuelasMapa.filter((escuela) => escuela.estado === 'afectada').map((e) => e.cueAnexo),
-  )
+  const cuesConAfectacionConfirmada = new Set(await listarCuesAfectadosEnMapa())
+  medir('live_reports')
   const accesoCondicionado = calcularMatriculaCondicionadaPorAcceso({
     snapshots: snapshotsAcceso,
     cuesConAfectacionConfirmada,
   })
 
-  return jsonNoStore(
+  const respuesta = jsonNoStore(
     {
       corte,
       cobertura: runVigente.cobertura,
@@ -382,4 +393,9 @@ export async function GET(request: Request) {
       hayNivelProvisorio,
     },
   )
+  medir('response')
+  tiempos.push(`total;dur=${(performance.now() - inicio).toFixed(1)}`)
+  respuesta.headers.set('Server-Timing', tiempos.join(', '))
+  respuesta.headers.set('X-Radar-Cache', peligroCacheado.cacheHit ? 'hit' : 'miss')
+  return respuesta
 }

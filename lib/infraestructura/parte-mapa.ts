@@ -738,6 +738,34 @@ export async function listarEscuelasMapa(
   return { escuelas, sinUbicacion, totalPadron: escuelas.length + sinUbicacion.length }
 }
 
+/**
+ * Returns the live affected-school IDs that would be drawn on the map without
+ * loading and projecting the entire school register. Radar uses this set only
+ * to avoid counting confirmed-affectation enrollment twice in its access KPI.
+ */
+export async function listarCuesAfectadosEnMapa(): Promise<string[]> {
+  const { partes } = await listarPartesVigentes()
+  const candidatos = [...new Set(partes
+    .filter((parte) => parte.lat !== null && parte.lon !== null && ubicacionEnCorrientes(parte.lat, parte.lon))
+    .map((parte) => parte.cueAnexo))]
+  if (candidatos.length === 0) return []
+
+  const client = crearEjecutorSql(getRawClient())
+  await asegurarGeAdjuntada(client)
+  const placeholders = candidatos.map(() => '?').join(', ')
+  const res = await client.execute({
+    sql: `SELECT l.cue_anexo
+          FROM ge.ge_localizacion l
+          WHERE l.cue_anexo IN (${placeholders})
+            AND (NOT EXISTS (SELECT 1 FROM infra_dataset_publicacion WHERE dataset_id='localizaciones')
+              OR EXISTS (SELECT 1 FROM infra_dataset_publicacion p JOIN infra_dataset_registro r ON r.version_id=p.version_id
+                WHERE p.dataset_id='localizaciones' AND r.clave=l.cue_anexo))`,
+    args: candidatos,
+  })
+  const cuePorPadron = new Set(res.rows.map((row) => stringValor(row.cue_anexo)))
+  return candidatos.filter((cue) => cuePorPadron.has(cue))
+}
+
 function esAsistenciaPedagogica(valor: unknown): valor is AsistenciaPedagogica {
   if (typeof valor !== 'object' || valor === null) return false
   const asistencia = valor as { brinda?: unknown; modalidades?: unknown }

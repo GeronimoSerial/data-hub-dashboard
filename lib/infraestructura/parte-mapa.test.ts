@@ -6,7 +6,7 @@ import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import type * as ParteConsultaModule from './parte-consulta'
-import { calcularAlumnosAlcanzados, listarEscuelasMapa, listarEscuelasMapaEnriquecidas, listarPartesVigentes, obtenerEscuelaFichaEnriquecida, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
+import { calcularAlumnosAlcanzados, listarCuesAfectadosEnMapa, listarEscuelasMapa, listarEscuelasMapaEnriquecidas, listarPartesVigentes, obtenerEscuelaFichaEnriquecida, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
 import { crearAfectacion, crearParte, crearServicioAlcance } from './test-utils/parte-fixtures'
 import { infraAfectacion, infraParte, infraPeriodo } from '@/lib/db/schema'
 
@@ -387,6 +387,21 @@ describe('listarEscuelasMapa', () => {
       { cueAnexo: 'MAPA-C-1', nombre: 'Escuela MAPA-C-1', departamento: 'MAPA-SINCOORD', localidad: 'MAPA-SINCOORD' },
     ])
     expect(totalPadron).toBe(1)
+  })
+
+  it('obtiene sólo las escuelas afectadas ubicables para el KPI del Radar', async () => {
+    await sembrarEscuelaPadron({ cue: 'MAPA-KPI-UBICADA', departamento: 'MAPA-KPI', localidad: 'MAPA-KPI', lat: -27.5, lon: -58.5 })
+    await sembrarEscuelaPadron({ cue: 'MAPA-KPI-SIN-COORD', departamento: 'MAPA-KPI', localidad: 'MAPA-KPI', lat: null, lon: null })
+    await sembrarEscuelaPadron({ cue: 'MAPA-KPI-FUERA', departamento: 'MAPA-KPI', localidad: 'MAPA-KPI', lat: -40, lon: -70 })
+    for (const cue of ['MAPA-KPI-UBICADA', 'MAPA-KPI-SIN-COORD', 'MAPA-KPI-FUERA']) {
+      const parteId = await crearParte(cue)
+      await crearAfectacion({ parteId, secciones: [] })
+    }
+
+    const cues = await listarCuesAfectadosEnMapa()
+    expect(cues).toContain('MAPA-KPI-UBICADA')
+    expect(cues).not.toContain('MAPA-KPI-SIN-COORD')
+    expect(cues).not.toContain('MAPA-KPI-FUERA')
   })
 
   it('el filtro de territorio se aplica a todo el padrón, no sólo a las afectadas', async () => {

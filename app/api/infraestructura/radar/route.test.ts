@@ -13,7 +13,7 @@ import {
   infraRiskSnapshot,
 } from '@/lib/db/schema'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
-import { listarEscuelasMapa } from '@/lib/infraestructura/parte-mapa'
+import { listarCuesAfectadosEnMapa } from '@/lib/infraestructura/parte-mapa'
 import { obtenerNivelesPeligro } from '@/lib/infraestructura/riesgo/peligro/nivel'
 import type * as NivelPeligroModule from '@/lib/infraestructura/riesgo/peligro/nivel'
 import {
@@ -32,7 +32,7 @@ vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
 }))
 
 vi.mock('@/lib/infraestructura/parte-mapa', () => ({
-  listarEscuelasMapa: vi.fn(async () => ({ escuelas: [] })),
+  listarCuesAfectadosEnMapa: vi.fn(async () => []),
 }))
 
 // Se envuelve el obtenerNivelesPeligro real (no se reemplaza): el test quiere
@@ -152,7 +152,7 @@ async function sembrarClimatologiaCompleta() {
 
 beforeEach(async () => {
   vi.mocked(verificarAccesoLectura).mockReset()
-  vi.mocked(listarEscuelasMapa).mockReset().mockResolvedValue({ escuelas: [] } as never)
+  vi.mocked(listarCuesAfectadosEnMapa).mockReset().mockResolvedValue([])
   vi.mocked(obtenerNivelesPeligro).mockClear()
   await sembrarFixture()
 })
@@ -298,17 +298,34 @@ describe('GET /api/infraestructura/radar', () => {
       .set({ nivelRiesgoAcceso: 'alto', exposicionMatricula: 42 })
       .where(eq(infraRiskSnapshot.id, 's1'))
 
-    const primero = await (await GET(req())).json()
+    const respuestaInicial = await GET(req())
+    expect(respuestaInicial.headers.get('X-Radar-Cache')).toBe('miss')
+    const primero = await respuestaInicial.json()
     expect(primero.kpis.accesoCondicionado).toEqual({ escuelas: 1, matricula: 42 })
-    vi.mocked(listarEscuelasMapa).mockResolvedValue({
-      escuelas: [{ cueAnexo: '1000000-01', estado: 'afectada' }],
-    } as never)
-    const segundo = await (await GET(req())).json()
+    vi.mocked(listarCuesAfectadosEnMapa).mockResolvedValue(['1000000-01'])
+    const respuestaWarm = await GET(req())
+    expect(respuestaWarm.headers.get('X-Radar-Cache')).toBe('hit')
+    expect(respuestaWarm.headers.get('Server-Timing')).toMatch(/inputs;dur=\d+\.\d/)
+    expect(respuestaWarm.headers.get('Server-Timing')).toMatch(/live_reports;dur=\d+\.\d/)
+    expect(respuestaWarm.headers.get('Cache-Control')).toBe('private, no-store')
+    const segundo = await respuestaWarm.json()
 
     expect(segundo.departamentos).toEqual(primero.departamentos)
     expect(segundo.kpis.accesoCondicionado).toEqual({ escuelas: 0, matricula: 0 })
     expect(obtenerNivelesPeligro).toHaveBeenCalledTimes(1)
-    expect(listarEscuelasMapa).toHaveBeenCalledTimes(2)
+    expect(listarCuesAfectadosEnMapa).toHaveBeenCalledTimes(2)
+  })
+
+  it('comparte el mismo cálculo entre 24, 72 y 240 horas y expone el hit real', async () => {
+    mockAcceso({ ok: true, user: USER })
+    for (const [indice, horizonte] of [24, 72, 240].entries()) {
+      const respuesta = await GET(req(`horizonte=${horizonte}`))
+      expect(respuesta.status).toBe(200)
+      expect(respuesta.headers.get('X-Radar-Cache')).toBe(indice === 0 ? 'miss' : 'hit')
+      expect(respuesta.headers.get('Server-Timing')).toMatch(/total;dur=\d+\.\d/)
+    }
+    expect(obtenerNivelesPeligro).toHaveBeenCalledTimes(1)
+    expect(listarCuesAfectadosEnMapa).toHaveBeenCalledTimes(3)
   })
 
   it('un run publicado nuevo no reutiliza el resultado del run anterior', async () => {
