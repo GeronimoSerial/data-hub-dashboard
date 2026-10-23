@@ -8,6 +8,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { hazardContextEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { obtenerEscuelaFichaEnriquecida } from '@/lib/infraestructura/parte-mapa'
 import { FichaEscuelaPagina } from '@/components/mapas/ficha-escuela-pagina'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,9 +22,10 @@ export default async function EscuelaFichaRoute({
   params,
   searchParams,
 }: EscuelaFichaRouteProps) {
-  await ensureSeeded()
   const { cue: cueParam } = await params
   const cueDecoded = decodeURIComponent(cueParam)
+  await requireServerHubPageAccess(`/mapas/infraestructura/escuelas/${encodeURIComponent(cueDecoded)}`)
+  await ensureSeeded()
 
   const user = await getSessionUser()
   if (!user) {

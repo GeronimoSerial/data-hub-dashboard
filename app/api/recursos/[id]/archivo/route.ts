@@ -19,11 +19,11 @@ import {
   recursos,
 } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
-import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { isAllowedUpload } from '@/lib/upload'
 import { normalizeUploadedMapHtml } from '@/lib/html-map-tiles'
 import type { RecursoAccess } from '@/lib/acl'
+import { puedeVerEnSeccion } from '@/lib/acl'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -61,27 +61,35 @@ export async function GET(request: Request, ctx: Ctx) {
   const loaded = await loadRecursoWithAccess(id)
   const hasBlob = Boolean(loaded?.row.storageKey)
   const status = archivoGate(user, loaded?.access ?? null, hasBlob)
+  const sectionAllowed = Boolean(user && loaded && puedeVerEnSeccion(user, {
+    ...loaded.access,
+    formato: loaded.row.formato as 'reporte' | 'tablero' | 'mapa',
+    ruta: loaded.row.ruta,
+  }, user.hubPolicy))
   if (status === 401) {
-    return Response.json({ error: 'No autenticado' }, { status: 401 })
+    return Response.json({ error: 'No autenticado' }, { status: 401, headers: { 'Cache-Control': 'private, no-store' } })
   }
-  if (status === 403) {
-    return jsonError('No tiene acceso a este recurso', 403)
+  if (status === 403 || (user && loaded && !sectionAllowed)) {
+    return Response.json({ error: 'No tiene acceso a este recurso' }, {
+      status: 403,
+      headers: { 'Cache-Control': 'private, no-store' },
+    })
   }
   if (status !== 200 || !loaded?.row.storageKey) {
-    return Response.json({ error: 'Archivo no encontrado' }, { status: 404 })
+    return Response.json({ error: 'Archivo no encontrado' }, { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
   }
   const mime = loaded.row.mime
   if (!archivoCanServe(mime)) {
-    return Response.json({ error: 'Archivo no encontrado' }, { status: 404 })
+    return Response.json({ error: 'Archivo no encontrado' }, { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   const abs = archivoAbsPath(loaded.row.storageKey)
   if (!abs) {
-    return Response.json({ error: 'Archivo no encontrado' }, { status: 404 })
+    return Response.json({ error: 'Archivo no encontrado' }, { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
   }
   const fileStat = await stat(abs).catch(() => null)
   if (!fileStat?.isFile()) {
-    return Response.json({ error: 'Archivo no encontrado' }, { status: 404 })
+    return Response.json({ error: 'Archivo no encontrado' }, { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   const url = new URL(request.url)
@@ -91,6 +99,7 @@ export async function GET(request: Request, ctx: Ctx) {
     nombreOriginal: loaded.row.nombreOriginal || 'archivo',
     download,
   })
+  headers['Cache-Control'] = 'private, no-store'
 
   if (mime === 'text/html') {
     const html = await readFile(abs, 'utf8')

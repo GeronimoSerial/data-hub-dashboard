@@ -8,6 +8,7 @@ import { useThemeMode } from '@/app/providers'
 import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
 import type { ShellUser } from '@/lib/session'
+import { canUseLanding, effectiveSections, sectionForPath } from '@/lib/hub-sections'
 import { decideScrollAction, isBleedViewerPath, isMapViewerPath, isRestoreSettled, scrollRestorationKey } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu'
@@ -16,7 +17,18 @@ import { MarcaBanda, MarcaCompacta, MarcaHorizontal, MarcaHorizontalInversa } fr
 const NAV = [
   { href: '/', label: 'Inicio' },
   { href: '/explorar', label: 'Explorar' },
+  { href: '/reportes', label: 'Reportes' },
+  { href: '/mapas', label: 'Mapas' },
+  { href: '/tableros', label: 'Tableros' },
+  { href: '/mapas/infraestructura', label: 'Infraestructura escolar' },
+  { href: '/situacion', label: 'Centro de Situación' },
 ]
+
+const SectionAccessContext = React.createContext<(path: string) => boolean>(() => true)
+
+export function useSectionAccess() {
+  return React.useContext(SectionAccessContext)
+}
 
 const ResourceDetailsContext = React.createContext({
   expanded: false,
@@ -263,6 +275,13 @@ export function AppShell({
   // server-provided user so the header markup matches on hydration.
   const sessionUser = session.isPending ? initialUser : session.data?.user ?? null
   const role = (sessionUser as { role?: Role } | null)?.role
+  const policy = (sessionUser as ShellUser | null)?.hubPolicy ?? initialUser?.hubPolicy ?? {}
+  const sections = effectiveSections(policy)
+  const canAccessPath = (path: string) => {
+    const section = sectionForPath(path)
+    return section === 'landing' ? canUseLanding(policy) : section ? sections.has(section) : true
+  }
+  const visibleNav = NAV.filter((item) => canAccessPath(item.href) && (item.href !== '/situacion' || situacionEnabled))
   const compactoMapa = isMapViewerPath(pathname)
   const mapViewer = isBleedViewerPath(pathname)
   const resourceViewer = pathname.startsWith('/recursos/')
@@ -272,7 +291,7 @@ export function AppShell({
 
   async function signOut() {
     await authClient.signOut()
-    router.replace('/')
+    router.replace('/login')
   }
 
   return (
@@ -321,12 +340,14 @@ export function AppShell({
         <div className="app-header__band">
           <div className="app-header__inner">
             {compactoMapa ? <span className="app-header--mapa__marca"><MarcaBanda /></span> : null}
-            <Link href="/" className="app-brand" aria-label="Hub de Datos, inicio">
-              <span className="app-brand__text">Hub de Datos</span>
-            </Link>
+            {canAccessPath('/') ? (
+              <Link href="/" className="app-brand" aria-label="Hub de Datos, inicio">
+                <span className="app-brand__text">Hub de Datos</span>
+              </Link>
+            ) : <span className="app-brand"><span className="app-brand__text">Hub de Datos</span></span>}
 
             <nav className="app-nav" aria-label="Navegación principal">
-              {NAV.map((item) => (
+              {visibleNav.map((item) => (
                 <Link key={item.href} href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
                   {item.label}
                 </Link>
@@ -334,9 +355,9 @@ export function AppShell({
             </nav>
 
             <div className="app-actions">
-              <Link href="/explorar" className="ui-button ui-button--ghost ui-button--icon" aria-label="Buscar recursos">
+              {canAccessPath('/explorar') ? <Link href="/explorar" className="ui-button ui-button--ghost ui-button--icon" aria-label="Buscar recursos">
                 <Search size={19} />
-              </Link>
+              </Link> : null}
               <Button
                 variant="ghost"
                 size="icon"
@@ -357,9 +378,10 @@ export function AppShell({
                       {isStaff(role) ? (
                         <>
                           <MenuItem onClick={() => router.push('/admin')}>Administración</MenuItem>
-                          {situacionEnabled ? <MenuItem onClick={() => router.push('/situacion')}>Centro de Situación</MenuItem> : null}
+                          {situacionEnabled && canAccessPath('/situacion') ? <MenuItem onClick={() => router.push('/situacion')}>Centro de Situación</MenuItem> : null}
                         </>
                       ) : null}
+                      <MenuItem onClick={() => router.push('/cuenta')}>Cambiar contraseña</MenuItem>
                       <MenuItem onClick={signOut}>Cerrar sesión</MenuItem>
                     </>
                   ) : (
@@ -373,10 +395,10 @@ export function AppShell({
                   <MenuIcon size={20} />
                 </MenuTrigger>
                 <MenuContent>
-                  {NAV.map((item) => (
+                  {visibleNav.map((item) => (
                     <MenuItem key={item.href} onClick={() => router.push(item.href)}>{item.label}</MenuItem>
                   ))}
-                  <MenuItem onClick={() => router.push('/explorar')}>Buscar</MenuItem>
+                  {canAccessPath('/explorar') ? <MenuItem onClick={() => router.push('/explorar')}>Buscar</MenuItem> : null}
                 </MenuContent>
               </Menu>
 
@@ -398,7 +420,8 @@ export function AppShell({
         </div>
       </header>
 
-      <ResourceDetailsContext.Provider value={{ expanded: resourceDetailsExpanded, setExpanded: setResourceDetailsExpanded }}>
+      <SectionAccessContext.Provider value={canAccessPath}>
+        <ResourceDetailsContext.Provider value={{ expanded: resourceDetailsExpanded, setExpanded: setResourceDetailsExpanded }}>
         <AppScrollerContext.Provider value={scrollerRef}>
           <main id="contenido" ref={scrollerRef} className={mapViewer ? 'app-content--bleed' : 'app-content'}>
             {mapViewer ? (
@@ -413,15 +436,16 @@ export function AppShell({
                     Provincia de Corrientes
                   </span>
                   <span className="app-footer__links">
-                    <Link href="/explorar">Explorar recursos</Link>
-                    <Link href="/mapas/infraestructura">Infraestructura escolar</Link>
+                    {canAccessPath('/explorar') ? <Link href="/explorar">Explorar recursos</Link> : null}
+                    {canAccessPath('/mapas/infraestructura') ? <Link href="/mapas/infraestructura">Infraestructura escolar</Link> : null}
                   </span>
                 </footer>
               </>
             )}
           </main>
         </AppScrollerContext.Provider>
-      </ResourceDetailsContext.Provider>
+        </ResourceDetailsContext.Provider>
+      </SectionAccessContext.Provider>
     </div>
   )
 }

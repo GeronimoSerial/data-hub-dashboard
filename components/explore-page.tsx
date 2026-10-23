@@ -22,7 +22,7 @@ import {
 
 const ALL = 'all'
 
-export function ExplorePage() {
+export function ExplorePage({ forcedFormato }: { forcedFormato?: Formato } = {}) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -41,14 +41,17 @@ export function ExplorePage() {
     }
   }, [searchParams, pathname, allowed, router])
 
-  const filters = React.useMemo(() => parseExploreFilters(searchParams, allowed), [searchParams, allowed])
+  const filters = React.useMemo(() => {
+    const parsed = parseExploreFilters(searchParams, allowed)
+    return forcedFormato ? { ...parsed, formato: forcedFormato } : parsed
+  }, [searchParams, allowed, forcedFormato])
   const urlQuery = filters.q ?? ''
   const [filtersOpen, setFiltersOpen] = React.useState(
     () => Boolean(filters.tema || filters.nivel || filters.formato),
   )
 
   function update(next: Partial<ExploreFilters>) {
-    const params = serializeExploreFilters({ ...filters, ...next })
+    const params = serializeExploreFilters({ ...filters, ...next, ...(forcedFormato ? { formato: forcedFormato } : {}) })
     router.push(`${pathname}${params.size ? `?${params}` : ''}`)
   }
 
@@ -119,7 +122,7 @@ export function ExplorePage() {
           <div id="explore-filters" className="filters filters-desktop" aria-label="Filtros del catálogo">
             <Filter label="Tema" value={filters.tema ?? ALL} onValueChange={(value) => update({ tema: value === ALL ? undefined : value })} options={[{ value: ALL, label: 'Todos los temas' }, ...filterOptions.temas]} />
             <Filter label="Nivel" value={filters.nivel ?? ALL} onValueChange={(value) => update({ nivel: value === ALL ? undefined : value })} options={[{ value: ALL, label: 'Todos los niveles' }, ...filterOptions.niveles]} />
-            <Filter label="Formato" value={filters.formato ?? ALL} onValueChange={(value) => update({ formato: value === ALL ? undefined : value as Formato })} options={[{ value: ALL, label: 'Todos los formatos' }, ...filterOptions.formatos]} />
+            {forcedFormato ? null : <Filter label="Formato" value={filters.formato ?? ALL} onValueChange={(value) => update({ formato: value === ALL ? undefined : value as Formato })} options={[{ value: ALL, label: 'Todos los formatos' }, ...filterOptions.formatos]} />}
           </div>
         ) : null}
 

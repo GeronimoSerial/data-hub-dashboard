@@ -3,7 +3,7 @@
 import type { Recurso } from '@/lib/model'
 import { presentResource, relatedResources } from '@/lib/resource-presentation'
 import { authClient } from '@/lib/auth-client'
-import { useResourceDetails } from '@/components/app-shell'
+import { useResourceDetails, useSectionAccess } from '@/components/app-shell'
 import { Breadcrumbs } from '@/components/ui/breadcrumb'
 import { ResourceCard } from '@/components/resource-card'
 import { RecursoViewer } from '@/components/recurso-viewer'
@@ -25,6 +25,7 @@ export function ResourceExperience({
 }) {
   const session = authClient.useSession()
   const { expanded } = useResourceDetails()
+  const canAccessPath = useSectionAccess()
   const view = presentResource(
     recurso,
     { categorias, niveles, tipos },
@@ -35,7 +36,7 @@ export function ResourceExperience({
     <div className="resource-experience">
       {expanded ? (
         <section id="resource-details" className="resource-details-panel" aria-label="Detalles del recurso">
-          <Breadcrumbs items={view.breadcrumbs} />
+          <Breadcrumbs items={view.breadcrumbs.map((item) => canAccessPath(item.href?.split('?')[0] ?? '') ? item : { label: item.label })} />
           <div className="resource-details-panel__heading">
             <div>
               <div className="resource-card__top">

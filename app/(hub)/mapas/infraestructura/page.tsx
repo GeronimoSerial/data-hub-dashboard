@@ -4,11 +4,13 @@ import { puedeAbrir } from '@/lib/acl'
 import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
 import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
 import { ensureSeeded } from '@/lib/db/seed'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export default async function InfraestructuraMapRoute() {
+  await requireServerHubPageAccess('/mapas/infraestructura')
   await ensureSeeded()
   const user = await getSessionUser()
   if (!user) redirect('/login?callbackUrl=/mapas/infraestructura')

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ArrowLeft, Activity, FolderKanban, Tags, Users, Layers3, ListTree, ShieldAlert, Waves, ClipboardCheck } from 'lucide-react'
 import { isStaff, type Role } from '@/lib/acl'
+import { canUseLanding, effectiveSections, type SectionPolicy } from '@/lib/hub-sections'
 
 type AdminFlags = {
   riskEngineEnabled: boolean
@@ -40,8 +41,14 @@ function buildSections(role: Role, flags: AdminFlags) {
   return role === 'admin' ? sections : sections.filter((section) => section.label === 'Contenido' || (isStaff(role) && section.label === 'Operación'))
 }
 
-export function AdminShell({ children, role, flags = EMPTY_FLAGS }: { children: React.ReactNode; role: Role; flags?: AdminFlags }) {
-  const visibleSections = buildSections(role, flags)
+export function AdminShell({ children, role, hubPolicy, flags = EMPTY_FLAGS }: { children: React.ReactNode; role: Role; hubPolicy: SectionPolicy; flags?: AdminFlags }) {
+  const visibleSections = buildSections(role, flags).map((section) => ({
+    ...section,
+    items: section.label === 'Operación' && !effectiveSections(hubPolicy).has('infrastructure')
+      ? []
+      : section.items,
+  })).filter((section) => section.items.length > 0)
+  const landingAllowed = canUseLanding(hubPolicy)
   return (
     <div className="admin-layout">
       <aside className="admin-sidebar" aria-label="Navegación de administración">
@@ -52,7 +59,7 @@ export function AdminShell({ children, role, flags = EMPTY_FLAGS }: { children: 
             {section.items.map(({ label, href, icon: Icon }) => <Link href={href} key={href}><Icon size={16} /> {label}</Link>)}
           </div>
         ))}
-        <Link className="admin-sidebar__back" href="/"><ArrowLeft size={16} /> Volver al Hub</Link>
+        {landingAllowed ? <Link className="admin-sidebar__back" href="/"><ArrowLeft size={16} /> Volver al Hub</Link> : null}
       </aside>
       <div className="admin-main">{children}</div>
     </div>

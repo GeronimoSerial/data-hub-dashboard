@@ -80,4 +80,42 @@ describe('AppShell', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Menú de cuenta' }))
     expect(screen.queryByRole('menuitem', { name: 'Centro de Situación' })).not.toBeInTheDocument()
   })
+
+  it('keeps an infrastructure-only user out of landing and explore chrome while preserving account recovery', async () => {
+    route.pathname = '/mapas/infraestructura'
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta', hubPolicy: { enabledSections: ['infrastructure'], landing: false } }}>Contenido</AppShell>)
+    expect(screen.queryByRole('link', { name: 'Hub de Datos, inicio' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Buscar recursos' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Infraestructura escolar/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Menú de cuenta' }))
+    expect(screen.getByRole('menuitem', { name: 'Cerrar sesión' })).toBeInTheDocument()
+  })
+
+  it('shows multiple enabled sections without exposing disabled navigation', () => {
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta', hubPolicy: { enabledSections: ['maps', 'dashboards'], landing: false } }}>Contenido</AppShell>)
+    expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Mapas' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Tableros' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Infraestructura escolar' })).not.toBeInTheDocument()
+  })
+
+  it('preserves legacy defaults and removes section links for explicit no-access policy', () => {
+    const { rerender } = render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
+    expect(screen.getByRole('link', { name: 'Hub de Datos, inicio' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Explorar' })).toBeInTheDocument()
+    rerender(<AppShell initialUser={{ name: 'Consulta', role: 'consulta', hubPolicy: { enabledSections: [], landing: false } }}>Contenido</AppShell>)
+    expect(screen.queryByRole('link', { name: 'Hub de Datos, inicio' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
+  })
+
+  it('keeps staff administration recovery while hiding disabled section destinations', async () => {
+    render(<AppShell initialUser={{ name: 'Editora', role: 'editor', hubPolicy: { enabledSections: ['maps'], landing: false } }}>Contenido</AppShell>)
+    fireEvent.click(screen.getByRole('button', { name: 'Menú de cuenta' }))
+    expect(screen.getByRole('menuitem', { name: 'Administración' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Cerrar sesión' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Centro de Situación' })).not.toBeInTheDocument()
+  })
 })

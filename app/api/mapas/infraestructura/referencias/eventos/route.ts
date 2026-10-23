@@ -9,7 +9,7 @@ import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export async function GET(request: Request) {
-  const acceso = await verificarAccesoLectura()
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
   if (alcanceMapa(acceso.user).tipo === 'ninguno') return Response.json({ error: 'Sin acceso al mapa' }, { status: 403 })
   await cargarReferencias()

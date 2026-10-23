@@ -17,6 +17,8 @@ export type SessionUser = {
   recursoIds: string[]
   // CUE-anexo del establecimiento del operador (ge_cue_anexo, lo puebla T6).
   cueAnexo?: string | null
+  hubPolicy?: SectionPolicy
+  hubDestination?: string | null
 }
 
 export type RecursoAccess = {
@@ -24,6 +26,22 @@ export type RecursoAccess = {
   estado: 'publicado' | 'borrador'
   audienciaNivelJurIds: number[]
   audienciaUserIds: string[]
+}
+
+import {
+  effectiveSections,
+  resourceInSections,
+  type SectionPolicy,
+} from './hub-sections'
+
+/** Adds section membership as an extra denial only; callers must still use puedeAbrir. */
+export function puedeVerEnSeccion(
+  user: SessionUser | null,
+  resource: RecursoAccess & { formato: 'reporte' | 'tablero' | 'mapa'; ruta?: string | null },
+  policy: SectionPolicy = {},
+): boolean {
+  if (!puedeAbrir(user, resource)) return false
+  return resourceInSections(resource, effectiveSections(policy))
 }
 
 export function puedeAbrir(
