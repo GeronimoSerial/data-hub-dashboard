@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { eq } from 'drizzle-orm'
+import { count, eq, isNotNull, max } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import {
@@ -60,6 +61,60 @@ beforeEach(async () => {
 })
 
 describe('cache compartida por corrida de Radar', () => {
+  it('conserva la identidad exacta con celdas compartidas, sin pronóstico y corridas fuera de corte', async () => {
+    const db = getDb()
+    const profile = (cueAnexo: string, geometryRef: string | null) => ({
+      cueAnexo, geometryRef, departamento: 'Capital', perfilVersion: 'v1', calculadoEn: CORTE,
+    })
+    await db.insert(infraGeoProfile).values([
+      profile('school-a', 'cell-a'), profile('school-a-2', 'cell-a'),
+      profile('school-b', 'cell-b'), profile('school-empty', 'cell-empty'),
+      profile('school-future', 'cell-future'), profile('school-null', null),
+    ])
+    const forecast = (id: string, geometryRef: string, corridaEn: string, horizonteHoras: number, variable = 'precipitacion') => ({
+      id, geometryRef, corridaEn, horizonteHoras, variable, provider: 'provider-a',
+      validoEn: new Date(new Date(corridaEn).getTime() + horizonteHoras * 3_600_000).toISOString(),
+      valor: horizonteHoras / 8, unidad: 'mm', pasoHoras: 3, ingeridoEn: CORTE,
+    })
+    const eligible = [
+      forecast('a-24', 'cell-a', CORTE, 24), forecast('a-72', 'cell-a', CORTE, 72),
+      forecast('a-240', 'cell-a', CORTE, 240),
+      forecast('b-only', 'cell-b', '2026-10-22T00:00:00.000Z', 48),
+    ]
+    await db.insert(hazardForecast).values([
+      ...eligible,
+      forecast('a-older', 'cell-a', '2026-10-21T00:00:00.000Z', 24),
+      forecast('a-future', 'cell-a', '2026-10-24T00:00:00.000Z', 24),
+      forecast('future-only', 'cell-future', '2026-10-24T00:00:00.000Z', 24),
+      forecast('other-variable', 'cell-a', CORTE, 24, 'temperatura'),
+      forecast('unused-cell', 'cell-unused', CORTE, 24),
+    ])
+    const perfiles = await db.select({
+      geometryRef: infraGeoProfile.geometryRef, departamento: infraGeoProfile.departamento,
+      perfilVersion: infraGeoProfile.perfilVersion, cantidadPerfiles: count(), calculadoEn: max(infraGeoProfile.calculadoEn),
+    }).from(infraGeoProfile).where(isNotNull(infraGeoProfile.geometryRef))
+      .groupBy(infraGeoProfile.geometryRef, infraGeoProfile.departamento, infraGeoProfile.perfilVersion)
+      .orderBy(infraGeoProfile.geometryRef, infraGeoProfile.departamento, infraGeoProfile.perfilVersion)
+    const forecastIdentity = [24, 72, 240].flatMap((horizon) => {
+      const selected = eligible.filter(row => row.geometryRef === 'cell-a' && row.horizonteHoras === horizon)
+      selected.push(eligible[3])
+      return selected.map(row => ({
+        id: row.id, geometryRef: row.geometryRef, corridaEn: row.corridaEn, validoEn: row.validoEn,
+        horizonteHoras: row.horizonteHoras, valor: row.valor, pasoHoras: row.pasoHoras,
+        provider: row.provider, ingeridoEn: row.ingeridoEn,
+      }))
+    })
+    const expected = createHash('sha256').update(JSON.stringify({
+      perfiles, forecastIdentity, ensembleIdentity: [], climatologyIdentity: [],
+    })).digest('hex')
+    expect(await fingerprintReferenciasRadar(CORTE)).toBe(expected)
+
+    await db.update(hazardForecast).set({ valor: 99 }).where(eq(hazardForecast.id, 'a-24'))
+    expect(await fingerprintReferenciasRadar(CORTE)).not.toBe(expected)
+    await db.delete(hazardForecast).where(eq(hazardForecast.id, 'a-24'))
+    expect(await fingerprintReferenciasRadar(CORTE)).not.toBe(expected)
+  })
+
   it('reutiliza el resultado warm y recalcula al cambiar de run o de referencias', async () => {
     let llamadas = 0
     const build = async () => valor(String(++llamadas))

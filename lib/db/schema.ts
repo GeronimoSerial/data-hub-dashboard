@@ -777,6 +777,9 @@ export const hazardForecast = pgTable(
       t.validoEn,
     ),
     index('hazard_forecast_geometry_ref_idx').on(t.geometryRef),
+    index('hazard_forecast_precipitacion_run_idx')
+      .on(t.geometryRef, t.corridaEn)
+      .where(sql`${t.variable} = 'precipitacion'`),
   ],
 )
 

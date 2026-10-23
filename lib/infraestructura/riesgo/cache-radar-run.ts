@@ -90,18 +90,26 @@ export async function fingerprintReferenciasRadar(cutoff: string): Promise<strin
     return createHash('sha256').update(JSON.stringify({ perfiles })).digest('hex')
   }
 
-  const forecastRuns = await db
-    .selectDistinctOn([hazardForecast.geometryRef], {
-      geometryRef: hazardForecast.geometryRef,
-      corridaEn: hazardForecast.corridaEn,
-    })
+  const references = sql`unnest(ARRAY[${sql.join(geometryRefs.map(ref => sql`${ref}`), sql`, `)}]::text[])
+    AS radar_references(geometry_ref)`
+  const geometryRef = sql<string>`radar_references.geometry_ref`
+  // LIMIT uses the per-cell run index instead of sorting the forecast history.
+  const latestForecast = db
+    .select({ corridaEn: hazardForecast.corridaEn })
     .from(hazardForecast)
     .where(and(
-      inArray(hazardForecast.geometryRef, geometryRefs),
+      eq(hazardForecast.geometryRef, geometryRef),
       eq(hazardForecast.variable, 'precipitacion'),
       lte(hazardForecast.corridaEn, cutoff),
     ))
-    .orderBy(hazardForecast.geometryRef, desc(hazardForecast.corridaEn))
+    .orderBy(desc(hazardForecast.corridaEn))
+    .limit(1)
+    .as('latest_forecast')
+  const forecastRuns = await db
+    .select({ geometryRef, corridaEn: latestForecast.corridaEn })
+    .from(references)
+    .innerJoinLateral(latestForecast, sql`true`)
+    .orderBy(geometryRef)
   const forecastIdentity = forecastRuns.length === 0 ? [] : (await Promise.all(
     [24, 72, 240].map((horizonte) => db
       .selectDistinctOn([hazardForecast.geometryRef], {
