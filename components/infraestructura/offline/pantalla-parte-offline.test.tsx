@@ -95,6 +95,8 @@ describe('PantallaParteOffline', () => {
     render(<PantallaParteOffline />)
 
     expect(await screen.findByText(/No hay un reporte guardado/)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Reportes guardados' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Reporte no disponible sin conexión' })).toBeInTheDocument()
     expect(fetch).not.toHaveBeenCalled()
   })
 
