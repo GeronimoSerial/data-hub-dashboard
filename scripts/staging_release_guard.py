@@ -39,7 +39,7 @@ def _host_id(host):
     return sha256(host.encode()).hexdigest()[:12]
 
 
-def validate_staging_release(application, application_uuid, runtime_env):
+def validate_staging_release(application, application_uuid, runtime_env, allow_database_ssl_upgrade=False):
     if application_uuid != STAGING_APPLICATION_UUID or application.get("uuid") != STAGING_APPLICATION_UUID:
         raise StagingReleaseGuardError("Coolify target is not the configured STAGING application")
     if (application.get("fqdn") or "").rstrip("/") != STAGING_URL:
@@ -48,7 +48,8 @@ def validate_staging_release(application, application_uuid, runtime_env):
         raise StagingReleaseGuardError("APP_ENV must be staging")
     if (runtime_env.get("BETTER_AUTH_URL") or "").rstrip("/") != STAGING_URL:
         raise StagingReleaseGuardError("BETTER_AUTH_URL must point to the configured STAGING URL")
-    if runtime_env.get("DATABASE_SSL") != "require":
+    database_ssl_required = runtime_env.get("DATABASE_SSL") == "require"
+    if not database_ssl_required and not allow_database_ssl_upgrade:
         raise StagingReleaseGuardError("DATABASE_SSL must be require")
 
     db_host, db_port, db_name = _database_identity(runtime_env.get("DATABASE_URL", ""))
@@ -70,7 +71,7 @@ def validate_staging_release(application, application_uuid, runtime_env):
         "url": STAGING_URL,
         "appEnv": "staging",
         "authUrlMatches": True,
-        "database": {"hostId": _host_id(db_host), "port": db_port, "name": db_name, "sslRequired": True},
+        "database": {"hostId": _host_id(db_host), "port": db_port, "name": db_name, "sslRequired": database_ssl_required},
         "media": {
             "endpointId": _host_id(endpoint_host),
             "bucketIsStagingScoped": True,

@@ -58,6 +58,13 @@ class StagingReleaseGuardTest(unittest.TestCase):
         self.runtime_env["DATABASE_SSL"] = "disable"
         with self.assertRaises(StagingReleaseGuardError):
             validate_staging_release(self.application, STAGING_APPLICATION_UUID, self.runtime_env)
+        identity = validate_staging_release(
+            self.application,
+            STAGING_APPLICATION_UUID,
+            self.runtime_env,
+            allow_database_ssl_upgrade=True,
+        )
+        self.assertFalse(identity["database"]["sslRequired"])
 
     def test_rejects_unscoped_or_dev_media(self):
         self.runtime_env["OBS_BUCKET"] = "reportes"
