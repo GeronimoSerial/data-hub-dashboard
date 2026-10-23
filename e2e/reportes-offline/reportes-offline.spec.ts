@@ -98,14 +98,33 @@ async function submitInitialReport(page: Page, cue: string): Promise<{ movementI
   return { movementId: result.body.movimientoId, bodyBytes: new TextEncoder().encode(JSON.stringify(payload)).byteLength, payload }
 }
 
-test.beforeEach(async ({ context }) => {
+const externalRequestsByTest = new Map<string, string[]>()
+
+test.beforeEach(async ({ context }, testInfo) => {
+  const localOrigin = new URL(String(testInfo.project.use.baseURL ?? process.env.HUB_E2E_BASE_URL ?? 'http://127.0.0.1:3000')).origin
+  const blockedExternal: string[] = []
+  externalRequestsByTest.set(testInfo.testId, blockedExternal)
+  await context.route('**/*', async (route) => {
+    if (new URL(route.request().url()).origin !== localOrigin) {
+      blockedExternal.push(route.request().url())
+      await route.fulfill({ status: 204, body: '' })
+      return
+    }
+    await route.continue()
+  })
   await context.addCookies([{
     name: 'problematicas_acceso',
     value: cookieValue(),
-    url: 'http://127.0.0.1:3000',
+    url: String(testInfo.project.use.baseURL ?? process.env.HUB_E2E_BASE_URL ?? 'http://127.0.0.1:3000'),
     httpOnly: true,
     sameSite: 'Lax',
   }])
+})
+
+test.afterEach(async ({}, testInfo) => {
+  const blockedExternal = externalRequestsByTest.get(testInfo.testId) ?? []
+  console.log(`T7b public report/offline ${testInfo.title}: external requests stubbed=${blockedExternal.length}.`)
+  externalRequestsByTest.delete(testInfo.testId)
 })
 
 test('offline reopen restores local draft and retries one idempotent report', async ({ page, context, browserName }, testInfo) => {
@@ -120,10 +139,12 @@ test('offline reopen restores local draft and retries one idempotent report', as
   await page.getByRole('button', { name: /continuar|siguiente/i }).last().click()
   await expect(page.getByText('Paso 2 de 5')).toBeVisible()
 
-  await page.waitForFunction(async () => {
+  // page.waitForFunction does not poll an async predicate: a pending Promise resolves the wait at once.
+  // expect.poll re-evaluates the async check until the worker activates or the timeout ends.
+  await expect.poll(() => page.evaluate(async () => {
     const registrations = await navigator.serviceWorker.getRegistrations()
     return registrations.some(({ active }) => active?.state === 'activated')
-  }, undefined, { timeout: 20_000 }).catch(() => {})
+  }), { timeout: 20_000 }).toBe(true).catch(() => {})
   const serviceWorkerStatus = await page.evaluate(async () => {
     const registrations = await navigator.serviceWorker.getRegistrations()
     const workerAsset = await fetch('/sw-parte.js', { cache: 'no-store' }).then(async (response) => ({
