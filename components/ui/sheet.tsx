@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useFullscreenElement } from './use-fullscreen-element'
 
 export const SheetRoot = DialogPrimitive.Root
 export const SheetTrigger = DialogPrimitive.Trigger
@@ -24,8 +25,9 @@ export function SheetContent({
 }: React.ComponentProps<typeof DialogPrimitive.Popup> & {
   side?: 'top' | 'bottom' | 'left' | 'right'
 }) {
+  const container = useFullscreenElement()
   return (
-    <DialogPrimitive.Portal>
+    <DialogPrimitive.Portal container={container ?? undefined}>
       <DialogPrimitive.Backdrop className="ui-sheet-backdrop" />
       <DialogPrimitive.Viewport className="ui-sheet-viewport">
         <DialogPrimitive.Popup

@@ -40,11 +40,12 @@ export function InfraestructuraMapClient(props: {
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
   rutaActiva?: boolean
+  pantallaCompletaRef?: React.RefObject<HTMLDivElement | null>
 }) {
   const rutaActiva = props.rutaActiva ?? true
   const [tab, setTab] = React.useState<PestanaMapa>('actual')
-  // Fullscreen target: tabs, filters and map share this element, so all stay visible.
-  const contenedorPantallaCompleta = React.useRef<HTMLDivElement>(null)
+  const contenedorLocal = React.useRef<HTMLDivElement>(null)
+  const contenedorPantallaCompleta = props.pantallaCompletaRef ?? contenedorLocal
   const tabsListRef = React.useRef<HTMLDivElement>(null)
   const [tabsOverflow, setTabsOverflow] = React.useState({
     has: false,
@@ -229,7 +230,7 @@ export function InfraestructuraMapClient(props: {
   }
 
   return (
-    <div className="mapa-pestanas" ref={contenedorPantallaCompleta}>
+    <div className="mapa-pestanas" ref={contenedorLocal}>
       <div className={cn('mapa-pestanas-barra', styles.headerBar)}>
         <Tabs className={styles.tabsRoot} value={tab} onValueChange={onTab}>
           <div

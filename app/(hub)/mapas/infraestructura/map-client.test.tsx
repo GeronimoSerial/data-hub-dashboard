@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as React from 'react'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InfraestructuraMapClient } from './map-client'
 import type { EscuelasMapaPadronResultado } from '@/lib/infraestructura/parte-mapa'
@@ -94,6 +94,14 @@ afterEach(() => {
 })
 
 describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
+  it('usa la raíz fullscreen del layout compartido en vez del mapa que se oculta al abrir la ficha', async () => {
+    const raiz = document.createElement('div')
+    const referencia = { current: raiz }
+    render(<InfraestructuraMapClient mostrarEnlaceNominal pantallaCompletaRef={referencia} />)
+    await waitFor(() => expect(registroPantallaCompleta.contenedor).toBe(referencia))
+    expect(registroPantallaCompleta.contenedor?.current).toBe(raiz)
+  })
+
   it('muestra tres chips en línea y Más filtros con asistencia y switches', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     const principales = document.querySelector<HTMLElement>('.filtros-chips-principales')
@@ -466,4 +474,3 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(registroSeleccion.escuelasSeleccionadas[0].lat).toBeNull()
   })
 })
-

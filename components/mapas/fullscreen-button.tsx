@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState, type RefObject } from 'react'
+import { useCallback, type RefObject } from 'react'
 import { Button } from '@/components/ui/button'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
+import { useFullscreenTarget } from '@/components/ui/use-fullscreen-element'
 
 type Props = {
   targetRef: RefObject<HTMLElement | null>
@@ -10,15 +11,7 @@ type Props = {
 
 export function FullscreenButton({ targetRef }: Props) {
   const styles = useOverlayStyles()
-  const [active, setActive] = useState(false)
-
-  useEffect(() => {
-    const onChange = () => {
-      setActive(document.fullscreenElement === targetRef.current)
-    }
-    document.addEventListener('fullscreenchange', onChange)
-    return () => document.removeEventListener('fullscreenchange', onChange)
-  }, [targetRef])
+  const active = useFullscreenTarget(targetRef)
 
   const toggle = useCallback(async () => {
     const el = targetRef.current
