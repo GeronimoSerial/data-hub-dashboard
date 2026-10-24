@@ -122,7 +122,7 @@ test('admin creates and edits an infrastructure-only account with an assigned pa
   const adminPage = await adminContext.newPage()
   const adminErrors = collectBrowserErrors(adminPage)
   await login(adminPage, adminEmail, adminPassword)
-  await adminPage.goto('/admin#usuarios')
+  await adminPage.goto('/admin/usuarios')
   await expect(adminPage.getByRole('table', { name: 'Usuarios' })).toBeVisible()
   await adminPage.getByRole('button', { name: 'Nuevo usuario' }).click()
   const dialog = adminPage.getByRole('dialog')

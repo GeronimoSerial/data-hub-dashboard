@@ -24,8 +24,8 @@ describe('AdminShell', () => {
     const policy = { enabledSections: ['infrastructure'] as const, landing: true }
     const { rerender } = render(<AdminShell role="admin" hubPolicy={policy} flags={{ riskEngineEnabled: false, episodiosDerivadosEnabled: false }}>{children}</AdminShell>)
     expect(screen.getByRole('link', { name: 'Salud' })).toHaveAttribute('href', '/admin/operacion')
-    expect(screen.getByRole('link', { name: 'Motivos' })).toHaveAttribute('href', '/admin#motivos')
-    expect(screen.getByRole('link', { name: 'Acceso nominal' })).toHaveAttribute('href', '/admin#nominal')
+    expect(screen.getByRole('link', { name: 'Motivos' })).toHaveAttribute('href', '/admin/motivos')
+    expect(screen.getByRole('link', { name: 'Acceso nominal' })).toHaveAttribute('href', '/admin/nominal')
     expect(screen.getByRole('link', { name: 'Motivos' }).closest('.admin-sidebar__section')).toHaveTextContent('Organización')
     expect(screen.getByRole('link', { name: 'Acceso nominal' }).closest('.admin-sidebar__section')).toHaveTextContent('Accesos')
     rerender(<AdminShell role="editor" hubPolicy={policy} flags={{ riskEngineEnabled: true, episodiosDerivadosEnabled: true }}>{children}</AdminShell>)

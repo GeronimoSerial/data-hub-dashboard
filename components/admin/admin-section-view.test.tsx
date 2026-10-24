@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Recurso } from '@/lib/model'
-import { AdminPage } from './admin-page'
+import { AdminSectionView } from './admin-section-view'
 
 const hub = vi.hoisted(() => ({
   current: {} as Record<string, unknown>,
@@ -25,7 +25,7 @@ afterEach(() => {
   window.history.replaceState(null, '', '/')
 })
 
-describe('AdminPage', () => {
+describe('AdminSectionView', () => {
   it('mantiene la tabla de motivos dentro de su área y muestra el título y la gravedad sugerida', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -33,9 +33,8 @@ describe('AdminPage', () => {
         motivos: [{ id: 'anegamiento', nombre: 'Anegamiento', categoria: 'alumnos', orden: 10, severidadSugerida: 'Alta' }],
       }),
     }))
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="motivos" />)
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Motivos' }))
     expect(await screen.findByRole('table', { name: 'Administración de motivos' })).toBeInTheDocument()
     expect(screen.queryByText('Modelo único')).not.toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Gravedad sugerida' })).toBeInTheDocument()
@@ -94,7 +93,7 @@ function json(body: unknown) {
   })
 }
 
-describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
+describe('AdminSectionView: direcciones (nivel jurisdiccional)', () => {
   const fetchMock = vi.fn()
 
   beforeEach(() => {
@@ -125,8 +124,7 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
   })
 
   it('muestra los nombres jurisdiccionales de los niveles de cada usuario', async () => {
-    window.location.hash = '#usuarios'
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="usuarios" />)
 
     expect(
       await screen.findByText('Dirección de Enseñanza Privada, Nivel Central'),
@@ -135,8 +133,7 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
 
   it('ofrece los roles director de nivel y operador del establecimiento con sus etiquetas', async () => {
     const user = userEvent.setup()
-    window.location.hash = '#usuarios'
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="usuarios" />)
 
     await user.click(await screen.findByRole('button', { name: 'Editar' }))
     const dialog = await screen.findByRole('dialog')
@@ -154,8 +151,7 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
 
   it('envía nivelJurIds como números al guardar un usuario editado', async () => {
     const user = userEvent.setup()
-    window.location.hash = '#usuarios'
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="usuarios" />)
 
     await user.click(await screen.findByRole('button', { name: 'Editar' }))
     const dialog = await screen.findByRole('dialog')
@@ -177,7 +173,7 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
 
   it('muestra la audiencia de un recurso con el nombre de la dirección', async () => {
     const user = userEvent.setup()
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="recursos" />)
 
     await user.click(await screen.findByRole('button', { name: 'Editar' }))
     const dialog = await screen.findByRole('dialog')
@@ -187,8 +183,7 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
   })
 
   it('lista el catálogo de direcciones GE en solo lectura', async () => {
-    window.location.hash = '#direcciones'
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="direcciones" />)
 
     expect(
       await screen.findByText('Se sincroniza desde Gestión Educativa'),
@@ -206,8 +201,7 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
       if (url === '/api/usuarios') return json({ usuarios: [{ ...usuarioFixture, hubPolicy: { enabledSections: [], landing: false }, hubDestination: null }] })
       return json({})
     })
-    window.location.hash = '#usuarios'
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="usuarios" />)
     await user.click(await screen.findByRole('button', { name: 'Editar' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByRole('checkbox', { name: 'Exploración' })).not.toBeChecked()
@@ -217,8 +211,7 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
 
   it('muestra una selección inválida al quitar el acceso que habilitaba el destino', async () => {
     const user = userEvent.setup()
-    window.location.hash = '#usuarios'
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="usuarios" />)
     await user.click(await screen.findByRole('button', { name: 'Editar' }))
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('checkbox', { name: 'Reportes' }))
@@ -228,8 +221,7 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
 
   it('solo ofrece destinos autorizados por el rol del usuario editado', async () => {
     const user = userEvent.setup()
-    window.location.hash = '#usuarios'
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="usuarios" />)
     await user.click(await screen.findByRole('button', { name: 'Editar' }))
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('combobox', { name: 'Rol' }))
@@ -241,8 +233,7 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
 
   it('crea un usuario solo de infraestructura con destino validado y conserva el password asignado', async () => {
     const user = userEvent.setup()
-    window.location.hash = '#usuarios'
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="usuarios" />)
     await user.click(await screen.findByRole('button', { name: 'Nuevo usuario' }))
     const dialog = await screen.findByRole('dialog')
     const fields = within(dialog).getAllByRole('textbox')
@@ -267,14 +258,13 @@ describe('AdminPage: direcciones (nivel jurisdiccional)', () => {
   it('keeps save pending and reports API failures without closing the form', async () => {
     const user = userEvent.setup()
     let resolveSave!: (response: Response) => void
-    window.location.hash = '#usuarios'
     fetchMock.mockImplementation((url: string, init?: RequestInit) => {
       if (url === '/api/usuarios/opciones' && init?.method === 'POST') return Promise.resolve(json({ destinos: ['/'] }))
       if (url === '/api/usuarios/opciones') return Promise.resolve(json({ recursos: [] }))
       if (url === '/api/usuarios' && init?.method === 'POST') return new Promise<Response>((resolve) => { resolveSave = resolve })
       return Promise.resolve(json({ usuarios: [] }))
     })
-    render(<AdminPage role="admin" />)
+    render(<AdminSectionView slug="usuarios" />)
     await user.click(await screen.findByRole('button', { name: 'Nuevo usuario' }))
     const dialog = await screen.findByRole('dialog')
     const fields = within(dialog).getAllByRole('textbox')

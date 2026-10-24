@@ -2053,6 +2053,7 @@ time {
   transition: background-color 160ms ease, color 160ms ease;
 }
 .admin-sidebar__section a:hover, .admin-sidebar__back:hover { background: var(--fill); color: var(--ink); }
+.admin-sidebar__section a[aria-current="page"] { background: var(--fill); color: var(--ink); font-weight: 600; }
 .admin-sidebar__back {
   border-top: 1px solid var(--line-soft);
   border-radius: 0;
