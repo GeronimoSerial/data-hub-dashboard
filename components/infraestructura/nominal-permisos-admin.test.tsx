@@ -29,7 +29,7 @@ describe('NominalPermisosAdmin', () => {
   it('muestra los permisos vigentes de la API', async () => {
     mockFetch({ permisos: [grant] })
     render(<NominalPermisosAdmin />)
-    expect(await screen.findAllByText('Ana Pérez (ana@example.com)')).toHaveLength(2)
+    expect(await screen.findByRole('cell', { name: 'Ana Pérez (ana@example.com)' })).toBeInTheDocument()
     expect(screen.getByText('Vigente')).toBeInTheDocument()
   })
 
@@ -43,7 +43,8 @@ describe('NominalPermisosAdmin', () => {
     const fetchMock = mockFetch({ permisos: [] }, response({ permiso: grant }), response({ permisos: [grant] }))
     render(<NominalPermisosAdmin />)
     await screen.findByText('No hay permisos nominales otorgados.')
-    fireEvent.change(await screen.findByLabelText('Usuario'), { target: { value: 'user-1' } })
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Usuario' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Ana Pérez (ana@example.com)' }))
     fireEvent.change(screen.getByLabelText('Vence el'), { target: { value: '2027-09-01T10:00' } })
     fireEvent.click(screen.getByRole('button', { name: 'Otorgar acceso' }))
     await screen.findAllByText('Ana Pérez (ana@example.com)')
@@ -73,7 +74,8 @@ describe('NominalPermisosAdmin', () => {
     const fetchMock = mockFetch({ permisos: [] })
     render(<NominalPermisosAdmin />)
     await screen.findByText('No hay permisos nominales otorgados.')
-    fireEvent.change(await screen.findByLabelText('Usuario'), { target: { value: 'user-1' } })
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Usuario' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Ana Pérez (ana@example.com)' }))
     fireEvent.change(screen.getByLabelText('Vence el'), { target: { value: 'fecha inválida' } })
     fireEvent.submit(screen.getByRole('button', { name: 'Otorgar acceso' }).closest('form')!)
     expect(await screen.findByRole('alert')).toHaveTextContent('Ingrese una fecha de vencimiento válida.')

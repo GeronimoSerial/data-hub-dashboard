@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ArrowLeft, Activity, FolderKanban, Tags, Users, Layers3, ListTree, ShieldAlert, Waves, ClipboardCheck, Building2, UserCheck } from 'lucide-react'
@@ -62,10 +63,15 @@ export function AdminShell({ children, role, hubPolicy, flags = EMPTY_FLAGS }: {
       : section.items,
   })).filter((section) => section.items.length > 0)
   const pathname = usePathname()
+  const sidebarRef = React.useRef<HTMLElement>(null)
+  // On narrow screens the nav is a horizontal strip; keep the current section in view.
+  React.useEffect(() => {
+    sidebarRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'center' })
+  }, [pathname])
   const landingAllowed = canUseLanding(hubPolicy)
   return (
     <div className="admin-layout">
-      <aside className="admin-sidebar" aria-label="Navegación de administración">
+      <aside ref={sidebarRef} className="admin-sidebar" aria-label="Navegación de administración">
         <div className="admin-sidebar__title">Administración</div>
         {visibleSections.map((section) => (
           <div className="admin-sidebar__section" key={section.label}>
