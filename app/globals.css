@@ -2005,64 +2005,101 @@ time {
 
 .admin-layout {
   display: grid;
-  grid-template-columns: 12rem minmax(0, 1fr);
-  gap: 1.5rem;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  gap: clamp(1.5rem, 3vw, 3rem);
   max-width: var(--measure);
   width: 100%;
   margin: 0 auto;
-  padding: clamp(1.5rem, 3vw, 2.5rem) clamp(1rem, 3vw, 2.5rem) 5rem;
+  padding: var(--s-6) clamp(1rem, 3vw, 2.5rem) 5rem;
   flex: 1;
 }
-.admin-layout .page-stack { gap: var(--s-6); }
-.admin-layout .admin-main { min-width: 0; }
+.admin-main { min-width: 0; }
+/* Grid children default to min-width:auto, which lets wide tables push the
+   page past the viewport; every admin column must be allowed to shrink. */
+.admin-main > *, .admin-main .page-stack > * { min-width: 0; }
+.admin-layout .page-stack { gap: var(--s-5); }
 
 .admin-sidebar {
   align-self: start;
   position: sticky;
-  /* The header lives outside `.app-content` now (T12) — it never scrolls
-     into this container, so the sticky offset no longer needs to clear its
-     height, just a small breathing gap from the scroller's own top edge. */
   top: var(--s-4);
   display: grid;
   gap: var(--s-5);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: var(--s-5);
+  padding-right: var(--s-4);
+  border-right: 1px solid var(--line-soft);
 }
 .admin-sidebar__title {
-  font-family: var(--font-display);
-  font-weight: 800;
+  font-size: var(--t-micro);
+  font-weight: 700;
   text-transform: uppercase;
-  font-size: var(--t-h2);
-  letter-spacing: 0;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
 }
 .admin-sidebar__section { display: grid; gap: 2px; }
-.admin-sidebar__section .eyebrow { font-size: var(--t-micro); margin-bottom: var(--s-2); color: var(--ink-faint); }
+.admin-sidebar__section .eyebrow { font-size: var(--t-micro); margin-bottom: var(--s-1); color: var(--ink-faint); }
 .admin-sidebar__section a, .admin-sidebar__back {
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 0.5rem 0.6rem;
-  margin: 0 -0.6rem;
+  padding: 0.45rem 0.6rem;
   border-radius: var(--r-xs);
   text-decoration: none;
   color: var(--ink-soft);
   font-size: var(--t-small);
   font-weight: 500;
+  white-space: nowrap;
   transition: background-color 160ms ease, color 160ms ease;
 }
 .admin-sidebar__section a:hover, .admin-sidebar__back:hover { background: var(--fill); color: var(--ink); }
-.admin-sidebar__section a[aria-current="page"] { background: var(--fill); color: var(--ink); font-weight: 600; }
-.admin-sidebar__back {
-  border-top: 1px solid var(--line-soft);
-  border-radius: 0;
-  padding-top: var(--s-4);
-  margin-top: var(--s-2);
-  font-size: var(--t-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+.admin-sidebar__section a[aria-current="page"] {
+  background: var(--fill);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--ink);
 }
+.admin-sidebar__back { color: var(--ink-faint); }
+
+/* Shared page anatomy for every admin route (CRUD sections and operations). */
+.admin-page { display: grid; gap: var(--s-5); color: var(--ink); }
+.admin-page > *, .admin-panel > * { min-width: 0; }
+.admin-page__header { display: grid; gap: var(--s-2); }
+.admin-page__header .page-intro, .admin-page > .page-intro { margin: 0; }
+.admin-page h1, .admin-page__header h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+  line-height: 1;
+}
+.admin-panel {
+  display: grid;
+  gap: var(--s-3);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s-5);
+}
+.admin-panel h2 { margin: 0; font-size: var(--t-h3); font-weight: 700; }
+.admin-panel p { margin: 0; }
+.admin-plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-1); }
+.admin-filters { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+.admin-filter {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+.admin-filter:hover { color: var(--ink); background: var(--fill); }
+.admin-filter.is-active { background: var(--ink); border-color: var(--ink); color: var(--paper, #fff); }
+.admin-link { color: var(--ink); font-weight: 600; }
+.admin-dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--s-2) var(--s-5); margin: 0; }
+.admin-dl dt { color: var(--ink-soft); font-size: var(--t-small); }
+.admin-dl dd { margin: 0; }
+.admin-params { margin: 0; padding: var(--s-3); background: var(--fill); border-radius: var(--r-xs); overflow: auto; font-size: var(--t-micro); }
+.is-danger { color: var(--danger); }
 
 .ui-messagebar {
   display: flex;
@@ -2104,9 +2141,7 @@ time {
 
 /* Dense administration tables keep readable column widths and scroll inside
    their own surface instead of compressing every value into narrow stacks. */
-.admin-layout .ui-table {
-  min-width: 60rem;
-}
+.admin-layout .ui-table { min-width: 40rem; }
 
 .admin-layout .ui-table th,
 .admin-layout .ui-table td {
@@ -3321,10 +3356,22 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .app-mobile { display: inline-flex; }
   .filters-desktop { display: none; }
   .mobile-filters-toggle { display: inline-flex; }
-  .admin-layout { grid-template-columns: 1fr; }
-  .admin-sidebar { position: static; }
-  .admin-sidebar__section { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
-  .admin-sidebar__section .eyebrow { width: 100%; margin-bottom: 0; }
+  .admin-layout { grid-template-columns: minmax(0, 1fr); gap: var(--s-5); padding-top: var(--s-4); }
+  /* On small screens the section nav collapses to one scrollable strip so the
+     content is visible immediately instead of after a full-screen menu. */
+  .admin-sidebar {
+    position: static;
+    display: flex;
+    gap: var(--s-1);
+    overflow-x: auto;
+    padding: 0 0 var(--s-2);
+    border-right: 0;
+    border-bottom: 1px solid var(--line-soft);
+    scrollbar-width: thin;
+  }
+  .admin-sidebar__title, .admin-sidebar__section .eyebrow { display: none; }
+  .admin-sidebar__section { display: flex; gap: var(--s-1); }
+  .admin-sidebar__section a[aria-current="page"] { box-shadow: inset 0 -2px 0 var(--ink); }
   .hero-search__line { flex-wrap: wrap; }
   .hero-search__line .ui-button { width: 100%; }
   .explore-head__note { display: none; }
@@ -7104,3 +7151,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .tarjeta-cruce__descripcion { margin: 0; font-size: var(--t-micro); }
 .tarjeta-cruce__ruta { display: grid; gap: 2px; border-top: 1px solid var(--line-soft); padding-top: var(--s-2); }
 .tarjeta-cruce__escuela { margin: 0; font-size: var(--t-micro); font-weight: 500; }
+
+.admin-cell-stack { display: grid; gap: 2px; min-width: 0; }
+.admin-page .ui-toolbar { margin: 0; }

@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { ConfirmDelete } from '@/components/confirm-delete'
 
 type PermisoNominal = {
@@ -115,12 +116,19 @@ export function NominalPermisosAdmin() {
       <form className="ui-form-grid" onSubmit={(event) => void otorgar(event)}>
         <div className="ui-two-col">
           <div className="ui-field">
-            <label className="ui-field__label" htmlFor="nominal-user-id">Usuario</label>
+            <label className="ui-field__label" id="nominal-user-label">Usuario</label>
             <div className="ui-field__control">
-              <select id="nominal-user-id" className="ui-input" value={userId} onChange={(event) => setUserId(event.currentTarget.value)} required disabled={cargandoUsuarios || Boolean(errorUsuarios)}>
-                <option value="">{cargandoUsuarios ? 'Cargando usuarios…' : 'Seleccionar usuario'}</option>
-                {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.name} ({usuario.email})</option>)}
-              </select>
+              <Select
+                value={userId}
+                items={[{ value: '', label: cargandoUsuarios ? 'Cargando usuarios…' : 'Seleccionar usuario' }, ...usuarios.map((usuario) => ({ value: usuario.id, label: `${usuario.name} (${usuario.email})` }))]}
+                onValueChange={(next) => setUserId((next as string | null) ?? '')}
+                disabled={cargandoUsuarios || Boolean(errorUsuarios)}
+              >
+                <SelectTrigger aria-labelledby="nominal-user-label" />
+                <SelectContent>
+                  {usuarios.map((usuario) => <SelectItem key={usuario.id} value={usuario.id}>{usuario.name} ({usuario.email})</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="ui-field">

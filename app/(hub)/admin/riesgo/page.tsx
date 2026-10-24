@@ -25,27 +25,6 @@ const HORIZONTES = [24, 72, 240] as const
 type Horizonte = (typeof HORIZONTES)[number]
 const PAGE_SIZE = 50
 
-const contenedor: React.CSSProperties = { padding: '2rem', color: 'var(--ink)' }
-const bloque: React.CSSProperties = {
-  border: '1px solid var(--line)',
-  borderRadius: 8,
-  padding: '1rem',
-  marginBottom: '1.5rem',
-  background: 'var(--fill)',
-}
-const tabla: React.CSSProperties = { width: '100%', borderCollapse: 'collapse' }
-const celda: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '0.5rem',
-  borderBottom: '1px solid var(--line)',
-}
-const enlace: React.CSSProperties = { color: 'var(--ink)' }
-const enlaceActivo: React.CSSProperties = {
-  ...enlace,
-  fontWeight: 700,
-  textDecoration: 'underline',
-}
-const tenue: React.CSSProperties = { color: 'var(--ink-soft)', fontSize: 'var(--t-micro)' }
 
 // El horizonte sólo admite 24|72|240; cualquier otra cosa cae a 24 en
 // silencio: es un panel interno, no un endpoint público al que haya que
@@ -112,7 +91,7 @@ export default async function RiesgoModoEvaluacionPage({
   // Con el flag apagado no se toca infra_risk_*: ni ensureSeeded() ni consultas.
   if (!riskEngineEnabled()) {
     return (
-      <div style={contenedor}>
+      <div className="admin-page">
         <h1>Riesgo</h1>
         <p>Motor de riesgo deshabilitado (RISK_ENGINE_ENABLED=false)</p>
       </div>
@@ -134,19 +113,19 @@ export default async function RiesgoModoEvaluacionPage({
     .limit(1)
 
   const encabezado = (
-    <header style={{ marginBottom: '1.5rem' }}>
+    <header className="admin-page__header">
       <h1>Riesgo</h1>
-      <p style={{ color: 'var(--ink)' }}>
+      <p className="page-intro">
         Modo de evaluacion (en sombra) — motor de riesgo v0. Este ranking es
         interno, no reemplaza el parte escolar ni implica una decision
         automatica.
       </p>
-      <nav style={{ display: 'flex', gap: '0.75rem' }} aria-label="Horizonte">
+      <nav className="admin-filters" aria-label="Horizonte">
         {HORIZONTES.map((h) => (
           <Link
             key={h}
             href={hrefHorizonte(h, departamento)}
-            style={h === horizonte ? enlaceActivo : enlace}
+            className={h === horizonte ? 'admin-filter is-active' : 'admin-filter'}
           >
             {h} h
           </Link>
@@ -158,7 +137,7 @@ export default async function RiesgoModoEvaluacionPage({
   // Estado legítimo: el motor todavía no publicó ningún corte. No es un error.
   if (!runVigente) {
     return (
-      <div style={contenedor}>
+      <div className="admin-page">
         {encabezado}
         <p>Todavia no hay un corte publicado por el motor de riesgo</p>
       </div>
@@ -212,72 +191,72 @@ export default async function RiesgoModoEvaluacionPage({
     .offset((page - 1) * PAGE_SIZE)
 
   return (
-    <div style={contenedor}>
+    <div className="admin-page">
       {encabezado}
 
-      <section style={bloque}>
+      <section className="admin-panel">
         {items.length === 0 ? (
           <p>Sin escuelas para este horizonte{departamento ? ' y departamento' : ''}</p>
         ) : (
-          <table style={tabla}>
+          <div className="ui-table-wrap"><table className="ui-table">
             <thead>
               <tr>
-                <th style={celda}>Escuela</th>
-                <th style={celda}>Departamento</th>
-                <th style={celda}>Nivel</th>
-                <th style={celda}>Motivo breve</th>
-                <th style={celda}>Confianza</th>
-                <th style={celda}>Fecha</th>
+                <th>Escuela</th>
+                <th>Departamento</th>
+                <th>Nivel</th>
+                <th>Motivo breve</th>
+                <th>Confianza</th>
+                <th>Fecha</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.snapshotId}>
-                  <td style={celda}>
+                  <td>
                     <Link
                       href={`/admin/riesgo/${item.snapshotId}`}
-                      style={enlace}
+                      className="admin-link"
                     >
                       {item.cueAnexo}
                     </Link>
                   </td>
-                  <td style={celda}>{item.departamento ?? '—'}</td>
-                  <td style={celda}>
+                  <td>{item.departamento ?? '—'}</td>
+                  <td>
                     {etiqueta(ETIQUETA_NIVEL, item.nivelRiesgo)}
                   </td>
-                  <td style={celda}>
+                  <td>
                     {motivoBreve(
                       item.evidenciaValida,
                       item.scoreAmenaza,
                       item.scoreVulnerabilidad,
                     )}
                   </td>
-                  <td style={celda}>{etiqueta(ETIQUETA_CONFIANZA, item.confianza)}</td>
-                  <td style={celda}>{formatearFecha(item.calculadoEn)}</td>
+                  <td>{etiqueta(ETIQUETA_CONFIANZA, item.confianza)}</td>
+                  <td>{formatearFecha(item.calculadoEn)}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 
       {totalPages > 1 && (
-        <nav style={{ display: 'flex', gap: '0.75rem' }} aria-label="Paginacion">
+        <nav className="admin-filters" aria-label="Paginacion">
           {page > 1 && (
             <Link
               href={hrefPagina(page - 1, horizonte, departamento)}
-              style={enlace}
+              className="admin-link"
             >
               Anterior
             </Link>
           )}
-          <span style={tenue}>
+          <span className="ui-hint">
             Página {page} de {totalPages} ({total} escuelas)
           </span>
           {page < totalPages && (
             <Link
               href={hrefPagina(page + 1, horizonte, departamento)}
-              style={enlace}
+              className="admin-link"
             >
               Siguiente
             </Link>

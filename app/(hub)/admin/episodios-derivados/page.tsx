@@ -19,27 +19,6 @@ export const dynamic = 'force-dynamic'
 // (hazardContextEnabled, batch E2), que pertenecen a otras vistas.
 const PAGE_SIZE = 50
 
-const contenedor: React.CSSProperties = { padding: '2rem', color: 'var(--ink)' }
-const bloque: React.CSSProperties = {
-  border: '1px solid var(--line)',
-  borderRadius: 8,
-  padding: '1rem',
-  marginBottom: '1.5rem',
-  background: 'var(--fill)',
-}
-const tabla: React.CSSProperties = { width: '100%', borderCollapse: 'collapse' }
-const celda: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '0.5rem',
-  borderBottom: '1px solid var(--line)',
-}
-const enlace: React.CSSProperties = { color: 'var(--ink)' }
-const enlaceActivo: React.CSSProperties = {
-  ...enlace,
-  fontWeight: 700,
-  textDecoration: 'underline',
-}
-const tenue: React.CSSProperties = { color: 'var(--ink-soft)', fontSize: 'var(--t-micro)' }
 
 // La regla v0.1 sólo emite 'abierto' | 'cerrado'. Cualquier otro valor se
 // muestra tal cual: es un panel interno, no un endpoint público.
@@ -105,7 +84,7 @@ export default async function EpisodiosDerivadosPage({
   // Con el flag apagado no se toca infra_episodio_*: ni ensureSeeded() ni consultas.
   if (!episodiosDerivadosEnabled()) {
     return (
-      <div style={contenedor}>
+      <div className="admin-page">
         <h1>Episodios derivados</h1>
         <p>Episodios derivados deshabilitado (EPISODIOS_DERIVADOS_ENABLED=false)</p>
       </div>
@@ -146,29 +125,29 @@ export default async function EpisodiosDerivadosPage({
     .offset((page - 1) * PAGE_SIZE)
 
   const encabezado = (
-    <header style={{ marginBottom: '1.5rem' }}>
+    <header className="admin-page__header">
       <h1>Episodios derivados</h1>
-      <p style={{ color: 'var(--ink)' }}>
+      <p className="page-intro">
         Episodios calculados automáticamente a partir de afectaciones
         confirmadas registradas en el parte. No requieren ni admiten apertura o
         cierre manual.
       </p>
-      <nav style={{ display: 'flex', gap: '0.75rem' }} aria-label="Estado">
+      <nav className="admin-filters" aria-label="Estado">
         <Link
           href={hrefEstado('abierto', departamento)}
-          style={estado === 'abierto' ? enlaceActivo : enlace}
+          className={estado === 'abierto' ? 'admin-filter is-active' : 'admin-filter'}
         >
           Abiertos
         </Link>
         <Link
           href={hrefEstado('cerrado', departamento)}
-          style={estado === 'cerrado' ? enlaceActivo : enlace}
+          className={estado === 'cerrado' ? 'admin-filter is-active' : 'admin-filter'}
         >
           Cerrados
         </Link>
         <Link
           href={hrefEstado(undefined, departamento)}
-          style={estado === undefined ? enlaceActivo : enlace}
+          className={estado === undefined ? 'admin-filter is-active' : 'admin-filter'}
         >
           Todos
         </Link>
@@ -177,10 +156,10 @@ export default async function EpisodiosDerivadosPage({
   )
 
   return (
-    <div style={contenedor}>
+    <div className="admin-page">
       {encabezado}
 
-      <section style={bloque}>
+      <section className="admin-panel">
         {items.length === 0 ? (
           <p>
             Sin episodios derivados
@@ -188,57 +167,57 @@ export default async function EpisodiosDerivadosPage({
             {departamento ? ' y departamento' : ''}
           </p>
         ) : (
-          <table style={tabla}>
+          <div className="ui-table-wrap"><table className="ui-table">
             <thead>
               <tr>
-                <th style={celda}>Departamento</th>
-                <th style={celda}>Estado</th>
-                <th style={celda}>Inicio</th>
-                <th style={celda}>Fin</th>
-                <th style={celda}>Escuelas afectadas</th>
+                <th>Departamento</th>
+                <th>Estado</th>
+                <th>Inicio</th>
+                <th>Fin</th>
+                <th>Escuelas afectadas</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id}>
-                  <td style={celda}>
+                  <td>
                     <Link
                       href={`/admin/episodios-derivados/${item.id}`}
-                      style={enlace}
+                      className="admin-link"
                     >
                       {item.unidadId}
                     </Link>
                   </td>
-                  <td style={celda}>{etiquetaEstado(item.estado)}</td>
-                  <td style={celda}>{formatearFecha(item.inicioEn)}</td>
-                  <td style={celda}>
+                  <td>{etiquetaEstado(item.estado)}</td>
+                  <td>{formatearFecha(item.inicioEn)}</td>
+                  <td>
                     {item.finEn === null ? '—' : formatearFecha(item.finEn)}
                   </td>
-                  <td style={celda}>{item.escuelasAfectadas}</td>
+                  <td>{item.escuelasAfectadas}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 
       {totalPages > 1 && (
-        <nav style={{ display: 'flex', gap: '0.75rem' }} aria-label="Paginacion">
+        <nav className="admin-filters" aria-label="Paginacion">
           {page > 1 && (
             <Link
               href={hrefPagina(page - 1, estado, departamento)}
-              style={enlace}
+              className="admin-link"
             >
               Anterior
             </Link>
           )}
-          <span style={tenue}>
+          <span className="ui-hint">
             Página {page} de {totalPages} ({total} episodios)
           </span>
           {page < totalPages && (
             <Link
               href={hrefPagina(page + 1, estado, departamento)}
-              style={enlace}
+              className="admin-link"
             >
               Siguiente
             </Link>

@@ -367,8 +367,7 @@ export function UsersAdmin() {
         <table className="ui-table" aria-label="Usuarios">
           <thead>
             <tr>
-              <th>Nombre</th>
-              <th>Correo</th>
+              <th>Usuario</th>
               <th>Rol</th>
               <th>Direcciones</th>
               <th>Acceso al Hub</th>
@@ -379,8 +378,12 @@ export function UsersAdmin() {
           <tbody>
             {usuarios.map((u) => (
               <tr key={u.id}>
-                <td>{u.name}</td>
-                <td>{u.email}</td>
+                <td>
+                  <div className="admin-cell-stack">
+                    <strong>{u.name}</strong>
+                    <span className="ui-hint">{u.email}</span>
+                  </div>
+                </td>
                 <td>{rolLabel(u.role)}</td>
                 <td>
                   {nombresDirecciones(u.nivelJurIds) || '—'}
@@ -394,9 +397,24 @@ export function UsersAdmin() {
                   ) : null}
                 </td>
                 <td>
-                  {`${u.hubPolicy.enabledSections === undefined ? 'Todas las secciones (heredado)' : u.hubPolicy.enabledSections.map((section) => SECTION_LABELS[section]).join(', ') || 'Sin secciones'}; Inicio ${u.hubPolicy.landing === undefined ? 'permitido (heredado)' : u.hubPolicy.landing ? 'permitido' : 'no permitido'}`}
-                  <br />
-                  <span className="ui-hint">Destino: {u.hubDestination ? DESTINATION_LABELS[u.hubDestination] ?? u.hubDestination : u.hubPolicy.enabledSections === undefined && u.hubPolicy.landing === undefined ? u.role === 'operador_establecimiento' ? 'Entrada GE según CUE; si no aplica, Inicio heredado' : 'Inicio (heredado)' : 'Sin configurar'}</span>
+                  <div className="admin-cell-stack">
+                    <div className="ui-actions">
+                      {u.hubPolicy.enabledSections === undefined ? (
+                        <span className="badge badge--neutral">Todas las secciones</span>
+                      ) : u.hubPolicy.enabledSections.length === 0 ? (
+                        <span className="badge badge--warning">Sin secciones</span>
+                      ) : (
+                        u.hubPolicy.enabledSections.map((section) => (
+                          <span key={section} className="badge badge--neutral">{SECTION_LABELS[section]}</span>
+                        ))
+                      )}
+                      {u.hubPolicy.landing === false ? <span className="badge badge--warning">Inicio no permitido</span> : null}
+                    </div>
+                    <span className="ui-hint">
+                      Entra a: {u.hubDestination ? DESTINATION_LABELS[u.hubDestination] ?? u.hubDestination : u.hubPolicy.enabledSections === undefined && u.hubPolicy.landing === undefined ? u.role === 'operador_establecimiento' ? 'Entrada GE según CUE; si no aplica, Inicio' : 'Inicio' : 'Sin configurar'}
+                      {u.hubPolicy.enabledSections === undefined && u.hubPolicy.landing === undefined ? ' · acceso heredado' : ''}
+                    </span>
+                  </div>
                 </td>
                 <td>
                   <span className={u.banned ? 'badge badge--warning' : 'badge badge--success'}>

@@ -15,10 +15,9 @@ export function AdminSection({
 }) {
   const { writeError } = useHubData()
   return (
-    <div className="page-stack">
-      <header>
-        <span className="eyebrow">Administración</span>
-        <h1 className="page-title page-title--sm">{title}</h1>
+    <div className="admin-page">
+      <header className="admin-page__header">
+        <h1>{title}</h1>
         <p className="page-intro">{intro}</p>
       </header>
       {note ? <div className="ui-messagebar ui-messagebar--info"><span>{note}</span></div> : null}
