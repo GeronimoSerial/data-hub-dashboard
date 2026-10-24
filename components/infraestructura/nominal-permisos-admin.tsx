@@ -146,13 +146,13 @@ export function NominalPermisosAdmin() {
               <tr key={permiso.id}>
                 <td>{usuarios.find((usuario) => usuario.id === permiso.userId)?.name
                   ? `${usuarios.find((usuario) => usuario.id === permiso.userId)?.name} (${usuarios.find((usuario) => usuario.id === permiso.userId)?.email})`
-                  : permiso.userId}</td><td>{new Date(permiso.otorgadoEn).toLocaleString()}</td><td>{new Date(permiso.venceEn).toLocaleString()}</td>
-                <td>{permiso.revocadoEn ? 'Revocado' : new Date(permiso.venceEn) <= new Date() ? 'Vencido' : 'Vigente'}</td>
+                  : permiso.userId}</td><td data-label="Otorgado">{new Date(permiso.otorgadoEn).toLocaleString()}</td><td data-label="Vence">{new Date(permiso.venceEn).toLocaleString()}</td>
+                <td data-label="Estado">{permiso.revocadoEn ? 'Revocado' : new Date(permiso.venceEn) <= new Date() ? 'Vencido' : 'Vigente'}</td>
                 <td>{permiso.revocadoEn ? '—' : <ConfirmDelete title="¿Revocar acceso nominal?" description="El usuario dejará de acceder a los conteos nominales." onConfirm={() => void revocar(permiso.id)} triggerLabel="Revocar acceso" />}</td>
               </tr>
             ))}
-            {!cargando && permisos.length === 0 ? <tr><td colSpan={5}>No hay permisos nominales otorgados.</td></tr> : null}
-            {cargando ? <tr><td colSpan={5}>Cargando permisos…</td></tr> : null}
+            {!cargando && permisos.length === 0 ? <tr><td colSpan={5} className="admin-empty-cell">No hay permisos nominales otorgados.</td></tr> : null}
+            {cargando ? <tr><td colSpan={5} className="admin-empty-cell">Cargando permisos…</td></tr> : null}
           </tbody>
         </table>
       </div>

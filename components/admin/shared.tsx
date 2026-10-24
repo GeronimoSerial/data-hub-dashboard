@@ -2,7 +2,7 @@
 
 import type { Role } from '@/lib/acl'
 import * as React from 'react'
-import { Pencil } from 'lucide-react'
+import { Pencil, Search } from 'lucide-react'
 import { type BadgeColor } from '@/lib/model'
 import { type HubSection, type SectionPolicy } from '@/lib/hub-sections'
 import { nivelesJurisdiccionales } from '@/lib/model'
@@ -265,3 +265,79 @@ export function DialogActions({
 
 // ── Recurso editor ─────────────────────────────────────────────────────────
 
+
+// ── List toolbar ───────────────────────────────────────────────────────────
+
+function normalizar(texto: string) {
+  return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
+/** Case- and accent-insensitive filter over the given text fields. */
+export function useBusqueda<T>(items: T[], campos: (item: T) => (string | undefined | null)[]) {
+  const [query, setQuery] = React.useState('')
+  const needle = normalizar(query.trim())
+  const filtrados = needle
+    ? items.filter((item) => campos(item).some((campo) => campo && normalizar(campo).includes(needle)))
+    : items
+  return { query, setQuery, filtrados }
+}
+
+export function AdminListToolbar({
+  query,
+  onQuery,
+  placeholder,
+  total,
+  visibles,
+  singular,
+  plural,
+  action,
+}: {
+  query?: string
+  onQuery?: (value: string) => void
+  placeholder?: string
+  total: number
+  visibles?: number
+  singular: string
+  plural: string
+  action?: React.ReactNode
+}) {
+  const shown = visibles ?? total
+  return (
+    <div className="admin-toolbar">
+      {onQuery ? (
+        <label className="admin-search">
+          <Search size={16} aria-hidden />
+          <span className="sr-only">{placeholder}</span>
+          <input type="search" value={query} placeholder={placeholder} onChange={(event) => onQuery(event.target.value)} />
+        </label>
+      ) : null}
+      <span className="admin-toolbar__count" aria-live="polite">
+        {shown === total ? `${total} ${total === 1 ? singular : plural}` : `${shown} de ${total} ${plural}`}
+      </span>
+      {action ? <div className="admin-toolbar__action">{action}</div> : null}
+    </div>
+  )
+}
+
+export function AdminEmptyRow({ colSpan, children }: { colSpan: number; children: React.ReactNode }) {
+  return (
+    <tr className="admin-empty-row">
+      <td colSpan={colSpan}>{children}</td>
+    </tr>
+  )
+}
+
+export function AdminStatus({ tone, children }: { tone: 'ok' | 'warn' | 'off'; children: React.ReactNode }) {
+  return <span className={`admin-status admin-status--${tone}`}>{children}</span>
+}
+
+/** Row props that open the editor on click; buttons and links inside keep their own behavior. The edit button stays as the keyboard path. */
+export function filaEditable(onEdit: () => void) {
+  return {
+    className: 'admin-row--editable',
+    onClick: (event: React.MouseEvent<HTMLTableRowElement>) => {
+      if ((event.target as HTMLElement).closest('button, a, input, [role="dialog"]')) return
+      onEdit()
+    },
+  }
+}

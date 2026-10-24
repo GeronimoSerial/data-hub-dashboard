@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import { slugId, AdminField, FormDialog, useEditorDialog, useListaRemota, SelectField, leerErrorApi, BotonEditar, DialogActions } from '@/components/admin/shared'
+import { slugId, AdminField, FormDialog, useEditorDialog, useListaRemota, SelectField, leerErrorApi, BotonEditar, DialogActions, AdminListToolbar, AdminEmptyRow, useBusqueda, filaEditable } from '@/components/admin/shared'
 
 function MotivoDialog({
   open,
@@ -79,7 +79,7 @@ function MotivoForm({
   }
 
   return (
-    <DialogContent>
+    <DialogContent className="admin-sheet">
       <DialogTitle className="admin-form__title">{editing ? 'Editar motivo' : 'Nuevo motivo'}</DialogTitle>
       <div className="ui-form-grid">
         {error ? (
@@ -144,16 +144,20 @@ export function MotivosAdmin() {
     await reload()
   }
 
+  const { query, setQuery, filtrados } = useBusqueda(motivos, (m) => [m.nombre, CATEGORIA_META[m.categoria]?.label ?? m.categoria])
+
   return (
     <div className="admin-motivos">
-      <div className="ui-toolbar">
-        <span className="ui-hint">
-          {motivos.length} {motivos.length === 1 ? 'motivo' : 'motivos'}
-        </span>
-        <Button onClick={nuevo}>
-          <Plus size={16} /> Agregar motivo
-        </Button>
-      </div>
+      <AdminListToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Buscar motivo o categoría"
+        total={motivos.length}
+        visibles={filtrados.length}
+        singular="motivo"
+        plural="motivos"
+        action={<Button onClick={nuevo}><Plus size={16} /> Agregar motivo</Button>}
+      />
 
       {loadError ? (
         <div className="ui-messagebar ui-messagebar--error" role="alert">
@@ -174,12 +178,12 @@ export function MotivosAdmin() {
               <th>Motivo</th>
               <th>Gravedad sugerida</th>
               <th>Orden</th>
-              <th>Acciones</th>
+              <th><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
           <tbody>
-            {motivos.map((m) => (
-              <tr key={m.id}>
+            {filtrados.map((m) => (
+              <tr key={m.id} {...filaEditable(() => editar(m))}>
                 <td className="admin-motivos__nombre">
                   <div className="admin-motivos__nombre-contenido">
                     <span className="admin-motivos__nombre-texto">{m.nombre}</span>
@@ -203,6 +207,9 @@ export function MotivosAdmin() {
                 </td>
               </tr>
             ))}
+            {motivos.length > 0 && filtrados.length === 0 ? (
+              <AdminEmptyRow colSpan={4}>Ningún motivo coincide con «{query}».</AdminEmptyRow>
+            ) : null}
           </tbody>
         </table>
       </div>

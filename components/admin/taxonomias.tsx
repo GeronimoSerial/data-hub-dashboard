@@ -9,7 +9,7 @@ import { ConfirmDelete } from '@/components/confirm-delete'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { COLORS, slugId, AdminField, FormDialog, useEditorDialog, SelectField, BotonEditar, DialogActions } from '@/components/admin/shared'
+import { COLORS, slugId, AdminField, FormDialog, useEditorDialog, SelectField, BotonEditar, DialogActions, AdminListToolbar, AdminEmptyRow, useBusqueda, filaEditable } from '@/components/admin/shared'
 
 interface TaxonomyField {
   key: string
@@ -69,7 +69,7 @@ function TaxonomyForm({
     typeof values.nombre === 'string' && values.nombre.trim().length > 0
 
   return (
-    <DialogContent>
+    <DialogContent className="admin-sheet">
       <DialogTitle className="admin-form__title">{title}</DialogTitle>
         <div className="ui-form-grid">
           {fields.map((f) => {
@@ -165,15 +165,20 @@ export function TaxonomyAdmin<T extends { id: string }>({
   inUse: (id: string) => number
 }) {
   const { open, editing, nuevo, editar, onClose } = useEditorDialog<T>()
+  const { query, setQuery, filtrados } = useBusqueda(items, (item) => [(item as { nombre?: string }).nombre])
 
   return (
     <div>
-      <div className="ui-toolbar">
-        <span className="ui-hint">
-          {items.length} {items.length === 1 ? singular : `${singular}s`}
-        </span>
-        <Button onClick={nuevo}><Plus size={16} /> Agregar {singular}</Button>
-      </div>
+      <AdminListToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder={`Buscar ${singular}`}
+        total={items.length}
+        visibles={filtrados.length}
+        singular={singular}
+        plural={`${singular}s`}
+        action={<Button onClick={nuevo}><Plus size={16} /> Agregar {singular}</Button>}
+      />
 
       <div className="ui-table-wrap">
         <table className="ui-table" aria-label={`Administración de ${singular}`}>
@@ -183,21 +188,19 @@ export function TaxonomyAdmin<T extends { id: string }>({
                 <th key={c.header}>{c.header}</th>
               ))}
               <th>En uso</th>
-              <th>Acciones</th>
+              <th><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => {
+            {filtrados.map((item) => {
               const uses = inUse(item.id)
               return (
-                <tr key={item.id}>
-                  {columns.map((c) => (
-                    <td key={c.header}>{c.render(item)}</td>
+                <tr key={item.id} {...filaEditable(() => editar(item))}>
+                  {columns.map((c, index) => (
+                    <td key={c.header} data-label={index === 0 ? undefined : c.header}>{c.render(item)}</td>
                   ))}
-                  <td>
-                    <span className={uses ? 'badge' : 'badge badge--neutral'}>
-                      {uses} {uses === 1 ? 'recurso' : 'recursos'}
-                    </span>
+                  <td data-label="En uso" className={uses ? undefined : 'ui-hint'}>
+                    {uses ? `${uses} ${uses === 1 ? 'recurso' : 'recursos'}` : 'Sin uso'}
                   </td>
                   <td>
                     <div className="ui-actions">
@@ -225,6 +228,11 @@ export function TaxonomyAdmin<T extends { id: string }>({
                 </tr>
               )
             })}
+            {items.length === 0 ? (
+              <AdminEmptyRow colSpan={columns.length + 2}>Todavía no hay registros. Use «Agregar {singular}» para crear el primero.</AdminEmptyRow>
+            ) : filtrados.length === 0 ? (
+              <AdminEmptyRow colSpan={columns.length + 2}>Nada coincide con «{query}».</AdminEmptyRow>
+            ) : null}
           </tbody>
         </table>
       </div>

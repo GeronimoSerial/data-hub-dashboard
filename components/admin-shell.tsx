@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ArrowLeft, Activity, FolderKanban, Tags, Users, Layers3, ListTree, ShieldAlert, Waves, ClipboardCheck, Building2, UserCheck } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Activity, FolderKanban, Tags, Users, Layers3, ListTree, ShieldAlert, Waves, ClipboardCheck, Building2, UserCheck } from 'lucide-react'
 import { isStaff, type Role } from '@/lib/acl'
 import { adminSection, adminSectionHref, type AdminSectionSlug } from '@/components/admin/sections'
 import { canUseLanding, effectiveSections, type SectionPolicy } from '@/lib/hub-sections'
@@ -63,27 +63,47 @@ export function AdminShell({ children, role, hubPolicy, flags = EMPTY_FLAGS }: {
       : section.items,
   })).filter((section) => section.items.length > 0)
   const pathname = usePathname()
-  const sidebarRef = React.useRef<HTMLElement>(null)
-  // On narrow screens the nav is a horizontal strip; keep the current section in view.
+  // The menu remembers the path it was opened on, so navigating closes it.
+  const [menuOpenAt, setMenuOpenAt] = React.useState<string | null>(null)
+  const menuOpen = menuOpenAt !== null && menuOpenAt === pathname
+  const isCurrent = (href: string) => pathname === href || Boolean(pathname?.startsWith(`${href}/`))
+  const current = visibleSections.flatMap((section) => section.items).find((item) => isCurrent(item.href))
   React.useEffect(() => {
-    sidebarRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'center' })
-  }, [pathname])
+    if (!menuOpen) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpenAt(null) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuOpen])
   const landingAllowed = canUseLanding(hubPolicy)
   return (
     <div className="admin-layout">
-      <aside ref={sidebarRef} className="admin-sidebar" aria-label="Navegación de administración">
-        <div className="admin-sidebar__title">Administración</div>
-        {visibleSections.map((section) => (
-          <div className="admin-sidebar__section" key={section.label}>
-            <span className="eyebrow">{section.label}</span>
-            {section.items.map(({ label, href, icon: Icon }) => (
-              <Link href={href} key={href} aria-current={pathname === href || pathname?.startsWith(`${href}/`) ? 'page' : undefined}>
-                <Icon size={16} /> {label}
-              </Link>
-            ))}
-          </div>
-        ))}
-        {landingAllowed ? <Link className="admin-sidebar__back" href="/"><ArrowLeft size={16} /> Volver al Hub</Link> : null}
+      <aside className="admin-sidebar" data-open={menuOpen || undefined} aria-label="Navegación de administración">
+        <div className="admin-sidebar__head">
+          <span className="admin-sidebar__title">Administración</span>
+          <button
+            type="button"
+            className="admin-sidebar__toggle"
+            aria-expanded={menuOpen}
+            aria-controls="admin-sidebar-nav"
+            onClick={() => setMenuOpenAt(menuOpen ? null : pathname)}
+          >
+            <span>{current?.label ?? 'Secciones'}</span>
+            <ChevronDown size={16} aria-hidden />
+          </button>
+        </div>
+        <nav id="admin-sidebar-nav" className="admin-sidebar__nav">
+          {visibleSections.map((section) => (
+            <div className="admin-sidebar__section" key={section.label}>
+              <span className="admin-sidebar__group">{section.label}</span>
+              {section.items.map(({ label, href, icon: Icon }) => (
+                <Link href={href} key={href} aria-current={isCurrent(href) ? 'page' : undefined}>
+                  <Icon size={16} aria-hidden /> {label}
+                </Link>
+              ))}
+            </div>
+          ))}
+          {landingAllowed ? <Link className="admin-sidebar__back" href="/"><ArrowLeft size={16} aria-hidden /> Volver al Hub</Link> : null}
+        </nav>
       </aside>
       <div className="admin-main">{children}</div>
     </div>
