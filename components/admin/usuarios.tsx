@@ -13,7 +13,7 @@ import { RadioGroup, RadioItem } from '@/components/ui/radio'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { AccesoRecursos, HubUserRow, UserAdminOptions} from '@/components/admin/shared';
-import { SECTION_LABELS, DESTINATION_LABELS, ROLES, rolLabel, OPCIONES_DIRECCION, idsADirecciones, direccionesAIds, nombresDirecciones, AdminField, FormDialog, useEditorDialog, useListaRemota, SelectField, leerErrorApi, BotonEditar, DialogActions } from '@/components/admin/shared'
+import { SECTION_LABELS, DESTINATION_LABELS, ROLES, rolLabel, OPCIONES_DIRECCION, idsADirecciones, direccionesAIds, nombresDirecciones, AdminField, FormDialog, useEditorDialog, useListaRemota, SelectField, leerErrorApi, BotonEditar, DialogActions, AdminListToolbar, AdminEmptyRow, AdminStatus, useBusqueda, filaEditable } from '@/components/admin/shared'
 
 function UserDialog({
   open,
@@ -194,7 +194,7 @@ function UserForm({
   }
 
   return (
-    <DialogContent>
+    <DialogContent className="admin-sheet">
       <DialogTitle className="admin-form__title">
           {editing ? 'Editar usuario' : 'Nuevo usuario'}
         </DialogTitle>
@@ -347,15 +347,20 @@ export function UsersAdmin() {
     fallbackError: 'No se pudieron cargar los usuarios.',
   })
   const { open, editing, nuevo, editar, onClose } = useEditorDialog<HubUserRow>()
+  const { query, setQuery, filtrados } = useBusqueda(usuarios, (u) => [u.name, u.email, rolLabel(u.role)])
 
   return (
     <div>
-      <div className="ui-toolbar">
-        <span className="ui-hint">
-          {usuarios.length} {usuarios.length === 1 ? 'usuario' : 'usuarios'}
-        </span>
-        <Button onClick={nuevo}><Plus size={16} /> Nuevo usuario</Button>
-      </div>
+      <AdminListToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Buscar por nombre, correo o rol"
+        total={usuarios.length}
+        visibles={filtrados.length}
+        singular="usuario"
+        plural="usuarios"
+        action={<Button onClick={nuevo}><Plus size={16} /> Nuevo usuario</Button>}
+      />
 
       {loadError ? (
         <div className="ui-messagebar ui-messagebar--error" role="alert">
@@ -369,65 +374,68 @@ export function UsersAdmin() {
             <tr>
               <th>Usuario</th>
               <th>Rol</th>
-              <th>Direcciones</th>
               <th>Acceso al Hub</th>
               <th>Estado</th>
-              <th>Acciones</th>
+              <th><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
           <tbody>
-            {usuarios.map((u) => (
-              <tr key={u.id}>
-                <td>
-                  <div className="admin-cell-stack">
-                    <strong>{u.name}</strong>
-                    <span className="ui-hint">{u.email}</span>
-                  </div>
-                </td>
-                <td>{rolLabel(u.role)}</td>
-                <td>
-                  {nombresDirecciones(u.nivelJurIds) || '—'}
-                  {u.accesoRecursos === 'seleccionados' ? (
-                    <>
-                      {' '}
-                      <span className="badge badge--informative">
-                        {u.recursoIds.length} recurso{u.recursoIds.length === 1 ? '' : 's'}
-                      </span>
-                    </>
-                  ) : null}
-                </td>
-                <td>
-                  <div className="admin-cell-stack">
-                    <div className="ui-actions">
-                      {u.hubPolicy.enabledSections === undefined ? (
-                        <span className="badge badge--neutral">Todas las secciones</span>
-                      ) : u.hubPolicy.enabledSections.length === 0 ? (
-                        <span className="badge badge--warning">Sin secciones</span>
-                      ) : (
-                        u.hubPolicy.enabledSections.map((section) => (
-                          <span key={section} className="badge badge--neutral">{SECTION_LABELS[section]}</span>
-                        ))
-                      )}
-                      {u.hubPolicy.landing === false ? <span className="badge badge--warning">Inicio no permitido</span> : null}
+            {filtrados.map((u) => {
+              const heredado = u.hubPolicy.enabledSections === undefined && u.hubPolicy.landing === undefined
+              const secciones = u.hubPolicy.enabledSections === undefined
+                ? 'Todas las secciones'
+                : u.hubPolicy.enabledSections.length === 0
+                  ? 'Sin secciones'
+                  : u.hubPolicy.enabledSections.map((section) => SECTION_LABELS[section]).join(', ')
+              const destino = u.hubDestination
+                ? DESTINATION_LABELS[u.hubDestination] ?? u.hubDestination
+                : heredado
+                  ? u.role === 'operador_establecimiento' ? 'Entrada GE según CUE; si no aplica, Inicio' : 'Inicio'
+                  : 'Sin configurar'
+              const direcciones = nombresDirecciones(u.nivelJurIds)
+              return (
+                <tr key={u.id} {...filaEditable(() => editar(u))}>
+                  <td>
+                    <div className="admin-cell-stack">
+                      <strong>{u.name}</strong>
+                      <span className="ui-hint">{u.email}</span>
                     </div>
-                    <span className="ui-hint">
-                      Entra a: {u.hubDestination ? DESTINATION_LABELS[u.hubDestination] ?? u.hubDestination : u.hubPolicy.enabledSections === undefined && u.hubPolicy.landing === undefined ? u.role === 'operador_establecimiento' ? 'Entrada GE según CUE; si no aplica, Inicio' : 'Inicio' : 'Sin configurar'}
-                      {u.hubPolicy.enabledSections === undefined && u.hubPolicy.landing === undefined ? ' · acceso heredado' : ''}
-                    </span>
-                  </div>
-                </td>
-                <td>
-                  <span className={u.banned ? 'badge badge--warning' : 'badge badge--success'}>
-                    {u.banned ? 'Desactivado' : 'Activo'}
-                  </span>
-                </td>
-                <td>
-                  <div className="ui-actions">
-                    <BotonEditar onClick={() => editar(u)} />
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td data-label="Rol">
+                    <div className="admin-cell-stack">
+                      <span>{rolLabel(u.role)}</span>
+                      {direcciones || u.accesoRecursos === 'seleccionados' ? (
+                        <span className="ui-hint">
+                          {[direcciones, u.accesoRecursos === 'seleccionados' ? `${u.recursoIds.length} recurso${u.recursoIds.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')}
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td data-label="Acceso al Hub">
+                    <div className="admin-cell-stack">
+                      <span>
+                        {secciones}
+                        {u.hubPolicy.landing === false ? <span className="admin-flag"> · Inicio no permitido</span> : null}
+                      </span>
+                      <span className="ui-hint">
+                        Entra a: {destino}{heredado ? ' · acceso heredado' : ''}
+                      </span>
+                    </div>
+                  </td>
+                  <td data-label="Estado">
+                    <AdminStatus tone={u.banned ? 'off' : 'ok'}>{u.banned ? 'Desactivado' : 'Activo'}</AdminStatus>
+                  </td>
+                  <td>
+                    <div className="ui-actions">
+                      <BotonEditar onClick={() => editar(u)} />
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+            {usuarios.length > 0 && filtrados.length === 0 ? (
+              <AdminEmptyRow colSpan={5}>Ningún usuario coincide con «{query}».</AdminEmptyRow>
+            ) : null}
           </tbody>
         </table>
       </div>

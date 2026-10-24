@@ -9,7 +9,7 @@ import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
 import type { ShellUser } from '@/lib/session'
 import { canUseLanding, effectiveSections, sectionForPath } from '@/lib/hub-sections'
-import { decideScrollAction, isBleedViewerPath, isMapViewerPath, isRestoreSettled, scrollRestorationKey } from '@/lib/nav'
+import { decideScrollAction, isAdminWorkspacePath, isBleedViewerPath, isMapViewerPath, isRestoreSettled, scrollRestorationKey } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu'
 import { MarcaBanda, MarcaCompacta, MarcaHorizontal, MarcaHorizontalInversa } from '@/components/marca'
@@ -282,8 +282,8 @@ export function AppShell({
     return section === 'landing' ? canUseLanding(policy) : section ? sections.has(section) : true
   }
   const visibleNav = NAV.filter((item) => canAccessPath(item.href) && (item.href !== '/situacion' || situacionEnabled))
-  const compactoMapa = isMapViewerPath(pathname)
-  const mapViewer = isBleedViewerPath(pathname)
+  const compactoMapa = isMapViewerPath(pathname) || isAdminWorkspacePath(pathname)
+  const mapViewer = isBleedViewerPath(pathname) || isAdminWorkspacePath(pathname)
   const resourceViewer = pathname.startsWith('/recursos/')
   const [resourceDetailsExpanded, setResourceDetailsExpanded] = React.useState(false)
   const isCurrent = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href)

@@ -27,7 +27,7 @@ export function AdminSectionView({ slug }: { slug: AdminSectionSlug }) {
   const meta = adminSection(slug)!
   const View = VIEWS[slug]
   return (
-    <AdminSection title={meta.title} intro={meta.intro} note={TAXONOMIES.has(slug) ? TAXONOMY_NOTE : undefined}>
+    <AdminSection title={meta.title} group={meta.group} intro={meta.intro} note={TAXONOMIES.has(slug) ? TAXONOMY_NOTE : undefined}>
       <View />
     </AdminSection>
   )

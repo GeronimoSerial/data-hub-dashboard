@@ -14,7 +14,7 @@ import { RadioGroup, RadioItem } from '@/components/ui/radio'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { HubUserRow} from '@/components/admin/shared';
-import { OPCIONES_DIRECCION, idsADirecciones, direccionesAIds, formatBytes, slugId, AdminField, FormDialog, useEditorDialog, SelectField, BotonEditar, DialogActions } from '@/components/admin/shared'
+import { OPCIONES_DIRECCION, idsADirecciones, direccionesAIds, formatBytes, slugId, AdminField, FormDialog, useEditorDialog, SelectField, BotonEditar, DialogActions, AdminListToolbar, AdminEmptyRow, useBusqueda, filaEditable, AdminStatus } from '@/components/admin/shared'
 
 function RecursoDialog({
   open,
@@ -146,7 +146,7 @@ function RecursoForm({
     !rutaMissing
 
   return (
-      <DialogContent>
+      <DialogContent className="admin-sheet">
         <DialogTitle className="admin-form__title">
           {editing ? 'Editar recurso' : 'Nuevo recurso'}
         </DialogTitle>
@@ -347,44 +347,60 @@ function RecursoForm({
 export function RecursosAdmin() {
   const { recursos, niveles, tipos, categorias, removeRecurso } = useHubData()
   const { open, editing, nuevo, editar, onClose } = useEditorDialog<Recurso>()
+  const { query, setQuery, filtrados } = useBusqueda(recursos, (r) => [
+    r.titulo,
+    findCategoria(categorias, r.categoriaId)?.nombre,
+    tipoNombre(tipos, r.tipoId),
+    nivelNombre(niveles, r.nivelId),
+  ])
 
   return (
     <div>
-      <div className="ui-toolbar">
-        <span className="ui-hint">{recursos.length} recursos en el Hub</span>
-        <Button onClick={nuevo}><Plus size={16} /> Nuevo recurso</Button>
-      </div>
+      <AdminListToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Buscar por título, categoría, tipo o nivel"
+        total={recursos.length}
+        visibles={filtrados.length}
+        singular="recurso"
+        plural="recursos"
+        action={<Button onClick={nuevo}><Plus size={16} /> Nuevo recurso</Button>}
+      />
 
       <div className="ui-table-wrap">
         <table className="ui-table" aria-label="Recursos">
           <thead>
             <tr>
               <th>Recurso</th>
-              <th>Contenido</th>
-              <th>Nivel</th>
-              <th>Tipo</th>
-              <th>Categoría</th>
+              <th>Clasificación</th>
               <th>Estado</th>
               <th>Actualizado</th>
-              <th>Acciones</th>
+              <th><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
           <tbody>
-            {recursos.map((r) => {
+            {filtrados.map((r) => {
               const cat = findCategoria(categorias, r.categoriaId)
               return (
-                <tr key={r.id}>
-                  <td>{r.titulo}</td>
-                  <td><span className="badge">{FORMATOS[r.formato].label}</span></td>
-                  <td>{nivelNombre(niveles, r.nivelId)}</td>
-                  <td>{tipoNombre(tipos, r.tipoId)}</td>
-                  <td>{cat ? <span className="badge badge--neutral">{cat.nombre}</span> : '—'}</td>
+                <tr key={r.id} {...filaEditable(() => editar(r))}>
                   <td>
-                    <span className={r.estado === 'publicado' ? 'badge badge--success' : 'badge badge--warning'}>
-                      {r.estado === 'publicado' ? 'Publicado' : 'Borrador'}
-                    </span>
+                    <div className="admin-cell-stack">
+                      <strong>{r.titulo}</strong>
+                      <span className="ui-hint">{FORMATOS[r.formato].label} · {tipoNombre(tipos, r.tipoId)}</span>
+                    </div>
                   </td>
-                  <td>{formatearFecha(r.actualizado)}</td>
+                  <td data-label="Clasificación">
+                    <div className="admin-cell-stack">
+                      <span>{cat?.nombre ?? 'Sin categoría'}</span>
+                      <span className="ui-hint">{nivelNombre(niveles, r.nivelId)}</span>
+                    </div>
+                  </td>
+                  <td data-label="Estado">
+                    <AdminStatus tone={r.estado === 'publicado' ? 'ok' : 'warn'}>
+                      {r.estado === 'publicado' ? 'Publicado' : 'Borrador'}
+                    </AdminStatus>
+                  </td>
+                  <td data-label="Actualizado" className="admin-cell-nowrap">{formatearFecha(r.actualizado)}</td>
                   <td>
                     <div className="ui-actions">
                       <BotonEditar onClick={() => editar(r)} />
@@ -400,6 +416,11 @@ export function RecursosAdmin() {
                 </tr>
               )
             })}
+            {recursos.length === 0 ? (
+              <AdminEmptyRow colSpan={5}>Todavía no hay recursos. Use «Nuevo recurso» para publicar el primero.</AdminEmptyRow>
+            ) : filtrados.length === 0 ? (
+              <AdminEmptyRow colSpan={5}>Ningún recurso coincide con «{query}».</AdminEmptyRow>
+            ) : null}
           </tbody>
         </table>
       </div>
