@@ -26,8 +26,12 @@ export function MultiSelect<T extends string>({
   ariaLabel?: string
 }) {
   return (
+    // modal={false}: el modo modal de Base UI monta una capa fija a pantalla
+    // completa (data-base-ui-inert) cuyo recorte sigue al disparador en cada
+    // scroll. Esa capa repinta la tarjeta de detrás y la hace titilar.
     <SelectPrimitive.Root
       multiple
+      modal={false}
       value={value}
       onValueChange={(next) => onChange(next as T[])}
     >
