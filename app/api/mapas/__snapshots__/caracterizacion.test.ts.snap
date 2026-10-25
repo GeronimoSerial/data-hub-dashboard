@@ -4,20 +4,17 @@ exports[`GET /api/mapas/infraestructura (root) > answers 200 with the current pa
 {
   "body": {
     "indicadores": {
-      "alumnosAlcanzados": "number",
-      "centrosDeEvacuados": "number",
-      "conServicioParcial": "number",
-      "conServicioSuspendido": "number",
-      "escuelas": "number",
-      "establecimientosParciales": "number",
-      "evacuadas": "number",
-      "seccionesAlcanzadas": "number",
-      "sinActualizar": "number",
+      "alumnosAlcanzados": 0,
+      "centrosDeEvacuados": 0,
+      "conServicioParcial": 0,
+      "conServicioSuspendido": 0,
+      "escuelas": 0,
+      "establecimientosParciales": 0,
+      "evacuadas": 0,
+      "seccionesAlcanzadas": 0,
+      "sinActualizar": 0,
     },
-    "partes": {
-      "array": 0,
-      "elemento": null,
-    },
+    "partes": [],
   },
   "cacheControl": "private, no-cache",
   "contentType": "application/json",
@@ -83,26 +80,23 @@ exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacion
 exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacion > returns the flood exposure indicator for an authorized user 1`] = `
 {
   "body": {
-    "aviso": "string",
-    "celdasAfectadas": {
-      "array": 0,
-      "elemento": null,
-    },
+    "aviso": "Indicador histórico/estático por celda de ~1 km; no es pronóstico ni estado del camino ni el trazado de un río.",
+    "celdasAfectadas": [],
     "claseRuta": null,
-    "cueAnexo": "string",
+    "cueAnexo": "1801605-71",
     "disponible": false,
     "escenario": null,
     "fechaCorrida": null,
     "fuente": null,
     "licencia": null,
-    "motivoSinDato": "string",
+    "motivoSinDato": "Sin dato de exposición para esta escuela.",
     "periodoRetornoAnios": null,
     "resolucionArcsec": null,
     "resumen": {
-      "celdasConDato": "number",
-      "celdasConProfundidad": "number",
-      "celdasTotal": "number",
-      "cobertura": "number",
+      "celdasConDato": 0,
+      "celdasConProfundidad": 0,
+      "celdasTotal": 0,
+      "cobertura": 0,
       "profundidadMaxM": null,
     },
     "versionJob": null,
@@ -116,9 +110,9 @@ exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacion
 exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria > answers 200 with available=false when no geometry is imported 1`] = `
 {
   "body": {
-    "cueAnexo": "string",
+    "cueAnexo": "1801605-71",
     "disponible": false,
-    "motivo": "string",
+    "motivo": "sin_geometria_importada",
   },
   "cacheControl": "private, no-cache",
   "contentType": "application/json",
@@ -161,10 +155,7 @@ exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria > rejects a
 
 exports[`GET /api/mapas/infraestructura/datasets/[dataset] > answers 200 with an empty version history 1`] = `
 {
-  "body": {
-    "array": 0,
-    "elemento": null,
-  },
+  "body": [],
   "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 200,
@@ -229,20 +220,16 @@ exports[`GET /api/mapas/infraestructura/datasets/[dataset] > rejects an anonymou
 exports[`GET /api/mapas/infraestructura/escuelas > answers 200 with the enriched school list for an authorized user 1`] = `
 {
   "body": {
-    "escuelas": {
-      "array": 0,
-      "elemento": null,
-    },
-    "sinUbicacion": {
-      "array": 1,
-      "elemento": {
-        "cueAnexo": "string",
-        "departamento": "string",
-        "localidad": "string",
-        "nombre": "string",
+    "escuelas": [],
+    "sinUbicacion": [
+      {
+        "cueAnexo": "1801605-71",
+        "departamento": "ER",
+        "localidad": "Parana",
+        "nombre": "Escuela",
       },
-    },
-    "totalPadron": "number",
+    ],
+    "totalPadron": 1,
   },
   "cacheControl": "private, no-cache",
   "contentType": "application/json",
@@ -275,22 +262,10 @@ exports[`GET /api/mapas/infraestructura/escuelas > rejects an anonymous request 
 exports[`GET /api/mapas/infraestructura/evolucion > answers 200 when filtered by department 1`] = `
 {
   "body": {
-    "alumnosAcumulados": {
-      "array": 0,
-      "elemento": null,
-    },
-    "distribucionMotivo": {
-      "array": 0,
-      "elemento": null,
-    },
-    "rankingDepartamentos": {
-      "array": 0,
-      "elemento": null,
-    },
-    "serieEscuelasServicioCaido": {
-      "array": 0,
-      "elemento": null,
-    },
+    "alumnosAcumulados": [],
+    "distribucionMotivo": [],
+    "rankingDepartamentos": [],
+    "serieEscuelasServicioCaido": [],
   },
   "cacheControl": "private, no-cache",
   "contentType": "application/json",
@@ -301,22 +276,10 @@ exports[`GET /api/mapas/infraestructura/evolucion > answers 200 when filtered by
 exports[`GET /api/mapas/infraestructura/evolucion > answers 200 with the four evolution views when unfiltered 1`] = `
 {
   "body": {
-    "alumnosAcumulados": {
-      "array": 0,
-      "elemento": null,
-    },
-    "distribucionMotivo": {
-      "array": 0,
-      "elemento": null,
-    },
-    "rankingDepartamentos": {
-      "array": 0,
-      "elemento": null,
-    },
-    "serieEscuelasServicioCaido": {
-      "array": 0,
-      "elemento": null,
-    },
+    "alumnosAcumulados": [],
+    "distribucionMotivo": [],
+    "rankingDepartamentos": [],
+    "serieEscuelasServicioCaido": [],
   },
   "cacheControl": "private, no-cache",
   "contentType": "application/json",
@@ -349,10 +312,7 @@ exports[`GET /api/mapas/infraestructura/evolucion > rejects an empty department 
 exports[`GET /api/mapas/infraestructura/historial > answers 200 with an empty history for a CUE unknown to the dataset 1`] = `
 {
   "body": {
-    "movimientos": {
-      "array": 0,
-      "elemento": null,
-    },
+    "movimientos": [],
     "ok": true,
   },
   "cacheControl": "private, no-store",
@@ -364,10 +324,7 @@ exports[`GET /api/mapas/infraestructura/historial > answers 200 with an empty hi
 exports[`GET /api/mapas/infraestructura/historial > answers 200 with the movement history of a school in scope 1`] = `
 {
   "body": {
-    "movimientos": {
-      "array": 0,
-      "elemento": null,
-    },
+    "movimientos": [],
     "ok": true,
   },
   "cacheControl": "private, no-store",
@@ -456,31 +413,19 @@ exports[`GET /api/mapas/infraestructura/nominal > rejects an anonymous request w
 exports[`GET /api/mapas/infraestructura/parte > answers 200 with a null parte for a CUE unknown to the dataset 1`] = `
 {
   "body": {
-    "afectaciones": {
-      "array": 0,
-      "elemento": null,
-    },
+    "afectaciones": [],
     "datosPadron": null,
     "ok": true,
     "parte": null,
     "periodo": {
-      "id": "string",
-      "nombre": "string",
+      "id": "periodo-enos-2026-2027",
+      "nombre": "Protocolo ENOS 2026/2027",
     },
-    "recientes": {
-      "array": 0,
-      "elemento": null,
-    },
-    "secciones": {
-      "array": 0,
-      "elemento": null,
-    },
+    "recientes": [],
+    "secciones": [],
     "servicio": {
-      "alcanceVigente": {
-        "array": 0,
-        "elemento": null,
-      },
-      "estadoGeneral": "string",
+      "alcanceVigente": [],
+      "estadoGeneral": "normal",
     },
     "ultimaActualizacion": null,
   },
@@ -493,48 +438,36 @@ exports[`GET /api/mapas/infraestructura/parte > answers 200 with a null parte fo
 exports[`GET /api/mapas/infraestructura/parte > answers 200 with the parte card and census of a school in scope 1`] = `
 {
   "body": {
-    "afectaciones": {
-      "array": 0,
-      "elemento": null,
-    },
+    "afectaciones": [],
     "datosPadron": {
-      "matriculaTotal": "number",
-      "niveles": {
-        "array": 1,
-        "elemento": "string",
-      },
-      "secciones": "number",
-      "turnos": {
-        "array": 1,
-        "elemento": "string",
-      },
+      "matriculaTotal": 1,
+      "niveles": [
+        "PRIMARIA",
+      ],
+      "secciones": 1,
+      "turnos": [
+        "MAÑANA",
+      ],
     },
     "ok": true,
     "parte": null,
     "periodo": {
-      "id": "string",
-      "nombre": "string",
+      "id": "periodo-enos-2026-2027",
+      "nombre": "Protocolo ENOS 2026/2027",
     },
-    "recientes": {
-      "array": 0,
-      "elemento": null,
-    },
-    "secciones": {
-      "array": 1,
-      "elemento": {
-        "curso": "string",
-        "division": "string",
-        "geSectionId": "number",
-        "nivel": "string",
-        "turno": "string",
+    "recientes": [],
+    "secciones": [
+      {
+        "curso": "1",
+        "division": "A",
+        "geSectionId": 10,
+        "nivel": "PRIMARIA",
+        "turno": "MAÑANA",
       },
-    },
+    ],
     "servicio": {
-      "alcanceVigente": {
-        "array": 0,
-        "elemento": null,
-      },
-      "estadoGeneral": "string",
+      "alcanceVigente": [],
+      "estadoGeneral": "normal",
     },
     "ultimaActualizacion": null,
   },
@@ -647,20 +580,19 @@ exports[`GET /api/mapas/infraestructura/territorio > rejects an anonymous reques
 exports[`GET /api/mapas/infraestructura/totales > answers 200 with the map totals for an authorized user 1`] = `
 {
   "body": {
-    "departamentos": {
-      "array": 1,
-      "elemento": {
-        "departamento": "string",
-        "departamentoOriginal": "string",
-        "escuelasAfectadas": "number",
-        "porcentajeAfectadas": "number",
-        "totalEscuelas": "number",
+    "departamentos": [
+      {
+        "departamento": "ER",
+        "departamentoOriginal": "ER",
+        "escuelasAfectadas": 0,
+        "porcentajeAfectadas": 0,
+        "totalEscuelas": 1,
       },
-    },
+    ],
     "provincia": {
-      "escuelasAfectadas": "number",
-      "porcentajeAfectadas": "number",
-      "totalEscuelas": "number",
+      "escuelasAfectadas": 0,
+      "porcentajeAfectadas": 0,
+      "totalEscuelas": 1,
     },
   },
   "cacheControl": "private, no-cache",

@@ -222,25 +222,25 @@ describe('auth', () => {
 describe('hub and gate', () => {
   it('GET /api/hub without session returns the published catalog', async () => {
     const { GET } = await import('./hub/route')
-    const res = await GET()
-    expect(await capturar(res, { soloForma: true })).toMatchSnapshot()
+    const res = await GET(new Request('http://localhost/api'))
+    expect(await capturar(res)).toMatchSnapshot()
   })
 
   it('GET /api/hub/admin without session is denied', async () => {
     const { GET } = await import('./hub/admin/route')
-    expect(await capturar(await GET())).toMatchSnapshot()
+    expect(await capturar(await GET(new Request('http://localhost/api')))).toMatchSnapshot()
   })
 
   it('GET /api/hub/admin as consulta is forbidden', async () => {
     comoUsuario(CONSULTA)
     const { GET } = await import('./hub/admin/route')
-    expect(await capturar(await GET())).toMatchSnapshot()
+    expect(await capturar(await GET(new Request('http://localhost/api')))).toMatchSnapshot()
   })
 
   it('GET /api/hub/admin as admin returns the full catalog', async () => {
     comoUsuario(ADMIN)
     const { GET } = await import('./hub/admin/route')
-    expect(await capturar(await GET(), { soloForma: true })).toMatchSnapshot()
+    expect(await capturar(await GET(new Request('http://localhost/api')))).toMatchSnapshot()
   })
 
   it('GET /api/gate without session redirects to login', async () => {
@@ -832,19 +832,19 @@ describe('usuarios', () => {
 
   it('GET without session is 401', async () => {
     const { GET } = await import('./usuarios/route')
-    expect(await capturar(await GET())).toMatchSnapshot()
+    expect(await capturar(await GET(new Request('http://localhost/api')))).toMatchSnapshot()
   })
 
   it('GET as editor is 403: user administration is admin only', async () => {
     comoUsuario(EDITOR)
     const { GET } = await import('./usuarios/route')
-    expect(await capturar(await GET())).toMatchSnapshot()
+    expect(await capturar(await GET(new Request('http://localhost/api')))).toMatchSnapshot()
   })
 
   it('GET as admin lists users without sensitive fields', async () => {
     comoUsuario(ADMIN)
     const { GET } = await import('./usuarios/route')
-    expect(await capturar(await GET(), { soloForma: true })).toMatchSnapshot()
+    expect(await capturar(await GET(new Request('http://localhost/api')))).toMatchSnapshot()
   })
 
   it('POST without session is 401', async () => {

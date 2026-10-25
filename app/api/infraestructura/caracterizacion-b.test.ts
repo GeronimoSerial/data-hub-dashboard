@@ -320,20 +320,20 @@ describe('GET /api/infraestructura/radar-meteo', () => {
 
 describe('GET /api/infraestructura/radar-meteo/alertas', () => {
   it('responde 401 sin sesión', async () => {
-    const res = await rutas.radarMeteoAlertas.GET()
+    const res = await rutas.radarMeteoAlertas.GET(new Request('http://localhost/api'))
     expect(normalizar(await capturar(res))).toMatchSnapshot('sin sesion')
   })
 
   it('responde 404 con el flag de radar apagado', async () => {
     vi.stubEnv('RISK_RADAR_ENABLED', 'false')
     autenticarLectura()
-    const res = await rutas.radarMeteoAlertas.GET()
+    const res = await rutas.radarMeteoAlertas.GET(new Request('http://localhost/api'))
     expect(normalizar(await capturar(res))).toMatchSnapshot('flag apagado')
   })
 
   it('lista las alertas SMN activas (vacías en la base de test)', async () => {
     autenticarLectura()
-    const res = await rutas.radarMeteoAlertas.GET()
+    const res = await rutas.radarMeteoAlertas.GET(new Request('http://localhost/api'))
     expect(normalizar(await capturar(res))).toMatchSnapshot('autenticado')
   })
 })
@@ -613,13 +613,13 @@ describe('veredictos/enlaces POST and DELETE', () => {
   })
 
   it('DELETE responde 401 sin sesión', async () => {
-    const res = await rutas.veredictosEnlaces.DELETE()
+    const res = await rutas.veredictosEnlaces.DELETE(new Request('http://localhost/api'))
     expect(normalizar(await capturar(res))).toMatchSnapshot('delete sin sesion')
   })
 
   it('DELETE revoca los enlaces del día para staff', async () => {
     autenticarStaff()
-    const res = await rutas.veredictosEnlaces.DELETE()
+    const res = await rutas.veredictosEnlaces.DELETE(new Request('http://localhost/api'))
     expect(normalizar(await capturar(res))).toMatchSnapshot('delete autenticado')
   })
 })

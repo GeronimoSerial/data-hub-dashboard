@@ -36,27 +36,12 @@ function normalizar(valor: unknown): unknown {
   return JSON.parse(texto)
 }
 
-// Body shape: keys and value types, never the data itself, so the snapshot does
-// not churn with seeded content. Error messages and booleans stay literal because
-// they are part of the contract.
-function forma(valor: unknown, clave = ''): unknown {
-  if (valor === null) return null
-  if (Array.isArray(valor)) return { array: valor.length, elemento: valor.length ? forma(valor[0]) : null }
-  if (typeof valor === 'object') {
-    const registro = valor as Record<string, unknown>
-    return Object.fromEntries(Object.keys(registro).sort().map((k) => [k, forma(registro[k], k)]))
-  }
-  if (typeof valor === 'string') return clave === 'error' ? valor : 'string'
-  if (typeof valor === 'boolean') return valor
-  return typeof valor
-}
-
 // Status, content type and cache policy are frozen. The x-request-id header is
 // deliberately not captured: it changes on every request.
 async function capturar(res: Response) {
   const contentType = res.headers.get('content-type')
   const base = { status: res.status, contentType, cacheControl: res.headers.get('cache-control') }
-  if (contentType?.includes('json')) return { ...base, body: forma(normalizar(await res.json())) }
+  if (contentType?.includes('json')) return { ...base, body: normalizar(await res.json()) }
   if (contentType?.startsWith('text/')) return { ...base, body: normalizar(await res.text()) }
   return { ...base, bytes: (await res.arrayBuffer()).byteLength }
 }

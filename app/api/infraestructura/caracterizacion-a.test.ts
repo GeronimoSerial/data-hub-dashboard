@@ -493,19 +493,19 @@ describe('GET /api/infraestructura/fuentes', () => {
 
   it('answers 401 without a session', async () => {
     acceso(SIN_SESION)
-    const res = await rutas.fuentes.GET()
+    const res = await rutas.fuentes.GET(new Request('http://localhost/api'))
     expect(await resumir(res)).toMatchSnapshot()
   })
 
   it('answers 403 without access to the resource', async () => {
     acceso(SIN_PERMISO)
-    const res = await rutas.fuentes.GET()
+    const res = await rutas.fuentes.GET(new Request('http://localhost/api'))
     expect(await resumir(res)).toMatchSnapshot()
   })
 
   it('lists the sources with frescuraMinutos derived at read time', async () => {
     acceso(ACCESO_OK)
-    const res = await rutas.fuentes.GET()
+    const res = await rutas.fuentes.GET(new Request('http://localhost/api'))
     expect(await resumir(res)).toMatchSnapshot()
   })
 })
@@ -533,19 +533,19 @@ describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
 describe('GET /api/infraestructura/hidrometria/estaciones', () => {
   it('answers 401 without a session', async () => {
     acceso(SIN_SESION)
-    const res = await rutas.hidroEstaciones.GET()
+    const res = await rutas.hidroEstaciones.GET(new Request('http://localhost/api'))
     expect(await resumir(res)).toMatchSnapshot()
   })
 
   it('answers 403 without access to the resource', async () => {
     acceso(SIN_PERMISO)
-    const res = await rutas.hidroEstaciones.GET()
+    const res = await rutas.hidroEstaciones.GET(new Request('http://localhost/api'))
     expect(await resumir(res)).toMatchSnapshot()
   })
 
   it('lists the catalog stations with coordinates and no reading yet', async () => {
     acceso(ACCESO_OK)
-    const res = await rutas.hidroEstaciones.GET()
+    const res = await rutas.hidroEstaciones.GET(new Request('http://localhost/api'))
     expect(await resumir(res)).toMatchSnapshot()
   })
 })
@@ -621,19 +621,19 @@ describe('/api/infraestructura/motivos', () => {
   describe('GET', () => {
     it('answers 401 without a session', async () => {
       sesion(null)
-      const res = await rutas.motivos.GET()
+      const res = await rutas.motivos.GET(new Request('http://localhost/api'))
       expect(await resumir(res)).toMatchSnapshot()
     })
 
     it('answers 403 for a non-staff role', async () => {
       sesion(CONSULTA)
-      const res = await rutas.motivos.GET()
+      const res = await rutas.motivos.GET(new Request('http://localhost/api'))
       expect(await resumir(res)).toMatchSnapshot()
     })
 
     it('lists the seeded motives for staff', async () => {
       sesion(EDITOR)
-      const res = await rutas.motivos.GET()
+      const res = await rutas.motivos.GET(new Request('http://localhost/api'))
       expect(await resumir(res)).toMatchSnapshot()
     })
   })
@@ -744,19 +744,19 @@ describe('/api/infraestructura/nominal/permisos', () => {
   describe('GET', () => {
     it('answers 401 without a session', async () => {
       sesion(null)
-      const res = await rutas.permisos.GET()
+      const res = await rutas.permisos.GET(new Request('http://localhost/api'))
       expect(await resumir(res)).toMatchSnapshot()
     })
 
     it('answers 403 for an editor, since nominal access is admin only', async () => {
       sesion(EDITOR)
-      const res = await rutas.permisos.GET()
+      const res = await rutas.permisos.GET(new Request('http://localhost/api'))
       expect(await resumir(res)).toMatchSnapshot()
     })
 
     it('lists no permits before any is granted', async () => {
       sesion(ADMIN)
-      const res = await rutas.permisos.GET()
+      const res = await rutas.permisos.GET(new Request('http://localhost/api'))
       expect(await resumir(res)).toMatchSnapshot()
     })
   })
@@ -804,7 +804,7 @@ describe('/api/infraestructura/nominal/permisos', () => {
 
     it('lists the permit granted above', async () => {
       sesion(ADMIN)
-      const res = await rutas.permisos.GET()
+      const res = await rutas.permisos.GET(new Request('http://localhost/api'))
       expect(await resumir(res)).toMatchSnapshot()
     })
 
@@ -839,19 +839,19 @@ describe('/api/infraestructura/nominal/permisos', () => {
 describe('GET /api/infraestructura/operacion/salud', () => {
   it('answers 401 without a session', async () => {
     sesion(null)
-    const res = await rutas.salud.GET()
+    const res = await rutas.salud.GET(new Request('http://localhost/api'))
     expect(await resumir(res)).toMatchSnapshot()
   })
 
   it('answers 403 for a non-staff role', async () => {
     sesion(CONSULTA)
-    const res = await rutas.salud.GET()
+    const res = await rutas.salud.GET(new Request('http://localhost/api'))
     expect(await resumir(res)).toMatchSnapshot()
   })
 
   it('returns the operational state for an editor', async () => {
     sesion(EDITOR)
-    const res = await rutas.salud.GET()
+    const res = await rutas.salud.GET(new Request('http://localhost/api'))
     expect(await resumir(res)).toMatchSnapshot()
   })
 })
