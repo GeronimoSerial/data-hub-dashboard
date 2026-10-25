@@ -64,8 +64,18 @@ function construirSqlDinamico(texto: string, args: unknown[] = []): SQL {
   return acumulado
 }
 
+// Referencia (no enumerable) al cliente crudo con el que se construyó un
+// EjecutorSql. Permite que una operación que necesita atomicidad real (por
+// ejemplo activarCorte) reserve una conexión dedicada del pool sin cambiar la
+// firma que ya usan los llamadores, que sólo tienen el EjecutorSql.
+const RAW_DEL_EJECUTOR = Symbol.for('mec.ge-db.raw')
+
+export function rawDeEjecutor(client: EjecutorSql): EjecutorSqlRaw | undefined {
+  return (client as unknown as Record<symbol, EjecutorSqlRaw | undefined>)[RAW_DEL_EJECUTOR]
+}
+
 export function crearEjecutorSql(raw: EjecutorSqlRaw): EjecutorSql {
-  return {
+  const ejecutor: EjecutorSql = {
     async execute(query) {
       const sqlText = typeof query === 'string' ? query : query.sql
       const args = typeof query === 'string' ? undefined : query.args
@@ -84,6 +94,8 @@ export function crearEjecutorSql(raw: EjecutorSqlRaw): EjecutorSql {
       return { rows: res.rows as Record<string, unknown>[] }
     },
   }
+  Object.defineProperty(ejecutor, RAW_DEL_EJECUTOR, { value: raw, enumerable: false })
+  return ejecutor
 }
 
 // DB1/B1: ejecuta `fn` dentro de una transacción real (BEGIN/COMMIT) sobre la
@@ -126,6 +138,31 @@ export async function ejecutarEnTransaccion<T>(
       ;(conn as unknown as { release: () => void }).release()
     }
   }
+}
+
+// Transacción sobre una conexión DEDICADA a partir de lo que tenga el
+// llamador: un EjecutorSql construido con crearEjecutorSql (se recupera su
+// cliente crudo), un pg.Pool/PGlite suelto, o una conexión drizzle (db o tx),
+// que se resuelve con su propio .transaction(). Nunca emite BEGIN/COMMIT
+// sobre el pool suelto: ahí cada sentencia puede salir por una conexión
+// distinta y la "transacción" no existe.
+export async function ejecutarEnTransaccionDedicada<T>(
+  destino: EjecutorSql | EjecutorSqlRaw,
+  fn: (tx: EjecutorSql) => Promise<T>,
+): Promise<T> {
+  const raw = rawDeEjecutor(destino as EjecutorSql) ?? (destino as EjecutorSqlRaw)
+  if (esDrizzleLike(raw)) {
+    const conTransaccion = raw as unknown as {
+      transaction?: (cb: (tx: EjecutorDrizzleLike) => Promise<T>) => Promise<T>
+    }
+    if (typeof conTransaccion.transaction !== 'function') {
+      throw new Error(
+        'Se necesita un ejecutor creado con crearEjecutorSql o un cliente crudo para abrir una transacción dedicada',
+      )
+    }
+    return conTransaccion.transaction((tx) => fn(crearEjecutorSql(tx)))
+  }
+  return ejecutarEnTransaccion(raw, fn)
 }
 
 // TODO(DB1-F2): eliminar cuando scripts/seed-demo-partes.mjs y
@@ -226,55 +263,57 @@ export async function getCorteVigente(client: EjecutorSql): Promise<GeCorte | nu
   return row
 }
 
-export async function activarCorte(client: EjecutorSql, corteId: number): Promise<void> {
-  const corte = await client.execute({ sql: 'SELECT id, estado FROM ge.ge_corte WHERE id = ?', args: [corteId] })
-  if (corte.rows.length === 0) {
-    throw new Error(`Corte ${corteId} no existe`)
-  }
-  const estado = corte.rows[0].estado as string
-  if (estado !== 'importando') {
-    throw new Error(`Corte ${corteId} no está en estado 'importando'`)
-  }
+// Pasa `corteId` de 'importando' a 'vigente' y el vigente anterior a
+// 'historico', todo en UNA transacción sobre una conexión dedicada
+// (pool.connect() + release en finally, vía ejecutarEnTransaccionDedicada).
+// Antes se emitía BEGIN/COMMIT sobre el pool suelto: cada sentencia podía
+// salir por una conexión distinta y un fallo entre los dos UPDATE dejaba el
+// hub sin corte vigente (o con dos). El LOCK serializa activaciones
+// concurrentes; las validaciones corren dentro de la misma transacción,
+// contra el mismo estado que se va a modificar.
+export async function activarCorte(client: EjecutorSql | EjecutorSqlRaw, corteId: number): Promise<void> {
+  await ejecutarEnTransaccionDedicada(client, async (tx) => {
+    await tx.execute('LOCK TABLE ge.ge_corte IN SHARE ROW EXCLUSIVE MODE')
+    const corte = await tx.execute({
+      sql: 'SELECT id, estado FROM ge.ge_corte WHERE id = ? FOR UPDATE',
+      args: [corteId],
+    })
+    if (corte.rows.length === 0) {
+      throw new Error(`Corte ${corteId} no existe`)
+    }
+    const estado = corte.rows[0].estado as string
+    if (estado !== 'importando') {
+      throw new Error(`Corte ${corteId} no está en estado 'importando'`)
+    }
 
-  const seccionesSinLocalizacion = await client.execute({
-    sql: `SELECT COUNT(*) AS n FROM ge.ge_seccion s
-     WHERE s.corte_id = ? AND NOT EXISTS (
-       SELECT 1 FROM ge.ge_localizacion l WHERE l.cue_anexo = s.cue_anexo
-     )`,
-    args: [corteId],
-  })
-  const seccionesFallan = Number(seccionesSinLocalizacion.rows[0].n)
-  if (seccionesFallan > 0) {
-    throw new Error(`${seccionesFallan} secciones referencian cue_anexo inexistente en ge_localizacion`)
-  }
+    const seccionesSinLocalizacion = await tx.execute({
+      sql: `SELECT COUNT(*) AS n FROM ge.ge_seccion s
+       WHERE s.corte_id = ? AND NOT EXISTS (
+         SELECT 1 FROM ge.ge_localizacion l WHERE l.cue_anexo = s.cue_anexo
+       )`,
+      args: [corteId],
+    })
+    const seccionesFallan = Number(seccionesSinLocalizacion.rows[0].n)
+    if (seccionesFallan > 0) {
+      throw new Error(`${seccionesFallan} secciones referencian cue_anexo inexistente en ge_localizacion`)
+    }
 
-  const membresiasHuerfanas = await client.execute({
-    sql: `SELECT COUNT(*) AS n FROM ge.ge_alumno_seccion m
-     WHERE m.corte_id = ? AND NOT EXISTS (
-       SELECT 1 FROM ge.ge_seccion s WHERE s.corte_id = m.corte_id AND s.ge_section_id = m.ge_section_id
-     )`,
-    args: [corteId],
-  })
-  const membresiasFallan = Number(membresiasHuerfanas.rows[0].n)
-  if (membresiasFallan > 0) {
-    throw new Error(`${membresiasFallan} membresías apuntan a ge_seccion inexistente`)
-  }
+    const membresiasHuerfanas = await tx.execute({
+      sql: `SELECT COUNT(*) AS n FROM ge.ge_alumno_seccion m
+       WHERE m.corte_id = ? AND NOT EXISTS (
+         SELECT 1 FROM ge.ge_seccion s WHERE s.corte_id = m.corte_id AND s.ge_section_id = m.ge_section_id
+       )`,
+      args: [corteId],
+    })
+    const membresiasFallan = Number(membresiasHuerfanas.rows[0].n)
+    if (membresiasFallan > 0) {
+      throw new Error(`${membresiasFallan} membresías apuntan a ge_seccion inexistente`)
+    }
 
-  // TODO(DB1-F2/F3): activarCorte necesita una conexión reservada (pool.connect()), no el pool suelto, para que BEGIN/COMMIT/ROLLBACK sean atómicos
-  await client.execute('BEGIN')
-  try {
-    await client.execute({
+    await tx.execute({
       sql: "UPDATE ge.ge_corte SET estado = 'historico' WHERE estado = 'vigente' AND id != ?",
       args: [corteId],
     })
-    await client.execute({ sql: "UPDATE ge.ge_corte SET estado = 'vigente' WHERE id = ?", args: [corteId] })
-    await client.execute('COMMIT')
-  } catch (err) {
-    try {
-      await client.execute('ROLLBACK')
-    } catch {
-      // noop: si el COMMIT ya cerró la transacción, el error original manda
-    }
-    throw err
-  }
+    await tx.execute({ sql: "UPDATE ge.ge_corte SET estado = 'vigente' WHERE id = ?", args: [corteId] })
+  })
 }
