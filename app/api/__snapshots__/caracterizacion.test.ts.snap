@@ -1,0 +1,1331 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`auth > better-auth GET get-session without a cookie 1`] = `
+{
+  "body": null,
+  "cacheControl": "no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`auth > better-auth GET of an unknown auth path 1`] = `
+{
+  "body": null,
+  "cacheControl": null,
+  "contentType": null,
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`auth > ge-login OPTIONS from a disallowed origin 1`] = `
+{
+  "body": {
+    "error": "Origen no permitido",
+  },
+  "cacheControl": "no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 403,
+}
+`;
+
+exports[`auth > ge-login POST with a disallowed origin and a malformed body 1`] = `
+{
+  "body": {
+    "error": "Origen no permitido",
+  },
+  "cacheControl": "no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 403,
+}
+`;
+
+exports[`auth > ge-login POST without origin is refused before any upstream call 1`] = `
+{
+  "body": {
+    "error": "Origen no permitido",
+  },
+  "cacheControl": "no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 403,
+}
+`;
+
+exports[`hub and gate > GET /api/gate as admin for an unregistered path is 404 1`] = `
+{
+  "body": null,
+  "cacheControl": null,
+  "contentType": null,
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`hub and gate > GET /api/gate without session redirects to login 1`] = `
+{
+  "body": null,
+  "cacheControl": null,
+  "contentType": null,
+  "location": "http://localhost/login?callbackUrl=%2Fmanual-1.pdf%3Fx%3D1",
+  "status": 307,
+}
+`;
+
+exports[`hub and gate > GET /api/hub without session returns the published catalog 1`] = `
+{
+  "body": {
+    "categorias": {
+      "$items": 5,
+      "$primero": {
+        "color": "string",
+        "id": "string",
+        "nombre": "string",
+      },
+    },
+    "niveles": {
+      "$items": 5,
+      "$primero": {
+        "id": "string",
+        "nombre": "string",
+        "orden": "number",
+      },
+    },
+    "recursos": {
+      "$items": 10,
+      "$primero": {
+        "acceso": "string",
+        "actualizado": "string",
+        "area": "string",
+        "audienciaNivelJurIds": {
+          "$items": 0,
+          "$primero": null,
+        },
+        "audienciaUserIds": {
+          "$items": 0,
+          "$primero": null,
+        },
+        "categoriaId": "string",
+        "descripcion": "string",
+        "estado": "string",
+        "formato": "string",
+        "id": "string",
+        "nivelId": "string",
+        "ruta": "string",
+        "tagIds": {
+          "$items": 2,
+          "$primero": "string",
+        },
+        "tipoId": "string",
+        "titulo": "string",
+      },
+    },
+    "tags": {
+      "$items": 7,
+      "$primero": {
+        "id": "string",
+        "nombre": "string",
+      },
+    },
+    "tipos": {
+      "$items": 6,
+      "$primero": {
+        "aplicaA": {
+          "$items": 1,
+          "$primero": "string",
+        },
+        "id": "string",
+        "nombre": "string",
+      },
+    },
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`hub and gate > GET /api/hub/admin as admin returns the full catalog 1`] = `
+{
+  "body": {
+    "categorias": {
+      "$items": 5,
+      "$primero": {
+        "color": "string",
+        "id": "string",
+        "nombre": "string",
+      },
+    },
+    "niveles": {
+      "$items": 5,
+      "$primero": {
+        "id": "string",
+        "nombre": "string",
+        "orden": "number",
+      },
+    },
+    "recursos": {
+      "$items": 10,
+      "$primero": {
+        "acceso": "string",
+        "actualizado": "string",
+        "area": "string",
+        "audienciaNivelJurIds": {
+          "$items": 0,
+          "$primero": null,
+        },
+        "audienciaUserIds": {
+          "$items": 0,
+          "$primero": null,
+        },
+        "categoriaId": "string",
+        "descripcion": "string",
+        "estado": "string",
+        "formato": "string",
+        "id": "string",
+        "nivelId": "string",
+        "ruta": "string",
+        "tagIds": {
+          "$items": 2,
+          "$primero": "string",
+        },
+        "tipoId": "string",
+        "titulo": "string",
+      },
+    },
+    "tags": {
+      "$items": 7,
+      "$primero": {
+        "id": "string",
+        "nombre": "string",
+      },
+    },
+    "tipos": {
+      "$items": 6,
+      "$primero": {
+        "aplicaA": {
+          "$items": 1,
+          "$primero": "string",
+        },
+        "id": "string",
+        "nombre": "string",
+      },
+    },
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`hub and gate > GET /api/hub/admin as consulta is forbidden 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 403,
+}
+`;
+
+exports[`hub and gate > GET /api/hub/admin without session is denied 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`materiales/[id]/descargar > local PDF is served as an attachment with a byte length 1`] = `
+{
+  "body": {
+    "pdf": true,
+  },
+  "cacheControl": "public, max-age=3600",
+  "contentType": "application/pdf",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`materiales/[id]/descargar > local storage without the file is a retryable 503 1`] = `
+{
+  "body": {
+    "error": "No se pudo descargar el material. Volvé a intentarlo en unos minutos.",
+  },
+  "cacheControl": "no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 503,
+}
+`;
+
+exports[`materiales/[id]/descargar > s3 signing failure is the same retryable 503 1`] = `
+{
+  "body": {
+    "error": "No se pudo descargar el material. Volvé a intentarlo en unos minutos.",
+  },
+  "cacheControl": "no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 503,
+}
+`;
+
+exports[`materiales/[id]/descargar > s3 storage answers a 307 to a presigned URL that is never cached 1`] = `
+{
+  "body": null,
+  "cacheControl": "no-store",
+  "contentType": null,
+  "location": "https://storage.example/firmada",
+  "status": 307,
+}
+`;
+
+exports[`materiales/[id]/descargar > unknown material is 404 1`] = `
+{
+  "body": {
+    "error": "Material no encontrado.",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`problematicas/acceso > correct password is 200 and sets the access cookie 1`] = `
+{
+  "body": {
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`problematicas/acceso > malformed JSON is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`problematicas/acceso > missing password is 400 1`] = `
+{
+  "body": {
+    "error": "Ingrese la contraseña",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`problematicas/acceso > the eleventh attempt from one IP is rate limited 1`] = `
+{
+  "body": {
+    "error": "Demasiadas solicitudes. Intente nuevamente más tarde.",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 429,
+}
+`;
+
+exports[`problematicas/acceso > wrong password is 401 1`] = `
+{
+  "body": {
+    "error": "Contraseña incorrecta",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`problematicas/contexto > with session and a known cue returns the context 1`] = `
+{
+  "body": {
+    "escuela": {
+      "cueAnexo": "1801610-71",
+      "departamento": "ER",
+      "localidad": "Parana",
+      "nombre": "Escuela contexto",
+    },
+    "turnos": [
+      {
+        "niveles": [
+          {
+            "nivel": "PRIMARIA",
+            "secciones": [
+              {
+                "alumnos": [],
+                "curso": "1",
+                "division": "A",
+                "geSectionId": 7210,
+                "matricula": 2,
+                "nivel": "PRIMARIA",
+                "turno": "MAÑANA",
+              },
+            ],
+          },
+        ],
+        "turno": "MAÑANA",
+      },
+    ],
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`problematicas/contexto > with session and a school without sections is 404 1`] = `
+{
+  "body": {
+    "escuela": {
+      "cueAnexo": "1801610-72",
+      "departamento": "ER",
+      "localidad": "Parana",
+      "nombre": "Escuela sin secciones",
+    },
+    "turnos": [],
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`problematicas/contexto > with session and an invalid cue is 400 1`] = `
+{
+  "body": {
+    "error": "El CUE ingresado no es válido.",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`problematicas/contexto > with session and an unknown cue is 404 1`] = `
+{
+  "body": {
+    "error": "No se encontró una escuela con ese CUE.",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`problematicas/contexto > with session and no cue is 400 1`] = `
+{
+  "body": {
+    "error": "Falta indicar el CUE de la escuela.",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`problematicas/contexto > without session and with a cue is refused 1`] = `
+{
+  "body": {
+    "error": "No autorizado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`problematicas/contexto > without session or cue is refused 1`] = `
+{
+  "body": {
+    "error": "No autorizado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > canjear-sesion > already answered verification is 409 and sets no cookie 1`] = `
+{
+  "body": {
+    "error": "Esta solicitud ya fue respondida.",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 409,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > canjear-sesion > empty body is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > canjear-sesion > invalid token is 403 and sets no cookie 1`] = `
+{
+  "body": {
+    "error": "El enlace no es válido.",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 403,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > canjear-sesion > valid token is 200 with the scoped session cookie 1`] = `
+{
+  "body": {
+    "ok": true,
+    "verificacion": {
+      "actualizadaEn": "<fecha>",
+      "canceladaEn": null,
+      "canceladaPorUserId": null,
+      "creadaEn": "<fecha>",
+      "cueAnexo": "1801611-08",
+      "discrepancia": false,
+      "estado": "pendiente",
+      "id": "<id-1>",
+      "motivoCancelacion": null,
+      "movimientoId": null,
+      "periodoId": "periodo-enos-2026-2027",
+      "respondidaCanal": null,
+      "respondidaEn": null,
+      "respondidaPorUserId": null,
+      "resultado": null,
+      "solicitadaEn": "<fecha>",
+      "solicitadaPorUserId": "usuario-director",
+      "tokenConsumidoEn": null,
+      "tokenExpiraEn": "<fecha>",
+      "tokenRevocadoEn": null,
+      "vencimientoEn": null,
+    },
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > responder > a different answer after a recorded one is contradictory 1`] = `
+{
+  "body": {
+    "error": "Ya se registró una respuesta distinta para esta solicitud.",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 409,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > responder > con_afectacion is rejected: it goes through vincular-movimiento 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > responder > invalid token is 403 1`] = `
+{
+  "body": {
+    "error": "El enlace no es válido.",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 403,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > responder > sin_afectacion is accepted 1`] = `
+{
+  "body": {
+    "ok": true,
+    "verificacion": {
+      "actualizadaEn": "<fecha>",
+      "canceladaEn": null,
+      "canceladaPorUserId": null,
+      "creadaEn": "<fecha>",
+      "cueAnexo": "1801611-04",
+      "discrepancia": false,
+      "estado": "respondida",
+      "id": "<id-1>",
+      "motivoCancelacion": null,
+      "movimientoId": null,
+      "periodoId": "periodo-enos-2026-2027",
+      "respondidaCanal": "enlace",
+      "respondidaEn": "<fecha>",
+      "respondidaPorUserId": null,
+      "resultado": "sin_afectacion",
+      "solicitadaEn": "<fecha>",
+      "solicitadaPorUserId": "usuario-director",
+      "tokenConsumidoEn": "<fecha>",
+      "tokenExpiraEn": "<fecha>",
+      "tokenRevocadoEn": null,
+      "vencimientoEn": null,
+    },
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > validar-token > empty body is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > validar-token > invalid token is 403 1`] = `
+{
+  "body": {
+    "error": "El enlace no es válido.",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 403,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > validar-token > malformed JSON is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > validar-token > valid token is 200 with the verification 1`] = `
+{
+  "body": {
+    "ok": true,
+    "verificacion": {
+      "actualizadaEn": "<fecha>",
+      "canceladaEn": null,
+      "canceladaPorUserId": null,
+      "creadaEn": "<fecha>",
+      "cueAnexo": "1801611-01",
+      "discrepancia": false,
+      "estado": "pendiente",
+      "id": "<id-1>",
+      "motivoCancelacion": null,
+      "movimientoId": null,
+      "periodoId": "periodo-enos-2026-2027",
+      "respondidaCanal": null,
+      "respondidaEn": null,
+      "respondidaPorUserId": null,
+      "resultado": null,
+      "solicitadaEn": "<fecha>",
+      "solicitadaPorUserId": "usuario-director",
+      "tokenConsumidoEn": null,
+      "tokenExpiraEn": "<fecha>",
+      "tokenRevocadoEn": null,
+      "vencimientoEn": null,
+    },
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > vincular-movimiento > invalid token is 403 and writes nothing 1`] = `
+{
+  "body": {
+    "error": "El enlace no es válido.",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 403,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > vincular-movimiento > missing movimientoId is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`problematicas/verificaciones/[id] > vincular-movimiento > unknown movimiento with a valid token is refused without writing 1`] = `
+{
+  "body": {
+    "error": "No se pudo registrar la respuesta.",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "location": null,
+  "status": 409,
+}
+`;
+
+exports[`recursos > /api/recursos/[id] > DELETE of an existing resource removes it 1`] = `
+{
+  "body": {
+    "id": "caracterizacion-borrable",
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`recursos > /api/recursos/[id] > DELETE of an unknown id is 404 1`] = `
+{
+  "body": {
+    "error": "Recurso no encontrado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`recursos > /api/recursos/[id] > DELETE without session is 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`recursos > /api/recursos/[id] > PUT of an existing draft updates it 1`] = `
+{
+  "body": {
+    "id": "caracterizacion-editable",
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`recursos > /api/recursos/[id] > PUT of an unknown id is 404 1`] = `
+{
+  "body": {
+    "error": "Recurso no encontrado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`recursos > /api/recursos/[id] > PUT with malformed JSON is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`recursos > /api/recursos/[id] > PUT without session is 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/archivo > GET as admin streams the uploaded PDF 1`] = `
+{
+  "body": {
+    "pdf": true,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/pdf",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/archivo > GET as admin with download=1 keeps the same body as an attachment 1`] = `
+{
+  "body": {
+    "pdf": true,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/pdf",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/archivo > GET of a resource without a file is 404 1`] = `
+{
+  "body": {
+    "error": "Archivo no encontrado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/archivo > GET without session is 401 even when the file exists 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/archivo > POST of an SVG is rejected with 400 1`] = `
+{
+  "body": {
+    "error": "SVG no permitido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/archivo > POST to an unknown resource is 404 1`] = `
+{
+  "body": {
+    "error": "Recurso no encontrado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/archivo > POST without a file field is 400 1`] = `
+{
+  "body": {
+    "error": "Archivo requerido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/archivo > POST without session is 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/explain > draft resource is 404 even for staff 1`] = `
+{
+  "body": {
+    "error": "Recurso no encontrado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/explain > published resource without an AI provider configured is 503 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "ai_unavailable",
+      "message": "El resumen con IA no está configurado en este despliegue.",
+    },
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 503,
+}
+`;
+
+exports[`recursos > /api/recursos/[id]/explain > unknown resource is 404 1`] = `
+{
+  "body": {
+    "error": "Recurso no encontrado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`recursos > POST /api/recursos > as consulta is 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 403,
+}
+`;
+
+exports[`recursos > POST /api/recursos > body without titulo is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`recursos > POST /api/recursos > draft with a valid body is 201 1`] = `
+{
+  "body": {
+    "id": "caracterizacion-borrador",
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 201,
+}
+`;
+
+exports[`recursos > POST /api/recursos > malformed JSON is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`recursos > POST /api/recursos > published without file or route is 400 1`] = `
+{
+  "body": {
+    "error": "Un recurso publicado necesita archivo o ruta",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`recursos > POST /api/recursos > without session is 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`taxonomia/[kind] > DELETE of a level still used by a resource is refused 1`] = `
+{
+  "body": {
+    "error": "No se puede eliminar: hay recursos asociados",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`taxonomia/[kind] > DELETE of an unused level removes it, id taken from the body 1`] = `
+{
+  "body": {
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`taxonomia/[kind] > DELETE without an id is 400 1`] = `
+{
+  "body": {
+    "error": "id requerido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`taxonomia/[kind] > DELETE without session is 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`taxonomia/[kind] > POST as editor is 403: taxonomy is admin only 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 403,
+}
+`;
+
+exports[`taxonomia/[kind] > POST categorias as admin upserts the category 1`] = `
+{
+  "body": {
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`taxonomia/[kind] > POST malformed JSON is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`taxonomia/[kind] > POST niveles as admin upserts the level 1`] = `
+{
+  "body": {
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`taxonomia/[kind] > POST tipos without aplicaA is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`taxonomia/[kind] > POST with an unknown kind is 400 1`] = `
+{
+  "body": {
+    "error": "kind inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`taxonomia/[kind] > POST without session is 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`usuarios > GET as admin lists users without sensitive fields 1`] = `
+{
+  "body": {
+    "usuarios": {
+      "$items": 0,
+      "$primero": null,
+    },
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`usuarios > GET as editor is 403: user administration is admin only 1`] = `
+{
+  "body": {
+    "usuarios": [],
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`usuarios > GET without session is 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`usuarios > PATCH of an existing user renames it through auth (auth.api.adminUpdateUser stubbed) 1`] = `
+{
+  "body": {
+    "id": "usuario-existente-caracterizacion",
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 200,
+}
+`;
+
+exports[`usuarios > PATCH of an unknown user is 404 1`] = `
+{
+  "body": {
+    "error": "Usuario no encontrado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`usuarios > PATCH with a malformed body is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`usuarios > PATCH without session is 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`usuarios > POST as admin creates the user through auth (auth.api.createUser stubbed) 1`] = `
+{
+  "body": {
+    "id": "usuario-creado-caracterizacion",
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 201,
+}
+`;
+
+exports[`usuarios > POST as admin with a malformed body is 400 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`usuarios > POST as admin with an unknown nivel jurisdiccional is 400 1`] = `
+{
+  "body": {
+    "error": "Hay niveles jurisdiccionales seleccionados que no existen",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 400,
+}
+`;
+
+exports[`usuarios > POST without session is 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 401,
+}
+`;
+
+exports[`veredicto/compartido/[token]/pdf > revoked token is 410 1`] = `
+{
+  "body": {
+    "error": "Enlace vencido o revocado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 410,
+}
+`;
+
+exports[`veredicto/compartido/[token]/pdf > unknown token is 404 1`] = `
+{
+  "body": {
+    "error": "Enlace no encontrado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "location": null,
+  "status": 404,
+}
+`;
+
+exports[`veredicto/compartido/[token]/pdf > valid token returns the PDF as an attachment 1`] = `
+{
+  "body": {
+    "pdf": true,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/pdf",
+  "location": null,
+  "status": 200,
+}
+`;

@@ -1,0 +1,1945 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`/api/infraestructura/motivos > DELETE > answers 400 for an unknown motive, reading the id from the JSON body 1`] = `
+{
+  "body": {
+    "error": "Motivo inexistente",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`/api/infraestructura/motivos > DELETE > answers 400 when no id is sent in the query or the body 1`] = `
+{
+  "body": {
+    "error": "id requerido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`/api/infraestructura/motivos > DELETE > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`/api/infraestructura/motivos > DELETE > answers 403 for an editor 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`/api/infraestructura/motivos > DELETE > deletes the motive created above 1`] = `
+{
+  "body": {
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`/api/infraestructura/motivos > GET > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`/api/infraestructura/motivos > GET > answers 403 for a non-staff role 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`/api/infraestructura/motivos > GET > lists the seeded motives for staff 1`] = `
+{
+  "body": {
+    "motivos": [
+      {
+        "categoria": "alumnos",
+        "id": "anegamiento",
+        "nombre": "Anegamiento",
+        "orden": 10,
+        "severidadSugerida": "Alta",
+      },
+      {
+        "categoria": "alumnos",
+        "id": "acceso-interrumpido",
+        "nombre": "Acceso interrumpido",
+        "orden": 20,
+        "severidadSugerida": "Alta",
+      },
+      {
+        "categoria": "alumnos",
+        "id": "otro-alumnos",
+        "nombre": "Otro problema de acceso",
+        "orden": 90,
+        "severidadSugerida": null,
+      },
+      {
+        "categoria": "establecimiento",
+        "id": "inundacion",
+        "nombre": "Inundación",
+        "orden": 10,
+        "severidadSugerida": "Crítica",
+      },
+      {
+        "categoria": "establecimiento",
+        "id": "tormenta-severa",
+        "nombre": "Tormenta severa",
+        "orden": 20,
+        "severidadSugerida": "Alta",
+      },
+      {
+        "categoria": "establecimiento",
+        "id": "sin-energia-o-agua",
+        "nombre": "Sin energía o agua",
+        "orden": 30,
+        "severidadSugerida": "Media",
+      },
+      {
+        "categoria": "establecimiento",
+        "id": "evacuacion-preventiva",
+        "nombre": "Evacuación preventiva",
+        "orden": 40,
+        "severidadSugerida": "Crítica",
+      },
+      {
+        "categoria": "establecimiento",
+        "id": "inaccesibilidad-docentes",
+        "nombre": "Inaccesibilidad de docentes",
+        "orden": 50,
+        "severidadSugerida": "Alta",
+      },
+      {
+        "categoria": "establecimiento",
+        "id": "otro-establecimiento",
+        "nombre": "Otro problema en el establecimiento",
+        "orden": 90,
+        "severidadSugerida": null,
+      },
+    ],
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`/api/infraestructura/motivos > POST > answers 400 for a body that is not JSON 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`/api/infraestructura/motivos > POST > answers 400 for an unknown categoria 1`] = `
+{
+  "body": {
+    "error": "Categoría inválida",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`/api/infraestructura/motivos > POST > answers 400 for an unknown severidadSugerida 1`] = `
+{
+  "body": {
+    "error": "Gravedad sugerida inválida",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`/api/infraestructura/motivos > POST > answers 400 when another motive already uses the name 1`] = `
+{
+  "body": {
+    "error": "Ya existe un motivo con ese nombre",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`/api/infraestructura/motivos > POST > answers 400 when id is missing 1`] = `
+{
+  "body": {
+    "error": "id requerido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`/api/infraestructura/motivos > POST > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`/api/infraestructura/motivos > POST > answers 403 for an editor, since only admin may write 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`/api/infraestructura/motivos > POST > creates a motive for an admin 1`] = `
+{
+  "body": {
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`/api/infraestructura/motivos > POST > updates an existing motive in place when the id matches 1`] = `
+{
+  "body": {
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > GET > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > GET > answers 403 for an editor, since nominal access is admin only 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > GET > lists no permits before any is granted 1`] = `
+{
+  "body": {
+    "permisos": [],
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > POST > DELETE > answers 400 when id is missing 1`] = `
+{
+  "body": {
+    "error": "Falta id",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > POST > DELETE > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > POST > DELETE > answers 403 for an editor 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > POST > DELETE > revokes the permit granted above 1`] = `
+{
+  "body": {
+    "ok": true,
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > POST > answers 400 for a venceEn in the past 1`] = `
+{
+  "body": {
+    "error": "venceEn debe ser una fecha futura",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > POST > answers 400 when userId or venceEn is missing 1`] = `
+{
+  "body": {
+    "error": "userId y venceEn (fecha ISO) son obligatorios",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > POST > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > POST > answers 403 for an editor 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > POST > grants a nominal permit for a future expiry 1`] = `
+{
+  "body": {
+    "permiso": {
+      "id": "<id-1>",
+      "otorgadoEn": "<fecha>",
+      "otorgadoPor": "admin-1",
+      "revocadoEn": null,
+      "userId": "usuario-golden-1",
+      "venceEn": "<fecha>",
+    },
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 201,
+}
+`;
+
+exports[`/api/infraestructura/nominal/permisos > POST > lists the permit granted above 1`] = `
+{
+  "body": {
+    "permisos": [
+      {
+        "id": "<id-1>",
+        "otorgadoEn": "<fecha>",
+        "otorgadoPor": "admin-1",
+        "revocadoEn": null,
+        "userId": "usuario-golden-1",
+        "venceEn": "<fecha>",
+      },
+    ],
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/accesos/[cueAnexo] > answers 400 for an oversized cueAnexo 1`] = `
+{
+  "body": {
+    "error": "cueAnexo inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/accesos/[cueAnexo] > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/accesos/[cueAnexo] > answers 403 for a non-staff role 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/infraestructura/accesos/[cueAnexo] > answers 404 for a staff user and a CUE missing from the territorial registry 1`] = `
+{
+  "body": {
+    "error": "Escuela no encontrada",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/adjuntos > answers 503 feature_disabled while the photo flag is off, before any access check 1`] = `
+{
+  "body": {
+    "code": "feature_disabled",
+    "error": "This offline reports feature is currently disabled.",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 503,
+}
+`;
+
+exports[`GET /api/infraestructura/adjuntos > with the photo flag on > answers 400 for an attachmentId with an unsupported variant 1`] = `
+{
+  "body": {
+    "error": "Adjunto inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/adjuntos > with the photo flag on > answers 400 when the CUE is invalid 1`] = `
+{
+  "body": {
+    "error": "CUE inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/adjuntos > with the photo flag on > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/adjuntos > with the photo flag on > answers 404 for an attachment that is not confirmed for the CUE 1`] = `
+{
+  "body": {
+    "error": "Adjunto no encontrado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/adjuntos > with the photo flag on > lists no movements for a CUE without confirmed photos 1`] = `
+{
+  "body": {
+    "movements": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/[cueAnexo] > answers an empty page while the offline map flag is off, without an access check 1`] = `
+{
+  "body": {
+    "items": [],
+    "nextCursor": null,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/[cueAnexo] > with the offline map flag on > accepts a well-formed cursor and lists the next page 1`] = `
+{
+  "body": {
+    "items": [],
+    "nextCursor": null,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/[cueAnexo] > with the offline map flag on > answers 400 for a CUE that is not valid 1`] = `
+{
+  "body": {
+    "error": "CUE inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/[cueAnexo] > with the offline map flag on > answers 400 for a cursor that is not a valid draft cursor 1`] = `
+{
+  "body": {
+    "error": "Cursor inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/[cueAnexo] > with the offline map flag on > answers 400 for a limit above the maximum 1`] = `
+{
+  "body": {
+    "error": "limit debe estar entre 1 y 50",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/[cueAnexo] > with the offline map flag on > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/[cueAnexo] > with the offline map flag on > lists drafts for an authorized user with the default page size 1`] = `
+{
+  "body": {
+    "items": [],
+    "nextCursor": null,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/conteos > answers an empty item list while the offline map flag is off, without an access check 1`] = `
+{
+  "body": {
+    "items": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/conteos > with the offline map flag on > answers 400 for a malformed cues list 1`] = `
+{
+  "body": {
+    "error": "Parámetro cues inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/conteos > with the offline map flag on > answers 400 for more than 1000 distinct cues 1`] = `
+{
+  "body": {
+    "error": "Parámetro cues inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/conteos > with the offline map flag on > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/conteos > with the offline map flag on > returns counts for an explicit cue list 1`] = `
+{
+  "body": {
+    "items": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/borradores/conteos > with the offline map flag on > returns counts when no cues are requested 1`] = `
+{
+  "body": {
+    "items": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados > answers 400 naming a desde that is not an ISO datetime 1`] = `
+{
+  "body": {
+    "error": "Parámetro inválido: desde",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados > answers 400 naming the invalid estado 1`] = `
+{
+  "body": {
+    "error": "Parámetro inválido: estado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados > answers 400 naming the pageSize above 200 1`] = `
+{
+  "body": {
+    "error": "Parámetro inválido: pageSize",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados > answers 403 without access to the resource 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados > lists no episodes while the table is empty 1`] = `
+{
+  "body": {
+    "items": [],
+    "page": 1,
+    "pageSize": 50,
+    "total": 0,
+    "totalPages": 0,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados > paginates an empty filtered result 1`] = `
+{
+  "body": {
+    "items": [],
+    "page": 2,
+    "pageSize": 10,
+    "total": 0,
+    "totalPages": 0,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados/[id] > answers 400 for an id longer than 100 characters 1`] = `
+{
+  "body": {
+    "error": "id inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados/[id] > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados/[id] > answers 404 for an unknown episode 1`] = `
+{
+  "body": {
+    "error": "No encontrado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/episodios-derivados/[id] > returns the episode with its members 1`] = `
+{
+  "body": {
+    "calculadoEn": "<fecha>",
+    "departamento": "PARANA",
+    "escuelasAfectadas": 4,
+    "estado": "abierto",
+    "finEn": null,
+    "id": "episodio-golden-1",
+    "inicioEn": "<fecha>",
+    "miembros": [],
+    "parametros": {
+      "umbralMm": 50,
+    },
+    "reglaVersion": "episodios-v0.1",
+    "unidadTipo": "departamento",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/exportar > answers 400 for an unsupported formato 1`] = `
+{
+  "body": {
+    "error": "formato de exportación inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/exportar > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/exportar > answers 403 without access to the resource 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/infraestructura/exportar > returns the json preview as a paginated payload 1`] = `
+{
+  "body": {
+    "columnas": [
+      {
+        "clave": "cue",
+        "encabezado": "CUE anexo",
+      },
+      {
+        "clave": "escuela",
+        "encabezado": "Escuela",
+      },
+      {
+        "clave": "departamento",
+        "encabezado": "Departamento",
+      },
+      {
+        "clave": "localidad",
+        "encabezado": "Localidad",
+      },
+      {
+        "clave": "direccion",
+        "encabezado": "Dirección",
+      },
+      {
+        "clave": "niveles",
+        "encabezado": "Niveles",
+      },
+      {
+        "clave": "matricula",
+        "encabezado": "Matrícula",
+      },
+      {
+        "clave": "gravedad",
+        "encabezado": "Gravedad",
+      },
+      {
+        "clave": "estadoClases",
+        "encabezado": "Estado de clases",
+      },
+      {
+        "clave": "asistencia",
+        "encabezado": "Asistencia pedagógica",
+      },
+    ],
+    "filas": [],
+    "opciones": {
+      "departamentos": [],
+      "direcciones": [],
+    },
+    "pagina": 1,
+    "tamanoPagina": 25,
+    "total": 0,
+    "totalAlumnos": 0,
+    "totalPaginas": 0,
+  },
+  "cacheControl": "private, no-cache",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/exportar > returns the xlsx workbook when no formato is given 1`] = `
+{
+  "body": {
+    "bytes": 72375,
+    "firma": "PK",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/fuentes > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/fuentes > answers 403 without access to the resource 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/infraestructura/fuentes > lists the sources with frescuraMinutos derived at read time 1`] = `
+{
+  "body": {
+    "fuentes": [
+      {
+        "actualizadaEn": "<fecha>",
+        "estado": "ok",
+        "frescuraMinutos": 10,
+        "licencia": "CC-BY-4.0",
+        "provider": "open-meteo",
+        "ttlMinutos": 120,
+        "ultimoErrorSaneado": null,
+        "ultimoExitoEn": "<fecha>",
+        "ultimoIntentoEn": "<fecha>",
+      },
+      {
+        "actualizadaEn": "<fecha>",
+        "estado": "degradado",
+        "frescuraMinutos": null,
+        "licencia": "uso institucional",
+        "provider": "inameh",
+        "ttlMinutos": 360,
+        "ultimoErrorSaneado": "timeout al consultar la fuente",
+        "ultimoExitoEn": null,
+        "ultimoIntentoEn": "<fecha>",
+      },
+    ],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/geo-perfiles/[cueAnexo] > answers 400 for an oversized cueAnexo 1`] = `
+{
+  "body": {
+    "error": "cueAnexo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/geo-perfiles/[cueAnexo] > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/geo-perfiles/[cueAnexo] > answers the profile lookup for a CUE with no geographic profile 1`] = `
+{
+  "body": {
+    "error": "Sin perfil geográfico para ese CUE-anexo",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estaciones > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estaciones > answers 403 without access to the resource 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estaciones > lists the catalog stations with coordinates and no reading yet 1`] = `
+{
+  "body": {
+    "estaciones": [
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-ituzaingo",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -27.60825,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -56.834663,
+        "nombre": "ITUZAINGO",
+        "rio": "parana",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-ita-ibate",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -27.42225,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -57.333306,
+        "nombre": "ITA IBATE",
+        "rio": "parana",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-itati",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -27.27,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -58.24,
+        "nombre": "ITATI",
+        "rio": "parana",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-paso-de-la-patria",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -27.315833,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -58.576944,
+        "nombre": "PASO DE LA PATRIA",
+        "rio": "parana",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-corrientes",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -27.46,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -58.84,
+        "nombre": "CORRIENTES",
+        "rio": "parana",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-empedrado",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -27.958948,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -58.820198,
+        "nombre": "EMPEDRADO",
+        "rio": "parana",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-bella-vista",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -28.505997,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -59.050133,
+        "nombre": "BELLA VISTA",
+        "rio": "parana",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-goya",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -29.14,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -59.27,
+        "nombre": "GOYA",
+        "rio": "parana",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-esquina",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -30.016222,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -59.536583,
+        "nombre": "ESQUINA",
+        "rio": "parana",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-garruchos",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -28.177688,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -55.641362,
+        "nombre": "GARRUCHOS",
+        "rio": "uruguay",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-santo-tome",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -28.545389,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -56.028472,
+        "nombre": "SANTO TOME",
+        "rio": "uruguay",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-alvear",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -29.11339,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -56.55634,
+        "nombre": "ALVEAR",
+        "rio": "uruguay",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-la-cruz",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -29.17933752,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -56.63205059,
+        "nombre": "LA CRUZ",
+        "rio": "uruguay",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-yapeyu",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -29.470186,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -56.810651,
+        "nombre": "YAPEYU",
+        "rio": "uruguay",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-paso-de-los-libres",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -29.721111,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -57.082222,
+        "nombre": "PASO DE LOS LIBRES",
+        "rio": "uruguay",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-bompland",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -29.979167,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -57.337222,
+        "nombre": "BOMPLAND",
+        "rio": "uruguay",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-monte-caseros",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -30.251627,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -57.621348,
+        "nombre": "MONTE CASEROS",
+        "rio": "uruguay",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-mocoreta",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -30.690372,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -57.820794,
+        "nombre": "MOCORETA",
+        "rio": "uruguay",
+        "rol": "corrientes",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-iguazu",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -25.593194,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -54.580083,
+        "nombre": "IGUAZU",
+        "rio": "parana",
+        "rol": "contexto-aguas-arriba",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-libertador",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -26.791528,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -55.024889,
+        "nombre": "LIBERTADOR",
+        "rio": "parana",
+        "rol": "contexto-aguas-arriba",
+        "tendencia": "sin_dato",
+      },
+      {
+        "coordenadasVerificadas": false,
+        "estacionId": "pna-posadas",
+        "estado": "sin_dato",
+        "estadoUltimaLectura": "sin_dato",
+        "horasDesdeLectura": null,
+        "lat": -27.353611,
+        "lectura": null,
+        "lecturaVencida": false,
+        "lon": -55.913806,
+        "nombre": "POSADAS",
+        "rio": "parana",
+        "rol": "contexto-aguas-arriba",
+        "tendencia": "sin_dato",
+      },
+    ],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estaciones/[id]/lecturas > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estaciones/[id]/lecturas > rejects a desde that is not a date 1`] = `
+{
+  "body": {
+    "codigo": "rango_invalido",
+    "error": "Parámetros desde y hasta obligatorios en formato ISO-8601 con zona horaria",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estaciones/[id]/lecturas > rejects a limite above the maximum 1`] = `
+{
+  "body": {
+    "codigo": "rango_invalido",
+    "error": "Parámetros desde y hasta obligatorios en formato ISO-8601 con zona horaria",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estaciones/[id]/lecturas > rejects an unknown station id 1`] = `
+{
+  "body": {
+    "codigo": "estacion_no_encontrada",
+    "error": "Estación no encontrada en el catálogo hidrométrico",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estaciones/[id]/lecturas > returns the reading history for a catalog station 1`] = `
+{
+  "body": {
+    "codigo": "rango_invalido",
+    "error": "Parámetros desde y hasta obligatorios en formato ISO-8601 con zona horaria",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estado > answers 400 when localidad is empty 1`] = `
+{
+  "body": {
+    "error": "localidad inválida",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estado > answers 400 when localidad is missing 1`] = `
+{
+  "body": {
+    "error": "localidad inválida",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estado > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/hidrometria/estado > answers no tramo and no reading for a localidad without a reference station 1`] = `
+{
+  "body": {
+    "lectura": null,
+    "tramo": null,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/operacion/salud > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/operacion/salud > answers 403 for a non-staff role 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/infraestructura/operacion/salud > returns the operational state for an editor 1`] = `
+{
+  "body": {
+    "climatologiaPrecipitacion": {
+      "aniosMax": 0,
+      "aniosMediana": 0,
+      "aniosMin": 0,
+      "aniosObjetivo": 30,
+      "celdasTotal": 0,
+      "celdasUsables": 0,
+      "minimoUsable": 10,
+    },
+    "flags": {
+      "aiVeredictoEnabled": false,
+      "enosJobsEnabled": true,
+      "riskEngineEnabled": false,
+      "riskMode": "shadow",
+      "riskRadarEnabled": false,
+    },
+    "generadoEn": "<fecha>",
+    "jobs": [],
+    "jobsEsperados": [
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 360,
+        "nombre": "sync-radar-meteo",
+        "tipo": "sync-radar-meteo",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 360,
+        "nombre": "sync-radar-ensemble",
+        "tipo": "sync-radar-ensemble",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 15,
+        "nombre": "sync-smn-alertas",
+        "tipo": "sync-smn-alertas",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_trazabilidad",
+        "habilitado": true,
+        "intervaloMinutos": 1440,
+        "nombre": "verificar-radar-meteo",
+        "tipo": null,
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 30,
+        "nombre": "sync-imerg",
+        "tipo": "sync-hazard-imerg",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "no_programado",
+        "habilitado": false,
+        "intervaloMinutos": 1440,
+        "nombre": "climatologia-caudal",
+        "tipo": "calcular-hazard-climatologia-caudal",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "no_programado",
+        "habilitado": false,
+        "intervaloMinutos": 1440,
+        "nombre": "climatologia-precipitacion",
+        "tipo": "calculo-climatologia",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 1440,
+        "nombre": "climatologia-imerg",
+        "tipo": "calculo-climatologia-imerg",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 360,
+        "nombre": "calcular-riesgo",
+        "tipo": "calcular-riesgo-v0",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 360,
+        "nombre": "sync-pronostico-caudal",
+        "tipo": "sync-hazard-pronostico-caudal",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 360,
+        "nombre": "sync-ensemble",
+        "tipo": "sync-hazard-ensemble",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 60,
+        "nombre": "situacion-corte",
+        "tipo": "situacion-corte-v1",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "no_programado",
+        "habilitado": false,
+        "intervaloMinutos": 60,
+        "nombre": "episodios-derivados",
+        "tipo": "episodios-derivados-v0",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "no_programado",
+        "habilitado": false,
+        "intervaloMinutos": 1440,
+        "nombre": "sync-seasonal",
+        "tipo": "sync-hazard-seasonal",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 60,
+        "nombre": "sync-prefectura-alturas",
+        "tipo": "sync-prefectura-alturas",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 360,
+        "nombre": "veredicto-diario",
+        "tipo": "veredicto-diario-v0",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 1440,
+        "nombre": "veredicto-cierre",
+        "tipo": "veredicto-cierre-v0",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 60,
+        "nombre": "sync-synop-lluvia",
+        "tipo": "sync-synop-lluvia",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 1440,
+        "nombre": "sync-prefectura-historico",
+        "tipo": "sync-prefectura-historico",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 1440,
+        "nombre": "importar-exposicion-rio-dem",
+        "tipo": "importar-exposicion-rio-dem",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "no_programado",
+        "habilitado": false,
+        "intervaloMinutos": 1440,
+        "nombre": "importar-altimetria-v04",
+        "tipo": "importar-altimetria-v04",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_trazabilidad",
+        "habilitado": true,
+        "intervaloMinutos": 1440,
+        "nombre": "sync-ina-serie-diaria",
+        "tipo": null,
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
+        "estado": "sin_trazabilidad",
+        "habilitado": true,
+        "intervaloMinutos": 360,
+        "nombre": "sync-ina-pronostico",
+        "tipo": null,
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+    ],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/peligro > answers 400 for an oversized geometryRef 1`] = `
+{
+  "body": {
+    "error": "geometryRef inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/peligro > answers 400 for an oversized puntoRioId 1`] = `
+{
+  "body": {
+    "error": "puntoRioId inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/peligro > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/peligro > returns empty layers when no cell or river point is requested 1`] = `
+{
+  "body": {
+    "caudal": null,
+    "climatologia": [],
+    "niveles": [],
+    "observado": [],
+    "observadoAcumulado": [],
+    "pronostico": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/peligro > returns the hazard layers for one grid cell 1`] = `
+{
+  "body": {
+    "caudal": null,
+    "climatologia": [],
+    "niveles": [
+      {
+        "base": "sin_dato",
+        "emitidoEn": "<fecha>",
+        "geometryRef": "-34.5_-58.5",
+        "horizonteHoras": 24,
+        "metodo": "sin_dato",
+        "nivel": "sin_dato",
+        "percentilReferencia": null,
+        "precipitacionMm": null,
+        "probabilidadP95": null,
+        "probabilidadP99": null,
+        "validoHasta": "<fecha>",
+        "versionRegla": "peligro-v0.2",
+      },
+      {
+        "base": "sin_dato",
+        "emitidoEn": "<fecha>",
+        "geometryRef": "-34.5_-58.5",
+        "horizonteHoras": 72,
+        "metodo": "sin_dato",
+        "nivel": "sin_dato",
+        "percentilReferencia": null,
+        "precipitacionMm": null,
+        "probabilidadP95": null,
+        "probabilidadP99": null,
+        "validoHasta": "<fecha>",
+        "versionRegla": "peligro-v0.2",
+      },
+      {
+        "base": "sin_dato",
+        "emitidoEn": "<fecha>",
+        "geometryRef": "-34.5_-58.5",
+        "horizonteHoras": 240,
+        "metodo": "sin_dato",
+        "nivel": "sin_dato",
+        "percentilReferencia": null,
+        "precipitacionMm": null,
+        "probabilidadP95": null,
+        "probabilidadP99": null,
+        "validoHasta": "<fecha>",
+        "versionRegla": "peligro-v0.2",
+      },
+    ],
+    "observado": [],
+    "observadoAcumulado": [
+      {
+        "acumuladoMm": null,
+        "cobertura": 0,
+        "geometryRef": "-34.5_-58.5",
+        "granulosEncontrados": 0,
+        "granulosEsperados": 48,
+        "horizonteHoras": 24,
+        "masRecienteEn": null,
+      },
+      {
+        "acumuladoMm": null,
+        "cobertura": 0,
+        "geometryRef": "-34.5_-58.5",
+        "granulosEncontrados": 0,
+        "granulosEsperados": 144,
+        "horizonteHoras": 72,
+        "masRecienteEn": null,
+      },
+    ],
+    "pronostico": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/peligro > returns the river level for one point 1`] = `
+{
+  "body": {
+    "caudal": null,
+    "climatologia": [],
+    "niveles": [],
+    "observado": [],
+    "observadoAcumulado": [],
+    "pronostico": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/peligro/observado-grilla > answers 400 for an unsupported horas value 1`] = `
+{
+  "body": {
+    "error": "horas inválido: use 24 o 72",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/peligro/observado-grilla > answers 401 without a session 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/peligro/observado-grilla > returns the 24 h grid by default 1`] = `
+{
+  "body": {
+    "desde": null,
+    "edadHoras": null,
+    "fuente": "NASA IMERG Early",
+    "geojson": {
+      "features": [],
+      "type": "FeatureCollection",
+    },
+    "hasta": null,
+    "horas": 24,
+    "vencida": true,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/peligro/observado-grilla > returns the 72 h grid 1`] = `
+{
+  "body": {
+    "desde": null,
+    "edadHoras": null,
+    "fuente": "NASA IMERG Early",
+    "geojson": {
+      "features": [],
+      "type": "FeatureCollection",
+    },
+    "hasta": null,
+    "horas": 72,
+    "vencida": true,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;

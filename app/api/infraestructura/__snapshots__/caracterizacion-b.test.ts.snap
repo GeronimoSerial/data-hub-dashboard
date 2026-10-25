@@ -1,0 +1,2309 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GET /api/infraestructura/radar > lista la vista para un usuario autenticado > autenticado 1`] = `
+{
+  "body": {
+    "cobertura": {
+      "conEvidencia": 4,
+      "procesadas": 5,
+      "sinEvidencia": 1,
+    },
+    "corte": {
+      "modeloVersion": "motor-v0.4",
+      "publicadoEn": "<fecha>",
+      "runId": "run-vigente",
+    },
+    "departamentos": [
+      {
+        "celdas": 1,
+        "departamento": "CONCORDIA",
+        "horizonteHoras": 24,
+        "peorNivel": "sin_dato",
+      },
+      {
+        "celdas": 1,
+        "departamento": "CONCORDIA",
+        "horizonteHoras": 72,
+        "peorNivel": "sin_dato",
+      },
+      {
+        "celdas": 1,
+        "departamento": "CONCORDIA",
+        "horizonteHoras": 240,
+        "peorNivel": "sin_dato",
+      },
+      {
+        "celdas": 1,
+        "departamento": "PARANA",
+        "horizonteHoras": 24,
+        "peorNivel": "sin_dato",
+      },
+      {
+        "celdas": 1,
+        "departamento": "PARANA",
+        "horizonteHoras": 72,
+        "peorNivel": "sin_dato",
+      },
+      {
+        "celdas": 1,
+        "departamento": "PARANA",
+        "horizonteHoras": 240,
+        "peorNivel": "sin_dato",
+      },
+    ],
+    "escuelas": {
+      "items": [
+        {
+          "calculadoEn": "<fecha>",
+          "confianza": "alta",
+          "confianzaAcceso": null,
+          "cueAnexo": "1000000-01",
+          "departamento": "PARANA",
+          "evidenciaValida": true,
+          "exposicionMatricula": 100,
+          "exposicionSecciones": 5,
+          "horizonteHoras": 24,
+          "nivelAmenaza": "alto",
+          "nivelRiesgo": "muy_alto",
+          "nivelRiesgoAcceso": null,
+          "scoreAmenaza": 70,
+          "scoreRiesgo": 80,
+          "scoreRiesgoAcceso": null,
+          "scoreVulnerabilidad": 60,
+          "snapshotId": "s1",
+          "validoHasta": "<fecha>",
+        },
+        {
+          "calculadoEn": "<fecha>",
+          "confianza": "media",
+          "confianzaAcceso": null,
+          "cueAnexo": "1000000-02",
+          "departamento": "PARANA",
+          "evidenciaValida": true,
+          "exposicionMatricula": 80,
+          "exposicionSecciones": 4,
+          "horizonteHoras": 24,
+          "nivelAmenaza": "moderado",
+          "nivelRiesgo": "moderado",
+          "nivelRiesgoAcceso": null,
+          "scoreAmenaza": 40,
+          "scoreRiesgo": 50,
+          "scoreRiesgoAcceso": null,
+          "scoreVulnerabilidad": 35,
+          "snapshotId": "s2",
+          "validoHasta": "<fecha>",
+        },
+        {
+          "calculadoEn": "<fecha>",
+          "confianza": "media",
+          "confianzaAcceso": null,
+          "cueAnexo": "1000000-04",
+          "departamento": "PARANA",
+          "evidenciaValida": true,
+          "exposicionMatricula": 60,
+          "exposicionSecciones": 3,
+          "horizonteHoras": 24,
+          "nivelAmenaza": "bajo",
+          "nivelRiesgo": "bajo",
+          "nivelRiesgoAcceso": null,
+          "scoreAmenaza": 20,
+          "scoreRiesgo": 30,
+          "scoreRiesgoAcceso": null,
+          "scoreVulnerabilidad": 15,
+          "snapshotId": "s4",
+          "validoHasta": "<fecha>",
+        },
+        {
+          "calculadoEn": "<fecha>",
+          "confianza": "baja",
+          "confianzaAcceso": null,
+          "cueAnexo": "1000000-03",
+          "departamento": "CONCORDIA",
+          "evidenciaValida": false,
+          "exposicionMatricula": null,
+          "exposicionSecciones": null,
+          "horizonteHoras": 24,
+          "nivelAmenaza": null,
+          "nivelRiesgo": null,
+          "nivelRiesgoAcceso": null,
+          "scoreAmenaza": null,
+          "scoreRiesgo": null,
+          "scoreRiesgoAcceso": null,
+          "scoreVulnerabilidad": null,
+          "snapshotId": "s3",
+          "validoHasta": "<fecha>",
+        },
+      ],
+      "page": 1,
+      "pageSize": 5,
+      "total": 4,
+      "totalPages": 1,
+    },
+    "hayNivelProvisorio": false,
+    "kpis": {
+      "accesoCondicionado": {
+        "escuelas": 0,
+        "matricula": 0,
+      },
+      "riesgoAltoTotal": 1,
+      "sinEvidenciaTotal": 1,
+    },
+    "puntos": [
+      {
+        "confianza": "alta",
+        "cueAnexo": "1000000-01",
+        "departamento": "PARANA",
+        "horizonteHoras": 24,
+        "nivelAmenaza": "alto",
+        "nivelRiesgo": "muy_alto",
+        "nivelRiesgoAcceso": null,
+        "nivelVulnerabilidad": "alto",
+      },
+      {
+        "confianza": "media",
+        "cueAnexo": "1000000-02",
+        "departamento": "PARANA",
+        "horizonteHoras": 24,
+        "nivelAmenaza": "moderado",
+        "nivelRiesgo": "moderado",
+        "nivelRiesgoAcceso": null,
+        "nivelVulnerabilidad": "moderado",
+      },
+      {
+        "confianza": "baja",
+        "cueAnexo": "1000000-03",
+        "departamento": "CONCORDIA",
+        "horizonteHoras": 24,
+        "nivelAmenaza": null,
+        "nivelRiesgo": null,
+        "nivelRiesgoAcceso": null,
+        "nivelVulnerabilidad": null,
+      },
+      {
+        "confianza": "media",
+        "cueAnexo": "1000000-04",
+        "departamento": "PARANA",
+        "horizonteHoras": 24,
+        "nivelAmenaza": "bajo",
+        "nivelRiesgo": "bajo",
+        "nivelRiesgoAcceso": null,
+        "nivelVulnerabilidad": "bajo",
+      },
+    ],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/radar > rechaza un horizonte fuera de catálogo > horizonte invalido 1`] = `
+{
+  "body": {
+    "error": "horizonte inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/radar > rechaza un nivel desconocido > nivel invalido 1`] = `
+{
+  "body": {
+    "error": "Parámetro inválido: nivel",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/radar > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/radar > responde 403 cuando el usuario no tiene acceso al recurso > sin acceso 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo > devuelve las variables pedidas de la última corrida > con corrida 1`] = `
+{
+  "body": {
+    "fetchedAt": "<fecha>",
+    "frescura": {
+      "desactualizado": true,
+      "edadMinutos": 720,
+    },
+    "grid": {
+      "celdas": [
+        {
+          "columna": 0,
+          "fila": 1,
+          "id": "r-1c-1",
+          "lat": -0.2,
+          "lon": -0.2,
+        },
+        {
+          "columna": 1,
+          "fila": 0,
+          "id": "r0c0",
+          "lat": 0,
+          "lon": 0,
+        },
+      ],
+      "columnas": 2,
+      "espaciado": 0.2,
+      "filas": 2,
+      "lat0": 0,
+      "lon0": -0.2,
+    },
+    "gridVersion": "corrientes-0.2-v1",
+    "model": "best_match",
+    "runAt": "<fecha>",
+    "runId": "run-radar-1",
+    "sinDatos": false,
+    "tiempos": [
+      "<fecha>",
+      "<fecha>",
+      "<fecha>",
+      "<fecha>",
+      "<fecha>",
+      "<fecha>",
+    ],
+    "unidades": {
+      "precipitation_probability": "%",
+      "wind_speed_10m": "km/h",
+    },
+    "valores": {
+      "precipitation_probability": [
+        [
+          60,
+          60,
+        ],
+        [
+          11,
+          21,
+        ],
+        [
+          12,
+          22,
+        ],
+        [
+          13,
+          23,
+        ],
+        [
+          14,
+          24,
+        ],
+        [
+          15,
+          25,
+        ],
+      ],
+      "wind_speed_10m": [
+        [
+          1,
+          10,
+        ],
+        [
+          2,
+          20,
+        ],
+        [
+          3,
+          30,
+        ],
+        [
+          4,
+          40,
+        ],
+        [
+          5,
+          50,
+        ],
+        [
+          6,
+          60,
+        ],
+      ],
+    },
+  },
+  "cacheControl": "private, max-age=300",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo > rechaza una fecha que no es ISO > fecha invalida 1`] = `
+{
+  "body": {
+    "error": "Parámetro inválido: desde",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo > rechaza una variable desconocida > variable invalida 1`] = `
+{
+  "body": {
+    "error": "Parámetro inválido: variables",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo > representa la ausencia de corrida sin ceros > sin corrida 1`] = `
+{
+  "body": {
+    "fetchedAt": null,
+    "frescura": null,
+    "grid": null,
+    "gridVersion": "corrientes-0.2-v1",
+    "model": null,
+    "razon": "Todavía no se cargó ningún pronóstico.",
+    "runAt": null,
+    "runId": null,
+    "sinDatos": true,
+    "tiempos": [],
+    "unidades": {},
+    "valores": {},
+  },
+  "cacheControl": "private, max-age=300",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo > responde 404 con el flag de radar apagado > flag apagado 1`] = `
+{
+  "body": {
+    "error": "Radar no habilitado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo/alertas > lista las alertas SMN activas (vacías en la base de test) > autenticado 1`] = `
+{
+  "body": {
+    "alertas": [],
+  },
+  "cacheControl": "private, max-age=60",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo/alertas > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo/alertas > responde 404 con el flag de radar apagado > flag apagado 1`] = `
+{
+  "body": {
+    "error": "Radar no habilitado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo/escuela/[cueAnexo] > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo/escuela/[cueAnexo] > responde 404 con el flag de radar apagado > flag apagado 1`] = `
+{
+  "body": {
+    "error": "Radar no habilitado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo/escuela/[cueAnexo] > responde 404 para una escuela que no existe en el mapa > escuela inexistente 1`] = `
+{
+  "body": {
+    "error": "Escuela no encontrada",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo/resumen > responde 304 cuando el ETag coincide > etag coincide 1`] = `
+{
+  "body": null,
+  "cacheControl": "private, max-age=300",
+  "contentType": null,
+  "status": 304,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo/resumen > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo/resumen > responde 404 con el flag de radar apagado > flag apagado 1`] = `
+{
+  "body": {
+    "error": "Radar no habilitado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/radar-meteo/resumen > resume la corrida vigente > autenticado 1`] = `
+{
+  "body": {
+    "alertasSmn": [],
+    "departamentos": [
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18133",
+        "nombre": "San Cosme",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18049",
+        "nombre": "Esquina",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18077",
+        "nombre": "Itatí",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18112",
+        "nombre": "Monte Caseros",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18084",
+        "nombre": "Ituzaingó",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18021",
+        "nombre": "Capital",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18140",
+        "nombre": "San Luis del Palmar",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18175",
+        "nombre": "Sauce",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18035",
+        "nombre": "Curuzú Cuatiá",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18154",
+        "nombre": "San Miguel",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18042",
+        "nombre": "Empedrado",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18014",
+        "nombre": "Berón de Astrada",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18147",
+        "nombre": "San Martín",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18119",
+        "nombre": "Paso de los Libres",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18070",
+        "nombre": "Goya",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18091",
+        "nombre": "Lavalle",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18161",
+        "nombre": "San Roque",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18056",
+        "nombre": "General Alvear",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18028",
+        "nombre": "Concepción",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18007",
+        "nombre": "Bella Vista",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 100,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": 3,
+            "lluvia24h": 1.7,
+            "lluviaLocalMax": 1.8,
+            "picoHora": "2026-10-25 02:00",
+            "rafagaMaxKmh": 20,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": true,
+          },
+        ],
+        "id": "18168",
+        "nombre": "Santo Tomé",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18126",
+        "nombre": "Saladas",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18063",
+        "nombre": "General Paz",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18098",
+        "nombre": "Mburucuyá",
+        "proximas48h": [],
+      },
+      {
+        "dias": [
+          {
+            "cobertura": 0,
+            "ensamble": null,
+            "fecha": "2026-10-25",
+            "granizoMax": null,
+            "lluvia24h": null,
+            "lluviaLocalMax": null,
+            "picoHora": null,
+            "rafagaMaxKmh": null,
+            "resaltado": {
+              "lluvia": null,
+              "rafaga": null,
+            },
+            "tormenta": false,
+          },
+        ],
+        "id": "18105",
+        "nombre": "Mercedes",
+        "proximas48h": [],
+      },
+    ],
+    "dias": [
+      "2026-10-25",
+    ],
+    "ensamble": null,
+    "frescura": {
+      "desactualizado": true,
+      "edadMinutos": 720,
+    },
+    "gridVersion": "corrientes-0.2-v1",
+    "runAt": "<fecha>",
+    "runId": "run-radar-1",
+    "sinDatos": false,
+    "umbrales": {
+      "lluvia24h": {
+        "atencion": 25,
+        "importante": 50,
+      },
+      "rafagaKmh": {
+        "atencion": 60,
+        "importante": 80,
+      },
+    },
+    "verificacion": {
+      "actualizadoEn": null,
+      "cobertura": 0,
+      "desde": "2026-10-11",
+      "estado": "sin_datos",
+      "far": null,
+      "hasta": "2026-10-24",
+      "nEventos": 0,
+      "nPares": 0,
+      "pod": null,
+      "sesgoMm": null,
+    },
+  },
+  "cacheControl": "private, max-age=300",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo > lista el corte vigente sembrado > autenticado 1`] = `
+{
+  "body": {
+    "items": [
+      {
+        "calculadoEn": "<fecha>",
+        "confianza": "alta",
+        "cueAnexo": "1000000-01",
+        "departamento": "PARANA",
+        "evidenciaValida": true,
+        "exposicionMatricula": 100,
+        "exposicionSecciones": 5,
+        "horizonteHoras": 24,
+        "nivelAmenaza": "alto",
+        "nivelRiesgo": "muy_alto",
+        "scoreAmenaza": 70,
+        "scoreRiesgo": 80,
+        "scoreVulnerabilidad": 60,
+        "snapshotId": "s1",
+        "validoHasta": "<fecha>",
+      },
+      {
+        "calculadoEn": "<fecha>",
+        "confianza": "media",
+        "cueAnexo": "1000000-02",
+        "departamento": "PARANA",
+        "evidenciaValida": true,
+        "exposicionMatricula": 80,
+        "exposicionSecciones": 4,
+        "horizonteHoras": 24,
+        "nivelAmenaza": "moderado",
+        "nivelRiesgo": "moderado",
+        "scoreAmenaza": 40,
+        "scoreRiesgo": 50,
+        "scoreVulnerabilidad": 35,
+        "snapshotId": "s2",
+        "validoHasta": "<fecha>",
+      },
+      {
+        "calculadoEn": "<fecha>",
+        "confianza": "media",
+        "cueAnexo": "1000000-04",
+        "departamento": "PARANA",
+        "evidenciaValida": true,
+        "exposicionMatricula": 60,
+        "exposicionSecciones": 3,
+        "horizonteHoras": 24,
+        "nivelAmenaza": "bajo",
+        "nivelRiesgo": "bajo",
+        "scoreAmenaza": 20,
+        "scoreRiesgo": 30,
+        "scoreVulnerabilidad": 15,
+        "snapshotId": "s4",
+        "validoHasta": "<fecha>",
+      },
+      {
+        "calculadoEn": "<fecha>",
+        "confianza": "baja",
+        "cueAnexo": "1000000-03",
+        "departamento": "CONCORDIA",
+        "evidenciaValida": false,
+        "exposicionMatricula": null,
+        "exposicionSecciones": null,
+        "horizonteHoras": 24,
+        "nivelAmenaza": null,
+        "nivelRiesgo": null,
+        "scoreAmenaza": null,
+        "scoreRiesgo": null,
+        "scoreVulnerabilidad": null,
+        "snapshotId": "s3",
+        "validoHasta": "<fecha>",
+      },
+    ],
+    "page": 1,
+    "pageSize": 5,
+    "runVigente": {
+      "id": "run-vigente",
+      "modeloVersion": "motor-v0.4",
+      "publicadoEn": "<fecha>",
+    },
+    "total": 4,
+    "totalPages": 1,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo > rechaza un horizonte fuera de catálogo > horizonte invalido 1`] = `
+{
+  "body": {
+    "error": "horizonte inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo > rechaza un pageSize fuera de rango > pageSize invalido 1`] = `
+{
+  "body": {
+    "error": "Parámetro inválido: pageSize",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo > representa la ausencia de corte vigente sin error > sin corte vigente 1`] = `
+{
+  "body": {
+    "items": [],
+    "page": 1,
+    "pageSize": 50,
+    "runVigente": null,
+    "total": 0,
+    "totalPages": 0,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo/[snapshotId] > devuelve el snapshot sembrado > autenticado 1`] = `
+{
+  "body": {
+    "factores": [],
+    "snapshot": {
+      "calculadoEn": "<fecha>",
+      "confianza": "alta",
+      "cueAnexo": "1000000-01",
+      "evidenciaValida": true,
+      "exposicionMatricula": 100,
+      "exposicionSecciones": 5,
+      "horizonteHoras": 24,
+      "id": "s1",
+      "nivelAmenaza": "alto",
+      "nivelRiesgo": "muy_alto",
+      "runId": "run-vigente",
+      "scoreAmenaza": 70,
+      "scoreRiesgo": 80,
+      "scoreVulnerabilidad": 60,
+      "validoHasta": "<fecha>",
+    },
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo/[snapshotId] > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo/[snapshotId] > responde 404 para un snapshot inexistente > inexistente 1`] = `
+{
+  "body": {
+    "error": "Snapshot no encontrado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo/escuela/[cueAnexo] > devuelve la ficha de riesgo de la escuela sembrada > autenticado 1`] = `
+{
+  "body": {
+    "crecidaRio": null,
+    "factores": [],
+    "snapshot": {
+      "calculadoEn": "<fecha>",
+      "cueAnexo": "1000000-01",
+      "horizonteHoras": 24,
+      "id": "s1",
+      "nivelAmenaza": "alto",
+      "nivelRiesgo": "muy_alto",
+      "scoreRiesgo": 80,
+      "validoHasta": "<fecha>",
+    },
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo/escuela/[cueAnexo] > rechaza un horizonte fuera de catálogo > horizonte invalido 1`] = `
+{
+  "body": {
+    "error": "horizonte inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/riesgo/escuela/[cueAnexo] > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion > devuelve el estado de situación para staff > autenticado 1`] = `
+{
+  "body": {
+    "atraso": {
+      "atrasado": true,
+      "desactivadoPorConfig": false,
+      "texto": "atrasado",
+    },
+    "briefing": [],
+    "corte": null,
+    "estadoDatos": {
+      "generadoEn": "<fecha>",
+      "items": [
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "lluvia",
+          "id": "job:sync-radar-meteo",
+          "intervaloMinutos": 360,
+          "motivo": "Nunca corrió.",
+          "nombre": "Pronóstico meteorológico",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "lluvia",
+          "id": "job:sync-radar-ensemble",
+          "intervaloMinutos": 360,
+          "motivo": "Nunca corrió.",
+          "nombre": "Ensamble meteorológico (radar)",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "lluvia",
+          "id": "job:sync-smn-alertas",
+          "intervaloMinutos": 15,
+          "motivo": "Nunca corrió.",
+          "nombre": "Avisos meteorológicos",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "lluvia",
+          "id": "job:sync-imerg",
+          "intervaloMinutos": 30,
+          "motivo": "Nunca corrió.",
+          "nombre": "Lluvia observada IMERG",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "climatologias",
+          "id": "job:climatologia-imerg",
+          "intervaloMinutos": 1440,
+          "motivo": "Nunca corrió.",
+          "nombre": "Climatología IMERG",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "riesgo",
+          "id": "job:calcular-riesgo",
+          "intervaloMinutos": 360,
+          "motivo": "Nunca corrió.",
+          "nombre": "Cálculo de riesgo escolar",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "hidrometria",
+          "id": "job:sync-pronostico-caudal",
+          "intervaloMinutos": 360,
+          "motivo": "Nunca corrió.",
+          "nombre": "Pronóstico de caudal",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "lluvia",
+          "id": "job:sync-ensemble",
+          "intervaloMinutos": 360,
+          "motivo": "Nunca corrió.",
+          "nombre": "Ensamble de lluvia",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "riesgo",
+          "id": "job:situacion-corte",
+          "intervaloMinutos": 60,
+          "motivo": "Nunca corrió.",
+          "nombre": "Corte del Centro de Situación",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "hidrometria",
+          "id": "job:sync-prefectura-alturas",
+          "intervaloMinutos": 60,
+          "motivo": "Nunca corrió.",
+          "nombre": "Alturas de Prefectura",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "riesgo",
+          "id": "job:veredicto-diario",
+          "intervaloMinutos": 360,
+          "motivo": "Nunca corrió.",
+          "nombre": "Veredicto diario",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "riesgo",
+          "id": "job:veredicto-cierre",
+          "intervaloMinutos": 1440,
+          "motivo": "Nunca corrió.",
+          "nombre": "Cierre del veredicto",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "lluvia",
+          "id": "job:sync-synop-lluvia",
+          "intervaloMinutos": 60,
+          "motivo": "Nunca corrió.",
+          "nombre": "Lluvia SYNOP",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "hidrometria",
+          "id": "job:sync-prefectura-historico",
+          "intervaloMinutos": 1440,
+          "motivo": "Nunca corrió.",
+          "nombre": "Histórico de Prefectura",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "geo",
+          "id": "job:importar-exposicion-rio-dem",
+          "intervaloMinutos": 1440,
+          "motivo": "Nunca corrió.",
+          "nombre": "Exposición al río (DEM)",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "hidrometria",
+          "id": "dato:prefectura",
+          "intervaloMinutos": null,
+          "motivo": "Ninguna estación tiene lecturas.",
+          "nombre": "Lecturas de Prefectura",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "lluvia",
+          "id": "dato:imerg",
+          "intervaloMinutos": 30,
+          "motivo": "No hay observaciones IMERG guardadas.",
+          "nombre": "Observaciones IMERG",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "climatologias",
+          "id": "dato:climatologia-precipitacion",
+          "intervaloMinutos": null,
+          "motivo": "0 de 1 celdas con al menos 10 años.",
+          "nombre": "Cobertura de la climatología de precipitación",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
+          "grupo": "geo",
+          "id": "dataset:ninguno",
+          "intervaloMinutos": null,
+          "motivo": "No hay datasets publicados.",
+          "nombre": "Datos geográficos y estáticos",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": 426960,
+          "estado": "atrasado",
+          "grupo": "riesgo",
+          "id": "dato:run-riesgo",
+          "intervaloMinutos": 360,
+          "motivo": "Publicado hace 297 días; se espera cada 6 h.",
+          "nombre": "Run de riesgo vigente",
+          "ultimoError": null,
+          "ultimoExitoEn": "<fecha>",
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "deshabilitado",
+          "grupo": "climatologias",
+          "id": "job:climatologia-caudal",
+          "intervaloMinutos": 1440,
+          "motivo": "No programado en producción.",
+          "nombre": "Climatología de caudal",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "deshabilitado",
+          "grupo": "climatologias",
+          "id": "job:climatologia-precipitacion",
+          "intervaloMinutos": 1440,
+          "motivo": "No programado en producción.",
+          "nombre": "Climatología de precipitación",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "deshabilitado",
+          "grupo": "riesgo",
+          "id": "job:episodios-derivados",
+          "intervaloMinutos": 60,
+          "motivo": "No programado en producción.",
+          "nombre": "Episodios derivados",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "deshabilitado",
+          "grupo": "lluvia",
+          "id": "job:sync-seasonal",
+          "intervaloMinutos": 1440,
+          "motivo": "No programado en producción.",
+          "nombre": "Pronóstico estacional",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "deshabilitado",
+          "grupo": "riesgo",
+          "id": "job:importar-altimetria-v04",
+          "intervaloMinutos": 1440,
+          "motivo": "No programado en producción.",
+          "nombre": "importar-altimetria-v04",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+      ],
+      "problemas": 20,
+    },
+    "prioridades": [
+      {
+        "cueAnexo": "1000000-01",
+        "departamento": "PARANA",
+        "nivelRiesgo": "muy_alto",
+        "scoreRiesgo": 80,
+      },
+    ],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion > rechaza un tipo de territorio no soportado > territorio invalido 1`] = `
+{
+  "body": {
+    "error": "Parámetro inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion > responde 403 a un usuario sin rol staff > consulta 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion/cambios > lista los cambios desde la fecha pedida > autenticado 1`] = `
+{
+  "body": {
+    "porRegistro": [],
+    "porVigencia": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion/cambios > rechaza un desde que no es fecha-hora ISO > desde invalido 1`] = `
+{
+  "body": {
+    "error": "Parámetro "desde" requerido (ISO-8601)",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion/cambios > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion/export > exporta el último corte en CSV > csv 1`] = `
+{
+  "body": {
+    "error": "Todavía no hay ningún corte generado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion/export > exporta el último corte en JSON > json 1`] = `
+{
+  "body": {
+    "error": "Todavía no hay ningún corte generado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion/export > rechaza un formato desconocido > formato invalido 1`] = `
+{
+  "body": {
+    "error": "formato inválido (csv|json)",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/situacion/export > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/tendencia-estacional > devuelve la tendencia para staff > autenticado 1`] = `
+{
+  "body": {
+    "items": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/tendencia-estacional > rechaza un departamento demasiado largo > departamento invalido 1`] = `
+{
+  "body": {
+    "error": "departamento inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/tendencia-estacional > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos > lista los veredictos vigentes de la ventana > autenticado 1`] = `
+{
+  "body": {
+    "desde": "2026-10-18",
+    "hasta": "2026-10-28",
+    "veredictos": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos > rechaza una fecha inexistente > fecha invalida 1`] = `
+{
+  "body": {
+    "error": "desde y hasta deben tener formato YYYY-MM-DD válido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos > responde 403 a un usuario sin rol staff > consulta 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos/eventos > lista los eventos de terreno del rango > autenticado 1`] = `
+{
+  "body": {
+    "eventos": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos/eventos > rechaza un rango sin parámetros obligatorios > sin parametros 1`] = `
+{
+  "body": {
+    "error": "desde y hasta son obligatorios con formato YYYY-MM-DD válido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos/eventos > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos/historial > lista las versiones del veredicto > autenticado 1`] = `
+{
+  "body": {
+    "versiones": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos/historial > rechaza una petición sin fecha > sin fecha 1`] = `
+{
+  "body": {
+    "error": "fecha es obligatoria y debe tener formato YYYY-MM-DD",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos/historial > rechaza una petición sin ámbito > sin ambito 1`] = `
+{
+  "body": {
+    "error": "ambito es obligatorio",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos/historial > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos/pdf > genera el PDF de la ventana (sólo status, content-type y tamaño) > autenticado 1`] = `
+{
+  "cacheControl": "private, no-store",
+  "contentType": "application/pdf",
+  "pdf": true,
+  "status": 200,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos/pdf > rechaza un rango con fechas inválidas > fecha invalida 1`] = `
+{
+  "body": {
+    "error": "desde y hasta deben tener formato YYYY-MM-DD válido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/infraestructura/veredictos/pdf > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`POST /api/infraestructura/verificaciones/[id]/cancelar > cancela una verificación creada y informa que ya estaba cancelada > autenticado 1`] = `
+{
+  "body": {
+    "ok": true,
+    "verificacion": {
+      "actualizadaEn": "<fecha>",
+      "canceladaEn": "<fecha>",
+      "canceladaPorUserId": "editor-1",
+      "creadaEn": "<fecha>",
+      "cueAnexo": "1000000-04",
+      "discrepancia": false,
+      "estado": "cancelada",
+      "id": "<id-1>",
+      "motivoCancelacion": "prueba",
+      "movimientoId": null,
+      "periodoId": "periodo-enos-2026-2027",
+      "respondidaCanal": null,
+      "respondidaEn": null,
+      "respondidaPorUserId": null,
+      "resultado": null,
+      "solicitadaEn": "<fecha>",
+      "solicitadaPorUserId": "editor-1",
+      "tokenConsumidoEn": null,
+      "tokenExpiraEn": "<fecha>",
+      "tokenRevocadoEn": null,
+      "vencimientoEn": null,
+    },
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`POST /api/infraestructura/verificaciones/[id]/cancelar > cancela una verificación creada y informa que ya estaba cancelada > ya cancelada 1`] = `
+{
+  "body": {
+    "error": "La verificación ya estaba cancelada",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 409,
+}
+`;
+
+exports[`POST /api/infraestructura/verificaciones/[id]/cancelar > informa una verificación inexistente > inexistente 1`] = `
+{
+  "body": {
+    "error": "La verificación no existe",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`POST /api/infraestructura/verificaciones/[id]/cancelar > rechaza un cuerpo que no es JSON > cuerpo invalido 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`POST /api/infraestructura/verificaciones/[id]/cancelar > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`POST /api/infraestructura/verificaciones/[id]/responder-asistida > informa una verificación inexistente > inexistente 1`] = `
+{
+  "body": {
+    "error": "La verificación no existe",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`POST /api/infraestructura/verificaciones/[id]/responder-asistida > rechaza un canal desconocido > canal invalido 1`] = `
+{
+  "body": {
+    "error": "Invalid option: expected one of "telefono"|"whatsapp"|"presencial"|"otro"",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`POST /api/infraestructura/verificaciones/[id]/responder-asistida > registra la respuesta asistida y rechaza una segunda respuesta > autenticado 1`] = `
+{
+  "body": {
+    "ok": true,
+    "verificacion": {
+      "actualizadaEn": "<fecha>",
+      "canceladaEn": null,
+      "canceladaPorUserId": null,
+      "creadaEn": "<fecha>",
+      "cueAnexo": "1000000-05",
+      "discrepancia": false,
+      "estado": "respondida",
+      "id": "<id-1>",
+      "motivoCancelacion": null,
+      "movimientoId": null,
+      "periodoId": "periodo-enos-2026-2027",
+      "respondidaCanal": "telefono",
+      "respondidaEn": "<fecha>",
+      "respondidaPorUserId": "editor-1",
+      "resultado": "sin_afectacion",
+      "solicitadaEn": "<fecha>",
+      "solicitadaPorUserId": "editor-1",
+      "tokenConsumidoEn": null,
+      "tokenExpiraEn": "<fecha>",
+      "tokenRevocadoEn": null,
+      "vencimientoEn": null,
+    },
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`POST /api/infraestructura/verificaciones/[id]/responder-asistida > registra la respuesta asistida y rechaza una segunda respuesta > ya respondida 1`] = `
+{
+  "body": {
+    "ok": true,
+    "verificacion": {
+      "actualizadaEn": "<fecha>",
+      "canceladaEn": null,
+      "canceladaPorUserId": null,
+      "creadaEn": "<fecha>",
+      "cueAnexo": "1000000-05",
+      "discrepancia": false,
+      "estado": "respondida",
+      "id": "<id-1>",
+      "motivoCancelacion": null,
+      "movimientoId": null,
+      "periodoId": "periodo-enos-2026-2027",
+      "respondidaCanal": "telefono",
+      "respondidaEn": "<fecha>",
+      "respondidaPorUserId": "editor-1",
+      "resultado": "sin_afectacion",
+      "solicitadaEn": "<fecha>",
+      "solicitadaPorUserId": "editor-1",
+      "tokenConsumidoEn": null,
+      "tokenExpiraEn": "<fecha>",
+      "tokenRevocadoEn": null,
+      "vencimientoEn": null,
+    },
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`POST /api/infraestructura/verificaciones/[id]/responder-asistida > responde 401 sin sesión > sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`veredictos/enlaces POST and DELETE > DELETE responde 401 sin sesión > delete sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`veredictos/enlaces POST and DELETE > DELETE revoca los enlaces del día para staff > delete autenticado 1`] = `
+{
+  "body": {
+    "revocados": 1,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`veredictos/enlaces POST and DELETE > POST crea un enlace compartible con el rango pedido > post autenticado 1`] = `
+{
+  "body": {
+    "url": "/veredicto/compartido/<token>",
+    "venceEn": "<fecha>",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 201,
+}
+`;
+
+exports[`veredictos/enlaces POST and DELETE > POST rechaza un rango con desde posterior a hasta > post rango invertido 1`] = `
+{
+  "body": {
+    "error": "desde no puede ser posterior a hasta",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`veredictos/enlaces POST and DELETE > POST rechaza una fecha con formato inválido > post fecha invalida 1`] = `
+{
+  "body": {
+    "error": "desde y hasta deben tener formato YYYY-MM-DD válido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`veredictos/enlaces POST and DELETE > POST responde 401 sin sesión > post sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`verificaciones GET and POST > GET lista las verificaciones para staff > get autenticado 1`] = `
+{
+  "body": {
+    "ok": true,
+    "verificaciones": [],
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`verificaciones GET and POST > GET responde 401 sin sesión > get sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`verificaciones GET and POST > POST crea una verificación y devuelve el token en claro una sola vez > post autenticado 1`] = `
+{
+  "body": {
+    "ok": true,
+    "token": "<token>",
+    "verificacion": {
+      "actualizadaEn": "<fecha>",
+      "canceladaEn": null,
+      "canceladaPorUserId": null,
+      "creadaEn": "<fecha>",
+      "cueAnexo": "1000000-03",
+      "discrepancia": false,
+      "estado": "pendiente",
+      "id": "<id-1>",
+      "motivoCancelacion": null,
+      "movimientoId": null,
+      "periodoId": "periodo-enos-2026-2027",
+      "respondidaCanal": null,
+      "respondidaEn": null,
+      "respondidaPorUserId": null,
+      "resultado": null,
+      "solicitadaEn": "<fecha>",
+      "solicitadaPorUserId": "editor-1",
+      "tokenConsumidoEn": null,
+      "tokenExpiraEn": "<fecha>",
+      "tokenRevocadoEn": null,
+      "vencimientoEn": null,
+    },
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 201,
+}
+`;
+
+exports[`verificaciones GET and POST > POST rechaza un cuerpo que no es JSON > post cuerpo invalido 1`] = `
+{
+  "body": {
+    "error": "Cuerpo inválido",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`verificaciones GET and POST > POST rechaza un cuerpo sin cueAnexo > post sin cue 1`] = `
+{
+  "body": {
+    "error": "Invalid input: expected string, received undefined",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`verificaciones GET and POST > POST responde 401 sin sesión > post sin sesion 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
