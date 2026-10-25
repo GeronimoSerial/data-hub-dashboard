@@ -11,6 +11,7 @@ import type {
   DiffParte,
   DiffServicioAlcanceRef,
   DiffServicioCambio,
+  DiffUnidadAlcance,
 } from './movimiento-diff'
 import type { TipoMovimientoEvidencia } from './reportes-offline-contratos'
 import type { EstadoEstablecimiento, SeccionEstablecimiento, ServicioEstado, TipoMovimiento } from './trayectoria-tipos'
@@ -68,6 +69,7 @@ function textoAlcanceServicio(
       ?? '1 sección'
     : alcance.etiqueta ?? (alcance.tipo === 'turno' ? alcance.referenciaId : null) ?? ''
   if (alcance.tipo === 'turno') return ` en el turno ${etiqueta}`
+  if (alcance.tipo === 'carrera') return ` en la carrera ${alcance.etiqueta ?? alcance.referenciaId ?? ''}`
   return ` en ${etiqueta}`
 }
 
@@ -98,6 +100,9 @@ function lineasServicio(cambios: DiffServicioCambio[], secciones: SeccionEstable
     } else if (cambio.alcance.tipo === 'turno') {
       const nombre = cambio.alcance.etiqueta ?? cambio.alcance.referenciaId
       if (nombre) grupo.nombres.push(`turno ${nombre}`)
+    } else if (cambio.alcance.tipo === 'carrera') {
+      const nombre = cambio.alcance.etiqueta ?? cambio.alcance.referenciaId
+      if (nombre) grupo.nombres.push(nombre)
     }
   }
 
@@ -105,6 +110,9 @@ function lineasServicio(cambios: DiffServicioCambio[], secciones: SeccionEstable
     const alcances = [...grupo.nombres]
     if (grupo.sinNombre > 0) alcances.push(`${grupo.sinNombre} ${grupo.sinNombre === 1 ? 'sección' : 'secciones'}`)
     if (grupo.alcance.tipo === 'establecimiento') return grupo.base
+    if (grupo.alcance.tipo === 'carrera') {
+      return `${grupo.base} en ${alcances.length === 1 ? 'la carrera' : 'las carreras'} ${alcances.join(', ')}`
+    }
     return `${grupo.base} en ${alcances.join(', ')}`
   })
 }
@@ -160,8 +168,14 @@ export function tituloMovimiento(resumen: DiffParte, tipo: TipoMovimientoDescrit
   return tipo === 'confirmacion' ? 'Situación confirmada' : 'Se actualizó el parte'
 }
 
-function detalleAlcance(secciones: number, alumnos: number): string {
-  const textoSecciones = `${secciones} ${pluralizar(secciones, 'sección', 'secciones')}`
+// Palabras de la unidad de alcance: GE cuenta secciones; institutos, carreras.
+function palabrasUnidad(unidad: DiffUnidadAlcance | undefined): [string, string] {
+  return unidad === 'carrera' ? ['carrera', 'carreras'] : ['sección', 'secciones']
+}
+
+function detalleAlcance(secciones: number, alumnos: number, unidad?: DiffUnidadAlcance): string {
+  const [singular, plural] = palabrasUnidad(unidad)
+  const textoSecciones = `${secciones} ${pluralizar(secciones, singular, plural)}`
   const textoAlumnos = `${alumnos} ${pluralizar(alumnos, 'alumno', 'alumnos')}`
   return secciones > 0
     ? `Alcanza a ${textoSecciones}${alumnos > 0 ? ` (${textoAlumnos})` : ''}`
@@ -172,9 +186,10 @@ function detalleCambioAlcance(cambio: DiffParte['alcancesCambiados'][number]): s
   if (cambio.todaLaEscuela && cambio.seccionesRetiradas + cambio.alumnosRetirados === 0) {
     return `Se amplió el alcance de ${cambio.motivo}: toda la escuela`
   }
+  const [singular, plural] = palabrasUnidad(cambio.unidad)
   const partes: string[] = []
-  if (cambio.seccionesAgregadas > 0) partes.push(`${cambio.seccionesAgregadas} ${pluralizar(cambio.seccionesAgregadas, 'sección', 'secciones')} más`)
-  if (cambio.seccionesRetiradas > 0) partes.push(`${cambio.seccionesRetiradas} ${pluralizar(cambio.seccionesRetiradas, 'sección', 'secciones')} menos`)
+  if (cambio.seccionesAgregadas > 0) partes.push(`${cambio.seccionesAgregadas} ${pluralizar(cambio.seccionesAgregadas, singular, plural)} más`)
+  if (cambio.seccionesRetiradas > 0) partes.push(`${cambio.seccionesRetiradas} ${pluralizar(cambio.seccionesRetiradas, singular, plural)} menos`)
   if (cambio.alumnosAgregados > 0) partes.push(`${cambio.alumnosAgregados} ${pluralizar(cambio.alumnosAgregados, 'alumno', 'alumnos')} más`)
   if (cambio.alumnosRetirados > 0) partes.push(`${cambio.alumnosRetirados} ${pluralizar(cambio.alumnosRetirados, 'alumno', 'alumnos')} menos`)
   const verbo = cambio.seccionesRetiradas + cambio.alumnosRetirados > 0
@@ -201,7 +216,7 @@ export function describirMovimiento(
     lineas.push(`Se informó ${agregada.motivo}`)
     lineas.push(`Gravedad ${agregada.severidad}`)
     if (agregada.todaLaEscuela) lineas.push('Toda la escuela')
-    else if (agregada.secciones > 0 || agregada.alumnos > 0) lineas.push(detalleAlcance(agregada.secciones, agregada.alumnos))
+    else if (agregada.secciones > 0 || agregada.alumnos > 0) lineas.push(detalleAlcance(agregada.secciones, agregada.alumnos, agregada.unidad))
     if (agregada.causadaPor) lineas.push(`Causado por "${agregada.causadaPor.motivo}"`)
   })
 

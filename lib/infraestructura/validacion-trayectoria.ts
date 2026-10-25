@@ -194,3 +194,102 @@ export function parseParteActualizacionInput(body: unknown): ParseParteResultado
   }
   return { ok: true, data: result.data }
 }
+
+// --- Institutos superiores (matrícula) ---
+// Misma forma que el esquema GE, con carreras como unidad. Acá `secciones` y
+// `carreras` son opcionales por separado; qué forma corresponde a cada CUE lo
+// decide la ruta según el sistema del alcance, y responde los 400 de forma. El
+// esquema GE de arriba queda intacto para los CUE que no son institutos.
+
+const afectacionNuevaInstitutoSchema = afectacionNuevaInputSchema
+  .extend({
+    secciones: z.array(z.number().int().positive()).optional(),
+    carreras: z.array(z.number().int().positive()).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if ((data.secciones?.length ?? 0) === 0 && (data.carreras?.length ?? 0) === 0) {
+      ctx.addIssue({ code: 'custom', path: ['carreras'], message: 'Debe incluir al menos una carrera' })
+    }
+  })
+
+const afectacionModificacionInstitutoSchema = afectacionModificacionInputSchema.extend({
+  carreras: z.array(z.number().int().positive()).optional(),
+})
+
+const servicioAlcanceInstitutoSchema = z.discriminatedUnion('tipo', [
+  z.object({ tipo: z.literal('establecimiento') }),
+  z.object({
+    tipo: z.literal('turno'),
+    turnos: z.array(z.string().trim().min(1)).min(1, 'Debe incluir al menos un turno'),
+  }),
+  z.object({
+    tipo: z.literal('seccion'),
+    secciones: z.array(z.number().int().positive()).min(1, 'Debe incluir al menos una sección'),
+  }),
+  z.object({
+    tipo: z.literal('carrera'),
+    carreras: z.array(z.number().int().positive()).min(1, 'Debe incluir al menos una carrera'),
+  }),
+])
+
+const servicioEducativoInstitutoSchema = z.object({
+  estado: z.enum(ESTADOS_SERVICIO),
+  alcance: servicioAlcanceInstitutoSchema,
+})
+
+export const parteActualizacionInstitutoInputSchema = z
+  .object({
+    cue: cueSchema,
+    idempotencyKey: z.string().trim().min(1).max(200),
+    rigeDesde: rigeDesdeSchema,
+    afectacionesNuevas: z.array(afectacionNuevaInstitutoSchema).default([]),
+    afectacionesModificadas: z.array(afectacionModificacionInstitutoSchema).default([]),
+    afectacionesRetiradas: z.array(z.string().trim().min(1)).default([]),
+    afectacionesSolucionadas: z
+      .array(z.object({ id: z.string().trim().min(1), solucionadaEn: rigeDesdeSchema.optional() }))
+      .default([]),
+    afectacionesConfirmadas: z.array(z.string().trim().min(1)).default([]),
+    servicioEducativo: servicioEducativoInstitutoSchema.optional(),
+    estadoEstablecimiento: estadoEstablecimientoInputSchema.optional(),
+    confirmarInterrupcionTotal: z.boolean().optional(),
+    asistenciaPedagogica: asistenciaPedagogicaSchema.optional(),
+  })
+  .refine(
+    (data) =>
+      data.afectacionesNuevas.length > 0 ||
+      data.afectacionesModificadas.length > 0 ||
+      data.afectacionesRetiradas.length > 0 ||
+      data.afectacionesSolucionadas.length > 0 ||
+      data.afectacionesConfirmadas.length > 0 ||
+      data.servicioEducativo !== undefined ||
+      data.estadoEstablecimiento !== undefined ||
+      data.asistenciaPedagogica !== undefined,
+    { message: 'Todavía no realizó cambios en el parte actual' },
+  )
+  .refine((data) => {
+    const evacua = data.estadoEstablecimiento?.estado === 'evacuado' || data.estadoEstablecimiento?.estado === 'centro_evacuados'
+    const declaraUnidades = data.servicioEducativo
+      ? data.servicioEducativo.alcance.tipo === 'seccion' || data.servicioEducativo.alcance.tipo === 'carrera'
+      : [...data.afectacionesNuevas, ...data.afectacionesModificadas].some(
+          (a) => (a.secciones?.length ?? 0) > 0 || (a.carreras?.length ?? 0) > 0,
+        )
+    return !evacua || !declaraUnidades || data.confirmarInterrupcionTotal === true
+  }, { message: 'Confirme que se interrumpe todo el establecimiento' })
+  .refine(
+    (data) => !(data.estadoEstablecimiento?.estado === 'evacuado' && data.servicioEducativo?.estado === 'normal'),
+    { message: 'Con el edificio evacuado no puede haber clases con normalidad' },
+  )
+  .refine(
+    (data) => !(data.estadoEstablecimiento?.estado === 'sin_clases' && data.servicioEducativo?.estado === 'normal'),
+    { message: 'Con el edificio sin clases no puede haber clases con normalidad' },
+  )
+
+export type ParteInstitutoInput = z.infer<typeof parteActualizacionInstitutoInputSchema>
+
+export function parseParteInstitutoInput(body: unknown): { ok: true; data: ParteInstitutoInput } | { ok: false; error: string } {
+  const result = parteActualizacionInstitutoInputSchema.safeParse(body)
+  if (!result.success) {
+    return { ok: false, error: result.error.issues[0]?.message ?? 'Cuerpo inválido' }
+  }
+  return { ok: true, data: result.data }
+}

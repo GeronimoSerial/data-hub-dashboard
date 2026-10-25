@@ -323,3 +323,34 @@ describe('obtenerEvolucionMapa', () => {
     })
   })
 })
+
+describe('instituto superior en la serie de servicio caído', () => {
+  it('cuenta el CUE cuando sólo una de sus carreras está suspendida', async () => {
+    const client = crearEjecutorSql(getRawClient())
+    const corte = await client.execute(`INSERT INTO matricula_corte (fuente, ciclo_lectivo, estado, creado_en)
+      VALUES ('test-evolucion', 2026, 'vigente', '2026-10-01') RETURNING id`)
+    const corteId = Number(corte.rows[0]!.id)
+    const carreras = await client.execute({
+      sql: `INSERT INTO matricula_carrera (corte_id, cue_anexo, instituto, nombre, rm, tipo, estado, sector) VALUES
+        (?, 'CUE-EV-11', 'Instituto EV', 'Carrera EV A', 'RM-EV-1', 'Tecnicatura', 'ABIERTA', 'estatal'),
+        (?, 'CUE-EV-11', 'Instituto EV', 'Carrera EV B', 'RM-EV-2', 'Profesorado', 'ABIERTA', 'estatal')
+        RETURNING id`,
+      args: [corteId, corteId],
+    })
+    const carreraA = Number(carreras.rows[0]!.id)
+
+    const parte = await client.execute("SELECT id FROM infra_parte WHERE cue_anexo = 'CUE-EV-11'")
+    const parteId = String(parte.rows[0]!.id)
+    // Sólo la carrera A suspendida: el CUE queda "parcial" y cuenta como afectado.
+    await client.execute({
+      sql: `INSERT INTO infra_servicio_alcance (id, parte_id, tipo, referencia_id, estado, rige_desde, creada_en, retirada_en)
+            VALUES (?, ?, 'carrera', ?, 'suspendido', ?, ?, NULL)`,
+      args: [crypto.randomUUID(), parteId, String(carreraA), inicioDeDia(-5), inicioDeDia(-5)],
+    })
+
+    const { serieEscuelasServicioCaido } = await obtenerEvolucionMapa()
+    const hoy = serieEscuelasServicioCaido.find((p) => p.fecha === diaIso(0))
+    expect(hoy?.escuelas).toBeGreaterThan(0)
+  })
+})
+

@@ -39,7 +39,9 @@ export interface AsistenciaPedagogica {
 // una opción de carga, ver EstadoServicioGeneral más abajo.
 export type ServicioEstado = 'normal' | 'suspendido'
 
-export type ServicioAlcanceTipo = 'establecimiento' | 'turno' | 'seccion'
+// 'carrera' sólo existe para institutos superiores (matrícula): referenciaId es
+// el id de la carrera como texto.
+export type ServicioAlcanceTipo = 'establecimiento' | 'turno' | 'seccion' | 'carrera'
 
 export type TipoMovimiento =
   | 'reporte_inicial'

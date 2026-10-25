@@ -8,6 +8,7 @@ import type { AlcanceProvider, UnidadAlcance } from './tipos'
 // GE adapter with its GE-only surface. Only for GE-shaped consumers
 // (ParteActual.secciones, GET ficha); validation and logic use the generic port.
 export interface AlcanceGe extends AlcanceProvider {
+  readonly sistema: 'ge'
   // Original section rows of the CUE. Read once per instance and shared with
   // listUnits(): one ge_seccion query per instance, not one per caller.
   listarSeccionesGe(): Promise<SeccionEstablecimiento[]>
@@ -39,6 +40,7 @@ export function crearAlcanceGe(client: EjecutorSql, corteId: number, cueAnexo: s
     return seccionesGe
   }
   return {
+    sistema: 'ge',
     listarSeccionesGe,
     listUnits: async () => (await listarSeccionesGe()).map(aUnidadAlcance),
     listMembers: (unitIds) => obtenerMembresiaSecciones(client, { corteId, geSectionIds: unitIds }),

@@ -29,7 +29,8 @@ import {
   type ParteMapa,
 } from './parte-mapa'
 import { listarSeccionesDeCues } from './secciones-cue'
-import { calcularEstadoServicioGeneral } from './servicio-educativo'
+import { carrerasVigentesPorCue } from './parte/instituto-alcance'
+import { estadoGeneralDelCue } from './parte/instituto-estado'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
 
@@ -246,6 +247,10 @@ export async function obtenerEvolucionMapa(filtros: FiltrosEvolucion = {}): Prom
     seccionesCargadas ?? listarSeccionesDeCues(client, corte.id, cueAnexos),
   ])
 
+  // Institutos superiores: sus carreras del corte vigente. Sin ellas, las filas
+  // tipo 'carrera' no alcanzan para saber si la suspensión cubre todo el CUE.
+  const carrerasPorCue = await carrerasVigentesPorCue(client, cueAnexos)
+
   const servicioPorParte = agruparPorParte(servicioRows)
   const afectacionesPorParte = agruparPorParte(afectacionesRows)
 
@@ -266,7 +271,8 @@ export async function obtenerEvolucionMapa(filtros: FiltrosEvolucion = {}): Prom
       const filasServicio = servicioPorParte.get(parteId) ?? []
       const vigentesEseDia = resolverAlcanceVigente(filasServicio, { referencia, clave: claveServicioAlcance })
       const secciones = seccionesPorCue.get(cuePorParte.get(parteId)!) ?? []
-      const estado = calcularEstadoServicioGeneral(vigentesEseDia, secciones)
+      const carreras = carrerasPorCue.get(cuePorParte.get(parteId)!) ?? []
+      const estado = estadoGeneralDelCue(vigentesEseDia, secciones, carreras)
       if (estado === 'suspendido' || estado === 'parcial') escuelas++
     }
     return { fecha, escuelas }

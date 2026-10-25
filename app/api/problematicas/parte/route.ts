@@ -13,6 +13,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import {
   infraAfectacion,
   infraAfectacionAlumno,
+  infraAfectacionCarrera,
   infraAfectacionSeccion,
   infraBorrador,
   infraBorradorCierre,
@@ -23,8 +24,21 @@ import {
 import { codigoSinAccesoParte, tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { normalizeCue } from '@/lib/infraestructura/cue'
-import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
-import { alcanceGeParaCue, alcanceParaCue, type AlcanceProvider } from '@/lib/infraestructura/alcance'
+import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from '@/lib/infraestructura/ge-db'
+import { alcanceGeParaCue, alcanceParaCue, type AlcanceCue, type AlcanceProvider } from '@/lib/infraestructura/alcance'
+import { crearAlcanceMatricula } from '@/lib/infraestructura/alcance/matricula'
+import {
+  cambiosAlcanceInstituto,
+  efectivoInstituto,
+  efectivosPorAfectacion,
+  leerScopeInstituto,
+  mismoEfectivoInstituto,
+  reemplazarScopeInstituto,
+  resumenEfectivoInstituto,
+  SCOPE_VACIO,
+  type ScopeLeido,
+} from '@/lib/infraestructura/parte/instituto-alcance'
+import { estadoGeneralDelCue } from '@/lib/infraestructura/parte/instituto-estado'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import { validarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
@@ -45,7 +59,6 @@ import {
 } from '@/lib/infraestructura/parte-consulta'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
-import { calcularEstadoServicioGeneral } from '@/lib/infraestructura/servicio-educativo'
 import { evaluarCambioAHabitual, type EstadoEdificioActivo } from '@/lib/infraestructura/consistencia-estado-activo'
 import { causaElegible } from '@/lib/infraestructura/causa-afectacion'
 import type {
@@ -55,7 +68,11 @@ import type {
   TipoMovimiento,
 } from '@/lib/infraestructura/trayectoria-tipos'
 import { resolverCategoria, validarAlumnosPermitidos } from '@/lib/infraestructura/validacion'
-import { parseParteActualizacionInput } from '@/lib/infraestructura/validacion-trayectoria'
+import {
+  parseParteActualizacionInput,
+  parseParteInstitutoInput,
+  type ParteInstitutoInput,
+} from '@/lib/infraestructura/validacion-trayectoria'
 import {
   registrarIntentoVinculoFallido,
   responderPorEnlace,
@@ -174,6 +191,44 @@ async function buscarAfectacionEquivalente(
   return posibles.find((existente) => seccionesCoincidenConEsperadas(existente, esperadas))
 }
 
+// Equivalente para institutos: mismo evento (motivo, categoría, severidad,
+// descripción y causa) con el mismo alcance efectivo de carreras y alumnos.
+async function buscarAfectacionEquivalenteInstituto(
+  client: EjecutorSql,
+  alcance: AlcanceProvider,
+  lector: Parameters<typeof leerScopeInstituto>[0],
+  cueAnexo: string,
+  corteVigente: number,
+  candidatas: Afectacion[],
+  entrada: {
+    motivo: string
+    severidad: Severidad
+    descripcion?: string | null
+    causadaPorId?: string | null
+    carreras?: number[]
+    alumnos?: number[]
+  },
+  categoria: CategoriaAfectacion,
+): Promise<Afectacion | undefined> {
+  const posibles = candidatas.filter((existente) =>
+    motivoCategoriaSeveridadDescripcionCoinciden(existente, entrada, categoria) &&
+    (existente.causadaPorId ?? null) === (entrada.causadaPorId ?? null),
+  )
+  if (posibles.length === 0) return undefined
+  const esperado = await efectivoInstituto(alcance, {
+    carreras: entrada.carreras ?? [],
+    alumnos: entrada.alumnos ?? [],
+  })
+  const scopes = await leerScopeInstituto(lector, posibles.map((p) => p.id))
+  // Cada candidata se compara con el corte con que se guardó; una consulta de
+  // miembros por corte, no una por candidata.
+  const efectivos = await efectivosPorAfectacion(client, cueAnexo, scopes, corteVigente)
+  for (const existente of posibles) {
+    if (mismoEfectivoInstituto(esperado, efectivos.get(existente.id))) return existente
+  }
+  return undefined
+}
+
 // Campo hermano opcional a nivel raíz del mismo body de POST (batch E1). Vive
 // SEPARADO de parteActualizacionInputSchema para no tocar el contrato del
 // parte: si viene con forma inválida se ignora en silencio, nunca es un 400.
@@ -231,7 +286,8 @@ async function handleGET(request: Request) {
   let identidades = new Map<number, { nombre: string; apellido: string }>()
   if (idsAlumnos.size > 0) {
     try {
-      const resueltas = await alcanceParaCue(client, corte.id, cue.value).resolveIdentities([...idsAlumnos])
+      const alcanceCue = await alcanceParaCue(client, corte.id, cue.value)
+      const resueltas = await alcanceCue.resolveIdentities([...idsAlumnos])
       // La clave es el id de miembro (en GE, el ge_person_id que ya viaja en
       // alumnos[].gePersonId de la respuesta).
       identidades = new Map(resueltas.map((i) => [i.miembroId, { nombre: i.nombre, apellido: i.apellido }]))
@@ -293,6 +349,7 @@ async function handleGET(request: Request) {
 async function respuestaExito(
   cueAnexo: string,
   corteId: number,
+  alcanceCue: AlcanceCue,
   parteId: string,
   movimientoId: string,
   tipo: TipoMovimiento,
@@ -305,7 +362,11 @@ async function respuestaExito(
     actual
       ? { secciones: actual.secciones, servicioAlcance: snapshotDesde(actual).servicioAlcance }
       : { secciones: [], servicioAlcance: [] }
-  const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, snapshot.secciones)
+  // Institutos: el estado general se calcula sobre sus carreras del corte vigente.
+  const carrerasReplay = alcanceCue.sistema === 'matricula'
+    ? (await alcanceCue.listUnits()).map((u) => u.id)
+    : []
+  const estadoGeneral = estadoGeneralDelCue(snapshot.servicioAlcance, snapshot.secciones, carrerasReplay)
 
   // Best-effort, igual que en el camino de transacción nueva: un replay
   // idempotente o la carrera de idempotencia también pueden traer el vínculo
@@ -357,6 +418,34 @@ async function intentarVincularVerificacion(
   }
 }
 
+// Sistema del CUE para elegir el esquema de parseo (GE salvo instituto superior
+// con corte de matrícula vigente).
+async function sistemaDelCue(cue: string): Promise<'ge' | 'matricula'> {
+  try {
+    const client = crearEjecutorSql(getRawClient())
+    await asegurarGeAdjuntada(client)
+    return (await alcanceParaCue(client, 0, cue)).sistema
+  } catch {
+    return 'ge'
+  }
+}
+
+// Verdadero si el cuerpo trae `carreras` en alguna afectación o en el servicio.
+function declaraCarreras(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false
+  const b = body as {
+    afectacionesNuevas?: unknown
+    afectacionesModificadas?: unknown
+    servicioEducativo?: { alcance?: { tipo?: unknown } } | null
+  }
+  const lista = (v: unknown): Array<Record<string, unknown>> =>
+    Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object') : []
+  return (
+    [...lista(b.afectacionesNuevas), ...lista(b.afectacionesModificadas)].some((a) => 'carreras' in a) ||
+    b.servicioEducativo?.alcance?.tipo === 'carrera'
+  )
+}
+
 async function handlePOST(request: Request) {
   await ensureSeeded()
 
@@ -391,11 +480,30 @@ async function handlePOST(request: Request) {
   }
   const draftId = draftIdParsed.success ? draftIdParsed.data : undefined
 
-  const parsed = parseParteActualizacionInput(body)
-  if (!parsed.ok) {
-    return Response.json({ error: parsed.error }, { status: 400 })
+  // El sistema del CUE decide el esquema de parseo. Se resuelve con el mismo
+  // criterio que alcanceParaCue (más abajo, con el corte en mano); acá sólo
+  // hace falta para elegir el esquema. Ante un fallo de lectura queda GE, que
+  // es el comportamiento anterior.
+  const cueCrudo = typeof (body as { cue?: unknown } | null)?.cue === 'string'
+    ? normalizeCue((body as { cue: string }).cue)
+    : null
+  const sistemaCrudo = cueCrudo ? await sistemaDelCue(cueCrudo.value) : 'ge'
+  // En GE, `carreras` no existe: se rechaza antes del parseo para que el mensaje
+  // sea siempre el de la ruta, sin depender de qué campo falló primero.
+  if (sistemaCrudo === 'ge' && declaraCarreras(body)) {
+    return jsonError('Este establecimiento informa por secciones', 400)
   }
-  const input = parsed.data
+  let input: ParteInstitutoInput
+  if (sistemaCrudo === 'matricula') {
+    const parsed = parseParteInstitutoInput(body)
+    if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 })
+    input = parsed.data
+  } else {
+    // Esquema GE de HEAD, sin cambios: mismos mensajes y mismo orden de errores.
+    const parsed = parseParteActualizacionInput(body)
+    if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 })
+    input = parsed.data
+  }
 
   const cue = normalizeCue(input.cue)
   if (!cue) {
@@ -439,13 +547,20 @@ async function handlePOST(request: Request) {
   }
   // Capturada en una const propia: el chequeo de arriba no sobrevive el
   // análisis de flujo de TypeScript dentro de los closures que siguen
-  // (alumnosPertenecenASecciones, el callback de la transacción).
+  // (alumnosPertenecenAUnidades, el callback de la transacción).
   const corteId = corte.id
+  // Un único alcance por request: GE (padrón) o matrícula (instituto superior).
+  // Lo usan la idempotencia, la validación y la transacción.
+  const alcanceCue = await alcanceParaCue(client, corteId, cue.value)
+  const esInstituto = alcanceCue.sistema === 'matricula'
+  // Corte de matrícula con el que se escriben las filas de institutos.
+  const corteInstituto = alcanceCue.sistema === 'matricula' ? alcanceCue.corteId : corteId
 
   if (movimientoExistente) {
     return respuestaExito(
       cue.value,
       corteId,
+      alcanceCue,
       movimientoExistente.parteId,
       movimientoExistente.id,
       movimientoExistente.tipo as TipoMovimiento,
@@ -488,7 +603,7 @@ async function handlePOST(request: Request) {
       severidad: entrada.severidad,
       justificacionCritica: entrada.justificacionCritica,
       descripcion: entrada.descripcion,
-      seccionesCantidad: entrada.secciones.length,
+      seccionesCantidad: (entrada.secciones?.length ?? 0) + (entrada.carreras?.length ?? 0),
     })),
     {
       estadoEstablecimiento: input.estadoEstablecimiento?.estado ?? null,
@@ -500,28 +615,57 @@ async function handlePOST(request: Request) {
     return Response.json({ error: bloqueo.mensaje, codigo: bloqueo.codigo }, { status: 400 })
   }
 
-  // Una sola instancia para toda la validación y el snapshot: la lectura de
-  // ge_seccion se hace una vez y se reutiliza (ver ge.ts).
-  const alcance = alcanceGeParaCue(client, corteId, cue.value)
-  const unidades = await alcance.listUnits()
+  // Toda la validación y las lecturas del CUE usan el alcance resuelto arriba;
+  // sus unidades son secciones en GE y carreras en matrícula.
+  const unidades = await alcanceCue.listUnits()
+  if (esInstituto && unidades.length === 0) {
+    return jsonError('No hay carreras cargadas para este establecimiento', 400)
+  }
   const unidadesCueSet = new Set(unidades.map((u) => u.id))
   const turnosCueSet = new Set(unidades.map((u) => u.turno))
   const seccionInvalida = (ids: number[]) => ids.some((id) => !unidadesCueSet.has(id))
-  // La sugerida depende del alcance real (todas las secciones del CUE), igual
+  // La sugerida depende del alcance real (todas las unidades del CUE), igual
   // que en el formulario: sólo así cliente y servidor exigen lo mismo.
-  const todasLasSecciones = unidades.map((u) => u.id)
-  // Snapshot GE-shaped (ParteActual.secciones): calcularEstadoServicioGeneral
-  // y la respuesta siguen leyendo las filas de sección originales, desde la
-  // misma lectura cacheada de la instancia.
-  const secciones = await alcance.listarSeccionesGe()
+  const todasLasUnidades = unidades.map((u) => u.id)
+  const mensajeUnidadInvalida = esInstituto
+    ? 'Alguna de las carreras no pertenece al establecimiento indicado'
+    : 'Alguna de las secciones no pertenece al establecimiento indicado'
+  const mensajeAlumnosUnidad = esInstituto
+    ? 'Alguno de los alumnos seleccionados no pertenece a las carreras indicadas'
+    : 'Alguno de los alumnos seleccionados no pertenece a las secciones indicadas'
+  const mensajeCadaUnidad = esInstituto
+    ? 'Cada carrera elegida debe incluir al menos un alumno'
+    : 'Cada sección elegida debe incluir al menos un alumno'
+  // Snapshot GE-shaped (ParteActual.secciones): sólo GE tiene secciones. Los
+  // institutos no las usan y su estado general se calcula con sus carreras.
+  const secciones = alcanceCue.sistema === 'ge' ? await alcanceCue.listarSeccionesGe() : []
+  const carrerasCue = esInstituto ? todasLasUnidades : []
+  // Unidades que elige una entrada: carreras en matrícula, secciones en GE.
+  const unidadesDe = (entrada: { secciones?: number[]; carreras?: number[] }): number[] =>
+    (esInstituto ? entrada.carreras : entrada.secciones) ?? []
+
+  // Cada CUE informa con su forma: GE por secciones, institutos por carreras.
+  const pideCarreras =
+    input.afectacionesNuevas.some((e) => (e.carreras?.length ?? 0) > 0) ||
+    input.afectacionesModificadas.some((m) => m.carreras !== undefined) ||
+    input.servicioEducativo?.alcance.tipo === 'carrera'
+  const pideSecciones =
+    input.afectacionesNuevas.some((e) => (e.secciones?.length ?? 0) > 0) ||
+    input.afectacionesModificadas.some((m) => m.secciones !== undefined) ||
+    input.servicioEducativo?.alcance.tipo === 'seccion'
+  if (esInstituto && pideSecciones) {
+    return jsonError('Este establecimiento informa por carreras, no por secciones', 400)
+  }
+  if (!esInstituto && pideCarreras) {
+    return jsonError('Este establecimiento informa por secciones', 400)
+  }
 
   for (const { input: entrada } of nuevasConCategoria) {
-    if (seccionInvalida(entrada.secciones)) {
-      return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
-    }
+    const unidadesEntrada = unidadesDe(entrada)
+    if (seccionInvalida(unidadesEntrada)) return jsonError(mensajeUnidadInvalida, 400)
     const sugerida = severidadSugeridaPorAlcance(
       motivos.find((m) => m.nombre === entrada.motivo)?.id ?? null,
-      alcanceDeSecciones(entrada.secciones, todasLasSecciones),
+      alcanceDeSecciones(unidadesEntrada, todasLasUnidades),
     )
     const justificada = validarJustificacionCritica({
       severidad: entrada.severidad,
@@ -532,12 +676,18 @@ async function handlePOST(request: Request) {
     if (!justificada.ok) return jsonError(justificada.error, 400)
   }
   for (const modificacion of input.afectacionesModificadas) {
-    if (modificacion.secciones && seccionInvalida(modificacion.secciones)) {
-      return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
-    }
+    const unidadesCambio = esInstituto ? modificacion.carreras : modificacion.secciones
+    if (unidadesCambio && seccionInvalida(unidadesCambio)) return jsonError(mensajeUnidadInvalida, 400)
   }
-  if (input.servicioEducativo?.alcance.tipo === 'seccion' && seccionInvalida(input.servicioEducativo.alcance.secciones)) {
-    return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
+  if (esInstituto && input.afectacionesModificadas.some((m) => m.carreras?.length === 0)) {
+    return jsonError('Debe incluir al menos una carrera', 400)
+  }
+  const alcanceServicio = input.servicioEducativo?.alcance
+  if (alcanceServicio?.tipo === 'seccion' && seccionInvalida(alcanceServicio.secciones)) {
+    return jsonError(mensajeUnidadInvalida, 400)
+  }
+  if (alcanceServicio?.tipo === 'carrera' && seccionInvalida(alcanceServicio.carreras)) {
+    return jsonError(mensajeUnidadInvalida, 400)
   }
   if (
     input.servicioEducativo?.alcance.tipo === 'turno' &&
@@ -546,29 +696,30 @@ async function handlePOST(request: Request) {
     return jsonError('Alguno de los turnos no pertenece al establecimiento indicado', 400)
   }
 
-  async function alumnosPertenecenASecciones(geSectionIds: number[], alumnoIds: number[] | undefined) {
+  async function alumnosPertenecenAUnidades(unidadIds: number[], alumnoIds: number[] | undefined) {
     if (!alumnoIds || alumnoIds.length === 0) return true
-    if (geSectionIds.length === 0) return false
-    const membresia = await alcance.listMembers(geSectionIds)
+    if (unidadIds.length === 0) return false
+    const membresia = await alcanceCue.listMembers(unidadIds)
     const todos = new Set<number>()
     for (const set of membresia.values()) for (const id of set) todos.add(id)
     return alumnoIds.every((id) => todos.has(id))
   }
 
   for (const { input: entrada } of nuevasConCategoria) {
-    if (!(await alumnosPertenecenASecciones(entrada.secciones, entrada.alumnos))) {
-      return jsonError('Alguno de los alumnos seleccionados no pertenece a las secciones indicadas', 400)
+    if (!(await alumnosPertenecenAUnidades(unidadesDe(entrada), entrada.alumnos))) {
+      return jsonError(mensajeAlumnosUnidad, 400)
     }
   }
 
   for (const { input: entrada, categoria } of nuevasConCategoria) {
     if (categoria !== 'alumnos') continue
-    const membresia = await alcance.listMembers(entrada.secciones)
+    const unidadesEntrada = unidadesDe(entrada)
+    const membresia = await alcanceCue.listMembers(unidadesEntrada)
     const alumnos = new Set(entrada.alumnos ?? [])
-    const todasConAlumno = entrada.secciones.every((seccion) =>
-      [...(membresia.get(seccion) ?? [])].some((id) => alumnos.has(id)),
+    const todasConAlumno = unidadesEntrada.every((unidad) =>
+      [...(membresia.get(unidad) ?? [])].some((id) => alumnos.has(id)),
     )
-    if (!todasConAlumno) return jsonError('Cada sección elegida debe incluir al menos un alumno', 400)
+    if (!todasConAlumno) return jsonError(mensajeCadaUnidad, 400)
   }
 
   const [parteExistente] = await db
@@ -583,12 +734,19 @@ async function handlePOST(request: Request) {
       .where(and(eq(infraServicioAlcance.parteId, parteExistente.id), isNull(infraServicioAlcance.retiradaEn)))
     const hayAlcanceTotalOTurno = alcancesVigentes.some((a) => a.tipo === 'establecimiento' || a.tipo === 'turno')
     if (!hayAlcanceTotalOTurno) {
+      // Afectación por secciones (GE) o por carreras (institutos): cualquiera de
+      // las dos cuenta como interrupción parcial.
       const [hechoPorSecciones] = await db.select({ id: infraAfectacionSeccion.geSectionId })
         .from(infraAfectacionSeccion)
         .innerJoin(infraAfectacion, eq(infraAfectacion.id, infraAfectacionSeccion.afectacionId))
         .where(and(eq(infraAfectacion.parteId, parteExistente.id), isNull(infraAfectacion.retiradaEn)))
         .limit(1)
-      if (hechoPorSecciones) return jsonError('Confirme que se interrumpe todo el establecimiento', 400)
+      const [hechoPorCarreras] = await db.select({ id: infraAfectacionCarrera.carreraId })
+        .from(infraAfectacionCarrera)
+        .innerJoin(infraAfectacion, eq(infraAfectacion.id, infraAfectacionCarrera.afectacionId))
+        .where(and(eq(infraAfectacion.parteId, parteExistente.id), isNull(infraAfectacion.retiradaEn)))
+        .limit(1)
+      if (hechoPorSecciones || hechoPorCarreras) return jsonError('Confirme que se interrumpe todo el establecimiento', 400)
     }
   }
 
@@ -614,18 +772,29 @@ async function handlePOST(request: Request) {
       }
     }
 
+    // Unidades vigentes de una afectación: sólo se leen si el cambio no trae
+    // las suyas. Institutos: carreras de la matrícula; GE: filas de sección.
+    const scopesActuales = esInstituto
+      ? await leerScopeInstituto(db, input.afectacionesModificadas.map((m) => m.id))
+      : new Map<string, ScopeLeido>()
+    const unidadesVigentes = async (afectacionId: string): Promise<number[]> => {
+      if (esInstituto) return scopesActuales.get(afectacionId)?.carreras ?? []
+      const filas = await db
+        .select({ geSectionId: infraAfectacionSeccion.geSectionId })
+        .from(infraAfectacionSeccion)
+        .where(eq(infraAfectacionSeccion.afectacionId, afectacionId))
+      return filas.map((s) => s.geSectionId)
+    }
+
     for (const modificacion of input.afectacionesModificadas) {
       if (modificacion.severidad === undefined) continue
       const fila = existentesPorId.get(modificacion.id)
-      // Sin secciones en el cambio, el alcance es el que la afectación ya tiene.
-      const seccionesActuales = modificacion.secciones ?? (await db
-        .select({ geSectionId: infraAfectacionSeccion.geSectionId })
-        .from(infraAfectacionSeccion)
-        .where(eq(infraAfectacionSeccion.afectacionId, modificacion.id))
-      ).map((s) => s.geSectionId)
+      // Sin unidades en el cambio, el alcance es el que la afectación ya tiene.
+      const unidadesCambio = esInstituto ? modificacion.carreras : modificacion.secciones
+      const unidadesActuales = unidadesCambio ?? (await unidadesVigentes(modificacion.id))
       const sugerida = severidadSugeridaPorAlcance(
         motivos.find((m) => m.nombre === fila?.motivo)?.id ?? null,
-        alcanceDeSecciones(seccionesActuales, todasLasSecciones),
+        alcanceDeSecciones(unidadesActuales, todasLasUnidades),
       )
       const justificada = validarJustificacionCritica({
         severidad: modificacion.severidad,
@@ -636,18 +805,22 @@ async function handlePOST(request: Request) {
       if (!justificada.ok) return jsonError(justificada.error, 400)
     }
 
+    // Un instituto no mezcla cortes: cambiar alumnos sin elegir carreras de nuevo
+    // sobre una afectación de un corte reemplazado daría filas de dos cortes.
+    for (const modificacion of input.afectacionesModificadas) {
+      if (!esInstituto || modificacion.alumnos === undefined || modificacion.carreras !== undefined) continue
+      const corteAfectacion = scopesActuales.get(modificacion.id)?.corteId
+      if (corteAfectacion != null && corteAfectacion !== corteInstituto) {
+        return jsonError('La matrícula se actualizó: vuelva a elegir las carreras', 400)
+      }
+    }
+
     for (const modificacion of input.afectacionesModificadas) {
       if (!modificacion.alumnos || modificacion.alumnos.length === 0) continue
-      let seccionesEfectivas = modificacion.secciones
-      if (!seccionesEfectivas) {
-        const actuales = await db
-          .select({ geSectionId: infraAfectacionSeccion.geSectionId })
-          .from(infraAfectacionSeccion)
-          .where(eq(infraAfectacionSeccion.afectacionId, modificacion.id))
-        seccionesEfectivas = actuales.map((s) => s.geSectionId)
-      }
-      if (!(await alumnosPertenecenASecciones(seccionesEfectivas, modificacion.alumnos))) {
-        return jsonError('Alguno de los alumnos seleccionados no pertenece a las secciones indicadas', 400)
+      const unidadesCambio = esInstituto ? modificacion.carreras : modificacion.secciones
+      const unidadesEfectivas = unidadesCambio ?? (await unidadesVigentes(modificacion.id))
+      if (!(await alumnosPertenecenAUnidades(unidadesEfectivas, modificacion.alumnos))) {
+        return jsonError(mensajeAlumnosUnidad, 400)
       }
     }
   }
@@ -781,7 +954,7 @@ async function handlePOST(request: Request) {
       const cambioAHabitual = evaluarCambioAHabitual({
         estadoActual: (parteFilaActual?.estadoEstablecimiento as EstadoEdificioActivo | undefined) ?? null,
         nuevoEstado: input.estadoEstablecimiento?.estado ?? null,
-        servicioActual: calcularEstadoServicioGeneral(servicioAlcanceActual, secciones),
+        servicioActual: estadoGeneralDelCue(servicioAlcanceActual, secciones, carrerasCue),
         servicioEnvio: input.servicioEducativo?.estado ?? null,
         afectacionesActivas: afectacionesVigentesActuales.map((a) => ({ id: a.id })),
         solucionadas: [...input.afectacionesSolucionadas.map((s) => s.id), ...input.afectacionesRetiradas],
@@ -792,18 +965,38 @@ async function handlePOST(request: Request) {
         throw new ErrorCierreBorrador(409, bloqueoActivo.mensaje, bloqueoActivo.codigo)
       }
       const causaPorNuevaId = new Map<string, string>()
+      // Alcance del CUE dentro de la transacción, sobre el ejecutor ligado a
+      // `tx`. Institutos: carreras y alumnos de matrícula; GE: secciones.
+      const alcanceTx: AlcanceCue = alcanceCue.sistema === 'matricula'
+        ? crearAlcanceMatricula(clienteGeEnTx, alcanceCue.corteId, cue.value)
+        : alcanceGeParaCue(clienteGeEnTx, corteId, cue.value)
+      // Alcance de institutos ANTES de escribir: base del diff de carreras y alumnos.
+      const scopesAntes = esInstituto
+        ? await leerScopeInstituto(tx, afectacionesVigentesActuales.map((a) => a.id))
+        : new Map<string, ScopeLeido>()
 
       for (const { input: entrada, categoria } of nuevasConCategoria) {
         // Nunca duplicar una afectación que otro dispositivo ya insertó para
         // el mismo evento (misma carrera de alta cross-device): si el
         // contenido coincide exactamente con una ya vigente, esta entrada es
         // un no-op.
-        const equivalente = await buscarAfectacionEquivalente(
-          alcanceParaCue(clienteGeEnTx, corteId, cue.value),
-          afectacionesVigentesActuales,
-          entrada,
-          categoria,
-        )
+        const equivalente = esInstituto
+          ? await buscarAfectacionEquivalenteInstituto(
+            clienteGeEnTx,
+            alcanceTx,
+            tx,
+            cue.value,
+            corteInstituto,
+            afectacionesVigentesActuales,
+            entrada,
+            categoria,
+          )
+          : await buscarAfectacionEquivalente(
+            alcanceTx,
+            afectacionesVigentesActuales,
+            { ...entrada, secciones: entrada.secciones ?? [] },
+            categoria,
+          )
         if (equivalente) continue
 
         const id = crypto.randomUUID()
@@ -822,13 +1015,20 @@ async function handlePOST(request: Request) {
           creadaEn: ahora,
           retiradaEn: null,
         })
-        await tx
-          .insert(infraAfectacionSeccion)
-          .values(entrada.secciones.map((geSectionId) => ({ afectacionId: id, geSectionId })))
-        if (entrada.alumnos && entrada.alumnos.length > 0) {
+        if (esInstituto) {
+          await reemplazarScopeInstituto(tx, id, corteInstituto, {
+            carreras: entrada.carreras ?? [],
+            alumnos: entrada.alumnos ?? [],
+          })
+        } else {
           await tx
-            .insert(infraAfectacionAlumno)
-            .values(entrada.alumnos.map((gePersonId) => ({ afectacionId: id, gePersonId })))
+            .insert(infraAfectacionSeccion)
+            .values((entrada.secciones ?? []).map((geSectionId) => ({ afectacionId: id, geSectionId })))
+          if (entrada.alumnos && entrada.alumnos.length > 0) {
+            await tx
+              .insert(infraAfectacionAlumno)
+              .values(entrada.alumnos.map((gePersonId) => ({ afectacionId: id, gePersonId })))
+          }
         }
       }
 
@@ -848,20 +1048,31 @@ async function handlePOST(request: Request) {
         if (Object.keys(cambios).length > 0) {
           await tx.update(infraAfectacion).set(cambios).where(eq(infraAfectacion.id, modificacion.id))
         }
-        if (modificacion.secciones !== undefined) {
-          await tx.delete(infraAfectacionSeccion).where(eq(infraAfectacionSeccion.afectacionId, modificacion.id))
-          if (modificacion.secciones.length > 0) {
-            await tx
-              .insert(infraAfectacionSeccion)
-              .values(modificacion.secciones.map((geSectionId) => ({ afectacionId: modificacion.id, geSectionId })))
+        if (esInstituto) {
+          if (modificacion.carreras !== undefined || modificacion.alumnos !== undefined) {
+            const actual = (await leerScopeInstituto(tx, [modificacion.id])).get(modificacion.id) ?? SCOPE_VACIO
+            const carreras = modificacion.carreras ?? actual.carreras
+            // Un alumno sobrevive sólo si sigue dentro de las carreras elegidas.
+            const dentro = new Set([...(await efectivoInstituto(alcanceTx, { carreras, alumnos: [] })).values()].flatMap((set) => [...set]))
+            const alumnos = (modificacion.alumnos ?? actual.alumnos).filter((id) => dentro.has(id))
+            await reemplazarScopeInstituto(tx, modificacion.id, corteInstituto, { carreras, alumnos })
           }
-        }
-        if (modificacion.alumnos !== undefined) {
-          await tx.delete(infraAfectacionAlumno).where(eq(infraAfectacionAlumno.afectacionId, modificacion.id))
-          if (modificacion.alumnos.length > 0) {
-            await tx
-              .insert(infraAfectacionAlumno)
-              .values(modificacion.alumnos.map((gePersonId) => ({ afectacionId: modificacion.id, gePersonId })))
+        } else {
+          if (modificacion.secciones !== undefined) {
+            await tx.delete(infraAfectacionSeccion).where(eq(infraAfectacionSeccion.afectacionId, modificacion.id))
+            if (modificacion.secciones.length > 0) {
+              await tx
+                .insert(infraAfectacionSeccion)
+                .values(modificacion.secciones.map((geSectionId) => ({ afectacionId: modificacion.id, geSectionId })))
+            }
+          }
+          if (modificacion.alumnos !== undefined) {
+            await tx.delete(infraAfectacionAlumno).where(eq(infraAfectacionAlumno.afectacionId, modificacion.id))
+            if (modificacion.alumnos.length > 0) {
+              await tx
+                .insert(infraAfectacionAlumno)
+                .values(modificacion.alumnos.map((gePersonId) => ({ afectacionId: modificacion.id, gePersonId })))
+            }
           }
         }
       }
@@ -881,15 +1092,20 @@ async function handlePOST(request: Request) {
       }
 
       if (input.servicioEducativo) {
-        const claves: Array<{ tipo: 'establecimiento' | 'turno' | 'seccion'; referenciaId: string | null }> = []
-        if (input.servicioEducativo.alcance.tipo === 'establecimiento') {
+        const claves: Array<{ tipo: 'establecimiento' | 'turno' | 'seccion' | 'carrera'; referenciaId: string | null }> = []
+        const alcanceServicioTx = input.servicioEducativo.alcance
+        if (alcanceServicioTx.tipo === 'establecimiento') {
           claves.push({ tipo: 'establecimiento', referenciaId: null })
-        } else if (input.servicioEducativo.alcance.tipo === 'turno') {
-          for (const turno of input.servicioEducativo.alcance.turnos) {
+        } else if (alcanceServicioTx.tipo === 'turno') {
+          for (const turno of alcanceServicioTx.turnos) {
             claves.push({ tipo: 'turno', referenciaId: turno })
           }
+        } else if (alcanceServicioTx.tipo === 'carrera') {
+          for (const carreraId of alcanceServicioTx.carreras) {
+            claves.push({ tipo: 'carrera', referenciaId: String(carreraId) })
+          }
         } else {
-          for (const seccionId of input.servicioEducativo.alcance.secciones) {
+          for (const seccionId of alcanceServicioTx.secciones) {
             claves.push({ tipo: 'seccion', referenciaId: String(seccionId) })
           }
         }
@@ -957,6 +1173,40 @@ async function handlePOST(request: Request) {
       )
 
       const diff = diffParte(antes, despues, { seccionesEstablecimiento: secciones.map((s) => s.geSectionId) })
+      if (esInstituto) {
+        // El alcance de un instituto vive en carreras y alumnos: el diff GE no lo
+        // ve, así que se suma acá. Sólo cuentan las afectaciones que siguen vigentes.
+        const idsVigentesDespues = new Set(afectacionesDespues.filter((a) => a.retiradaEn === null).map((a) => a.id))
+        const scopesDespues = await leerScopeInstituto(tx, [...idsVigentesDespues])
+        const scopesAntesVigentes = new Map([...scopesAntes].filter(([id]) => idsVigentesDespues.has(id)))
+        const motivoDeAfectacion = new Map(afectacionesDespues.map((a) => [a.id, a.motivo]))
+        const cambiosAlcance = await cambiosAlcanceInstituto(
+          clienteGeEnTx,
+          cue.value,
+          corteInstituto,
+          scopesAntesVigentes,
+          scopesDespues,
+        )
+        for (const cambio of cambiosAlcance) {
+          diff.alcancesCambiados.push({
+            afectacionId: cambio.afectacionId,
+            motivo: motivoDeAfectacion.get(cambio.afectacionId) ?? '',
+            unidad: 'carrera',
+            seccionesAgregadas: cambio.carrerasAgregadas,
+            seccionesRetiradas: cambio.carrerasRetiradas,
+            alumnosAgregados: cambio.alumnosAgregados,
+            alumnosRetirados: cambio.alumnosRetirados,
+          })
+        }
+        // Las afectaciones nuevas cuentan carreras y alumnos, no secciones GE.
+        const efectivosDespues = await efectivosPorAfectacion(clienteGeEnTx, cue.value, scopesDespues, corteInstituto)
+        const agregadasConAlcance: typeof diff.afectacionesAgregadas = []
+        for (const agregada of diff.afectacionesAgregadas) {
+          const resumen = resumenEfectivoInstituto(efectivosDespues.get(agregada.afectacionId) ?? new Map())
+          agregadasConAlcance.push({ ...agregada, secciones: resumen.carreras, alumnos: resumen.alumnos, unidad: 'carrera' })
+        }
+        diff.afectacionesAgregadas = agregadasConAlcance
+      }
       const motivoPorId = new Map(afectacionesActuales.map((a) => [a.id, a.motivo]))
       diff.afectacionesConfirmadas = input.afectacionesConfirmadas.map((id) => ({ afectacionId: id, motivo: motivoPorId.get(id) ?? '' }))
       const solucionadas = new Set(input.afectacionesSolucionadas.map((s) => s.id))
@@ -1020,7 +1270,7 @@ async function handlePOST(request: Request) {
         })
       }
 
-      const estadoGeneral = calcularEstadoServicioGeneral(despues.servicioAlcance, secciones)
+      const estadoGeneral = estadoGeneralDelCue(despues.servicioAlcance, secciones, carrerasCue)
       return {
         status: 201,
         body: {
@@ -1083,6 +1333,7 @@ async function handlePOST(request: Request) {
         return respuestaExito(
           cue.value,
           corteId,
+          alcanceCue,
           race.parteId,
           race.id,
           race.tipo as TipoMovimiento,

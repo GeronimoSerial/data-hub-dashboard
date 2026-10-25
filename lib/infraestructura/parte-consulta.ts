@@ -20,10 +20,11 @@ import { asegurarGeAdjuntada } from './impacto'
 import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
 import { severidadDelMovimiento } from './severidad-movimiento'
 import type { DiffParte } from './movimiento-diff'
-import { alcanceGeParaCue, alcanceParaCue } from './alcance'
+import { alcanceGeParaCue } from './alcance'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
 import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
+import { nombresDeCarreras } from './parte/instituto-alcance'
 import type {
   Afectacion,
   AfectacionAlcanceSeccion,
@@ -162,7 +163,9 @@ async function cargarAfectaciones(
   // Una sola consulta de membresía para TODAS las secciones de TODAS las
   // afectaciones del parte, nunca una por afectación.
   const todasLasSecciones = [...new Set(seccionesRows.map((s) => s.geSectionId))]
-  const membresia = await alcanceParaCue(client, corteId, cueAnexo).listMembers(todasLasSecciones)
+  // Las filas de sección son GE por definición: su membresía sale siempre del
+  // padrón GE, aun si el CUE hoy es un instituto superior.
+  const membresia = await alcanceGeParaCue(client, corteId, cueAnexo).listMembers(todasLasSecciones)
 
   return filas.map((fila): Afectacion => {
     const seccionIds = seccionesPorAfectacion.get(fila.id) ?? []
@@ -200,15 +203,25 @@ async function cargarServicioAlcance(
     .select()
     .from(infraServicioAlcance)
     .where(eq(infraServicioAlcance.parteId, parteId))
+  // Institutos: el nombre de cada carrera (ids únicos entre cortes).
+  const nombres = await nombresDeCarreras(
+    dbEjecutor,
+    filas.filter((f) => f.tipo === 'carrera' && f.referenciaId).map((f) => Number(f.referenciaId)),
+  )
 
   return filas.map((fila): ServicioAlcance => {
     // Etiqueta legible sólo donde sale gratis (spec batch 3): para 'turno',
     // el propio referenciaId ya ES el nombre del turno. Para 'seccion' haría
     // falta curso+division de ge_seccion, que esta capa no trae acá (ver
     // SeccionEstablecimiento en trayectoria-tipos.ts: sólo geSectionId y
-    // turno) — se deja sin etiqueta a propósito.
+    // turno) — se deja sin etiqueta a propósito. Para 'carrera' es el nombre
+    // de matricula_carrera.
     const etiqueta =
-      fila.tipo === 'turno' && fila.referenciaId ? fila.referenciaId : undefined
+      fila.tipo === 'turno' && fila.referenciaId
+        ? fila.referenciaId
+        : fila.tipo === 'carrera' && fila.referenciaId
+          ? nombres.get(Number(fila.referenciaId))
+          : undefined
     return {
       id: fila.id,
       parteId: fila.parteId,

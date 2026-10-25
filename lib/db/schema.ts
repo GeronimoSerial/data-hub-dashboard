@@ -449,6 +449,37 @@ export const infraAfectacionAlumno = pgTable(
   (t) => [primaryKey({ columns: [t.afectacionId, t.gePersonId] })],
 )
 
+// Alcance de una afectación de instituto superior (matrícula, no padrón GE).
+// Modelo propio (S4): una carrera sin alumnos seleccionados equivale a la
+// carrera completa, igual que una sección sin filas en infraAfectacionAlumno.
+// matriculaCorteId fija el corte con el que se eligió la carrera.
+export const infraAfectacionCarrera = pgTable(
+  'infra_afectacion_carrera',
+  {
+    afectacionId: text('afectacion_id')
+      .notNull()
+      .references(() => infraAfectacion.id, { onDelete: 'cascade' }),
+    matriculaCorteId: integer('matricula_corte_id').notNull(),
+    carreraId: integer('carrera_id').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.afectacionId, t.carreraId] })],
+)
+
+// Alumnos seleccionados dentro de una carrera de matrícula. alumnoId es el
+// id de matricula_alumno (sin FK: el corte puede reemplazarse, el historial
+// debe seguir resolviendo nombres por id).
+export const infraAfectacionMatriculaAlumno = pgTable(
+  'infra_afectacion_matricula_alumno',
+  {
+    afectacionId: text('afectacion_id')
+      .notNull()
+      .references(() => infraAfectacion.id, { onDelete: 'cascade' }),
+    matriculaCorteId: integer('matricula_corte_id').notNull(),
+    alumnoId: bigint('alumno_id', { mode: 'number' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.afectacionId, t.alumnoId] })],
+)
+
 // Alcance de la suspensión del servicio educativo (spec §10). `tipo` indica
 // qué clase de referencia es `referenciaId`: null para 'establecimiento',
 // identificador de turno o `geSectionId` (como texto) para 'turno'/'seccion'.

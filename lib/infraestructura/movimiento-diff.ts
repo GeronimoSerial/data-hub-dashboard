@@ -34,6 +34,8 @@ export interface DiffAfectacionAgregada {
   severidad: Severidad
   secciones: number
   alumnos: number
+  /** Unidad que cuentan `secciones`: ausente = sección (diffs GE y viejos); 'carrera' en institutos. */
+  unidad?: DiffUnidadAlcance
   /** Cubre completas todas las secciones del establecimiento. Ausente en diffs viejos. */
   todaLaEscuela?: boolean
   causadaPor?: { afectacionId: string; motivo: string }
@@ -57,9 +59,13 @@ export interface DiffSeveridadCambio {
   a: Severidad
 }
 
+export type DiffUnidadAlcance = 'seccion' | 'carrera'
+
 export interface DiffAlcanceCambio {
   afectacionId: string
   motivo: string
+  /** Unidad de seccionesAgregadas/seccionesRetiradas; ausente = sección. */
+  unidad?: DiffUnidadAlcance
   seccionesAgregadas: number
   seccionesRetiradas: number
   alumnosAgregados: number

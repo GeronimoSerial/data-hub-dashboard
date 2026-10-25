@@ -43,7 +43,7 @@ beforeAll(async () => {
 describe('alcanceParaCue (adaptador GE)', () => {
   it('mapea las secciones del CUE a unidades genéricas (id, etiqueta, turno, grupo), sin las de otro CUE', async () => {
     const client = crearEjecutorSql(getRawClient())
-    const unidades = await alcanceParaCue(client, CORTE, CUE).listUnits()
+    const unidades = await (await alcanceParaCue(client, CORTE, CUE)).listUnits()
     expect(unidades).toEqual(
       expect.arrayContaining([
         { id: 2101, etiqueta: '1 A', turno: 'MAÑANA', grupo: 'PRIMARIA' },
@@ -57,7 +57,7 @@ describe('alcanceParaCue (adaptador GE)', () => {
 
   it('devuelve la matrícula por sección y omite las secciones sin alumnos', async () => {
     const client = crearEjecutorSql(getRawClient())
-    const miembros = await alcanceParaCue(client, CORTE, CUE).listMembers([2101, 2102, 2104])
+    const miembros = await (await alcanceParaCue(client, CORTE, CUE)).listMembers([2101, 2102, 2104])
     expect([...(miembros.get(2101) ?? [])].sort((a, b) => a - b)).toEqual([21001, 21002])
     expect([...(miembros.get(2102) ?? [])]).toEqual([21003])
     expect(miembros.get(2104)).toBeUndefined()
@@ -80,13 +80,13 @@ describe('alcanceParaCue (adaptador GE)', () => {
 
   it('devuelve un mapa vacío cuando no se pide ninguna sección', async () => {
     const client = crearEjecutorSql(getRawClient())
-    const miembros = await alcanceParaCue(client, CORTE, CUE).listMembers([])
+    const miembros = await (await alcanceParaCue(client, CORTE, CUE)).listMembers([])
     expect(miembros.size).toBe(0)
   })
 
   it('resuelve identidades sólo para los alumnos con nombre cargado', async () => {
     const client = crearEjecutorSql(getRawClient())
-    const identidades = await alcanceParaCue(client, CORTE, CUE).resolveIdentities([21001, 21002, 21003])
+    const identidades = await (await alcanceParaCue(client, CORTE, CUE)).resolveIdentities([21001, 21002, 21003])
     expect(identidades).toEqual(
       expect.arrayContaining([
         { miembroId: 21001, nombre: 'Juana', apellido: 'Azurduy' },
@@ -98,6 +98,6 @@ describe('alcanceParaCue (adaptador GE)', () => {
 
   it('devuelve una lista vacía cuando no se pide ninguna identidad', async () => {
     const client = crearEjecutorSql(getRawClient())
-    expect(await alcanceParaCue(client, CORTE, CUE).resolveIdentities([])).toEqual([])
+    expect(await (await alcanceParaCue(client, CORTE, CUE)).resolveIdentities([])).toEqual([])
   })
 })

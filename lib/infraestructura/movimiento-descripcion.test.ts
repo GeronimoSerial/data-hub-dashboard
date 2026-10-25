@@ -56,6 +56,25 @@ describe('describirMovimiento', () => {
     expect(describirMovimiento(diffVacio)).toEqual([])
   })
 
+  it('institutos: cuenta carreras (no secciones) y nombra la carrera del servicio', () => {
+    const diff: DiffParte = {
+      ...normalizarDiff({}),
+      afectacionesAgregadas: [{ afectacionId: 'a1', motivo: 'Acceso interrumpido', categoria: 'alumnos', severidad: 'Baja', secciones: 2, alumnos: 3, unidad: 'carrera' }],
+      alcancesCambiados: [{ afectacionId: 'a2', motivo: 'Inundación', unidad: 'carrera', seccionesAgregadas: 1, seccionesRetiradas: 0, alumnosAgregados: 0, alumnosRetirados: 0 }],
+      serviciosCambiados: [{ alcance: { tipo: 'carrera', referenciaId: '7', etiqueta: 'Tecnicatura en Sistemas' }, de: null, a: 'suspendido' }],
+    }
+    const texto = describirMovimiento(diff).join(' | ')
+    expect(texto).toContain('Alcanza a 2 carreras (3 alumnos)')
+    expect(texto).toContain('Se amplió el alcance de Inundación: 1 carrera más')
+    expect(texto).toContain('en la carrera Tecnicatura en Sistemas')
+    expect(texto).not.toMatch(/sección/)
+  })
+
+  it('sin unidad declarada, el alcance sigue hablando de secciones (GE)', () => {
+    const diff = { ...normalizarDiff({}), afectacionesAgregadas: [{ afectacionId: 'a1', motivo: 'Inundación', categoria: 'establecimiento' as const, severidad: 'Alta' as const, secciones: 2, alumnos: 0 }] }
+    expect(describirMovimiento(diff)).toContain('Alcanza a 2 secciones')
+  })
+
   it('cambio de servicio con transición explícita usa flecha, como el ejemplo de §13/§15', () => {
     const diff: DiffParte = {
       ...diffVacio,
