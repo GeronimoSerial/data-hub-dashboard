@@ -18,7 +18,7 @@ const cueAnexoSchema = z.string().min(1).max(50)
 // GET de sólo lectura: indicador histórico/estático de inundación a lo largo
 // de la ruta escolar. No es pronóstico ni estado del camino.
 async function handleGET(request: Request, ctx: Ctx) {
-  const acceso = await verificarAccesoLectura()
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()

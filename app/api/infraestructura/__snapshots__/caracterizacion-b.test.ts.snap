@@ -224,7 +224,7 @@ exports[`GET /api/infraestructura/radar > responde 401 sin sesión > sin sesion 
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -235,7 +235,7 @@ exports[`GET /api/infraestructura/radar > responde 403 cuando el usuario no tien
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -399,7 +399,7 @@ exports[`GET /api/infraestructura/radar-meteo > responde 401 sin sesión > sin s
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -432,7 +432,7 @@ exports[`GET /api/infraestructura/radar-meteo/alertas > responde 401 sin sesión
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -454,7 +454,7 @@ exports[`GET /api/infraestructura/radar-meteo/escuela/[cueAnexo] > responde 401 
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -496,7 +496,7 @@ exports[`GET /api/infraestructura/radar-meteo/resumen > responde 401 sin sesión
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -1242,7 +1242,7 @@ exports[`GET /api/infraestructura/riesgo > responde 401 sin sesión > sin sesion
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -1281,7 +1281,7 @@ exports[`GET /api/infraestructura/riesgo/[snapshotId] > responde 401 sin sesión
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -1336,7 +1336,7 @@ exports[`GET /api/infraestructura/riesgo/escuela/[cueAnexo] > responde 401 sin s
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }

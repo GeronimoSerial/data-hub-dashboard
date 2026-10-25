@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 // susceptibilidad physrisk) de todo el padrón. NUNCA devuelve datos nominales.
 async function handleGET(request: Request) {
   // ACL PRIMERO: nada de tocar la DB de datos sin autorización.
-  const acceso = await verificarAccesoLectura()
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
   // Sin alcance (operador_establecimiento, baneado): no ve ni capas del mapa.
   if (alcanceMapa(acceso.user).tipo === 'ninguno') {

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
+import { verificarAccesoSeccion } from '@/lib/infraestructura/acceso-lectura'
 
 vi.mock('@/lib/session', () => ({
   getSessionUser: vi.fn(),
@@ -13,11 +14,15 @@ vi.mock('@/lib/session', () => ({
     return null
   },
 }))
+vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
+  verificarAccesoSeccion: vi.fn(async () => ({ ok: true, user: { id: 'admin', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })),
+}))
 
 usarDbTemporal('situacion-export-route-')
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
+  vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: true, user: { id: 'admin', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })
 })
 
 function editor() {
@@ -29,8 +34,20 @@ function url(qs = ''): Request {
 }
 
 describe('GET /api/infraestructura/situacion/export', () => {
+  it('rechaza a un usuario sólo de infraestructura con 403', async () => {
+    vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: false, status: 403 })
+    const { GET } = await import('./route')
+    expect((await GET(url('?formato=csv'))).status).toBe(403)
+    expect(verificarAccesoSeccion).toHaveBeenCalledWith('situation')
+  })
+  it('allows situation-only staff without an infrastructure resource grant', async () => {
+    vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: true, user: { ...editor(), hubPolicy: { enabledSections: ['situation'] as const } } })
+    const { GET } = await import('./route')
+    expect((await GET(url())).status).toBe(404)
+    expect(verificarAccesoSeccion).toHaveBeenCalledWith('situation')
+  })
   it('rechaza sin sesión con 401', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null)
+    vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: false, status: 401 })
     const { GET } = await import('./route')
     const res = await GET(url())
     expect(res.status).toBe(401)

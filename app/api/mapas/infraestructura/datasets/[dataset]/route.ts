@@ -10,7 +10,7 @@ import { ruta } from '@/lib/http/ruta'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 async function handleGET(request: Request, contexto: { params: Promise<{ dataset: string }> }) {
-  const acceso = await verificarAccesoLectura()
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
   if (alcanceMapa(acceso.user).tipo === 'ninguno') return Response.json({ error: 'Sin acceso al mapa' }, { status: 403 })
   const { dataset } = await contexto.params

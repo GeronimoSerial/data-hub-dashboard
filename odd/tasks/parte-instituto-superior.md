@@ -46,3 +46,6 @@ Objective: new "who is affected" flow for higher-education institutes (careers +
 - L16 (2026-10-25) browser QA round 2 on dev: all prior bugs fixed (79d60521); fixed pre-existing SW bug (3xx navigation treated as offline), institute copy map lib/copy/institutos.ts, RM label normalization, singular. 5xx navigations still go offline (unchanged).
 - L17 temporary SG rule 88fecbc7 deleted; tunnel and local dev server stopped; excluded CSV deleted.
 - L18 (2026-10-25) merged origin/staging: matrícula model replaces staging static carreras catalog (user: "Si, hacelo."); staging migrations 0030-0032 kept, ours renumbered 0033/0034; legacy infra_afectacion.carreras kept; backfill script scripts/backfill-carreras-superior.mjs (dry-run default). Staging alumnos priority (e9a3c4f8) applies to GE only.
+- L19 temporary SG rule 9f9eeb2b-ed1b-48ee-8040-e298dc97781b (ssh from 179.0.180.39) for dev deploy — MUST delete after.
+- L20 SG rule 9f9eeb2b deleted (SSH host key changed again: o10E54KB...; DB access paused, user to verify).
+- L21 (2026-10-25) merged origin/dev (admin-access) per user "los cambios de dev los quiero tambien en staging": migrations 0032 radar, 0033 hub_access_policy, 0034/0035 matricula, 0036 radar reapply (idempotent) so both DBs converge; admin routes wrapped with ruta(); dev CSS font literals → tokens; map logo test aligned with dev 1520px rule.

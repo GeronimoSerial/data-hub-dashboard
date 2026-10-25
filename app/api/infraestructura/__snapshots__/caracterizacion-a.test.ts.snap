@@ -500,7 +500,7 @@ exports[`GET /api/infraestructura/adjuntos > with the photo flag on > answers 40
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -590,7 +590,7 @@ exports[`GET /api/infraestructura/borradores/[cueAnexo] > with the offline map f
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -646,7 +646,7 @@ exports[`GET /api/infraestructura/borradores/conteos > with the offline map flag
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -712,7 +712,7 @@ exports[`GET /api/infraestructura/episodios-derivados > answers 401 without a se
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -723,7 +723,7 @@ exports[`GET /api/infraestructura/episodios-derivados > answers 403 without acce
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -775,7 +775,7 @@ exports[`GET /api/infraestructura/episodios-derivados/[id] > answers 401 without
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -927,7 +927,7 @@ exports[`GET /api/infraestructura/fuentes > answers 401 without a session 1`] = 
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -938,7 +938,7 @@ exports[`GET /api/infraestructura/fuentes > answers 403 without access to the re
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -994,7 +994,7 @@ exports[`GET /api/infraestructura/geo-perfiles/[cueAnexo] > answers 401 without 
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -1016,7 +1016,7 @@ exports[`GET /api/infraestructura/hidrometria/estaciones > answers 401 without a
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -1027,7 +1027,7 @@ exports[`GET /api/infraestructura/hidrometria/estaciones > answers 403 without a
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -1365,7 +1365,7 @@ exports[`GET /api/infraestructura/hidrometria/estaciones/[id]/lecturas > answers
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -1446,7 +1446,7 @@ exports[`GET /api/infraestructura/hidrometria/estado > answers 401 without a ses
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -1773,7 +1773,7 @@ exports[`GET /api/infraestructura/peligro > answers 401 without a session 1`] = 
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -1905,7 +1905,7 @@ exports[`GET /api/infraestructura/peligro/observado-grilla > answers 401 without
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }

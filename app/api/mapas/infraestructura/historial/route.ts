@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic'
 const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
 
 async function handleGET(request: Request) {
-  const acceso = await verificarAccesoLectura()
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   const alcance = alcanceMapa(acceso.user)

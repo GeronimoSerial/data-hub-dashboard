@@ -6,7 +6,7 @@
 // only their byte length. Snapshots are the contract: never refresh them with
 // `vitest -u`.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { verificarAccesoLectura, verificarAccesoSeccion } from '@/lib/infraestructura/acceso-lectura'
 import { estadoReferencias } from '@/lib/infraestructura/datasets/memoria'
 import { obtenerUltimoRunRadarMeteo } from '@/lib/infraestructura/radar-meteo/job-sync'
 import { getSessionUser } from '@/lib/session'
@@ -27,6 +27,7 @@ vi.mock('@/lib/session', () => ({
 
 vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
   verificarAccesoLectura: vi.fn(async () => ({ ok: false, status: 401 })),
+  verificarAccesoSeccion: vi.fn(async () => ({ ok: false, status: 401 })),
 }))
 
 // The radar-meteo run comes from the job's database table; a fixed payload keeps
@@ -178,6 +179,8 @@ beforeEach(() => {
   vi.mocked(getSessionUser).mockResolvedValue(null)
   vi.mocked(verificarAccesoLectura).mockReset()
   vi.mocked(verificarAccesoLectura).mockResolvedValue(SIN_SESION as never)
+  vi.mocked(verificarAccesoSeccion).mockReset()
+  vi.mocked(verificarAccesoSeccion).mockResolvedValue(SIN_SESION as never)
   vi.mocked(obtenerUltimoRunRadarMeteo).mockReset()
   vi.mocked(obtenerUltimoRunRadarMeteo).mockResolvedValue(RUN_RADAR as never)
 })
@@ -192,6 +195,8 @@ function autenticarLectura() {
 
 function autenticarStaff(usuario: typeof EDITOR | typeof CONSULTA = EDITOR) {
   vi.mocked(getSessionUser).mockResolvedValue(usuario as never)
+  vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: true, user: usuario } as never)
+  vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user: usuario } as never)
 }
 
 function get(ruta: string, query = ''): Request {

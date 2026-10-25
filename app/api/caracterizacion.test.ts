@@ -714,7 +714,16 @@ describe('recursos', () => {
       expect(await capturar(res)).toMatchSnapshot()
     })
 
+    it('published resource without a session is 401 before any AI lookup', async () => {
+      const { loadHubCatalog } = await import('@/lib/db/hub')
+      const { id } = (await loadHubCatalog({ publishedOnly: true })).recursos[0]!
+      const { POST } = await import('./recursos/[id]/explain/route')
+      const res = await POST(req(`/api/recursos/${id}/explain`, { method: 'POST' }), ctx({ id }))
+      expect(await capturar(res)).toMatchSnapshot()
+    })
+
     it('published resource without an AI provider configured is 503', async () => {
+      comoUsuario(ADMIN)
       const { loadHubCatalog } = await import('@/lib/db/hub')
       const { id } = (await loadHubCatalog({ publishedOnly: true })).recursos[0]!
       const { POST } = await import('./recursos/[id]/explain/route')
@@ -871,6 +880,16 @@ describe('usuarios', () => {
 
   it('POST as admin creates the user through auth (auth.api.createUser stubbed)', async () => {
     comoUsuario(ADMIN)
+    // better-auth inserts the created row (banned until activation); the stub must do the same.
+    const { getDb } = await import('@/lib/db')
+    const { user } = await import('@/lib/db/schema')
+    await getDb().insert(user).values({
+      id: 'usuario-creado-caracterizacion',
+      name: 'Nuevo',
+      email: 'nuevo@caracterizacion.example',
+      role: 'consulta',
+      banned: true,
+    })
     const { auth } = await import('@/lib/auth')
     espiaCrear = vi.spyOn(auth.api, 'createUser').mockResolvedValue({ user: { id: 'usuario-creado-caracterizacion' } } as never)
     const { POST } = await import('./usuarios/route')

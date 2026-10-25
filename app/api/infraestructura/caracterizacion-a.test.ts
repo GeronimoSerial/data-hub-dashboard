@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionUser } from '@/lib/acl'
 import type { AccesoLectura } from '@/lib/infraestructura/acceso-lectura'
-import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { verificarAccesoLectura, verificarAccesoSeccion } from '@/lib/infraestructura/acceso-lectura'
 import { getSessionUser } from '@/lib/session'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
@@ -25,7 +25,7 @@ vi.mock('@/lib/session', async () => {
   }
 })
 
-vi.mock('@/lib/infraestructura/acceso-lectura', () => ({ verificarAccesoLectura: vi.fn() }))
+vi.mock('@/lib/infraestructura/acceso-lectura', () => ({ verificarAccesoLectura: vi.fn(), verificarAccesoSeccion: vi.fn() }))
 
 // Signed read URLs go to external storage: stubbed so no network is touched.
 vi.mock('@/lib/infraestructura/adjuntos/lectura', () => ({
@@ -160,7 +160,14 @@ afterAll(() => {
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
-  vi.mocked(verificarAccesoLectura).mockReset()
+  // Section and resource checks are covered by their own tests; here the
+  // session user alone decides, as before the access gates existed.
+  const porSesion = async () => {
+    const user = await vi.mocked(getSessionUser)()
+    return user ? { ok: true as const, user } : { ok: false as const, status: 401 as const }
+  }
+  vi.mocked(verificarAccesoLectura).mockReset().mockImplementation(porSesion)
+  vi.mocked(verificarAccesoSeccion).mockReset().mockImplementation(porSesion)
 })
 
 describe('GET /api/infraestructura/accesos/[cueAnexo]', () => {

@@ -16,7 +16,9 @@ async function handleGET() {
   // El staff siempre puede abrir todo (puedeAbrir es incondicional para
   // admin/editor), así que marcarAcceso solo confirma 'abrir' acá: mantiene
   // el tipo Recurso consistente con /api/hub sin cambiar el comportamiento.
-  return Response.json(await buildCatalogResponse(user, { publishedOnly: false }))
+  return Response.json(await buildCatalogResponse(user, { publishedOnly: false }), {
+    headers: { 'Cache-Control': 'private, no-store' },
+  })
 }
 
 export const GET = ruta('hub.admin.get', handleGET)

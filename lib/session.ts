@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { user as userTable, userNivelesJur, userRecursos } from '@/lib/db/schema'
 import { isStaff, type Role, type SessionUser } from '@/lib/acl'
+import { normalizeSectionPolicy } from '@/lib/hub-sections'
 
 export function staffGuard(user: SessionUser | null) {
   if (!user) return { status: 401 as const, error: 'No autenticado' }
@@ -31,7 +32,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       .from(userRecursos)
       .where(eq(userRecursos.userId, session.user.id)),
     db
-      .select({ accesoRecursos: userTable.accesoRecursos, geCueAnexo: userTable.geCueAnexo })
+      .select({ accesoRecursos: userTable.accesoRecursos, geCueAnexo: userTable.geCueAnexo, hubSecciones: userTable.hubSecciones, hubLanding: userTable.hubLanding, hubDestino: userTable.hubDestino })
       .from(userTable)
       .where(eq(userTable.id, session.user.id)),
   ])
@@ -45,18 +46,23 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     accesoRecursos,
     recursoIds: recursoRows.map((r) => r.recursoId),
     cueAnexo: userRow?.geCueAnexo ?? null,
+    hubPolicy: normalizeSectionPolicy({ enabledSections: userRow?.hubSecciones, landing: userRow?.hubLanding }),
+    hubDestination: userRow?.hubDestino ?? null,
   }
 }
 
 /** Name and role for chrome (header) rendered on the server, so SSR and the
  *  first client render agree before the client session hook resolves. */
-export type ShellUser = { name: string; role: Role }
+export type ShellUser = { name: string; role: Role; hubPolicy?: SessionUser['hubPolicy']; hubDestination?: string | null }
 
 export async function getShellUser(): Promise<ShellUser | null> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) return null
+  const current = await getSessionUser()
   return {
     name: session.user.name,
     role: (session.user.role as Role | undefined) ?? 'consulta',
+    hubPolicy: current?.hubPolicy,
+    hubDestination: current?.hubDestination ?? null,
   }
 }

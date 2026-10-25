@@ -8,6 +8,7 @@ import {
   userNivelesJur,
   userRecursos,
 } from '@/lib/db/schema'
+import { canUseLanding, isHubSection, normalizeSectionPolicy, safeDestination, type HubSection, type SectionPolicy } from '@/lib/hub-sections'
 
 export const LAST_ADMIN_ERROR = 'No se puede quitar el último administrador'
 export const UNKNOWN_RECURSOS_ERROR = 'Hay recursos seleccionados que no existen'
@@ -29,7 +30,11 @@ export type HubUser = {
   nivelJurIds: number[]
   accesoRecursos: AccesoRecursos
   recursoIds: string[]
+  hubPolicy: SectionPolicy
+  hubDestination: string | null
 }
+
+export type HubAccessSettings = { hubPolicy: SectionPolicy; hubDestination: string | null }
 
 export type CreateUserBody = {
   email: string
@@ -39,6 +44,8 @@ export type CreateUserBody = {
   nivelJurIds: number[]
   accesoRecursos: AccesoRecursos
   recursoIds: string[]
+  hubPolicy: SectionPolicy
+  hubDestination: string | null
 }
 
 export type PatchUserBody = {
@@ -49,6 +56,32 @@ export type PatchUserBody = {
   nivelJurIds?: number[]
   accesoRecursos?: AccesoRecursos
   recursoIds?: string[]
+  hubPolicy?: SectionPolicy
+  hubDestination?: string | null
+}
+
+function parseHubAccessSettings(value: unknown): HubAccessSettings | null {
+  if (!value || typeof value !== 'object') return null
+  const input = value as Record<string, unknown>
+  if (!('enabledSections' in input) || !Array.isArray(input.enabledSections) || !input.enabledSections.every(isHubSection)) return null
+  if (typeof input.landing !== 'boolean') return null
+  if (input.destination !== null && typeof input.destination !== 'string') return null
+  const hubPolicy: SectionPolicy = { enabledSections: [...new Set(input.enabledSections as HubSection[])], landing: input.landing }
+  const hubDestination = input.destination as string | null
+  if (hubDestination !== null && !safeDestination({ policy: hubPolicy, destination: hubDestination, allowedByExistingAcl: () => true })) return null
+  return { hubPolicy, hubDestination }
+}
+
+/** T5 must pass the target user's existing resource/role/scope destination ACL. */
+export async function validateHubAccessSettings(settings: HubAccessSettings, allowedByExistingAcl: (path: string) => boolean | Promise<boolean>): Promise<boolean> {
+  if (settings.hubDestination === null)
+    return Boolean(canUseLanding(settings.hubPolicy) && await allowedByExistingAcl('/'))
+  const destination = safeDestination({ policy: settings.hubPolicy, destination: settings.hubDestination, allowedByExistingAcl: () => true })
+  return Boolean(destination && await allowedByExistingAcl(destination.path))
+}
+
+function persistHubAccessSettings(settings: HubAccessSettings) {
+  return { hubSecciones: settings.hubPolicy.enabledSections ? [...settings.hubPolicy.enabledSections] : null, hubLanding: settings.hubPolicy.landing ?? null, hubDestino: settings.hubDestination }
 }
 
 export function listUsuariosDenied(user: SessionUser | null) {
@@ -114,6 +147,8 @@ export function parseCreateUserBody(body: unknown): CreateUserBody | null {
     return null
   const role = asRole(b.role)
   if (!role) return null
+  const hubAccess = b.hubAccess === undefined ? { hubPolicy: {}, hubDestination: null } : parseHubAccessSettings(b.hubAccess)
+  if (!hubAccess) return null
   let accesoRecursos: AccesoRecursos = 'todos'
   if ('accesoRecursos' in b) {
     const parsed = asAccesoRecursos(b.accesoRecursos)
@@ -128,6 +163,7 @@ export function parseCreateUserBody(body: unknown): CreateUserBody | null {
     nivelJurIds: asIntArray(b.nivelJurIds),
     accesoRecursos,
     recursoIds: asStringArray(b.recursoIds),
+    ...hubAccess,
   }
 }
 
@@ -135,6 +171,12 @@ export function parsePatchUserBody(body: unknown): PatchUserBody | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
   const patch: PatchUserBody = {}
+
+  if ('hubAccess' in b) {
+    const hubAccess = parseHubAccessSettings(b.hubAccess)
+    if (!hubAccess) return null
+    Object.assign(patch, hubAccess)
+  }
 
   if ('name' in b) {
     if (typeof b.name !== 'string' || !b.name.trim()) return null
@@ -221,6 +263,9 @@ export async function listHubUsers(): Promise<HubUser[]> {
         role: user.role,
         banned: user.banned,
         accesoRecursos: user.accesoRecursos,
+        hubSecciones: user.hubSecciones,
+        hubLanding: user.hubLanding,
+        hubDestino: user.hubDestino,
       })
       .from(user),
     db.select().from(userNivelesJur),
@@ -248,7 +293,28 @@ export async function listHubUsers(): Promise<HubUser[]> {
     accesoRecursos:
       row.accesoRecursos === 'seleccionados' ? 'seleccionados' : 'todos',
     recursoIds: recursoIdsByUser.get(row.id) ?? [],
+    hubPolicy: normalizeSectionPolicy({ enabledSections: row.hubSecciones, landing: row.hubLanding }),
+    hubDestination: row.hubDestino,
   }))
+}
+
+export async function getHubUserSession(id: string): Promise<SessionUser | null> {
+  const db = getDb()
+  const [rows, nivelRows, recursoRows] = await Promise.all([
+    db.select().from(user).where(eq(user.id, id)).limit(1),
+    db.select().from(userNivelesJur).where(eq(userNivelesJur.userId, id)),
+    db.select().from(userRecursos).where(eq(userRecursos.userId, id)),
+  ])
+  const row = rows[0]
+  if (!row) return null
+  return {
+    id, role: (row.role as Role | null) ?? 'consulta', banned: Boolean(row.banned),
+    nivelJurIds: nivelRows.map((item) => item.nivelJurisdiccionalId),
+    accesoRecursos: row.accesoRecursos === 'seleccionados' ? 'seleccionados' : 'todos',
+    recursoIds: recursoRows.map((item) => item.recursoId), cueAnexo: row.geCueAnexo,
+    hubPolicy: normalizeSectionPolicy({ enabledSections: row.hubSecciones, landing: row.hubLanding }),
+    hubDestination: row.hubDestino,
+  }
 }
 
 export async function unbannedAdminIds() {
@@ -305,4 +371,45 @@ export async function replaceUserRecursos(userId: string, recursoIds: string[]) 
 
 export async function setAccesoRecursos(userId: string, accesoRecursos: AccesoRecursos) {
   await getDb().update(user).set({ accesoRecursos }).where(eq(user.id, userId))
+}
+
+/** Persistence primitive for the later admin API wiring (T5). */
+export async function setHubAccessSettings(userId: string, settings: HubAccessSettings) {
+  await getDb().update(user).set(persistHubAccessSettings(settings)).where(eq(user.id, userId))
+}
+
+export async function persistUserAccessConfiguration(
+  userId: string,
+  configuration: {
+    nivelJurIds?: number[]
+    accesoRecursos?: AccesoRecursos
+    recursoIds?: string[]
+    hubAccess?: HubAccessSettings
+    activateProvisionedUser?: boolean
+  },
+) {
+  const db = getDb()
+  await db.transaction(async (tx) => {
+    if (configuration.nivelJurIds !== undefined) {
+      await tx.delete(userNivelesJur).where(eq(userNivelesJur.userId, userId))
+      const ids = [...new Set(configuration.nivelJurIds)]
+      if (ids.length) await tx.insert(userNivelesJur).values(ids.map((nivelJurisdiccionalId) => ({ userId, nivelJurisdiccionalId })))
+    }
+    if (configuration.recursoIds !== undefined) {
+      await tx.delete(userRecursos).where(eq(userRecursos.userId, userId))
+      const ids = [...new Set(configuration.recursoIds.filter(Boolean))]
+      if (ids.length) await tx.insert(userRecursos).values(ids.map((recursoId) => ({ userId, recursoId })))
+    }
+    const userChanges = {
+      ...(configuration.accesoRecursos !== undefined ? { accesoRecursos: configuration.accesoRecursos } : {}),
+      ...(configuration.hubAccess ? persistHubAccessSettings(configuration.hubAccess) : {}),
+      ...(configuration.activateProvisionedUser ? { banned: false, banReason: null, banExpires: null } : {}),
+    }
+    if (Object.keys(userChanges).length) {
+      const updated = await tx.update(user).set(userChanges).where(eq(user.id, userId)).returning({ id: user.id })
+      if (configuration.activateProvisionedUser && updated.length !== 1) {
+        throw new Error('No se pudo activar el usuario provisionado')
+      }
+    }
+  })
 }

@@ -27,7 +27,7 @@ exports[`GET /api/mapas/infraestructura (root) > rejects a banned user with 403 
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -38,7 +38,7 @@ exports[`GET /api/mapas/infraestructura (root) > rejects an anonymous request wi
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -49,7 +49,7 @@ exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacion
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -60,7 +60,7 @@ exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacion
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -125,7 +125,7 @@ exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria > rejects a
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -136,7 +136,7 @@ exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria > rejects a
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -189,7 +189,7 @@ exports[`GET /api/mapas/infraestructura/datasets/[dataset] > rejects a banned us
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -211,7 +211,7 @@ exports[`GET /api/mapas/infraestructura/datasets/[dataset] > rejects an anonymou
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -242,7 +242,7 @@ exports[`GET /api/mapas/infraestructura/escuelas > rejects a banned user with 40
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -253,7 +253,7 @@ exports[`GET /api/mapas/infraestructura/escuelas > rejects an anonymous request 
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -292,7 +292,7 @@ exports[`GET /api/mapas/infraestructura/evolucion > rejects an anonymous request
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -338,7 +338,7 @@ exports[`GET /api/mapas/infraestructura/historial > rejects a banned user with 4
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -360,7 +360,7 @@ exports[`GET /api/mapas/infraestructura/historial > rejects an anonymous request
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -404,7 +404,7 @@ exports[`GET /api/mapas/infraestructura/nominal > rejects an anonymous request w
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -482,7 +482,7 @@ exports[`GET /api/mapas/infraestructura/parte > rejects a banned user with 403 1
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -504,7 +504,7 @@ exports[`GET /api/mapas/infraestructura/parte > rejects an anonymous request wit
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -526,7 +526,7 @@ exports[`GET /api/mapas/infraestructura/referencias/eventos > rejects a banned u
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -537,7 +537,7 @@ exports[`GET /api/mapas/infraestructura/referencias/eventos > rejects an anonymo
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -560,7 +560,7 @@ exports[`GET /api/mapas/infraestructura/territorio > rejects a banned user with 
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -571,7 +571,7 @@ exports[`GET /api/mapas/infraestructura/territorio > rejects an anonymous reques
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }
@@ -606,7 +606,7 @@ exports[`GET /api/mapas/infraestructura/totales > rejects a banned user with 403
   "body": {
     "error": "No tiene acceso a este recurso",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 403,
 }
@@ -617,7 +617,7 @@ exports[`GET /api/mapas/infraestructura/totales > rejects an anonymous request w
   "body": {
     "error": "No autenticado",
   },
-  "cacheControl": null,
+  "cacheControl": "private, no-store",
   "contentType": "application/json",
   "status": 401,
 }

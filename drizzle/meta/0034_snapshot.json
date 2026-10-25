@@ -1,6 +1,6 @@
 {
-  "id": "5cec2903-3771-48a5-8b5b-8b4a727d6bb3",
-  "prevId": "653c7982-d8b5-4f88-ab5a-b81666678191",
+  "id": "653c7982-d8b5-4f88-ab5a-b81666678191",
+  "prevId": "d9dfa312-207a-45ab-abe2-38094692be55",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2202,112 +2202,6 @@
           "columns": [
             "afectacion_id",
             "ge_person_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.infra_afectacion_carrera": {
-      "name": "infra_afectacion_carrera",
-      "schema": "",
-      "columns": {
-        "afectacion_id": {
-          "name": "afectacion_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "matricula_corte_id": {
-          "name": "matricula_corte_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "carrera_id": {
-          "name": "carrera_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "infra_afectacion_carrera_afectacion_id_infra_afectacion_id_fk": {
-          "name": "infra_afectacion_carrera_afectacion_id_infra_afectacion_id_fk",
-          "tableFrom": "infra_afectacion_carrera",
-          "tableTo": "infra_afectacion",
-          "columnsFrom": [
-            "afectacion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "infra_afectacion_carrera_afectacion_id_carrera_id_pk": {
-          "name": "infra_afectacion_carrera_afectacion_id_carrera_id_pk",
-          "columns": [
-            "afectacion_id",
-            "carrera_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.infra_afectacion_matricula_alumno": {
-      "name": "infra_afectacion_matricula_alumno",
-      "schema": "",
-      "columns": {
-        "afectacion_id": {
-          "name": "afectacion_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "matricula_corte_id": {
-          "name": "matricula_corte_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "alumno_id": {
-          "name": "alumno_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "infra_afectacion_matricula_alumno_afectacion_id_infra_afectacion_id_fk": {
-          "name": "infra_afectacion_matricula_alumno_afectacion_id_infra_afectacion_id_fk",
-          "tableFrom": "infra_afectacion_matricula_alumno",
-          "tableTo": "infra_afectacion",
-          "columnsFrom": [
-            "afectacion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "infra_afectacion_matricula_alumno_afectacion_id_alumno_id_pk": {
-          "name": "infra_afectacion_matricula_alumno_afectacion_id_alumno_id_pk",
-          "columns": [
-            "afectacion_id",
-            "alumno_id"
           ]
         }
       },
@@ -8005,6 +7899,24 @@
         },
         "ge_cue_anexo": {
           "name": "ge_cue_anexo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hub_secciones": {
+          "name": "hub_secciones",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hub_landing": {
+          "name": "hub_landing",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hub_destino": {
+          "name": "hub_destino",
           "type": "text",
           "primaryKey": false,
           "notNull": false

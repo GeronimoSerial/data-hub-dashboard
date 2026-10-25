@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { validarRutaRetornoInterna } from '@/lib/infraestructura/mapa/estado-retorno'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,6 +45,7 @@ export default async function CargarParteEscuelaPage({
 }: {
   searchParams: Promise<{ cue?: string; volver?: string }>
 }) {
+  await requireServerHubPageAccess('/infraestructura/cargar')
   const user = await getSessionUser()
   if (!user) redirect('/login?callbackUrl=/infraestructura/cargar')
 

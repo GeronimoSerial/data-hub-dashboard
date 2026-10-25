@@ -19,7 +19,8 @@
     "build:sobreoferta": "node scripts/build-sobreoferta.mjs",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:e2e:reportes": "node e2e/reportes-offline/run.mjs"
+    "test:e2e:reportes": "node e2e/reportes-offline/run.mjs",
+    "test:e2e:hub-access": "node e2e/hub-access/run.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

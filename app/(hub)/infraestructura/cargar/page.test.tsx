@@ -35,7 +35,7 @@ describe('CargarParteEscuelaPage', () => {
     getSessionUser.mockResolvedValue(null)
 
     await expect(CargarParteEscuelaPage({ searchParams: Promise.resolve({}) }))
-      .rejects.toThrow('REDIRECT:/login?callbackUrl=/infraestructura/cargar')
+      .rejects.toThrow('REDIRECT:/login?callbackUrl=%2Finfraestructura%2Fcargar')
   })
 
   it('explica que se necesita la contraseña compartida', async () => {
@@ -91,4 +91,3 @@ describe('CargarParteEscuelaPage', () => {
     expect(screen.queryByTestId('volver-origen-cargar')).toBeNull()
   })
 })
-

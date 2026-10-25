@@ -4,11 +4,12 @@ import { getDb } from '@/lib/db'
 import { recursos } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser } from '@/lib/session'
-import { marcarAcceso, puedeAbrir } from '@/lib/acl'
+import { puedeAbrir } from '@/lib/acl'
 import { loadRecursoAccess } from '@/lib/db/recurso-access'
-import { loadHubCatalog } from '@/lib/db/hub'
+import { loadCatalogFor } from '@/lib/db/hub-catalog-for'
 import { ResourceExperience } from '@/components/resource-experience'
 import { isAllowedRuta } from '@/lib/recurso-write'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 export const runtime = 'nodejs'
 
@@ -17,8 +18,9 @@ export default async function RecursoPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  await ensureSeeded()
   const { id } = await params
+  await requireServerHubPageAccess(`/recursos/${encodeURIComponent(id)}`)
+  await ensureSeeded()
   const [row] = await getDb().select().from(recursos).where(eq(recursos.id, id))
   if (!row) notFound()
   const user = await getSessionUser()
@@ -29,7 +31,7 @@ export default async function RecursoPage({
     if (!isAllowedRuta(row.ruta)) notFound()
     redirect(row.ruta)
   }
-  const catalog = await loadHubCatalog({ publishedOnly: false })
+  const catalog = await loadCatalogFor(user)
   const recurso = catalog.recursos.find((item) => item.id === id)
   if (!recurso) notFound()
   return (
@@ -38,7 +40,7 @@ export default async function RecursoPage({
       categorias={catalog.categorias}
       niveles={catalog.niveles}
       tipos={catalog.tipos}
-      related={marcarAcceso(user, catalog.recursos)}
+      related={catalog.recursos}
     />
   )
 }

@@ -1,11 +1,13 @@
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
-import { getSessionUser, staffGuard } from '@/lib/session'
+import { staffGuard } from '@/lib/session'
 import { obtenerIndiceAislamientoDeCue } from '../../../../../lib/infraestructura/riesgo/motor/adaptadores/aislamiento'
 import { crearAdapterTerritorio } from '../../../../../lib/infraestructura/riesgo/motor/adaptadores/territorio'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { ruta } from '@/lib/http/ruta'
+import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,7 +27,9 @@ const SIN_STORE = { 'Cache-Control': 'private, no-store' } as const
 // OSM) de un CUE-anexo. Nunca acepta escritura ni carga manual, y NUNCA
 // devuelve datos nominales de alumnos/personas.
 async function handleGET(_request: Request, ctx: Ctx) {
-  const user = await getSessionUser()
+  const acceso = await verificarAccesoLectura()
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
+  const user = acceso.user
   const guard = staffGuard(user)
   if (guard) return respuestaGuard(guard)
 

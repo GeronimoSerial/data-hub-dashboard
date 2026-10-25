@@ -6,12 +6,13 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { materialesPublicados } from '@/lib/materiales'
 import { getDataDir } from '@/lib/data-dir'
 import { opcionesClienteObs, readObsConfig } from '@/lib/infraestructura/adjuntos/obs'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 
 const error503 = () => Response.json({ error: 'No se pudo reproducir el video. Volvé a intentarlo en unos minutos.' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '60' } })
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handleGET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const material = materialesPublicados.find(item => item.id === id)
   if (!material || material.tipo !== 'video') return Response.json({ error: 'Material no encontrado.' }, { status: 404 })
@@ -53,3 +54,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return error503()
   }
 }
+
+export const GET = ruta('materiales.video.get', handleGET)
