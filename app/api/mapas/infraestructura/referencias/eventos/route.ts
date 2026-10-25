@@ -5,10 +5,11 @@ import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 import { referencia, estadoReferencias } from '@/lib/infraestructura/datasets/memoria'
 import { filasACsv, type Datos } from '@/lib/infraestructura/datasets/codec'
 import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
   if (alcanceMapa(acceso.user).tipo === 'ninguno') return Response.json({ error: 'Sin acceso al mapa' }, { status: 403 })
@@ -24,3 +25,5 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Referencias del mapa sin publicar' }, { status: 503 })
   }
 }
+
+export const GET = ruta('mapas.infraestructura.referencias.eventos.get', handleGET)

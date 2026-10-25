@@ -7,6 +7,7 @@ import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
 import { afectacionDentroDeNiveles, consultarYRegistrarAfectados } from '@/lib/infraestructura/identidad'
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,7 +25,7 @@ export const dynamic = 'force-dynamic'
 // inserta en infra_acceso_nominal_log en la misma transacción que arma la
 // respuesta. Por eso NUNCA se llama especulativamente ni se cachea la
 // respuesta — cada GET exitoso es una apertura real del alcance nominal.
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
@@ -60,3 +61,5 @@ export async function GET(request: Request) {
 
   return jsonNoStore(resultado)
 }
+
+export const GET = ruta('mapas.infraestructura.nominal.get', handleGET)

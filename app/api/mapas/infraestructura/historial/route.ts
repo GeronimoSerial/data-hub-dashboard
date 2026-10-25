@@ -13,13 +13,14 @@ import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { listarMovimientosDescritos } from '@/lib/infraestructura/parte-consulta'
 import { verificarCueEnAlcance } from '@/lib/infraestructura/parte-mapa'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
@@ -56,3 +57,5 @@ export async function GET(request: Request) {
 
   return Response.json({ ok: true, movimientos }, { status: 200, headers: CACHE_HEADERS })
 }
+
+export const GET = ruta('mapas.infraestructura.historial.get', handleGET)
