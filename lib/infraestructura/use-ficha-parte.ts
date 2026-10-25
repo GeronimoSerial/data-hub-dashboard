@@ -23,7 +23,8 @@ export interface AfectacionFicha {
   causadaPorId: string | null
   rigeDesde: string
   creadaEn: string
-  totales: { secciones: number; alumnos: number }
+  /** `carreras` sólo en institutos superiores. */
+  totales: { secciones: number; alumnos: number; carreras?: number }
 }
 
 export interface SolucionadaFicha {

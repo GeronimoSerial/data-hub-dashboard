@@ -13,6 +13,7 @@ import {
   alcanceInstituto,
   conAlumnoAlternado,
   conCarrerasElegidas,
+  etiquetasDeCarreras,
   nombresDeCarreras,
   textoAlcanceInstituto,
   type AlumnoElegido,
@@ -86,6 +87,13 @@ export interface InstitutoCamposAQuienAfectaProps {
   carreras: CarreraElegible[]
   avisos?: Regla[]
   descripcionObligatoria?: boolean
+  /**
+   * Si la categoría admite selección nominal (CATEGORIA_META.permiteAlumnos).
+   * Sin ella no hay buscador de alumnos: la carrera cuenta completa.
+   */
+  permiteAlumnos?: boolean
+  /** Falso cuando el paso sólo elige alcance (actualizar): sin campo de descripción. */
+  mostrarDescripcion?: boolean
   onChange: (siguiente: AfectacionBorrador) => void
   disabled?: boolean
 }
@@ -103,6 +111,8 @@ export function InstitutoCamposAQuienAfecta({
   carreras,
   avisos = [],
   descripcionObligatoria = false,
+  permiteAlumnos = true,
+  mostrarDescripcion = true,
   onChange,
   disabled = false,
 }: InstitutoCamposAQuienAfectaProps): JSX.Element {
@@ -122,7 +132,7 @@ export function InstitutoCamposAQuienAfecta({
   const dniIncompleto = /^\d+$/.test(termino) && termino.length < LARGO_MINIMO_DNI
   const carrerasClave = seleccion.carreras.join(',')
   const clave = `${carrerasClave}|${termino}|${reintento}`
-  const buscable = conexion && !disabled && seleccion.carreras.length > 0
+  const buscable = permiteAlumnos && conexion && !disabled && seleccion.carreras.length > 0
   const consultable = buscable && termino !== '' && !dniIncompleto
 
   useEffect(() => {
@@ -169,6 +179,7 @@ export function InstitutoCamposAQuienAfecta({
   const buscando = consultable && resultado === null
   const alcance = alcanceInstituto(seleccion.carreras, seleccion.alumnosElegidos, carreras)
   const carrerasElegidas = carreras.filter((carrera) => seleccion.carreras.includes(carrera.id))
+  const etiquetas = etiquetasDeCarreras(carreras)
 
   // Único texto de ayuda del buscador: también es la razón por la que está deshabilitado.
   const ayuda = !conexion
@@ -200,7 +211,7 @@ export function InstitutoCamposAQuienAfecta({
         <MultiSelect<string>
           value={seleccion.carreras.map(String)}
           onChange={cambiarCarreras}
-          options={carreras.map((carrera) => ({ value: String(carrera.id), label: carrera.nombre }))}
+          options={carreras.map((carrera) => ({ value: String(carrera.id), label: etiquetas.get(carrera.id) ?? carrera.nombre }))}
           placeholder="Seleccione una o más carreras"
           ariaLabel="Carreras afectadas"
         />
@@ -212,52 +223,56 @@ export function InstitutoCamposAQuienAfecta({
       <AvisosConsistencia reglas={avisos} campos={['alcance']} />
 
       <div className="afectacion-campos__grupo">
-        <Label htmlFor={`${idPrefijo}-buscar-alumnos`}>Alumnos (opcional)</Label>
-        <Input
-          id={`${idPrefijo}-buscar-alumnos`}
-          type="search"
-          autoComplete="off"
-          placeholder="Buscar por apellido, nombre o DNI completo"
-          value={consulta}
-          onChange={(evento) => setConsulta(evento.target.value)}
-          disabled={!buscable}
-          aria-describedby={idAyuda}
-        />
-        <p id={idAyuda} className={styles.ayuda}>{ayuda}</p>
-        <p aria-live="polite" className={styles.ayuda}>{anuncio}</p>
+        {permiteAlumnos && (
+          <>
+            <Label htmlFor={`${idPrefijo}-buscar-alumnos`}>Alumnos (opcional)</Label>
+            <Input
+              id={`${idPrefijo}-buscar-alumnos`}
+              type="search"
+              autoComplete="off"
+              placeholder="Buscar por apellido, nombre o DNI completo"
+              value={consulta}
+              onChange={(evento) => setConsulta(evento.target.value)}
+              disabled={!buscable}
+              aria-describedby={idAyuda}
+            />
+            <p id={idAyuda} className={styles.ayuda}>{ayuda}</p>
+            <p aria-live="polite" className={styles.ayuda}>{anuncio}</p>
 
-        {resultado?.tipo === 'error' && <p role="alert">{resultado.mensaje}</p>}
-        {resultado?.tipo === 'reintentable' && (
-          <p role="alert">
-            {resultado.mensaje}{' '}
-            <button type="button" className="aviso-badge__accion" onClick={() => setReintento((n) => n + 1)}>
-              Reintentar
-            </button>
-          </p>
-        )}
-        {resultado?.tipo === 'lista' && resultado.truncado && <p>{MENSAJE_TRUNCADO}</p>}
-        {resultado?.tipo === 'lista' && resultado.alumnos.length > 0 && (
-          <div className="afectacion-campos__opciones">
-            {resultado.alumnos.map((alumno) => (
-              <Opcion
-                key={alumno.id}
-                tipo="checkbox"
-                checked={seleccion.alumnosElegidos.some((elegido) => elegido.id === alumno.id)}
-                disabled={disabled}
-                onChange={() => alternarAlumno(alumno)}
-                label={nombreAlumno(alumno)}
-                ayuda={nombresDeCarreras([alumno.carreraId], carreras)[0]}
-                compacta
-              />
-            ))}
-          </div>
+            {resultado?.tipo === 'error' && <p role="alert">{resultado.mensaje}</p>}
+            {resultado?.tipo === 'reintentable' && (
+              <p role="alert">
+                {resultado.mensaje}{' '}
+                <button type="button" className="aviso-badge__accion" onClick={() => setReintento((n) => n + 1)}>
+                  Reintentar
+                </button>
+              </p>
+            )}
+            {resultado?.tipo === 'lista' && resultado.truncado && <p>{MENSAJE_TRUNCADO}</p>}
+            {resultado?.tipo === 'lista' && resultado.alumnos.length > 0 && (
+              <div className="afectacion-campos__opciones">
+                {resultado.alumnos.map((alumno) => (
+                  <Opcion
+                    key={alumno.id}
+                    tipo="checkbox"
+                    checked={seleccion.alumnosElegidos.some((elegido) => elegido.id === alumno.id)}
+                    disabled={disabled}
+                    onChange={() => alternarAlumno(alumno)}
+                    label={nombreAlumno(alumno)}
+                    ayuda={nombresDeCarreras([alumno.carreraId], carreras)[0]}
+                    compacta
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {carrerasElegidas.map((carrera) => {
           const elegidos = seleccion.alumnosElegidos.filter((alumno) => alumno.carreraId === carrera.id)
           return (
             <div key={carrera.id} className={styles.carrera}>
-              <p className="afectacion-campos__subtitulo">{carrera.nombre}</p>
+              <p className="afectacion-campos__subtitulo">{etiquetas.get(carrera.id) ?? carrera.nombre}</p>
               {elegidos.length === 0 ? (
                 <p className={styles.completa}>Toda la carrera ({carrera.totalAlumnos} alumnos)</p>
               ) : (
@@ -288,17 +303,19 @@ export function InstitutoCamposAQuienAfecta({
         })}
       </div>
 
-      <div className="afectacion-campos__grupo">
-        <Label htmlFor={`${idPrefijo}-descripcion`}>{descripcionObligatoria ? 'Descripción (obligatoria)' : 'Descripción (opcional)'}</Label>
-        <Textarea
-          id={`${idPrefijo}-descripcion`}
-          maxLength={500}
-          aria-required={descripcionObligatoria || undefined}
-          value={borrador.descripcion}
-          onChange={(evento) => onChange({ ...borrador, descripcion: evento.target.value })}
-          disabled={disabled}
-        />
-      </div>
+      {mostrarDescripcion && (
+        <div className="afectacion-campos__grupo">
+          <Label htmlFor={`${idPrefijo}-descripcion`}>{descripcionObligatoria ? 'Descripción (obligatoria)' : 'Descripción (opcional)'}</Label>
+          <Textarea
+            id={`${idPrefijo}-descripcion`}
+            maxLength={500}
+            aria-required={descripcionObligatoria || undefined}
+            value={borrador.descripcion}
+            onChange={(evento) => onChange({ ...borrador, descripcion: evento.target.value })}
+            disabled={disabled}
+          />
+        </div>
+      )}
     </>
   )
 }

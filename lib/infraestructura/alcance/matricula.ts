@@ -6,6 +6,8 @@ import type { AlcanceProvider, IdentidadMiembro, UnidadAlcance } from './tipos'
 export interface CarreraMatricula {
   id: number
   nombre: string
+  // Resolución ministerial: distingue carreras con el mismo nombre dentro de un CUE.
+  rm: string
   tipo: string
   totalAlumnos: number
 }
@@ -94,17 +96,18 @@ export function crearAlcanceMatricula(client: EjecutorSql, corteId: number, cueA
 
 async function leerCarreras(client: EjecutorSql, corteId: number, cueAnexo: string): Promise<CarreraMatricula[]> {
   const res = await client.execute({
-    sql: `SELECT c.id, c.nombre, c.tipo, COUNT(a.id) AS total
+    sql: `SELECT c.id, c.nombre, c.rm, c.tipo, COUNT(a.id) AS total
           FROM matricula_carrera c
           LEFT JOIN matricula_alumno a ON a.carrera_id = c.id AND a.corte_id = c.corte_id
           WHERE c.corte_id = ? AND c.cue_anexo = ?
-          GROUP BY c.id, c.nombre, c.tipo
+          GROUP BY c.id, c.nombre, c.rm, c.tipo
           ORDER BY c.nombre, c.id`,
     args: [corteId, cueAnexo],
   })
   return res.rows.map((row) => ({
     id: Number(row.id),
     nombre: String(row.nombre),
+    rm: String(row.rm),
     tipo: String(row.tipo),
     totalAlumnos: Number(row.total),
   }))

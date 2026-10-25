@@ -24,7 +24,8 @@ import { alcanceDe, mensajesDeBloqueo, respuestasDeSituacion } from '@/component
 import { evaluarCambioAHabitual } from '@/lib/infraestructura/consistencia-estado-activo'
 import { bloqueoOpcion } from '@/lib/infraestructura/consistencia-parte'
 import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
-import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
+import { carrerasDelServicio, construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
+import { alcanceInstituto, nombresDeCarreras, textoAlcanceInstitutoConNombres, type AlumnoElegido, type CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import { MODALIDADES_ASISTENCIA_PEDAGOGICA, type EstadoServicioGeneral, type ModalidadAsistenciaPedagogica } from '@/lib/infraestructura/trayectoria-tipos'
@@ -38,6 +39,10 @@ export interface RecorridoActualizacionProps {
   cue: string
   turnos: TurnoContexto[]
   motivos: MotivoRow[]
+  /** Institutos superiores: el alcance y el edificio se hablan en carreras e institución. */
+  esInstituto?: boolean
+  /** Institutos superiores: carreras del CUE para elegir el alcance de cada situación. */
+  carreras?: CarreraElegible[]
 }
 
 const TITULO_GUARDADO = 'Parte actualizado'
@@ -49,13 +54,13 @@ type Etapa = EtapaActualizacion | 'enviado'
 type ModalidadAsistencia = ModalidadAsistenciaPedagogica
 const MODALIDADES_ASISTENCIA: { value: ModalidadAsistencia; label: string }[] = MODALIDADES_ASISTENCIA_PEDAGOGICA.map((m) => ({ value: m, label: m }))
 type PayloadActualizacion = ReturnType<typeof construirEnvio> & { cue: string; rigeDesde: string; asistenciaPedagogica?: { brinda: boolean; modalidades: ModalidadAsistencia[] } }
-type SituacionConAlcance = SituacionRecorrido & { secciones: number[]; alumnos: number[] }
+type SituacionConAlcance = SituacionRecorrido & { secciones: number[]; alumnos: number[]; carreras?: number[]; alumnosElegidos?: AlumnoElegido[] }
 
 const DRAFT_ID_PREFIX = 'parte-actualizacion:'
 type BorradorActualizacionConFotos = BorradorRecorridoActualizacion & { referenciasFotos?: string[] }
 
-function esBorradorActualizacionConFotos(valor: unknown): valor is BorradorActualizacionConFotos {
-  if (!esBorradorRecorridoActualizacion(valor)) return false
+function esBorradorActualizacionConFotos(valor: unknown, esInstituto: boolean): valor is BorradorActualizacionConFotos {
+  if (!esBorradorRecorridoActualizacion(valor, esInstituto)) return false
   const referencias = (valor as { referenciasFotos?: unknown }).referenciasFotos
   return referencias === undefined || (Array.isArray(referencias) && referencias.every((id) => typeof id === 'string'))
 }
@@ -87,17 +92,27 @@ async function obtenerCarga(cue: string): Promise<Carga> {
 }
 
 function mapearSituaciones(datos: EstadoActualRespuesta): SituacionConAlcance[] {
-  return (datos.afectaciones ?? []).map((a) => ({
-    id: a.id,
-    motivo: a.motivo,
-    categoria: a.categoria,
-    severidad: a.severidad,
-    rigeDesde: a.rigeDesde,
-    creadaEn: a.creadaEn,
-    causadaPorId: a.causadaPorId,
-    secciones: a.secciones.map((s) => s.geSectionId),
-    alumnos: a.secciones.filter((s) => !s.seccionCompleta).flatMap((s) => s.alumnos.map((alumno) => alumno.gePersonId)),
-  }))
+  return (datos.afectaciones ?? []).map((a) => {
+    const base = {
+      id: a.id,
+      motivo: a.motivo,
+      categoria: a.categoria,
+      severidad: a.severidad,
+      rigeDesde: a.rigeDesde,
+      creadaEn: a.creadaEn,
+      causadaPorId: a.causadaPorId,
+    }
+    // Institutos superiores: el alcance vive en carreras y alumnos (GE no trae `carreras`).
+    if (a.carreras) {
+      const alumnosElegidos = a.carreras.flatMap((carrera) => carrera.completa ? [] : carrera.alumnos.map((alumno) => ({ id: alumno.id, apellido: alumno.apellido, nombre: alumno.nombre, carreraId: carrera.id })))
+      return { ...base, secciones: [], alumnos: alumnosElegidos.map((alumno) => alumno.id), carreras: a.carreras.map((carrera) => carrera.id), alumnosElegidos }
+    }
+    return {
+      ...base,
+      secciones: a.secciones.map((s) => s.geSectionId),
+      alumnos: a.secciones.filter((s) => !s.seccionCompleta).flatMap((s) => s.alumnos.map((alumno) => alumno.gePersonId)),
+    }
+  })
 }
 
 interface FilaResumenActualizacion { etiqueta: string; valor: string }
@@ -125,6 +140,7 @@ function crearLineasResumen(
   recorrido: EstadoRecorrido,
   turnos: TurnoContexto[],
   estadoServicio: EstadoServicioGeneral,
+  carreras: CarreraElegible[] = [],
 ): BloqueResumenActualizacion[] {
   const bloques: BloqueResumenActualizacion[] = []
   const sinCambios: string[] = []
@@ -144,7 +160,10 @@ function crearLineasResumen(
 
     const filas: FilaResumenActualizacion[] = []
     if (respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: respuesta.cambio.severidad === situacion.severidad ? `${situacion.severidad} (sin cambios)` : `${situacion.severidad} → ${respuesta.cambio.severidad}` })
-    if (respuesta.cambio.secciones) {
+    if (respuesta.cambio.carreras) {
+      const alcance = alcanceInstituto(respuesta.cambio.carreras, respuesta.cambio.alumnosElegidos ?? [], carreras)
+      filas.push({ etiqueta: 'Alcance', valor: textoAlcanceInstitutoConNombres(nombresDeCarreras(respuesta.cambio.carreras, carreras), alcance.alumnos) })
+    } else if (respuesta.cambio.secciones) {
       const alumnos = respuesta.cambio.alumnos?.length ?? contarAlumnos(respuesta.cambio.secciones, turnos)
       filas.push({ etiqueta: 'Alcance', valor: detalleAlcance(respuesta.cambio.secciones, alumnos) })
     }
@@ -156,11 +175,20 @@ function crearLineasResumen(
   if (sinCambios.length) bloques.push({ titulo: 'Sin cambios', filas: [{ etiqueta: 'Situaciones', valor: sinCambios.join(', ') }] })
   if (recorrido.nueva) {
     const nueva = recorrido.nueva
-    const todasLasSecciones = turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones))
-    const cantidadAlumnos = nueva.alumnos?.length ?? contarAlumnos(nueva.secciones, turnos)
-    const alcance = detalleAlcance(nueva.secciones, cantidadAlumnos)
-    const todaLaEscuela = !nueva.alumnos && todasLasSecciones.length > 0 && nueva.secciones.length === todasLasSecciones.length
-    const prefijoAlcance = nueva.alumnos ? 'Algunos alumnos' : todaLaEscuela ? 'Toda la escuela' : ''
+    let alcance: string
+    let prefijoAlcance = ''
+    if (nueva.carreras) {
+      // Institutos: carreras por nombre, con los alumnos elegidos dentro de ellas.
+      const alumnos = nueva.alumnos?.length ?? 0
+      alcance = textoAlcanceInstitutoConNombres(nombresDeCarreras(nueva.carreras, carreras), alumnos)
+    } else {
+      const secciones = nueva.secciones ?? []
+      const todasLasSecciones = turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones))
+      const cantidadAlumnos = nueva.alumnos?.length ?? contarAlumnos(secciones, turnos)
+      alcance = detalleAlcance(secciones, cantidadAlumnos)
+      const todaLaEscuela = !nueva.alumnos && todasLasSecciones.length > 0 && secciones.length === todasLasSecciones.length
+      prefijoAlcance = nueva.alumnos ? 'Algunos alumnos' : todaLaEscuela ? 'Toda la escuela' : ''
+    }
     const valor = `${nueva.motivo} · ${nueva.severidad} · ${prefijoAlcance ? `${prefijoAlcance} (${alcance})` : alcance}`
     const causa = nueva.causadaPorId ? situaciones.find((situacion) => situacion.id === nueva.causadaPorId)?.motivo : null
     bloques.push({
@@ -174,7 +202,7 @@ function crearLineasResumen(
   return bloques
 }
 
-export function RecorridoActualizacion({ cue, turnos, motivos }: RecorridoActualizacionProps): JSX.Element {
+export function RecorridoActualizacion({ cue, turnos, motivos, esInstituto = false, carreras }: RecorridoActualizacionProps): JSX.Element {
   const [carga, setCarga] = useState<{ cue: string; resultado: Carga }>(() => ({ cue, resultado: { fase: 'cargando' } }))
   const solicitudRef = useRef(0)
 
@@ -205,10 +233,10 @@ export function RecorridoActualizacion({ cue, turnos, motivos }: RecorridoActual
   if (resultado.fase === 'error') return <p className="estado-actual-aviso__texto" role="alert">{resultado.mensaje}</p>
   if (!resultado.datos.parte) return <p className="estado-actual-aviso__texto" role="alert">{MENSAJE_SIN_SITUACION}</p>
 
-  return <RecorridoCargado key={`${cue}:${resultado.datos.parte.id}`} cue={cue} turnos={turnos} motivos={motivos} datos={resultado.datos} historial={resultado.historial} onRecargar={recargar} />
+  return <RecorridoCargado key={`${cue}:${resultado.datos.parte.id}`} cue={cue} turnos={turnos} motivos={motivos} esInstituto={esInstituto} carreras={carreras} datos={resultado.datos} historial={resultado.historial} onRecargar={recargar} />
 }
 
-function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }: RecorridoActualizacionProps & { datos: EstadoActualRespuesta; historial: MovimientoHistorial[]; onRecargar: () => void }): JSX.Element {
+function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras, datos, historial, onRecargar }: RecorridoActualizacionProps & { datos: EstadoActualRespuesta; historial: MovimientoHistorial[]; onRecargar: () => void }): JSX.Element {
   const almacenRef = useRef<Promise<AlmacenClaveValor> | null>(null)
   const almacen = useCallback(() => (almacenRef.current ??= crearAlmacenParte()), [])
   const situaciones = useMemo(() => mapearSituaciones(datos), [datos])
@@ -260,16 +288,18 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       fecha: s.rigeDesde,
       activa: true,
       severidad: s.severidad,
-      secciones: s.secciones.length,
-      alumnos: s.categoria === 'alumnos' ? s.alumnos.length : contarAlumnos(s.secciones, turnos),
+      // Institutos: la causa se describe por carreras; GE, por secciones.
+      ...(carreras !== undefined && s.carreras !== undefined
+        ? { carreras: s.carreras.length, alumnos: s.categoria === 'alumnos' ? s.alumnos.length : undefined }
+        : { secciones: s.secciones.length, alumnos: s.categoria === 'alumnos' ? s.alumnos.length : contarAlumnos(s.secciones, turnos) }),
     })),
     ...(datos.recientes ?? []).map((s) => ({ id: s.id, motivo: s.motivo, fecha: s.retiradaEn, activa: false, severidad: s.severidad })),
-  ], [situaciones, recorrido.respuestas, datos.recientes, turnos])
+  ], [situaciones, recorrido.respuestas, datos.recientes, turnos, carreras])
   const asistenciaSeleccionada = crearAsistenciaSeleccionada(asistenciaPedagogica.brinda, asistenciaPedagogica.modalidades)
   const asistenciaCambiada = !asistenciaCoincide(asistenciaVigente, asistenciaSeleccionada)
   const lineasResumen = useMemo(() => {
-    return crearLineasResumen(situaciones, recorrido, turnos, datos.servicio?.estadoGeneral ?? 'normal')
-  }, [situaciones, recorrido, turnos, datos.servicio?.estadoGeneral])
+    return crearLineasResumen(situaciones, recorrido, turnos, datos.servicio?.estadoGeneral ?? 'normal', carreras)
+  }, [situaciones, recorrido, turnos, datos.servicio?.estadoGeneral, carreras])
 
   function moverEtapa(siguiente: EtapaActualizacion): void {
     setEtapa(siguiente)
@@ -291,7 +321,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         const guardado = await leerBorradorFormulario(
           `${DRAFT_ID_PREFIX}${cue}`,
           claveBorrador,
-          esBorradorActualizacionConFotos,
+          (valor): valor is BorradorActualizacionConFotos => esBorradorActualizacionConFotos(valor, esInstituto),
         )
         if (cancelado) return
         if (guardado) {
@@ -331,7 +361,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           }
           try {
             const anterior: unknown = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
-            if (esBorradorActualizacionConFotos(anterior)) {
+            if (esBorradorActualizacionConFotos(anterior, esInstituto)) {
               const borrador: BorradorFormulario<BorradorActualizacionConFotos> = {
                 registro: { draftId: `${DRAFT_ID_PREFIX}${cue}`, generacion: 1, version: 1, datos: anterior, actualizadoEn: new Date().toISOString() },
                 datos: anterior,
@@ -348,7 +378,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       }
     })()
     return () => { cancelado = true }
-  }, [claveBorrador, cue, situaciones])
+  }, [claveBorrador, cue, esInstituto, situaciones])
 
   useEffect(() => {
     if (!borradorLeido || !interaccionIniciada || borradorPendiente || persistenciaBloqueadaRef.current) return
@@ -559,7 +589,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     const payload: PayloadActualizacion = {
       cue,
       rigeDesde: new Date().toISOString(),
-      ...construirEnvio(situaciones, recorridoEnvio),
+      ...construirEnvio(situaciones, recorridoEnvio, carreras ? { carreras: carrerasDelServicio(situaciones, recorridoEnvio, carreras.map((carrera) => carrera.id), (situacion) => situacion.carreras ?? []) } : undefined),
       ...(asistenciaCambiada && asistenciaSeleccionada ? { asistenciaPedagogica: asistenciaSeleccionada } : {}),
     }
     let exito = false
@@ -794,6 +824,9 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           <p className="recorrido-actualizacion__descripcion">Revise lo informado hasta ahora y agregue o corrija lo que cambió.</p>
           <RevisarSituacion
             key={actual.id}
+            esInstituto={esInstituto}
+            cue={cue}
+            carreras={carreras}
             situacion={actual}
             turnos={turnos}
             sugerida={motivos.find((motivo) => motivo.nombre === actual.motivo)?.severidadSugerida ?? null}
@@ -859,6 +892,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           <h3>Restablecer el funcionamiento</h3>
           <p className="recorrido-actualizacion__descripcion">Ya no quedan afectaciones activas. Confirme si el edificio y las clases vuelven a la normalidad.</p>
           <CamposClasesEdificio
+            esInstituto={esInstituto}
             valor={clasesEdificio}
             onCambiar={({ servicioEstado, estadoEstablecimiento }) => {
               if (servicioEstado === '' || estadoEstablecimiento === '') return
@@ -880,6 +914,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             situacionesActivas={situaciones}
             estado={recorrido}
             turnos={turnos}
+            cue={cue}
+            carreras={carreras}
             motivos={motivos}
             onEtapaChange={setEtapaAlgoNuevo}
             onTerminar={(nueva) => {

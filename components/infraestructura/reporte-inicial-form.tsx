@@ -37,6 +37,7 @@ import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-avis
 import { Opcion } from '@/components/ui/opcion'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { InstitutoCamposAQuienAfecta } from '@/components/infraestructura/instituto-alcance-campos'
+import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import {
   alcanceInstituto,
   esListaAlumnosElegidos,
@@ -100,6 +101,8 @@ const MENSAJE_ERROR_GUARDADO =
 
 const MENSAJE_GUARDADO =
   'Ya figura en el estado actual de su escuela.'
+const MENSAJE_GUARDADO_INSTITUTO =
+  'Ya figura en el estado actual de su institución.'
 
 const MENSAJE_FALTA_QUE_PASO =
   'Elija el tipo de situación, el motivo y la gravedad para continuar.'
@@ -386,6 +389,22 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
     sincronizarHistorialTrasRestaurar(pasoRestaurado, borrador.generacion, pasosBorrador, borrador.version)
   }
 
+  // Un guardado en curso puede terminar después de desmontar el formulario. Su
+  // copia espejo en localStorage no debe escribirse entonces: el borrador ya quedó en
+  // IndexedDB, y la copia huérfana volvería a aparecer como "borrador pendiente" en el
+  // próximo formulario que se monte para este CUE.
+  const montadoRef = useRef(true)
+  useEffect(() => {
+    montadoRef.current = true
+    return () => {
+      montadoRef.current = false
+    }
+  }, [])
+
+  // Desde el envío confirmado no se guarda más hasta empezar otra situación.
+  // (Las escrituras del borrador ya van en fila en borrador-formulario.ts.)
+  const envioConfirmadoRef = useRef(false)
+
   // Restaura el borrador SOLO dentro de un efecto, nunca durante el render:
   // leer el almacén en el render produciría un desajuste de hidratación
   // entre servidor y cliente. Sin borrador (o ilegible) no hay nada que
@@ -584,11 +603,14 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
   // Alcance de la afectación en el POST: GE por secciones; institutos por
   // carreras, sin secciones (el servidor las rechaza para institutos).
   // Selección de institutos sólo con carreras del catálogo vigente (ver seleccionVigente).
+  // Sólo las categorías con permiteAlumnos (la misma regla que el servidor) admiten alumnos.
+  const categoriaPermiteAlumnos = esCategoria(afectacion.categoria) ? CATEGORIA_META[afectacion.categoria].permiteAlumnos : true
   function seleccionDeAfectacion() {
-    return seleccionVigente(
+    const seleccion = seleccionVigente(
       { carreras: afectacion.carreras ?? [], alumnos: afectacion.alumnos, alumnosElegidos: afectacion.alumnosElegidos ?? [] },
       catalogoCarreras,
     )
+    return categoriaPermiteAlumnos ? seleccion : { ...seleccion, alumnos: [], alumnosElegidos: [] }
   }
 
   function alcanceDelEnvio() {
@@ -639,6 +661,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
 
   function alEnviarConExito(movimientoId: string): void {
     movimientoFotosConfirmadoRef.current = movimientoId
+    envioConfirmadoRef.current = true
     void confirmarFormulario(`${DRAFT_ID_PREFIX}${cue}`, movimientoId).catch(() => {})
     vincularFotosPreparadas(movimientoId)
     const borradorActual = borradorCompartidoRef.current
@@ -738,6 +761,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
   useEffect(() => {
     if (!restauracionCompleta) return
     if (borradorPendiente) return
+    if (envioConfirmadoRef.current) return
     if (omitirEscrituraRef.current && !interaccionRef.current) {
       omitirEscrituraRef.current = false
       return
@@ -768,6 +792,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
     }
     void guardarBorradorFormulario(actual, datos).then((guardado) => {
       borradorCompartidoRef.current = guardado
+      if (!montadoRef.current) return
       setAvisoAlmacen(null)
       try { localStorage.setItem(claveBorrador, JSON.stringify(datos)) } catch { /* IndexedDB sigue siendo el almacenamiento principal. */ }
     }).catch((error: unknown) => {
@@ -878,6 +903,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
       return
     }
     setError(null)
+    limpiarErrorEnvioAlNavegar()
     if (indicePaso >= pasos.length - 1) return
     const siguiente = pasos[indicePaso + 1]
     setPaso(siguiente)
@@ -885,8 +911,18 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
     empujarPasoEnHistorial(siguiente, generacionVigente())
   }
 
+  // Un fallo de envío ya es historia al cambiar de paso: no debe seguir en pantalla.
+  // Sólo se limpia el estado terminal ("No se pudo enviar"); los reintentos en curso y
+  // el envío pendiente siguen visibles.
+  function limpiarErrorEnvioAlNavegar() {
+    if (estadoEnvio !== 'error') return
+    setEstadoEnvio(null)
+    setMotivoEnvio(null)
+  }
+
   function retroceder() {
     setError(null)
+    limpiarErrorEnvioAlNavegar()
     if (paso <= 1) return
     setPaso(pasos[Math.max(0, indicePaso - 1)])
     // El historial tiene que seguir al asistente: sin este back(), la próxima
@@ -907,6 +943,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
   function registrarOtra() {
     onGuardadoChange?.(false)
     omitirEscrituraRef.current = true
+    envioConfirmadoRef.current = false
     interaccionRef.current = false
     borradorResueltoRef.current = true
     const anterior = borradorCompartidoRef.current
@@ -936,7 +973,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
       <div className="reporte-inicial__confirmacion" role="status">
         <div className="reporte-inicial__confirmacion-mensaje">
           <CircleCheck aria-hidden="true" size={20} />
-          <div><h2>Situación guardada</h2><p>{MENSAJE_GUARDADO}</p></div>
+          <div><h2>Situación guardada</h2><p>{esInstituto ? MENSAJE_GUARDADO_INSTITUTO : MENSAJE_GUARDADO}</p></div>
         </div>
         <div className="reporte-inicial__confirmacion-acciones">
           <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
@@ -1086,6 +1123,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
             carreras={catalogoCarreras}
             avisos={consistencia.advertencias}
             descripcionObligatoria={evaluarConsistenciaParte({ ...respuestasConsistencia, descripcion: '' }).bloqueos.some((r) => r.campo === 'descripcion')}
+            permiteAlumnos={categoriaPermiteAlumnos}
             onChange={cambiarAfectacion}
             disabled={enviando}
           />
@@ -1110,6 +1148,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
           <>
             {afectacion.categoria !== 'alumnos' && (
             <CamposClasesEdificio
+              esInstituto={esInstituto}
               valor={{ servicioEstado, estadoEstablecimiento }}
               onCambiar={(x) => {
                 setServicioEstado(x.servicioEstado)

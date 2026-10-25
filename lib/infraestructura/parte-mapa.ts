@@ -18,7 +18,7 @@ import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from './ge-db'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import { listarSeccionesDeCues } from './secciones-cue'
-import { cuesDeInstitutoVigentes } from './alcance'
+import { cuesDeInstitutoVigentes, totalesMatriculaInstitutos } from './alcance'
 import { membresiaMatricula } from './alcance/matricula'
 import {
   carrerasVigentesPorCue,
@@ -862,6 +862,10 @@ export async function listarEscuelasMapaEnriquecidas(
     }
   }
 
+  // Institutos superiores: niveles y matrícula salen de la matrícula vigente
+  // (sus secciones GE no describen al instituto). GE queda como estaba.
+  const totalesInstitutos = await totalesMatriculaInstitutos(client)
+
   const partes = resultado.escuelas.flatMap((escuela) => escuela.parte ? [escuela.parte] : [])
   const asistenciaPorParte = new Map<string, AsistenciaPedagogica | null>()
   if (partes.length > 0) {
@@ -879,22 +883,29 @@ export async function listarEscuelasMapaEnriquecidas(
     ...resultado,
     escuelas: resultado.escuelas.map((escuela) => {
       const datos = datosPorCue.get(escuela.cueAnexo)
+      const instituto = totalesInstitutos.get(escuela.cueAnexo)
       const asistencia = escuela.parte ? asistenciaPorParte.get(escuela.parte.parteId) ?? null : null
       return {
         ...escuela,
         ...enriquecerEscuela(escuela, {
-          niveles: datos ? [...datos.niveles] : [],
-          alumnos: datos?.alumnos ?? 0,
+          niveles: instituto ? [] : datos ? [...datos.niveles] : [],
+          alumnos: instituto ? instituto.alumnos : datos?.alumnos ?? 0,
           asistencia,
           situacionesHistoricas: situacionesPorCue.get(escuela.cueAnexo) ?? 0,
           solucionadasRecientes: solucionadasRecientesPorCue.get(escuela.cueAnexo) ?? 0,
         }, ahoraMs),
+        ...(instituto ? { carreras: instituto.carreras } : {}),
       }
     }),
   }
 }
 
-export type EscuelaFichaEnriquecida = EscuelaMapaPadron & {
+// Sólo institutos superiores: cantidad de carreras vigentes del CUE. Ausente en GE.
+export interface DatosInstitutoMapa {
+  carreras: number
+}
+
+export type EscuelaFichaEnriquecida = EscuelaMapaPadron & Partial<DatosInstitutoMapa> & {
   ubicacionDisponible: boolean
 }
 
@@ -973,6 +984,8 @@ export async function obtenerEscuelaFichaEnriquecida(
 
   const desde = new Date(ahoraMs - VENTANA_CAUSA_DIAS * 24 * 60 * 60 * 1000).toISOString()
 
+  const instituto = (await totalesMatriculaInstitutos(client, cueAnexo)).get(cueAnexo)
+
   const [situacionesRes, solucionadasRes, datosRes, asistenciaRes] = await Promise.all([
     client.execute({
       sql: `SELECT COUNT(a.id) AS situaciones
@@ -1025,8 +1038,8 @@ export async function obtenerEscuelaFichaEnriquecida(
   const enriquecida = enriquecerEscuela(
     escuelaBase,
     {
-      niveles: [...nivelesSet],
-      alumnos,
+      niveles: instituto ? [] : [...nivelesSet],
+      alumnos: instituto ? instituto.alumnos : alumnos,
       asistencia,
       situacionesHistoricas,
       solucionadasRecientes,
@@ -1040,6 +1053,7 @@ export async function obtenerEscuelaFichaEnriquecida(
       ...escuelaBase,
       ...enriquecida,
       ubicacionDisponible,
+      ...(instituto ? { carreras: instituto.carreras } : {}),
     },
   }
 }

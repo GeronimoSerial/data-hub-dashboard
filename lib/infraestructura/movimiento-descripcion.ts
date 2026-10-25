@@ -173,10 +173,14 @@ function palabrasUnidad(unidad: DiffUnidadAlcance | undefined): [string, string]
   return unidad === 'carrera' ? ['carrera', 'carreras'] : ['sección', 'secciones']
 }
 
-function detalleAlcance(secciones: number, alumnos: number, unidad?: DiffUnidadAlcance): string {
+// Con nombres de carrera (sólo institutos con diff nuevo): "Alcanza a 2 carreras: A, B (2 alumnos)".
+function detalleAlcance(secciones: number, alumnos: number, unidad?: DiffUnidadAlcance, carreras?: string[]): string {
   const [singular, plural] = palabrasUnidad(unidad)
   const textoSecciones = `${secciones} ${pluralizar(secciones, singular, plural)}`
   const textoAlumnos = `${alumnos} ${pluralizar(alumnos, 'alumno', 'alumnos')}`
+  if (secciones > 0 && carreras && carreras.length > 0) {
+    return `Alcanza a ${textoSecciones}: ${carreras.join(', ')}${alumnos > 0 ? ` (${textoAlumnos})` : ''}`
+  }
   return secciones > 0
     ? `Alcanza a ${textoSecciones}${alumnos > 0 ? ` (${textoAlumnos})` : ''}`
     : `Alcanza a ${textoAlumnos}`
@@ -216,7 +220,7 @@ export function describirMovimiento(
     lineas.push(`Se informó ${agregada.motivo}`)
     lineas.push(`Gravedad ${agregada.severidad}`)
     if (agregada.todaLaEscuela) lineas.push('Toda la escuela')
-    else if (agregada.secciones > 0 || agregada.alumnos > 0) lineas.push(detalleAlcance(agregada.secciones, agregada.alumnos, agregada.unidad))
+    else if (agregada.secciones > 0 || agregada.alumnos > 0) lineas.push(detalleAlcance(agregada.secciones, agregada.alumnos, agregada.unidad, agregada.carreras))
     if (agregada.causadaPor) lineas.push(`Causado por "${agregada.causadaPor.motivo}"`)
   })
 
@@ -261,6 +265,9 @@ export function describirMovimiento(
 
   for (const cambio of diff.alcancesCambiados) {
     lineas.push(detalleCambioAlcance(cambio))
+    if (cambio.unidad === 'carrera' && cambio.carreras && cambio.carreras.length > 0) {
+      lineas.push(detalleAlcance(cambio.carreras.length, cambio.alumnosAlcanzados ?? 0, 'carrera', cambio.carreras))
+    }
   }
 
   if (diff.establecimientoCambiado) {

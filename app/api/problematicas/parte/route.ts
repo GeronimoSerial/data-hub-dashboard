@@ -31,6 +31,7 @@ import {
   cambiosAlcanceInstituto,
   efectivoInstituto,
   efectivosPorAfectacion,
+  etiquetasCarrerasDelCue,
   leerScopeInstituto,
   mismoEfectivoInstituto,
   reemplazarScopeInstituto,
@@ -1220,7 +1221,12 @@ async function handlePOST(request: Request) {
           scopesAntesVigentes,
           scopesDespues,
         )
+        // Nombres de carrera (con tipo y RM si se repiten en el CUE) para que el historial los liste.
+        const etiquetasCarreras = await etiquetasCarrerasDelCue(tx, corteInstituto, cue.value)
+        const nombresDe = (ids: number[]) => ids.map((id) => etiquetasCarreras.get(id) ?? String(id))
+        const efectivosDespues = await efectivosPorAfectacion(clienteGeEnTx, scopesDespues, corteInstituto)
         for (const cambio of cambiosAlcance) {
+          const despues = efectivosDespues.get(cambio.afectacionId) ?? new Map()
           diff.alcancesCambiados.push({
             afectacionId: cambio.afectacionId,
             motivo: motivoDeAfectacion.get(cambio.afectacionId) ?? '',
@@ -1229,14 +1235,22 @@ async function handlePOST(request: Request) {
             seccionesRetiradas: cambio.carrerasRetiradas,
             alumnosAgregados: cambio.alumnosAgregados,
             alumnosRetirados: cambio.alumnosRetirados,
+            carreras: nombresDe([...despues.keys()]),
+            alumnosAlcanzados: resumenEfectivoInstituto(despues).alumnos,
           })
         }
         // Las afectaciones nuevas cuentan carreras y alumnos, no secciones GE.
-        const efectivosDespues = await efectivosPorAfectacion(clienteGeEnTx, scopesDespues, corteInstituto)
         const agregadasConAlcance: typeof diff.afectacionesAgregadas = []
         for (const agregada of diff.afectacionesAgregadas) {
-          const resumen = resumenEfectivoInstituto(efectivosDespues.get(agregada.afectacionId) ?? new Map())
-          agregadasConAlcance.push({ ...agregada, secciones: resumen.carreras, alumnos: resumen.alumnos, unidad: 'carrera' })
+          const efectivo = efectivosDespues.get(agregada.afectacionId) ?? new Map()
+          const resumen = resumenEfectivoInstituto(efectivo)
+          agregadasConAlcance.push({
+            ...agregada,
+            secciones: resumen.carreras,
+            alumnos: resumen.alumnos,
+            unidad: 'carrera',
+            carreras: nombresDe([...efectivo.keys()]),
+          })
         }
         diff.afectacionesAgregadas = agregadasConAlcance
       }

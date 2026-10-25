@@ -3,6 +3,9 @@
 import { useEffect, useState, type JSX } from 'react'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type AfectacionBorrador } from '@/components/infraestructura/afectacion-campos'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
+import { InstitutoCamposAQuienAfecta } from '@/components/infraestructura/instituto-alcance-campos'
+import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
+import { contar, type CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
@@ -26,6 +29,9 @@ export interface AlgoNuevoProps {
   situacionesActivas: SituacionRecorrido[]
   estado: EstadoRecorrido
   turnos: TurnoContexto[]
+  /** Institutos superiores: CUE de la búsqueda de alumnos y catálogo de carreras (ausente en GE). */
+  cue?: string
+  carreras?: CarreraElegible[]
   motivos: MotivoRow[]
   onTerminar: (nueva: NuevaSituacion | null) => void
   onEtapaChange?: (etapa: Etapa) => void
@@ -76,7 +82,10 @@ function fechaCausaLegible(fecha: string): string {
 
 function detalleCausa(candidata: CandidataCausa, cantidadSeccionesEscuela: number): string {
   const partes: Array<string | undefined> = [candidata.severidad]
-  if (candidata.secciones !== undefined) {
+  if (candidata.carreras !== undefined) {
+    const alcance = contar(candidata.carreras, 'carrera', 'carreras')
+    partes.push(candidata.alumnos !== undefined ? `${alcance}, ${contar(candidata.alumnos, 'alumno', 'alumnos')}` : alcance)
+  } else if (candidata.secciones !== undefined) {
     if (cantidadSeccionesEscuela > 0 && candidata.secciones === cantidadSeccionesEscuela) {
       partes.push('toda la escuela')
     } else {
@@ -89,13 +98,17 @@ function detalleCausa(candidata: CandidataCausa, cantidadSeccionesEscuela: numbe
   return partes.filter(Boolean).join(' · ')
 }
 
-function crearNuevaSituacion(borrador: AfectacionBorrador, causadaPorId: string | null): NuevaSituacion | null {
+function crearNuevaSituacion(borrador: AfectacionBorrador, causadaPorId: string | null, esInstituto: boolean): NuevaSituacion | null {
   if (borrador.categoria === '' || borrador.severidad === '' || borrador.motivo === '') return null
+  // Institutos: la nueva situación va por carreras; los alumnos sólo en categorías que los admiten.
+  const alcance = esInstituto
+    ? { carreras: borrador.carreras ?? [] }
+    : { secciones: borrador.secciones }
   return {
     causadaPorId,
     motivo: borrador.motivo,
     severidad: borrador.severidad,
-    secciones: borrador.secciones,
+    ...alcance,
     ...(borrador.categoria === 'alumnos' ? { alumnos: borrador.alumnos } : {}),
     ...(borrador.justificacionCritica ? { justificacionCritica: borrador.justificacionCritica } : {}),
     ...(borrador.justificacionCriticaDetalle ? { justificacionCriticaDetalle: borrador.justificacionCriticaDetalle } : {}),
@@ -108,6 +121,8 @@ export function AlgoNuevo({
   situacionesActivas,
   estado,
   turnos,
+  cue = '',
+  carreras,
   motivos,
   onTerminar,
   onEtapaChange,
@@ -136,8 +151,10 @@ export function AlgoNuevo({
   const candidatasVisibles = anteriorElegida ? [...candidatasActivas, anteriorElegida] : candidatasActivas
   const sugerida = motivos.find((motivo) => motivo.nombre === borrador.motivo)?.severidadSugerida ?? null
   const completaLaGravedad = gravedadCompleta(borrador, sugerida)
-  const alcanceCompleto = borrador.secciones.length > 0 &&
-    (borrador.categoria !== 'establecimiento' || borrador.alcanceEstablecimiento !== '')
+  const esInstituto = carreras !== undefined
+  const alcanceCompleto = esInstituto
+    ? (borrador.carreras ?? []).length > 0
+    : borrador.secciones.length > 0 && (borrador.categoria !== 'establecimiento' || borrador.alcanceEstablecimiento !== '')
   const datosCompletos = borrador.categoria !== '' && borrador.motivo !== '' && completaLaGravedad && alcanceCompleto
 
   function mensajeFaltantes(): string | null {
@@ -145,7 +162,9 @@ export function AlgoNuevo({
     if (!borrador.categoria) faltantes.push('el tipo')
     if (!borrador.motivo) faltantes.push('el motivo')
     if (!completaLaGravedad) faltantes.push('la gravedad')
-    if (borrador.categoria === 'establecimiento' && !borrador.alcanceEstablecimiento) {
+    if (esInstituto) {
+      if ((borrador.carreras ?? []).length === 0) faltantes.push('al menos una carrera')
+    } else if (borrador.categoria === 'establecimiento' && !borrador.alcanceEstablecimiento) {
       faltantes.push('el alcance del establecimiento')
     } else if (borrador.secciones.length === 0) {
       faltantes.push('al menos una sección')
@@ -202,7 +221,7 @@ export function AlgoNuevo({
   }
 
   function terminar(): void {
-    const nueva = crearNuevaSituacion(borrador, causadaPorId ?? null)
+    const nueva = crearNuevaSituacion(borrador, causadaPorId ?? null, esInstituto)
     if (nueva && datosCompletos) onTerminar(nueva)
   }
 
@@ -332,15 +351,27 @@ export function AlgoNuevo({
           </div>
           <div className="asistente__cuerpo">
             <h2 className="asistente__titulo">¿A quiénes afecta?</h2>
-            <CamposAQuienAfecta
-              borrador={borrador}
-              idPrefijo="algo-nuevo"
-              turnos={turnos}
-              usaSelectorEstablecimiento
-              ocultarPreguntaAlcance
-              ocultarDescripcion
-              onChange={setBorrador}
-            />
+            {esInstituto ? (
+              <InstitutoCamposAQuienAfecta
+                cue={cue}
+                idPrefijo="algo-nuevo"
+                borrador={borrador}
+                carreras={carreras}
+                permiteAlumnos={esCategoria(borrador.categoria) ? CATEGORIA_META[borrador.categoria].permiteAlumnos : true}
+                mostrarDescripcion={false}
+                onChange={setBorrador}
+              />
+            ) : (
+              <CamposAQuienAfecta
+                borrador={borrador}
+                idPrefijo="algo-nuevo"
+                turnos={turnos}
+                usaSelectorEstablecimiento
+                ocultarPreguntaAlcance
+                ocultarDescripcion
+                onChange={setBorrador}
+              />
+            )}
           </div>
           <div className="asistente__acciones asistente__acciones--pegada algo-nuevo__acciones">
             <Button

@@ -7,6 +7,7 @@ import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actua
 import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
+import { contar } from '@/lib/infraestructura/parte/instituto-ui'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
@@ -50,6 +51,7 @@ export interface FichaEscuelaPaginaProps {
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
+
 
 export function FichaEscuelaPagina({
   escuela,
@@ -280,9 +282,11 @@ export function FichaEscuelaPagina({
           .sort((a, b) => b.creadaEn.localeCompare(a.creadaEn))[0]?.id ?? null)
       : null
   const etiquetaAlumnos = escuela.alumnos === 1 ? 'alumno' : 'alumnos'
+  // Institutos superiores: la ficha cuenta carreras y no muestra nombres de alumnos.
+  const esInstituto = escuela.carreras !== undefined
 
   const verAlumnos = (afectacionId: string, className: string) =>
-    mostrarEnlaceNominal ? (
+    mostrarEnlaceNominal && !esInstituto ? (
       <button
         type="button"
         className={className}
@@ -328,7 +332,9 @@ export function FichaEscuelaPagina({
               </p>
               <p>
                 {[
-                  escuela.niveles.length > 0 ? escuela.niveles.join(', ') : null,
+                  esInstituto
+                    ? contar(escuela.carreras ?? 0, 'carrera', 'carreras')
+                    : escuela.niveles.length > 0 ? escuela.niveles.join(', ') : null,
                   `${FORMATO_NUMERO.format(escuela.alumnos)} ${etiquetaAlumnos} matriculados`,
                 ]
                   .filter(Boolean)
@@ -412,9 +418,11 @@ export function FichaEscuelaPagina({
                   </div>
                   <div className={styles.incidenteDetalle}>
                     <p className={styles.incidenteDetalleFuerte}>
-                      {incidente.totales.secciones === 1
-                        ? '1 sección'
-                        : `${incidente.totales.secciones} secciones`}
+                      {esInstituto
+                        ? contar(incidente.totales.carreras ?? 0, 'carrera', 'carreras')
+                        : incidente.totales.secciones === 1
+                          ? '1 sección'
+                          : `${incidente.totales.secciones} secciones`}
                     </p>
                     <p>Desde {desde(incidente.rigeDesde)}</p>
                     {verAlumnos(incidente.id, styles.linkSubrayado)}

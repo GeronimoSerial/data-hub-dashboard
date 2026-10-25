@@ -25,6 +25,7 @@ function Controlado({
   respuestas = SIN_RESPUESTAS,
   advertencias = [],
   alcanceAlgunas = false,
+  esInstituto = false,
   inicial = { servicioEstado: '', estadoEstablecimiento: '' },
   estadoActual,
   afectacionesActivas,
@@ -37,6 +38,7 @@ function Controlado({
   respuestas?: RespuestasConsistencia
   advertencias?: Regla[]
   alcanceAlgunas?: boolean
+  esInstituto?: boolean
   inicial?: ValorClasesEdificio
   estadoActual?: EstadoEstablecimiento
   afectacionesActivas?: Array<{ id: string; motivo: string }>
@@ -55,6 +57,7 @@ function Controlado({
         respuestas={{ ...respuestas, edificio: v.estadoEstablecimiento || null, clases: v.servicioEstado || null }}
         advertencias={advertencias}
         alcanceAlgunas={alcanceAlgunas}
+        esInstituto={esInstituto}
         estadoActual={estadoActual}
         afectacionesActivas={afectacionesActivas}
         onConfirmarHabitual={onConfirmarHabitual}
@@ -101,6 +104,14 @@ describe('CamposClasesEdificio', () => {
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Cancelar' }))
     expect(v().estadoEstablecimiento).toBe('')
     expect(onInterrumpir).not.toHaveBeenCalled()
+  })
+  it('en un instituto el diálogo habla de todo el instituto y de carreras', () => {
+    render(<Controlado alcanceParcial esInstituto onInterrumpir={vi.fn()} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
+    const dialogo = screen.getByRole('dialog')
+    expect(dialogo).toHaveTextContent('¿Pasamos el alcance a todo el instituto?')
+    expect(within(dialogo).getByText(/interrumpe todo el instituto, pero marcó sólo algunas carreras/)).toBeInTheDocument()
+    expect(within(dialogo).getByRole('button', { name: 'Sí, todo el instituto' })).toBeInTheDocument()
   })
   it('confirmar la interrupción aplica el estado y pide pasar a toda la escuela', () => {
     const onInterrumpir = vi.fn()

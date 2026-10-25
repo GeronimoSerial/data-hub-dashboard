@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { RecorridoActualizacion } from './recorrido-actualizacion'
 import { abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { vaciarEscriturasBorrador } from '@/lib/infraestructura/parte/borrador-formulario'
 import { crearColaTrabajosEnvio } from '@/lib/infraestructura/parte/cola-trabajos-envio'
 
 const syncMocks = vi.hoisted(() => ({ registrar: vi.fn(), pedir: vi.fn(), callback: null as ((clave: string) => void) | null }))
@@ -78,9 +79,9 @@ async function irAlResumen() {
   fireEvent.click(screen.getByRole('radio', { name: 'No' }))
 }
 // An unmounted recorrido may still have a draft save in flight; its `.then` mirrors the draft into
-// localStorage. Queue a read on the same store so that save (and its mirror) settles before the
+// localStorage. Flush the draft write queue so that save (and its mirror) settles before the
 // storage reset, otherwise the stale draft leaks into the next test as a "parte sin enviar".
-async function esperarGuardadosPendientes() { await leerBorradorGuardado() }
+async function esperarGuardadosPendientes() { await vaciarEscriturasBorrador() }
 afterEach(async () => { cleanup(); await esperarGuardadosPendientes(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks() })
 
 function elegirAsistencia(valor: 'Sí' | 'No') {

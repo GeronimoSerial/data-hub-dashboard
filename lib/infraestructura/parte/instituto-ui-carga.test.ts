@@ -31,7 +31,7 @@ function clienteFalso({ carreras = 1, falla, corte = 7 }: Escenario = {}): Ejecu
       }
       if (sql.includes('matricula_carrera')) {
         if (falla === 'carreras') throw new Error('carreras caídas')
-        return { rows: [{ id: 3, nombre: 'Enfermería', tipo: 'Tecnicatura', total: 40 }] }
+        return { rows: [{ id: 3, nombre: 'Enfermería', rm: 'RM 1464/14', tipo: 'Tecnicatura', total: 40 }] }
       }
       throw new Error(`consulta inesperada: ${sql}`)
     },
@@ -55,7 +55,7 @@ describe('cargarCarrerasInstituto', () => {
   it('usa el flujo de instituto para cualquier CUE con carreras vigentes, sin mirar su nivel', async () => {
     expect(await cargarCarrerasInstituto(clienteFalso({ carreras: 2 }), CUE)).toEqual({
       tipo: 'instituto',
-      carreras: [{ id: 3, nombre: 'Enfermería', tipo: 'Tecnicatura', totalAlumnos: 40 }],
+      carreras: [{ id: 3, nombre: 'Enfermería', tipo: 'Tecnicatura', totalAlumnos: 40, rm: 'RM 1464/14' }],
     })
   })
 

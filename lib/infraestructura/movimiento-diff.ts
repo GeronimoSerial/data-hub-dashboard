@@ -38,6 +38,8 @@ export interface DiffAfectacionAgregada {
   unidad?: DiffUnidadAlcance
   /** Cubre completas todas las secciones del establecimiento. Ausente en diffs viejos. */
   todaLaEscuela?: boolean
+  /** Sólo institutos: nombres de las carreras alcanzadas al informar. Ausente en diffs viejos. */
+  carreras?: string[]
   causadaPor?: { afectacionId: string; motivo: string }
 }
 
@@ -72,6 +74,10 @@ export interface DiffAlcanceCambio {
   alumnosRetirados: number
   /** Después del cambio, cubre completas todas las secciones del establecimiento. */
   todaLaEscuela?: boolean
+  /** Sólo institutos: carreras alcanzadas después del cambio. Ausente en diffs viejos. */
+  carreras?: string[]
+  /** Sólo institutos: alumnos alcanzados después del cambio. Ausente en diffs viejos. */
+  alumnosAlcanzados?: number
 }
 
 export interface DiffCampoCambio {

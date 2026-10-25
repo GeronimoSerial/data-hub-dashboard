@@ -354,3 +354,169 @@ describe('RecorridoActualizacion: envío', () => {
     expect(posteos(fetchMock)).toHaveLength(1)
   })
 })
+
+const CATALOGO_INSTITUTO = [
+  { id: 1, nombre: 'Enfermería', tipo: 'Tecnicatura', totalAlumnos: 40 },
+  { id: 2, nombre: 'Medicina', tipo: 'Carrera', totalAlumnos: 120 },
+]
+const alumnoAnaInstituto = { id: 100, apellido: 'Lopez', nombre: 'Ana', carreraId: 1 }
+
+function institutoCon(categoria: 'establecimiento' | 'alumnos') {
+  return {
+    ...base,
+    afectaciones: [{
+      id: 'a', motivo: categoria === 'alumnos' ? 'Sin energía o agua' : 'Inundación', categoria, severidad: 'Media', descripcion: null,
+      rigeDesde: '2026-10-02T10:00:00.000Z', creadaEn: '2026-10-02T10:00:00.000Z', causadaPorId: null,
+      secciones: [], totales: { secciones: 0, carreras: 1, alumnos: 0 },
+      carreras: [{ id: 1, nombre: 'Enfermería', completa: true, alumnos: [] }],
+    }],
+  }
+}
+
+function stubInstituto(categoria: 'establecimiento' | 'alumnos', alumnosBusqueda: unknown[] = []) {
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') return respuesta()
+    if (url.includes('/matricula')) return new Response(JSON.stringify({ ok: true, alumnos: alumnosBusqueda, truncado: false }), { status: 200 })
+    if (url.includes('/historial')) return new Response(JSON.stringify({ ok: true, movimientos: [] }), { status: 200 })
+    return new Response(JSON.stringify({ ...institutoCon(categoria), parte: { ...base.parte, cueAnexo: CUE } }), { status: 200 })
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+function montarInstituto() {
+  return render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} esInstituto carreras={CATALOGO_INSTITUTO} />)
+}
+
+async function elegirAspectos(...etiquetas: string[]) {
+  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
+  const sheet = screen.getByRole('dialog')
+  for (const etiqueta of etiquetas) fireEvent.click(within(sheet).getByRole('checkbox', { name: etiqueta }))
+  fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+}
+
+/** Desde la revisión de la única situación hasta la asistencia, sin cambios en las demás etapas. */
+function avanzarHastaAsistencia() {
+  for (let i = 0; i < 4; i++) {
+    // Paso "¿Hay algo nuevo?": sin situación nueva.
+    const nada = screen.queryByRole('radio', { name: 'No' })
+    if (nada) fireEvent.click(nada)
+    // El último paso (confirmar) no tiene "Continuar": ahí están la asistencia y el guardado.
+    if (!screen.queryByRole('button', { name: 'Continuar' })) return
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+  }
+}
+
+describe('RecorridoActualizacion: institutos superiores', () => {
+  it('envía el alcance por carreras y la interrupción de clases por carrera', async () => {
+    const fetchMock = stubInstituto('establecimiento')
+    montarInstituto()
+    await elegirAspectos('A quién afecta (carreras / alumnos)', 'Las clases o el edificio')
+    fireEvent.click(screen.getByRole('radio', { name: 'No, se suspendieron' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
+    avanzarHastaAsistencia()
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+
+    await screen.findByText(guardado)
+    expect(JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))).toMatchObject({
+      afectacionesModificadas: [{ id: 'a', carreras: [1] }],
+      servicioEducativo: { estado: 'suspendido', alcance: { tipo: 'carrera', carreras: [1] } },
+    })
+  })
+
+  it('en "Afecta al establecimiento" no ofrece buscador de alumnos y no envía alumnos', async () => {
+    const fetchMock = stubInstituto('establecimiento')
+    montarInstituto()
+    await elegirAspectos('A quién afecta (carreras / alumnos)')
+    expect(screen.queryByPlaceholderText('Buscar por apellido, nombre o DNI completo')).toBeNull()
+    avanzarHastaAsistencia()
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+
+    await screen.findByText(guardado)
+    const cuerpo = JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))
+    // Sin alumnos elegidos la carrera cuenta completa: viaja la lista vacía.
+    expect(cuerpo.afectacionesModificadas).toEqual([{ id: 'a', carreras: [1], alumnos: [] }])
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/matricula'))).toBe(false)
+  })
+
+  it('en "Inaccesibilidad de alumnos" busca alumnos por la misma búsqueda y los envía dentro de la carrera', async () => {
+    const user = userEvent.setup()
+    const fetchMock = stubInstituto('alumnos', [alumnoAnaInstituto])
+    montarInstituto()
+    await elegirAspectos('A quién afecta (carreras / alumnos)')
+    await user.type(screen.getByPlaceholderText('Buscar por apellido, nombre o DNI completo'), 'Lop')
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Lopez, Ana/ }))
+    avanzarHastaAsistencia()
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+
+    await screen.findByText(guardado)
+    expect(JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body)).afectacionesModificadas).toEqual([
+      { id: 'a', carreras: [1], alumnos: [100] },
+    ])
+  })
+})
+
+async function abrirSituacionNueva() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+}
+
+/** Tipo, motivo y gravedad de la situación nueva, y la carrera Medicina (id 2) como alcance. */
+async function completarSituacionNueva(user: ReturnType<typeof userEvent.setup>, categoria: RegExp, motivo: string) {
+  fireEvent.click(screen.getByRole('radio', { name: categoria }))
+  const dialogo = screen.queryByRole('dialog')
+  if (dialogo) fireEvent.click(within(dialogo).getByRole('button', { name: 'Continuar' }))
+  fireEvent.click(screen.getByRole('radio', { name: motivo }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+  await user.click(screen.getByRole('combobox', { name: 'Carreras afectadas' }))
+  await user.click(await screen.findByRole('option', { name: 'Medicina' }))
+  await user.keyboard('{Escape}')
+}
+
+describe('RecorridoActualizacion: institutos, situación nueva', () => {
+  it('informa una situación nueva por carrera completa', async () => {
+    const user = userEvent.setup()
+    const fetchMock = stubInstituto('establecimiento')
+    montarInstituto()
+    await abrirSituacionNueva()
+    await completarSituacionNueva(user, /Afecta al establecimiento/, 'Tormenta severa')
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    avanzarHastaAsistencia()
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+
+    await screen.findByText(guardado)
+    const cuerpo = JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))
+    expect(cuerpo.afectacionesNuevas).toEqual([{ motivo: 'Tormenta severa', severidad: 'Alta', carreras: [2] }])
+    expect(cuerpo.afectacionesNuevas[0]).not.toHaveProperty('secciones')
+  })
+
+  it('informa una situación nueva de alumnos buscando alumnos dentro de la carrera', async () => {
+    const user = userEvent.setup()
+    const alumnoMedicina = { id: 200, apellido: 'Perez', nombre: 'Luis', carreraId: 2 }
+    const fetchMock = stubInstituto('establecimiento', [alumnoMedicina])
+    montarInstituto()
+    await abrirSituacionNueva()
+    await completarSituacionNueva(user, /Inaccesibilidad de alumnos/, 'Anegamiento')
+    await user.type(screen.getByPlaceholderText('Buscar por apellido, nombre o DNI completo'), 'Per')
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Perez, Luis/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    avanzarHastaAsistencia()
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+
+    await screen.findByText(guardado)
+    const cuerpo = JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))
+    expect(cuerpo.afectacionesNuevas).toEqual([{ motivo: 'Anegamiento', severidad: 'Alta', carreras: [2], alumnos: [200] }])
+  })
+})

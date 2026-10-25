@@ -7,12 +7,13 @@
 // Cada fila guarda el matricula_corte_id con el que se eligió. Las lecturas
 // (miembros, equivalencia, diff) usan el corte guardado en cada fila, no el
 // vigente: un corte reemplazado sigue resolviendo sus alumnos y totales.
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import type { getDb } from '@/lib/db'
 import { infraAfectacionCarrera, infraAfectacionMatriculaAlumno, matriculaCarrera } from '@/lib/db/schema'
 import type { AlcanceProvider } from '@/lib/infraestructura/alcance'
 import { membresiaMatricula } from '@/lib/infraestructura/alcance/matricula'
 import type { EjecutorSql } from '@/lib/infraestructura/ge-db'
+import { etiquetasDeCarreras } from './instituto-ui'
 
 type Tx = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0]
 type Lector = Pick<ReturnType<typeof getDb>, 'select'>
@@ -212,3 +213,20 @@ export async function nombresDeCarreras(lector: Lector, carreraIds: number[]): P
   for (const fila of filas) resultado.set(fila.id, fila.nombre)
   return resultado
 }
+
+// Etiqueta de cada carrera del CUE en un corte (la misma que muestra el selector:
+// si el nombre se repite, tipo y RM la distinguen). Para el historial.
+export async function etiquetasCarrerasDelCue(
+  lector: Lector,
+  corteId: number,
+  cueAnexo: string,
+): Promise<Map<number, string>> {
+  const filas = await lector
+    .select({ id: matriculaCarrera.id, nombre: matriculaCarrera.nombre, tipo: matriculaCarrera.tipo, rm: matriculaCarrera.rm })
+    .from(matriculaCarrera)
+    .where(and(eq(matriculaCarrera.corteId, corteId), eq(matriculaCarrera.cueAnexo, cueAnexo)))
+  return etiquetasDeCarreras(
+    filas.map((fila) => ({ id: fila.id, nombre: fila.nombre, tipo: fila.tipo, rm: fila.rm, totalAlumnos: 0 })),
+  )
+}
+

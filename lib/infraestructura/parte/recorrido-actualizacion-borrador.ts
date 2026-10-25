@@ -1,4 +1,5 @@
 import type { EstadoRecorrido } from './recorrido-actualizacion'
+import { esListaAlumnosElegidos } from './instituto-ui'
 import { esModalidadAsistenciaPedagogica, type ModalidadAsistenciaPedagogica } from '../trayectoria-tipos'
 
 export type EtapaActualizacion = 'entrada' | { revisar: number } | 'nuevo' | 'resumen'
@@ -28,15 +29,22 @@ function esRespuesta(valor: unknown): boolean {
   if (cambio.severidad !== undefined && !['Baja', 'Media', 'Alta', 'Crítica'].includes(String(cambio.severidad))) return false
   if (cambio.secciones !== undefined && (!Array.isArray(cambio.secciones) || !cambio.secciones.every((n) => typeof n === 'number'))) return false
   if (cambio.alumnos !== undefined && (!Array.isArray(cambio.alumnos) || !cambio.alumnos.every((n) => typeof n === 'number'))) return false
+  if (cambio.carreras !== undefined && (!Array.isArray(cambio.carreras) || !cambio.carreras.every((n) => typeof n === 'number'))) return false
+  if (cambio.alumnosElegidos !== undefined && !esListaAlumnosElegidos(cambio.alumnosElegidos)) return false
   return true
 }
 
-function esNuevaSituacion(valor: unknown): boolean {
+const esListaDeNumeros = (valor: unknown): boolean => Array.isArray(valor) && valor.every((n) => typeof n === 'number')
+
+// GE: la nueva situación lleva `secciones` y no `carreras`. Institutos: lleva `carreras` y no `secciones`.
+function esNuevaSituacion(valor: unknown, esInstituto: boolean): boolean {
   if (typeof valor !== 'object' || valor === null) return false
   const nueva = valor as Record<string, unknown>
-  return typeof nueva.motivo === 'string' && typeof nueva.severidad === 'string' &&
-    Array.isArray(nueva.secciones) && nueva.secciones.every((n) => typeof n === 'number') &&
-    (nueva.alumnos === undefined || (Array.isArray(nueva.alumnos) && nueva.alumnos.every((n) => typeof n === 'number'))) &&
+  const alcanceValido = esInstituto
+    ? esListaDeNumeros(nueva.carreras) && nueva.secciones === undefined
+    : esListaDeNumeros(nueva.secciones) && nueva.carreras === undefined
+  return typeof nueva.motivo === 'string' && typeof nueva.severidad === 'string' && alcanceValido &&
+    (nueva.alumnos === undefined || esListaDeNumeros(nueva.alumnos)) &&
     (nueva.causadaPorId === null || typeof nueva.causadaPorId === 'string')
 }
 
@@ -48,7 +56,7 @@ function esClasesEdificio(valor: unknown): boolean {
     typeof clases.confirmarInterrupcionTotal === 'boolean'
 }
 
-export function esBorradorRecorridoActualizacion(valor: unknown): valor is BorradorRecorridoActualizacion {
+export function esBorradorRecorridoActualizacion(valor: unknown, esInstituto = false): valor is BorradorRecorridoActualizacion {
   if (typeof valor !== 'object' || valor === null) return false
   const borrador = valor as Record<string, unknown>
   if (typeof borrador.generacion !== 'string' || !esEtapa(borrador.etapa)) return false
@@ -57,7 +65,7 @@ export function esBorradorRecorridoActualizacion(valor: unknown): valor is Borra
   const recorrido = borrador.recorrido as Record<string, unknown>
   if (typeof recorrido.respuestas !== 'object' || recorrido.respuestas === null || Array.isArray(recorrido.respuestas)) return false
   if (!Object.values(recorrido.respuestas).every(esRespuesta)) return false
-  if (!Object.prototype.hasOwnProperty.call(recorrido, 'nueva') || (recorrido.nueva !== null && !esNuevaSituacion(recorrido.nueva))) return false
+  if (!Object.prototype.hasOwnProperty.call(recorrido, 'nueva') || (recorrido.nueva !== null && !esNuevaSituacion(recorrido.nueva, esInstituto))) return false
   if (!Object.prototype.hasOwnProperty.call(recorrido, 'clasesEdificio') || (recorrido.clasesEdificio !== null && !esClasesEdificio(recorrido.clasesEdificio))) return false
   const asistencia = borrador.asistenciaPedagogica as Record<string, unknown> | null
   return !!asistencia && ['si', 'no', ''].includes(String(asistencia.brinda)) &&

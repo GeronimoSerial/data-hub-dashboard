@@ -32,6 +32,39 @@ export async function corteMatriculaVigente(client: EjecutorSql): Promise<number
   return fila ? Number(fila.id) : null
 }
 
+// Totales de matrícula vigente de un instituto superior: carreras y alumnos
+// (suma de los alumnos de sus carreras). Sólo aparecen los CUEs que son
+// instituto; `cueAnexo` acota la lectura a uno (una consulta, sin ids de alumno).
+export interface TotalesInstituto {
+  carreras: number
+  alumnos: number
+}
+
+export async function totalesMatriculaInstitutos(
+  client: EjecutorSql,
+  cueAnexo?: string,
+): Promise<Map<string, TotalesInstituto>> {
+  const resultado = new Map<string, TotalesInstituto>()
+  const corte = await corteMatriculaVigente(client)
+  if (corte === null) return resultado
+  const filtro = cueAnexo === undefined ? '' : 'AND c.cue_anexo = ?'
+  const res = await client.execute({
+    sql: `SELECT c.cue_anexo, COUNT(DISTINCT c.id) AS carreras, COUNT(a.id) AS alumnos
+          FROM matricula_carrera c
+          LEFT JOIN matricula_alumno a ON a.carrera_id = c.id AND a.corte_id = c.corte_id
+          WHERE c.corte_id = ? ${filtro}
+          GROUP BY c.cue_anexo`,
+    args: cueAnexo === undefined ? [corte] : [corte, cueAnexo],
+  })
+  for (const fila of res.rows) {
+    const carreras = Number(fila.carreras ?? 0)
+    if (esCueInstituto(carreras)) {
+      resultado.set(String(fila.cue_anexo), { carreras, alumnos: Number(fila.alumnos ?? 0) })
+    }
+  }
+  return resultado
+}
+
 // Cantidad de carreras del CUE en un corte de matrícula (una consulta).
 export async function contarCarrerasVigentes(client: EjecutorSql, corteId: number, cueAnexo: string): Promise<number> {
   const res = await client.execute({

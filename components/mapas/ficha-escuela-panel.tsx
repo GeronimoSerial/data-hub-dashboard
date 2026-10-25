@@ -7,11 +7,13 @@ import { EstadoActualSeveridad, TINTA_POR_SEVERIDAD } from '@/components/infraes
 import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
+import { contar } from '@/lib/infraestructura/parte/instituto-ui'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa, valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
+import type { DatosInstitutoMapa } from '@/lib/infraestructura/parte-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
 import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
@@ -26,7 +28,7 @@ import { VistaPreviaEscuela, type VistaPreviaEscuelaProps } from './vista-previa
 import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
 
 interface FichaEscuelaPanelProps {
-  escuela: EscuelaMapaEnriquecida
+  escuela: EscuelaMapaEnriquecida & Partial<DatosInstitutoMapa>
   acceso: ReactNode
   mostrarEnlaceNominal: boolean
   onCerrar: () => void
@@ -211,7 +213,9 @@ export function FichaEscuelaPanel({
           <h2 ref={tituloRef} tabIndex={-1}>{escuela.nombre}</h2>
           <p>
             CUE {escuela.cueAnexo} · {etiquetaDepartamento(escuela.departamento)}
-            {escuela.niveles.length > 0 && ` · ${escuela.niveles.join(', ')}`}
+            {escuela.carreras !== undefined
+              ? ` · ${contar(escuela.carreras, 'carrera', 'carreras')}`
+              : escuela.niveles.length > 0 && ` · ${escuela.niveles.join(', ')}`}
             {escuela.alumnos > 0 && ` · ${FORMATO_NUMERO.format(escuela.alumnos)} alumnos`}
           </p>
         </header>
@@ -271,7 +275,7 @@ export function FichaEscuelaPanel({
                       {causadaPor && <><dt>Causada por</dt><dd>{causadaPor.motivo}</dd></>}
                       {afectacion.descripcion && <><dt>Descripción</dt><dd>{afectacion.descripcion}</dd></>}
                       <dt>Categoría</dt><dd>{CATEGORIA_META[afectacion.categoria].label}</dd>
-                      {mostrarEnlaceNominal && (
+                      {mostrarEnlaceNominal && escuela.carreras === undefined && (
                         <dd className="map-ficha-escuela__accion">
                           <button type="button" className="map-ficha-escuela__link" onClick={() => onVerAlumnosAlcanzados(afectacion.id)}>
                             Ver alumnos alcanzados

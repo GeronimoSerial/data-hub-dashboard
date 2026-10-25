@@ -38,6 +38,7 @@ export async function cargarCarrerasInstituto(client: EjecutorSql, cue: string):
         nombre: carrera.nombre,
         tipo: carrera.tipo,
         totalAlumnos: carrera.totalAlumnos,
+        rm: carrera.rm,
       })),
     }
   } catch (error) {

@@ -9,6 +9,10 @@ import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actua
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
 import { SelectorEstablecimiento, type ValorAlcanceEstablecimiento } from '@/components/infraestructura/selector-establecimiento'
+import { crearAfectacionVacia } from '@/components/infraestructura/afectacion-campos'
+import { InstitutoCamposAQuienAfecta } from '@/components/infraestructura/instituto-alcance-campos'
+import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
+import type { AlumnoElegido, CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { ResultadoCambioAHabitual } from '@/lib/infraestructura/consistencia-estado-activo'
@@ -27,7 +31,11 @@ const ASPECTOS: Array<{ id: AspectoCambio; etiqueta: string }> = [
 type Modo = 'eligiendo' | 'cambio' | 'solucion'
 
 export interface RevisarSituacionProps {
-  situacion: SituacionRecorrido & { secciones: number[]; alumnos: number[] }
+  /** Institutos superiores: CUE de la búsqueda de alumnos. */
+  cue?: string
+  /** Institutos superiores: carreras del CUE para elegir el alcance. Ausente en GE. */
+  carreras?: CarreraElegible[]
+  situacion: SituacionRecorrido & { secciones: number[]; alumnos: number[]; carreras?: number[]; alumnosElegidos?: AlumnoElegido[] }
   turnos: TurnoContexto[]
   sugerida: Severidad | null
   respuesta: RespuestaSituacion | undefined
@@ -48,6 +56,8 @@ export interface RevisarSituacionProps {
   habitual?: ResultadoCambioAHabitual
   /** Por afectación activa, el bloqueo de habitual si sigue activa (ver CamposClasesEdificio). */
   bloqueosHabitualPorAfectacion?: Record<string, string>
+  /** Institutos superiores: el alcance se elige por carreras. */
+  esInstituto?: boolean
 }
 
 function seccionesDe(turnos: TurnoContexto[]): number[] {
@@ -64,7 +74,13 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
     justificacionCritica: cambioGuardado?.justificacionCritica ?? '',
     justificacionCriticaDetalle: cambioGuardado?.justificacionCriticaDetalle ?? '',
   })
-  const [alcance, setAlcance] = useState<{ secciones: number[]; alumnos: number[]; alcanceEstablecimiento: ValorAlcanceEstablecimiento['alcance'] }>(() => {
+  const [alcance, setAlcance] = useState<{
+    secciones: number[]
+    alumnos: number[]
+    alcanceEstablecimiento: ValorAlcanceEstablecimiento['alcance']
+    carreras: number[]
+    alumnosElegidos: AlumnoElegido[]
+  }>(() => {
     const todas = seccionesDe(p.turnos)
     const secciones = cambioGuardado?.secciones ?? p.situacion.secciones
     const cubreTodaLaEscuela = todas.length > 0 && todas.every((id) => secciones.includes(id))
@@ -72,8 +88,13 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
       secciones,
       alumnos: cambioGuardado?.alumnos ?? p.situacion.alumnos,
       alcanceEstablecimiento: cubreTodaLaEscuela ? 'toda' : 'algunas',
+      carreras: cambioGuardado?.carreras ?? p.situacion.carreras ?? [],
+      alumnosElegidos: cambioGuardado?.alumnosElegidos ?? p.situacion.alumnosElegidos ?? [],
     }
   })
+  // Institutos: sólo las categorías con permiteAlumnos guardan alumnos (la regla del servidor).
+  const permiteAlumnos = CATEGORIA_META[p.situacion.categoria].permiteAlumnos
+  const alumnosEfectivos = permiteAlumnos ? alcance.alumnosElegidos : []
   const [clases, setClases] = useState<ValorClasesEdificio>(p.clasesEdificio)
   const [interrumpeTodo, setInterrumpeTodo] = useState(p.clasesEdificio.confirmarInterrupcionTotal ?? false)
   const [cuando, setCuando] = useState<EleccionVigencia>(VIGENCIA_AHORA)
@@ -114,12 +135,12 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
     clasesActuales = clases,
     interrumpeTodoActual = interrumpeTodo,
   ) {
+    const alcanceCompleto = p.carreras !== undefined
+      ? alcanceActual.carreras.length > 0
+      : alcanceActual.secciones.length > 0 && (p.situacion.categoria !== 'establecimiento' || alcanceActual.alcanceEstablecimiento !== '')
     const completo = aspectosActuales.length > 0 &&
       (!aspectosActuales.includes('gravedad') || gravedadCompleta(gravedadActual, p.sugerida)) &&
-      (!aspectosActuales.includes('alcance') || (
-        alcanceActual.secciones.length > 0 &&
-        (p.situacion.categoria !== 'establecimiento' || alcanceActual.alcanceEstablecimiento !== '')
-      )) &&
+      (!aspectosActuales.includes('alcance') || alcanceCompleto) &&
       (!aspectosActuales.includes('clases-edificio') || Boolean(clasesActuales.servicioEstado && clasesActuales.estadoEstablecimiento))
 
     if (!completo) {
@@ -134,8 +155,14 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
       if (gravedadActual.justificacionCriticaDetalle) cambio.justificacionCriticaDetalle = gravedadActual.justificacionCriticaDetalle
     }
     if (aspectosActuales.includes('alcance')) {
-      cambio.secciones = alcanceActual.secciones
-      if (p.situacion.categoria === 'alumnos') cambio.alumnos = alcanceActual.alumnos
+      if (p.carreras !== undefined) {
+        cambio.carreras = alcanceActual.carreras
+        cambio.alumnosElegidos = permiteAlumnos ? alcanceActual.alumnosElegidos : []
+        cambio.alumnos = (permiteAlumnos ? alcanceActual.alumnosElegidos : []).map((alumno) => alumno.id)
+      } else {
+        cambio.secciones = alcanceActual.secciones
+        if (p.situacion.categoria === 'alumnos') cambio.alumnos = alcanceActual.alumnos
+      }
     }
     if (aspectosActuales.includes('clases-edificio')) {
       p.onCambiarClasesEdificio({ ...clasesActuales, confirmarInterrupcionTotal: interrumpeTodoActual })
@@ -148,7 +175,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
     motivoId: p.motivoId ?? null,
     severidad: gravedad.severidad || null,
     justificacionCritica: gravedad.justificacionCritica || null,
-    alcance: alcance.secciones.length === 0
+    alcance: p.carreras !== undefined || alcance.secciones.length === 0
       ? null
       : alcance.alcanceEstablecimiento === 'toda' ? { tipo: 'toda' } : { tipo: 'algunas', secciones: alcance.secciones.length },
     clases: clases.servicioEstado || null,
@@ -156,10 +183,13 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   })
   const actual = cascada?.pendientes[0]
   const tipoRespondido = p.respuesta?.tipo
+  const alcanceIncompleto = p.carreras !== undefined
+    ? alcance.carreras.length === 0
+    : alcance.secciones.length === 0 || (p.situacion.categoria === 'establecimiento' && alcance.alcanceEstablecimiento === '')
   const bloqueIncompleto = aspectos.includes('gravedad') && !gravedadCompleta(gravedad, p.sugerida)
     ? { id: 'revisar-situacion-gravedad', mensaje: 'Complete la gravedad de esta situación.' }
-    : aspectos.includes('alcance') && (alcance.secciones.length === 0 || (p.situacion.categoria === 'establecimiento' && alcance.alcanceEstablecimiento === ''))
-      ? { id: 'revisar-situacion-alcance', mensaje: 'Elija a quién afecta esta situación.' }
+    : aspectos.includes('alcance') && alcanceIncompleto
+      ? { id: 'revisar-situacion-alcance', mensaje: p.carreras !== undefined ? 'Elija al menos una carrera para esta situación.' : 'Elija a quién afecta esta situación.' }
       : aspectos.includes('clases-edificio') && (!clases.servicioEstado || !clases.estadoEstablecimiento)
         ? { id: 'revisar-situacion-clases', mensaje: 'Indique cómo están las clases y el edificio.' }
         : null
@@ -212,7 +242,25 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-gravedad' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>
           )}
-          {aspectos.includes('alcance') && (p.situacion.categoria === 'alumnos'
+          {aspectos.includes('alcance') && (p.carreras !== undefined
+            ? <div id="revisar-situacion-alcance" className="revisar-situacion__bloque" tabIndex={-1}>
+              <h4 className="afectacion-campos__legend">¿A quiénes afecta?</h4>
+              <InstitutoCamposAQuienAfecta
+                cue={p.cue ?? ''}
+                idPrefijo={`rev-${p.situacion.id}`}
+                borrador={{ ...crearAfectacionVacia(p.situacion.id), categoria: p.situacion.categoria, carreras: alcance.carreras, alumnos: alumnosEfectivos.map((alumno) => alumno.id), alumnosElegidos: alumnosEfectivos }}
+                carreras={p.carreras}
+                permiteAlumnos={permiteAlumnos}
+                mostrarDescripcion={false}
+                onChange={(siguiente) => {
+                  const nuevo = { ...alcance, carreras: siguiente.carreras ?? [], alumnosElegidos: siguiente.alumnosElegidos ?? [], alumnos: siguiente.alumnos }
+                  setAlcance(nuevo)
+                  guardarCambio(aspectos, gravedad, nuevo)
+                }}
+              />
+              {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
+            </div>
+            : p.situacion.categoria === 'alumnos'
             ? <div id="revisar-situacion-alcance" className="revisar-situacion__bloque" tabIndex={-1}>
               <h4 className="afectacion-campos__legend">¿A quiénes afecta?</h4>
               <SelectorAlumnos turnos={p.turnos} alumnosSeleccionados={alcance.alumnos} onCambiar={(secciones, alumnos) => { const siguiente = { ...alcance, secciones, alumnos }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
@@ -228,7 +276,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
           {aspectos.includes('clases-edificio') && (
             <div id="revisar-situacion-clases" className="revisar-situacion__bloque" tabIndex={-1}>
               <div className="revisar-situacion__preguntas-edificio">
-                <CamposClasesEdificio valor={clases} onCambiar={(valor) => {
+                <CamposClasesEdificio esInstituto={p.esInstituto} valor={clases} onCambiar={(valor) => {
                   setClases(valor)
                   // Una afectación ya cerrada en esta actualización (hoja de salida de
                   // evacuación) conserva su cierre: el cambio de clases es sólo del edificio.
@@ -263,7 +311,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
         onConfirmar={() => { setPreguntandoAspectos(false); setModo('cambio'); guardarCambio() }}
       >
         {ASPECTOS.map((aspecto) => (
-          <Opcion key={aspecto.id} tipo="checkbox" label={aspecto.etiqueta} checked={aspectos.includes(aspecto.id)} onChange={(event) => {
+          <Opcion key={aspecto.id} tipo="checkbox" label={aspecto.id === 'alcance' && p.esInstituto ? 'A quién afecta (carreras / alumnos)' : aspecto.etiqueta} checked={aspectos.includes(aspecto.id)} onChange={(event) => {
             const marcado = event.currentTarget.checked
             const siguientes = marcado ? [...aspectos, aspecto.id] : aspectos.filter((id) => id !== aspecto.id)
             setAspectos(siguientes)

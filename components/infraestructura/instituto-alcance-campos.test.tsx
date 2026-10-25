@@ -223,3 +223,39 @@ describe('InstitutoCamposAQuienAfecta', () => {
     expect(llamadas).toHaveLength(0)
   })
 })
+
+describe('InstitutoCamposAQuienAfecta sin selección de alumnos', () => {
+  it('no muestra el buscador ni consulta alumnos, aunque haya carreras elegidas', () => {
+    const llamadas = stubBusqueda(() => jsonResponse({ ok: true, alumnos: [alumnoAna], truncado: false }))
+    const base: AfectacionBorrador = { ...crearAfectacionVacia('cliente-1'), carreras: [1], alumnosElegidos: [], alumnos: [] }
+    render(
+      <InstitutoCamposAQuienAfecta
+        cue="12345678"
+        idPrefijo="test"
+        borrador={base}
+        carreras={carreras}
+        permiteAlumnos={false}
+        onChange={() => {}}
+      />,
+    )
+    expect(screen.queryByLabelText('Alumnos (opcional)')).toBeNull()
+    expect(screen.getByText('Toda la carrera (40 alumnos)')).toBeTruthy()
+    expect(llamadas).toHaveLength(0)
+  })
+
+  it('distingue las carreras homónimas del CUE con tipo y RM en el selector', async () => {
+    const user = userEvent.setup()
+    const homonimas: CarreraElegible[] = [
+      { id: 1, nombre: 'Matemática', tipo: 'Profesorado', totalAlumnos: 40, rm: '1464/14' },
+      { id: 2, nombre: 'Matemática', tipo: 'Tecnicatura', totalAlumnos: 12, rm: '0770/21' },
+    ]
+    let actual: AfectacionBorrador = { ...crearAfectacionVacia('cliente-1'), carreras: [], alumnosElegidos: [] }
+    const onChange = (siguiente: AfectacionBorrador) => { actual = siguiente }
+    render(
+      <InstitutoCamposAQuienAfecta cue="12345678" idPrefijo="test" borrador={actual} carreras={homonimas} onChange={onChange} />,
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Carreras afectadas' }))
+    expect(await screen.findByRole('option', { name: 'Matemática — Profesorado (RM 1464/14)' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Matemática — Tecnicatura (RM 0770/21)' })).toBeInTheDocument()
+  })
+})

@@ -362,6 +362,32 @@ describe('instituto superior: modificar y retirar', () => {
     expect(cambio.status).toBe(201)
     expect(await filasCarreras(afectacion!.id)).toEqual([id.tecnicatura, id.profesorado].sort((a, b) => a - b))
   })
+
+  it('el historial lista los nombres de las carreras al informar y al cambiar el alcance', async () => {
+    const creada = await POST(
+      postReq(cuerpo(CUE_SUP, {
+        afectacionesNuevas: [{ motivo: 'Evacuación preventiva', severidad: 'Baja', carreras: [id.tecnicatura] }],
+      })),
+    )
+    expect(creada.status).toBe(201)
+    const [parte] = await getDb().select().from(infraParte).where(eq(infraParte.cueAnexo, CUE_SUP)).limit(1)
+    const [afectacion] = await getDb().select().from(infraAfectacion)
+      .where(and(eq(infraAfectacion.parteId, parte!.id), eq(infraAfectacion.motivo, 'Evacuación preventiva'))).limit(1)
+    expect(await filasCarreras(afectacion!.id)).toEqual([id.tecnicatura])
+    const alCrear = (await (await GET_HISTORIAL(historialReq(CUE_SUP))).json()).movimientos
+      .flatMap((m: { cambios: string[] }) => m.cambios).join('\n')
+    expect(alCrear).toContain('Alcanza a 1 carrera: Tecnicatura en Sistemas')
+
+    const cambio = await POST(
+      postReq(cuerpo(CUE_SUP, {
+        afectacionesModificadas: [{ id: afectacion!.id, carreras: [id.tecnicatura, id.profesorado] }],
+      })),
+    )
+    expect(cambio.status).toBe(201)
+    const alCambiar = (await (await GET_HISTORIAL(historialReq(CUE_SUP))).json()).movimientos
+      .flatMap((m: { cambios: string[] }) => m.cambios).join('\n')
+    expect(alCambiar).toMatch(/Alcanza a 2 carreras: (Tecnicatura en Sistemas, Profesorado de Historia|Profesorado de Historia, Tecnicatura en Sistemas)/)
+  })
 })
 
 describe('instituto superior: interrupción por carrera', () => {

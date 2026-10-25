@@ -9,6 +9,8 @@ export interface CandidataCausa {
   severidad?: Severidad
   secciones?: number
   alumnos?: number
+  /** Sólo institutos superiores: carreras de la situación. */
+  carreras?: number
 }
 
 const MS_POR_DIA = 24 * 60 * 60 * 1000

@@ -52,6 +52,25 @@ describe('describirMovimiento', () => {
     const diff = diffParte(crearSnapshotVacio(), { ...crearSnapshotVacio(), asistenciaPedagogica: { brinda: true, modalidades: ['Asistencia virtual', 'Cuadernillos impresos'] } })
     expect(describirMovimiento(diff)).toContain('Se brinda asistencia pedagógica: Asistencia virtual y Cuadernillos impresos')
   })
+  it('institutos con nombres: lista las carreras alcanzadas', () => {
+    const diff: DiffParte = {
+      ...normalizarDiff({}),
+      afectacionesAgregadas: [{ afectacionId: 'a1', motivo: 'Acceso interrumpido', categoria: 'alumnos', severidad: 'Baja', secciones: 2, alumnos: 2, unidad: 'carrera', carreras: ['A', 'B'] }],
+      alcancesCambiados: [{ afectacionId: 'a2', motivo: 'Inundación', unidad: 'carrera', seccionesAgregadas: 1, seccionesRetiradas: 0, alumnosAgregados: 0, alumnosRetirados: 0, carreras: ['A', 'B'], alumnosAlcanzados: 5 }],
+    }
+    const lineas = describirMovimiento(diff)
+    expect(lineas).toContain('Alcanza a 2 carreras: A, B (2 alumnos)')
+    expect(lineas).toContain('Alcanza a 2 carreras: A, B (5 alumnos)')
+  })
+
+  it('movimientos viejos sin nombres de carrera mantienen la redacción anterior', () => {
+    const diff: DiffParte = {
+      ...normalizarDiff({}),
+      afectacionesAgregadas: [{ afectacionId: 'a1', motivo: 'Acceso interrumpido', categoria: 'alumnos', severidad: 'Baja', secciones: 2, alumnos: 2, unidad: 'carrera' }],
+    }
+    expect(describirMovimiento(diff)).toContain('Alcanza a 2 carreras (2 alumnos)')
+  })
+
   it('diff vacío no produce líneas', () => {
     expect(describirMovimiento(diffVacio)).toEqual([])
   })

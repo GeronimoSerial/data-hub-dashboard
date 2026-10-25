@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MENSAJE_BORRADOR_PENDIENTE, ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
+import { vaciarEscriturasBorrador } from '@/lib/infraestructura/parte/borrador-formulario'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 import { MENSAJES_ESTADO, guardarBorrador as guardarBorradorEnvio } from '@/lib/infraestructura/parte/envio-offline'
@@ -129,8 +130,10 @@ function guardarReporte() {
   fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   cleanup()
+  // Las escrituras del borrador del test anterior terminan antes de aislar el almacén.
+  await vaciarEscriturasBorrador()
   localStorage.clear()
   sessionStorage.clear()
   globalThis.indexedDB = new IDBFactory()
@@ -1482,4 +1485,19 @@ describe('foto del reporte en el primer paso (T5)', () => {
     await act(async () => { await new Promise((resolver) => setTimeout(resolver, 0)) })
     expect(screen.queryByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeNull()
   })
+
+  it('al cambiar de paso, un error de envío anterior deja de mostrarse', async () => {
+    stubFetch({ error: 'dato inválido' }, 422)
+
+    renderFormulario()
+    await screen.findByRole('radio', { name: /Afecta al establecimiento/ })
+    guardarReporte()
+    expect(await screen.findByText('No se pudo enviar: dato inválido')).toBeInTheDocument()
+
+    volver()
+    expect(screen.queryByText('No se pudo enviar: dato inválido')).toBeNull()
+    // El borrador local se escribe en segundo plano: esperar evita que se filtre al test siguiente.
+    await waitFor(() => expect(localStorage.getItem(`parte-nuevo:draft:${props.cue}`)).not.toBeNull())
+  })
+
 })

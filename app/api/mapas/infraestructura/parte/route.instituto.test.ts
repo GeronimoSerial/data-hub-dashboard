@@ -112,4 +112,20 @@ describe('GET /api/mapas/infraestructura/parte para un instituto superior', () =
     expect(JSON.stringify(resto)).not.toMatch(/Secreto|Oculto|Ana|Luis/)
     expect(JSON.stringify(resto)).not.toMatch(/"alumnos":\s*\[/)
   })
+
+  it('el padrón de la ficha sale de la matrícula (carreras y alumnos), no de secciones GE', async () => {
+    const res = await GET(req())
+    const body = await res.json()
+    expect(body.datosPadron).toEqual({ niveles: [], secciones: 0, matriculaTotal: 2, turnos: [], carreras: 1 })
+  })
+
+  it('la ficha enriquecida de la escuela informa matrícula y carreras del instituto', async () => {
+    const { obtenerEscuelaFichaEnriquecida } = await import('@/lib/infraestructura/parte-mapa')
+    const resultado = await obtenerEscuelaFichaEnriquecida(CUE, { tipo: 'todo' })
+    expect(resultado.estado).toBe('ok')
+    if (resultado.estado !== 'ok') return
+    expect(resultado.escuela.alumnos).toBe(2)
+    expect(resultado.escuela.niveles).toEqual([])
+    expect(resultado.escuela.carreras).toBe(1)
+  })
 })

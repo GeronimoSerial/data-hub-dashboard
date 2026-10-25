@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
+import { vaciarEscriturasBorrador } from '@/lib/infraestructura/parte/borrador-formulario'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import type { CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
 
@@ -62,6 +63,16 @@ function llegarAPaso2() {
   continuar()
 }
 
+/** Paso 1 para "Inaccesibilidad de alumnos" (sólo esta categoría admite alumnos). */
+function llegarAPaso2ConAlumnos() {
+  fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+  const dialogo = screen.queryByRole('dialog')
+  if (dialogo) fireEvent.click(within(dialogo).getByRole('button', { name: 'Continuar' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+  continuar()
+}
+
 /** Desde el paso 3 (clases y edificio): avanza hasta Confirmar y guarda. */
 function guardar() {
   completarEstado()
@@ -75,8 +86,10 @@ function cuerpoDelPost(llamadas: { url: string; metodo: string; body?: string }[
   return post?.body ? JSON.parse(post.body) : undefined
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   cleanup()
+  // Las escrituras del borrador del test anterior terminan antes de aislar el almacén.
+  await vaciarEscriturasBorrador()
   localStorage.clear()
   sessionStorage.clear()
   globalThis.indexedDB = new IDBFactory()
@@ -116,37 +129,41 @@ describe('ReporteInicialForm para institutos superiores', () => {
     expect(cuerpo.servicioEducativo).toEqual({ estado: 'normal', alcance: { tipo: 'carrera', carreras: [1] } })
   })
 
-  it('envía los alumnos elegidos dentro de la carrera', async () => {
+  it('en "Afecta al establecimiento" no ofrece buscador de alumnos y no envía alumnos', async () => {
     const user = userEvent.setup()
     const llamadas = stubFetch([alumnoAna])
     renderInstituto()
     llegarAPaso2()
     await elegirCarrera(user, 'Enfermería')
-    await user.type(screen.getByPlaceholderText('Buscar por apellido, nombre o DNI completo'), 'Lop')
-    fireEvent.click(await screen.findByRole('checkbox', { name: /Lopez, Ana/ }))
+    expect(screen.queryByPlaceholderText('Buscar por apellido, nombre o DNI completo')).toBeNull()
+    expect(screen.queryByText('Alumnos (opcional)')).toBeNull()
     continuar()
     guardar()
 
     await waitFor(() => expect(cuerpoDelPost(llamadas)).toBeDefined())
     const cuerpo = cuerpoDelPost(llamadas)
     expect(cuerpo.afectacionesNuevas[0].carreras).toEqual([1])
-    expect(cuerpo.afectacionesNuevas[0].alumnos).toEqual([100])
+    expect(cuerpo.afectacionesNuevas[0].alumnos).toBeUndefined()
+    expect(llamadas.some((l) => l.url.includes('/matricula?'))).toBe(false)
   })
 
-  it('guarda carreras y alumnos en el borrador local', async () => {
+  it('envía los alumnos elegidos dentro de la carrera', async () => {
     const user = userEvent.setup()
-    stubFetch([alumnoAna])
+    const llamadas = stubFetch([alumnoAna])
     renderInstituto()
-    llegarAPaso2()
+    llegarAPaso2ConAlumnos()
     await elegirCarrera(user, 'Enfermería')
     await user.type(screen.getByPlaceholderText('Buscar por apellido, nombre o DNI completo'), 'Lop')
     fireEvent.click(await screen.findByRole('checkbox', { name: /Lopez, Ana/ }))
+    continuar()
+    continuar()
+    continuar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
 
-    await waitFor(() => {
-      const guardado = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
-      expect(guardado?.afectacion?.carreras).toEqual([1])
-      expect(guardado?.afectacion?.alumnos).toEqual([100])
-    })
+    await waitFor(() => expect(cuerpoDelPost(llamadas)).toBeDefined())
+    const cuerpo = cuerpoDelPost(llamadas)
+    expect(cuerpo.afectacionesNuevas[0].carreras).toEqual([1])
+    expect(cuerpo.afectacionesNuevas[0].alumnos).toEqual([100])
   })
 
   it('restaura un borrador anterior sin campos de institutos', async () => {
@@ -188,7 +205,8 @@ describe('ReporteInicialForm para institutos superiores', () => {
     continuar()
     guardar()
     expect(await screen.findByText('Situación guardada', undefined, { timeout: 4000 })).toBeTruthy()
-    expect(localStorage.getItem(claveBorrador)).toBeNull()
+    // La eliminación del borrador va en fila: la copia local se borra al terminar, no al mostrar la confirmación.
+    await waitFor(() => expect(localStorage.getItem(claveBorrador)).toBeNull())
   })
 
   it('descarta de un borrador restaurado las carreras que ya no están en el catálogo', async () => {
@@ -228,5 +246,62 @@ describe('ReporteInicialForm para institutos superiores', () => {
     guardar()
     await waitFor(() => expect(cuerpoDelPost(llamadas)).toBeDefined(), { timeout: 4000 })
     expect(cuerpoDelPost(llamadas).afectacionesNuevas[0].carreras).toEqual([1])
+  })
+
+  it('el mensaje de guardado nombra la institución', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderInstituto()
+    llegarAPaso2()
+    await elegirCarrera(user, 'Enfermería')
+    continuar()
+    guardar()
+    expect(await screen.findByText('Ya figura en el estado actual de su institución.', undefined, { timeout: 4000 })).toBeTruthy()
+  })
+
+
+  it('guarda carreras y alumnos en el borrador local', async () => {
+    const user = userEvent.setup()
+    stubFetch([alumnoAna])
+    renderInstituto()
+    llegarAPaso2ConAlumnos()
+    await elegirCarrera(user, 'Enfermería')
+    await user.type(screen.getByPlaceholderText('Buscar por apellido, nombre o DNI completo'), 'Lop')
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Lopez, Ana/ }))
+
+    await waitFor(() => {
+      const guardado = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
+      expect(guardado?.afectacion?.carreras).toEqual([1])
+      expect(guardado?.afectacion?.alumnos).toEqual([100])
+    })
+  })
+
+
+  it('en la evacuación habla de todo el instituto y de carreras', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderInstituto()
+    llegarAPaso2()
+    await elegirCarrera(user, 'Enfermería')
+    continuar()
+    fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
+    const dialogo = screen.getByRole('dialog')
+    expect(within(dialogo).getByText('¿Pasamos el alcance a todo el instituto?')).toBeTruthy()
+    expect(within(dialogo).getByText(/interrumpe todo el instituto, pero marcó sólo algunas carreras/)).toBeTruthy()
+    expect(within(dialogo).queryByText(/escuela/)).toBeNull()
+  })
+
+
+  it('un guardado que termina después de desmontar no deja una copia local que reaparezca en el próximo test', async () => {
+    stubFetch()
+    renderInstituto()
+    // Esperar la restauración inicial: sólo después el formulario guarda borradores.
+    await screen.findByRole('radio', { name: /Afecta al establecimiento/ })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    completarQuePaso()
+    // Desmontar sin esperar: el guardado del borrador queda en curso.
+    cleanup()
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(localStorage.getItem(claveBorrador)).toBeNull()
   })
 })

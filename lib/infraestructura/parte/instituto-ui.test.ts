@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  etiquetasDeCarreras,
   alcanceInstituto,
   conAlumnoAlternado,
   conCarrerasElegidas,
@@ -71,5 +72,35 @@ describe('esListaAlumnosElegidos', () => {
     expect(esListaAlumnosElegidos([ana])).toBe(true)
     expect(esListaAlumnosElegidos([{ id: 1 }])).toBe(false)
     expect(esListaAlumnosElegidos('x')).toBe(false)
+  })
+})
+
+describe('etiquetasDeCarreras', () => {
+  it('deja el nombre tal cual cuando no se repite dentro del CUE', () => {
+    const catalogo = [
+      { id: 1, nombre: 'Enfermería', tipo: 'Tecnicatura', totalAlumnos: 40, rm: 'RM 1' },
+      { id: 2, nombre: 'Medicina', tipo: 'Carrera', totalAlumnos: 120, rm: 'RM 2' },
+    ]
+    expect([...etiquetasDeCarreras(catalogo).values()]).toEqual(['Enfermería', 'Medicina'])
+  })
+
+  it('distingue las homónimas con tipo y RM', () => {
+    const catalogo = [
+      { id: 1, nombre: 'Matemática', tipo: 'Profesorado', totalAlumnos: 10, rm: '1464/14' },
+      { id: 2, nombre: 'Matemática', tipo: 'Tecnicatura', totalAlumnos: 12, rm: '0770/21' },
+      { id: 3, nombre: 'Enfermería', tipo: 'Tecnicatura', totalAlumnos: 40, rm: '9/10' },
+    ]
+    const etiquetas = etiquetasDeCarreras(catalogo)
+    expect(etiquetas.get(1)).toBe('Matemática — Profesorado (RM 1464/14)')
+    expect(etiquetas.get(2)).toBe('Matemática — Tecnicatura (RM 0770/21)')
+    expect(etiquetas.get(3)).toBe('Enfermería')
+  })
+
+  it('sin RM distingue sólo con el tipo', () => {
+    const catalogo = [
+      { id: 1, nombre: 'Matemática', tipo: 'Profesorado', totalAlumnos: 10 },
+      { id: 2, nombre: 'Matemática', tipo: 'Tecnicatura', totalAlumnos: 12 },
+    ]
+    expect(etiquetasDeCarreras(catalogo).get(2)).toBe('Matemática — Tecnicatura')
   })
 })

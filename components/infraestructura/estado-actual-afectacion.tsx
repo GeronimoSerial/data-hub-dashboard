@@ -1,6 +1,7 @@
 import type { JSX } from 'react'
 import { EstadoActualSeveridad } from './estado-actual-severidad'
 import { resumirAlcance, type AfectacionVigente } from './estado-actual-textos'
+import { contar } from '@/lib/infraestructura/parte/instituto-ui'
 
 // Nombres de los alumnos alcanzados, ya descifrados por la ruta. Cuando la
 // ruta no pudo resolver una identidad devuelve el id como nombre y el
@@ -43,7 +44,7 @@ export function EstadoActualAfectacion({ afectacion }: { afectacion: AfectacionV
             {carreras.map((carrera) => (
               <li key={carrera.id}>
                 {carrera.nombre}
-                {carrera.completa ? ' (toda la carrera)' : ` (${carrera.alumnos.length} alumnos)`}
+                {carrera.completa ? ' (toda la carrera)' : ` (${contar(carrera.alumnos.length, 'alumno', 'alumnos')})`}
                 {!carrera.completa && carrera.alumnos.length > 0 && (
                   <ul>
                     {carrera.alumnos.map((alumno) => (

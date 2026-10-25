@@ -10,6 +10,8 @@ export interface CarreraElegible {
   nombre: string
   tipo: string
   totalAlumnos: number
+  /** Resolución ministerial de la carrera; sólo sirve para distinguir homónimas. */
+  rm?: string
 }
 
 // Alumno elegido con lo necesario para mostrarlo sin volver a consultar. El
@@ -27,7 +29,7 @@ export interface SeleccionInstituto {
   alumnosElegidos: AlumnoElegido[]
 }
 
-function contar(cantidad: number, singular: string, plural: string): string {
+export function contar(cantidad: number, singular: string, plural: string): string {
   return cantidad === 1 ? `1 ${singular}` : `${cantidad} ${plural}`
 }
 
@@ -45,15 +47,42 @@ export function alcanceInstituto(
   return { carreras: carreras.length, alumnos }
 }
 
+/** "Alcanza a 2 carreras: A, B (15 alumnos)". Para el historial y el resumen con nombres. */
+export function textoAlcanceInstitutoConNombres(nombres: string[], alumnos: number): string {
+  const base = `Alcanza a ${contar(nombres.length, 'carrera', 'carreras')}: ${nombres.join(', ')}`
+  return alumnos > 0 ? `${base} (${contar(alumnos, 'alumno', 'alumnos')})` : base
+}
+
 /** "Alcanza a 2 carreras (15 alumnos)". Sin alumnos calculados, sólo la cantidad de carreras. */
 export function textoAlcanceInstituto(carreras: number, alumnos: number): string {
   const base = `Alcanza a ${contar(carreras, 'carrera', 'carreras')}`
   return alumnos > 0 ? `${base} (${contar(alumnos, 'alumno', 'alumnos')})` : base
 }
 
-/** Nombres de las carreras elegidas, en el orden del catálogo. */
+/**
+ * Etiqueta de cada carrera del CUE. Un nombre repetido dentro del CUE (p. ej.
+ * "Matemática" dos veces) se distingue con tipo y RM: "Matemática — Profesorado (RM 1464/14)".
+ */
+export function etiquetasDeCarreras(catalogo: CarreraElegible[]): Map<number, string> {
+  const cantidadPorNombre = new Map<string, number>()
+  for (const carrera of catalogo) cantidadPorNombre.set(carrera.nombre, (cantidadPorNombre.get(carrera.nombre) ?? 0) + 1)
+  const etiquetas = new Map<number, string>()
+  for (const carrera of catalogo) {
+    const repetida = (cantidadPorNombre.get(carrera.nombre) ?? 0) > 1
+    if (!repetida) {
+      etiquetas.set(carrera.id, carrera.nombre)
+      continue
+    }
+    const rm = carrera.rm ? ` (RM ${carrera.rm})` : ''
+    etiquetas.set(carrera.id, `${carrera.nombre} — ${carrera.tipo}${rm}`)
+  }
+  return etiquetas
+}
+
+/** Etiquetas de las carreras elegidas, en el orden del catálogo. */
 export function nombresDeCarreras(carreras: number[], catalogo: CarreraElegible[]): string[] {
-  return catalogo.filter((carrera) => carreras.includes(carrera.id)).map((carrera) => carrera.nombre)
+  const etiquetas = etiquetasDeCarreras(catalogo)
+  return catalogo.filter((carrera) => carreras.includes(carrera.id)).map((carrera) => etiquetas.get(carrera.id) ?? carrera.nombre)
 }
 
 /** Deja sólo los alumnos que siguen dentro de las carreras elegidas. */
