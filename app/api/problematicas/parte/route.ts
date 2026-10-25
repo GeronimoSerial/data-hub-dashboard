@@ -23,9 +23,9 @@ import {
 import { codigoSinAccesoParte, tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { normalizeCue } from '@/lib/infraestructura/cue'
-import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from '@/lib/infraestructura/ge-db'
-import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from '@/lib/infraestructura/impacto'
-import { listarIdentidadesPorPersonas } from '@/lib/infraestructura/identidad'
+import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
+import { alcanceGeParaCue, alcanceParaCue, type AlcanceProvider } from '@/lib/infraestructura/alcance'
+import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import { validarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
@@ -43,7 +43,6 @@ import {
   snapshotDesde,
   type ParteActual,
 } from '@/lib/infraestructura/parte-consulta'
-import { listarSeccionesDelCue } from '@/lib/infraestructura/secciones-cue'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { calcularEstadoServicioGeneral } from '@/lib/infraestructura/servicio-educativo'
@@ -111,12 +110,11 @@ function motivoCategoriaSeveridadDescripcionCoinciden(
 }
 
 async function seccionesEsperadas(
-  client: EjecutorSql,
-  corteId: number,
+  alcance: AlcanceProvider,
   geSectionIds: number[],
   alumnosSeleccionados: number[] | undefined,
 ): Promise<Map<number, { seccionCompleta: boolean; alumnos: Set<number> }>> {
-  const membresia = await obtenerMembresiaSecciones(client, { corteId, geSectionIds })
+  const membresia = await alcance.listMembers(geSectionIds)
   const seleccionados = new Set(alumnosSeleccionados ?? [])
   const resultado = new Map<number, { seccionCompleta: boolean; alumnos: Set<number> }>()
   for (const geSectionId of geSectionIds) {
@@ -155,8 +153,7 @@ function seccionesCoincidenConEsperadas(
 // barato (campos escalares) va primero para no pagar la consulta de
 // membresía en el caso común de una afectación genuinamente nueva.
 async function buscarAfectacionEquivalente(
-  client: EjecutorSql,
-  corteId: number,
+  alcance: AlcanceProvider,
   candidatas: Afectacion[],
   entrada: {
     motivo: string
@@ -173,7 +170,7 @@ async function buscarAfectacionEquivalente(
     (existente.causadaPorId ?? null) === (entrada.causadaPorId ?? null),
   )
   if (posibles.length === 0) return undefined
-  const esperadas = await seccionesEsperadas(client, corteId, entrada.secciones, entrada.alumnos)
+  const esperadas = await seccionesEsperadas(alcance, entrada.secciones, entrada.alumnos)
   return posibles.find((existente) => seccionesCoincidenConEsperadas(existente, esperadas))
 }
 
@@ -234,8 +231,10 @@ async function handleGET(request: Request) {
   let identidades = new Map<number, { nombre: string; apellido: string }>()
   if (idsAlumnos.size > 0) {
     try {
-      const resueltas = await listarIdentidadesPorPersonas(client, [...idsAlumnos])
-      identidades = new Map(resueltas.map((i) => [i.gePersonId, { nombre: i.nombre, apellido: i.apellido }]))
+      const resueltas = await alcanceParaCue(client, corte.id, cue.value).resolveIdentities([...idsAlumnos])
+      // La clave es el id de miembro (en GE, el ge_person_id que ya viaja en
+      // alumnos[].gePersonId de la respuesta).
+      identidades = new Map(resueltas.map((i) => [i.miembroId, { nombre: i.nombre, apellido: i.apellido }]))
     } catch {
       // Degradar a mostrar el id solo (ver map abajo): nunca se cae la
       // pantalla de estado actual por no poder resolver un nombre.
@@ -501,13 +500,20 @@ async function handlePOST(request: Request) {
     return Response.json({ error: bloqueo.mensaje, codigo: bloqueo.codigo }, { status: 400 })
   }
 
-  const secciones = await listarSeccionesDelCue(client, corteId, cue.value)
-  const seccionesCueSet = new Set(secciones.map((s) => s.geSectionId))
-  const turnosCueSet = new Set(secciones.map((s) => s.turno))
-  const seccionInvalida = (ids: number[]) => ids.some((id) => !seccionesCueSet.has(id))
+  // Una sola instancia para toda la validación y el snapshot: la lectura de
+  // ge_seccion se hace una vez y se reutiliza (ver ge.ts).
+  const alcance = alcanceGeParaCue(client, corteId, cue.value)
+  const unidades = await alcance.listUnits()
+  const unidadesCueSet = new Set(unidades.map((u) => u.id))
+  const turnosCueSet = new Set(unidades.map((u) => u.turno))
+  const seccionInvalida = (ids: number[]) => ids.some((id) => !unidadesCueSet.has(id))
   // La sugerida depende del alcance real (todas las secciones del CUE), igual
   // que en el formulario: sólo así cliente y servidor exigen lo mismo.
-  const todasLasSecciones = secciones.map((s) => s.geSectionId)
+  const todasLasSecciones = unidades.map((u) => u.id)
+  // Snapshot GE-shaped (ParteActual.secciones): calcularEstadoServicioGeneral
+  // y la respuesta siguen leyendo las filas de sección originales, desde la
+  // misma lectura cacheada de la instancia.
+  const secciones = await alcance.listarSeccionesGe()
 
   for (const { input: entrada } of nuevasConCategoria) {
     if (seccionInvalida(entrada.secciones)) {
@@ -543,7 +549,7 @@ async function handlePOST(request: Request) {
   async function alumnosPertenecenASecciones(geSectionIds: number[], alumnoIds: number[] | undefined) {
     if (!alumnoIds || alumnoIds.length === 0) return true
     if (geSectionIds.length === 0) return false
-    const membresia = await obtenerMembresiaSecciones(client, { corteId, geSectionIds })
+    const membresia = await alcance.listMembers(geSectionIds)
     const todos = new Set<number>()
     for (const set of membresia.values()) for (const id of set) todos.add(id)
     return alumnoIds.every((id) => todos.has(id))
@@ -557,7 +563,7 @@ async function handlePOST(request: Request) {
 
   for (const { input: entrada, categoria } of nuevasConCategoria) {
     if (categoria !== 'alumnos') continue
-    const membresia = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: entrada.secciones })
+    const membresia = await alcance.listMembers(entrada.secciones)
     const alumnos = new Set(entrada.alumnos ?? [])
     const todasConAlumno = entrada.secciones.every((seccion) =>
       [...(membresia.get(seccion) ?? [])].some((id) => alumnos.has(id)),
@@ -756,7 +762,7 @@ async function handlePOST(request: Request) {
       // más arriba, que pudo quedar desactualizada por la misma carrera.
       const [parteFilaActual] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
       const { afectaciones: afectacionesActuales, servicioAlcance: servicioAlcanceActual } =
-        await obtenerAfectacionesYServicio(tx, clienteGeEnTx, parteId, corteId)
+        await obtenerAfectacionesYServicio(tx, clienteGeEnTx, cue.value, parteId, corteId)
       const actualAntesReal: ParteActual = parteFilaActual
         ? {
             periodo,
@@ -793,8 +799,7 @@ async function handlePOST(request: Request) {
         // contenido coincide exactamente con una ya vigente, esta entrada es
         // un no-op.
         const equivalente = await buscarAfectacionEquivalente(
-          clienteGeEnTx,
-          corteId,
+          alcanceParaCue(clienteGeEnTx, corteId, cue.value),
           afectacionesVigentesActuales,
           entrada,
           categoria,
@@ -936,7 +941,7 @@ async function handlePOST(request: Request) {
       // Fotografía "después", dentro de la misma transacción: si el diff
       // resulta vacío hay que poder revertir todo lo anterior.
       const { afectaciones: afectacionesDespues, servicioAlcance: servicioAlcanceDespues } =
-        await obtenerAfectacionesYServicio(tx, clienteGeEnTx, parteId, corteId)
+        await obtenerAfectacionesYServicio(tx, clienteGeEnTx, cue.value, parteId, corteId)
       const [parteDespues] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
       const despues = snapshotDesde(
         {

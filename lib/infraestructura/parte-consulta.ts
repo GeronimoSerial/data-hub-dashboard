@@ -16,11 +16,11 @@ import {
   infraPeriodo,
   infraServicioAlcance,
 } from '@/lib/db/schema'
-import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
+import { asegurarGeAdjuntada } from './impacto'
 import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
 import { severidadDelMovimiento } from './severidad-movimiento'
 import type { DiffParte } from './movimiento-diff'
-import { listarSeccionesDelCue } from './secciones-cue'
+import { alcanceGeParaCue, alcanceParaCue } from './alcance'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
 import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
@@ -126,6 +126,7 @@ export async function listarSituacionesRecientes(
 async function cargarAfectaciones(
   dbEjecutor: DbEjecutor,
   client: EjecutorSql,
+  cueAnexo: string,
   parteId: string,
   corteId: number,
 ): Promise<Afectacion[]> {
@@ -161,10 +162,7 @@ async function cargarAfectaciones(
   // Una sola consulta de membresía para TODAS las secciones de TODAS las
   // afectaciones del parte, nunca una por afectación.
   const todasLasSecciones = [...new Set(seccionesRows.map((s) => s.geSectionId))]
-  const membresia = await obtenerMembresiaSecciones(client, {
-    corteId,
-    geSectionIds: todasLasSecciones,
-  })
+  const membresia = await alcanceParaCue(client, corteId, cueAnexo).listMembers(todasLasSecciones)
 
   return filas.map((fila): Afectacion => {
     const seccionIds = seccionesPorAfectacion.get(fila.id) ?? []
@@ -233,10 +231,11 @@ async function cargarServicioAlcance(
 export async function obtenerAfectacionesYServicio(
   dbEjecutor: DbEjecutor,
   client: EjecutorSql,
+  cueAnexo: string,
   parteId: string,
   corteId: number,
 ): Promise<{ afectaciones: Afectacion[]; servicioAlcance: ServicioAlcance[] }> {
-  const afectaciones = await cargarAfectaciones(dbEjecutor, client, parteId, corteId)
+  const afectaciones = await cargarAfectaciones(dbEjecutor, client, cueAnexo, parteId, corteId)
   const servicioAlcance = await cargarServicioAlcance(dbEjecutor, parteId)
   return { afectaciones, servicioAlcance }
 }
@@ -251,7 +250,7 @@ export async function obtenerParteActual(
 
   const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
-  const secciones = await listarSeccionesDelCue(client, corteId, cueAnexo)
+  const secciones = await alcanceGeParaCue(client, corteId, cueAnexo).listarSeccionesGe()
 
   const [parteRow] = await db
     .select()
@@ -266,6 +265,7 @@ export async function obtenerParteActual(
   const { afectaciones, servicioAlcance } = await obtenerAfectacionesYServicio(
     db,
     client,
+    cueAnexo,
     parteRow.id,
     corteId,
   )
