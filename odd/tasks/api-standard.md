@@ -33,7 +33,16 @@ Findings across the other 69 files:
 | public downloads | materiales/[id]/descargar GET, veredicto/compartido/[token]/pdf GET | public / share token |
 
 ### Limiter decisions (S4)
-Filled in by T3; every limiter must be justified here.
+Per-IP fixed window of 60 s (lib/http/limitador.ts, in-memory per instance):
+- auth/ge-login POST, 10: public login endpoint, brute-force target.
+- problematicas/verificaciones/[id]/{canjear-sesion,responder,validar-token,vincular-movimiento} POST, 20: public, token-guarded; limits token guessing.
+- veredicto/compartido/[token]/pdf GET, 10: public share link that renders a PDF (expensive).
+- materiales/[id]/descargar GET, 30: public file download.
+- mapas/infraestructura (root), escuelas, totales GET, 60: public unauthenticated map reads.
+- infraestructura/exportar, situacion/export, veredictos/pdf GET, 10: authenticated but expensive exports/PDF generation.
+- problematicas/acceso keeps its existing ipExcedeLimite; no second limiter.
+- auth/[...all] gets no app limiter: better-auth applies its own rate limiting in production.
+- All other routes are authenticated and cheap: no limiter.
 
 ### Consolidation proposal (S5, not implemented)
 - infraestructura/radar-meteo/{alertas,resumen,escuela/[cueAnexo]} + radar-meteo → one resource with `?vista=` / `?cue=`.
@@ -47,9 +56,13 @@ Filled in by T3; every limiter must be justified here.
 
 ## Tasks
 - T1 [S2,S5] inventory + findings — inline — done
-- T2 [S3] characterization tests per group — haiku Orca workers, sonnet-low review — pending
-- T3 [S4] wrap remaining routes with ruta(), limiters where justified — haiku Orca workers, sonnet-low review — pending
+- T2 [S3] characterization tests per group (4 files, 320 cases, 1 skipped: ge-login POST from an allowed origin needs the external GE SSO) — haiku Orca workers, sonnet-low review (1 blocker: mapas froze shape only; fixed to full bodies, regenerated against pre-wrap code) — done (0900d6ba, 82213865)
+- T3 [S4] all 79 route.ts wrapped with ruta(), 13 limiters — haiku Orca workers + 2 routes inline, sonnet-low review — done (bc3490ef, d9ec943b, 1593bbbb, 21ae9c44)
 
 ## Log
 - L1 (2026-10-25) user: "Debemos mejorar toda la parte de apis y eso que hoy no esta muy profesional y listo para sobrecargas o debugging."
 - L2 inventory: 79 route.ts, 69 not wrapped, 0 console.* in handlers.
+- L3 characterization: PDF byte length embeds the date (flaky) -> PDFs freeze status/headers and the %PDF- signature only.
+- L4 several tests called handlers with no Request (GET()); ruta() needs one (Next always passes it), so tests now pass a Request. Snapshots unchanged by this.
+- L5 vitest.setup.ts resets all limiters before each test (module-level state made exportar's sibling test hit 429).
+- L6 checks: pnpm vitest run app/api --maxWorkers=4: 74 files, 850 passed, 1 skipped; pnpm vitest run lib/http: 21 passed; pnpm tsc --noEmit -p .: 0 errors; pnpm lint: 0 errors, 36 warnings (19 are consistent-type-imports in the new characterization tests). No .snap file changed after 82213865.
