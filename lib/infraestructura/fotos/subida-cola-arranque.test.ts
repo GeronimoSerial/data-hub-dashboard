@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Blob as NodeBlob } from 'node:buffer'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { abrirAlmacenParte } from '../parte/almacen-indexeddb'
 import { confirmarFormulario, guardarClaveEnvioFormulario } from '../parte/borrador-formulario'
 import { declararFotosFormulario } from './flujo-formulario'
@@ -12,6 +13,9 @@ vi.mock('../parte/feature-flags-client', () => ({
 
 const DRAFT = 'draft-arranque'
 const ATTACHMENT = 'attachment-arranque'
+
+// fake-indexeddb uses Node structuredClone; jsdom Blob instances lose their bytes there.
+beforeEach(() => { vi.stubGlobal('Blob', NodeBlob) })
 
 afterEach(async () => {
   vi.unstubAllGlobals()

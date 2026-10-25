@@ -6,6 +6,8 @@ import Image from 'next/image'
 import styles from './galeria-evidencia.module.css'
 import { CargaEvidencia } from './carga-evidencia'
 import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
+import { EVENTO_FOTOS, obtenerOperacionFotos } from '@/lib/infraestructura/fotos/operaciones'
+import { iniciarSubidaFotos } from '@/lib/infraestructura/fotos/subida-cola'
 
 type FotoEvidencia = { attachmentId: string; thumbnailUrl: string }
 type MovimientoEvidencia = {
@@ -50,6 +52,21 @@ export function GaleriaEvidencia({
   const [cargando, setCargando] = useState(false)
   const [recarga, setRecarga] = useState(0)
   const [aviso, setAviso] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    const actualizarEstado = () => {
+      if (typeof indexedDB === 'undefined') return
+      void obtenerOperacionFotos(`evidencia-ficha:${cue}`).then((op) => {
+        if (active && op) setAviso(`Carga de fotos: ${op.estado}.`)
+      }).catch(() => undefined)
+    }
+    const actualizar = () => { actualizarEstado(); setError(false); setRecarga((n) => n + 1) }
+    window.addEventListener(EVENTO_FOTOS, actualizar)
+    actualizarEstado()
+    if (typeof indexedDB !== 'undefined') iniciarSubidaFotos()
+    return () => { active = false; window.removeEventListener(EVENTO_FOTOS, actualizar) }
+  }, [cue])
 
   useEffect(() => {
     let active = true
@@ -121,6 +138,7 @@ export function GaleriaEvidencia({
       </div>
       {cargando && (
         <CargaEvidencia
+          key={cue}
           cue={cue}
           movimientoBaseId={movimientoBaseId}
           urlCargarParte={urlCargarParte}

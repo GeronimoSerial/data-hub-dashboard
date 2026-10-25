@@ -1,4 +1,10 @@
 import '@testing-library/jest-dom/vitest'
+import { webcrypto } from 'node:crypto'
+
+// jsdom provides randomUUID but not SubtleCrypto; photo tests hash real persisted bytes.
+if (!globalThis.crypto?.subtle) {
+  Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
+}
 
 class ResizeObserverStub {
   observe() {}

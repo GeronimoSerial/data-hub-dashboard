@@ -1,9 +1,12 @@
 import { procesarFotoPersistida } from './pipeline'
-import { encolarSubidasFotos, confirmarSubidasFotos, type NuevaSubidaFoto } from './subida-cola'
+import { encolarSubidasFotos, type NuevaSubidaFoto } from './subida-cola'
+import { declararOperacionFotos } from './operaciones'
 
 export type FotoElegida = { attachmentId: string; original: Blob }
 export type FotoPreparada = {
   attachmentId: string
+  optimizadaSha256?: string
+  miniaturaSha256?: string
   bytesOptimizado: number
   bytesMiniatura: number
   optimizadaContentType: 'image/jpeg'
@@ -62,29 +65,5 @@ export async function declararFotosFormulario({
   idempotencyKey: string
   fotos: readonly FotoPreparada[]
 }): Promise<void> {
-  if (fotos.length === 0) return
-  const response = await fetch('/api/problematicas/parte/evidencia', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      movimientoBaseId,
-      cue,
-      idempotencyKey,
-      fotos: fotos.map((foto) => ({
-        attachmentId: foto.attachmentId,
-        optimizadaSize: foto.bytesOptimizado,
-        optimizadaContentType: foto.optimizadaContentType,
-        miniaturaSize: foto.bytesMiniatura,
-        miniaturaContentType: foto.miniaturaContentType,
-      })),
-    }),
-  })
-  if (response.status === 404) {
-    const cuerpo = (await response.json().catch(() => null)) as { code?: string } | null
-    if (cuerpo?.code === 'sin_parte') throw new SinParteError()
-  }
-  if (!response.ok) throw new Error('No se pudieron asociar las fotos; se conservaron en este dispositivo.')
-  const result = await response.json() as { movimientoId?: string }
-  if (!result.movimientoId) throw new Error('El servidor no confirmó la evidencia fotográfica.')
-  await confirmarSubidasFotos(draftId, result.movimientoId, fotos.map((foto) => foto.attachmentId))
+  await declararOperacionFotos({ draftId, movimientoBaseId, cue, idempotencyKey, fotos })
 }

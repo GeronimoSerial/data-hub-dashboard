@@ -289,7 +289,9 @@ function borrarRegistro(nombre: string, store: NombreStore, clave: string): Prom
 
 export interface AlmacenParte {
   guardarContexto(contexto: IdentidadBorradorLocal & object): Promise<void>
+  guardarContextoSiActual(contexto: IdentidadBorradorLocal & object, claveAnterior?: string): Promise<boolean>
   obtenerContexto<T = unknown>(draftId: string): Promise<T | null>
+  obtenerContextos<T = unknown>(): Promise<T[]>
   guardarBorrador(registro: RegistroBorradorLocal): Promise<void>
   obtenerBorrador(draftId: string): Promise<RegistroBorradorLocal | null>
   /** Borra el borrador sólo si su generación sigue siendo la confirmada. Devuelve si borró. */
@@ -317,7 +319,21 @@ export async function abrirAlmacenParte(nombre: string = NOMBRE_DB_PARTE): Promi
   await conexion(nombre)
   return {
     guardarContexto: (contexto) => escribirRegistro(nombre, STORES_PARTE.contextos, contexto),
+    guardarContextoSiActual: (contexto, claveAnterior) =>
+      operar(nombre, [STORES_PARTE.contextos], 'readwrite', (tx) => {
+        const store = tx.objectStore(STORES_PARTE.contextos)
+        const req = store.get(contexto.draftId)
+        let guardado = false
+        req.onsuccess = () => {
+          const actual = req.result as IdentidadBorradorLocal | undefined
+          if (actual?.idempotencyKey !== claveAnterior) return
+          store.put(contexto)
+          guardado = true
+        }
+        return () => guardado
+      }),
     obtenerContexto: (draftId) => leerRegistro(nombre, STORES_PARTE.contextos, draftId),
+    obtenerContextos: () => leerTodos(nombre, STORES_PARTE.contextos),
     guardarBorrador: (registro) => escribirRegistro(nombre, STORES_PARTE.borradores, registro),
     obtenerBorrador: (draftId) => leerRegistro<RegistroBorradorLocal>(nombre, STORES_PARTE.borradores, draftId),
     eliminarBorradorSiGeneracion: (draftId, generacion) =>

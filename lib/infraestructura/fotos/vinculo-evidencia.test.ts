@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { IDBFactory } from 'fake-indexeddb'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { abrirAlmacenParte } from '../parte/almacen-indexeddb'
 import { confirmarFormulario, guardarClaveEnvioFormulario } from '../parte/borrador-formulario'
 import { declararFotosFormulario } from './flujo-formulario'
@@ -38,9 +39,10 @@ async function encolarFoto() {
   }])
 }
 
+beforeEach(() => { vi.stubGlobal('indexedDB', new IDBFactory()) })
 afterEach(async () => {
-  vi.unstubAllGlobals()
   await vaciarAlmacen()
+  vi.unstubAllGlobals()
 })
 
 describe('photo jobs bind to the evidencia movement', () => {

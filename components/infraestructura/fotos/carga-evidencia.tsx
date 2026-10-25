@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import Link from 'next/link'
 import { declararFotosFormulario, SinParteError, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 import { SelectorFotosFormulario } from './selector-fotos-formulario'
 import styles from './galeria-evidencia.module.css'
+import { EVENTO_FOTOS, obtenerOperacionFotos, type OperacionFoto } from '@/lib/infraestructura/fotos/operaciones'
+import { iniciarSubidaFotos, drenarColaFotos } from '@/lib/infraestructura/fotos/subida-cola'
 
 const DRAFT_ID_PREFIX = 'evidencia-ficha:'
 
@@ -25,28 +27,49 @@ export function CargaEvidencia({
   onCancelar: () => void
 }): JSX.Element {
   const draftId = `${DRAFT_ID_PREFIX}${cue}`
-  const [clave] = useState(() => crypto.randomUUID())
+  const clave = useRef<string | null>(null)
+  const [operacion, setOperacion] = useState<OperacionFoto | null>(null)
+  const [restaurando, setRestaurando] = useState(true)
   const [preparadas, setPreparadas] = useState<readonly FotoPreparada[]>([])
   const [cantidad, setCantidad] = useState(0)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sinParte, setSinParte] = useState(false)
 
+  useEffect(() => {
+    let active = true
+    const actualizar = () => {
+      void obtenerOperacionFotos(draftId).then((op) => {
+        if (!active) return
+        setOperacion(op)
+        setRestaurando(false)
+      }).catch(() => {
+        if (active) { setRestaurando(false); setError('No se pudo abrir el almacenamiento local de fotos.') }
+      })
+    }
+    actualizar()
+    window.addEventListener(EVENTO_FOTOS, actualizar)
+    iniciarSubidaFotos()
+    return () => { active = false; window.removeEventListener(EVENTO_FOTOS, actualizar) }
+  }, [draftId])
+
   const listas = cantidad > 0 && preparadas.length === cantidad
+  const pendiente = operacion && operacion.estado !== 'confirmada' ? operacion : null
 
   async function guardar(): Promise<void> {
-    if (!listas) return
+    if (enviando || (!listas && !pendiente)) return
     setEnviando(true)
     setError(null)
     setSinParte(false)
     try {
       await declararFotosFormulario({
         draftId,
-        movimientoBaseId: movimientoBaseId ?? undefined,
+        movimientoBaseId: pendiente?.movimientoBaseId ?? movimientoBaseId ?? undefined,
         cue,
-        idempotencyKey: clave,
-        fotos: preparadas,
+        idempotencyKey: pendiente?.idempotencyKey ?? (clave.current ??= crypto.randomUUID()),
+        fotos: pendiente?.fotos ?? preparadas,
       })
+      await drenarColaFotos()
       onGuardado()
     } catch (reason) {
       setSinParte(reason instanceof SinParteError)
@@ -57,7 +80,9 @@ export function CargaEvidencia({
 
   return (
     <div className={styles.upload} data-testid="carga-evidencia">
-      <SelectorFotosFormulario draftId={draftId} onPreparadasChange={setPreparadas} onCountChange={setCantidad} />
+      {!restaurando && !pendiente && !enviando && <SelectorFotosFormulario draftId={draftId} onPreparadasChange={setPreparadas} onCountChange={setCantidad} />}
+      {restaurando && <p role="status">Recuperando cargas guardadas…</p>}
+      {operacion && <p role="status">Carga de fotos: {operacion.estado}. {pendiente ? `${pendiente.fotos.length} fotos conservadas en este dispositivo.` : ''}</p>}
       <p className={styles.uploadNote}>Hasta 3 fotos por actualización del parte.</p>
       {error ? (
         <p role="alert">
@@ -76,8 +101,8 @@ export function CargaEvidencia({
         <button type="button" className={styles.browse} onClick={onCancelar} disabled={enviando}>
           Cancelar
         </button>
-        <button type="button" className={styles.save} onClick={() => void guardar()} disabled={!listas || enviando}>
-          {enviando ? 'Guardando…' : cantidad > 1 ? `Guardar ${cantidad} fotos` : 'Guardar foto'}
+        <button type="button" className={styles.save} onClick={() => void guardar()} disabled={restaurando || (!listas && !pendiente) || enviando}>
+          {enviando ? 'Guardando…' : pendiente ? 'Reintentar carga guardada' : cantidad > 1 ? `Guardar ${cantidad} fotos` : 'Guardar foto'}
         </button>
       </div>
     </div>

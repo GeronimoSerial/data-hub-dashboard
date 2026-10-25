@@ -1,5 +1,7 @@
 import { abrirAlmacenParte, type TrabajoEnvioLocal } from '../parte/almacen-indexeddb'
 import { fetchReportesOfflineFeatures } from '../parte/feature-flags-client'
+import { hashFoto } from './hash'
+import { recuperarOperacionesFotos, actualizarEstadosOperaciones, notificarOperacionesFotos, proximoReintentoOperacion } from './operaciones'
 
 const AUTHORIZATIONS_URL = '/api/problematicas/parte/adjuntos/autorizaciones'
 const UPLOAD_BASE_URL = '/api/problematicas/parte/adjuntos'
@@ -17,6 +19,8 @@ type AutorizacionVariante = {
 type AutorizacionAdjunto = { attachmentId: string; optimizada: AutorizacionVariante; miniatura: AutorizacionVariante }
 type DatosTrabajoFoto = {
   attachmentId: string
+  optimizadaSha256?: string
+  miniaturaSha256?: string
   movimientoId?: string
   bytesOptimizado: number
   bytesMiniatura: number
@@ -68,11 +72,15 @@ export async function encolarSubidasFotos(fotos: readonly NuevaSubidaFoto[]): Pr
         throw new TypeError('Photo upload requires a draft, attachment, and optimized JPEG variants.')
       }
       const key = idempotencyKey(foto.attachmentId)
+      const [optimizadaSha256, miniaturaSha256] = await Promise.all([
+        hashFoto(foto.optimizada), hashFoto(foto.miniatura),
+      ])
+      const cuerpoHash = `${optimizadaSha256}:${miniaturaSha256}`
       const existing = (await almacen.obtenerTrabajosEnvio()).find((job) => job.idempotencyKey === key)
       if (existing) {
         const data = leerDatos(existing)
         if (existing.draftId !== foto.draftId || data.bytesOptimizado !== foto.optimizada.size
-          || data.bytesMiniatura !== foto.miniatura.size) {
+          || data.bytesMiniatura !== foto.miniatura.size || existing.cuerpoHash !== cuerpoHash) {
           throw new Error('An attachment identifier cannot be reused with different photo data.')
         }
         continue
@@ -84,10 +92,12 @@ export async function encolarSubidasFotos(fotos: readonly NuevaSubidaFoto[]): Pr
         draftId: foto.draftId,
         cuerpo: {
           attachmentId: foto.attachmentId,
+          optimizadaSha256,
+          miniaturaSha256,
           bytesOptimizado: foto.optimizada.size,
           bytesMiniatura: foto.miniatura.size,
         } satisfies DatosTrabajoFoto,
-        cuerpoHash: `${foto.optimizada.size}:${foto.miniatura.size}`,
+        cuerpoHash,
         estado: 'pendiente',
         tipo: 'foto',
         version: 1,
@@ -108,6 +118,7 @@ export async function confirmarSubidasFotos(
   draftId: string,
   movimientoId: string,
   attachmentIds?: readonly string[],
+  iniciar = true,
 ): Promise<void> {
   const almacen = await abrirAlmacenParte()
   try {
@@ -123,7 +134,7 @@ export async function confirmarSubidasFotos(
   } finally {
     almacen.cerrar()
   }
-  iniciarSubidaFotos()
+  if (iniciar) iniciarSubidaFotos()
 }
 
 export async function descartarSubidaFotoNoDeclarada(attachmentId: string): Promise<void> {
@@ -148,10 +159,10 @@ export function iniciarSubidaFotos(): () => void {
   // Every call drains: callers start the queue right after binding jobs to a movement, and an
   // earlier drain (e.g. the parte confirmation) may already have finished without seeing them.
   if (stopListeners) {
-    void drenarColaFotos()
+    void drenarColaFotos().catch(() => undefined)
     return stopListeners
   }
-  const trigger = () => { void drenarColaFotos() }
+  const trigger = () => { void drenarColaFotos().catch(() => undefined) }
   window.addEventListener('online', trigger)
   window.addEventListener('pageshow', trigger)
   document.addEventListener('visibilitychange', trigger)
@@ -188,6 +199,7 @@ export async function drenarColaFotos(): Promise<void> {
     return otraPasada
   }
   running = withPhotoLock(async () => {
+    await recuperarOperacionesFotos()
     const almacen = await abrirAlmacenParte()
     try {
       await recuperarInterrumpidas(almacen)
@@ -207,6 +219,15 @@ export async function drenarColaFotos(): Promise<void> {
       }
     } finally {
       almacen.cerrar()
+      await actualizarEstadosOperaciones()
+      notificarOperacionesFotos()
+      const reintento = await proximoReintentoOperacion()
+      if (reintento && retryTimer === undefined && typeof window !== 'undefined') {
+        retryTimer = setTimeout(() => {
+          retryTimer = undefined
+          void drenarColaFotos().catch(() => undefined)
+        }, Math.max(1_000, reintento - Date.now()))
+      }
     }
   }).finally(() => { running = undefined })
   return running

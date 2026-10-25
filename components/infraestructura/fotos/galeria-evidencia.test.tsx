@@ -16,6 +16,22 @@ afterEach(() => {
 })
 
 describe('GaleriaEvidencia', () => {
+  it('reloads evidence after the durable photo queue announces completion', async () => {
+    let reads = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/config')) return Response.json({ fotos: true })
+      reads++
+      return Response.json({ movements: reads === 1 ? [] : groups })
+    }))
+    const { unmount } = render(<GaleriaEvidencia cue="180000123-00" />)
+    await screen.findByText('Sin imágenes registradas')
+    fireEvent(window, new Event('parte:fotos-actualizadas'))
+    expect(await screen.findByRole('button', { name: /Ampliar foto/ })).toBeInTheDocument()
+    expect(reads).toBe(2)
+    unmount()
+    fireEvent(window, new Event('parte:fotos-actualizadas'))
+    expect(reads).toBe(2)
+  })
   it('loads thumbnails for the opened school sheet and groups them under their movement date', async () => {
     const fetchMock = vi.fn(async (url: string) => url.includes('/config')
       ? Response.json({ fotos: true })
