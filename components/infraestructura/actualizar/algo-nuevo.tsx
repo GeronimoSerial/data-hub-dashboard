@@ -337,6 +337,7 @@ export function AlgoNuevo({
               motivos={motivos}
               otrasAfectaciones={[]}
               esNueva
+              esInstituto={esInstituto}
               onChange={cambiarBorrador}
             />
             <div className="afectacion-campos__grupo">

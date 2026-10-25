@@ -238,7 +238,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
         <div className="revisar-situacion__bloques">
           {aspectos.includes('gravedad') && (
             <div id="revisar-situacion-gravedad" className="revisar-situacion__bloque" tabIndex={-1}>
-              <CampoGravedad idPrefijo={`rev-${p.situacion.id}`} categoria={p.situacion.categoria} sugerida={p.sugerida} severidadActual={p.situacion.severidad} pregunta="¿Qué tan grave es ahora?" valor={gravedad} onCambiar={(valor) => { setGravedad(valor); guardarCambio(aspectos, valor) }} />
+              <CampoGravedad idPrefijo={`rev-${p.situacion.id}`} categoria={p.situacion.categoria} esInstituto={p.esInstituto} sugerida={p.sugerida} severidadActual={p.situacion.severidad} pregunta="¿Qué tan grave es ahora?" valor={gravedad} onCambiar={(valor) => { setGravedad(valor); guardarCambio(aspectos, valor) }} />
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-gravedad' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>
           )}

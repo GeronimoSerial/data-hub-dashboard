@@ -15,6 +15,7 @@ import {
   conCarrerasElegidas,
   etiquetasDeCarreras,
   nombresDeCarreras,
+  contar,
   textoAlcanceInstituto,
   type AlumnoElegido,
   type CarreraElegible,
@@ -274,7 +275,7 @@ export function InstitutoCamposAQuienAfecta({
             <div key={carrera.id} className={styles.carrera}>
               <p className="afectacion-campos__subtitulo">{etiquetas.get(carrera.id) ?? carrera.nombre}</p>
               {elegidos.length === 0 ? (
-                <p className={styles.completa}>Toda la carrera ({carrera.totalAlumnos} alumnos)</p>
+                <p className={styles.completa}>Toda la carrera ({contar(carrera.totalAlumnos, 'alumno', 'alumnos')})</p>
               ) : (
                 <>
                   <p className={styles.completa}>

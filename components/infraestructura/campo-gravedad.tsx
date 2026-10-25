@@ -13,6 +13,7 @@ import {
   type JustificacionCritica,
 } from '@/lib/infraestructura/justificacion-critica'
 import { criterioSeveridad } from '@/lib/infraestructura/severidad'
+import { CRITERIO_SEVERIDAD_INSTITUTO } from '@/lib/copy/institutos'
 import { SEVERIDADES, type Severidad } from '@/lib/infraestructura/validacion'
 
 export interface ValorGravedad {
@@ -31,6 +32,8 @@ export function gravedadCompleta(valor: ValorGravedad, sugerida: Severidad | nul
 export interface CampoGravedadProps {
   idPrefijo: string
   categoria: CategoriaAfectacion | ''
+  /** Institutos superiores: el criterio de cada nivel habla de carreras. */
+  esInstituto?: boolean
   sugerida: Severidad | null
   severidadActual?: Severidad
   pregunta?: string
@@ -53,6 +56,7 @@ export function CampoGravedad({
   categoria,
   sugerida,
   severidadActual,
+  esInstituto = false,
   pregunta = '¿Qué tan grave es?',
   valor,
   onCambiar,
@@ -96,7 +100,7 @@ export function CampoGravedad({
                 </span>
               </>}
               ayuda={<span id={`${idPrefijo}-severidad-${severidad}-criterio`}>
-                {criterioSeveridad(severidad, categoriaCriterio)}
+                {esInstituto ? CRITERIO_SEVERIDAD_INSTITUTO[categoriaCriterio][severidad] : criterioSeveridad(severidad, categoriaCriterio)}
               </span>}
             />
         ))}

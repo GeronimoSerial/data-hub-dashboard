@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   etiquetasDeCarreras,
   alcanceInstituto,
+  numeroRm,
   conAlumnoAlternado,
   conCarrerasElegidas,
   esListaAlumnosElegidos,
@@ -96,11 +97,44 @@ describe('etiquetasDeCarreras', () => {
     expect(etiquetas.get(3)).toBe('Enfermería')
   })
 
+  it('no repite el prefijo RM que ya trae la matrícula', () => {
+    const catalogo = [
+      { id: 1, nombre: 'Enfermería', tipo: 'Tecnicatura', totalAlumnos: 10, rm: 'RM 4658/15' },
+      { id: 2, nombre: 'Enfermería', tipo: 'Profesorado', totalAlumnos: 12, rm: 'R.M 690/12' },
+      { id: 3, nombre: 'Enfermería', tipo: 'Licenciatura', totalAlumnos: 9, rm: 'RM: 77/08' },
+    ]
+    const etiquetas = etiquetasDeCarreras(catalogo)
+    expect(etiquetas.get(1)).toBe('Enfermería — Tecnicatura (RM 4658/15)')
+    expect(etiquetas.get(2)).toBe('Enfermería — Profesorado (RM 690/12)')
+    expect(etiquetas.get(3)).toBe('Enfermería — Licenciatura (RM 77/08)')
+  })
+
+  it('omite el paréntesis RM cuando el valor queda vacío tras quitar el prefijo', () => {
+    const catalogo = [
+      { id: 1, nombre: 'Matemática', tipo: 'Profesorado', totalAlumnos: 10, rm: 'RM ' },
+      { id: 2, nombre: 'Matemática', tipo: 'Tecnicatura', totalAlumnos: 12 },
+    ]
+    expect(etiquetasDeCarreras(catalogo).get(1)).toBe('Matemática — Profesorado')
+  })
+
   it('sin RM distingue sólo con el tipo', () => {
     const catalogo = [
       { id: 1, nombre: 'Matemática', tipo: 'Profesorado', totalAlumnos: 10 },
       { id: 2, nombre: 'Matemática', tipo: 'Tecnicatura', totalAlumnos: 12 },
     ]
     expect(etiquetasDeCarreras(catalogo).get(2)).toBe('Matemática — Tecnicatura')
+  })
+})
+
+describe('numeroRm', () => {
+  it('quita el prefijo sin distinguir mayúsculas, puntos, dos puntos ni espacios', () => {
+    expect(numeroRm('RM 1464/14')).toBe('1464/14')
+    expect(numeroRm('rm.1464/14')).toBe('1464/14')
+    expect(numeroRm('R.M. 1464/14')).toBe('1464/14')
+    expect(numeroRm('RM: 1464/14')).toBe('1464/14')
+  })
+
+  it('deja igual un valor sin prefijo', () => {
+    expect(numeroRm('1464/14')).toBe('1464/14')
   })
 })

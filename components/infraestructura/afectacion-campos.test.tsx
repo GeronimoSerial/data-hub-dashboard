@@ -14,9 +14,11 @@ const motivos: MotivoRow[] = [
 function renderCamposQuePaso({
   onChange = vi.fn(),
   borrador = crearAfectacionVacia('a1'),
+  esInstituto = false,
 }: {
   onChange?: (siguiente: AfectacionBorrador) => void
   borrador?: AfectacionBorrador
+  esInstituto?: boolean
 } = {}) {
   return render(
     <CamposQuePaso
@@ -24,6 +26,7 @@ function renderCamposQuePaso({
       idPrefijo="reporte"
       motivos={motivos}
       otrasAfectaciones={[]}
+      esInstituto={esInstituto}
       onChange={onChange}
     />,
   )
@@ -159,6 +162,50 @@ describe('confirmación de categoría', () => {
   interpretación de cada director y el dato dejaba de ser comparable entre
   escuelas. Los cuatro criterios se acordaron con el dueño de producto.
 */
+describe('CamposQuePaso — textos de institutos superiores', () => {
+  it('describe las categorías en carreras, sin hablar de escuela', () => {
+    renderCamposQuePaso({ esInstituto: true })
+
+    expect(screen.getByText('El instituto o parte de él deja de funcionar con normalidad.')).toBeInTheDocument()
+    expect(screen.getByText('El instituto funciona, pero hay alumnos que no pueden llegar.')).toBeInTheDocument()
+    expect(screen.queryByText(/La escuela/)).toBeNull()
+  })
+
+  it('la confirmación de "Afecta al establecimiento" habla de carreras e instituto', () => {
+    renderCamposQuePaso({ esInstituto: true })
+
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+
+    const dialogo = screen.getByRole('dialog')
+    expect(dialogo.textContent).toContain('Va a marcar las carreras donde el instituto no puede funcionar con normalidad.')
+    expect(dialogo.textContent).not.toMatch(/escuela|secciones/)
+  })
+
+  it('la confirmación de "Inaccesibilidad de alumnos" habla de llegar al instituto', () => {
+    renderCamposQuePaso({ esInstituto: true })
+
+    fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+
+    const dialogo = screen.getByRole('dialog')
+    expect(dialogo.textContent).toContain('no pueden llegar al instituto')
+    expect(dialogo.textContent).not.toContain('escuela')
+  })
+
+  it('el criterio Media habla de carreras, no de secciones o turnos', () => {
+    renderCamposQuePaso({ esInstituto: true, borrador: { ...crearAfectacionVacia('a1'), categoria: 'establecimiento' } })
+
+    expect(screen.getByText('Condiciona el dictado: algunas carreras funcionan a medias.')).toBeInTheDocument()
+    expect(screen.queryByText(/secciones o turnos/)).toBeNull()
+  })
+
+  it('sin institutos el texto de escuela no cambia', () => {
+    renderCamposQuePaso({ borrador: { ...crearAfectacionVacia('a1'), categoria: 'establecimiento' } })
+
+    expect(screen.getByText('La escuela o parte de ella deja de funcionar con normalidad.')).toBeInTheDocument()
+    expect(screen.getByText('Condiciona el dictado: algunas secciones o turnos funcionan a medias.')).toBeInTheDocument()
+  })
+})
+
 describe('CamposQuePaso — criterios de severidad', () => {
   it('muestra escrito qué distingue cada nivel', () => {
     renderCamposQuePaso()

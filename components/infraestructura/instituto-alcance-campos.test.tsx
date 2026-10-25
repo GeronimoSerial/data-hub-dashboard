@@ -243,6 +243,31 @@ describe('InstitutoCamposAQuienAfecta sin selección de alumnos', () => {
     expect(llamadas).toHaveLength(0)
   })
 
+  it('singulariza "1 alumno" en la carrera completa', () => {
+    const unAlumno: CarreraElegible[] = [{ id: 1, nombre: 'Enfermería', tipo: 'Tecnicatura', totalAlumnos: 1 }]
+    let actual: AfectacionBorrador = { ...crearAfectacionVacia('cliente-1'), carreras: [1], alumnosElegidos: [] }
+    render(
+      <InstitutoCamposAQuienAfecta cue="12345678" idPrefijo="test" borrador={actual} carreras={unAlumno} onChange={(siguiente) => { actual = siguiente }} />,
+    )
+    expect(screen.getByText('Toda la carrera (1 alumno)')).toBeTruthy()
+  })
+
+  it('no repite "RM" cuando la matrícula ya lo trae en la resolución', async () => {
+    const user = userEvent.setup()
+    const conPrefijo: CarreraElegible[] = [
+      { id: 1, nombre: 'Matemática', tipo: 'Profesorado', totalAlumnos: 40, rm: 'RM 4658/15' },
+      { id: 2, nombre: 'Matemática', tipo: 'Tecnicatura', totalAlumnos: 12, rm: 'R.M 690/12' },
+    ]
+    const borrador: AfectacionBorrador = { ...crearAfectacionVacia('cliente-1'), carreras: [], alumnosElegidos: [] }
+    render(
+      <InstitutoCamposAQuienAfecta cue="12345678" idPrefijo="test" borrador={borrador} carreras={conPrefijo} onChange={() => {}} />,
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Carreras afectadas' }))
+    expect(await screen.findByRole('option', { name: 'Matemática — Profesorado (RM 4658/15)' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Matemática — Tecnicatura (RM 690/12)' })).toBeInTheDocument()
+    expect(screen.queryByText(/RM RM|R\.M \(RM/)).toBeNull()
+  })
+
   it('distingue las carreras homónimas del CUE con tipo y RM en el selector', async () => {
     const user = userEvent.setup()
     const homonimas: CarreraElegible[] = [

@@ -26,6 +26,7 @@ import { bloqueoOpcion } from '@/lib/infraestructura/consistencia-parte'
 import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { carrerasDelServicio, construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { alcanceInstituto, nombresDeCarreras, textoAlcanceInstitutoConNombres, type AlumnoElegido, type CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
+import { MENSAJE_GUARDADO_INSTITUTO } from '@/lib/copy/institutos'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import { MODALIDADES_ASISTENCIA_PEDAGOGICA, type EstadoServicioGeneral, type ModalidadAsistenciaPedagogica } from '@/lib/infraestructura/trayectoria-tipos'
@@ -744,7 +745,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
   const totalPasos = ordenadas.length + 2
 
   if (guardado || etapa === 'enviado') {
-    return <ConfirmacionEnviado cue={cue} onRecargar={() => {
+    return <ConfirmacionEnviado cue={cue} esInstituto={esInstituto} onRecargar={() => {
       void (async () => {
         await olvidarClaveEnvioFormulario(`${DRAFT_ID_PREFIX}${cue}`)
         const actual = borradorCompartidoRef.current
@@ -1045,12 +1046,12 @@ function ProgresoActualizacion({ paso, total }: { paso: number; total: number })
   )
 }
 
-function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () => void }): JSX.Element {
+function ConfirmacionEnviado({ cue, esInstituto, onRecargar }: { cue: string; esInstituto: boolean; onRecargar: () => void }): JSX.Element {
   return (
     <div className="reporte-inicial__confirmacion" role="status">
       <div className="reporte-inicial__confirmacion-mensaje">
         <CircleCheck aria-hidden="true" size={20} />
-        <div><h2>{TITULO_GUARDADO}</h2><p>{MENSAJE_GUARDADO}</p></div>
+        <div><h2>{TITULO_GUARDADO}</h2><p>{esInstituto ? MENSAJE_GUARDADO_INSTITUTO : MENSAJE_GUARDADO}</p></div>
       </div>
       <div className="reporte-inicial__confirmacion-acciones">
         <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>

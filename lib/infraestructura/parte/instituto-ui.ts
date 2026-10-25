@@ -59,6 +59,11 @@ export function textoAlcanceInstituto(carreras: number, alumnos: number): string
   return alumnos > 0 ? `${base} (${contar(alumnos, 'alumno', 'alumnos')})` : base
 }
 
+/** "RM 4658/15", "R.M. 690/12" o "RM: 4658/15" → "4658/15". Sin prefijo, lo deja igual. */
+export function numeroRm(rm: string): string {
+  return rm.trim().replace(/^R\.?\s*M\.?\s*:?\s*/i, '').trim()
+}
+
 /**
  * Etiqueta de cada carrera del CUE. Un nombre repetido dentro del CUE (p. ej.
  * "Matemática" dos veces) se distingue con tipo y RM: "Matemática — Profesorado (RM 1464/14)".
@@ -73,7 +78,8 @@ export function etiquetasDeCarreras(catalogo: CarreraElegible[]): Map<number, st
       etiquetas.set(carrera.id, carrera.nombre)
       continue
     }
-    const rm = carrera.rm ? ` (RM ${carrera.rm})` : ''
+    const numero = numeroRm(carrera.rm ?? '')
+    const rm = numero ? ` (RM ${numero})` : ''
     etiquetas.set(carrera.id, `${carrera.nombre} — ${carrera.tipo}${rm}`)
   }
   return etiquetas

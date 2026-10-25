@@ -24,6 +24,7 @@ import { AvisosRedSeguridad } from '@/components/infraestructura/aviso-red-segur
 import { evaluarRedesSeguridad } from '@/lib/infraestructura/red-seguridad'
 import { alcanceDeSecciones, severidadSugeridaPorAlcance, type CampoConsistencia, type Regla, type Sugerencia } from '@/lib/infraestructura/consistencia-parte'
 import type { AlumnoElegido } from '@/lib/infraestructura/parte/instituto-ui'
+import { CONFIRMAR_CATEGORIA_INSTITUTO, DESCRIPCION_CATEGORIA_INSTITUTO } from '@/lib/copy/institutos'
 
 export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
   establecimiento:
@@ -114,6 +115,8 @@ interface CamposComunes {
 export interface CamposQuePasoProps extends CamposComunes {
   motivos: MotivoRow[]
   otrasAfectaciones: AfectacionBorrador[]
+  /** Institutos superiores: cambia los textos de categoría y de gravedad. */
+  esInstituto?: boolean
   /**
    * La afectación se está agregando ahora. Sólo entonces tiene sentido
    * avisar de un duplicado: sobre algo que ya figura en el parte, el aviso
@@ -195,6 +198,7 @@ export function CamposQuePaso({
   otrasAfectaciones,
   esNueva = false,
   avisos = [],
+  esInstituto = false,
   onChange,
   disabled = false,
 }: CamposQuePasoProps): JSX.Element {
@@ -268,7 +272,7 @@ export function CamposQuePaso({
                 }}
                 disabled={disabled}
                 label={CATEGORIA_META[c].label}
-                ayuda={CATEGORIA_META[c].descripcion}
+                ayuda={esInstituto ? DESCRIPCION_CATEGORIA_INSTITUTO[c] : CATEGORIA_META[c].descripcion}
               />
           ))}
         </div>
@@ -285,7 +289,7 @@ export function CamposQuePaso({
           setCategoriaPendiente(null)
         }}
       >
-        <p>{categoriaPendiente ? TEXTO_CONFIRMAR_CATEGORIA[categoriaPendiente] : null}</p>
+        <p>{categoriaPendiente ? (esInstituto ? CONFIRMAR_CATEGORIA_INSTITUTO : TEXTO_CONFIRMAR_CATEGORIA)[categoriaPendiente] : null}</p>
       </ConfirmSheet>
 
       <fieldset className="afectacion-campos__grupo" disabled={disabled || !borrador.categoria}>
@@ -320,6 +324,7 @@ export function CamposQuePaso({
       <CampoGravedad
         idPrefijo={idPrefijo}
         categoria={borrador.categoria}
+        esInstituto={esInstituto}
         sugerida={motivosDeLaCategoria.find((m) => m.nombre === borrador.motivo)?.severidadSugerida ?? null}
         valor={borrador}
         onCambiar={(gravedad) => onChange({ ...borrador, ...gravedad })}

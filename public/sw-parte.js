@@ -98,6 +98,12 @@ async function prepararOffline(cacheStorage = caches, fetchImpl = fetch, origin 
   }
 }
 
+// El servidor redirige nuevo↔actualizar según haya parte: esa respuesta llega
+// como opaqueredirect (o 3xx) y no es falta de red. Se devuelve al navegador.
+function esRedireccion(response) {
+  return response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)
+}
+
 function esNavegacionParte(request) {
   if (request.method !== 'GET' || request.mode !== 'navigate') return false
   const url = new URL(request.url)
@@ -152,7 +158,7 @@ self.addEventListener('fetch', (event) => {
     return Response.redirect(fallback.href, 302)
   }
   event.respondWith(fetch(event.request).then((response) => {
-    if (response.ok) return response
+    if (response.ok || esRedireccion(response)) return response
     return isOfflineRoute ? fallbackOffline(event.request) : redirectToOffline()
   }).catch(async () => {
     if (isOfflineRoute) return fallbackOffline(event.request)

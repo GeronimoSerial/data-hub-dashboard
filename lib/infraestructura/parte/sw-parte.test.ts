@@ -418,6 +418,55 @@ describe('sw-parte offline shell cache', () => {
   })
 })
 
+describe('sw-parte navegación con redirect del servidor', () => {
+  function navegar(listeners: Record<string, Escucha>, url: string): Promise<Response> {
+    let response: Promise<Response> | undefined
+    listeners.fetch({
+      request: { url, method: 'GET', mode: 'navigate' },
+      respondWith: (promise: Promise<Response>) => { response = promise },
+    })
+    return response!
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('devuelve el 307 del servidor al navegador en vez de mandar a offline', async () => {
+    const { listeners } = await cargarSw()
+    const redirect = new Response(null, {
+      status: 307,
+      headers: { Location: '/problematicas/parte/actualizar?cue=1801605-04' },
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => redirect))
+
+    const result = await navegar(listeners, 'https://example.test/problematicas/parte/nuevo?cue=1801605-04')
+
+    expect(result).toBe(redirect)
+    expect(result.status).toBe(307)
+  })
+
+  it('devuelve un opaqueredirect del navegador sin convertirlo en redirección offline', async () => {
+    const { listeners } = await cargarSw()
+    const opaque = { type: 'opaqueredirect', status: 0, ok: false } as unknown as Response
+    vi.stubGlobal('fetch', vi.fn(async () => opaque))
+
+    const result = await navegar(listeners, 'https://example.test/problematicas/parte/nuevo?cue=1801605-04')
+
+    expect(result).toBe(opaque)
+  })
+
+  it('sigue yendo a offline cuando la red falla de verdad', async () => {
+    const { listeners } = await cargarSw()
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
+
+    const result = await navegar(listeners, 'https://example.test/problematicas/parte/nuevo?cue=1801605-04')
+
+    expect(result.status).toBe(302)
+    expect(new URL(result.headers.get('Location')!).pathname).toBe('/problematicas/parte/offline')
+  })
+})
+
 async function dispararEvento(listeners: Record<string, Escucha>, tipo: string): Promise<void> {
   let trabajo: Promise<unknown> | undefined
   listeners[tipo]({ waitUntil: (promise: Promise<unknown>) => { trabajo = promise } })

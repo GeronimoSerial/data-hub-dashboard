@@ -24,6 +24,7 @@ import {
   type RespuestasConsistencia,
 } from '@/lib/infraestructura/consistencia-parte'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
+import { MENSAJE_GUARDADO_INSTITUTO } from '@/lib/copy/institutos'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
@@ -101,8 +102,6 @@ const MENSAJE_ERROR_GUARDADO =
 
 const MENSAJE_GUARDADO =
   'Ya figura en el estado actual de su escuela.'
-const MENSAJE_GUARDADO_INSTITUTO =
-  'Ya figura en el estado actual de su institución.'
 
 const MENSAJE_FALTA_QUE_PASO =
   'Elija el tipo de situación, el motivo y la gravedad para continuar.'
@@ -1079,6 +1078,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
             idPrefijo="reporte"
             motivos={motivos}
             otrasAfectaciones={[]}
+            esInstituto={esInstituto}
             avisos={consistencia.advertencias}
             onChange={(siguiente) => {
               cambiarAfectacion(siguiente)

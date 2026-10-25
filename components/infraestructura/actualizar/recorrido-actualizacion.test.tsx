@@ -88,6 +88,37 @@ describe('RecorridoActualizacion', () => {
     expect(declararFotosMock).toHaveBeenCalledWith(expect.objectContaining({ movimientoBaseId: 'movement-base' }))
   })
 
+  it('la confirmación de un instituto nombra la institución y no la escuela', async () => {
+    prepararFotosMock.mockImplementation(async (_draftId: string, fotos: Array<{ attachmentId: string }>) => ({
+      preparadas: fotos.map(({ attachmentId }) => ({
+        attachmentId,
+        bytesOptimizado: 1000,
+        bytesMiniatura: 200,
+        optimizadaContentType: 'image/jpeg',
+        miniaturaContentType: 'image/jpeg',
+      })),
+      errores: [],
+    }))
+    declararFotosMock.mockResolvedValue(undefined)
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/borradores/config')) {
+        return new Response(JSON.stringify({ borradoresSync: false, fotos: true, mapaBorradores: false }), { status: 200 })
+      }
+      const body = url.includes('/historial')
+        ? { ok: true, movimientos: [{ id: 'movement-base', tipo: 'actualizacion' }] }
+        : estadoActual()
+      return new Response(JSON.stringify(body), { status: 200 })
+    }))
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} esInstituto />)
+    const input = await screen.findByLabelText('Agregar fotos')
+    fireEvent.change(input, { target: { files: [new File(['photo'], 'aula.jpg', { type: 'image/jpeg' })] } })
+    const guardar = await screen.findByRole('button', { name: 'Guardar solo fotos' })
+    await waitFor(() => expect(guardar).toBeEnabled())
+    fireEvent.click(guardar)
+    expect(await screen.findByText('Ya figura en el estado actual de su institución.')).toBeInTheDocument()
+    expect(screen.queryByText(/escuela/)).toBeNull()
+  })
+
   it('conserva las fotos agregadas en la entrada al avanzar al siguiente paso', async () => {
     prepararFotosMock.mockImplementation(async (_draftId: string, fotos: Array<{ attachmentId: string }>) => ({
       preparadas: fotos.map(({ attachmentId }) => ({

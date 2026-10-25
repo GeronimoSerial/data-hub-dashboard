@@ -277,6 +277,19 @@ describe('ReporteInicialForm para institutos superiores', () => {
   })
 
 
+  it('la confirmación de categoría y el criterio de gravedad hablan de carreras e instituto', async () => {
+    stubFetch()
+    renderInstituto()
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    const dialogo = screen.getByRole('dialog')
+    expect(within(dialogo).getByText(/Va a marcar las carreras donde el instituto no puede funcionar/)).toBeTruthy()
+    expect(within(dialogo).queryByText(/escuela/)).toBeNull()
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Inundación' }))
+    expect(screen.getByText('Condiciona el dictado: algunas carreras funcionan a medias.')).toBeTruthy()
+    expect(screen.queryByText(/secciones o turnos/)).toBeNull()
+  })
+
   it('en la evacuación habla de todo el instituto y de carreras', async () => {
     const user = userEvent.setup()
     stubFetch()
