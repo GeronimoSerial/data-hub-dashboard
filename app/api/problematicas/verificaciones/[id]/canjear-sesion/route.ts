@@ -14,15 +14,19 @@ import {
   crearPostVerificacion,
   MENSAJES_CREDENCIAL,
 } from '@/lib/infraestructura/verificacion-route'
+import { crearLimitador } from '@/lib/http/limitador'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 20 })
 
 const bodySchema = z.object({ token: z.string().trim().min(1) })
 
 // POST carries the token in its body, never in a GET URL or access log.
 // no-store protects credential responses; no-referrer prevents outbound leakage.
-export const POST = crearPostVerificacion({
+const handlePOST = crearPostVerificacion({
   bodySchema,
   mensajes: {
     ...MENSAJES_CREDENCIAL,
@@ -53,3 +57,5 @@ export const POST = crearPostVerificacion({
     return respuesta
   },
 })
+
+export const POST = ruta('problematicas.verificaciones.id.canjear-sesion.post', handlePOST, { limite: { limitador } })

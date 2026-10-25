@@ -15,11 +15,12 @@ import {
   unknownNivelJurIds,
   unknownRecursoIds,
 } from '@/lib/usuarios'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+async function handleGET() {
   await ensureSeeded()
   const denied = listUsuariosDenied(await getSessionUser())
   if (denied) {
@@ -28,7 +29,7 @@ export async function GET() {
   return Response.json({ usuarios: await listHubUsers() })
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   await ensureSeeded()
   const denied = mutateUsuariosDenied(await getSessionUser())
   if (denied) {
@@ -75,3 +76,6 @@ export async function POST(request: Request) {
     return Response.json({ error: mapped.error }, { status: mapped.status })
   }
 }
+
+export const GET = ruta('usuarios.get', handleGET)
+export const POST = ruta('usuarios.post', handlePOST)

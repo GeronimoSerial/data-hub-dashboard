@@ -19,11 +19,12 @@ import {
   ExplainUnavailableError,
   getExplainProvider,
 } from '@/lib/explain-provider'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function POST(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+async function handlePOST(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   await ensureSeeded()
   const { id } = await ctx.params
   const [row] = await getDb().select().from(recursos).where(eq(recursos.id, id))
@@ -85,3 +86,5 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     )
   }
 }
+
+export const POST = ruta('recursos.id.explain.post', handlePOST)

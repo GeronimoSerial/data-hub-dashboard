@@ -14,6 +14,7 @@ import {
   publicOrigin,
 } from '@/lib/gate-static'
 import { getSessionUser } from '@/lib/session'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,7 +36,7 @@ async function resolveReadableFile(abs: string): Promise<string | null> {
   return null
 }
 
-export async function GET(request: Request, ctx: Ctx) {
+async function handleGET(request: Request, ctx: Ctx) {
   await ensureSeeded()
   const { path: segments } = await ctx.params
   const requestPath = `/${segments.join('/')}`
@@ -72,3 +73,5 @@ export async function GET(request: Request, ctx: Ctx) {
     },
   })
 }
+
+export const GET = ruta('gate.path.get', handleGET)

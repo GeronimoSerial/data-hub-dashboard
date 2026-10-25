@@ -4,12 +4,16 @@ import { resolverEnlace } from '@/lib/infraestructura/veredicto/enlaces'
 import { cargarEventosTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { generarPdfVeredictos } from '@/lib/infraestructura/veredicto/pdf'
 import { listarVigentes } from '@/lib/infraestructura/veredicto/repositorio'
+import { crearLimitador } from '@/lib/http/limitador'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
+
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 10 })
 export const dynamic = 'force-dynamic'
 
 // Ruta pública: no hay sesión. Sin datos para enlaces inexistentes, vencidos o revocados.
-export async function GET(
+async function handleGET(
   _request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
@@ -39,3 +43,5 @@ export async function GET(
     },
   })
 }
+
+export const GET = ruta('veredicto.compartido.token.pdf.get', handleGET, { limite: { limitador } })

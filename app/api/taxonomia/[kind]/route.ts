@@ -15,6 +15,7 @@ import {
   taxonomyInUseCount,
   type TaxonomyKind,
 } from '@/lib/taxonomia'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,7 +43,7 @@ async function readDeleteId(request: Request) {
   return null
 }
 
-export async function POST(request: Request, ctx: Ctx) {
+async function handlePOST(request: Request, ctx: Ctx) {
   await ensureSeeded()
   const denied = adminDenied(await getSessionUser())
   if (denied) {
@@ -69,7 +70,7 @@ export async function POST(request: Request, ctx: Ctx) {
   return Response.json({ ok: true })
 }
 
-export async function DELETE(request: Request, ctx: Ctx) {
+async function handleDELETE(request: Request, ctx: Ctx) {
   await ensureSeeded()
   const denied = adminDenied(await getSessionUser())
   if (denied) {
@@ -165,3 +166,6 @@ async function upsertKind(kind: TaxonomyKind, body: unknown) {
       set: { nombre: row.nombre },
     })
 }
+
+export const POST = ruta('taxonomia.kind.post', handlePOST)
+export const DELETE = ruta('taxonomia.kind.delete', handleDELETE)
