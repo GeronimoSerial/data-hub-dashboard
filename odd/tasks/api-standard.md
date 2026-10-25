@@ -34,12 +34,13 @@ Findings across the other 69 files:
 
 ### Limiter decisions (S4)
 Per-IP fixed window of 60 s (lib/http/limitador.ts, in-memory per instance):
-- auth/ge-login POST, 10: public login endpoint, brute-force target.
-- problematicas/verificaciones/[id]/{canjear-sesion,responder,validar-token,vincular-movimiento} POST, 20: public, token-guarded; limits token guessing.
-- veredicto/compartido/[token]/pdf GET, 10: public share link that renders a PDF (expensive).
-- materiales/[id]/descargar GET, 30: public file download.
-- mapas/infraestructura (root), escuelas, totales GET, 60: public unauthenticated map reads.
-- infraestructura/exportar, situacion/export, veredictos/pdf GET, 10: authenticated but expensive exports/PDF generation.
+- auth/ge-login POST, 50: public login endpoint, brute-force target.
+- problematicas/verificaciones/[id]/{canjear-sesion,responder,validar-token,vincular-movimiento} POST, 100: public, token-guarded; limits token guessing.
+- veredicto/compartido/[token]/pdf GET, 50: public share link that renders a PDF (expensive).
+- materiales/[id]/descargar GET, 150: public file download.
+- mapas/infraestructura (root), escuelas, totales GET, 300: public unauthenticated map reads.
+- infraestructura/exportar, situacion/export, veredictos/pdf GET, 50: authenticated but expensive exports/PDF generation.
+- problematicas/parte/matricula GET, 300 per IP (DNI search keyed by CUE stays at 30 per minute, anti-enumeration).
 - problematicas/acceso keeps its existing ipExcedeLimite; no second limiter.
 - auth/[...all] gets no app limiter: better-auth applies its own rate limiting in production.
 - All other routes are authenticated and cheap: no limiter.
@@ -66,3 +67,5 @@ Per-IP fixed window of 60 s (lib/http/limitador.ts, in-memory per instance):
 - L4 several tests called handlers with no Request (GET()); ruta() needs one (Next always passes it), so tests now pass a Request. Snapshots unchanged by this.
 - L5 vitest.setup.ts resets all limiters before each test (module-level state made exportar's sibling test hit 429).
 - L6 checks: pnpm vitest run app/api --maxWorkers=4: 74 files, 850 passed, 1 skipped; pnpm vitest run lib/http: 21 passed; pnpm tsc --noEmit -p .: 0 errors; pnpm lint: 0 errors, 36 warnings (19 are consistent-type-imports in the new characterization tests). No .snap file changed after 82213865.
+- L7 (2026-10-25) user decision: "subilos, mapa a 300 por minuto" (many users share one office NAT IP). Per-IP limits raised: mapas 300, matricula per-IP 300 (per-CUE DNI stays 30), verificaciones 100, descargar 150, exports/PDF 50, ge-login 50. Tests updated for matricula (301 requests) and validar-token (101 requests); no snapshot changed.
+- L8 verificaciones: the helper pre-check (ipExcedeLimite, lib/infraestructura/verificacion-route.ts) also capped these routes at 10/min per IP. ipExcedeLimite now takes max (default IP_MAX_REQUESTS=10, acceso and parte POST unchanged); verification routes use IP_MAX_VERIFICACION=100 with a separate per-max counter. Pre-check kept (its 429 body and no-store header differ from ruta()). 429 bodies unchanged.

@@ -12,7 +12,7 @@ import { crearLimitador } from '@/lib/http/limitador'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const limitador = crearLimitador({ ventanaMs: 60_000, max: 10 })
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 50 })
 
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const CABECERAS_PRIVADAS = { 'Cache-Control': 'private, no-cache', Vary: 'Cookie, Accept-Encoding' }

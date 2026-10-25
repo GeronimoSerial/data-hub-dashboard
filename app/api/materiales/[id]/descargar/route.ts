@@ -10,7 +10,7 @@ import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 
-const limitador = crearLimitador({ ventanaMs: 60_000, max: 30 })
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 150 })
 
 async function handleGET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

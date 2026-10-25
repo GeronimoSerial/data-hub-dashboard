@@ -6,7 +6,7 @@ import { ruta } from '@/lib/http/ruta'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const limitador = crearLimitador({ ventanaMs: 60_000, max: 60 })
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 300 })
 
 export const GET = ruta(
   'mapas.infraestructura.escuelas.get',

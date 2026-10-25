@@ -3,6 +3,9 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import type { VerificacionRow } from '@/lib/infraestructura/verificaciones'
 
+// Tope por IP de las rutas de verificación (independiente de IP_MAX_REQUESTS).
+export const IP_MAX_VERIFICACION = 100
+
 // Never cache credential responses or let referrers forward a token-bearing URL.
 export const CACHE_HEADERS = {
   'Cache-Control': 'private, no-store',
@@ -42,7 +45,7 @@ export function crearPostVerificacion<T>(opciones: OpcionesPost<T>) {
     // Credential-bearing requests use POST so tokens stay out of URLs and access logs.
     await ensureSeeded()
 
-    if (ipExcedeLimite(getClientIp(request))) {
+    if (ipExcedeLimite(getClientIp(request), Date.now(), IP_MAX_VERIFICACION)) {
       return Response.json(
         { error: 'Demasiadas solicitudes. Intente nuevamente más tarde.' },
         { status: 429, headers: CACHE_HEADERS },

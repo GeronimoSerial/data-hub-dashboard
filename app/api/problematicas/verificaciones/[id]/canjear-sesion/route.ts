@@ -20,7 +20,7 @@ import { ruta } from '@/lib/http/ruta'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const limitador = crearLimitador({ ventanaMs: 60_000, max: 20 })
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 100 })
 
 const bodySchema = z.object({ token: z.string().trim().min(1) })
 

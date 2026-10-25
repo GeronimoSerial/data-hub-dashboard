@@ -10,7 +10,7 @@ import { ruta } from '@/lib/http/ruta'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const limitador = crearLimitador({ ventanaMs: 60_000, max: 20 })
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 100 })
 
 // 'con_afectacion' is intentionally excluded: it uses the part form and a
 // separate endpoint to link the resulting movement.

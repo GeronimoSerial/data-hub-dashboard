@@ -50,7 +50,7 @@ function aCsv(filas: string[][]): string {
     .join('\r\n')
 }
 
-const limitador = crearLimitador({ ventanaMs: 60_000, max: 10 })
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 50 })
 
 async function handleGET(request: Request) {
   const user = await getSessionUser()

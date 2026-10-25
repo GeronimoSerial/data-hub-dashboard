@@ -110,11 +110,11 @@ describe('POST /api/problematicas/verificaciones/[id]/validar-token', () => {
     expect(res.status).toBe(400)
   })
 
-  it('rate limit por IP: la request 11 desde el mismo IP da 429', async () => {
+  it('rate limit por IP: la request 101 desde el mismo IP da 429', async () => {
     const { token, verificacion } = await verificacionPendiente()
     const ip = '10.9.9.9'
 
-    for (let i = 0; i < 10; i += 1) {
+    for (let i = 0; i < 100; i += 1) {
       const res = await POST(postReq(verificacion.id, { token }, ip), contexto(verificacion.id))
       expect(res.status).toBe(200)
     }

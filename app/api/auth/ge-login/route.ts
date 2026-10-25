@@ -7,7 +7,7 @@ import { ruta } from '@/lib/http/ruta'
 // (app/api/auth/[...all]). Ver odd/tasks/ge-sso-nivel-jurisdiccional.md (T6).
 export const runtime = 'nodejs'
 
-const limitador = crearLimitador({ ventanaMs: 60_000, max: 10 })
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 50 })
 
 async function handleOPTIONS(request: Request) {
   return responderPreflightGe(request)

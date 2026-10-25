@@ -25,7 +25,7 @@ function esFechaValida(valor: string): boolean {
   return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === valor
 }
 
-const limitador = crearLimitador({ ventanaMs: 60_000, max: 10 })
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 50 })
 
 async function handleGET(request: Request) {
   await ensureSeeded()

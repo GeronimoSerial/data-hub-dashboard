@@ -137,10 +137,10 @@ describe('GET /api/problematicas/parte/matricula', () => {
     expect(await res.json()).toEqual({ ok: true, alumnos: [], truncado: false })
   })
 
-  it('responde 429 después de 60 pedidos por IP en el minuto', async () => {
+  it('responde 429 después de 300 pedidos por IP en el minuto', async () => {
     const carrera = await carreraSembrada()
     let ultimo: Response | null = null
-    for (let i = 0; i < 61; i++) {
+    for (let i = 0; i < 301; i++) {
       ultimo = await GET(getReq({ carreras: String(carrera), q: 'perez' }))
     }
     expect(ultimo!.status).toBe(429)

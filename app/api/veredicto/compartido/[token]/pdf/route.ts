@@ -9,7 +9,7 @@ import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 
-const limitador = crearLimitador({ ventanaMs: 60_000, max: 10 })
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 50 })
 export const dynamic = 'force-dynamic'
 
 // Ruta pública: no hay sesión. Sin datos para enlaces inexistentes, vencidos o revocados.
