@@ -6,6 +6,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { presentarCrecida, presentarReferenciaEstudio } from '@/lib/infraestructura/riesgo/presentacion-crecida'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,7 @@ const cueAnexoSchema = z.string().min(1).max(40)
 const horizonteSchema = z.union([z.literal(24), z.literal(72), z.literal(240)])
 const HORIZONTE_DEFECTO = 72
 
-export async function GET(request: Request, ctx: Ctx) {
+async function handleGET(request: Request, ctx: Ctx) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
@@ -106,3 +107,5 @@ export async function GET(request: Request, ctx: Ctx) {
     { status: 200, headers },
   )
 }
+
+export const GET = ruta('infraestructura.riesgo.escuela.cueAnexo.get', handleGET)

@@ -6,6 +6,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,7 +41,7 @@ function respuestaError(status: number, error: string) {
   return Response.json({ error }, { status, headers: { 'Cache-Control': 'private, no-store' } })
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   await ensureSeeded()
 
   const user = await getSessionUser()
@@ -95,3 +96,5 @@ export async function GET(request: Request) {
 
   return jsonNoStore({ items })
 }
+
+export const GET = ruta('infraestructura.tendencia-estacional.get', handleGET)

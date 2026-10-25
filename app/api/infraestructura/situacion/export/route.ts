@@ -4,6 +4,8 @@ import { getSessionUser, staffGuard } from '@/lib/session'
 import { obtenerUltimoCorte } from '@/lib/infraestructura/riesgo/situacion/corte'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
+import { crearLimitador } from '@/lib/http/limitador'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -48,7 +50,9 @@ function aCsv(filas: string[][]): string {
     .join('\r\n')
 }
 
-export async function GET(request: Request) {
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 10 })
+
+async function handleGET(request: Request) {
   const user = await getSessionUser()
   const guard = staffGuard(user)
   if (guard) return respuestaGuard(guard)
@@ -86,3 +90,5 @@ export async function GET(request: Request) {
     },
   })
 }
+
+export const GET = ruta('infraestructura.situacion.export.get', handleGET, { limite: { limitador } })

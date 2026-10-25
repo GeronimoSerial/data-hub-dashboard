@@ -6,6 +6,7 @@ import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,7 +31,7 @@ async function leerCuerpo(request: Request): Promise<{ desde?: unknown; hasta?: 
   }
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   await ensureSeeded()
 
   const user = await getSessionUser()
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
   return jsonNoStore({ url: `/veredicto/compartido/${token}`, venceEn }, 201)
 }
 
-export async function DELETE() {
+async function handleDELETE() {
   await ensureSeeded()
 
   const user = await getSessionUser()
@@ -73,3 +74,6 @@ export async function DELETE() {
   const revocados = await revocarEnlacesDelDia(getDb(), { revocadoPor: user!.id })
   return jsonNoStore({ revocados })
 }
+
+export const POST = ruta('infraestructura.veredictos.enlaces.post', handlePOST)
+export const DELETE = ruta('infraestructura.veredictos.enlaces.delete', handleDELETE)

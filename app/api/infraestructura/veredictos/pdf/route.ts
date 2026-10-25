@@ -8,6 +8,8 @@ import { listarVigentes } from '@/lib/infraestructura/veredicto/repositorio'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { crearLimitador } from '@/lib/http/limitador'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,7 +25,9 @@ function esFechaValida(valor: string): boolean {
   return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === valor
 }
 
-export async function GET(request: Request) {
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 10 })
+
+async function handleGET(request: Request) {
   await ensureSeeded()
 
   const user = await getSessionUser()
@@ -61,3 +65,5 @@ export async function GET(request: Request) {
     },
   })
 }
+
+export const GET = ruta('infraestructura.veredictos.pdf.get', handleGET, { limite: { limitador } })

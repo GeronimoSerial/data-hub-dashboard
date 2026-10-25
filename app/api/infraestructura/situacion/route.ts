@@ -5,6 +5,7 @@ import { obtenerEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/c
 import { obtenerEstadoDatosSeguro } from '@/lib/infraestructura/riesgo/estado-datos/consulta'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,7 +18,7 @@ const filtrosSchema = z.object({
   territorioId: z.string().min(1).optional(),
 })
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const user = await getSessionUser()
   const guard = staffGuard(user)
   if (guard) return respuestaGuard(guard)
@@ -63,3 +64,5 @@ export async function GET(request: Request) {
     { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
   )
 }
+
+export const GET = ruta('infraestructura.situacion.get', handleGET)

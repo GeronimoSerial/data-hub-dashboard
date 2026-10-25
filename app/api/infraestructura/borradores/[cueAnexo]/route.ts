@@ -6,6 +6,7 @@ import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { getReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,7 +30,7 @@ function decodeCursor(value: string | null): DraftCursor | undefined | null {
   }
 }
 
-export async function GET(request: Request, context: Context) {
+async function handleGET(request: Request, context: Context) {
   if (!getReportesOfflineFeatures().mapaBorradores) return jsonNoStore({ items: [], nextCursor: null })
   await ensureSeeded()
   const acceso = await verificarAccesoLectura()
@@ -60,3 +61,5 @@ export async function GET(request: Request, context: Context) {
   })
   return jsonNoStore(result)
 }
+
+export const GET = ruta('infraestructura.borradores.cueAnexo.get', handleGET)

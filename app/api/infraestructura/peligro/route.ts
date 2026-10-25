@@ -15,6 +15,7 @@ import {
   obtenerNivelCaudal,
   obtenerNivelesPeligro,
 } from '@/lib/infraestructura/riesgo/peligro/nivel'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,7 @@ export const dynamic = 'force-dynamic'
 // sólo se acota presencia y longitud.
 const geometryRefSchema = z.string().min(1).max(50).optional()
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
@@ -127,3 +128,5 @@ export async function GET(request: Request) {
 
   return jsonNoStore({ pronostico, climatologia, niveles, caudal, observado, observadoAcumulado })
 }
+
+export const GET = ruta('infraestructura.peligro.get', handleGET)

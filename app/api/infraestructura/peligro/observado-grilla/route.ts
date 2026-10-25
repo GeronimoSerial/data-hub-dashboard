@@ -5,6 +5,7 @@ import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { celdaAPoligono, obtenerGrillaObservada } from '@/lib/infraestructura/riesgo/peligro/observado-grilla'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,7 @@ const MS_POR_HORA = 60 * 60 * 1000
 // Acumulado de lluvia observada (NASA IMERG Early) por celda de 0.1° para toda
 // la provincia, como FeatureCollection GeoJSON. Las celdas con cobertura
 // insuficiente se devuelven con `parcial: true` y su suma tal cual.
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
@@ -56,3 +57,5 @@ export async function GET(request: Request) {
     geojson: { type: 'FeatureCollection' as const, features },
   })
 }
+
+export const GET = ruta('infraestructura.peligro.observado-grilla.get', handleGET)

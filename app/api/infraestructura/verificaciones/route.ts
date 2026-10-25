@@ -9,6 +9,7 @@ import {
   crearVerificacion,
   listarVerificaciones,
 } from '@/lib/infraestructura/verificaciones'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,7 @@ const crearVerificacionInputSchema = z.object({
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = staffGuard(user)
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
   return jsonNoStore({ ok: true, verificaciones: verificaciones.map(sinTokenHash) })
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = staffGuard(user)
@@ -81,3 +82,6 @@ export async function POST(request: Request) {
     201,
   )
 }
+
+export const GET = ruta('infraestructura.verificaciones.get', handleGET)
+export const POST = ruta('infraestructura.verificaciones.post', handlePOST)

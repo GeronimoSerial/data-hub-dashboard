@@ -4,11 +4,12 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+async function handleGET() {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
@@ -35,3 +36,5 @@ export async function GET() {
 
   return jsonNoStore({ fuentes })
 }
+
+export const GET = ruta('infraestructura.fuentes.get', handleGET)

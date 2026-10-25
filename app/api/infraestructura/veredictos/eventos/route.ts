@@ -3,6 +3,7 @@ import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,7 @@ function esFechaValida(valor: string | null): valor is string {
   return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === valor
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const user = await getSessionUser()
   const guard = staffGuard(user)
   if (guard) return respuestaGuard(guard)
@@ -41,3 +42,5 @@ export async function GET(request: Request) {
   const eventos = await cargarEventosTerreno({ desde, hasta })
   return jsonNoStore({ eventos })
 }
+
+export const GET = ruta('infraestructura.veredictos.eventos.get', handleGET)
