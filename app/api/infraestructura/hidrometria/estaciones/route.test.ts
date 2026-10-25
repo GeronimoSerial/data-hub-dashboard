@@ -33,7 +33,7 @@ beforeEach(async () => {
 
 async function llamar() {
   const { GET } = await import('./route')
-  return GET()
+  return GET(new Request('http://localhost/api'))
 }
 
 function filaLectura(id: string, estacionId: string, lecturaM: number, medidaEn: string) {

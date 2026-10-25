@@ -306,7 +306,7 @@ describe('GET /api/infraestructura/radar-meteo', () => {
 
   it('representa la ausencia de corrida sin ceros', async () => {
     autenticarLectura()
-    vi.mocked(obtenerUltimoRunRadarMeteo).mockResolvedValueOnce(null)
+    vi.mocked(obtenerUltimoRunRadarMeteo).mockResolvedValueOnce(null as never)
     const res = await rutas.radarMeteo.GET(get('/radar-meteo'))
     expect(normalizar(await capturar(res))).toMatchSnapshot('sin corrida')
   })

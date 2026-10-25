@@ -50,14 +50,14 @@ describe('GET /api/infraestructura/operacion/salud', () => {
     ['rechaza a consulta (no staff) con 403', consulta(), 403],
   ] as const)('%s', async (_titulo, user, status) => {
     vi.mocked(getSessionUser).mockResolvedValue(user)
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     expect(res.status).toBe(status)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
   it('admite a editor (staff) y devuelve flags, jobs y generadoEn', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
     const data = await res.json()
@@ -72,7 +72,7 @@ describe('GET /api/infraestructura/operacion/salud', () => {
 
   it('admite a admin y devuelve la misma forma', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(admin())
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.flags).toBeTypeOf('object')
@@ -83,7 +83,7 @@ describe('GET /api/infraestructura/operacion/salud', () => {
   it('no dispara ningún job: infra_job_run no cambia como efecto del GET', async () => {
     const antes = await contarJobs()
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     expect(res.status).toBe(200)
     const despues = await contarJobs()
     expect(despues).toBe(antes)

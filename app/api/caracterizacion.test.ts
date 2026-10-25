@@ -127,7 +127,7 @@ function conCookieDeParte(url: string, init: RequestInit = {}): Request {
   return req(url, { ...init, headers })
 }
 
-const ctx = <T extends Record<string, string>>(params: T) => ({ params: Promise.resolve(params) })
+const ctx = <T extends Record<string, string | string[]>>(params: T) => ({ params: Promise.resolve(params) })
 
 const ADMIN = {
   id: 'usuario-admin',
