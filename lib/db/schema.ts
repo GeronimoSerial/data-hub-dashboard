@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, text, integer, bigint, boolean, doublePrecision, jsonb, real, primaryKey, index, uniqueIndex, timestamp, check, foreignKey } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, bigint, bigserial, serial, boolean, doublePrecision, jsonb, real, primaryKey, index, uniqueIndex, timestamp, check, foreignKey } from 'drizzle-orm/pg-core'
 
 export const infraDatasetEntrega = pgTable('infra_dataset_entrega', {
   versionId: text('version_id').notNull().references(() => infraDatasetVersion.id),
@@ -1814,3 +1814,55 @@ export const infraDatasetPublicacion = pgTable('infra_dataset_publicacion', {
   foreignColumns: [infraDatasetVersion.datasetId, infraDatasetVersion.id],
   name: 'infra_dataset_publicacion_version_fk',
 })])
+
+// --- Matrícula nominal de institutos superiores (CSV/XLSX por ciclo) ---
+// Un corte por importación: 'cargando' mientras se escribe, 'vigente' al
+// activarse (el anterior pasa a 'reemplazado') o 'fallido'. Sólo puede haber un
+// vigente a la vez. El DNI nunca se guarda en claro: dni_hash es HMAC-SHA256.
+// Retention: replaced cuts are kept and never purged. The parte stores
+// (corte_id, alumno_id), so historic records keep resolving to their names.
+export const matriculaCorte = pgTable('matricula_corte', {
+  id: serial('id').primaryKey(),
+  fuente: text('fuente').notNull(),
+  cicloLectivo: integer('ciclo_lectivo').notNull(),
+  estado: text('estado').notNull(),
+  creadoEn: text('creado_en').notNull(),
+  filasImportadas: integer('filas_importadas').notNull().default(0),
+  filasExcluidas: integer('filas_excluidas').notNull().default(0),
+}, (t) => [
+  check('matricula_corte_estado_check', sql`${t.estado} IN ('cargando', 'vigente', 'reemplazado', 'fallido')`),
+  uniqueIndex('matricula_corte_vigente_uidx').on(t.estado).where(sql`${t.estado} = 'vigente'`),
+])
+
+export const matriculaCarrera = pgTable('matricula_carrera', {
+  id: serial('id').primaryKey(),
+  corteId: integer('corte_id').notNull().references(() => matriculaCorte.id, { onDelete: 'cascade' }),
+  cueAnexo: text('cue_anexo').notNull(),
+  instituto: text('instituto').notNull(),
+  nombre: text('nombre').notNull(),
+  rm: text('rm').notNull(),
+  tipo: text('tipo').notNull(),
+  estado: text('estado').notNull(),
+  sector: text('sector').notNull(),
+}, (t) => [
+  uniqueIndex('matricula_carrera_uidx').on(t.corteId, t.cueAnexo, t.nombre, t.rm),
+  index('matricula_carrera_cue_idx').on(t.corteId, t.cueAnexo),
+  check('matricula_carrera_estado_check', sql`${t.estado} IN ('ABIERTA', 'CERRADA')`),
+  check('matricula_carrera_sector_check', sql`${t.sector} IN ('estatal', 'privado')`),
+])
+
+// id es el identificador de miembro que guarda el parte.
+export const matriculaAlumno = pgTable('matricula_alumno', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  corteId: integer('corte_id').notNull().references(() => matriculaCorte.id, { onDelete: 'cascade' }),
+  carreraId: integer('carrera_id').notNull().references(() => matriculaCarrera.id, { onDelete: 'cascade' }),
+  apellidos: text('apellidos').notNull(),
+  nombres: text('nombres').notNull(),
+  nombreBusqueda: text('nombre_busqueda').notNull(),
+  dniHash: text('dni_hash').notNull(),
+}, (t) => [
+  // Exact DNI lookup is per career (unique key above); prefix LIKE on the name
+  // needs text_pattern_ops to use the index outside the C locale.
+  uniqueIndex('matricula_alumno_carrera_dni_uidx').on(t.carreraId, t.dniHash),
+  index('matricula_alumno_busqueda_idx').on(t.carreraId, t.nombreBusqueda.op('text_pattern_ops')),
+])

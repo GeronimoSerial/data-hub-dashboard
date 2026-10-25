@@ -211,6 +211,13 @@
       "when": 1792344000000,
       "tag": "0029_riesgo_operativo_solo_v04",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792955356367,
+      "tag": "0030_matricula_nominal",
+      "breakpoints": true
     }
   ]
 }

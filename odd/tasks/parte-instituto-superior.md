@@ -17,7 +17,7 @@ Objective: new "who is affected" flow for higher-education institutes (careers +
 - T1 [S3] characterization tests for current parte (API, historial, mapa; riesgo covered by existing corte/consulta tests) — inline — done (app/api/problematicas/parte/caracterizacion.test.ts, stable on 2 runs)
 - T6 [S10] API standard (request-id, structured logs, traceable 500, bounded rate limiter; DB timeouts already existed) applied to the 11 parte handlers — inline + haiku fixes, sonnet-low review (no blockers) — done
 - T2 [S3] extract alcance port + GE adapter, outputs unchanged — haiku writer, 2 sonnet-low-reviewed iterations — done
-- T3 [S4,S6,S8,S9] matrícula schema + import script — inline — pending
+- T3 [S4,S6,S8,S9] matrícula schema + import script — haiku writer, sonnet-low review (1 blocker fixed: PII in drizzle error logs) — done
 - T4 [S4,S5] matrícula adapter + affectation persistence — inline — pending
 - T5 [S1,S2,S7] step 2 UI for institutes with search — inline — pending
 
@@ -32,3 +32,4 @@ Objective: new "who is affected" flow for higher-education institutes (careers +
 - L8 user: "Vos no lo hagas, delega haikus e iteras hasta que quede perfecto, actua de team leader. Usa sonnet low para revisiones tambien" — from T6 on, writers=haiku, reviewers=sonnet low, parent coordinates.
 - L9 T6 checks: lib/http + parte 107 tests green, tsc clean. Full suite in chunks: only timeouts under load (pass alone) and podman-missing backup test; none import lib/http or parte routes. A single `vitest run lib` hung >20min (not linked to T6, unverified at baseline).
 - L10 T2: generic port (UnidadAlcance id/etiqueta/turno/grupo, miembroId numeric surrogate), GE-shaped response consumers kept on GE rows (contract frozen), one memoized ge_seccion read per request. Snapshot unchanged; 137 related tests green. parte-mapa.ts still reads GE directly (batch across CUEs) — handle in T4.
+- L11 T3: dry run on real file: 28,680 imported, 10 excluded (8 duplicate in carrera, 2 invalid DNI), 419 carreras, 82 CUEs. Correction: the file has NO shifted rows; the earlier claim came from the parent's naive xlsx parse skipping empty cells. Decisions: DNI as HMAC (MATRICULA_DNI_SECRET, never rotate without re-import); advisory-lock single importer; replaced cuts kept; parte stores (corte_id, alumno_id).
