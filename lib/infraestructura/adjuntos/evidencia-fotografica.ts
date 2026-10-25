@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, ne, or, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraAdjunto, infraMovimiento, infraParte } from '@/lib/db/schema'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
@@ -9,10 +9,14 @@ const LIMITE_FOTOS = 3
 const LIMITE_OPTIMIZADA = 600 * 1024
 const LIMITE_MINIATURA = 40 * 1024
 const ID_SEGURO = /^[a-zA-Z0-9_-]{1,128}$/
+const SHA256 = /^[a-f0-9]{64}$/
+const VENTANA_DEDUP_MS = 30 * 60 * 1000
 const TIPOS_FOTO = new Set(['image/jpeg', 'image/webp'])
 
 export interface DeclaracionFoto {
   attachmentId: string
+  optimizadaSha256?: string
+  miniaturaSha256?: string
   optimizadaSize: number
   optimizadaContentType: 'image/jpeg' | 'image/webp'
   miniaturaSize: number
@@ -27,6 +31,7 @@ export interface CrearEvidenciaFotograficaInput {
 
 export interface ResultadoEvidenciaFotografica {
   movimientoId: string
+  documentaMovimientoId: string
   attachmentIds: string[]
   repetido: boolean
 }
@@ -47,7 +52,10 @@ export class ErrorEvidenciaFotografica extends Error {
 /**
  * Creates an evidence-only movement and reserves its OBS keys. Image bytes
  * never pass through this service. The parent movement lock and DB trigger
- * keep the three-photo limit valid under concurrent requests.
+ * keep the three-photo limit valid under concurrent requests. SHA-256 values
+ * are client-computed content hashes registered here, NOT independently verified
+ * against OBS bytes. Confirmation checks size/type/ETag, not SHA-256. Legacy
+ * hashless declarations retain key-based replay but never content deduplication.
  */
 export async function crearEvidenciaFotografica(
   request: Request,
@@ -84,6 +92,9 @@ export async function crearEvidenciaFotografica(
   const extensionPorTipo = (contentType: string) => contentType === 'image/webp' ? 'webp' : 'jpg'
 
   return db.transaction(async (tx) => {
+    // Alias keys live in JSON, so serialize each operation key across source
+    // movements too; the original column's unique constraint cannot guard aliases.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.idempotencyKey}))`)
     // Serialize evidence updates for this source movement before creating a
     // new evidence movement. The trigger independently guards every target.
     await tx.execute(
@@ -91,48 +102,70 @@ export async function crearEvidenciaFotografica(
     )
 
     const [existing] = await tx
-      .select({ id: infraMovimiento.id, tipo: infraMovimiento.tipo })
+      .select({ id: infraMovimiento.id, tipo: infraMovimiento.tipo, resumen: infraMovimiento.resumen })
       .from(infraMovimiento)
-      .where(eq(infraMovimiento.idempotencyKey, input.idempotencyKey))
+      .where(or(eq(infraMovimiento.idempotencyKey, input.idempotencyKey), contieneOperacion(input.idempotencyKey)))
       .limit(1)
     if (existing) {
       if (existing.tipo !== 'evidencia_fotografica') {
         throw new ErrorEvidenciaFotografica('Idempotency key already used', 409)
       }
-      const [existingSummary] = await tx
-        .select({ resumen: infraMovimiento.resumen })
-        .from(infraMovimiento)
-        .where(eq(infraMovimiento.id, existing.id))
-        .limit(1)
-      const declaredIds = (existingSummary?.resumen.attachmentIds as unknown[] | undefined) ?? []
-      const attached = await tx
-        .select({
-          id: infraAdjunto.id,
-          optimizadaSize: infraAdjunto.optimizadaSize,
-          optimizadaContentType: infraAdjunto.optimizadaContentType,
-          miniaturaSize: infraAdjunto.miniaturaSize,
-          miniaturaContentType: infraAdjunto.miniaturaContentType,
-        })
-        .from(infraAdjunto)
+      const resumen = existing.resumen
+      const operacion = operacionesRegistradas(resumen).find((item) => item.key === input.idempotencyKey)
+      const declaradas = operacion?.fotos ?? resumen.fotos as DeclaracionFoto[] | undefined
+      const declaredIds = (resumen.attachmentIds as string[] | undefined) ?? []
+      const attached = await tx.select().from(infraAdjunto)
         .where(eq(infraAdjunto.movimientoId, existing.id))
-      const sameBody =
-        existingSummary?.resumen.documentaMovimientoId === base.id &&
-        declaredIds.length === input.fotos.length &&
-        input.fotos.every((foto, index) => {
-          const row = attached.find((candidate) => candidate.id === foto.attachmentId)
-          return (
-            declaredIds[index] === foto.attachmentId &&
-            row?.optimizadaSize === foto.optimizadaSize &&
-            row.optimizadaContentType === foto.optimizadaContentType &&
-            row.miniaturaSize === foto.miniaturaSize &&
-            row.miniaturaContentType === foto.miniaturaContentType
-          )
-        })
+      const sameBody = resumen.documentaMovimientoId === base.id &&
+        (resumen.creadaPor === undefined || resumen.creadaPor === creadaPor) &&
+        (declaradas
+          ? mismaDeclaracion(declaradas, input.fotos)
+          : declaredIds.length === input.fotos.length && input.fotos.every((foto, index) => {
+            const row = attached.find((candidate) => candidate.id === foto.attachmentId)
+            return declaredIds[index] === foto.attachmentId && row &&
+              !foto.optimizadaSha256 && !foto.miniaturaSha256 && mismaMetadata(row, foto)
+          }))
       if (!sameBody) throw new ErrorEvidenciaFotografica('Idempotency key body mismatch', 409)
       return {
         movimientoId: existing.id,
-        attachmentIds: attached.map((row) => row.id),
+        documentaMovimientoId: base.id,
+        attachmentIds: operacion?.attachmentIds ?? declaredIds,
         repetido: true,
+      }
+    }
+
+    if (input.fotos.every((foto) => foto.optimizadaSha256 && foto.miniaturaSha256)) {
+      const candidates = await tx.select({ id: infraMovimiento.id, resumen: infraMovimiento.resumen })
+        .from(infraMovimiento).where(and(
+          eq(infraMovimiento.parteId, base.parteId),
+          eq(infraMovimiento.tipo, 'evidencia_fotografica'),
+          gte(infraMovimiento.creadaEn, new Date(ahora.getTime() - VENTANA_DEDUP_MS).toISOString()),
+          lte(infraMovimiento.creadaEn, dbTime),
+          sql`${infraMovimiento.resumen}->>'documentaMovimientoId' = ${base.id}`,
+          sql`${infraMovimiento.resumen}->>'creadaPor' = ${creadaPor}`,
+        )).orderBy(desc(infraMovimiento.creadaEn))
+      for (const candidate of candidates) {
+        const fotos = candidate.resumen.fotos as DeclaracionFoto[] | undefined
+        if (!fotos || fotos.length !== input.fotos.length) continue
+        // Consume each match once so repeated hashes remain a multiset, not a set.
+        const remaining = [...fotos]
+        const attachmentIds: string[] = []
+        for (const foto of input.fotos) {
+          const index = remaining.findIndex((registered) => mismaHuella(registered, foto))
+          if (index < 0) break
+          attachmentIds.push(remaining.splice(index, 1)[0].attachmentId)
+        }
+        if (attachmentIds.length !== input.fotos.length) continue
+        const attachments = await tx.select({ id: infraAdjunto.id }).from(infraAdjunto)
+          .where(eq(infraAdjunto.movimientoId, candidate.id))
+        if (!attachmentIds.every((id) => attachments.some((row) => row.id === id))) continue
+        await tx.update(infraMovimiento).set({ resumen: {
+          ...candidate.resumen,
+          operaciones: [...operacionesRegistradas(candidate.resumen), {
+            key: input.idempotencyKey, fotos: input.fotos, attachmentIds,
+          }],
+        } }).where(eq(infraMovimiento.id, candidate.id))
+        return { movimientoId: candidate.id, documentaMovimientoId: base.id, attachmentIds, repetido: true }
       }
     }
 
@@ -143,6 +176,8 @@ export async function crearEvidenciaFotografica(
       rol: 'director',
       resumen: {
         documentaMovimientoId: base.id,
+        creadaPor,
+        fotos: input.fotos,
         attachmentIds: input.fotos.map((foto) => foto.attachmentId),
       },
       rigeDesde: base.rigeDesde,
@@ -172,6 +207,7 @@ export async function crearEvidenciaFotografica(
     )
     return {
       movimientoId,
+      documentaMovimientoId: base.id,
       attachmentIds: input.fotos.map((foto) => foto.attachmentId),
       repetido: false,
     }
@@ -182,7 +218,18 @@ export async function crearEvidenciaFotografica(
  * Latest non-evidence movement of the school's report: what photos attach to
  * when the caller only knows the school. Null when the school has no report.
  */
-export async function resolverMovimientoBaseEvidencia(cueAnexo: string): Promise<string | null> {
+export async function resolverMovimientoBaseEvidencia(cueAnexo: string, idempotencyKey?: string): Promise<string | null> {
+  if (idempotencyKey && ID_SEGURO.test(idempotencyKey)) {
+    const [existing] = await getDb().select({ resumen: infraMovimiento.resumen })
+      .from(infraMovimiento).innerJoin(infraParte, eq(infraParte.id, infraMovimiento.parteId))
+      .where(and(eq(infraParte.cueAnexo, cueAnexo),
+        eq(infraMovimiento.tipo, 'evidencia_fotografica'),
+        or(eq(infraMovimiento.idempotencyKey, idempotencyKey), contieneOperacion(idempotencyKey)),
+      )).limit(1)
+    const baseId = existing?.resumen.documentaMovimientoId
+    // The caller still performs the normal source-movement access check.
+    if (typeof baseId === 'string') return baseId
+  }
   const [fila] = await getDb()
     .select({ id: infraMovimiento.id })
     .from(infraMovimiento)
@@ -202,10 +249,15 @@ function validarEntrada(input: CrearEvidenciaFotograficaInput): void {
   }
   const ids = new Set<string>()
   for (const foto of input.fotos) {
-    if (!ID_SEGURO.test(foto.attachmentId) || ids.has(foto.attachmentId)) {
+    if (!foto || typeof foto !== 'object' || typeof foto.attachmentId !== 'string' || !ID_SEGURO.test(foto.attachmentId) || ids.has(foto.attachmentId)) {
       throw new ErrorEvidenciaFotografica('Invalid or duplicate attachment identifier', 400)
     }
     ids.add(foto.attachmentId)
+    if ((foto.optimizadaSha256 !== undefined || foto.miniaturaSha256 !== undefined) &&
+      (typeof foto.optimizadaSha256 !== 'string' || !SHA256.test(foto.optimizadaSha256) ||
+       typeof foto.miniaturaSha256 !== 'string' || !SHA256.test(foto.miniaturaSha256))) {
+      throw new ErrorEvidenciaFotografica('Invalid photo content hashes', 400)
+    }
     if (
       !TIPOS_FOTO.has(foto.optimizadaContentType) ||
       !TIPOS_FOTO.has(foto.miniaturaContentType) ||
@@ -219,4 +271,30 @@ function validarEntrada(input: CrearEvidenciaFotograficaInput): void {
       throw new ErrorEvidenciaFotografica('Invalid photo metadata', 400)
     }
   }
+}
+
+type OperacionRegistrada = { key: string; fotos: DeclaracionFoto[]; attachmentIds: string[] }
+
+function operacionesRegistradas(resumen: Record<string, unknown>): OperacionRegistrada[] {
+  return (resumen.operaciones as OperacionRegistrada[] | undefined) ?? []
+}
+
+function contieneOperacion(key: string) {
+  return sql`${infraMovimiento.resumen}->'operaciones' @> ${JSON.stringify([{ key }])}::jsonb`
+}
+
+function mismaMetadata(a: { optimizadaSize: number; optimizadaContentType: string; miniaturaSize: number; miniaturaContentType: string }, b: DeclaracionFoto): boolean {
+  return a.optimizadaSize === b.optimizadaSize && a.optimizadaContentType === b.optimizadaContentType &&
+    a.miniaturaSize === b.miniaturaSize && a.miniaturaContentType === b.miniaturaContentType
+}
+
+function mismaHuella(a: DeclaracionFoto, b: DeclaracionFoto): boolean {
+  return !!a.optimizadaSha256 && !!a.miniaturaSha256 &&
+    a.optimizadaSha256 === b.optimizadaSha256 && a.miniaturaSha256 === b.miniaturaSha256 && mismaMetadata(a, b)
+}
+
+function mismaDeclaracion(a: DeclaracionFoto[], b: DeclaracionFoto[]): boolean {
+  return a.length === b.length && a.every((foto, index) => foto.attachmentId === b[index].attachmentId &&
+    foto.optimizadaSha256 === b[index].optimizadaSha256 && foto.miniaturaSha256 === b[index].miniaturaSha256 &&
+    mismaMetadata(foto, b[index]))
 }

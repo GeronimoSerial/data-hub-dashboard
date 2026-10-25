@@ -50,7 +50,7 @@ describe('POST /api/problematicas/parte/evidencia', () => {
     resolver.mockResolvedValue('latest-movement')
     const response = await POST(request({ cue: '1801605-00', idempotencyKey: 'evidence-key', fotos: [declaration] }))
     expect(response.status).toBe(200)
-    expect(resolver).toHaveBeenCalledWith('1801605-00')
+    expect(resolver).toHaveBeenCalledWith('1801605-00', 'evidence-key')
     expect(crear).toHaveBeenCalledWith(expect.any(Request), expect.objectContaining({ movimientoBaseId: 'latest-movement' }))
   })
 

@@ -39,7 +39,7 @@ export async function POST(request: Request): Promise<Response> {
     const movimientoBaseId =
       typeof input.movimientoBaseId === 'string'
         ? input.movimientoBaseId
-        : await resolverMovimientoBaseEvidencia(cue!.value)
+        : await resolverMovimientoBaseEvidencia(cue!.value, input.idempotencyKey)
     if (!movimientoBaseId) {
       return Response.json(
         { code: 'sin_parte', error: 'La escuela todavía no tiene un parte al que asociar fotos.' },
