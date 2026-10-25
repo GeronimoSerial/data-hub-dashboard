@@ -44,3 +44,4 @@ Objective: new "who is affected" flow for higher-education institutes (careers +
 - L14 (2026-10-25) temporary SG rule 88fecbc7-1ed8-494b-8f66-a251e379b40f (coolify-sistemas, tcp 22 from 179.0.180.39/32) added for dev import/QA — MUST be deleted after.
 - L15 (2026-10-25) dev import: cut 1 vigente, 28,680 alumnos, 419 carreras, 82 CUEs; 69 Superior, 9 Enseñanza Privada, 2 Educación Física, 2 without level. Q: "¿Querés que el flujo de institutos se active para cualquier CUE que tenga matrícula vigente, sin mirar el nivel?" user: "Si." → S7 rewritten; task T7 reopened detection.
 - L16 (2026-10-25) browser QA round 2 on dev: all prior bugs fixed (79d60521); fixed pre-existing SW bug (3xx navigation treated as offline), institute copy map lib/copy/institutos.ts, RM label normalization, singular. 5xx navigations still go offline (unchanged).
+- L17 temporary SG rule 88fecbc7 deleted; tunnel and local dev server stopped; excluded CSV deleted.
