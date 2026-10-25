@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { getRawClient } from '@/lib/db'
+import { getRawClient, migrarDb } from '@/lib/db'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { importarIdentidad } from '@/lib/infraestructura/identidad'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
@@ -16,6 +16,7 @@ usarDbTemporal('alcance-ge-', {
 })
 
 beforeAll(async () => {
+  await migrarDb()
   const client = crearEjecutorSql(getRawClient())
   await ensureGeSchema(client)
   await client.execute(

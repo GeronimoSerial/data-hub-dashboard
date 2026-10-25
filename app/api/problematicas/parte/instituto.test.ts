@@ -15,8 +15,8 @@ import { GET, POST } from './route'
 import { GET as GET_HISTORIAL } from './historial/route'
 
 // Institutos superiores (matrícula): alcance por carrera y alumno, servicio por
-// carrera y equivalencia de afectaciones. Los CUE de instituto se detectan por
-// su nivel jurisdiccional "Superior" en GE.
+// carrera y equivalencia de afectaciones. Un CUE es de instituto cuando tiene
+// carreras en la matrícula vigente, sin mirar su nivel jurisdiccional.
 
 vi.mock('@/lib/session', () => ({ getSessionUser: async () => null }))
 
@@ -245,14 +245,14 @@ describe('instituto superior: alta por carreras', () => {
     expect((await res.json()).error).toBe('Invalid input: expected array, received undefined')
   })
 
-  it('responde 400 si el instituto no tiene carreras cargadas', async () => {
+  it('un CUE Superior sin carreras vigentes sigue el padrón GE y rechaza carreras', async () => {
     const res = await POST(
       postReq(cuerpo(CUE_SIN_CARRERAS, {
         afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Baja', carreras: [id.tecnicatura] }],
       })),
     )
     expect(res.status).toBe(400)
-    expect((await res.json()).error).toBe('No hay carreras cargadas para este establecimiento')
+    expect((await res.json()).error).toBe('Este establecimiento informa por secciones')
   })
 
   it('responde 400 con una carrera que no pertenece al CUE', async () => {

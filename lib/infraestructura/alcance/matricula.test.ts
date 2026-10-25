@@ -3,11 +3,12 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { getRawClient, migrarDb } from '@/lib/db'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
-import { alcanceParaCue, esNivelSuperior } from './index'
+import { alcanceParaCue } from './index'
 import { crearAlcanceMatricula } from './matricula'
 
 const CUE_SUP = '1800001-1'
 const CUE_SEC = '1800002-1'
+const CUE_SUP_SIN_CARRERAS = '1800003-1'
 const NIVEL_SUPERIOR = 4
 const NIVEL_SECUNDARIO = 1
 
@@ -43,7 +44,8 @@ beforeAll(async () => {
   await client.execute(`INSERT INTO ge.ge_nivel_jurisdiccional (id, nombre) VALUES
     (${NIVEL_SUPERIOR}, 'Dirección de Nivel Superior'), (${NIVEL_SECUNDARIO}, 'Dirección de Nivel Secundario')`)
   await client.execute(`INSERT INTO ge.ge_escuela_nivel_jur (cue_anexo, nivel_jurisdiccional_id, ciclo_lectivo) VALUES
-    ('${CUE_SUP}', ${NIVEL_SUPERIOR}, 2026), ('${CUE_SEC}', ${NIVEL_SECUNDARIO}, 2026)`)
+    ('${CUE_SUP}', ${NIVEL_SUPERIOR}, 2026), ('${CUE_SEC}', ${NIVEL_SECUNDARIO}, 2026),
+    ('${CUE_SUP_SIN_CARRERAS}', ${NIVEL_SUPERIOR}, 2026)`)
 
   const cortes = await client.execute(`INSERT INTO matricula_corte (fuente, ciclo_lectivo, estado, creado_en)
     VALUES ('test-vigente', 2026, 'vigente', '2026-10-01'), ('test-anterior', 2025, 'reemplazado', '2025-10-01') RETURNING id`)
@@ -130,8 +132,8 @@ describe('adaptador de matrícula', () => {
   })
 })
 
-describe('alcanceParaCue (selección por nivel jurisdiccional)', () => {
-  it('usa matrícula para un CUE de nivel Superior cuando hay un corte vigente', async () => {
+describe('alcanceParaCue (selección por carreras vigentes)', () => {
+  it('usa matrícula para un CUE con carreras en el corte vigente', async () => {
     const alcance = await alcanceParaCue(crearEjecutorSql(getRawClient()), 1, CUE_SUP)
     expect(alcance.sistema).toBe('matricula')
     expect((await alcance.listUnits()).map((u) => u.id).sort((a, b) => a - b)).toEqual(
@@ -139,8 +141,13 @@ describe('alcanceParaCue (selección por nivel jurisdiccional)', () => {
     )
   })
 
-  it('usa el padrón GE para un CUE que no es de nivel Superior', async () => {
+  it('usa matrícula para un CUE sin nivel Superior que tiene carreras vigentes', async () => {
     const alcance = await alcanceParaCue(crearEjecutorSql(getRawClient()), 1, CUE_SEC)
+    expect(alcance.sistema).toBe('matricula')
+  })
+
+  it('usa el padrón GE para un CUE de nivel Superior sin carreras vigentes', async () => {
+    const alcance = await alcanceParaCue(crearEjecutorSql(getRawClient()), 1, CUE_SUP_SIN_CARRERAS)
     expect(alcance.sistema).toBe('ge')
   })
 
@@ -153,11 +160,5 @@ describe('alcanceParaCue (selección por nivel jurisdiccional)', () => {
     } finally {
       await client.execute(`UPDATE matricula_corte SET estado = 'vigente' WHERE id = ${ids.corteVigente}`)
     }
-  })
-
-  it('reconoce el nivel Superior sin importar acentos ni mayúsculas', () => {
-    expect(esNivelSuperior('Dirección de Nivel Superior')).toBe(true)
-    expect(esNivelSuperior('DIRECCION DE NIVEL SUPERIOR')).toBe(true)
-    expect(esNivelSuperior('Dirección de Nivel Secundario')).toBe(false)
   })
 })

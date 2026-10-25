@@ -452,8 +452,8 @@ async function intentarVincularVerificacion(
   }
 }
 
-// Sistema del CUE para elegir el esquema de parseo (GE salvo instituto superior
-// con corte de matrícula vigente).
+// Sistema del CUE para elegir el esquema de parseo (matrícula si tiene carreras
+// en el corte vigente, GE en otro caso).
 async function sistemaDelCue(cue: string): Promise<'ge' | 'matricula'> {
   try {
     const client = crearEjecutorSql(getRawClient())
