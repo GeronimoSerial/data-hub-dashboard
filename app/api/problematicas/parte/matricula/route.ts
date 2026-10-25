@@ -15,7 +15,7 @@ import { ruta } from '@/lib/http/ruta'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const limitador = crearLimitador({ ventanaMs: 60_000, max: 60 })
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 300 })
 // Búsquedas por DNI completo, por CUE: un DNI exacto es una consulta de
 // identidad, así que se limita más fuerte que el listado o la búsqueda por nombre.
 const limitadorDni = crearLimitador({ ventanaMs: 60_000, max: 30 })

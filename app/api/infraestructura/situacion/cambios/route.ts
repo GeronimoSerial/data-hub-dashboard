@@ -5,6 +5,7 @@ import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { obtenerCambiosDesde } from '@/lib/infraestructura/riesgo/situacion/consulta'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,7 @@ const filtrosSchema = z.object({
   territorioId: z.string().min(1).optional(),
 })
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const user = await getSessionUser()
   const guard = staffGuard(user)
   if (guard) return respuestaGuard(guard)
@@ -48,3 +49,5 @@ export async function GET(request: Request) {
 
   return jsonNoStore(cambios)
 }
+
+export const GET = ruta('infraestructura.situacion.cambios.get', handleGET)

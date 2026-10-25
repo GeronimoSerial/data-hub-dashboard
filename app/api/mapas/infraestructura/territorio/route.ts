@@ -4,13 +4,14 @@ import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
 import { cargarTerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
 import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // GET de sólo lectura: capas territoriales estáticas (aislamiento OSM +
 // susceptibilidad physrisk) de todo el padrón. NUNCA devuelve datos nominales.
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   // ACL PRIMERO: nada de tocar la DB de datos sin autorización.
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
@@ -27,3 +28,5 @@ export async function GET(request: Request) {
     headers: { 'Cache-Control': 'private, no-cache' },
   })
 }
+
+export const GET = ruta('mapas.infraestructura.territorio.get', handleGET)

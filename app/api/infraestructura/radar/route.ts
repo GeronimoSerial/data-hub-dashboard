@@ -21,6 +21,7 @@ import {
   type NivelPeligro,
   type NivelPeligroCelda,
 } from '@/lib/infraestructura/riesgo/peligro/nivel'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -155,7 +156,7 @@ function construirDepartamentos(
   return departamentos
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   // ACL primero: una request sin sesión no debe disparar trabajo de DB
   // (ensureSeeded) antes de fallar.
   const acceso = await verificarAccesoLectura()
@@ -353,3 +354,5 @@ export async function GET(request: Request) {
     },
   )
 }
+
+export const GET = ruta('infraestructura.radar.get', handleGET)

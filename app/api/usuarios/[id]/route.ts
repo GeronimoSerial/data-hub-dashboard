@@ -19,13 +19,14 @@ import {
   unknownRecursoIds,
   wouldRemoveLastAdmin,
 } from '@/lib/usuarios'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-export async function PATCH(request: Request, ctx: Ctx) {
+async function handlePATCH(request: Request, ctx: Ctx) {
   await ensureSeeded()
   const denied = mutateUsuariosDenied(await getSessionUser())
   if (denied) {
@@ -120,3 +121,5 @@ export async function PATCH(request: Request, ctx: Ctx) {
 
   return Response.json({ ok: true, id })
 }
+
+export const PATCH = ruta('usuarios.id.patch', handlePATCH)

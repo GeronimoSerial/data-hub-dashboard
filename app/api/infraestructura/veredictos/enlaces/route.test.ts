@@ -118,20 +118,20 @@ describe('POST /api/infraestructura/veredictos/enlaces', () => {
 describe('DELETE /api/infraestructura/veredictos/enlaces', () => {
   it('401 sin sesión', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
-    const res = await DELETE()
+    const res = await DELETE(new Request('http://localhost/api'))
     expect(res.status).toBe(401)
     expect(revocarEnlacesDelDia).not.toHaveBeenCalled()
   })
 
   it('403 para un usuario baneado', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({ id: 'u', role: 'admin', banned: true } as never)
-    const res = await DELETE()
+    const res = await DELETE(new Request('http://localhost/api'))
     expect(res.status).toBe(403)
   })
 
   it('200 con el número de enlaces revocados', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(STAFF)
-    const res = await DELETE()
+    const res = await DELETE(new Request('http://localhost/api'))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ revocados: 2 })
     expect(revocarEnlacesDelDia).toHaveBeenCalledWith(

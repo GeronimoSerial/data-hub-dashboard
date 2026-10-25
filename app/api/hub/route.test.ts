@@ -63,7 +63,7 @@ type MarkedRecurso = { id: string; acceso: 'abrir' | 'ingresar' | 'restringido' 
 describe('GET /api/hub', () => {
   it('sin sesión devuelve todo el catálogo publicado, marcado como ingresar', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     const data = await res.json()
     expect(data.recursos.length).toBeGreaterThan(0)
     expect(
@@ -73,7 +73,7 @@ describe('GET /api/hub', () => {
 
   it('consulta+todos: el recurso restringido a otro nivel queda restringido, no se oculta', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]
     expect(recursos.some((r) => r.id === 'hub-route-restringido')).toBe(true)
@@ -86,7 +86,7 @@ describe('GET /api/hub', () => {
     vi.mocked(getSessionUser).mockResolvedValue(
       consulta({ nivelJurIds: [2] }),
     )
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]
     expect(
@@ -102,7 +102,7 @@ describe('GET /api/hub', () => {
         nivelJurIds: [2],
       }),
     )
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]
     expect(recursos.length).toBeGreaterThan(1)
@@ -120,7 +120,7 @@ describe('GET /api/hub', () => {
     vi.mocked(getSessionUser).mockResolvedValue(
       consulta({ role: 'admin' as const }),
     )
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]
     expect(recursos.every((r) => r.acceso === 'abrir')).toBe(true)

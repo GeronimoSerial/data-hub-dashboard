@@ -4,6 +4,7 @@ import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { obtenerEvolucionMapa } from '@/lib/infraestructura/evolucion'
 import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,7 +14,7 @@ const parametrosSchema = z.object({
   niveles: z.array(z.string().trim().min(1).max(120)).max(100).optional(),
 })
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
@@ -41,3 +42,5 @@ export async function GET(request: Request) {
     headers: { 'Cache-Control': 'private, no-cache' },
   })
 }
+
+export const GET = ruta('mapas.infraestructura.evolucion.get', handleGET)

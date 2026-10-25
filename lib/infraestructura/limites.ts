@@ -27,15 +27,18 @@ export function getClientIp(request: Request): string {
   return 'unknown'
 }
 
-// true = excede el límite y la request debe rechazarse.
-export function ipExcedeLimite(ip: string, now: number = Date.now()): boolean {
-  const bucket = ipBuckets.get(ip)
+// true = excede el límite y la request debe rechazarse. Cada máximo tiene su
+// propio contador: rutas con distinto tope (acceso/parte 10, verificaciones 100)
+// no comparten bucket.
+export function ipExcedeLimite(ip: string, now: number = Date.now(), max: number = IP_MAX_REQUESTS): boolean {
+  const clave = `${max}|${ip}`
+  const bucket = ipBuckets.get(clave)
   if (!bucket || now - bucket.windowStart > IP_WINDOW_MS) {
-    ipBuckets.set(ip, { count: 1, windowStart: now })
+    ipBuckets.set(clave, { count: 1, windowStart: now })
     return false
   }
   bucket.count += 1
-  return bucket.count > IP_MAX_REQUESTS
+  return bucket.count > max
 }
 
 export function _resetLimitesParaTests(): void {

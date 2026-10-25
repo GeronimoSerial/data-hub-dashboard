@@ -1,7 +1,15 @@
 import { listarPartesVigentes } from '@/lib/infraestructura/parte-mapa'
 import { crearGetMapaInfraestructura } from '@/lib/infraestructura/mapa-ruta'
+import { crearLimitador } from '@/lib/http/limitador'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export const GET = crearGetMapaInfraestructura((filtros) => listarPartesVigentes(filtros))
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 300 })
+
+export const GET = ruta(
+  'mapas.infraestructura.get',
+  crearGetMapaInfraestructura((filtros) => listarPartesVigentes(filtros)),
+  { limite: { limitador } },
+)

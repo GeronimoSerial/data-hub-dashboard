@@ -19,6 +19,7 @@ import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { armarFichaParte, listarSituacionesRecientes } from '@/lib/infraestructura/parte-consulta'
 import { verificarCueEnAlcance } from '@/lib/infraestructura/parte-mapa'
 import { totalesMatriculaInstitutos } from '@/lib/infraestructura/alcance'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,7 @@ export const dynamic = 'force-dynamic'
 // devuelva vacío, mientras permite leer el parte y sus afectaciones.
 const SIN_CORTE = 0
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
@@ -103,3 +104,5 @@ export async function GET(request: Request) {
     },
   )
 }
+
+export const GET = ruta('mapas.infraestructura.parte.get', handleGET)

@@ -7,6 +7,7 @@ import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { riskRadarEnabled } from '@/lib/infraestructura/riesgo/flags'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -58,7 +59,7 @@ function respuesta(datos: unknown, status = 200, headers?: HeadersInit) {
   return Response.json(datos, { status, headers })
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
   if (!riskRadarEnabled()) {
@@ -230,3 +231,5 @@ export async function GET(request: Request) {
     headers,
   )
 }
+
+export const GET = ruta('infraestructura.radar-meteo.get', handleGET)

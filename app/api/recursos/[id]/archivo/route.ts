@@ -24,6 +24,7 @@ import { getSessionUser, staffGuard } from '@/lib/session'
 import { isAllowedUpload } from '@/lib/upload'
 import { normalizeUploadedMapHtml } from '@/lib/html-map-tiles'
 import type { RecursoAccess } from '@/lib/acl'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -54,7 +55,7 @@ async function loadRecursoWithAccess(id: string) {
   return { row, access }
 }
 
-export async function GET(request: Request, ctx: Ctx) {
+async function handleGET(request: Request, ctx: Ctx) {
   await ensureSeeded()
   const user = await getSessionUser()
   const { id } = await ctx.params
@@ -101,7 +102,7 @@ export async function GET(request: Request, ctx: Ctx) {
   return new Response(stream, { headers })
 }
 
-export async function POST(request: Request, ctx: Ctx) {
+async function handlePOST(request: Request, ctx: Ctx) {
   await ensureSeeded()
   const denied = staffGuard(await getSessionUser())
   if (denied) {
@@ -180,3 +181,6 @@ export async function POST(request: Request, ctx: Ctx) {
     size: storedBytes.length,
   })
 }
+
+export const GET = ruta('recursos.id.archivo.get', handleGET)
+export const POST = ruta('recursos.id.archivo.post', handlePOST)

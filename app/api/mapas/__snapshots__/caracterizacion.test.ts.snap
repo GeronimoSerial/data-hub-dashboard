@@ -1,0 +1,624 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GET /api/mapas/infraestructura (root) > answers 200 with the current partes for an authorized user 1`] = `
+{
+  "body": {
+    "indicadores": {
+      "alumnosAlcanzados": 0,
+      "centrosDeEvacuados": 0,
+      "conServicioParcial": 0,
+      "conServicioSuspendido": 0,
+      "escuelas": 0,
+      "establecimientosParciales": 0,
+      "evacuadas": 0,
+      "seccionesAlcanzadas": 0,
+      "sinActualizar": 0,
+    },
+    "partes": [],
+  },
+  "cacheControl": "private, no-cache",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura (root) > rejects a banned user with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura (root) > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacion > rejects a banned user with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacion > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacion > rejects an overlong cueAnexo with 400 1`] = `
+{
+  "body": {
+    "error": "cueAnexo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacion > returns the flood exposure indicator for an authorized user 1`] = `
+{
+  "body": {
+    "aviso": "Indicador histórico/estático por celda de ~1 km; no es pronóstico ni estado del camino ni el trazado de un río.",
+    "celdasAfectadas": [],
+    "claseRuta": null,
+    "cueAnexo": "1801605-71",
+    "disponible": false,
+    "escenario": null,
+    "fechaCorrida": null,
+    "fuente": null,
+    "licencia": null,
+    "motivoSinDato": "Sin dato de exposición para esta escuela.",
+    "periodoRetornoAnios": null,
+    "resolucionArcsec": null,
+    "resumen": {
+      "celdasConDato": 0,
+      "celdasConProfundidad": 0,
+      "celdasTotal": 0,
+      "cobertura": 0,
+      "profundidadMaxM": null,
+    },
+    "versionJob": null,
+  },
+  "cacheControl": "private, no-cache",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria > answers 200 with available=false when no geometry is imported 1`] = `
+{
+  "body": {
+    "cueAnexo": "1801605-71",
+    "disponible": false,
+    "motivo": "sin_geometria_importada",
+  },
+  "cacheControl": "private, no-cache",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria > rejects a banned user with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria > rejects an overlong cueAnexo with 400 1`] = `
+{
+  "body": {
+    "error": "cueAnexo inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/datasets/[dataset] > answers 200 with an empty version history 1`] = `
+{
+  "body": [],
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/datasets/[dataset] > answers 404 for an unknown dataset 1`] = `
+{
+  "body": {
+    "error": "Dataset desconocido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/datasets/[dataset] > answers 503 when a reference dataset has no published version 1`] = `
+{
+  "body": {
+    "error": "Dataset sin publicar",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 503,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/datasets/[dataset] > rejects a banned user with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/datasets/[dataset] > rejects a malformed version id with 400 1`] = `
+{
+  "body": {
+    "error": "Versión inválida",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/datasets/[dataset] > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/escuelas > answers 200 with the enriched school list for an authorized user 1`] = `
+{
+  "body": {
+    "escuelas": [],
+    "sinUbicacion": [
+      {
+        "cueAnexo": "1801605-71",
+        "departamento": "ER",
+        "localidad": "Parana",
+        "nombre": "Escuela",
+      },
+    ],
+    "totalPadron": 1,
+  },
+  "cacheControl": "private, no-cache",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/escuelas > rejects a banned user with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/escuelas > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/evolucion > answers 200 when filtered by department 1`] = `
+{
+  "body": {
+    "alumnosAcumulados": [],
+    "distribucionMotivo": [],
+    "rankingDepartamentos": [],
+    "serieEscuelasServicioCaido": [],
+  },
+  "cacheControl": "private, no-cache",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/evolucion > answers 200 with the four evolution views when unfiltered 1`] = `
+{
+  "body": {
+    "alumnosAcumulados": [],
+    "distribucionMotivo": [],
+    "rankingDepartamentos": [],
+    "serieEscuelasServicioCaido": [],
+  },
+  "cacheControl": "private, no-cache",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/evolucion > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/evolucion > rejects an empty department filter with 400 1`] = `
+{
+  "body": {
+    "error": "Parámetros inválidos",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/historial > answers 200 with an empty history for a CUE unknown to the dataset 1`] = `
+{
+  "body": {
+    "movimientos": [],
+    "ok": true,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/historial > answers 200 with the movement history of a school in scope 1`] = `
+{
+  "body": {
+    "movimientos": [],
+    "ok": true,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/historial > rejects a banned user with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/historial > rejects a missing cue with 400 1`] = `
+{
+  "body": {
+    "error": "CUE inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/historial > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/nominal > answers 404 for an unknown afectacion 1`] = `
+{
+  "body": {
+    "error": "Afectación no encontrada",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 404,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/nominal > rejects a missing afectacionId with 400 1`] = `
+{
+  "body": {
+    "error": "Falta el parámetro afectacionId",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/nominal > rejects a user without nominal permission with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso al alcance nominal",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/nominal > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/parte > answers 200 with a null parte for a CUE unknown to the dataset 1`] = `
+{
+  "body": {
+    "afectaciones": [],
+    "datosPadron": null,
+    "ok": true,
+    "parte": null,
+    "periodo": {
+      "id": "periodo-enos-2026-2027",
+      "nombre": "Protocolo ENOS 2026/2027",
+    },
+    "recientes": [],
+    "secciones": [],
+    "servicio": {
+      "alcanceVigente": [],
+      "estadoGeneral": "normal",
+    },
+    "ultimaActualizacion": null,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/parte > answers 200 with the parte card and census of a school in scope 1`] = `
+{
+  "body": {
+    "afectaciones": [],
+    "datosPadron": {
+      "matriculaTotal": 1,
+      "niveles": [
+        "PRIMARIA",
+      ],
+      "secciones": 1,
+      "turnos": [
+        "MAÑANA",
+      ],
+    },
+    "ok": true,
+    "parte": null,
+    "periodo": {
+      "id": "periodo-enos-2026-2027",
+      "nombre": "Protocolo ENOS 2026/2027",
+    },
+    "recientes": [],
+    "secciones": [
+      {
+        "curso": "1",
+        "division": "A",
+        "geSectionId": 10,
+        "nivel": "PRIMARIA",
+        "turno": "MAÑANA",
+      },
+    ],
+    "servicio": {
+      "alcanceVigente": [],
+      "estadoGeneral": "normal",
+    },
+    "ultimaActualizacion": null,
+  },
+  "cacheControl": "private, no-store",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/parte > rejects a banned user with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/parte > rejects a missing cue with 400 1`] = `
+{
+  "body": {
+    "error": "CUE inválido",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 400,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/parte > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/referencias/eventos > answers 503 while the map references are not published 1`] = `
+{
+  "body": {
+    "error": "Referencias del mapa sin publicar",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 503,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/referencias/eventos > rejects a banned user with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/referencias/eventos > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/territorio > answers 200 with the territorial layers for an authorized user 1`] = `
+{
+  "body": {
+    "aislamiento": null,
+    "susceptibilidad": null,
+  },
+  "cacheControl": "private, no-cache",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/territorio > rejects a banned user with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/territorio > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/totales > answers 200 with the map totals for an authorized user 1`] = `
+{
+  "body": {
+    "departamentos": [
+      {
+        "departamento": "ER",
+        "departamentoOriginal": "ER",
+        "escuelasAfectadas": 0,
+        "porcentajeAfectadas": 0,
+        "totalEscuelas": 1,
+      },
+    ],
+    "provincia": {
+      "escuelasAfectadas": 0,
+      "porcentajeAfectadas": 0,
+      "totalEscuelas": 1,
+    },
+  },
+  "cacheControl": "private, no-cache",
+  "contentType": "application/json",
+  "status": 200,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/totales > rejects a banned user with 403 1`] = `
+{
+  "body": {
+    "error": "No tiene acceso a este recurso",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 403,
+}
+`;
+
+exports[`GET /api/mapas/infraestructura/totales > rejects an anonymous request with 401 1`] = `
+{
+  "body": {
+    "error": "No autenticado",
+  },
+  "cacheControl": null,
+  "contentType": "application/json",
+  "status": 401,
+}
+`;

@@ -71,21 +71,21 @@ describe('GET /api/infraestructura/motivos', () => {
   it('rechaza sin sesión con 401', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     expect(res.status).toBe(401)
   })
 
   it('rechaza a consulta con 403', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(consulta())
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     expect(res.status).toBe(403)
   })
 
   it('admite a editor (staff) y devuelve los motivos ordenados', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(Array.isArray(data.motivos)).toBe(true)
@@ -123,7 +123,7 @@ describe('POST /api/infraestructura/motivos', () => {
     )
     expect(actualizacion.status).toBe(200)
 
-    const listado = await GET()
+    const listado = await GET(new Request('http://localhost/api'))
     const data = await listado.json()
     const fila = data.motivos.find((m: { id: string }) => m.id === 'corte-de-ruta')
     expect(fila.nombre).toBe('Corte de ruta (actualizado)')
@@ -149,7 +149,7 @@ describe('POST /api/infraestructura/motivos', () => {
     const { POST, GET } = await import('./route')
     const res = await POST(postReq({ id: 'granizo', nombre: 'Granizo', categoria: 'establecimiento', orden: 60, severidadSugerida: 'Alta' }))
     expect(res.status).toBe(200)
-    const body = await (await GET()).json()
+    const body = await (await GET(new Request('http://localhost/api'))).json()
     expect(body.motivos.find((m: { id: string }) => m.id === 'granizo').severidadSugerida).toBe('Alta')
   })
 
@@ -157,7 +157,7 @@ describe('POST /api/infraestructura/motivos', () => {
     vi.mocked(getSessionUser).mockResolvedValue(admin())
     const { POST, GET } = await import('./route')
     await POST(postReq({ id: 'granizo-2', nombre: 'Granizo fuerte', categoria: 'establecimiento', orden: 61, severidadSugerida: null }))
-    const body = await (await GET()).json()
+    const body = await (await GET(new Request('http://localhost/api'))).json()
     expect(body.motivos.find((m: { id: string }) => m.id === 'granizo-2').severidadSugerida).toBeNull()
   })
 
