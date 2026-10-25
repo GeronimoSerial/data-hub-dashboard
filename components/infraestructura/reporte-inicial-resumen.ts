@@ -20,13 +20,17 @@ export interface AfectacionResumen {
   secciones: number
   alumnos: number
   descripcion: string
+  /** Sólo institutos superiores. */
+  carreras?: number
+  carrerasNombres?: string[]
 }
 
 export interface ServicioResumen {
   estado: 'normal' | 'suspendido'
-  alcanceTipo: 'establecimiento' | 'turno' | 'seccion' | ''
+  alcanceTipo: 'establecimiento' | 'turno' | 'seccion' | 'carrera' | ''
   turnos: string[]
   secciones: number
+  carreras?: number
 }
 
 export interface EntradaResumen {
@@ -70,6 +74,11 @@ export function describirAlcanceServicio(servicio: ServicioResumen): string {
       ? `${etiqueta} en ${contar(servicio.secciones, 'sección', 'secciones')}`
       : `${etiqueta}, sin alcance indicado`
   }
+  if (servicio.alcanceTipo === 'carrera') {
+    return (servicio.carreras ?? 0) > 0
+      ? `${etiqueta} en ${contar(servicio.carreras ?? 0, 'carrera', 'carreras')}`
+      : `${etiqueta}, sin alcance indicado`
+  }
   return `${etiqueta}, sin alcance indicado`
 }
 
@@ -83,8 +92,11 @@ export function armarResumen(entrada: EntradaResumen): FilaResumen[] {
 
   const lineas: FilaResumen[] = [
     { etiqueta: 'Situación', valor: afectacion.motivo, severidad: afectacion.severidad },
-    { etiqueta: 'Afecta a', valor: resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos }) },
+    { etiqueta: 'Afecta a', valor: resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos, carreras: afectacion.carreras }) },
   ]
+  if (afectacion.carrerasNombres && afectacion.carrerasNombres.length > 0) {
+    lineas.push({ etiqueta: 'Carreras', valor: afectacion.carrerasNombres.join(', ') })
+  }
 
   const descripcion = afectacion.descripcion.trim()
   if (descripcion !== '') lineas.push({ etiqueta: 'Detalle', valor: descripcion })

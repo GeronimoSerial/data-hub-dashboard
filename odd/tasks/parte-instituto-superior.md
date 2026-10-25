@@ -23,7 +23,7 @@ Objective: new "who is affected" flow for higher-education institutes (careers +
 - T4d [S1] GET/ficha shape for institutes (additive: secciones [] + carreras) — haiku, sonnet-low review — done
 - T4e [S4] mapa totals for institutes (no PII) + evolucion alumnos series — haiku, sonnet-low review — done
 - T4b [S2,S8] matrícula search endpoint — haiku, sonnet-low review — done (859cc75c)
-- T5 [S1,S2,S7] step 2 UI for institutes with search — inline — pending
+- T5 [S1,S2,S7] step 2 UI for institutes with search — haiku, sonnet-low review — done
 
 ## Log
 - L1 (2026-10-25) user: "vos te vas a encargar de modificar el flujo de reportes para supervisores, vamos a necesitar añadir la matricula, y el flujo de reportes para esos cue sera distinto: Podra elegir carreraS y alumnos por carreras, pero como son tantos, le vamos a poner un buscador por (dni? nombre? que recomiendas?)"
@@ -38,3 +38,4 @@ Objective: new "who is affected" flow for higher-education institutes (careers +
 - L10 T2: generic port (UnidadAlcance id/etiqueta/turno/grupo, miembroId numeric surrogate), GE-shaped response consumers kept on GE rows (contract frozen), one memoized ge_seccion read per request. Snapshot unchanged; 137 related tests green. parte-mapa.ts still reads GE directly (batch across CUEs) — handle in T4.
 - L11 T3: dry run on real file: 28,680 imported, 10 excluded (8 duplicate in carrera, 2 invalid DNI), 419 carreras, 82 CUEs. Correction: the file has NO shifted rows; the earlier claim came from the parent's naive xlsx parse skipping empty cells. Decisions: DNI as HMAC (MATRICULA_DNI_SECRET, never rotate without re-import); advisory-lock single importer; replaced cuts kept; parte stores (corte_id, alumno_id).
 - L12 T4a/T4c: scope rows resolve by their stored matricula cut; mixed-cut modify rejected; GE validation byte-identical to HEAD (17-case differential test); GE body carrying `carreras` now gets 'Este establecimiento informa por secciones' (new input, previously stripped). Open: evolucion alumnos series ignores institutes; GET ficha (T4d) and mapa (T4e).
+- L13 T5: interruption in step 3 applies to carreras chosen in step 2 (mirrors GE sections); detection failure: GE loads normally, Superior with matrícula failure shows inline error.

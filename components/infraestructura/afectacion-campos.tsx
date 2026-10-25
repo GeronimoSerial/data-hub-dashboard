@@ -23,6 +23,7 @@ import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
 import { AvisosRedSeguridad } from '@/components/infraestructura/aviso-red-seguridad'
 import { evaluarRedesSeguridad } from '@/lib/infraestructura/red-seguridad'
 import { alcanceDeSecciones, severidadSugeridaPorAlcance, type CampoConsistencia, type Regla, type Sugerencia } from '@/lib/infraestructura/consistencia-parte'
+import type { AlumnoElegido } from '@/lib/infraestructura/parte/instituto-ui'
 
 export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
   establecimiento:
@@ -42,6 +43,9 @@ export interface AfectacionBorrador {
   secciones: number[]
   alumnos: number[]
   descripcion: string
+  // Sólo institutos superiores. Ausentes en los borradores GE: se leen como vacíos.
+  carreras?: number[]
+  alumnosElegidos?: AlumnoElegido[]
 }
 
 export function aplanarSecciones(turnos: TurnoContexto[]): SeccionContexto[] {
@@ -68,7 +72,7 @@ export function esAfectacionLista(a: AfectacionBorrador): a is AfectacionBorrado
   categoria: CategoriaAfectacion
   severidad: Severidad
 } {
-  return a.categoria !== '' && a.motivo !== '' && a.severidad !== '' && a.secciones.length > 0
+  return a.categoria !== '' && a.motivo !== '' && a.severidad !== '' && (a.secciones.length > 0 || (a.carreras?.length ?? 0) > 0)
 }
 
 export function esAfectacionParcial(a: AfectacionBorrador): boolean {
@@ -78,6 +82,7 @@ export function esAfectacionParcial(a: AfectacionBorrador): boolean {
     a.motivo !== '' ||
     a.severidad !== '' ||
     a.secciones.length > 0 ||
+    (a.carreras?.length ?? 0) > 0 ||
     a.alumnos.length > 0 ||
     a.descripcion.trim() !== ''
   )
@@ -209,6 +214,8 @@ export function CamposQuePaso({
       alcanceEstablecimiento: '',
       secciones: [],
       alumnos: [],
+      // Sólo institutos: el alcance de carreras se reinicia igual que el de secciones.
+      ...(borrador.carreras ? { carreras: [], alumnosElegidos: [] } : {}),
     })
   }
 

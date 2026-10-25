@@ -15,6 +15,7 @@ import type {
   Severidad,
   SituacionReciente,
 } from '@/lib/infraestructura/trayectoria-tipos'
+import { textoAlcanceInstituto } from '@/lib/infraestructura/parte/instituto-ui'
 
 export type { SituacionReciente } from '@/lib/infraestructura/trayectoria-tipos'
 
@@ -41,6 +42,16 @@ export interface SeccionAfectada {
 export interface TotalesAfectacion {
   secciones: number
   alumnos: number
+  /** Sólo institutos superiores: carreras alcanzadas por la afectación. */
+  carreras?: number
+}
+
+/** Carrera de un instituto superior alcanzada por una afectación vigente. */
+export interface CarreraAfectadaVigente {
+  id: number
+  nombre: string
+  completa: boolean
+  alumnos: { id: number; nombre: string; apellido: string }[]
 }
 
 export interface AfectacionVigente {
@@ -53,6 +64,8 @@ export interface AfectacionVigente {
   creadaEn: string
   causadaPorId: string | null
   secciones: SeccionAfectada[]
+  /** Sólo institutos superiores. */
+  carreras?: CarreraAfectadaVigente[]
   totales: TotalesAfectacion
 }
 
@@ -155,6 +168,7 @@ export function formatearMomento(iso: string | null | undefined): string | null 
  * de carga.
  */
 export function resumirAlcance(totales: TotalesAfectacion): string {
+  if ((totales.carreras ?? 0) > 0) return textoAlcanceInstituto(totales.carreras ?? 0, totales.alumnos)
   const partes: string[] = []
   if (totales.secciones > 0) {
     partes.push(totales.secciones === 1 ? '1 sección' : `${totales.secciones} secciones`)
