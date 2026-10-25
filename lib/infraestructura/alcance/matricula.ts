@@ -28,6 +28,30 @@ function marcadores(cantidad: number): string {
   return Array.from({ length: cantidad }, () => '?').join(', ')
 }
 
+// Miembros (ids de matricula_alumno) por carrera en un corte. Una sola consulta
+// para todas las carreras pedidas; sirve al adaptador y a las lecturas por lote
+// de varios CUEs, que no tienen un adaptador por CUE.
+export async function membresiaMatricula(
+  client: EjecutorSql,
+  corteId: number,
+  unitIds: number[],
+): Promise<Map<number, Set<number>>> {
+  const membresia = new Map<number, Set<number>>()
+  if (unitIds.length === 0) return membresia
+  const res = await client.execute({
+    sql: `SELECT carrera_id, id FROM matricula_alumno
+          WHERE corte_id = ? AND carrera_id IN (${marcadores(unitIds.length)})`,
+    args: [corteId, ...unitIds],
+  })
+  for (const row of res.rows) {
+    const carreraId = Number(row.carrera_id)
+    const set = membresia.get(carreraId) ?? new Set<number>()
+    set.add(Number(row.id))
+    membresia.set(carreraId, set)
+  }
+  return membresia
+}
+
 // Adaptador para institutos superiores. Los identificadores de alumno son los
 // ids de matricula_alumno; la identidad se resuelve por id en cualquier corte,
 // así un parte histórico sigue mostrando nombres aunque su corte ya no sea el
@@ -50,22 +74,7 @@ export function crearAlcanceMatricula(client: EjecutorSql, corteId: number, cueA
     corteId,
     listarCarreras,
     listUnits: async () => (await listarCarreras()).map(aUnidadAlcance),
-    listMembers: async (unitIds) => {
-      const membresia = new Map<number, Set<number>>()
-      if (unitIds.length === 0) return membresia
-      const res = await client.execute({
-        sql: `SELECT carrera_id, id FROM matricula_alumno
-              WHERE corte_id = ? AND carrera_id IN (${marcadores(unitIds.length)})`,
-        args: [corteId, ...unitIds],
-      })
-      for (const row of res.rows) {
-        const carreraId = Number(row.carrera_id)
-        const set = membresia.get(carreraId) ?? new Set<number>()
-        set.add(Number(row.id))
-        membresia.set(carreraId, set)
-      }
-      return membresia
-    },
+    listMembers: (unitIds) => membresiaMatricula(client, corteId, unitIds),
     resolveIdentities: async (memberIds) => {
       if (memberIds.length === 0) return []
       const res = await client.execute({

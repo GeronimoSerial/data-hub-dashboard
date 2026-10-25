@@ -25,11 +25,13 @@ import { obtenerPeriodoVigente } from './parte-consulta'
 import {
   cargarAfectacionesDeVariosPartes,
   cargarServicioAlcanceDeVariosPartes,
+  efectivosDeAfectacionesInstituto,
   listarPartesVigentes,
   type ParteMapa,
 } from './parte-mapa'
 import { listarSeccionesDeCues } from './secciones-cue'
-import { carrerasVigentesPorCue } from './parte/instituto-alcance'
+import { carrerasVigentesPorCue, type EfectivoInstituto } from './parte/instituto-alcance'
+import { cuesDeInstitutoVigentes } from './alcance'
 import { estadoGeneralDelCue } from './parte/instituto-estado'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
@@ -250,6 +252,14 @@ export async function obtenerEvolucionMapa(filtros: FiltrosEvolucion = {}): Prom
   // Institutos superiores: sus carreras del corte vigente. Sin ellas, las filas
   // tipo 'carrera' no alcanzan para saber si la suspensión cubre todo el CUE.
   const carrerasPorCue = await carrerasVigentesPorCue(client, cueAnexos)
+  // Alumnos de institutos: cada afectación con su alcance de carreras guardado.
+  const { cues: cuesInstituto, corteId: corteMatricula } = await cuesDeInstitutoVigentes(client, cueAnexos)
+  const afectacionesInstituto = afectacionesRows.filter((a) => cuesInstituto.has(cuePorParte.get(a.parteId) ?? ''))
+  const alumnosPorAfectacionInstituto: Map<string, EfectivoInstituto> = await efectivosDeAfectacionesInstituto(
+    client,
+    afectacionesInstituto,
+    corteMatricula,
+  )
 
   const servicioPorParte = agruparPorParte(servicioRows)
   const afectacionesPorParte = agruparPorParte(afectacionesRows)
@@ -290,7 +300,9 @@ export async function obtenerEvolucionMapa(filtros: FiltrosEvolucion = {}): Prom
   // IndicadoresMapa.alumnosAlcanzados (ese es un snapshot de hoy con dedupe
   // por parte); el test de coherencia de este módulo compara lo que sí debe
   // coincidir (escuelas, secciones y el snapshot de hoy), no esta serie.
-  const alumnosVistos = new Set<number>()
+  // Claves con prefijo de origen: ids de persona GE y de matrícula son espacios
+  // distintos y no pueden colapsar en un mismo alumno.
+  const alumnosVistos = new Set<string>()
   const alumnosAcumulados: PuntoAlumnosAcumulados[] = dias.map((fecha) => {
     const referencia = referenciaParaDia(fecha, hoy)
     for (const parteId of parteIds) {
@@ -300,7 +312,10 @@ export async function obtenerEvolucionMapa(filtros: FiltrosEvolucion = {}): Prom
       const vigentesEseDia = resolverAlcanceVigente(afectacionesParte, { referencia })
       for (const afectacion of vigentesEseDia) {
         for (const seccion of afectacion.secciones) {
-          for (const alumnoId of seccion.alumnos) alumnosVistos.add(alumnoId)
+          for (const alumnoId of seccion.alumnos) alumnosVistos.add(`ge:${alumnoId}`)
+        }
+        for (const alumnos of alumnosPorAfectacionInstituto.get(afectacion.id)?.values() ?? []) {
+          for (const alumnoId of alumnos) alumnosVistos.add(`mat:${alumnoId}`)
         }
       }
     }

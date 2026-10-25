@@ -222,7 +222,7 @@ async function buscarAfectacionEquivalenteInstituto(
   const scopes = await leerScopeInstituto(lector, posibles.map((p) => p.id))
   // Cada candidata se compara con el corte con que se guardó; una consulta de
   // miembros por corte, no una por candidata.
-  const efectivos = await efectivosPorAfectacion(client, cueAnexo, scopes, corteVigente)
+  const efectivos = await efectivosPorAfectacion(client, scopes, corteVigente)
   for (const existente of posibles) {
     if (mismoEfectivoInstituto(esperado, efectivos.get(existente.id))) return existente
   }
@@ -264,7 +264,9 @@ async function handleGET(request: Request) {
     return Response.json({ error: 'No hay un corte vigente de Gestión Educativa' }, { status: 503 })
   }
 
-  const ficha = await armarFichaParte(cue.value, corte.id)
+  // Un solo adaptador por request: decide la forma de la ficha y resuelve nombres.
+  const alcanceCue = await alcanceParaCue(client, corte.id, cue.value)
+  const ficha = await armarFichaParte(cue.value, corte.id, alcanceCue)
   if (!ficha) {
     // Sin período vigente: no es un error, es "sin situación en seguimiento"
     // (spec §17).
@@ -281,12 +283,14 @@ async function handleGET(request: Request) {
     for (const seccion of afectacion.secciones) {
       for (const id of seccion.alumnos) idsAlumnos.add(id)
     }
+    for (const carrera of afectacion.carreras ?? []) {
+      for (const id of carrera.alumnos) idsAlumnos.add(id)
+    }
   }
 
   let identidades = new Map<number, { nombre: string; apellido: string }>()
   if (idsAlumnos.size > 0) {
     try {
-      const alcanceCue = await alcanceParaCue(client, corte.id, cue.value)
       const resueltas = await alcanceCue.resolveIdentities([...idsAlumnos])
       // La clave es el id de miembro (en GE, el ge_person_id que ya viaja en
       // alumnos[].gePersonId de la respuesta).
@@ -316,6 +320,22 @@ async function handleGET(request: Request) {
           : { gePersonId: id, nombre: String(id), apellido: '' }
       }),
     })),
+    // Sólo institutos: la carrera y sus alumnos del corte con que se guardó.
+    ...(afectacion.carreras
+      ? {
+          carreras: afectacion.carreras.map((carrera) => ({
+            id: carrera.id,
+            nombre: carrera.nombre,
+            completa: carrera.completa,
+            alumnos: carrera.alumnos.map((id) => {
+              const identidad = identidades.get(id)
+              return identidad
+                ? { id, nombre: identidad.nombre, apellido: identidad.apellido }
+                : { id, nombre: String(id), apellido: '' }
+            }),
+          })),
+        }
+      : {}),
     totales: afectacion.totales,
   }))
 
@@ -334,7 +354,21 @@ async function handleGET(request: Request) {
       parte: ficha.parte,
       servicio: ficha.servicio,
       afectaciones: afectacionesRespuesta,
-      secciones: ficha.secciones,
+      // Institutos informan por carreras: su respuesta lista `carreras` (vigente)
+      // en lugar de `secciones`, que sólo existe para GE.
+      // Aditivo: `secciones` siempre existe (vacío para institutos) y `carreras`
+      // sólo viene para institutos.
+      secciones: ficha.carreras ? [] : ficha.secciones,
+      ...(ficha.carreras
+        ? {
+            carreras: ficha.carreras.map((carrera) => ({
+              id: carrera.id,
+              nombre: carrera.nombre,
+              tipo: carrera.tipo,
+              totalAlumnos: carrera.totalAlumnos,
+            })),
+          }
+        : {}),
       ultimaActualizacion: ficha.ultimaActualizacion,
       recientes,
       ultimaCarga,
@@ -1182,7 +1216,6 @@ async function handlePOST(request: Request) {
         const motivoDeAfectacion = new Map(afectacionesDespues.map((a) => [a.id, a.motivo]))
         const cambiosAlcance = await cambiosAlcanceInstituto(
           clienteGeEnTx,
-          cue.value,
           corteInstituto,
           scopesAntesVigentes,
           scopesDespues,
@@ -1199,7 +1232,7 @@ async function handlePOST(request: Request) {
           })
         }
         // Las afectaciones nuevas cuentan carreras y alumnos, no secciones GE.
-        const efectivosDespues = await efectivosPorAfectacion(clienteGeEnTx, cue.value, scopesDespues, corteInstituto)
+        const efectivosDespues = await efectivosPorAfectacion(clienteGeEnTx, scopesDespues, corteInstituto)
         const agregadasConAlcance: typeof diff.afectacionesAgregadas = []
         for (const agregada of diff.afectacionesAgregadas) {
           const resumen = resumenEfectivoInstituto(efectivosDespues.get(agregada.afectacionId) ?? new Map())

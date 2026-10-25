@@ -12,6 +12,7 @@ import { efectivosPorAfectacion, leerScopeInstituto } from '@/lib/infraestructur
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { GET, POST } from './route'
+import { GET as GET_HISTORIAL } from './historial/route'
 
 // Institutos superiores (matrícula): alcance por carrera y alumno, servicio por
 // carrera y equivalencia de afectaciones. Los CUE de instituto se detectan por
@@ -398,6 +399,72 @@ describe('instituto superior: interrupción total con afectación por carreras',
   })
 })
 
+function historialReq(cue: string): Request {
+  return new Request(`http://localhost/api/problematicas/parte/historial?cue=${encodeURIComponent(cue)}`, {
+    headers: { cookie: cookieHeader() },
+  })
+}
+
+describe('instituto superior: ficha GET e historial', () => {
+  it('responde carreras vigentes en lugar de secciones y carreras con alumnos por afectación', async () => {
+    const creada = await POST(
+      postReq(cuerpo(CUE_SUP, {
+        afectacionesNuevas: [{
+          motivo: 'Otro problema de acceso',
+          descripcion: 'Acceso cortado por obra',
+          severidad: 'Baja',
+          carreras: [id.profesorado],
+          alumnos: [alumno.mariano],
+        }],
+      })),
+    )
+    expect(creada.status).toBe(201)
+
+    const res = await GET(getReq(CUE_SUP))
+    expect(res.status).toBe(200)
+    const cuerpoFicha = await res.json()
+    // Aditivo: `secciones` sigue existiendo, vacío para institutos.
+    expect(cuerpoFicha.secciones).toEqual([])
+    expect(cuerpoFicha.carreras).toEqual(expect.arrayContaining([
+      { id: id.tecnicatura, nombre: 'Tecnicatura en Sistemas', tipo: 'Tecnicatura', totalAlumnos: 2 },
+      { id: id.profesorado, nombre: 'Profesorado de Historia', tipo: 'Profesorado', totalAlumnos: 1 },
+    ]))
+    const afectacion = cuerpoFicha.afectaciones.find((a: { motivo: string }) => a.motivo === 'Otro problema de acceso')
+    expect(afectacion.secciones).toEqual([])
+    expect(afectacion.carreras).toEqual([{
+      id: id.profesorado,
+      nombre: 'Profesorado de Historia',
+      completa: false,
+      alumnos: [{ id: alumno.mariano, nombre: 'Mariano', apellido: 'Moreno' }],
+    }])
+    expect(afectacion.totales).toEqual({ secciones: 0, carreras: 1, alumnos: 1 })
+  })
+
+  it('el estado general cuenta las carreras suspendidas: suspendido, luego parcial al reactivar una', async () => {
+    // Estado previo del archivo: ambas carreras de CUE_SUP suspendidas.
+    const todas = await GET(getReq(CUE_SUP))
+    expect((await todas.json()).servicio.estadoGeneral).toBe('suspendido')
+
+    const reactivada = await POST(
+      postReq(cuerpo(CUE_SUP, {
+        servicioEducativo: { estado: 'normal', alcance: { tipo: 'carrera', carreras: [id.profesorado] } },
+      })),
+    )
+    expect(reactivada.status).toBe(201)
+    const parcial = await GET(getReq(CUE_SUP))
+    expect((await parcial.json()).servicio.estadoGeneral).toBe('parcial')
+  })
+
+  it('el historial nombra la carrera del cambio de servicio', async () => {
+    const res = await GET_HISTORIAL(historialReq(CUE_SUP))
+    expect(res.status).toBe(200)
+    const { movimientos } = await res.json()
+    const textos = movimientos.flatMap((m: { cambios: string[] }) => m.cambios).join('\n')
+    expect(textos).toContain('en la carrera Profesorado de Historia')
+    expect(textos).not.toMatch(/carrera [0-9]+\b/)
+  })
+})
+
 describe('instituto superior: cortes reemplazados', () => {
   it('no mezcla cortes: lee con el corte guardado y rechaza alumnos sin carreras sobre un corte viejo', async () => {
     const client = crearEjecutorSql(getRawClient())
@@ -438,13 +505,25 @@ describe('instituto superior: cortes reemplazados', () => {
     // Lectura con el corte guardado: miembros, nombres y totales del corte viejo.
     const scopes = await leerScopeInstituto(getDb(), [afectacion!.id])
     expect(scopes.get(afectacion!.id)?.corteId).toBe(id.corte)
-    const efectivos = await efectivosPorAfectacion(client, CUE_CORTE, scopes, id.corteNuevo)
+    const efectivos = await efectivosPorAfectacion(client, scopes, id.corteNuevo)
     expect([...efectivos.get(afectacion!.id)!.get(id.carreraCorteA)!]).toEqual([alumno.martin])
     const viejo = crearAlcanceMatricula(client, id.corte, CUE_CORTE)
     const identidades = await viejo.resolveIdentities([alumno.martin])
     expect(identidades).toEqual([{ miembroId: alumno.martin, nombre: 'Martín', apellido: 'Güemes' }])
     const totales = await viejo.listarCarreras()
     expect(totales.find((c) => c.id === id.carreraCorteA)?.totalAlumnos).toBe(1)
+
+    // La ficha resuelve carrera y alumno desde el corte guardado; la lista
+    // vigente trae sólo las carreras del corte nuevo.
+    const fichaTrasReemplazo = await (await GET(getReq(CUE_CORTE))).json()
+    const afectacionFicha = fichaTrasReemplazo.afectaciones.find((a: { motivo: string }) => a.motivo === 'Acceso interrumpido')
+    expect(afectacionFicha.carreras).toEqual([{
+      id: id.carreraCorteA,
+      nombre: 'Carrera Corte A',
+      completa: false,
+      alumnos: [{ id: alumno.martin, nombre: 'Martín', apellido: 'Güemes' }],
+    }])
+    expect(fichaTrasReemplazo.carreras.map((c: { id: number }) => c.id)).toEqual([id.carreraCorteB])
 
     // Cambiar alumnos sin elegir carreras sobre un corte viejo: rechazado.
     const mezcla = await POST(

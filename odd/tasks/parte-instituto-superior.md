@@ -20,8 +20,8 @@ Objective: new "who is affected" flow for higher-education institutes (careers +
 - T3 [S4,S6,S8,S9] matrícula schema + import script — haiku writer, sonnet-low review (1 blocker fixed: PII in drizzle error logs) — done
 - T4 [S4,S5] matrícula adapter + selection + affectation tables (migration 0031) — haiku — done
 - T4c [S1,S4,S5] POST for institutes (carreras/alumnos, servicio tipo 'carrera', readers audit, resolve alcance once per request) — haiku, 2 sonnet-low reviews + 2 corrections — done
-- T4d [S1] GET/ficha shape for institutes — haiku — pending
-- T4e [S4] mapa totals for institutes — haiku — pending
+- T4d [S1] GET/ficha shape for institutes (additive: secciones [] + carreras) — haiku, sonnet-low review — done
+- T4e [S4] mapa totals for institutes (no PII) + evolucion alumnos series — haiku, sonnet-low review — done
 - T4b [S2,S8] matrícula search endpoint — haiku, sonnet-low review — done (859cc75c)
 - T5 [S1,S2,S7] step 2 UI for institutes with search — inline — pending
 

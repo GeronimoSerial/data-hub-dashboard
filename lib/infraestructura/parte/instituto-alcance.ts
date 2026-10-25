@@ -11,7 +11,7 @@ import { eq, inArray } from 'drizzle-orm'
 import type { getDb } from '@/lib/db'
 import { infraAfectacionCarrera, infraAfectacionMatriculaAlumno, matriculaCarrera } from '@/lib/db/schema'
 import type { AlcanceProvider } from '@/lib/infraestructura/alcance'
-import { crearAlcanceMatricula } from '@/lib/infraestructura/alcance/matricula'
+import { membresiaMatricula } from '@/lib/infraestructura/alcance/matricula'
 import type { EjecutorSql } from '@/lib/infraestructura/ge-db'
 
 type Tx = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0]
@@ -106,10 +106,9 @@ export async function efectivoInstituto(
 
 // Efectivo de muchas afectaciones, cada una contra el corte con que se guardó.
 // Una sola consulta de miembros por corte (unión de carreras), nunca una por
-// afectación.
+// afectación. Sirve a varios CUEs a la vez: cada fila lleva su propio corte.
 export async function efectivosPorAfectacion(
   client: EjecutorSql,
-  cueAnexo: string,
   scopes: Map<string, ScopeLeido>,
   corteVigente: number,
 ): Promise<Map<string, EfectivoInstituto>> {
@@ -122,7 +121,7 @@ export async function efectivosPorAfectacion(
   const resultado = new Map<string, EfectivoInstituto>()
   for (const [corte, afectacionIds] of porCorte) {
     const carreras = [...new Set(afectacionIds.flatMap((id) => scopes.get(id)?.carreras ?? []))]
-    const membresia = await crearAlcanceMatricula(client, corte, cueAnexo).listMembers(carreras)
+    const membresia = await membresiaMatricula(client, corte, carreras)
     for (const afectacionId of afectacionIds) {
       resultado.set(afectacionId, aplicarMembresia(scopes.get(afectacionId)!, membresia))
     }
@@ -158,13 +157,12 @@ export interface CambioAlcanceInstituto {
 
 export async function cambiosAlcanceInstituto(
   client: EjecutorSql,
-  cueAnexo: string,
   corteVigente: number,
   antes: Map<string, ScopeLeido>,
   despues: Map<string, ScopeLeido>,
 ): Promise<CambioAlcanceInstituto[]> {
-  const efAntes = await efectivosPorAfectacion(client, cueAnexo, antes, corteVigente)
-  const efDespues = await efectivosPorAfectacion(client, cueAnexo, despues, corteVigente)
+  const efAntes = await efectivosPorAfectacion(client, antes, corteVigente)
+  const efDespues = await efectivosPorAfectacion(client, despues, corteVigente)
   const cambios: CambioAlcanceInstituto[] = []
   for (const afectacionId of antes.keys()) {
     const a = efAntes.get(afectacionId) ?? new Map<number, Set<number>>()

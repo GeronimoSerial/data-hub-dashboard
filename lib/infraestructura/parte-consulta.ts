@@ -20,11 +20,19 @@ import { asegurarGeAdjuntada } from './impacto'
 import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
 import { severidadDelMovimiento } from './severidad-movimiento'
 import type { DiffParte } from './movimiento-diff'
-import { alcanceGeParaCue } from './alcance'
+import { alcanceGeParaCue, alcanceParaCue, type AlcanceCue } from './alcance'
+import type { CarreraMatricula } from './alcance/matricula'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
+import { estadoGeneralDelCue } from './parte/instituto-estado'
 import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
-import { nombresDeCarreras } from './parte/instituto-alcance'
+import {
+  efectivosPorAfectacion,
+  leerScopeInstituto,
+  nombresDeCarreras,
+  resumenEfectivoInstituto,
+  SCOPE_VACIO,
+} from './parte/instituto-alcance'
 import type {
   Afectacion,
   AfectacionAlcanceSeccion,
@@ -329,7 +337,18 @@ export interface AfectacionFicha {
   creadaEn: string
   causadaPorId: string | null
   secciones: AfectacionAlcanceSeccion[]
-  totales: { secciones: number; alumnos: number }
+  // Sólo institutos superiores: carreras y alumnos resueltos por corte guardado.
+  carreras?: CarreraAfectadaFicha[]
+  totales: { secciones: number; alumnos: number; carreras?: number }
+}
+
+// Carrera de una afectación de instituto: alumnos del corte con que se guardó
+// (ids de matricula_alumno). `completa` = la carrera cuenta toda su matrícula.
+export interface CarreraAfectadaFicha {
+  id: number
+  nombre: string
+  completa: boolean
+  alumnos: number[]
 }
 
 export interface FichaParte {
@@ -345,6 +364,8 @@ export interface FichaParte {
   servicio: { estadoGeneral: EstadoServicioGeneral; alcanceVigente: ServicioAlcance[] }
   afectaciones: AfectacionFicha[]
   secciones: SeccionEstablecimiento[]
+  // Sólo institutos superiores: carreras del corte vigente con su total de alumnos.
+  carreras?: CarreraMatricula[]
   ultimaActualizacion: string | null
 }
 
@@ -355,11 +376,82 @@ export interface FichaParte {
 // resuelve nombres de alumnos: sólo el flujo del director, autenticado por
 // cookie y sujeto al gate nominal auditado, puede mostrarlos (F3.3); el mapa
 // se abre con el acceso de lectura amplio del hub y sólo debe ver conteos.
-export async function armarFichaParte(cueAnexo: string, corteId: number): Promise<FichaParte | null> {
+// Ficha de un instituto superior: afectaciones por carrera y alumno (cada fila
+// con su corte guardado) y estado general calculado sobre sus carreras vigentes.
+async function armarFichaInstituto(
+  actual: ParteActual,
+  snapshot: ParteSnapshot,
+  alcance: { listarCarreras(): Promise<CarreraMatricula[]>; corteId: number },
+  client: EjecutorSql,
+): Promise<Pick<FichaParte, 'carreras' | 'servicio'> & { afectaciones: AfectacionFicha[] }> {
+  const carreras = await alcance.listarCarreras()
+  const scopes = await leerScopeInstituto(getDb(), snapshot.afectaciones.map((a) => a.id))
+  const efectivos = await efectivosPorAfectacion(client, scopes, alcance.corteId)
+  const nombres = await nombresDeCarreras(getDb(), [...new Set([...scopes.values()].flatMap((s) => s.carreras))])
+  const estadoGeneral = estadoGeneralDelCue(
+    snapshot.servicioAlcance,
+    actual.secciones,
+    carreras.map((c) => c.id),
+  )
+
+  const afectaciones = snapshot.afectaciones.map((afectacion): AfectacionFicha => {
+    const efectivo = efectivos.get(afectacion.id) ?? new Map<number, Set<number>>()
+    const seleccionados = new Set(scopes.get(afectacion.id)?.alumnos ?? SCOPE_VACIO.alumnos)
+    const carrerasFicha: CarreraAfectadaFicha[] = [...efectivo].map(([carreraId, alumnos]) => ({
+      id: carreraId,
+      nombre: nombres.get(carreraId) ?? String(carreraId),
+      // Completa = ningún alumno elegido cae dentro de la carrera (sin filtro).
+      completa: ![...alumnos].some((id) => seleccionados.has(id)),
+      alumnos: [...alumnos],
+    }))
+    const resumen = resumenEfectivoInstituto(efectivo)
+    return {
+      id: afectacion.id,
+      motivo: afectacion.motivo,
+      categoria: afectacion.categoria,
+      severidad: afectacion.severidad,
+      descripcion: afectacion.descripcion,
+      rigeDesde: afectacion.rigeDesde,
+      creadaEn: afectacion.creadaEn,
+      causadaPorId: afectacion.causadaPorId ?? null,
+      secciones: [],
+      carreras: carrerasFicha,
+      totales: { secciones: 0, carreras: resumen.carreras, alumnos: resumen.alumnos },
+    }
+  })
+
+  return {
+    carreras,
+    servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
+    afectaciones,
+  }
+}
+
+// `alcance` es opcional: quien ya resolvió el adaptador del CUE en esta request
+// (la ruta GET) lo pasa para no resolverlo dos veces.
+export async function armarFichaParte(
+  cueAnexo: string,
+  corteId: number,
+  alcance?: AlcanceCue,
+): Promise<FichaParte | null> {
   const actual = await obtenerParteActual(cueAnexo, corteId)
   if (!actual) return null
 
   const snapshot = snapshotDesde(actual)
+  const client = crearEjecutorSql(getRawClient())
+  const alcanceCue = alcance ?? (await alcanceParaCue(client, corteId, cueAnexo))
+  if (alcanceCue.sistema === 'matricula') {
+    const instituto = await armarFichaInstituto(actual, snapshot, alcanceCue, client)
+    return {
+      periodo: actual.periodo,
+      parte: fichaParteResumen(actual, snapshot),
+      servicio: instituto.servicio,
+      afectaciones: instituto.afectaciones,
+      secciones: actual.secciones,
+      carreras: instituto.carreras,
+      ultimaActualizacion: actual.parte?.actualizadaEn ?? null,
+    }
+  }
   const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, actual.secciones)
 
   const afectaciones: AfectacionFicha[] = snapshot.afectaciones.map((afectacion) => {
@@ -383,21 +475,25 @@ export async function armarFichaParte(cueAnexo: string, corteId: number): Promis
 
   return {
     periodo: actual.periodo,
-    parte: actual.parte
-      ? {
-          id: actual.parte.id,
-          cueAnexo: actual.parte.cueAnexo,
-          estadoEstablecimiento: snapshot.estadoEstablecimiento,
-          estadoEstablecimientoRigeDesde: actual.parte.estadoEstablecimientoRigeDesde,
-          actualizadaEn: actual.parte.actualizadaEn,
-          asistenciaPedagogica: actual.parte.asistenciaPedagogica,
-        }
-      : null,
+    parte: fichaParteResumen(actual, snapshot),
     servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
     afectaciones,
     secciones: actual.secciones,
     ultimaActualizacion: actual.parte?.actualizadaEn ?? null,
   }
+}
+
+function fichaParteResumen(actual: ParteActual, snapshot: ParteSnapshot): FichaParte['parte'] {
+  return actual.parte
+    ? {
+        id: actual.parte.id,
+        cueAnexo: actual.parte.cueAnexo,
+        estadoEstablecimiento: snapshot.estadoEstablecimiento,
+        estadoEstablecimientoRigeDesde: actual.parte.estadoEstablecimientoRigeDesde,
+        actualizadaEn: actual.parte.actualizadaEn,
+        asistenciaPedagogica: actual.parte.asistenciaPedagogica,
+      }
+    : null
 }
 
 export interface MovimientoDescrito {
