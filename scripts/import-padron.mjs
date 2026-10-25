@@ -784,6 +784,14 @@ export async function correrImport(opciones, conexion, deps = {}) {
     }
     if (abortado) throw abortado
 
+    // Con la carga multi-fila el corte entra en segundos y autovacuum todavía
+    // no re-analizó: el planner cree que el corte nuevo está vacío y la
+    // validación anti-join de activarCorte elige un plan que supera el
+    // statement_timeout (reproducido contra una base descartable). ANALYZE
+    // no bloquea lecturas ni escrituras.
+    await conexion.client.execute('ANALYZE ge.ge_seccion')
+    await conexion.client.execute('ANALYZE ge.ge_alumno_seccion')
+
     // Red de seguridad para el job nocturno: si el origen devolvió de golpe
     // mucho menos que el vigente (GE a medio cargar, filtro roto), no se
     // reemplaza el corte bueno por uno parcial.
