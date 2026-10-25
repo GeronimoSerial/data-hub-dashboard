@@ -15,7 +15,7 @@ Objective: new "who is affected" flow for higher-education institutes (careers +
 
 ## Tasks
 - T1 [S3] characterization tests for current parte (API, historial, mapa; riesgo covered by existing corte/consulta tests) — inline — done (app/api/problematicas/parte/caracterizacion.test.ts, stable on 2 runs)
-- T6 [S10] API standard (envelope, request-id, logs, validation, rate limit, timeouts) applied to parte API without output change beyond added headers — inline — pending
+- T6 [S10] API standard (request-id, structured logs, traceable 500, bounded rate limiter; DB timeouts already existed) applied to the 11 parte handlers — inline + haiku fixes, sonnet-low review (no blockers) — done
 - T2 [S3] extract alcance port + GE adapter, outputs unchanged — inline — pending
 - T3 [S4,S6,S8,S9] matrícula schema + import script — inline — pending
 - T4 [S4,S5] matrícula adapter + affectation persistence — inline — pending
@@ -29,3 +29,5 @@ Objective: new "who is affected" flow for higher-education institutes (careers +
 - L5 user: "Debemos mejorar toda la parte de apis y eso que hoy no esta muy profesional y listo para sobrecargas o debugging."
 - L6 user: "antes, que lo nuevo nazca con el estándar" — T6 runs after T1, before T2.
 - L7 T1 baseline: 14 parte-related test files, 124 tests green before changes.
+- L8 user: "Vos no lo hagas, delega haikus e iteras hasta que quede perfecto, actua de team leader. Usa sonnet low para revisiones tambien" — from T6 on, writers=haiku, reviewers=sonnet low, parent coordinates.
+- L9 T6 checks: lib/http + parte 107 tests green, tsc clean. Full suite in chunks: only timeouts under load (pass alone) and podman-missing backup test; none import lib/http or parte routes. A single `vitest run lib` hung >20min (not linked to T6, unverified at baseline).

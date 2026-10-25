@@ -5,6 +5,8 @@ import { infraAdjunto, infraMovimiento, infraParte } from '@/lib/db/schema'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { confirmarAdjunto } from '@/lib/infraestructura/adjuntos/confirmacion'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
+import { log } from '@/lib/http/log'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,7 +16,7 @@ const ETAG = /^(?:W\/)?"?[\da-f-]{1,128}"?$/i
 
 type RouteContext = { params: Promise<{ attachmentId: string }> }
 
-export async function POST(request: Request, context: RouteContext): Promise<Response> {
+async function handlePOST(request: Request, context: RouteContext): Promise<Response> {
   if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   const { attachmentId } = await context.params
   if (!/^[0-9a-f-]{36}$/i.test(attachmentId)) {
@@ -70,11 +72,10 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       miniaturaEtag: result.miniaturaEtag,
     }, { status: 200, headers: NO_STORE })
   } catch (error) {
-    // Name and message only: never the request body or storage credentials.
-    console.error('[adjuntos/confirmacion] verification failed', {
-      attachmentId,
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-    })
+    // Only ids and the error: never the request body or storage credentials.
+    log.error('adjuntos_confirmacion_verificacion_fallida', { attachmentId, error })
     return Response.json({ code: 'obs_error', error: 'The photo objects could not be verified.' }, { status: 502, headers: NO_STORE })
   }
 }
+
+export const POST = ruta('parte.adjuntos.attachmentId.confirmacion.post', handlePOST)

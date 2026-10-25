@@ -10,6 +10,7 @@ import {
   type AttachmentDeclaration,
 } from '@/lib/infraestructura/adjuntos/obs'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic'
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 const MAX_BODY_BYTES = 16 * 1024
 
-export async function POST(request: Request): Promise<Response> {
+async function handlePOST(request: Request): Promise<Response> {
   if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   const contentLength = Number(request.headers.get('content-length') ?? 0)
   if (contentLength > MAX_BODY_BYTES) {
@@ -70,3 +71,5 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ code: 'obs_error', error: 'OBS could not authorize the photo upload.' }, { status: 502, headers: NO_STORE })
   }
 }
+
+export const POST = ruta('parte.adjuntos.autorizaciones.post', handlePOST)

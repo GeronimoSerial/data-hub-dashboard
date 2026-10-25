@@ -2,6 +2,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { BorradorError, getDraft, getDraftCue, readJsonBody, syncDraft } from '@/lib/infraestructura/borradores/service'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,7 +30,7 @@ async function authorize(request: Request, draftId: string): Promise<Response | 
   return null
 }
 
-export async function GET(request: Request, context: Context) {
+async function handleGET(request: Request, context: Context) {
   try {
     const { draftId } = await context.params
     const denied = await authorize(request, draftId)
@@ -40,7 +41,7 @@ export async function GET(request: Request, context: Context) {
   }
 }
 
-export async function PUT(request: Request, context: Context) {
+async function handlePUT(request: Request, context: Context) {
   if (!getReportesOfflineFeatures().borradoresSync) return reportesOfflineFlagDisabledResponse()
   try {
     const { draftId } = await context.params
@@ -53,3 +54,6 @@ export async function PUT(request: Request, context: Context) {
     return errorResponse(error)
   }
 }
+
+export const GET = ruta('parte.borradores.draftId.get', handleGET)
+export const PUT = ruta('parte.borradores.draftId.put', handlePUT)

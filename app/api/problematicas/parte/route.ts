@@ -61,6 +61,7 @@ import {
   registrarIntentoVinculoFallido,
   responderPorEnlace,
 } from '@/lib/infraestructura/verificaciones'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -186,7 +187,7 @@ const verificacionVinculoSchema = z
   })
   .optional()
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const { searchParams } = new URL(request.url)
   const cue = normalizeCue(searchParams.get('cue') ?? '')
   if (!cue) {
@@ -357,7 +358,7 @@ async function intentarVincularVerificacion(
   }
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   await ensureSeeded()
 
   const ip = getClientIp(request)
@@ -1107,3 +1108,6 @@ export async function POST(request: Request) {
     { status: resultado.status },
   )
 }
+
+export const GET = ruta('parte.get', handleGET)
+export const POST = ruta('parte.post', handlePOST)
