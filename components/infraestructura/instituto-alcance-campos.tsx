@@ -76,6 +76,11 @@ function nombreAlumno(alumno: AlumnoElegido): string {
   return `${alumno.apellido}, ${alumno.nombre}`
 }
 
+/** Texto del disparador del selector de carreras con 2 o más elegidas. */
+export function resumenCarreras(cantidad: number): string {
+  return cantidad === 1 ? '1 carrera' : `${cantidad} carreras seleccionadas`
+}
+
 function textoCantidad(cantidad: number): string {
   return cantidad === 1 ? '1 alumno encontrado' : `${cantidad} alumnos encontrados`
 }
@@ -215,6 +220,7 @@ export function InstitutoCamposAQuienAfecta({
           options={carreras.map((carrera) => ({ value: String(carrera.id), label: etiquetas.get(carrera.id) ?? carrera.nombre }))}
           placeholder="Seleccione una o más carreras"
           ariaLabel="Carreras afectadas"
+          resumen={resumenCarreras}
         />
         <p className="afectacion-borrador__resumen" aria-live="polite">
           {seleccion.carreras.length === 0 ? 'Ninguna carrera seleccionada' : textoAlcanceInstituto(alcance.carreras, alcance.alumnos)}

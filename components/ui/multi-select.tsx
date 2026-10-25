@@ -17,6 +17,7 @@ export function MultiSelect<T extends string>({
   placeholder = 'Seleccionar…',
   className,
   ariaLabel,
+  resumen = (cantidad) => `${cantidad} seleccionadas`,
 }: {
   value: T[]
   onChange: (next: T[]) => void
@@ -24,6 +25,8 @@ export function MultiSelect<T extends string>({
   placeholder?: string
   className?: string
   ariaLabel?: string
+  /** Texto del disparador cuando hay 2 o más valores elegidos. */
+  resumen?: (cantidad: number) => string
 }) {
   return (
     // modal={false}: el modo modal de Base UI monta una capa fija a pantalla
@@ -40,9 +43,11 @@ export function MultiSelect<T extends string>({
           {(current) => {
             const values = Array.isArray(current) ? (current as T[]) : []
             if (values.length === 0) return placeholder
-            return values
-              .map((v) => options.find((o) => o.value === v)?.label ?? v)
-              .join(', ')
+            if (values.length === 1) {
+              const unica = options.find((o) => o.value === values[0])?.label ?? values[0]
+              return <span title={unica}>{unica}</span>
+            }
+            return resumen(values.length)
           }}
         </SelectPrimitive.Value>
         <SelectPrimitive.Icon>

@@ -2,7 +2,7 @@
 import { act, render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { InstitutoCamposAQuienAfecta } from './instituto-alcance-campos'
+import { InstitutoCamposAQuienAfecta, resumenCarreras } from './instituto-alcance-campos'
 import { crearAfectacionVacia, type AfectacionBorrador } from './afectacion-campos'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import type { CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
@@ -282,5 +282,12 @@ describe('InstitutoCamposAQuienAfecta sin selección de alumnos', () => {
     await user.click(screen.getByRole('combobox', { name: 'Carreras afectadas' }))
     expect(await screen.findByRole('option', { name: 'Matemática — Profesorado (RM 1464/14)' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Matemática — Tecnicatura (RM 0770/21)' })).toBeInTheDocument()
+  })
+})
+
+describe('resumenCarreras', () => {
+  it('usa singular para una carrera y plural con el total para dos o más', () => {
+    expect(resumenCarreras(1)).toBe('1 carrera')
+    expect(resumenCarreras(2)).toBe('2 carreras seleccionadas')
   })
 })

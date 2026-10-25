@@ -1543,6 +1543,10 @@ time {
 .ui-select-trigger {
   min-height: 44px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -1558,7 +1562,9 @@ time {
 }
 .ui-select-trigger:hover { border-color: var(--ink); }
 .ui-select-value {
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1567,6 +1573,7 @@ time {
 .ui-select-positioner { max-width: calc(100vw - 1rem); }
 .ui-select-positioner .ui-select-popup {
   width: max-content;
+  max-width: min(28rem, calc(100vw - 1rem));
   min-width: min(var(--anchor-width), calc(100vw - 1rem));
   max-width: calc(100vw - 1rem);
 }
@@ -1697,7 +1704,7 @@ time {
   color: var(--page);
 }
 /* Opciones de selección múltiple: blanco táctil mínimo de 44px. */
-.ui-select-item { min-height: 44px; }
+.ui-select-item { min-height: 44px; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .ui-select-check {
   display: inline-flex;
   align-items: center;
@@ -5038,6 +5045,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 0;
   border: 0;

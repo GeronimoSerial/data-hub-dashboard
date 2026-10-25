@@ -291,7 +291,7 @@ describe('ReporteInicialForm', () => {
     completarEstadoEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
     await elegirModalidades(userEvent.setup(), 'Asistencia virtual', 'Cuadernillos impresos')
-    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toHaveTextContent('Asistencia virtual, Cuadernillos impresos')
+    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toHaveTextContent('2 seleccionadas')
   })
 
   it('se abre, marca y cierra con el teclado', async () => {
@@ -314,7 +314,7 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('option', { name: 'Asistencia virtual' })).toHaveAttribute('aria-selected', 'true')
     await user.keyboard('{Escape}')
     expect(desplegable).toHaveAttribute('aria-expanded', 'false')
-    expect(desplegable).toHaveTextContent('Cuadernillos digitales, Asistencia virtual')
+    expect(desplegable).toHaveTextContent('2 seleccionadas')
   })
 
   it('exige al menos una modalidad cuando se elige Sí', () => {
