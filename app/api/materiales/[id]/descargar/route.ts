@@ -11,7 +11,7 @@ export const runtime = 'nodejs'
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const material = materialesPublicados.find(item => item.id === id)
-  if (!material) return Response.json({ error: 'Material no encontrado.' }, { status: 404 })
+  if (!material || material.tipo === 'video') return Response.json({ error: 'Material no encontrado.' }, { status: 404 })
   const disposition = `attachment; filename="${material.id}.pdf"`
   try {
     if (process.env.MATERIALES_STORAGE === 's3') {

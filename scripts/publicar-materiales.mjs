@@ -24,7 +24,8 @@ try {
   for (const { item, body } of archivos) {
     await client.send(new PutObjectCommand({
       Bucket: process.env.OBS_BUCKET, Key: item.storageKey, Body: body,
-      ContentType: 'application/pdf', ContentDisposition: `attachment; filename="${item.id}.pdf"`,
+      ContentType: item.tipo === 'video' ? 'video/mp4' : 'application/pdf',
+      ...(item.tipo === 'video' ? {} : { ContentDisposition: `attachment; filename="${item.id}.pdf"` }),
       CacheControl: 'public, max-age=31536000, immutable', Metadata: { sha256: item.sha256 },
     }))
     const check = await client.send(new HeadObjectCommand({ Bucket: process.env.OBS_BUCKET, Key: item.storageKey }))
