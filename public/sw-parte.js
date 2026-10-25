@@ -23,7 +23,7 @@ const DURACION_BLOQUEO_MS = 15000
 const ESPERA_MAXIMA_MS = 30000
 const CACHE_PREPARACION_PREFIX = 'parte-offline-shell-'
 // Increment when the offline shell or its static resource graph changes.
-const CACHE_PREPARACION_VERSION = 'v1'
+const CACHE_PREPARACION_VERSION = 'v3'
 const CACHE_PREPARACION = `${CACHE_PREPARACION_PREFIX}${CACHE_PREPARACION_VERSION}`
 const RUTA_OFFLINE = '/problematicas/parte/offline'
 const RUTAS_PARTE = ['/problematicas/parte/nuevo', '/problematicas/parte/actualizar']
@@ -98,12 +98,6 @@ async function prepararOffline(cacheStorage = caches, fetchImpl = fetch, origin 
   }
 }
 
-// El servidor redirige nuevo↔actualizar según haya parte: esa respuesta llega
-// como opaqueredirect (o 3xx) y no es falta de red. Se devuelve al navegador.
-function esRedireccion(response) {
-  return response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)
-}
-
 function esNavegacionParte(request) {
   if (request.method !== 'GET' || request.mode !== 'navigate') return false
   const url = new URL(request.url)
@@ -124,6 +118,7 @@ async function servirRecursoEstatico(request, cacheStorage = caches, fetchImpl =
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const result = await prepararOffline()
+    await self.skipWaiting()
     const clients = await self.clients.matchAll({ includeUncontrolled: true })
     for (const client of clients) client.postMessage({ tipo: 'parte-offline-disponible', version: CACHE_PREPARACION_VERSION })
     return result
@@ -158,8 +153,7 @@ self.addEventListener('fetch', (event) => {
     return Response.redirect(fallback.href, 302)
   }
   event.respondWith(fetch(event.request).then((response) => {
-    if (response.ok || esRedireccion(response)) return response
-    return isOfflineRoute ? fallbackOffline(event.request) : redirectToOffline()
+    return response
   }).catch(async () => {
     if (isOfflineRoute) return fallbackOffline(event.request)
     return redirectToOffline()

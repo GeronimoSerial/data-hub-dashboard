@@ -2,6 +2,8 @@ import { createDecipheriv } from 'node:crypto'
 import {
   asegurarGeAdjuntada,
   obtenerCorteYSeccionesDeAfectacion,
+  obtenerMembresiaSecciones,
+  seleccionarAlumnosPorSeccion,
 } from './impacto'
 import type { EjecutorSql } from './ge-db'
 import {
@@ -128,7 +130,7 @@ export async function listarAfectadosNominal(
 ): Promise<AfectadosNominal | null> {
   const referencia = await obtenerCorteYSeccionesDeAfectacion(afectacionId)
   if (!referencia) return null
-  const { corteId, geSectionIds } = referencia
+  const { corteId, geSectionIds, alumnoIds } = referencia
   if (geSectionIds.length === 0) return { secciones: [], cantidad: 0 }
 
   await asegurarGeAdjuntada(hostClient)
@@ -140,22 +142,20 @@ export async function listarAfectadosNominal(
     args: [corteId, ...geSectionIds],
   })
 
-  const membresiasRes = await hostClient.execute({
-    sql: `SELECT DISTINCT ge_section_id, ge_person_id FROM ge.ge_alumno_seccion
-          WHERE corte_id = ? AND ge_section_id IN (${placeholders})`,
-    args: [corteId, ...geSectionIds],
+  const membresiaPorSeccion = await obtenerMembresiaSecciones(hostClient, { corteId, geSectionIds })
+  const categoriaRes = await hostClient.execute({
+    sql: 'SELECT categoria FROM infra_afectacion WHERE id = ?',
+    args: [afectacionId],
   })
-
-  const personIdsPorSeccion = new Map<number, number[]>()
-  const todosLosPersonIds = new Set<number>()
-  for (const r of membresiasRes.rows) {
-    const sectionId = Number(r.ge_section_id)
-    const personId = Number(r.ge_person_id)
-    todosLosPersonIds.add(personId)
-    const lista = personIdsPorSeccion.get(sectionId) ?? []
-    lista.push(personId)
-    personIdsPorSeccion.set(sectionId, lista)
-  }
+  const seleccionExplicita = categoriaRes.rows[0]?.categoria === 'alumnos' && alumnoIds.length > 0
+  const alumnosSeleccionados = new Set(alumnoIds)
+  const personIdsPorSeccion = seleccionExplicita
+    ? new Map([...membresiaPorSeccion].map(([sectionId, personIds]) => [
+        sectionId,
+        [...personIds].filter((personId) => alumnosSeleccionados.has(personId)),
+      ]))
+    : seleccionarAlumnosPorSeccion(membresiaPorSeccion, alumnoIds)
+  const todosLosPersonIds = new Set([...personIdsPorSeccion.values()].flat())
 
   const identidades = await listarIdentidadesPorPersonas(
     hostClient,

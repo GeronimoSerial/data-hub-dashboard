@@ -21,6 +21,16 @@ export function completarLocalizaciones(actuales, filas) {
   return { registros: [...actuales, ...nuevas.values()], nuevas: [...nuevas.values()], excluidas: [...new Set(excluidas)] }
 }
 
+export function planificarRecuperacion(actuales, filas, cuesConSecciones) {
+  const plan = completarLocalizaciones(actuales, filas)
+  const excluidas = new Set(plan.excluidas)
+  const cubiertas = new Set(cuesConSecciones)
+  const nuevas = new Set(plan.nuevas.map((r) => r.cueAnexo))
+  const recuperar = [...new Set(filas.map((r) => String(r.cue_anexo ?? '').trim()))]
+    .filter((cue) => !excluidas.has(cue) && (nuevas.has(cue) || !cubiertas.has(cue)))
+  return { ...plan, recuperar }
+}
+
 export async function leerLocalizacionesDesdeGe({ conexion, cicloLectivo = String(new Date().getFullYear()) } = {}) {
   const { default: pg } = await import('pg')
   const { conexionDesdeEntorno } = await import('./padron-ge.mjs')

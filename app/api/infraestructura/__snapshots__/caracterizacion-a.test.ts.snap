@@ -139,6 +139,13 @@ exports[`/api/infraestructura/motivos > GET > lists the seeded motives for staff
       },
       {
         "categoria": "establecimiento",
+        "id": "centro-evacuados",
+        "nombre": "Centro de evacuados",
+        "orden": 60,
+        "severidadSugerida": "Crítica",
+      },
+      {
+        "categoria": "establecimiento",
         "id": "otro-establecimiento",
         "nombre": "Otro problema en el establecimiento",
         "orden": 90,

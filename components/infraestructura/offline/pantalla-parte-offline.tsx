@@ -10,6 +10,7 @@ import { abrirAlmacenParte, NOMBRE_DB_PARTE, STORES_PARTE, VERSION_DB_PARTE } fr
 import type { ContextoReporte } from '@/lib/infraestructura/reportes-offline-contratos'
 import type { EstadoActualRespuesta } from '@/components/infraestructura/estado-actual-textos'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
+import { reportesDelRecorrido, seleccionarReporteLocal } from '@/lib/infraestructura/parte/retomar-reporte-local'
 import { reconectarParte, type ConflictoContexto } from '@/lib/infraestructura/parte/reconexion'
 import type { CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
 
@@ -108,7 +109,10 @@ export function PantallaParteOffline(): JSX.Element {
     let vigente = true
     void cargarFlujos().then((flujos) => {
       if (!vigente) return
-      setCarga(flujos.length ? { tipo: 'listo', flujos } : { tipo: 'vacio' })
+      const disponibles = new Set(reportesDelRecorrido(flujos.map(({ contexto }) => contexto), window.location.search).map(({ draftId }) => draftId))
+      const delRecorrido = flujos.filter(({ contexto }) => disponibles.has(contexto.draftId))
+      setSeleccion(seleccionarReporteLocal(delRecorrido.map(({ contexto }) => contexto), window.location.search))
+      setCarga(delRecorrido.length ? { tipo: 'listo', flujos: delRecorrido } : { tipo: 'vacio' })
     }).catch(() => {
       if (vigente) setCarga({ tipo: 'error', mensaje: 'No se pudo leer el trabajo guardado en este dispositivo.' })
     })
@@ -138,15 +142,15 @@ export function PantallaParteOffline(): JSX.Element {
   useLocalUpdateReads(flujoSeleccionado?.contexto ?? null)
 
   if (carga.tipo === 'cargando') return <main className="publico-content"><p role="status">Buscando trabajo guardado en este dispositivo…</p></main>
-  if (carga.tipo === 'error') return <main className="publico-content"><h1>Continuar sin conexión</h1><p role="alert">{carga.mensaje}</p></main>
+  if (carga.tipo === 'error') return <main className="publico-content"><h1>No se pudo abrir el reporte</h1><p role="alert">{carga.mensaje}</p></main>
   if (carga.tipo === 'vacio') {
-    return <main className="publico-content"><h1>Continuar sin conexión</h1><p role="status">No hay un reporte guardado para continuar en este dispositivo. Abra el recorrido con conexión al menos una vez para preparar el trabajo sin conexión.</p></main>
+    return <main className="publico-content"><h1>Reporte no disponible sin conexión</h1><p role="status">No hay un reporte guardado para este recorrido en este dispositivo. Conéctese a internet para abrir el reporte de su escuela.</p></main>
   }
 
   if (!flujoSeleccionado) {
     return (
       <main className="publico-content">
-        <h1>Continuar sin conexión</h1>
+        <h1>Reportes guardados</h1>
         <p>Seleccione un reporte guardado en este dispositivo.</p>
         {conflictosContexto.length > 0 && (
           <ul aria-label="Conflictos de contexto">

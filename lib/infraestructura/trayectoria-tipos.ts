@@ -11,8 +11,10 @@
 
 import type { Severidad } from './validacion'
 import type { CategoriaAfectacion as Categoria } from './categorias'
+import type { ImpactoAlumnos } from './prioridad-alumnos'
+import type { JustificacionCritica } from './justificacion-critica'
 
-export type { Severidad, Categoria }
+export type { Severidad, Categoria, JustificacionCritica }
 
 // --- Enums / uniones (mismos nombres que CONTRACT.md) ---
 
@@ -94,12 +96,15 @@ export interface AfectacionAlcanceSeccion {
 }
 
 export interface Afectacion extends FilaConVigencia {
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   parteId: string
   causadaPorId?: string | null
   motivo: string
   categoria: Categoria
   severidad: Severidad
+  justificacionCritica?: JustificacionCritica
+  justificacionCriticaDetalle?: string
   descripcion: string | null
   creadaEn: string
   secciones: AfectacionAlcanceSeccion[]

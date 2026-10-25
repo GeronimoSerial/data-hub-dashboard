@@ -13,8 +13,11 @@ import {
   resumirAlcance,
 } from '@/components/infraestructura/estado-actual-textos'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import { textoImpactoAlumnos, type ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 
 export interface AfectacionResumen {
+  /** Alumnos: la prioridad sale del impacto en la matrícula, no de un valor manual. */
+  impactoAlumnos?: ImpactoAlumnos
   motivo: string
   severidad: string
   secciones: number
@@ -91,7 +94,8 @@ export function armarResumen(entrada: EntradaResumen): FilaResumen[] {
   const { afectacion, servicio, estadoEstablecimiento, rigeDesde, asistenciaPedagogica, fotosAdjuntas } = entrada
 
   const lineas: FilaResumen[] = [
-    { etiqueta: 'Situación', valor: afectacion.motivo, severidad: afectacion.severidad },
+    { etiqueta: 'Situación', valor: afectacion.motivo, severidad: afectacion.impactoAlumnos ? undefined : afectacion.severidad },
+    ...(afectacion.impactoAlumnos ? [{ etiqueta: 'Impacto', valor: textoImpactoAlumnos(afectacion.impactoAlumnos) }] : []),
     { etiqueta: 'Afecta a', valor: resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos, carreras: afectacion.carreras }) },
   ]
   if (afectacion.carrerasNombres && afectacion.carrerasNombres.length > 0) {

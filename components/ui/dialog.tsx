@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useFullscreenElement } from './use-fullscreen-element'
 
 export const Dialog = DialogPrimitive.Root
 export const DialogTrigger = DialogPrimitive.Trigger
@@ -11,8 +12,9 @@ export const DialogTitle = DialogPrimitive.Title
 export const DialogDescription = DialogPrimitive.Description
 
 export function DialogContent({ className, children, ...props }: React.ComponentProps<typeof DialogPrimitive.Popup>) {
+  const container = useFullscreenElement()
   return (
-    <DialogPrimitive.Portal>
+    <DialogPrimitive.Portal container={container ?? undefined}>
       <DialogPrimitive.Backdrop className="ui-dialog-backdrop" />
       <DialogPrimitive.Viewport className="ui-dialog-viewport">
         <DialogPrimitive.Popup className={cn('ui-dialog-popup', className)} {...props}>

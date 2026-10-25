@@ -1,4 +1,4 @@
-import { asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lte, max, min, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db'
 import {
@@ -27,10 +27,10 @@ export const dynamic = 'force-dynamic'
 const geometryRefSchema = z.string().min(1).max(50).optional()
 
 async function handleGET(request: Request) {
-  await ensureSeeded()
-
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
+
+  await ensureSeeded()
 
   const { searchParams } = new URL(request.url)
   const parsed = geometryRefSchema.safeParse(
@@ -50,31 +50,125 @@ async function handleGET(request: Request) {
   const puntoRioId = parsedPunto.data
 
   const db = getDb()
-  const forecastBase = db.select().from(hazardForecast)
-  const forecastRows =
-    geometryRef === undefined
-      ? await forecastBase.orderBy(asc(hazardForecast.validoEn))
-      : await forecastBase
-          .where(eq(hazardForecast.geometryRef, geometryRef))
-          .orderBy(asc(hazardForecast.validoEn))
+  const ahoraIso = new Date().toISOString()
+  const forecastConditions = [lte(hazardForecast.corridaEn, ahoraIso)]
+  if (geometryRef !== undefined) {
+    forecastConditions.push(eq(hazardForecast.geometryRef, geometryRef))
+  }
+  // Keep every valid horizon from the newest eligible run for each cell,
+  // variable and provider. In particular, don't limit forecast steps: consumers
+  // sum the returned array to calculate accumulated precipitation.
+  const latestForecastRuns = db
+    .select({
+      provider: hazardForecast.provider,
+      variable: hazardForecast.variable,
+      geometryRef: hazardForecast.geometryRef,
+      corridaEn: max(hazardForecast.corridaEn).as('ultima_corrida_en'),
+    })
+    .from(hazardForecast)
+    .where(and(...forecastConditions))
+    .groupBy(hazardForecast.provider, hazardForecast.variable, hazardForecast.geometryRef)
+    .as('latest_forecast_runs')
 
-  const climBase = db.select().from(hazardClimatology)
-  const climRows =
-    geometryRef === undefined
-      ? await climBase
-      : await climBase.where(eq(hazardClimatology.geometryRef, geometryRef))
+  const forecastRows = await db
+    .select({
+      geometryRef: hazardForecast.geometryRef,
+      provider: hazardForecast.provider,
+      variable: hazardForecast.variable,
+      corridaEn: hazardForecast.corridaEn,
+      validoEn: hazardForecast.validoEn,
+      horizonteHoras: hazardForecast.horizonteHoras,
+      valor: hazardForecast.valor,
+      unidad: hazardForecast.unidad,
+      pasoHoras: hazardForecast.pasoHoras,
+    })
+    .from(hazardForecast)
+    .innerJoin(
+      latestForecastRuns,
+      and(
+        eq(hazardForecast.provider, latestForecastRuns.provider),
+        eq(hazardForecast.variable, latestForecastRuns.variable),
+        eq(hazardForecast.geometryRef, latestForecastRuns.geometryRef),
+        eq(hazardForecast.corridaEn, latestForecastRuns.corridaEn),
+      ),
+    )
+    .orderBy(asc(hazardForecast.validoEn))
 
-  const pronostico = forecastRows.map((r) => ({
-    geometryRef: r.geometryRef,
-    provider: r.provider,
-    variable: r.variable,
-    corridaEn: r.corridaEn,
-    validoEn: r.validoEn,
-    horizonteHoras: r.horizonteHoras,
-    valor: r.valor,
-    unidad: r.unidad,
-    pasoHoras: r.pasoHoras,
-  }))
+  // A usable reference is a complete p90/p95/p99 set from one cell, variable,
+  // sample, period, version and calculation. Keep samples as independent groups:
+  // the climatology calculation intentionally emits both daily samples, and the
+  // response contract exposes `muestra` so consumers can choose deliberately.
+  // Prefer complete IMERG precipitation within each sample, then the most recent
+  // complete reference, without loading every historical version.
+  const completeClimatologyGroups = db
+    .select({
+      geometryRef: hazardClimatology.geometryRef,
+      variable: hazardClimatology.variable,
+      muestra: hazardClimatology.muestra,
+      periodoDesde: hazardClimatology.periodoDesde,
+      periodoHasta: hazardClimatology.periodoHasta,
+      version: hazardClimatology.version,
+      calculadoEn: hazardClimatology.calculadoEn,
+      id: min(hazardClimatology.id).as('id_tie_breaker'),
+      ranking: sql<number>`row_number() over (
+        partition by ${hazardClimatology.geometryRef}, ${hazardClimatology.variable}, ${hazardClimatology.muestra}
+        order by
+          case when ${hazardClimatology.variable} = 'precipitacion'
+            and ${hazardClimatology.version} like 'climatologia-imerg%' then 1 else 0 end desc,
+          ${hazardClimatology.periodoHasta} desc,
+          ${hazardClimatology.version} desc,
+          ${hazardClimatology.calculadoEn} desc,
+          ${hazardClimatology.periodoDesde} desc,
+          ${min(hazardClimatology.id)} asc
+      )`.as('ranking'),
+    })
+    .from(hazardClimatology)
+    .where(inArray(hazardClimatology.percentil, ['p90', 'p95', 'p99']))
+    .groupBy(
+      hazardClimatology.geometryRef,
+      hazardClimatology.variable,
+      hazardClimatology.muestra,
+      hazardClimatology.periodoDesde,
+      hazardClimatology.periodoHasta,
+      hazardClimatology.version,
+      hazardClimatology.calculadoEn,
+    )
+    .having(sql`count(distinct ${hazardClimatology.percentil}) = 3`)
+    .as('complete_climatology_groups')
+
+  const climatologyConditions = [eq(completeClimatologyGroups.ranking, 1)]
+  if (geometryRef !== undefined) {
+    climatologyConditions.push(eq(hazardClimatology.geometryRef, geometryRef))
+  }
+  const climRows = await db
+    .select({
+      geometryRef: hazardClimatology.geometryRef,
+      variable: hazardClimatology.variable,
+      percentil: hazardClimatology.percentil,
+      muestra: hazardClimatology.muestra,
+      id: hazardClimatology.id,
+      valor: hazardClimatology.valor,
+      unidad: hazardClimatology.unidad,
+      periodoDesde: hazardClimatology.periodoDesde,
+      periodoHasta: hazardClimatology.periodoHasta,
+    })
+    .from(hazardClimatology)
+    .innerJoin(
+      completeClimatologyGroups,
+      and(
+        eq(hazardClimatology.geometryRef, completeClimatologyGroups.geometryRef),
+        eq(hazardClimatology.variable, completeClimatologyGroups.variable),
+        eq(hazardClimatology.muestra, completeClimatologyGroups.muestra),
+        eq(hazardClimatology.periodoDesde, completeClimatologyGroups.periodoDesde),
+        eq(hazardClimatology.periodoHasta, completeClimatologyGroups.periodoHasta),
+        eq(hazardClimatology.version, completeClimatologyGroups.version),
+        eq(hazardClimatology.calculadoEn, completeClimatologyGroups.calculadoEn),
+      ),
+    )
+    .where(and(...climatologyConditions))
+    .orderBy(desc(hazardClimatology.periodoDesde), asc(hazardClimatology.id))
+
+  const pronostico = forecastRows
 
   const climatologia = climRows.map((r) => ({
     geometryRef: r.geometryRef,

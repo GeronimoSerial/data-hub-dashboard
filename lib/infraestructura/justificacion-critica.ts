@@ -6,12 +6,46 @@ import type { Severidad } from './validacion'
 export const JUSTIFICACIONES_CRITICA = ['mas_personas', 'riesgo_fisico', 'se_prolonga', 'combinado', 'otro'] as const
 export type JustificacionCritica = (typeof JUSTIFICACIONES_CRITICA)[number]
 
+export function esJustificacionCritica(valor: unknown): valor is JustificacionCritica {
+  return typeof valor === 'string' && (JUSTIFICACIONES_CRITICA as readonly string[]).includes(valor)
+}
+
 export const ETIQUETA_JUSTIFICACION_CRITICA: Record<JustificacionCritica, string> = {
   mas_personas: 'Afecta a más personas o secciones de lo habitual',
   riesgo_fisico: 'Hay riesgo eléctrico, estructural o sanitario',
   se_prolonga: 'Se prolonga en el tiempo o no tiene fecha de solución',
   combinado: 'Se combina con otra situación activa',
   otro: 'Otro',
+}
+
+export function presentarJustificacionCritica(input: {
+  categoria?: string
+  severidad: unknown
+  justificacionCritica?: unknown
+  justificacionCriticaDetalle?: unknown
+}): { etiqueta: string; detalle: string | null } | null {
+  if (input.categoria === 'alumnos' || input.severidad !== 'Crítica' || !esJustificacionCritica(input.justificacionCritica)) return null
+
+  const detalle =
+    input.justificacionCritica === 'otro' &&
+    typeof input.justificacionCriticaDetalle === 'string' &&
+    input.justificacionCriticaDetalle.trim()
+      ? input.justificacionCriticaDetalle
+      : null
+  return { etiqueta: ETIQUETA_JUSTIFICACION_CRITICA[input.justificacionCritica], detalle }
+}
+
+export function describirJustificacionCritica(afectacion: {
+  categoria?: string
+  severidad: Severidad
+  justificacionCritica?: string | null
+  justificacionCriticaDetalle?: string | null
+}): string | null {
+  if (afectacion.categoria === 'alumnos' || afectacion.severidad !== 'Crítica' || !afectacion.justificacionCritica) return null
+  const codigo = afectacion.justificacionCritica
+  const etiqueta = JUSTIFICACIONES_CRITICA.find((valor) => valor === codigo)
+  const texto = etiqueta ? ETIQUETA_JUSTIFICACION_CRITICA[etiqueta] : codigo
+  return [texto, afectacion.justificacionCriticaDetalle?.trim()].filter(Boolean).join(': ')
 }
 
 export function requiereJustificacionCritica(severidad: Severidad, sugerida: Severidad | null | undefined): boolean {

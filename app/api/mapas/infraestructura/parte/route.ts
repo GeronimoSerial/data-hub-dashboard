@@ -85,12 +85,22 @@ async function handleGET(request: Request) {
       parte: ficha.parte,
       servicio: ficha.servicio,
       // Deliberadamente sin `secciones` (ids de alumno): sólo id, motivo,
-      // categoría, severidad, descripción, vigencia, causalidad y totales agregados.
+      // categoría, severidad, justificación crítica, descripción, vigencia,
+      // causalidad y totales agregados.
       afectaciones: ficha.afectaciones.map((afectacion) => ({
         id: afectacion.id,
         motivo: afectacion.motivo,
         categoria: afectacion.categoria,
         severidad: afectacion.severidad,
+        ...(afectacion.justificacionCritica
+          ? {
+              justificacionCritica: afectacion.justificacionCritica,
+              ...(afectacion.justificacionCritica === 'otro' && afectacion.justificacionCriticaDetalle
+                ? { justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle }
+                : {}),
+            }
+          : {}),
+        impactoAlumnos: afectacion.impactoAlumnos,
         descripcion: afectacion.descripcion,
         causadaPorId: afectacion.causadaPorId,
         rigeDesde: afectacion.rigeDesde,

@@ -64,7 +64,8 @@ const asistenciaPedagogicaSchema = z.object({
 
 export const afectacionNuevaInputSchema = z.object({
   motivo: z.string().trim().min(1, 'Motivo requerido'),
-  severidad: z.enum(SEVERIDADES),
+  // GE alumnos: sin severidad; la prioridad la calcula el servidor desde la matrícula.
+  severidad: z.enum(SEVERIDADES).optional(),
   justificacionCritica: z.enum(JUSTIFICACIONES_CRITICA).optional(),
   justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),

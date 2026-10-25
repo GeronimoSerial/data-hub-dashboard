@@ -1,6 +1,6 @@
 {
-  "id": "ce681dc9-47e6-4aa6-b1b3-59dbcd8294a3",
-  "prevId": "6f997781-2f5f-4356-813c-466ada89de2a",
+  "id": "0f09a20b-75f5-47b0-8e53-0f33054fbf86",
+  "prevId": "536baeee-6dfc-4ef1-a52d-888c3727bc14",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2039,6 +2039,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "carreras": {
+          "name": "carreras",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "causada_por_id": {
           "name": "causada_por_id",
           "type": "text",
@@ -2174,112 +2180,6 @@
           "columns": [
             "afectacion_id",
             "ge_person_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.infra_afectacion_carrera": {
-      "name": "infra_afectacion_carrera",
-      "schema": "",
-      "columns": {
-        "afectacion_id": {
-          "name": "afectacion_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "matricula_corte_id": {
-          "name": "matricula_corte_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "carrera_id": {
-          "name": "carrera_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "infra_afectacion_carrera_afectacion_id_infra_afectacion_id_fk": {
-          "name": "infra_afectacion_carrera_afectacion_id_infra_afectacion_id_fk",
-          "tableFrom": "infra_afectacion_carrera",
-          "tableTo": "infra_afectacion",
-          "columnsFrom": [
-            "afectacion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "infra_afectacion_carrera_afectacion_id_carrera_id_pk": {
-          "name": "infra_afectacion_carrera_afectacion_id_carrera_id_pk",
-          "columns": [
-            "afectacion_id",
-            "carrera_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.infra_afectacion_matricula_alumno": {
-      "name": "infra_afectacion_matricula_alumno",
-      "schema": "",
-      "columns": {
-        "afectacion_id": {
-          "name": "afectacion_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "matricula_corte_id": {
-          "name": "matricula_corte_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "alumno_id": {
-          "name": "alumno_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "infra_afectacion_matricula_alumno_afectacion_id_infra_afectacion_id_fk": {
-          "name": "infra_afectacion_matricula_alumno_afectacion_id_infra_afectacion_id_fk",
-          "tableFrom": "infra_afectacion_matricula_alumno",
-          "tableTo": "infra_afectacion",
-          "columnsFrom": [
-            "afectacion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "infra_afectacion_matricula_alumno_afectacion_id_alumno_id_pk": {
-          "name": "infra_afectacion_matricula_alumno_afectacion_id_alumno_id_pk",
-          "columns": [
-            "afectacion_id",
-            "alumno_id"
           ]
         }
       },
@@ -4644,6 +4544,136 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.infra_radar_run_cache": {
+      "name": "infra_radar_run_cache",
+      "schema": "",
+      "columns": {
+        "cache_key": {
+          "name": "cache_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "environment": {
+          "name": "environment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "risk_run_id": {
+          "name": "risk_run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "modelo_version": {
+          "name": "modelo_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "publicado_en": {
+          "name": "publicado_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reglas_version": {
+          "name": "reglas_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "referencias_fingerprint": {
+          "name": "referencias_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "estado": {
+          "name": "estado",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lease_owner": {
+          "name": "lease_owner",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_expira_en": {
+          "name": "lease_expira_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creada_en": {
+          "name": "creada_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actualizada_en": {
+          "name": "actualizada_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "infra_radar_run_cache_run_idx": {
+          "name": "infra_radar_run_cache_run_idx",
+          "columns": [
+            {
+              "expression": "risk_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "infra_radar_run_cache_risk_run_id_infra_risk_run_id_fk": {
+          "name": "infra_radar_run_cache_risk_run_id_infra_risk_run_id_fk",
+          "tableFrom": "infra_radar_run_cache",
+          "tableTo": "infra_risk_run",
+          "columnsFrom": [
+            "risk_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "infra_radar_run_cache_estado_check": {
+          "name": "infra_radar_run_cache_estado_check",
+          "value": "\"infra_radar_run_cache\".\"estado\" IN ('building', 'ready', 'failed')"
+        },
+        "infra_radar_run_cache_payload_check": {
+          "name": "infra_radar_run_cache_payload_check",
+          "value": "(\"infra_radar_run_cache\".\"estado\" = 'ready' AND \"infra_radar_run_cache\".\"payload\" IS NOT NULL AND \"infra_radar_run_cache\".\"lease_owner\" IS NULL AND \"infra_radar_run_cache\".\"lease_expira_en\" IS NULL) OR (\"infra_radar_run_cache\".\"estado\" = 'building' AND \"infra_radar_run_cache\".\"payload\" IS NULL AND \"infra_radar_run_cache\".\"lease_owner\" IS NOT NULL AND \"infra_radar_run_cache\".\"lease_expira_en\" IS NOT NULL) OR (\"infra_radar_run_cache\".\"estado\" = 'failed' AND \"infra_radar_run_cache\".\"payload\" IS NULL AND \"infra_radar_run_cache\".\"lease_owner\" IS NULL AND \"infra_radar_run_cache\".\"lease_expira_en\" IS NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.infra_risk_factor": {
       "name": "infra_risk_factor",
       "schema": "",
@@ -6235,356 +6265,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.matricula_alumno": {
-      "name": "matricula_alumno",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "bigserial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "corte_id": {
-          "name": "corte_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "carrera_id": {
-          "name": "carrera_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "apellidos": {
-          "name": "apellidos",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nombres": {
-          "name": "nombres",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nombre_busqueda": {
-          "name": "nombre_busqueda",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "dni_hash": {
-          "name": "dni_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "matricula_alumno_carrera_dni_uidx": {
-          "name": "matricula_alumno_carrera_dni_uidx",
-          "columns": [
-            {
-              "expression": "carrera_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "dni_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "matricula_alumno_busqueda_idx": {
-          "name": "matricula_alumno_busqueda_idx",
-          "columns": [
-            {
-              "expression": "carrera_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "nombre_busqueda",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "text_pattern_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "matricula_alumno_corte_id_matricula_corte_id_fk": {
-          "name": "matricula_alumno_corte_id_matricula_corte_id_fk",
-          "tableFrom": "matricula_alumno",
-          "tableTo": "matricula_corte",
-          "columnsFrom": [
-            "corte_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "matricula_alumno_carrera_id_matricula_carrera_id_fk": {
-          "name": "matricula_alumno_carrera_id_matricula_carrera_id_fk",
-          "tableFrom": "matricula_alumno",
-          "tableTo": "matricula_carrera",
-          "columnsFrom": [
-            "carrera_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.matricula_carrera": {
-      "name": "matricula_carrera",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "corte_id": {
-          "name": "corte_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cue_anexo": {
-          "name": "cue_anexo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "instituto": {
-          "name": "instituto",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nombre": {
-          "name": "nombre",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rm": {
-          "name": "rm",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tipo": {
-          "name": "tipo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "estado": {
-          "name": "estado",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sector": {
-          "name": "sector",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "matricula_carrera_uidx": {
-          "name": "matricula_carrera_uidx",
-          "columns": [
-            {
-              "expression": "corte_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "cue_anexo",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "nombre",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "rm",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "matricula_carrera_cue_idx": {
-          "name": "matricula_carrera_cue_idx",
-          "columns": [
-            {
-              "expression": "corte_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "cue_anexo",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "matricula_carrera_corte_id_matricula_corte_id_fk": {
-          "name": "matricula_carrera_corte_id_matricula_corte_id_fk",
-          "tableFrom": "matricula_carrera",
-          "tableTo": "matricula_corte",
-          "columnsFrom": [
-            "corte_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "matricula_carrera_estado_check": {
-          "name": "matricula_carrera_estado_check",
-          "value": "\"matricula_carrera\".\"estado\" IN ('ABIERTA', 'CERRADA')"
-        },
-        "matricula_carrera_sector_check": {
-          "name": "matricula_carrera_sector_check",
-          "value": "\"matricula_carrera\".\"sector\" IN ('estatal', 'privado')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.matricula_corte": {
-      "name": "matricula_corte",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "fuente": {
-          "name": "fuente",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ciclo_lectivo": {
-          "name": "ciclo_lectivo",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "estado": {
-          "name": "estado",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "creado_en": {
-          "name": "creado_en",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "filas_importadas": {
-          "name": "filas_importadas",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "filas_excluidas": {
-          "name": "filas_excluidas",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        }
-      },
-      "indexes": {
-        "matricula_corte_vigente_uidx": {
-          "name": "matricula_corte_vigente_uidx",
-          "columns": [
-            {
-              "expression": "estado",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"matricula_corte\".\"estado\" = 'vigente'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "matricula_corte_estado_check": {
-          "name": "matricula_corte_estado_check",
-          "value": "\"matricula_corte\".\"estado\" IN ('cargando', 'vigente', 'reemplazado', 'fallido')"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.niveles": {

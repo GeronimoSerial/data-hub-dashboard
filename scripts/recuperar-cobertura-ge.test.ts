@@ -46,6 +46,17 @@ describe('recuperación transaccional de cobertura', () => {
     expect((await leerVersion('localizaciones'))!.version.id).toBe(previa)
     expect((await client().execute("SELECT COUNT(*) n FROM ge.ge_localizacion WHERE cue_anexo='1801936-00'")).rows[0].n).toBe(0)
   })
+  it('recupera secciones aunque el catálogo ya incluya la escuela', async () => {
+    const { publicarLocalizacionesGe } = await import('./localizaciones-ge.mjs')
+    await publicarLocalizacionesGe(getDb(), [ge])
+    expect((await aplicarRecuperacion(getDb(), [ge], padron(), randomBytes(32))).cues).toEqual(['1801936-00'])
+    expect((await client().execute('SELECT COUNT(*) n FROM ge.ge_seccion')).rows[0].n).toBe(2)
+  })
+  it('rechaza un corte distinto al que se usó para leer GE', async () => {
+    await expect(aplicarRecuperacion(getDb(), [ge], padron(), randomBytes(32), undefined, { id: 2, ciclo_lectivo: 2026 })).rejects.toThrow(/cambió/)
+    await expect(aplicarRecuperacion(getDb(), [ge], padron(), randomBytes(32), undefined, { id: 1, ciclo_lectivo: 2025 })).rejects.toThrow(/cambió/)
+    expect((await client().execute('SELECT COUNT(*) n FROM ge.ge_seccion')).rows[0].n).toBe(1)
+  })
   it('no publica escuelas sin las secciones necesarias para completar su formulario', async () => {
     const previa = (await leerVersion('localizaciones'))!.version.id
     await expect(aplicarRecuperacion(getDb(), [ge], crearAcumulador(), randomBytes(32))).rejects.toThrow(/no coinciden/)

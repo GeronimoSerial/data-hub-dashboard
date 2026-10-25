@@ -52,6 +52,7 @@ const CON_SITUACION: EstadoActualRespuesta = {
       motivo: 'Inaccesibilidad de alumnos',
       categoria: 'alumnos',
       severidad: 'Media',
+      impactoAlumnos: { afectados: 12, matricula: 24, porcentaje: 50, prioridad: 'Media', corteId: 1, version: 1 },
       descripcion: null,
       rigeDesde: '2026-09-18T13:30:00.000Z',
       creadaEn: '2026-09-18T13:30:00.000Z',
@@ -183,7 +184,7 @@ describe('EstadoActualParte — con situación en seguimiento (spec §6)', () =>
 
     // Severidad propia por afectación (spec §9), escrita — nunca sólo color.
     expect(screen.getByText('Gravedad Alta')).toBeVisible()
-    expect(screen.getByText('Gravedad Media')).toBeVisible()
+    expect(screen.getByText('12 de 24 alumnos · 50% · Prioridad Media')).toBeVisible()
 
     // Alcance resumido en el formato de spec §6.
     expect(screen.getByText('3 secciones · 74 alumnos')).toBeVisible()

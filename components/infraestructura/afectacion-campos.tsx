@@ -1,5 +1,7 @@
 'use client'
 
+import { impactoAlumnosEnContexto, textoImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
+
 import { useState, type JSX } from 'react'
 import type { TurnoContexto, SeccionContexto } from '@/lib/infraestructura/contexto'
 import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
@@ -321,15 +323,17 @@ export function CamposQuePaso({
         )}
       </fieldset>
 
-      <CampoGravedad
-        idPrefijo={idPrefijo}
-        categoria={borrador.categoria}
-        esInstituto={esInstituto}
-        sugerida={motivosDeLaCategoria.find((m) => m.nombre === borrador.motivo)?.severidadSugerida ?? null}
-        valor={borrador}
-        onCambiar={(gravedad) => onChange({ ...borrador, ...gravedad })}
-        disabled={disabled}
-      />
+      {(borrador.categoria !== 'alumnos' || esInstituto) && (
+        <CampoGravedad
+          idPrefijo={idPrefijo}
+          categoria={borrador.categoria}
+          esInstituto={esInstituto}
+          sugerida={motivosDeLaCategoria.find((m) => m.nombre === borrador.motivo)?.severidadSugerida ?? null}
+          valor={borrador}
+          onCambiar={(gravedad) => onChange({ ...borrador, ...gravedad })}
+          disabled={disabled}
+        />
+      )}
 
       {duplicado?.coincidenciaExacta && (
         <p className="aviso-badge" role="status">
@@ -378,6 +382,17 @@ export function CamposAQuienAfecta({
   const totalAlumnos = totalAlumnosDe(borrador, turnos)
   const seccionesDisponibles = aplanarSecciones(turnos)
   const matriculaDisponible = seccionesDisponibles.reduce((suma, seccion) => suma + seccion.matricula, 0)
+  // Alumnos: la severidad es la prioridad que sale de la matrícula, no un valor manual.
+  function cambiarSeleccionAlumnos(secciones: number[], alumnos: number[]): void {
+    onChange({
+      ...borrador,
+      secciones,
+      alumnos,
+      severidad: impactoAlumnosEnContexto(alumnos, turnos).prioridad ?? '',
+      justificacionCritica: '',
+      justificacionCriticaDetalle: '',
+    })
+  }
   const cantidadSecciones = borrador.secciones.length
   const textoSecciones = cantidadSecciones === 0
     ? 'Ninguna sección seleccionada'
@@ -429,38 +444,14 @@ export function CamposAQuienAfecta({
       {borrador.categoria === 'alumnos' ? (
         <div className="afectacion-campos__grupo">
           <Label>Alumnos afectados</Label>
+          <p className="afectacion-borrador__resumen" aria-live="polite">{textoImpactoAlumnos(impactoAlumnosEnContexto(borrador.alumnos, turnos))}</p>
           <SelectorAlumnos
             turnos={turnos}
             alumnosSeleccionados={borrador.alumnos}
-            onCambiar={(secciones, alumnos) => onChange({ ...borrador, secciones, alumnos })}
+            onCambiar={cambiarSeleccionAlumnos}
             disabled={disabled}
           />
           <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
-          <AvisosRedSeguridad
-            avisos={evaluarRedesSeguridad({
-              categoria: 'alumnos',
-              alumnosMarcados: borrador.alumnos.length,
-              matricula: matriculaDisponible,
-              seccionesMarcadas: borrador.secciones.length,
-              seccionesTotales: seccionesDisponibles.length,
-              alcanceEstablecimiento: '',
-            })}
-            onAccion={(tipo) => {
-              if (tipo === 'cambiar-a-establecimiento') {
-                onChange({
-                  ...borrador,
-                  categoria: 'establecimiento',
-                  motivo: '',
-                  severidad: '',
-                  justificacionCritica: '',
-                  justificacionCriticaDetalle: '',
-                  alumnos: [],
-                  secciones: [],
-                  alcanceEstablecimiento: '',
-                })
-              }
-            }}
-          />
         </div>
       ) : usaSelectorEstablecimiento && borrador.categoria === 'establecimiento' ? (
         <div className="afectacion-campos__grupo">

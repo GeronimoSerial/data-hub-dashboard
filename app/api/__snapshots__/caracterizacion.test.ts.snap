@@ -965,6 +965,10 @@ exports[`problematicas/contexto > with session and a known cue returns the conte
             "secciones": [
               {
                 "alumnos": [],
+                "alumnosMatriculados": [
+                  72000,
+                  72001,
+                ],
                 "curso": "1",
                 "division": "A",
                 "geSectionId": 7210,

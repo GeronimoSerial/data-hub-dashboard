@@ -23,6 +23,7 @@ import {
   type SituacionRecorrido,
 } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { VIGENCIA_AHORA, resolverVigencia, type EleccionVigencia } from '@/lib/infraestructura/vigencia-eleccion'
+import { impactoAlumnosEnContexto } from '@/lib/infraestructura/prioridad-alumnos'
 
 export interface AlgoNuevoProps {
   candidatasCausa: CandidataCausa[]
@@ -98,8 +99,17 @@ function detalleCausa(candidata: CandidataCausa, cantidadSeccionesEscuela: numbe
   return partes.filter(Boolean).join(' · ')
 }
 
-function crearNuevaSituacion(borrador: AfectacionBorrador, causadaPorId: string | null, esInstituto: boolean): NuevaSituacion | null {
-  if (borrador.categoria === '' || borrador.severidad === '' || borrador.motivo === '') return null
+function crearNuevaSituacion(
+  borrador: AfectacionBorrador,
+  causadaPorId: string | null,
+  esInstituto: boolean,
+  turnos: TurnoContexto[],
+): NuevaSituacion | null {
+  // GE: la prioridad de alumnos sale del padrón y el volumen. Institutos: gravedad manual.
+  const severidad = borrador.categoria === 'alumnos' && !esInstituto
+    ? impactoAlumnosEnContexto(borrador.alumnos, turnos).prioridad
+    : borrador.severidad
+  if (borrador.categoria === '' || !severidad || borrador.motivo === '') return null
   // Institutos: la nueva situación va por carreras; los alumnos sólo en categorías que los admiten.
   const alcance = esInstituto
     ? { carreras: borrador.carreras ?? [] }
@@ -107,7 +117,7 @@ function crearNuevaSituacion(borrador: AfectacionBorrador, causadaPorId: string 
   return {
     causadaPorId,
     motivo: borrador.motivo,
-    severidad: borrador.severidad,
+    severidad,
     ...alcance,
     ...(borrador.categoria === 'alumnos' ? { alumnos: borrador.alumnos } : {}),
     ...(borrador.justificacionCritica ? { justificacionCritica: borrador.justificacionCritica } : {}),
@@ -129,10 +139,26 @@ export function AlgoNuevo({
   onActualizarExistente,
   onSolucionarExistente,
 }: AlgoNuevoProps): JSX.Element {
-  const [etapa, setEtapa] = useState<Etapa>('pregunta')
-  const [hayAlgoNuevo, setHayAlgoNuevo] = useState<boolean | null>(null)
-  const [causadaPorId, setCausadaPorId] = useState<string | null>(null)
-  const [borrador, setBorrador] = useState<AfectacionBorrador>(() => crearAfectacionVacia('nueva-situacion'))
+  const [etapa, setEtapa] = useState<Etapa>(() => estado.nueva ? 'datos' : 'pregunta')
+  const [hayAlgoNuevo, setHayAlgoNuevo] = useState<boolean | null>(() => estado.nueva ? true : null)
+  const [causadaPorId, setCausadaPorId] = useState<string | null>(() => estado.nueva?.causadaPorId ?? null)
+  const [borrador, setBorrador] = useState<AfectacionBorrador>(() => {
+    const vacia = crearAfectacionVacia('nueva-situacion')
+    const nueva = estado.nueva
+    if (!nueva) return vacia
+    return {
+      ...vacia,
+      categoria: nueva.alumnos !== undefined ? 'alumnos' : 'establecimiento',
+      motivo: nueva.motivo,
+      severidad: nueva.severidad ?? '',
+      justificacionCritica: nueva.justificacionCritica ?? '',
+      justificacionCriticaDetalle: nueva.justificacionCriticaDetalle ?? '',
+      descripcion: nueva.descripcion ?? '',
+      secciones: nueva.secciones ?? [],
+      carreras: nueva.carreras ?? [],
+      alumnos: nueva.alumnos ?? [],
+    }
+  })
   const [motivoPendiente, setMotivoPendiente] = useState<string | null>(null)
   const [situacionPendiente, setSituacionPendiente] = useState<SituacionRecorrido | null>(null)
   const [decisionDuplicado, setDecisionDuplicado] = useState<DecisionDuplicado | null>(null)
@@ -150,8 +176,9 @@ export function AlgoNuevo({
   const anteriorElegida = candidatasCerradas.find((candidata) => candidata.id === causadaPorId)
   const candidatasVisibles = anteriorElegida ? [...candidatasActivas, anteriorElegida] : candidatasActivas
   const sugerida = motivos.find((motivo) => motivo.nombre === borrador.motivo)?.severidadSugerida ?? null
-  const completaLaGravedad = gravedadCompleta(borrador, sugerida)
   const esInstituto = carreras !== undefined
+  // GE: los alumnos no eligen gravedad a mano (la marca la prioridad de la matrícula).
+  const completaLaGravedad = (borrador.categoria === 'alumnos' && !esInstituto) || gravedadCompleta(borrador, sugerida)
   const alcanceCompleto = esInstituto
     ? (borrador.carreras ?? []).length > 0
     : borrador.secciones.length > 0 && (borrador.categoria !== 'establecimiento' || borrador.alcanceEstablecimiento !== '')
@@ -221,7 +248,7 @@ export function AlgoNuevo({
   }
 
   function terminar(): void {
-    const nueva = crearNuevaSituacion(borrador, causadaPorId ?? null, esInstituto)
+    const nueva = crearNuevaSituacion(borrador, causadaPorId ?? null, esInstituto, turnos)
     if (nueva && datosCompletos) onTerminar(nueva)
   }
 

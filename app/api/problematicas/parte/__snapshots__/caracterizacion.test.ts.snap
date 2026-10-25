@@ -416,6 +416,14 @@ exports[`parte characterization > freezes the parte, history and map responses a
           "creadaEn": "<fecha>",
           "descripcion": null,
           "id": "<id-5>",
+          "impactoAlumnos": {
+            "afectados": 2,
+            "corteId": 1,
+            "matricula": 5,
+            "porcentaje": 40,
+            "prioridad": "Media",
+            "version": 1,
+          },
           "motivo": "Anegamiento",
           "rigeDesde": "<fecha>",
           "secciones": [

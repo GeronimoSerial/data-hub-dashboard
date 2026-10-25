@@ -31,6 +31,26 @@ function crearEscuelaBase(
 }
 
 describe('VistaPreviaEscuela', () => {
+  it.each(['Media', null] as const)('muestra la prioridad %s del parte actualizado en lugar de la gravedad anterior', (prioridad) => {
+    const escuela = crearEscuelaBase({
+      gravedad: 4, categoriaPrincipal: 'alumnos',
+      parte: {
+        parteId: 'p1', cueAnexo: '1800123-00', nombre: 'Escuela', departamento: 'Capital', localidad: 'Corrientes',
+        lat: -27.47, lon: -58.83, servicio: 'normal', estadoEstablecimiento: 'habitual', peorSeveridad: 'Crítica',
+        categorias: ['alumnos'], seccionesAlcanzadas: 1, alumnosDelHecho: 3, alumnosAlcanzados: 3,
+        rigeDesde: '2026-04-09T10:00:00Z', actualizadaEn: '2026-04-09T10:00:00Z',
+        afectaciones: [{
+          id: 'a1', motivo: 'Camino anegado', categoria: 'alumnos', severidad: 'Crítica', descripcion: null,
+          rigeDesde: '2026-04-09T10:00:00Z', creadaEn: '2026-04-09T10:00:00Z',
+          impactoAlumnos: { afectados: 3, matricula: prioridad ? 5 : null, porcentaje: prioridad ? 60 : null, prioridad, corteId: 1, version: 1 },
+        }],
+      },
+    })
+    render(<VistaPreviaEscuela escuela={escuela} urlFichaCompleta="/mapas/infraestructura/escuelas/1800123-00" onCerrarVistaPrevia={vi.fn()} onQuitarSeleccion={vi.fn()} />)
+    const situacion = screen.getByTestId('preview-bloque-situacion')
+    expect(situacion).toHaveTextContent(prioridad ? 'Prioridad Media' : 'Sin datos para calcular la prioridad')
+    expect(situacion).not.toHaveTextContent('Crítica')
+  })
   afterEach(() => {
     cleanup()
   })
@@ -92,6 +112,8 @@ describe('VistaPreviaEscuela', () => {
     expect(screen.getByText('Escuela N° 42 Belgrano')).toBeDefined()
     expect(screen.getByText(/CUE 1800123-00/)).toBeDefined()
     expect(screen.getByText('Inundación del patio')).toBeDefined()
+    expect(screen.getByTestId('observacion-reporte')).toHaveTextContent('Observación registrada en el reporte:')
+    expect(screen.getByTestId('observacion-reporte').querySelector('blockquote p')?.textContent).toBe('Agua en ingreso')
     expect(screen.getByText('Gravedad Alta')).toBeDefined()
     expect(screen.getByTestId('chip-sin-actualizar').textContent).toContain('Sin actualizar (>72 h)')
     expect(screen.getByTestId('preview-bloque-riesgo').textContent).toContain('4 situaciones históricas')

@@ -43,6 +43,8 @@ import { estadoGeneralDelCue } from '@/lib/infraestructura/parte/instituto-estad
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import { validarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
+import { impactoDeAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
+import { validarConsistenciaCentroEvacuados } from '@/lib/infraestructura/consistencia-centro-evacuados'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
 import { primerBloqueoParte } from '@/lib/infraestructura/consistencia-parte-servidor'
 import { alcanceDeSecciones, severidadSugeridaPorAlcance } from '@/lib/infraestructura/consistencia-parte'
@@ -307,6 +309,13 @@ async function handleGET(request: Request) {
     motivo: afectacion.motivo,
     categoria: afectacion.categoria,
     severidad: afectacion.severidad,
+    impactoAlumnos: afectacion.impactoAlumnos,
+    ...(afectacion.justificacionCritica
+      ? {
+          justificacionCritica: afectacion.justificacionCritica,
+          ...(afectacion.justificacionCriticaDetalle ? { justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle } : {}),
+        }
+      : {}),
     descripcion: afectacion.descripcion,
     rigeDesde: afectacion.rigeDesde,
     creadaEn: afectacion.creadaEn,
@@ -613,8 +622,16 @@ async function handlePOST(request: Request) {
   // --- Validación contra la base, igual que POST /api/problematicas ---
 
   const motivos = await listarMotivos()
+  // GE: la prioridad de alumnos sale de los matriculados de todo el CUE (padrón).
+  // Institutos conservan su gravedad manual.
+  const matriculadosGe = new Set<number>()
+  if (!esInstituto) {
+    const unidadesGe = await alcanceCue.listUnits()
+    const membresiaGe = await alcanceCue.listMembers(unidadesGe.map((u) => u.id))
+    for (const ids of membresiaGe.values()) for (const id of ids) matriculadosGe.add(id)
+  }
   const nuevasConCategoria: Array<{
-    input: (typeof input.afectacionesNuevas)[number]
+    input: (typeof input.afectacionesNuevas)[number] & { severidad: Severidad }
     categoria: CategoriaAfectacion
   }> = []
   for (const entrada of input.afectacionesNuevas) {
@@ -626,7 +643,28 @@ async function handlePOST(request: Request) {
     if (!permitido.ok) {
       return Response.json({ error: permitido.error }, { status: 400 })
     }
-    nuevasConCategoria.push({ input: entrada, categoria: resuelto.categoria })
+    const alumnosPrioridadGe = !esInstituto && resuelto.categoria === 'alumnos'
+    let severidad = entrada.severidad
+    if (alumnosPrioridadGe) {
+      const impacto = impactoDeAlumnos(entrada.alumnos ?? [], matriculadosGe, corteId)
+      if (!impacto.prioridad) return jsonError('Seleccione alumnos con matrícula vigente para calcular la prioridad', 400)
+      severidad = impacto.prioridad
+    }
+    if (!severidad) return jsonError('La severidad es obligatoria para afectaciones del establecimiento', 400)
+    nuevasConCategoria.push({
+      input: {
+        ...entrada,
+        severidad,
+        ...(alumnosPrioridadGe
+          ? {
+              justificacionCritica: undefined,
+              justificacionCriticaDetalle: undefined,
+              alumnos: entrada.alumnos ? [...new Set(entrada.alumnos)] : entrada.alumnos,
+            }
+          : {}),
+      },
+      categoria: resuelto.categoria,
+    })
   }
 
   // Reglas de consistencia (mismo módulo que el asistente): una combinación
@@ -695,9 +733,11 @@ async function handlePOST(request: Request) {
     return jsonError('Este establecimiento informa por secciones', 400)
   }
 
-  for (const { input: entrada } of nuevasConCategoria) {
+  for (const { input: entrada, categoria } of nuevasConCategoria) {
     const unidadesEntrada = unidadesDe(entrada)
     if (seccionInvalida(unidadesEntrada)) return jsonError(mensajeUnidadInvalida, 400)
+    // GE alumnos: la prioridad ya viene de la matrícula; no hay sugerida ni justificación manual.
+    if (!esInstituto && categoria === 'alumnos') continue
     const sugerida = severidadSugeridaPorAlcance(
       motivos.find((m) => m.nombre === entrada.motivo)?.id ?? null,
       alcanceDeSecciones(unidadesEntrada, todasLasUnidades),
@@ -822,8 +862,37 @@ async function handlePOST(request: Request) {
     }
 
     for (const modificacion of input.afectacionesModificadas) {
+      const fila = existentesPorId.get(modificacion.id)!
+      if (!esInstituto && fila.categoria === 'alumnos') {
+        // GE: la prioridad se recalcula con las secciones y alumnos efectivos del cambio.
+        const seccionesEfectivas = modificacion.secciones ?? (await db
+          .select({ geSectionId: infraAfectacionSeccion.geSectionId })
+          .from(infraAfectacionSeccion)
+          .where(eq(infraAfectacionSeccion.afectacionId, fila.id))).map((s) => s.geSectionId)
+        const alumnosEfectivos = modificacion.alumnos ?? (await db
+          .select({ gePersonId: infraAfectacionAlumno.gePersonId })
+          .from(infraAfectacionAlumno)
+          .where(eq(infraAfectacionAlumno.afectacionId, fila.id))).map((a) => a.gePersonId)
+        const membresiaEfectiva = await alcanceCue.listMembers(seccionesEfectivas)
+        const cadaSeccionConAlumno = seccionesEfectivas.length > 0 && seccionesEfectivas.every((id) =>
+          [...(membresiaEfectiva.get(id) ?? [])].some((alumno) => alumnosEfectivos.includes(alumno)))
+        if (!cadaSeccionConAlumno || !(await alumnosPertenecenAUnidades(seccionesEfectivas, alumnosEfectivos))) {
+          return jsonError('Cada sección elegida debe incluir al menos un alumno con matrícula vigente', 400)
+        }
+        const impacto = impactoDeAlumnos(alumnosEfectivos, matriculadosGe, corteId)
+        if (!impacto.prioridad) return jsonError('Seleccione alumnos con matrícula vigente para calcular la prioridad', 400)
+        modificacion.severidad = impacto.prioridad
+        modificacion.justificacionCritica = undefined
+        modificacion.justificacionCriticaDetalle = undefined
+        if (modificacion.alumnos) modificacion.alumnos = [...new Set(modificacion.alumnos)]
+        if (modificacion.secciones) modificacion.secciones = [...new Set(modificacion.secciones)]
+        continue
+      }
+      if (!esInstituto) {
+        const permitidoGe = validarAlumnosPermitidos(fila.categoria as CategoriaAfectacion, modificacion.alumnos)
+        if (!permitidoGe.ok) return jsonError(permitidoGe.error, 400)
+      }
       if (modificacion.severidad === undefined) continue
-      const fila = existentesPorId.get(modificacion.id)
       // Sin unidades en el cambio, el alcance es el que la afectación ya tiene.
       const unidadesCambio = esInstituto ? modificacion.carreras : modificacion.secciones
       const unidadesActuales = unidadesCambio ?? (await unidadesVigentes(modificacion.id))
@@ -983,22 +1052,6 @@ async function handlePOST(request: Request) {
       const antes = snapshotDesde(actualAntesReal, input.rigeDesde)
       const afectacionesVigentesActuales = afectacionesActuales.filter((a) => a.retiradaEn === null)
 
-      // Contradicción con la situación activa (T6), evaluada contra el estado
-      // releído con el lock de escritura: cubre a dos personas que reportan a
-      // la vez. Una combinación bloqueada aborta la transacción entera.
-      const cambioAHabitual = evaluarCambioAHabitual({
-        estadoActual: (parteFilaActual?.estadoEstablecimiento as EstadoEdificioActivo | undefined) ?? null,
-        nuevoEstado: input.estadoEstablecimiento?.estado ?? null,
-        servicioActual: estadoGeneralDelCue(servicioAlcanceActual, secciones, carrerasCue),
-        servicioEnvio: input.servicioEducativo?.estado ?? null,
-        afectacionesActivas: afectacionesVigentesActuales.map((a) => ({ id: a.id })),
-        solucionadas: [...input.afectacionesSolucionadas.map((s) => s.id), ...input.afectacionesRetiradas],
-        sigueActiva: input.afectacionesConfirmadas,
-      })
-      const bloqueoActivo = cambioAHabitual.bloqueos[0]
-      if (bloqueoActivo) {
-        throw new ErrorCierreBorrador(409, bloqueoActivo.mensaje, bloqueoActivo.codigo)
-      }
       const causaPorNuevaId = new Map<string, string>()
       // Alcance del CUE dentro de la transacción, sobre el ejecutor ligado a
       // `tx`. Institutos: carreras y alumnos de matrícula; GE: secciones.
@@ -1056,9 +1109,11 @@ async function handlePOST(request: Request) {
             alumnos: entrada.alumnos ?? [],
           })
         } else {
-          await tx
-            .insert(infraAfectacionSeccion)
-            .values((entrada.secciones ?? []).map((geSectionId) => ({ afectacionId: id, geSectionId })))
+          if ((entrada.secciones ?? []).length > 0) {
+            await tx
+              .insert(infraAfectacionSeccion)
+              .values((entrada.secciones ?? []).map((geSectionId) => ({ afectacionId: id, geSectionId })))
+          }
           if (entrada.alumnos && entrada.alumnos.length > 0) {
             await tx
               .insert(infraAfectacionAlumno)
@@ -1194,6 +1249,34 @@ async function handlePOST(request: Request) {
       const { afectaciones: afectacionesDespues, servicioAlcance: servicioAlcanceDespues } =
         await obtenerAfectacionesYServicio(tx, clienteGeEnTx, cue.value, parteId, corteId)
       const [parteDespues] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
+      // Centro de evacuados: regla bidireccional sobre el reporte efectivo (incluye
+      // afectaciones retiradas y el estado resultante), no sobre el fragmento enviado.
+      const consistenciaCentroEvacuados = validarConsistenciaCentroEvacuados({
+        estadoEstablecimiento: (parteDespues?.estadoEstablecimiento as EstadoEstablecimiento | undefined) ?? 'habitual',
+        afectaciones: afectacionesDespues.map((afectacion) => ({
+          motivoId: motivos.find((motivo) => motivo.nombre === afectacion.motivo)?.id ?? null,
+          retiradaEn: afectacion.retiradaEn,
+        })),
+      })
+      if (!consistenciaCentroEvacuados.ok) {
+        throw new ErrorCierreBorrador(400, consistenciaCentroEvacuados.mensaje, consistenciaCentroEvacuados.codigo)
+      }
+      // Contradicción con la situación activa (T6), evaluada contra el estado
+      // releído con el lock de escritura y después de la consistencia de Centro
+      // de evacuados. Una combinación bloqueada aborta la transacción entera.
+      const cambioAHabitual = evaluarCambioAHabitual({
+        estadoActual: (parteFilaActual?.estadoEstablecimiento as EstadoEdificioActivo | undefined) ?? null,
+        nuevoEstado: input.estadoEstablecimiento?.estado ?? null,
+        servicioActual: estadoGeneralDelCue(servicioAlcanceActual, secciones, carrerasCue),
+        servicioEnvio: input.servicioEducativo?.estado ?? null,
+        afectacionesActivas: afectacionesVigentesActuales.map((a) => ({ id: a.id })),
+        solucionadas: [...input.afectacionesSolucionadas.map((s) => s.id), ...input.afectacionesRetiradas],
+        sigueActiva: input.afectacionesConfirmadas,
+      })
+      const bloqueoActivo = cambioAHabitual.bloqueos[0]
+      if (bloqueoActivo) {
+        throw new ErrorCierreBorrador(409, bloqueoActivo.mensaje, bloqueoActivo.codigo)
+      }
       const despues = snapshotDesde(
         {
           periodo,
@@ -1208,6 +1291,11 @@ async function handlePOST(request: Request) {
       )
 
       const diff = diffParte(antes, despues, { seccionesEstablecimiento: secciones.map((s) => s.geSectionId) })
+      // Impacto de alumnos (GE): la prioridad antes y después, por afectación.
+      const impactos = new Map([...antes.afectaciones, ...despues.afectaciones]
+        .filter((a) => a.impactoAlumnos)
+        .map((a) => [a.id, { afectacionId: a.id, ...a.impactoAlumnos! }]))
+      diff.impactosAlumnos = [...impactos.values()]
       if (esInstituto) {
         // El alcance de un instituto vive en carreras y alumnos: el diff GE no lo
         // ve, así que se suma acá. Sólo cuentan las afectaciones que siguen vigentes.

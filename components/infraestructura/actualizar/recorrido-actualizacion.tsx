@@ -1,5 +1,7 @@
 'use client'
 
+import { impactoAlumnosEnContexto, textoImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { CircleCheck } from 'lucide-react'
 import { MaterialesTrasReporte } from '@/components/infraestructura/materiales-tras-reporte'
@@ -99,6 +101,7 @@ function mapearSituaciones(datos: EstadoActualRespuesta): SituacionConAlcance[] 
       motivo: a.motivo,
       categoria: a.categoria,
       severidad: a.severidad,
+      impactoAlumnos: a.impactoAlumnos,
       rigeDesde: a.rigeDesde,
       creadaEn: a.creadaEn,
       causadaPorId: a.causadaPorId,
@@ -142,12 +145,15 @@ function crearLineasResumen(
   turnos: TurnoContexto[],
   estadoServicio: EstadoServicioGeneral,
   carreras: CarreraElegible[] = [],
+  esInstituto = false,
 ): BloqueResumenActualizacion[] {
   const bloques: BloqueResumenActualizacion[] = []
   const sinCambios: string[] = []
   for (const situacion of situaciones) {
     const respuesta = recorrido.respuestas[situacion.id]
     if (!respuesta) continue
+    // GE: la prioridad de alumnos sale de la matrícula; el resumen muestra ese impacto.
+    const prioridadPorAlumnos = situacion.categoria === 'alumnos' && !esInstituto
     if (respuesta.tipo === 'sigue') {
       sinCambios.push(situacion.motivo)
       continue
@@ -166,7 +172,12 @@ function crearLineasResumen(
       filas.push({ etiqueta: 'Alcance', valor: textoAlcanceInstitutoConNombres(nombresDeCarreras(respuesta.cambio.carreras, carreras), alcance.alumnos) })
     } else if (respuesta.cambio.secciones) {
       const alumnos = respuesta.cambio.alumnos?.length ?? contarAlumnos(respuesta.cambio.secciones, turnos)
-      filas.push({ etiqueta: 'Alcance', valor: detalleAlcance(respuesta.cambio.secciones, alumnos) })
+      filas.push({
+        etiqueta: 'Alcance',
+        valor: prioridadPorAlumnos
+          ? textoImpactoAlumnos(impactoAlumnosEnContexto(respuesta.cambio.alumnos ?? situacion.alumnos, turnos))
+          : detalleAlcance(respuesta.cambio.secciones, alumnos),
+      })
     }
     if (respuesta.cambio.aspectos.includes('clases-edificio') && recorrido.clasesEdificio) {
       filas.push({ etiqueta: 'Clases', valor: etiquetaServicio(estadoServicio) === etiquetaServicio(recorrido.clasesEdificio.servicioEstado) ? `${etiquetaServicio(estadoServicio)} (sin cambios)` : `${etiquetaServicio(estadoServicio)} → ${etiquetaServicio(recorrido.clasesEdificio.servicioEstado)}` })
@@ -190,7 +201,10 @@ function crearLineasResumen(
       const todaLaEscuela = !nueva.alumnos && todasLasSecciones.length > 0 && secciones.length === todasLasSecciones.length
       prefijoAlcance = nueva.alumnos ? 'Algunos alumnos' : todaLaEscuela ? 'Toda la escuela' : ''
     }
-    const valor = `${nueva.motivo} · ${nueva.severidad} · ${prefijoAlcance ? `${prefijoAlcance} (${alcance})` : alcance}`
+    // GE con alumnos: la prioridad reemplaza a la gravedad elegida a mano.
+    const valor = nueva.alumnos && !nueva.carreras
+      ? `${nueva.motivo} · ${textoImpactoAlumnos(impactoAlumnosEnContexto(nueva.alumnos, turnos))}`
+      : `${nueva.motivo} · ${nueva.severidad} · ${prefijoAlcance ? `${prefijoAlcance} (${alcance})` : alcance}`
     const causa = nueva.causadaPorId ? situaciones.find((situacion) => situacion.id === nueva.causadaPorId)?.motivo : null
     bloques.push({
       titulo: 'Situación nueva',
@@ -299,8 +313,8 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
   const asistenciaSeleccionada = crearAsistenciaSeleccionada(asistenciaPedagogica.brinda, asistenciaPedagogica.modalidades)
   const asistenciaCambiada = !asistenciaCoincide(asistenciaVigente, asistenciaSeleccionada)
   const lineasResumen = useMemo(() => {
-    return crearLineasResumen(situaciones, recorrido, turnos, datos.servicio?.estadoGeneral ?? 'normal', carreras)
-  }, [situaciones, recorrido, turnos, datos.servicio?.estadoGeneral, carreras])
+    return crearLineasResumen(situaciones, recorrido, turnos, datos.servicio?.estadoGeneral ?? 'normal', carreras, esInstituto)
+  }, [situaciones, recorrido, turnos, datos.servicio?.estadoGeneral, carreras, esInstituto])
 
   function moverEtapa(siguiente: EtapaActualizacion): void {
     setEtapa(siguiente)
@@ -724,7 +738,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       ? mensajesDeBloqueo(respuestasDeSituacion({
         categoria: null,
         motivoId: motivoIdDe(recorrido.nueva.motivo),
-        severidad: recorrido.nueva.severidad,
+        severidad: recorrido.nueva.severidad ?? null,
         justificacionCritica: recorrido.nueva.justificacionCritica ?? null,
         descripcion: recorrido.nueva.descripcion ?? '',
         alcance: alcanceDe(recorrido.nueva.secciones, seccionesEscuela),

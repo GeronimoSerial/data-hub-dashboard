@@ -1,0 +1,27 @@
+.observacion {
+  min-width: 0;
+  margin: var(--s-3) 0;
+}
+
+.observacion figcaption {
+  margin-bottom: var(--s-1);
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  font-weight: 600;
+}
+
+.observacion blockquote {
+  min-width: 0;
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-inline-start: 2px solid var(--line);
+  background: var(--fill);
+  color: var(--ink);
+  font-style: italic;
+}
+
+.observacion p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

@@ -74,8 +74,8 @@ describe('resolverContextoPorCue', () => {
             {
               turno: 'Mañana',
               niveles: [
-                { nivel: 'Inicial', secciones: [{ geSectionId: 10, curso: 'Sala 5', division: 'A', nivel: 'Inicial', turno: 'Mañana', matricula: 2, alumnos: [] }] },
-                { nivel: 'Primario', secciones: [{ geSectionId: 11, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 1, alumnos: [] }] },
+                { nivel: 'Inicial', secciones: [{ geSectionId: 10, curso: 'Sala 5', division: 'A', nivel: 'Inicial', turno: 'Mañana', matricula: 2, alumnosMatriculados: [1001, 1002], alumnos: [] }] },
+                { nivel: 'Primario', secciones: [{ geSectionId: 11, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 1, alumnosMatriculados: [1002], alumnos: [] }] },
               ],
             },
           ],
@@ -106,7 +106,7 @@ describe('resolverContextoPorCue', () => {
       if (base.ok) {
         expect(base.contexto.escuela.nombre).toBe('Escuela Base')
         expect(base.contexto.turnos).toEqual([
-          { turno: 'Mañana', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 20, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 0, alumnos: [] }] }] },
+          { turno: 'Mañana', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 20, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 0, alumnosMatriculados: [], alumnos: [] }] }] },
         ])
       }
 
@@ -114,7 +114,7 @@ describe('resolverContextoPorCue', () => {
       if (anexo.ok) {
         expect(anexo.contexto.escuela.nombre).toBe('Escuela Anexo 01')
         expect(anexo.contexto.turnos).toEqual([
-          { turno: 'Tarde', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 21, curso: '2', division: 'B', nivel: 'Primario', turno: 'Tarde', matricula: 0, alumnos: [] }] }] },
+          { turno: 'Tarde', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 21, curso: '2', division: 'B', nivel: 'Primario', turno: 'Tarde', matricula: 0, alumnosMatriculados: [], alumnos: [] }] }] },
         ])
       }
   })

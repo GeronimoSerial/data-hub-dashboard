@@ -407,3 +407,18 @@ describe('CamposAQuienAfecta — recomendación de gravedad por alcance (T4a)', 
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ severidad: 'Crítica' }))
   })
 })
+
+describe('prioridad automática de alumnos', () => {
+  it('no pide gravedad ni justificación al elegir inaccesibilidad', () => {
+    renderCamposQuePaso({ borrador: { ...crearAfectacionVacia('a1'), categoria: 'alumnos', motivo: 'Anegamiento' } })
+    expect(screen.queryByRole('radio', { name: /Baja/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: /Crítica/ })).not.toBeInTheDocument()
+  })
+  it('muestra porcentaje y prioridad sin sugerir cambiar de categoría por afectar a la mayoría', () => {
+    const alumnos = TURNOS_FIXTURE.flatMap((t) => t.niveles.flatMap((n) => n.secciones.flatMap((s) => s.alumnos)))
+    render(<CamposAQuienAfecta idPrefijo="auto" turnos={TURNOS_FIXTURE.map((t) => ({ ...t, niveles: t.niveles.map((n) => ({ ...n, secciones: n.secciones.map((s) => ({ ...s, alumnosMatriculados: s.alumnos.map((a) => a.gePersonId) })) })) }))} onChange={vi.fn()}
+      borrador={{ ...crearAfectacionVacia('a'), categoria: 'alumnos', motivo: 'Anegamiento', alumnos: alumnos.map((a) => a.gePersonId) }} />)
+    expect(screen.getByText(/100% · Prioridad/)).toBeInTheDocument()
+    expect(screen.queryByText(/mayoría de los alumnos/)).not.toBeInTheDocument()
+  })
+})

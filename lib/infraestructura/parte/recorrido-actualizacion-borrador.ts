@@ -43,7 +43,10 @@ function esNuevaSituacion(valor: unknown, esInstituto: boolean): boolean {
   const alcanceValido = esInstituto
     ? esListaDeNumeros(nueva.carreras) && nueva.secciones === undefined
     : esListaDeNumeros(nueva.secciones) && nueva.carreras === undefined
-  return typeof nueva.motivo === 'string' && typeof nueva.severidad === 'string' && alcanceValido &&
+  // Alumnos pueden llegar sin severidad: la prioridad se calcula al terminar.
+  const severidadValida = typeof nueva.severidad === 'string' ||
+    (nueva.severidad === undefined && esListaDeNumeros(nueva.alumnos))
+  return typeof nueva.motivo === 'string' && severidadValida && alcanceValido &&
     (nueva.alumnos === undefined || esListaDeNumeros(nueva.alumnos)) &&
     (nueva.causadaPorId === null || typeof nueva.causadaPorId === 'string')
 }

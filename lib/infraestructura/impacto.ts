@@ -1,6 +1,7 @@
 import { getDb } from '../db'
 import {
   infraAfectacion,
+  infraAfectacionAlumno,
   infraAfectacionSeccion,
   infraParte,
 } from '../db/schema'
@@ -82,6 +83,17 @@ export async function obtenerMembresiaSecciones(
 // sección pasa a contar SOLO la intersección; si ninguno aparece, cuenta
 // completa. Esa es la semántica de "sección sin alumnos explícitos = sección
 // completa" documentada en validacion.ts.
+export function seleccionarAlumnosPorSeccion(
+  membresiaPorSeccion: Map<number, Set<number>>,
+  alumnoIds: number[] = [],
+): Map<number, number[]> {
+  const alumnoIdsSet = new Set(alumnoIds)
+  return new Map([...membresiaPorSeccion].map(([seccionId, personIds]) => {
+    const interseccion = [...personIds].filter((id) => alumnoIdsSet.has(id))
+    return [seccionId, interseccion.length > 0 ? interseccion : [...personIds]]
+  }))
+}
+
 export async function calcularImpactoSecciones(
   client: EjecutorSql,
   params: { corteId: number; geSectionIds: number[]; alumnoIds?: number[] },
@@ -101,11 +113,8 @@ export async function calcularImpactoSecciones(
   const seccionesIrresolubles = geSectionIds.filter((id) => !resueltasSet.has(id)).length
 
   const membresiaPorSeccion = await obtenerMembresiaSecciones(client, { corteId, geSectionIds })
-  const alumnoIdsSet = new Set(alumnoIds ?? [])
   const alumnosContados = new Set<number>()
-  for (const [, personIds] of membresiaPorSeccion) {
-    const interseccion = alumnoIdsSet.size > 0 ? [...personIds].filter((id) => alumnoIdsSet.has(id)) : []
-    const seleccion = interseccion.length > 0 ? interseccion : [...personIds]
+  for (const seleccion of seleccionarAlumnosPorSeccion(membresiaPorSeccion, alumnoIds).values()) {
     for (const id of seleccion) alumnosContados.add(id)
   }
 
@@ -146,7 +155,7 @@ export async function calcularImpactoSecciones(
 // le quedaba.)
 export async function obtenerCorteYSeccionesDeAfectacion(
   afectacionId: string,
-): Promise<{ corteId: number; geSectionIds: number[] } | null> {
+): Promise<{ corteId: number; geSectionIds: number[]; alumnoIds: number[] } | null> {
   const db = getDb()
   const [fila] = await db
     .select({ corteId: infraParte.corteId })
@@ -161,8 +170,14 @@ export async function obtenerCorteYSeccionesDeAfectacion(
     .from(infraAfectacionSeccion)
     .where(eq(infraAfectacionSeccion.afectacionId, afectacionId))
 
+  const alumnos = await db
+    .select({ gePersonId: infraAfectacionAlumno.gePersonId })
+    .from(infraAfectacionAlumno)
+    .where(eq(infraAfectacionAlumno.afectacionId, afectacionId))
+
   return {
     corteId: fila.corteId,
     geSectionIds: secciones.map((s) => s.geSectionId),
+    alumnoIds: alumnos.map((a) => a.gePersonId),
   }
 }

@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '../db'
-import { infraAfectacion, infraAfectacionSeccion, infraParte } from '../db/schema'
+import {
+  infraAfectacion,
+  infraAfectacionAlumno,
+  infraAfectacionSeccion,
+  infraParte,
+} from '../db/schema'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
-import { calcularImpactoSecciones, obtenerCorteYSeccionesDeAfectacion } from './impacto'
+import {
+  calcularImpactoSecciones,
+  obtenerCorteYSeccionesDeAfectacion,
+  seleccionarAlumnosPorSeccion,
+} from './impacto'
 
 usarDbTemporal('impacto', { seed: false })
 
@@ -100,6 +109,27 @@ describe('calcularImpactoSecciones', () => {
   })
 })
 
+describe('seleccionarAlumnosPorSeccion', () => {
+  it('aplica la intersección por sección, conserva completas las demás y deduplica IDs', () => {
+    const seleccion = seleccionarAlumnosPorSeccion(
+      new Map([
+        [10, new Set([1, 2])],
+        [20, new Set([2, 3])],
+        [30, new Set([4])],
+        [40, new Set<number>()],
+      ]),
+      [1, 1, 999],
+    )
+
+    expect(seleccion).toEqual(new Map([
+      [10, [1]],
+      [20, [2, 3]],
+      [30, [4]],
+      [40, []],
+    ]))
+  })
+})
+
 // F3.3: obtenerCorteYSeccionesDeAfectacion resuelve corte/secciones sobre el
 // modelo de parte (infra_afectacion + infra_parte). Usa getDb()/ensureSeeded()
 // (schema tipado + HUB_DDL): hace falta el modelo de parte completo, que sólo
@@ -148,11 +178,13 @@ describe('obtenerCorteYSeccionesDeAfectacion', () => {
       { afectacionId, geSectionId: 10 },
       { afectacionId, geSectionId: 20 },
     ])
+    await db.insert(infraAfectacionAlumno).values({ afectacionId, gePersonId: 123 })
 
     const referencia = await obtenerCorteYSeccionesDeAfectacion(afectacionId)
     expect(referencia).not.toBeNull()
     expect(referencia?.corteId).toBe(42)
     expect(referencia?.geSectionIds.sort()).toEqual([10, 20])
+    expect(referencia?.alumnoIds).toEqual([123])
 
     const referenciaInexistente = await obtenerCorteYSeccionesDeAfectacion('afectacion-que-no-existe')
     expect(referenciaInexistente).toBeNull()

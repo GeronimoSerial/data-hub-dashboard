@@ -202,6 +202,25 @@ describe('severidadSugeridaPorAlcance', () => {
       expect(severidadSugeridaPorAlcance(motivo.id, null)).toBe(motivo.severidadSugerida ?? null)
     }
   })
+
+  it('registra Centro de evacuados como motivo de establecimiento con severidad Crítica', () => {
+    expect(MOTIVOS_SEED.find((motivo) => motivo.id === 'centro-evacuados')).toEqual({
+      id: 'centro-evacuados',
+      nombre: 'Centro de evacuados',
+      categoria: 'establecimiento',
+      orden: 60,
+      severidadSugerida: 'Crítica',
+    })
+    expect(severidadSugeridaPorAlcance('centro-evacuados', null)).toBe('Crítica')
+  })
+
+  it('keeps existing seeded reason names and IDs unchanged', () => {
+    expect(MOTIVOS_SEED).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'evacuacion-preventiva', nombre: 'Evacuación preventiva' }),
+      expect.objectContaining({ id: 'otro-establecimiento', nombre: 'Otro problema en el establecimiento' }),
+      expect.objectContaining({ id: 'otro-alumnos', nombre: 'Otro problema de acceso' }),
+    ]))
+  })
 })
 
 describe('advertencias accionables (T10)', () => {

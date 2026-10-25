@@ -1,3 +1,4 @@
+import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 import type { CategoriaAfectacion } from '../categorias'
 import type { AlumnoElegido } from './instituto-ui'
 import type { JustificacionCritica } from '../justificacion-critica'
@@ -30,6 +31,7 @@ export type RespuestaSituacion =
   | { tipo: 'solucionada'; solucionadaEn: string }
 
 export interface SituacionRecorrido {
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   motivo: string
   categoria: CategoriaAfectacion
@@ -42,7 +44,8 @@ export interface SituacionRecorrido {
 export interface NuevaSituacion {
   causadaPorId: string | null
   motivo: string
-  severidad: Severidad
+  /** Opcional: un borrador de alumnos GE puede no traer severidad; el servidor calcula la prioridad. */
+  severidad?: Severidad
   justificacionCritica?: JustificacionCritica
   justificacionCriticaDetalle?: string
   /** GE: secciones alcanzadas. Ausente en institutos superiores. */

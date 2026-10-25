@@ -3093,7 +3093,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-popup-row { margin: 2px 0; }
 .map-popup-muted { color: var(--ink-soft); }
 .map-popup-rule { margin: var(--s-2) 0; border: 0; border-top: 1px solid var(--line-soft); }
-.map-fullscreen-btn { position: absolute; bottom: 25px; right: 12px; z-index: 3; }
+.map-fullscreen-btn { position: absolute; bottom: 25px; right: 12px; z-index: 15; }
 .map-status {
   position: absolute;
   inset: 0;
@@ -4679,6 +4679,24 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--ink-faint);
 }
 
+.encabezado-parte__materiales {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.encabezado-parte__materiales:hover { color: var(--accent); }
+.encabezado-parte__materiales:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
 .encabezado-parte__escuela {
   display: grid;
   gap: 2px;
@@ -5499,6 +5517,36 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+}
+.infraestructura-pantalla-completa,
+.infraestructura-pantalla-completa__contenido {
+  display: contents;
+}
+.infraestructura-pantalla-completa:fullscreen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--page);
+  color: var(--ink);
+}
+.infraestructura-pantalla-completa:fullscreen > .infraestructura-pantalla-completa__contenido {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.infraestructura-pantalla-completa__acciones {
+  display: flex;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  padding: var(--s-2) var(--gutter);
+  border-bottom: 1px solid var(--line);
+}
+.infraestructura-pantalla-completa__acciones .map-fullscreen-btn {
+  position: static;
 }
 /* Fullscreen covers tabs, filters and map: keep the full height and a page background behind them. */
 .mapa-pestanas:fullscreen {

@@ -1,5 +1,7 @@
 'use client'
 
+import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
+
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { BookMinus, BookX, ChevronDown, Clock, DoorOpen, House, X } from 'lucide-react'
@@ -9,6 +11,8 @@ import { formatearMomentoHistorial } from '@/components/infraestructura/historia
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { contar } from '@/lib/infraestructura/parte/instituto-ui'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
+import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
+import { prioridadEfectiva } from '@/lib/infraestructura/prioridad-alumnos'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa, valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
@@ -26,6 +30,7 @@ import { BorradoresPendientes } from '@/components/infraestructura/borradores/bo
 import { GaleriaEvidencia } from '@/components/infraestructura/fotos/galeria-evidencia'
 import { VistaPreviaEscuela, type VistaPreviaEscuelaProps } from './vista-previa-escuela'
 import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
+import { ObservacionReporte } from './observacion-reporte'
 
 interface FichaEscuelaPanelProps {
   escuela: EscuelaMapaEnriquecida & Partial<DatosInstitutoMapa>
@@ -125,7 +130,6 @@ export function FichaEscuelaPanel({
   const datos = estado.fase === 'listo' ? estado.datos : null
   const afectaciones = datos?.afectaciones ?? []
   const recientes = datos?.recientes ?? []
-  const severidad = escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
   const principal = situacionPrincipal(afectaciones.map((afectacion) => ({
     ...afectacion,
     estadoEstablecimiento: datos?.parte?.estadoEstablecimiento ?? 'habitual',
@@ -133,6 +137,9 @@ export function FichaEscuelaPanel({
   const categoria = principal
     ? CATEGORIA_META[principal.categoria].label
     : etiquetaCategoria(escuela.categoriaPrincipal)
+  const severidad = datos
+    ? (principal ? prioridadEfectiva(principal) : null)
+    : escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
   const novedad = datos?.parte?.actualizadaEn
     ? tiempoRelativo(datos.parte.actualizadaEn, ahoraMs)
     : ''
@@ -168,7 +175,7 @@ export function FichaEscuelaPanel({
                     ? 'parcial'
                     : 'suspendido'),
                 estadoEstablecimiento: datos.parte.estadoEstablecimiento,
-                peorSeveridad: severidad ?? 'Baja',
+                peorSeveridad: severidad ?? '',
                 categorias: Array.from(
                   new Set(afectaciones.map((a) => a.categoria)),
                 ) as import('@/lib/infraestructura/categorias').CategoriaAfectacion[],
@@ -177,6 +184,15 @@ export function FichaEscuelaPanel({
                   motivo: a.motivo,
                   categoria: a.categoria,
                   severidad: a.severidad,
+                  ...(a.justificacionCritica
+                    ? {
+                        justificacionCritica: a.justificacionCritica,
+                        ...(a.justificacionCritica === 'otro' && a.justificacionCriticaDetalle
+                          ? { justificacionCriticaDetalle: a.justificacionCriticaDetalle }
+                          : {}),
+                      }
+                    : {}),
+                  impactoAlumnos: a.impactoAlumnos,
                   descripcion: a.descripcion,
                   rigeDesde: a.rigeDesde,
                   creadaEn: a.creadaEn,
@@ -226,11 +242,11 @@ export function FichaEscuelaPanel({
           className="map-ficha-escuela__gravedad"
           style={{ backgroundColor: colorSeveridad(severidad), color: TINTA_POR_SEVERIDAD[severidad] }}
         >
-          <strong>Gravedad {severidad}</strong>
+          <strong>{(principal?.categoria ?? escuela.categoriaPrincipal) === 'alumnos' ? 'Prioridad' : 'Gravedad'} {severidad}</strong>
           <span>{principal ? `${categoria} · desde ${desde(principal.rigeDesde)}` : categoria}</span>
         </div>
       ) : (
-        <p className="map-ficha-escuela__sin-reportes">Sin situaciones abiertas</p>
+        <p className="map-ficha-escuela__sin-reportes">{afectaciones.length ? 'Sin datos para calcular la prioridad' : 'Sin situaciones abiertas'}</p>
       )}
 
       <FilaEstado escuela={escuela} />
@@ -263,17 +279,19 @@ export function FichaEscuelaPanel({
           ) : (
             <>
               {afectaciones.map((afectacion) => {
-                const causadaPor = afectaciones.find((otra) => otra.id === afectacion.causadaPorId)
-                const rigeDesde = formatearMomentoHistorial(afectacion.rigeDesde).replace(/^Hoy/, 'hoy')
+                  const causadaPor = afectaciones.find((otra) => otra.id === afectacion.causadaPorId)
+                  const rigeDesde = formatearMomentoHistorial(afectacion.rigeDesde).replace(/^Hoy/, 'hoy')
+                  const justificacionCritica = presentarJustificacionCritica(afectacion)
                 return (
                   <div className="map-ficha-escuela__situacion" key={afectacion.id}>
                     <h3>{afectacion.motivo}</h3>
-                    <EstadoActualSeveridad severidad={afectacion.severidad} />
+                    {afectacion.categoria === 'alumnos' ? <ImpactoAlumnosResumen impacto={afectacion.impactoAlumnos} /> : <EstadoActualSeveridad severidad={afectacion.severidad} />}
                     <dl className="map-ficha-escuela__kv">
                       <dt>Alcance</dt><dd>{resumirAlcance(afectacion.totales)}</dd>
                       {rigeDesde && <><dt>Desde</dt><dd>{rigeDesde}</dd></>}
                       {causadaPor && <><dt>Causada por</dt><dd>{causadaPor.motivo}</dd></>}
-                      {afectacion.descripcion && <><dt>Descripción</dt><dd>{afectacion.descripcion}</dd></>}
+                      {justificacionCritica && <><dt>Justificación de gravedad</dt><dd>{justificacionCritica.etiqueta}</dd></>}
+                      {justificacionCritica?.detalle && <><dt>Detalle de la justificación</dt><dd>{justificacionCritica.detalle}</dd></>}
                       <dt>Categoría</dt><dd>{CATEGORIA_META[afectacion.categoria].label}</dd>
                       {mostrarEnlaceNominal && escuela.carreras === undefined && (
                         <dd className="map-ficha-escuela__accion">
@@ -283,6 +301,7 @@ export function FichaEscuelaPanel({
                         </dd>
                       )}
                     </dl>
+                    <ObservacionReporte texto={afectacion.descripcion} />
                   </div>
                 )
               })}
@@ -343,7 +362,7 @@ export function FichaEscuelaPanel({
       )}
 
       <a className="ui-button ui-button--secondary ui-button--sm" href={`/infraestructura/cargar?cue=${encodeURIComponent(escuela.cueAnexo)}`}>
-        {escuela.gravedad > 0 ? 'Actualizar el parte' : 'Cargar una situación'}
+        {escuela.gravedad > 0 || afectaciones.length > 0 ? 'Actualizar el parte' : 'Cargar una situación'}
       </a>
 
       {onQuitarSeleccion && (

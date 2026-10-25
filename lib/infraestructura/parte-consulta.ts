@@ -17,6 +17,8 @@ import {
   infraServicioAlcance,
 } from '@/lib/db/schema'
 import { asegurarGeAdjuntada } from './impacto'
+import { proyectarImpactoAlumnos, type ImpactoAlumnos } from './prioridad-alumnos'
+import { esJustificacionCritica } from './justificacion-critica'
 import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
 import { severidadDelMovimiento } from './severidad-movimiento'
 import type { DiffParte } from './movimiento-diff'
@@ -173,7 +175,13 @@ async function cargarAfectaciones(
   const todasLasSecciones = [...new Set(seccionesRows.map((s) => s.geSectionId))]
   // Las filas de sección son GE por definición: su membresía sale siempre del
   // padrón GE, aun si el CUE hoy es un instituto superior.
-  const membresia = await alcanceGeParaCue(client, corteId, cueAnexo).listMembers(todasLasSecciones)
+  const geCue = alcanceGeParaCue(client, corteId, cueAnexo)
+  const membresia = await geCue.listMembers(todasLasSecciones)
+  // Prioridad de alumnos (GE): matriculados de todo el CUE, no sólo de las secciones afectadas.
+  const alcanceCue = await alcanceParaCue(client, corteId, cueAnexo)
+  const matriculadosCue = alcanceCue.sistema === 'ge'
+    ? new Set([...(await geCue.listMembers((await geCue.listarSeccionesGe()).map((s) => s.geSectionId))).values()].flatMap((ids) => [...ids]))
+    : null
 
   return filas.map((fila): Afectacion => {
     const seccionIds = seccionesPorAfectacion.get(fila.id) ?? []
@@ -181,25 +189,40 @@ async function cargarAfectaciones(
     const secciones: AfectacionAlcanceSeccion[] = seccionIds.map((geSectionId) => {
       const matriculados = membresia.get(geSectionId) ?? new Set<number>()
       const interseccion = [...matriculados].filter((id) => alumnosSeleccionados.has(id))
-      if (interseccion.length > 0) {
+      if (interseccion.length > 0 || (fila.categoria === 'alumnos' && alumnosSeleccionados.size > 0)) {
         return { geSectionId, seccionCompleta: false, alumnos: interseccion }
       }
       return { geSectionId, seccionCompleta: true, alumnos: [...matriculados] }
     })
+    const justificacionCritica =
+      fila.severidad === 'Crítica' && esJustificacionCritica(fila.justificacionCritica)
+        ? fila.justificacionCritica
+        : undefined
 
-    return {
+    const afectacion: Afectacion = {
       id: fila.id,
       parteId: fila.parteId,
       causadaPorId: fila.causadaPorId,
       motivo: fila.motivo,
       categoria: fila.categoria as Categoria,
       severidad: fila.severidad as Severidad,
+      ...(justificacionCritica
+        ? {
+            justificacionCritica,
+            ...(justificacionCritica === 'otro' && fila.justificacionCriticaDetalle?.trim()
+              ? { justificacionCriticaDetalle: fila.justificacionCriticaDetalle }
+              : {}),
+          }
+        : {}),
       descripcion: fila.descripcion,
       rigeDesde: fila.rigeDesde,
       creadaEn: fila.creadaEn,
       retiradaEn: fila.retiradaEn,
       secciones,
     }
+    return matriculadosCue && fila.retiradaEn === null
+      ? proyectarImpactoAlumnos(afectacion, matriculadosCue, corteId || null)
+      : afectacion
   })
 }
 
@@ -328,10 +351,14 @@ export function snapshotDesde(actual: ParteActual, referencia?: Date | string): 
 // resuelva nombres — hoy sólo la ruta del director — pueda hacerlo; el
 // llamador del mapa (F3.2) descarta ese campo antes de responder.
 export interface AfectacionFicha {
+  /** Alumnos GE: prioridad calculada desde la matrícula del CUE. */
+  impactoAlumnos?: ImpactoAlumnos
   id: string
   motivo: string
   categoria: Categoria
   severidad: Severidad
+  justificacionCritica: string | null
+  justificacionCriticaDetalle: string | null
   descripcion: string | null
   rigeDesde: string
   creadaEn: string
@@ -410,6 +437,8 @@ async function armarFichaInstituto(
       motivo: afectacion.motivo,
       categoria: afectacion.categoria,
       severidad: afectacion.severidad,
+      justificacionCritica: afectacion.justificacionCritica ?? null,
+      justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle ?? null,
       descripcion: afectacion.descripcion,
       rigeDesde: afectacion.rigeDesde,
       creadaEn: afectacion.creadaEn,
@@ -464,6 +493,9 @@ export async function armarFichaParte(
       motivo: afectacion.motivo,
       categoria: afectacion.categoria,
       severidad: afectacion.severidad,
+      impactoAlumnos: afectacion.impactoAlumnos,
+      justificacionCritica: afectacion.justificacionCritica ?? null,
+      justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle ?? null,
       descripcion: afectacion.descripcion,
       rigeDesde: afectacion.rigeDesde,
       creadaEn: afectacion.creadaEn,

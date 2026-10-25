@@ -5,6 +5,7 @@ registerTsResolver(root)
 
 const { ensureSeeded } = await import('../../lib/db/seed.ts')
 const { getRawClient } = await import('../../lib/db/index.ts')
+const { importarIdentidad } = await import('../../lib/infraestructura/identidad.ts')
 const { crearEjecutorSql, ensureGeSchema } = await import('../../lib/infraestructura/ge-db.ts')
 
 await ensureSeeded()
@@ -23,6 +24,8 @@ for (const [cue, nombre, sectionId] of [
   ['1801605-93', 'E2E Escuela WebKit Envío', 980007],
   ['1801605-92', 'E2E Escuela WebKit Actualización', 980008],
   ['1801605-91', 'E2E Escuela WebKit Fotos', 980009],
+  ['1801605-90', 'E2E Escuela Prioridad Chromium', 980010],
+  ['1801605-89', 'E2E Escuela Prioridad WebKit', 980011],
 ]) {
   await db.execute({
     sql: `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad)
@@ -40,6 +43,14 @@ for (const [cue, nombre, sectionId] of [
           VALUES (1, ?, ?) ON CONFLICT DO NOTHING`,
     args: [sectionId, sectionId + 10_000_000],
   })
+}
+
+for (const sectionId of [980010, 980011]) {
+  for (let indice = 1; indice <= 5; indice++) {
+    const personId = sectionId + 10_000_000 + (indice - 1) * 100
+    await db.execute({ sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?) ON CONFLICT DO NOTHING', args: [sectionId, personId] })
+    await importarIdentidad(db, personId, `Alumno ${indice}`, 'Prueba')
+  }
 }
 
 const client = getRawClient()

@@ -3,21 +3,29 @@ import { fileURLToPath } from 'node:url'
 import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 registerTsResolver(process.cwd())
 
-export async function aplicarRecuperacion(db, filasGe, acumulador, clave, niveles = { niveles: [], cues: [] }) {
+export async function aplicarRecuperacion(db, filasGe, acumulador, clave, niveles = { niveles: [], cues: [] }, corteEsperado) {
   const { sql } = await import('drizzle-orm')
-  const { publicarLocalizacionesGe } = await import('./localizaciones-ge.mjs')
+  const { publicarLocalizacionesGe, planificarRecuperacion } = await import('./localizaciones-ge.mjs')
+  const { leerVersion } = await import('../lib/infraestructura/datasets/repositorio.ts')
   const { cifrarIdentidad } = await import('../lib/infraestructura/identidad-cripto.ts')
   if (clave.length !== 32) throw new Error('NOMINAL_ENCRYPTION_KEY inválida')
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('ge-recuperar-cobertura'))`)
-    const corte = (await tx.execute(sql`SELECT id FROM ge.ge_corte WHERE estado='vigente' FOR UPDATE`)).rows
+    const corte = (await tx.execute(sql`SELECT id,ciclo_lectivo FROM ge.ge_corte WHERE estado='vigente' FOR UPDATE`)).rows
     if (corte.length !== 1) throw new Error('Se requiere un único corte vigente')
     const corteId = Number(corte[0].id)
-    const { nuevas, versionId } = await publicarLocalizacionesGe(tx, filasGe)
-    const cues = new Set(nuevas.map((r) => r.cueAnexo))
+    if (corteEsperado && (corteId !== Number(corteEsperado.id) || Number(corte[0].ciclo_lectivo) !== Number(corteEsperado.ciclo_lectivo))) {
+      throw new Error('El corte vigente cambió durante la preparación; vuelva a ejecutar la recuperación')
+    }
+    const actual = await leerVersion('localizaciones', undefined, tx)
+    if (!actual) throw new Error('Falta el catálogo de localizaciones')
+    const cobertura = (await tx.execute(sql`SELECT DISTINCT cue_anexo FROM ge.ge_seccion WHERE corte_id=${corteId}`)).rows
+    const plan = planificarRecuperacion(actual.documento, filasGe, cobertura.map((r) => r.cue_anexo))
+    const { versionId } = await publicarLocalizacionesGe(tx, filasGe)
+    const cues = new Set(plan.recuperar)
     if (!cues.size) return { versionId, corteId, cues: [], secciones: 0, membresias: 0 }
     const secciones = [...acumulador.secciones].map(([id, r]) => ({ id, ...r }))
-    if (secciones.some((r) => !cues.has(r.cueAnexo)) || nuevas.some((r) => !secciones.some((s) => s.cueAnexo === r.cueAnexo))) {
+    if (secciones.some((r) => !cues.has(r.cueAnexo)) || [...cues].some((cue) => !secciones.some((s) => s.cueAnexo === cue))) {
       throw new Error('Las secciones recuperadas no coinciden con los CUE nuevos')
     }
     const ids = JSON.stringify(secciones.map((r) => r.id))
@@ -51,26 +59,27 @@ export async function aplicarRecuperacion(db, filasGe, acumulador, clave, nivele
 async function main() {
   const { getDb, getRawClient } = await import('../lib/db/index.ts')
   const { leerVersion } = await import('../lib/infraestructura/datasets/repositorio.ts')
-  const { completarLocalizaciones, leerLocalizacionesDesdeGe } = await import('./localizaciones-ge.mjs')
+  const { planificarRecuperacion, leerLocalizacionesDesdeGe } = await import('./localizaciones-ge.mjs')
   const { crearAcumulador } = await import('./import-padron.mjs')
   const { recorrerPadronDesdeGe, leerNivelesJurisdiccionalesDesdeGe } = await import('./padron-ge.mjs')
   try {
     const db = getDb()
     const actual = await leerVersion('localizaciones')
     if (!actual) throw new Error('Falta el catálogo de localizaciones')
-    const corte = (await getRawClient().query("SELECT ciclo_lectivo FROM ge.ge_corte WHERE estado='vigente'")).rows
+    const corte = (await getRawClient().query("SELECT id,ciclo_lectivo FROM ge.ge_corte WHERE estado='vigente'")).rows
     if (corte.length !== 1) throw new Error('Se requiere un único corte vigente')
     const cicloLectivo = String(corte[0].ciclo_lectivo)
     const filasGe = await leerLocalizacionesDesdeGe({ cicloLectivo })
-    const plan = completarLocalizaciones(actual.documento, filasGe)
-    console.log(JSON.stringify({ nuevas: plan.nuevas, excluidas: plan.excluidas }))
-    if (!process.argv.includes('--aplicar') || !plan.nuevas.length) return
-    const cues = new Set(plan.nuevas.map((r) => r.cueAnexo))
+    const cobertura = (await getRawClient().query('SELECT DISTINCT cue_anexo FROM ge.ge_seccion WHERE corte_id=$1', [corte[0].id])).rows
+    const plan = planificarRecuperacion(actual.documento, filasGe, cobertura.map((r) => r.cue_anexo))
+    console.log(JSON.stringify({ nuevas: plan.nuevas, recuperar: plan.recuperar, excluidas: plan.excluidas }))
+    if (!process.argv.includes('--aplicar') || !plan.recuperar.length) return
+    const cues = new Set(plan.recuperar)
     const acumulador = crearAcumulador()
     await recorrerPadronDesdeGe({ cicloLectivo, onLote: (filas) => acumulador.agregar(filas.filter((r) => cues.has(r.cueAnexo))) })
     const niveles = await leerNivelesJurisdiccionalesDesdeGe({ cicloLectivo })
     const clave = Buffer.from(process.env.NOMINAL_ENCRYPTION_KEY ?? '', 'base64')
-    console.log(JSON.stringify(await aplicarRecuperacion(db, filasGe, acumulador, clave, niveles)))
+    console.log(JSON.stringify(await aplicarRecuperacion(db, filasGe, acumulador, clave, niveles, corte[0])))
   } finally {
     const raw = getRawClient()
     if (typeof raw.end === 'function') await raw.end()
