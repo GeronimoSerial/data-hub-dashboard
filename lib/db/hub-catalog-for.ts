@@ -1,14 +1,11 @@
-import { isStaff, marcarAcceso, type SessionUser } from '@/lib/acl'
+import { accesoDe, isStaff, marcarAcceso, type SessionUser } from '@/lib/acl'
 import { loadHubCatalog } from '@/lib/db/hub'
 import { effectiveSections, resourceInSections } from '@/lib/hub-sections'
 
-/** Remove disabled-section resources and taxonomies before any server payload is built. */
-export function filterCatalogForSections(
-  catalog: Awaited<ReturnType<typeof loadHubCatalog>>,
-  user: SessionUser | null,
-): Awaited<ReturnType<typeof loadHubCatalog>> {
-  const enabled = effectiveSections(user?.hubPolicy ?? {})
-  const recursos = catalog.recursos.filter((resource) => resourceInSections(resource, enabled))
+type Catalog = Awaited<ReturnType<typeof loadHubCatalog>>
+
+/** Keeps the given resources and only the taxonomies they reference. */
+function pruneCatalogTo(catalog: Catalog, recursos: Catalog['recursos']): Catalog {
   const ids = {
     niveles: new Set(recursos.map((resource) => resource.nivelId)),
     tipos: new Set(recursos.map((resource) => resource.tipoId)),
@@ -25,13 +22,29 @@ export function filterCatalogForSections(
   }
 }
 
+/** Remove disabled-section resources and taxonomies before any server payload is built. */
+export function filterCatalogForSections(catalog: Catalog, user: SessionUser | null): Catalog {
+  const enabled = effectiveSections(user?.hubPolicy ?? {})
+  return pruneCatalogTo(catalog, catalog.recursos.filter((resource) => resourceInSections(resource, enabled)))
+}
+
+/** Non-staff signed-in users only receive the resources they can open (allow-list);
+ *  the rest are removed, not marked. Staff and anonymous visitors keep the full catalog. */
+export function filterCatalogForAccess(catalog: Catalog, user: SessionUser | null): Catalog {
+  if (!user || isStaff(user.role)) return catalog
+  return pruneCatalogTo(catalog, catalog.recursos.filter((resource) => accesoDe(user, resource) === 'abrir'))
+}
+
 /** Catálogo + `acceso` calculado, compartido entre /api/hub, /api/hub/admin
  *  y el render inicial del layout del hub, para que los tres coincidan. */
 export async function buildCatalogResponse(
   user: SessionUser | null,
   opts: { publishedOnly: boolean },
 ) {
-  const catalog = filterCatalogForSections(await loadHubCatalog(opts), user)
+  const catalog = filterCatalogForAccess(
+    filterCatalogForSections(await loadHubCatalog(opts), user),
+    user,
+  )
   return {
     ...catalog,
     recursos: marcarAcceso(user, catalog.recursos),

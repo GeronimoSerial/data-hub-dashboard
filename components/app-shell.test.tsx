@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { AppShell } from './app-shell'
+import { shellNavAllowed, shellUserFor } from '@/lib/access/shell-nav'
+import type { HubSection } from '@/lib/hub-sections'
 
 const { push, route } = vi.hoisted(() => ({ push: vi.fn(), route: { pathname: '/' } }))
 vi.mock('next/navigation', () => ({
@@ -181,5 +183,23 @@ describe('AppShell primary navigation', () => {
   it('muestra Inicio y Explorar a una consulta legacy', () => {
     render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
     expect(navLinks()).toEqual(['Inicio', 'Explorar'])
+  })
+})
+
+describe('AppShell search entries follow shellNavAllowed', () => {
+  it.each([
+    ['anonymous', null, undefined],
+    ['admin', { name: 'Admin', role: 'admin' as const }, undefined],
+    ['consulta with explore', { name: 'Consulta', role: 'consulta' as const }, undefined],
+    ['consulta without explore', { name: 'Consulta', role: 'consulta' as const }, { enabledSections: ['maps'] as HubSection[], landing: false }],
+    ['director de nivel', { name: 'Director', role: 'director_nivel' as const }, undefined],
+  ])('%s: search button matches the navbar capability', (_label, user, hubPolicy) => {
+    const initialUser = user === null ? null : { ...user, hubPolicy }
+    render(<AppShell initialUser={initialUser}>Contenido</AppShell>)
+    const expected = shellNavAllowed(
+      user === null ? null : shellUserFor(user.role, hubPolicy),
+      '/explorar',
+    )
+    expect(Boolean(screen.queryByRole('link', { name: 'Buscar recursos' }))).toBe(expected)
   })
 })

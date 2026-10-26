@@ -358,7 +358,7 @@ export function AppShell({
             </nav>
 
             <div className="app-actions">
-              {canAccessPath('/explorar') ? <Link href="/explorar" className="ui-button ui-button--ghost ui-button--icon" aria-label="Buscar recursos">
+              {shellNavAllowed(navUser, '/explorar') ? <Link href="/explorar" className="ui-button ui-button--ghost ui-button--icon" aria-label="Buscar recursos">
                 <Search size={19} />
               </Link> : null}
               <Button
@@ -401,7 +401,7 @@ export function AppShell({
                   {visibleNav.map((item) => (
                     <MenuItem key={item.href} onClick={() => router.push(item.href)}>{item.label}</MenuItem>
                   ))}
-                  {canAccessPath('/explorar') ? <MenuItem onClick={() => router.push('/explorar')}>Buscar</MenuItem> : null}
+                  {shellNavAllowed(navUser, '/explorar') ? <MenuItem onClick={() => router.push('/explorar')}>Buscar</MenuItem> : null}
                 </MenuContent>
               </Menu>
 
@@ -439,7 +439,7 @@ export function AppShell({
                     Provincia de Corrientes
                   </span>
                   <span className="app-footer__links">
-                    {canAccessPath('/explorar') ? <Link href="/explorar">Explorar recursos</Link> : null}
+                    {shellNavAllowed(navUser, '/explorar') ? <Link href="/explorar">Explorar recursos</Link> : null}
                     {canAccessPath('/mapas/infraestructura') ? <Link href="/mapas/infraestructura">Infraestructura escolar</Link> : null}
                   </span>
                 </footer>
