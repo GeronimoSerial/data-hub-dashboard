@@ -7,11 +7,12 @@ import {
   rutaStorageKeyConflict,
 } from '@/lib/recurso-write'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   await ensureSeeded()
   const denied = staffGuard(await getSessionUser())
   if (denied) {
@@ -43,3 +44,5 @@ export async function POST(request: Request) {
   }
   return Response.json({ ok: true, id: recurso.id }, { status: 201 })
 }
+
+export const POST = ruta('recursos.post', handlePOST)

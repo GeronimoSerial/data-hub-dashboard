@@ -117,25 +117,54 @@ export async function leerBorradorFormulario<T>(
   return { registro, datos }
 }
 
-export async function guardarBorradorFormulario<T>(
-  borrador: BorradorFormulario<T>,
-  datos: T,
-): Promise<BorradorFormulario<T>> {
-  const siguiente: BorradorFormulario<T> = {
-    registro: {
-      ...borrador.registro,
-      datos,
-      actualizadoEn: new Date().toISOString(),
-    },
-    datos,
-  }
-  await (await abrirAlmacenParte()).guardarBorrador(siguiente.registro)
+// Las escrituras del borrador van en fila, en orden de llamada. Un guardado que empezó
+// antes de un envío o de un descarte no puede terminar después y resucitar el borrador.
+// Una operación colgada (IndexedDB que no responde) no puede bloquear las siguientes: vence
+// a los 10 segundos, quien la pidió recibe el error, y la fila sigue.
+const TIEMPO_MAXIMO_ESCRITURA_MS = 10_000
+let filaEscriturasBorrador: Promise<unknown> = Promise.resolve()
+
+function conTiempoMaximo<T>(operacion: Promise<T>): Promise<T> {
+  let temporizador: ReturnType<typeof setTimeout> | undefined
+  const vencimiento = new Promise<never>((_, rechazar) => {
+    temporizador = setTimeout(() => rechazar(new Error('La escritura del borrador local tardó demasiado.')), TIEMPO_MAXIMO_ESCRITURA_MS)
+  })
+  return Promise.race([operacion, vencimiento]).finally(() => clearTimeout(temporizador))
+}
+
+function enFilaEscritura<T>(operacion: () => Promise<T>): Promise<T> {
+  const ejecutar = () => conTiempoMaximo(operacion())
+  const siguiente = filaEscriturasBorrador.then(ejecutar, ejecutar)
+  filaEscriturasBorrador = siguiente.catch(() => undefined)
   return siguiente
 }
 
-export async function eliminarBorradorFormulario(borrador: BorradorFormulario<unknown>): Promise<boolean> {
-  return (await abrirAlmacenParte()).eliminarBorradorSiGeneracion(
+/** Espera a que terminen las escrituras de borrador encoladas (al cerrar un formulario o aislar pruebas). */
+export function vaciarEscriturasBorrador(): Promise<void> {
+  return filaEscriturasBorrador.then(() => undefined)
+}
+
+export function guardarBorradorFormulario<T>(
+  borrador: BorradorFormulario<T>,
+  datos: T,
+): Promise<BorradorFormulario<T>> {
+  return enFilaEscritura(async () => {
+    const siguiente: BorradorFormulario<T> = {
+      registro: {
+        ...borrador.registro,
+        datos,
+        actualizadoEn: new Date().toISOString(),
+      },
+      datos,
+    }
+    await (await abrirAlmacenParte()).guardarBorrador(siguiente.registro)
+    return siguiente
+  })
+}
+
+export function eliminarBorradorFormulario(borrador: BorradorFormulario<unknown>): Promise<boolean> {
+  return enFilaEscritura(async () => (await abrirAlmacenParte()).eliminarBorradorSiGeneracion(
     borrador.registro.draftId,
     borrador.registro.generacion,
-  )
+  ))
 }

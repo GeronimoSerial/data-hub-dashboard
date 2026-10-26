@@ -1,6 +1,14 @@
 import catalogo from '@/data/materiales.json'
 
-export type Material = { titulo: string; href: string; peso: string; paginas: number }
+export type Material = {
+  tipo: 'pdf' | 'video'
+  titulo: string
+  href: string
+  peso: string
+  paginas?: number
+  duracion?: string
+  poster?: string
+}
 export type ColeccionMateriales = {
   id: 'manuales' | 'cuadernillos'
   titulo: string
@@ -17,11 +25,14 @@ export async function cargarMateriales(): Promise<ColeccionMateriales[]> {
   ]
   return colecciones.map(coleccion => ({
     ...coleccion,
-    materiales: catalogo.filter(material => material.coleccion === coleccion.id).map(material => ({
+    materiales: catalogo.filter(material => material.coleccion === coleccion.id).map((material): Material => ({
+      tipo: material.tipo === 'video' ? 'video' : 'pdf',
       titulo: material.titulo,
-      href: `/api/materiales/${material.id}/descargar`,
+      href: `/api/materiales/${material.id}/${material.tipo === 'video' ? 'video' : 'descargar'}`,
       peso: material.bytes < 1024 * 1024 ? `${Math.ceil(material.bytes / 1024)} KB` : `${(material.bytes / (1024 * 1024)).toLocaleString('es-AR', { maximumFractionDigits: 1 })} MB`,
       paginas: material.paginas,
+      duracion: material.duracion,
+      poster: material.poster,
     })),
   }))
 }

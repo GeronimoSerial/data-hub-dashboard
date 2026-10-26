@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '@/lib/db'
-import { infraAfectacion, infraAfectacionAlumno, infraAfectacionSeccion, infraParte, infraServicioAlcance, recursoAudienciaNivelesJur } from '@/lib/db/schema'
+import { infraAfectacion, infraAfectacionAlumno, infraAfectacionSeccion, infraParte, recursoAudienciaNivelesJur } from '@/lib/db/schema'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { getSessionUser } from '@/lib/session'
 
@@ -68,7 +68,6 @@ beforeAll(async () => {
     severidad: 'Crítica',
     justificacionCritica: 'otro',
     justificacionCriticaDetalle: 'Cableado expuesto',
-    carreras: ['Carrera de prueba A', 'Carrera de prueba B'],
     descripcion: null,
     rigeDesde: ahora,
     creadaEn: ahora,
@@ -76,16 +75,6 @@ beforeAll(async () => {
   })
   await db.insert(infraAfectacionSeccion).values({ afectacionId, geSectionId: 6010 })
   await db.insert(infraAfectacionAlumno).values({ afectacionId, gePersonId: 501 })
-  await db.insert(infraServicioAlcance).values({
-    id: crypto.randomUUID(),
-    parteId,
-    tipo: 'carrera',
-    referenciaId: 'Carrera de prueba A',
-    estado: 'suspendido',
-    rigeDesde: ahora,
-    creadaEn: ahora,
-    retiradaEn: null,
-  })
   const fecha = Date.now()
   const recientes = [
     { motivo: 'Situación solucionada reciente', retiradaEn: new Date(fecha - 3 * 24 * 60 * 60 * 1000).toISOString(), cierre: 'solucionada' as const },
@@ -188,13 +177,7 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       severidad: 'Crítica',
       justificacionCritica: 'otro',
       justificacionCriticaDetalle: 'Cableado expuesto',
-      carreras: ['Carrera de prueba A', 'Carrera de prueba B'],
     })
-    expect(body.servicio.alcanceVigente).toContainEqual(expect.objectContaining({
-      tipo: 'carrera',
-      referenciaId: 'Carrera de prueba A',
-      estado: 'suspendido',
-    }))
     for (const afectacion of body.afectaciones) {
       expect(afectacion.creadaEn).toEqual(expect.any(String))
       expect(Number.isNaN(Date.parse(afectacion.creadaEn))).toBe(false)
@@ -210,7 +193,7 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       expect(afectacion).not.toHaveProperty('secciones')
       expect(afectacion).not.toHaveProperty('alumnos')
       expect(Object.keys(afectacion).sort()).toEqual(
-        ['categoria', 'carreras', 'causadaPorId', 'creadaEn', 'descripcion', 'id', 'justificacionCritica', 'justificacionCriticaDetalle', 'motivo', 'rigeDesde', 'severidad', 'totales'].sort(),
+        ['categoria', 'causadaPorId', 'creadaEn', 'descripcion', 'id', 'justificacionCritica', 'justificacionCriticaDetalle', 'motivo', 'rigeDesde', 'severidad', 'totales'].sort(),
       )
     }
 

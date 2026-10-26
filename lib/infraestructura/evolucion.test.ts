@@ -323,3 +323,78 @@ describe('obtenerEvolucionMapa', () => {
     })
   })
 })
+
+describe('instituto superior en la serie de servicio caído', () => {
+  it('cuenta el CUE cuando sólo una de sus carreras está suspendida', async () => {
+    const client = crearEjecutorSql(getRawClient())
+    const corte = await client.execute(`INSERT INTO matricula_corte (fuente, ciclo_lectivo, estado, creado_en)
+      VALUES ('test-evolucion', 2026, 'vigente', '2026-10-01') RETURNING id`)
+    const corteId = Number(corte.rows[0]!.id)
+    const carreras = await client.execute({
+      sql: `INSERT INTO matricula_carrera (corte_id, cue_anexo, instituto, nombre, rm, tipo, estado, sector) VALUES
+        (?, 'CUE-EV-11', 'Instituto EV', 'Carrera EV A', 'RM-EV-1', 'Tecnicatura', 'ABIERTA', 'estatal'),
+        (?, 'CUE-EV-11', 'Instituto EV', 'Carrera EV B', 'RM-EV-2', 'Profesorado', 'ABIERTA', 'estatal')
+        RETURNING id`,
+      args: [corteId, corteId],
+    })
+    const carreraA = Number(carreras.rows[0]!.id)
+
+    const parte = await client.execute("SELECT id FROM infra_parte WHERE cue_anexo = 'CUE-EV-11'")
+    const parteId = String(parte.rows[0]!.id)
+    // Sólo la carrera A suspendida: el CUE queda "parcial" y cuenta como afectado.
+    await client.execute({
+      sql: `INSERT INTO infra_servicio_alcance (id, parte_id, tipo, referencia_id, estado, rige_desde, creada_en, retirada_en)
+            VALUES (?, ?, 'carrera', ?, 'suspendido', ?, ?, NULL)`,
+      args: [crypto.randomUUID(), parteId, String(carreraA), inicioDeDia(-5), inicioDeDia(-5)],
+    })
+
+    const { serieEscuelasServicioCaido } = await obtenerEvolucionMapa()
+    const hoy = serieEscuelasServicioCaido.find((p) => p.fecha === diaIso(0))
+    expect(hoy?.escuelas).toBeGreaterThan(0)
+  })
+
+  it('suma a la serie de alumnos los alumnos elegidos de la carrera de matrícula', async () => {
+    // Usa el CUE y la carrera A del test anterior (mismo archivo, orden secuencial).
+    const client = crearEjecutorSql(getRawClient())
+    await client.execute(`INSERT INTO ge.ge_nivel_jurisdiccional (id, nombre) VALUES (4, 'Dirección de Nivel Superior')
+      ON CONFLICT DO NOTHING`)
+    await client.execute(`INSERT INTO ge.ge_escuela_nivel_jur (cue_anexo, nivel_jurisdiccional_id, ciclo_lectivo)
+      VALUES ('CUE-EV-11', 4, 2026)`)
+    const carrera = await client.execute(
+      "SELECT id, corte_id FROM matricula_carrera WHERE cue_anexo = 'CUE-EV-11' AND nombre = 'Carrera EV A'",
+    )
+    const carreraA = Number(carrera.rows[0]!.id)
+    const corteId = Number(carrera.rows[0]!.corte_id)
+    const parte = await client.execute("SELECT id FROM infra_parte WHERE cue_anexo = 'CUE-EV-11' LIMIT 1")
+    const parteId = String(parte.rows[0]!.id)
+
+    const antes = (await obtenerEvolucionMapa()).alumnosAcumulados.at(-1)!.alumnosAcumulados
+
+    const alumnos = await client.execute({
+      sql: `INSERT INTO matricula_alumno (corte_id, carrera_id, apellidos, nombres, nombre_busqueda, dni_hash) VALUES
+        (?, ?, 'Evolucion', 'Uno', 'evolucion uno', 'h-ev-1'),
+        (?, ?, 'Evolucion', 'Dos', 'evolucion dos', 'h-ev-2') RETURNING id`,
+      args: [corteId, carreraA, corteId, carreraA],
+    })
+    const alumnoElegido = Number(alumnos.rows[0]!.id)
+    const afectacionId = await crearAfectacion({
+      parteId,
+      motivo: 'Alumnos sin clase',
+      secciones: [],
+      rigeDesde: inicioDeDia(-2),
+    })
+    await client.execute({
+      sql: 'INSERT INTO infra_afectacion_carrera (afectacion_id, matricula_corte_id, carrera_id) VALUES (?, ?, ?)',
+      args: [afectacionId, corteId, carreraA],
+    })
+    await client.execute({
+      sql: 'INSERT INTO infra_afectacion_matricula_alumno (afectacion_id, matricula_corte_id, alumno_id) VALUES (?, ?, ?)',
+      args: [afectacionId, corteId, alumnoElegido],
+    })
+
+    // Un solo alumno elegido dentro de la carrera: suma exactamente uno.
+    const despues = (await obtenerEvolucionMapa()).alumnosAcumulados.at(-1)!.alumnosAcumulados
+    expect(despues - antes).toBe(1)
+  })
+})
+

@@ -70,6 +70,7 @@ export function CamposClasesEdificio({
   respuestas,
   advertencias = [],
   alcanceAlgunas = false,
+  esInstituto = false,
   disabled = false,
   estadoActual,
   afectacionesActivas = [],
@@ -80,11 +81,14 @@ export function CamposClasesEdificio({
   valor: ValorClasesEdificio
   onCambiar: (valor: ValorClasesEdificio) => void
   alcanceParcial: boolean
-  onInterrumpirTodaLaEscuela: () => void
+  /** Recibe el valor ya elegido: el padre no debe tomar el estado previo del render. */
+  onInterrumpirTodaLaEscuela: (valor: ValorClasesEdificio) => void
   /** Sin respuestas no hay reglas que aplicar: las opciones quedan habilitadas. */
   respuestas?: RespuestasConsistencia
   advertencias?: Regla[]
   alcanceAlgunas?: boolean
+  /** Institutos superiores: el alcance se habla en carreras, no en escuela ni secciones. */
+  esInstituto?: boolean
   disabled?: boolean
   /** Estado del edificio en la escuela hoy. Sólo la actualización lo informa. */
   estadoActual?: EstadoEstablecimiento
@@ -127,9 +131,13 @@ export function CamposClasesEdificio({
   const avisosEdificioSueltos = avisosSinOpcion(advertencias, 'edificio', respuestas?.edificio, ESTADOS_EDIFICIO)
   const avisosClasesSueltos = avisosSinOpcion(advertencias, 'clases', respuestas?.clases, ['normal', 'suspendido'])
 
+  // Evacuado o sin clases ⇒ clases suspendidas: la combinación contraria es imposible.
+  function valorConEdificio(estado: EstadoEstablecimiento): ValorClasesEdificio {
+    return { estadoEstablecimiento: estado, servicioEstado: SUSPENDE_CLASES.includes(estado) ? 'suspendido' : valor.servicioEstado }
+  }
+
   function aplicarEdificio(estado: EstadoEstablecimiento) {
-    // Evacuado o sin clases ⇒ clases suspendidas: la combinación contraria es imposible.
-    onCambiar({ estadoEstablecimiento: estado, servicioEstado: SUSPENDE_CLASES.includes(estado) ? 'suspendido' : valor.servicioEstado })
+    onCambiar(valorConEdificio(estado))
   }
 
   function elegirEdificio(estado: EstadoEstablecimiento) {
@@ -277,18 +285,22 @@ export function CamposClasesEdificio({
 
       <ConfirmSheet
         open={pendiente !== null}
-        titulo="¿Pasamos el alcance a toda la escuela?"
-        confirmarLabel="Sí, toda la escuela"
+        titulo={esInstituto ? '¿Pasamos el alcance a todo el instituto?' : '¿Pasamos el alcance a toda la escuela?'}
+        confirmarLabel={esInstituto ? 'Sí, todo el instituto' : 'Sí, toda la escuela'}
         onCancelar={() => setPendiente(null)}
         onConfirmar={() => {
           if (pendiente) {
             aplicarEdificio(pendiente)
-            onInterrumpirTodaLaEscuela()
+            onInterrumpirTodaLaEscuela(valorConEdificio(pendiente))
           }
           setPendiente(null)
         }}
       >
-        <p>Esto interrumpe toda la escuela, pero marcó sólo algunas secciones.</p>
+        <p>
+          {esInstituto
+            ? 'Esto interrumpe todo el instituto, pero marcó sólo algunas carreras.'
+            : 'Esto interrumpe toda la escuela, pero marcó sólo algunas secciones.'}
+        </p>
       </ConfirmSheet>
     </>
   )

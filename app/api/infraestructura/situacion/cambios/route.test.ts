@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSessionUser } from '@/lib/session'
+import { verificarAccesoSeccion } from '@/lib/infraestructura/acceso-lectura'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
 vi.mock('@/lib/session', () => ({
@@ -12,11 +13,15 @@ vi.mock('@/lib/session', () => ({
     return null
   },
 }))
+vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
+  verificarAccesoSeccion: vi.fn(async () => ({ ok: true, user: { id: 'admin', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })),
+}))
 
 usarDbTemporal('situacion-cambios-route')
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
+  vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: true, user: { id: 'admin', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })
 })
 
 function editor() {
@@ -28,8 +33,20 @@ function url(qs: string): Request {
 }
 
 describe('GET /api/infraestructura/situacion/cambios', () => {
+  it('rechaza a un usuario sólo de infraestructura con 403', async () => {
+    vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: false, status: 403 })
+    const { GET } = await import('./route')
+    expect((await GET(url('?desde=2026-10-01T00:00:00Z'))).status).toBe(403)
+    expect(verificarAccesoSeccion).toHaveBeenCalledWith('situation')
+  })
+  it('allows situation-only staff without an infrastructure resource grant', async () => {
+    vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: true, user: { ...editor(), hubPolicy: { enabledSections: ['situation'] as const } } })
+    const { GET } = await import('./route')
+    expect((await GET(url('?desde=2026-10-01T00:00:00Z'))).status).toBe(200)
+    expect(verificarAccesoSeccion).toHaveBeenCalledWith('situation')
+  })
   it('rechaza sin sesión con 401', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null)
+    vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: false, status: 401 })
     const { GET } = await import('./route')
     const res = await GET(url('?desde=2026-01-01T00:00:00.000Z'))
     expect(res.status).toBe(401)

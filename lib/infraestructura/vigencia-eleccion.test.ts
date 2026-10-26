@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { errorVigencia, etiquetaVigencia, MENSAJE_HORA_FUTURA, resolverVigencia, resumenVigencia } from './vigencia-eleccion'
+import { errorVigencia, etiquetaVigencia, MENSAJE_ELIJA_FECHA_Y_HORA, MENSAJE_ELIJA_HORA, MENSAJE_HORA_FUTURA, resolverVigencia, resumenVigencia } from './vigencia-eleccion'
 import { MENSAJE_FUERA_DE_RANGO_VIGENCIA } from './vigencia-rango'
 
 // 2026-10-04 15:00 en Argentina (UTC-3)
@@ -30,6 +30,12 @@ describe('resolverVigencia', () => {
   it('una elección incompleta es inválida', () => {
     expect(resolverVigencia({ modo: 'otro', fecha: '', hora: '10:00' }, AHORA)).toBeNull()
     expect(resolverVigencia({ modo: 'hoy', hora: '' }, AHORA)).toBeNull()
+  })
+
+  it('una elección incompleta pide lo que falta y no muestra la ventana de 12 meses', () => {
+    expect(errorVigencia({ modo: 'hoy', hora: '' }, AHORA)).toBe(MENSAJE_ELIJA_HORA)
+    expect(errorVigencia({ modo: 'otro', fecha: '', hora: '' }, AHORA)).toBe(MENSAJE_ELIJA_FECHA_Y_HORA)
+    expect(errorVigencia({ modo: 'otro', fecha: '2026-10-20', hora: '' }, AHORA)).toBe(MENSAJE_ELIJA_FECHA_Y_HORA)
   })
 })
 

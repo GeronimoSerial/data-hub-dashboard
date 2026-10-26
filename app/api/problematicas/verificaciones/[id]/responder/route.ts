@@ -4,9 +4,13 @@ import {
   crearPostVerificacion,
   MENSAJES_CREDENCIAL,
 } from '@/lib/infraestructura/verificacion-route'
+import { crearLimitador } from '@/lib/http/limitador'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 100 })
 
 // 'con_afectacion' is intentionally excluded: it uses the part form and a
 // separate endpoint to link the resulting movement.
@@ -15,7 +19,7 @@ const bodySchema = z.object({
   resultado: z.enum(['sin_afectacion', 'no_disponible']),
 })
 
-export const POST = crearPostVerificacion({
+const handlePOST = crearPostVerificacion({
   bodySchema,
   mensajes: {
     ...MENSAJES_CREDENCIAL,
@@ -29,3 +33,5 @@ export const POST = crearPostVerificacion({
     movimientoId: null,
   }),
 })
+
+export const POST = ruta('problematicas.verificaciones.id.responder.post', handlePOST, { limite: { limitador } })

@@ -7,6 +7,7 @@ import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
 import { afectacionDentroDeNiveles, consultarYRegistrarAfectados } from '@/lib/infraestructura/identidad'
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
 // en vez de por el id del modelo deprecado, que se retiró por completo en la
 // Fase 4 junto con su ruta vieja (app/api/infraestructura/nominal).
 //
-// verificarAccesoLectura() gobierna el acceso de LECTURA al mapa
+// verificarAccesoLectura({ section: 'infrastructure' }) gobierna el acceso de LECTURA al mapa
 // (/mapas/infraestructura); puedeVerNominal() es un permiso aparte, nunca
 // mira el rol ni la audiencia del recurso: se corren las dos, en ese orden,
 // porque ver el mapa no implica ver nombres de alumnos.
@@ -24,10 +25,10 @@ export const dynamic = 'force-dynamic'
 // inserta en infra_acceso_nominal_log en la misma transacción que arma la
 // respuesta. Por eso NUNCA se llama especulativamente ni se cachea la
 // respuesta — cada GET exitoso es una apertura real del alcance nominal.
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   await ensureSeeded()
 
-  const acceso = await verificarAccesoLectura()
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   const ahora = new Date()
@@ -60,3 +61,5 @@ export async function GET(request: Request) {
 
   return jsonNoStore(resultado)
 }
+
+export const GET = ruta('mapas.infraestructura.nominal.get', handleGET)

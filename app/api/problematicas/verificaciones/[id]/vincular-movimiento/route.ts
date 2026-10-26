@@ -4,16 +4,20 @@ import {
   crearPostVerificacion,
   MENSAJES_CREDENCIAL,
 } from '@/lib/infraestructura/verificacion-route'
+import { crearLimitador } from '@/lib/http/limitador'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 100 })
 
 const bodySchema = z.object({
   token: z.string().trim().min(1),
   movimientoId: z.string().trim().min(1),
 })
 
-export const POST = crearPostVerificacion({
+const handlePOST = crearPostVerificacion({
   bodySchema,
   mensajes: {
     ...MENSAJES_CREDENCIAL,
@@ -28,3 +32,5 @@ export const POST = crearPostVerificacion({
     movimientoId: body.movimientoId,
   }),
 })
+
+export const POST = ruta('problematicas.verificaciones.id.vincular-movimiento.post', handlePOST, { limite: { limitador } })

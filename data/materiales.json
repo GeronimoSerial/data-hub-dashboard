@@ -28,5 +28,47 @@
     "bytes": 1660267,
     "paginas": 15,
     "sha256": "2b09090d0f865bbcc1775756ba8dddb4a6cfc50e09665de0d0f0be951d101832"
+  },
+  {
+    "id": "video-manual-directivos",
+    "coleccion": "manuales",
+    "tipo": "video",
+    "titulo": "Sistema ENOS · Manual para directivos y supervisores",
+    "archivo": "video-manual-directivos-fcba5cb517a1.mp4",
+    "storageKey": "materiales/manuales/video-manual-directivos-fcba5cb517a1.mp4",
+    "bytes": 12836277,
+    "duracion": "7 min",
+    "poster": "/materiales/manuales/video-manual-directivos.jpg",
+    "sha256": "fcba5cb517a15511935cdf934b52d938a1a63fb46626771c8f2957817adb79ce"
+  },
+  {
+    "id": "cuadernillo-4-grado",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo para estudiantes de 4.º grado",
+    "archivo": "cuadernillo-4-grado-34f55c4b69be.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-4-grado-34f55c4b69be.pdf",
+    "bytes": 7290799,
+    "paginas": 135,
+    "sha256": "34f55c4b69be0e30dbea796388c0dfbf29e79f55f1ee5877944235638019176d"
+  },
+  {
+    "id": "cuadernillo-5-grado",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo para estudiantes de 5.º grado",
+    "archivo": "cuadernillo-5-grado-b40b32d0f226.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-5-grado-b40b32d0f226.pdf",
+    "bytes": 8960197,
+    "paginas": 176,
+    "sha256": "b40b32d0f22686f0305487a470fbe6afa55ac0ca18a0eb7e5b647f18a7c25c33"
+  },
+  {
+    "id": "cuadernillo-6-grado",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo para estudiantes de 6.º grado",
+    "archivo": "cuadernillo-6-grado-a40ad648f130.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-6-grado-a40ad648f130.pdf",
+    "bytes": 7483468,
+    "paginas": 136,
+    "sha256": "a40ad648f13032fe8dec3402b2a773a698bcb6b62f4048db84575447c906082d"
   }
 ]

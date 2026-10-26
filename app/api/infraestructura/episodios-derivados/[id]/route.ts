@@ -5,6 +5,7 @@ import { infraEpisodioDerivado, infraEpisodioMiembro } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,7 @@ type Ctx = { params: Promise<{ id: string }> }
 
 const idSchema = z.string().min(1).max(100)
 
-export async function GET(_request: Request, ctx: Ctx) {
+async function handleGET(_request: Request, ctx: Ctx) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
@@ -69,3 +70,5 @@ export async function GET(_request: Request, ctx: Ctx) {
     { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
   )
 }
+
+export const GET = ruta('infraestructura.episodios-derivados.id.get', handleGET)

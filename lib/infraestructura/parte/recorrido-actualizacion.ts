@@ -1,5 +1,6 @@
 import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 import type { CategoriaAfectacion } from '../categorias'
+import type { AlumnoElegido } from './instituto-ui'
 import type { JustificacionCritica } from '../justificacion-critica'
 import { compararRelevancia } from '../relevancia'
 import type { EstadoEstablecimiento } from '../trayectoria-tipos'
@@ -18,8 +19,10 @@ export interface CambioSituacion {
   justificacionCritica?: JustificacionCritica
   justificacionCriticaDetalle?: string
   secciones?: number[]
-  carreras?: string[]
   alumnos?: number[]
+  /** Sólo institutos superiores: carreras alcanzadas y alumnos elegidos dentro de ellas. */
+  carreras?: number[]
+  alumnosElegidos?: AlumnoElegido[]
 }
 
 export type RespuestaSituacion =
@@ -41,12 +44,15 @@ export interface SituacionRecorrido {
 export interface NuevaSituacion {
   causadaPorId: string | null
   motivo: string
+  /** Opcional: un borrador de alumnos GE puede no traer severidad; el servidor calcula la prioridad. */
   severidad?: Severidad
   justificacionCritica?: JustificacionCritica
   justificacionCriticaDetalle?: string
-  secciones: number[]
-  carreras?: string[]
+  /** GE: secciones alcanzadas. Ausente en institutos superiores. */
+  secciones?: number[]
   alumnos?: number[]
+  /** Sólo institutos superiores: carreras alcanzadas. */
+  carreras?: number[]
   descripcion?: string
 }
 
@@ -99,20 +105,59 @@ export function responder(estado: EstadoRecorrido, id: string, respuesta: Respue
   return { ...estado, respuestas: { ...estado.respuestas, [id]: respuesta } }
 }
 
+// Institutos: la modificación y el servicio por carrera tienen campos que el
+// esquema GE no declara (el servidor los valida según el sistema del CUE).
+type ModificacionEnvio = ParteActualizacionInput['afectacionesModificadas'][number] & { carreras?: number[] }
+// Institutos: la nueva situación va por carreras y sin `secciones`.
+type NuevaEnvio = Omit<ParteActualizacionInput['afectacionesNuevas'][number], 'secciones'> & {
+  secciones?: number[]
+  carreras?: number[]
+}
+type ServicioEnvio = {
+  estado: 'normal' | 'suspendido'
+  alcance: { tipo: 'establecimiento' } | { tipo: 'carrera'; carreras: number[] }
+}
+
 type Envio = Pick<
   ParteActualizacionInput,
   | 'afectacionesConfirmadas'
-  | 'afectacionesModificadas'
   | 'afectacionesSolucionadas'
-  | 'afectacionesNuevas'
-  | 'servicioEducativo'
   | 'estadoEstablecimiento'
   | 'confirmarInterrupcionTotal'
->
+> & {
+  afectacionesModificadas: ModificacionEnvio[]
+  afectacionesNuevas: NuevaEnvio[]
+  servicioEducativo?: ServicioEnvio
+}
 
-export function construirEnvio(situaciones: SituacionRecorrido[], estado: EstadoRecorrido): Envio {
+/**
+ * Carreras que sufren la interrupción de clases de un instituto: las de cada
+ * situación que sigue activa (con su alcance nuevo si lo cambió). Sin ninguna,
+ * la interrupción vale para todo el catálogo del CUE.
+ */
+export function carrerasDelServicio<T extends SituacionRecorrido>(
+  situaciones: T[],
+  estado: EstadoRecorrido,
+  carrerasDelCue: number[],
+  carrerasDeSituacion: (situacion: T) => number[],
+): number[] {
+  const ids = new Set<number>(estado.nueva?.carreras ?? [])
+  for (const situacion of situaciones) {
+    const respuesta = estado.respuestas[situacion.id]
+    if (respuesta?.tipo === 'solucionada') continue
+    const carreras = respuesta?.tipo === 'cambio' && respuesta.cambio.carreras ? respuesta.cambio.carreras : carrerasDeSituacion(situacion)
+    for (const id of carreras) ids.add(id)
+  }
+  return ids.size > 0 ? [...ids] : carrerasDelCue
+}
+
+export function construirEnvio(
+  situaciones: SituacionRecorrido[],
+  estado: EstadoRecorrido,
+  alcanceServicio?: { carreras: number[] },
+): Envio {
   const confirmadas: string[] = []
-  const modificadas: Envio['afectacionesModificadas'] = []
+  const modificadas: ModificacionEnvio[] = []
   const solucionadas: Envio['afectacionesSolucionadas'] = []
 
   for (const situacion of situaciones) {
@@ -122,8 +167,8 @@ export function construirEnvio(situaciones: SituacionRecorrido[], estado: Estado
     else if (respuesta.tipo === 'solucionada') {
       solucionadas.push({ id: situacion.id, solucionadaEn: respuesta.solucionadaEn })
     } else {
-      const modificacion: Envio['afectacionesModificadas'][number] = { id: situacion.id }
-      if (situacion.categoria !== 'alumnos' && respuesta.cambio.aspectos.includes('gravedad') && respuesta.cambio.severidad) {
+      const modificacion: ModificacionEnvio = { id: situacion.id }
+      if (respuesta.cambio.aspectos.includes('gravedad') && respuesta.cambio.severidad) {
         modificacion.severidad = respuesta.cambio.severidad
         if (respuesta.cambio.justificacionCritica) {
           modificacion.justificacionCritica = respuesta.cambio.justificacionCritica
@@ -142,10 +187,10 @@ export function construirEnvio(situaciones: SituacionRecorrido[], estado: Estado
     }
   }
 
-  const nuevas: Envio['afectacionesNuevas'] = []
+  const nuevas: NuevaEnvio[] = []
   if (estado.nueva) {
     const { causadaPorId, ...resto } = estado.nueva
-    nuevas.push({ ...resto, ...(resto.alumnos ? { severidad: undefined, justificacionCritica: undefined, justificacionCriticaDetalle: undefined } : {}), ...(causadaPorId ? { causadaPorId } : {}) })
+    nuevas.push({ ...resto, ...(causadaPorId ? { causadaPorId } : {}) })
   }
 
   const clasesEdificio = estado.clasesEdificio
@@ -155,7 +200,10 @@ export function construirEnvio(situaciones: SituacionRecorrido[], estado: Estado
     afectacionesSolucionadas: solucionadas,
     afectacionesNuevas: nuevas,
     servicioEducativo: clasesEdificio
-      ? { estado: clasesEdificio.servicioEstado, alcance: { tipo: 'establecimiento' } }
+      ? {
+        estado: clasesEdificio.servicioEstado,
+        alcance: alcanceServicio ? { tipo: 'carrera', carreras: alcanceServicio.carreras } : { tipo: 'establecimiento' },
+      }
       : undefined,
     estadoEstablecimiento: clasesEdificio ? { estado: clasesEdificio.estadoEstablecimiento } : undefined,
     confirmarInterrupcionTotal: clasesEdificio ? clasesEdificio.confirmarInterrupcionTotal || undefined : undefined,

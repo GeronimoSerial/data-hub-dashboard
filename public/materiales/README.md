@@ -14,6 +14,8 @@ Los archivos optimizados se guardan en `DATA_DIR/materiales` (por defecto `.data
 
 El bucket permanece privado. El endpoint público solo permite descargar documentos incluidos en el catálogo y redirige a una URL firmada de cinco minutos, con disposición de descarga. No hace falta habilitar CORS del bucket para esta navegación directa. Las credenciales permanecen en el servidor.
 
+El video del manual (`tipo: "video"`) se publica igual que los PDF, pero se reproduce en la página con `<video>` desde `/api/materiales/[id]/video` (soporta rangos; con S3 redirige a una URL firmada de una hora). Optimizarlo con `ffmpeg -i entrada.mp4 -c copy -movflags +faststart salida.mp4` para que empiece antes de bajar completo; el póster va en `public/materiales/manuales/`.
+
 Para reemplazar un PDF, actualizar su hash, nombre versionado, tamaño y páginas en el catálogo, subirlo y desplegar el catálogo nuevo. Conservar los objetos anteriores permite volver a una versión previa.
 
 ## Optimización de los documentos originales

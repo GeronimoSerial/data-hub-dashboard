@@ -8,6 +8,7 @@ import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { EPISODIOS_REGLA_VERSION } from '@/lib/infraestructura/episodios-derivados/regla'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,7 +24,7 @@ const episodiosQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(200).default(50),
 })
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   // ACL primero: una request sin sesión no debe disparar trabajo de DB
   // (ensureSeeded) antes de fallar.
   const acceso = await verificarAccesoLectura()
@@ -94,3 +95,5 @@ export async function GET(request: Request) {
 
   return jsonNoStore({ items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) })
 }
+
+export const GET = ruta('infraestructura.episodios-derivados.get', handleGET)

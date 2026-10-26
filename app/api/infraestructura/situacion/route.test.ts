@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
+import { verificarAccesoSeccion } from '@/lib/infraestructura/acceso-lectura'
 
 // Mismo motivo que operacion/salud/route.test.ts: reimplementa staffGuard acá
 // para no arrastrar @/lib/auth -> @/lib/db antes de fijar DATA_DIR.
@@ -16,6 +17,9 @@ vi.mock('@/lib/session', () => ({
     return null
   },
 }))
+vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
+  verificarAccesoSeccion: vi.fn(async () => ({ ok: true, user: { id: 'admin', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })),
+}))
 
 usarDbTemporal('situacion-route-')
 
@@ -24,6 +28,7 @@ beforeAll(async () => { GET = (await import('./route')).GET })
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
+  vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: true, user: { id: 'admin', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] } })
 })
 
 function editor() {
@@ -38,15 +43,26 @@ function url(qs = ''): Request {
 }
 
 describe('GET /api/infraestructura/situacion', () => {
+  it('rechaza a un usuario sólo de infraestructura con 403', async () => {
+    vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: false, status: 403 })
+    expect((await GET(url())).status).toBe(403)
+    expect(verificarAccesoSeccion).toHaveBeenCalledWith('situation')
+  })
+  it('allows situation-only staff without an infrastructure resource grant', async () => {
+    vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: true, user: { ...editor(), hubPolicy: { enabledSections: ['situation'] as const } } })
+    const res = await GET(url())
+    expect(res.status).toBe(200)
+    expect(verificarAccesoSeccion).toHaveBeenCalledWith('situation')
+  })
   it('rechaza sin sesión con 401', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null)
+    vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: false, status: 401 })
     const res = await GET(url())
     expect(res.status).toBe(401)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
   it('rechaza a consulta (no staff) con 403 — panel ejecutivo interno', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(consulta())
+    vi.mocked(verificarAccesoSeccion).mockResolvedValue({ ok: true, user: consulta() })
     const res = await GET(url())
     expect(res.status).toBe(403)
   })

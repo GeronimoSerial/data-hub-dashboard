@@ -61,7 +61,7 @@ describe('GET /api/infraestructura/fuentes', () => {
   ] as const)('%s', async (_titulo, status, error) => {
     mockAcceso({ ok: false, status })
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     expect(res.status).toBe(status)
     const body = await res.json()
     expect(body.fuentes).toBeUndefined()
@@ -71,7 +71,7 @@ describe('GET /api/infraestructura/fuentes', () => {
   it('con acceso devuelve las fuentes con frescuraMinutos derivada en el handler', async () => {
     mockAcceso({ ok: true, user: USER })
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api'))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
 

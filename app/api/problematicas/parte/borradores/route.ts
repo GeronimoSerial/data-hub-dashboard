@@ -2,6 +2,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { BorradorError, createDraft, readJsonBody } from '@/lib/infraestructura/borradores/service'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,7 @@ function errorResponse(error: unknown): Response {
   throw error
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   if (!getReportesOfflineFeatures().borradoresSync) return reportesOfflineFlagDisabledResponse()
   let body: unknown
   try {
@@ -40,3 +41,5 @@ export async function POST(request: Request) {
     return errorResponse(error)
   }
 }
+
+export const POST = ruta('parte.borradores.post', handlePOST)

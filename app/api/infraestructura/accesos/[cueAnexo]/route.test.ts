@@ -3,6 +3,7 @@ import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getSessionUser } from '@/lib/session'
+import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 
 // Factory puro (sin importOriginal) para no arrastrar @/lib/session -> @/lib/db
 // antes de que el beforeAll fije DATA_DIR (mismo patrón que situacion/export).
@@ -15,6 +16,12 @@ vi.mock('@/lib/session', () => ({
     }
     return null
   },
+}))
+
+vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
+  verificarAccesoLectura: vi.fn(async () => ({ ok: true, user: {
+    id: 'admin-1', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [],
+  } })),
 }))
 
 const CUE_CON_DATOS = '1801605-04'
@@ -83,6 +90,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
+  vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user: admin() })
 })
 
 function ctx(cueAnexo: string) {
@@ -113,11 +121,22 @@ let GET: typeof Ruta.GET
 beforeAll(async () => { GET = (await import('./route')).GET })
 
 describe('GET /api/infraestructura/accesos/[cueAnexo]', () => {
+  it('rechaza una sección de infraestructura deshabilitada con 403', async () => {
+    vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 403 })
+    const res = await GET(req(), ctx(CUE_CON_DATOS))
+    expect(res.status).toBe(403)
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+  })
+
   it.each([
     ['rechaza sin sesión con 401 (y no-store)', null, 401, 'No autenticado'],
     ['rechaza con sesión no-staff con 403 (y no-store)', consulta(), 403, 'No tiene acceso a este recurso'],
   ] as const)('%s', async (_titulo, user, status, error) => {
-    vi.mocked(getSessionUser).mockResolvedValue(user)
+    if (user === null) {
+      vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 401 })
+    } else {
+      vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user })
+    }
     const res = await GET(req(), ctx(CUE_CON_DATOS))
     expect(res.status).toBe(status)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')

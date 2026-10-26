@@ -1,5 +1,3 @@
-import { proyectarImpactoAlumnos } from './prioridad-alumnos'
-import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Capa de lectura del parte (spec §6, §7, §8): tanto GET /parte como
 // POST /parte la necesitan — POST para armar la fotografía "antes" contra la
 // que diffParte compara. Framework-free salvo por el acceso a Drizzle y al
@@ -18,16 +16,25 @@ import {
   infraPeriodo,
   infraServicioAlcance,
 } from '@/lib/db/schema'
-import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
+import { asegurarGeAdjuntada } from './impacto'
+import { proyectarImpactoAlumnos, type ImpactoAlumnos } from './prioridad-alumnos'
+import { esJustificacionCritica } from './justificacion-critica'
 import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
 import { severidadDelMovimiento } from './severidad-movimiento'
 import type { DiffParte } from './movimiento-diff'
-import { listarSeccionesDelCue } from './secciones-cue'
+import { alcanceGeParaCue, alcanceParaCue, type AlcanceCue } from './alcance'
+import type { CarreraMatricula } from './alcance/matricula'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
-import { carrerasDelCue } from './carreras-superior'
-import { esJustificacionCritica } from './justificacion-critica'
+import { estadoGeneralDelCue } from './parte/instituto-estado'
 import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
+import {
+  efectivosPorAfectacion,
+  leerScopeInstituto,
+  nombresDeCarreras,
+  resumenEfectivoInstituto,
+  SCOPE_VACIO,
+} from './parte/instituto-alcance'
 import type {
   Afectacion,
   AfectacionAlcanceSeccion,
@@ -130,6 +137,7 @@ export async function listarSituacionesRecientes(
 async function cargarAfectaciones(
   dbEjecutor: DbEjecutor,
   client: EjecutorSql,
+  cueAnexo: string,
   parteId: string,
   corteId: number,
 ): Promise<Afectacion[]> {
@@ -165,15 +173,15 @@ async function cargarAfectaciones(
   // Una sola consulta de membresía para TODAS las secciones de TODAS las
   // afectaciones del parte, nunca una por afectación.
   const todasLasSecciones = [...new Set(seccionesRows.map((s) => s.geSectionId))]
-  const membresia = await obtenerMembresiaSecciones(client, {
-    corteId,
-    geSectionIds: todasLasSecciones,
-  })
-
-  const [parte] = await dbEjecutor.select({ cueAnexo: infraParte.cueAnexo }).from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
-  const seccionesCue = parte ? await listarSeccionesDelCue(client, corteId, parte.cueAnexo) : []
-  const padron = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: seccionesCue.map((s) => s.geSectionId) })
-  const matriculados = new Set([...padron.values()].flatMap((ids) => [...ids]))
+  // Las filas de sección son GE por definición: su membresía sale siempre del
+  // padrón GE, aun si el CUE hoy es un instituto superior.
+  const geCue = alcanceGeParaCue(client, corteId, cueAnexo)
+  const membresia = await geCue.listMembers(todasLasSecciones)
+  // Prioridad de alumnos (GE): matriculados de todo el CUE, no sólo de las secciones afectadas.
+  const alcanceCue = await alcanceParaCue(client, corteId, cueAnexo)
+  const matriculadosCue = alcanceCue.sistema === 'ge'
+    ? new Set([...(await geCue.listMembers((await geCue.listarSeccionesGe()).map((s) => s.geSectionId))).values()].flatMap((ids) => [...ids]))
+    : null
 
   return filas.map((fila): Afectacion => {
     const seccionIds = seccionesPorAfectacion.get(fila.id) ?? []
@@ -211,9 +219,10 @@ async function cargarAfectaciones(
       creadaEn: fila.creadaEn,
       retiradaEn: fila.retiradaEn,
       secciones,
-      ...(fila.carreras ? { carreras: fila.carreras } : {}),
     }
-    return fila.retiradaEn === null ? proyectarImpactoAlumnos(afectacion, matriculados, corteId || null) : afectacion
+    return matriculadosCue && fila.retiradaEn === null
+      ? proyectarImpactoAlumnos(afectacion, matriculadosCue, corteId || null)
+      : afectacion
   })
 }
 
@@ -225,15 +234,25 @@ async function cargarServicioAlcance(
     .select()
     .from(infraServicioAlcance)
     .where(eq(infraServicioAlcance.parteId, parteId))
+  // Institutos: el nombre de cada carrera (ids únicos entre cortes).
+  const nombres = await nombresDeCarreras(
+    dbEjecutor,
+    filas.filter((f) => f.tipo === 'carrera' && f.referenciaId).map((f) => Number(f.referenciaId)),
+  )
 
   return filas.map((fila): ServicioAlcance => {
     // Etiqueta legible sólo donde sale gratis (spec batch 3): para 'turno',
     // el propio referenciaId ya ES el nombre del turno. Para 'seccion' haría
     // falta curso+division de ge_seccion, que esta capa no trae acá (ver
     // SeccionEstablecimiento en trayectoria-tipos.ts: sólo geSectionId y
-    // turno) — se deja sin etiqueta a propósito.
+    // turno) — se deja sin etiqueta a propósito. Para 'carrera' es el nombre
+    // de matricula_carrera.
     const etiqueta =
-      fila.tipo === 'turno' && fila.referenciaId ? fila.referenciaId : undefined
+      fila.tipo === 'turno' && fila.referenciaId
+        ? fila.referenciaId
+        : fila.tipo === 'carrera' && fila.referenciaId
+          ? nombres.get(Number(fila.referenciaId))
+          : undefined
     return {
       id: fila.id,
       parteId: fila.parteId,
@@ -256,10 +275,11 @@ async function cargarServicioAlcance(
 export async function obtenerAfectacionesYServicio(
   dbEjecutor: DbEjecutor,
   client: EjecutorSql,
+  cueAnexo: string,
   parteId: string,
   corteId: number,
 ): Promise<{ afectaciones: Afectacion[]; servicioAlcance: ServicioAlcance[] }> {
-  const afectaciones = await cargarAfectaciones(dbEjecutor, client, parteId, corteId)
+  const afectaciones = await cargarAfectaciones(dbEjecutor, client, cueAnexo, parteId, corteId)
   const servicioAlcance = await cargarServicioAlcance(dbEjecutor, parteId)
   return { afectaciones, servicioAlcance }
 }
@@ -274,7 +294,7 @@ export async function obtenerParteActual(
 
   const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
-  const secciones = await listarSeccionesDelCue(client, corteId, cueAnexo)
+  const secciones = await alcanceGeParaCue(client, corteId, cueAnexo).listarSeccionesGe()
 
   const [parteRow] = await db
     .select()
@@ -289,6 +309,7 @@ export async function obtenerParteActual(
   const { afectaciones, servicioAlcance } = await obtenerAfectacionesYServicio(
     db,
     client,
+    cueAnexo,
     parteRow.id,
     corteId,
   )
@@ -330,20 +351,31 @@ export function snapshotDesde(actual: ParteActual, referencia?: Date | string): 
 // resuelva nombres — hoy sólo la ruta del director — pueda hacerlo; el
 // llamador del mapa (F3.2) descarta ese campo antes de responder.
 export interface AfectacionFicha {
-  carreras?: string[]
+  /** Alumnos GE: prioridad calculada desde la matrícula del CUE. */
   impactoAlumnos?: ImpactoAlumnos
   id: string
   motivo: string
   categoria: Categoria
   severidad: Severidad
-  descripcion: string | null
   justificacionCritica: string | null
   justificacionCriticaDetalle: string | null
+  descripcion: string | null
   rigeDesde: string
   creadaEn: string
   causadaPorId: string | null
   secciones: AfectacionAlcanceSeccion[]
-  totales: { secciones: number; alumnos: number }
+  // Sólo institutos superiores: carreras y alumnos resueltos por corte guardado.
+  carreras?: CarreraAfectadaFicha[]
+  totales: { secciones: number; alumnos: number; carreras?: number }
+}
+
+// Carrera de una afectación de instituto: alumnos del corte con que se guardó
+// (ids de matricula_alumno). `completa` = la carrera cuenta toda su matrícula.
+export interface CarreraAfectadaFicha {
+  id: number
+  nombre: string
+  completa: boolean
+  alumnos: number[]
 }
 
 export interface FichaParte {
@@ -359,6 +391,8 @@ export interface FichaParte {
   servicio: { estadoGeneral: EstadoServicioGeneral; alcanceVigente: ServicioAlcance[] }
   afectaciones: AfectacionFicha[]
   secciones: SeccionEstablecimiento[]
+  // Sólo institutos superiores: carreras del corte vigente con su total de alumnos.
+  carreras?: CarreraMatricula[]
   ultimaActualizacion: string | null
 }
 
@@ -369,12 +403,85 @@ export interface FichaParte {
 // resuelve nombres de alumnos: sólo el flujo del director, autenticado por
 // cookie y sujeto al gate nominal auditado, puede mostrarlos (F3.3); el mapa
 // se abre con el acceso de lectura amplio del hub y sólo debe ver conteos.
-export async function armarFichaParte(cueAnexo: string, corteId: number): Promise<FichaParte | null> {
+// Ficha de un instituto superior: afectaciones por carrera y alumno (cada fila
+// con su corte guardado) y estado general calculado sobre sus carreras vigentes.
+async function armarFichaInstituto(
+  actual: ParteActual,
+  snapshot: ParteSnapshot,
+  alcance: { listarCarreras(): Promise<CarreraMatricula[]>; corteId: number },
+  client: EjecutorSql,
+): Promise<Pick<FichaParte, 'carreras' | 'servicio'> & { afectaciones: AfectacionFicha[] }> {
+  const carreras = await alcance.listarCarreras()
+  const scopes = await leerScopeInstituto(getDb(), snapshot.afectaciones.map((a) => a.id))
+  const efectivos = await efectivosPorAfectacion(client, scopes, alcance.corteId)
+  const nombres = await nombresDeCarreras(getDb(), [...new Set([...scopes.values()].flatMap((s) => s.carreras))])
+  const estadoGeneral = estadoGeneralDelCue(
+    snapshot.servicioAlcance,
+    actual.secciones,
+    carreras.map((c) => c.id),
+  )
+
+  const afectaciones = snapshot.afectaciones.map((afectacion): AfectacionFicha => {
+    const efectivo = efectivos.get(afectacion.id) ?? new Map<number, Set<number>>()
+    const seleccionados = new Set(scopes.get(afectacion.id)?.alumnos ?? SCOPE_VACIO.alumnos)
+    const carrerasFicha: CarreraAfectadaFicha[] = [...efectivo].map(([carreraId, alumnos]) => ({
+      id: carreraId,
+      nombre: nombres.get(carreraId) ?? String(carreraId),
+      // Completa = ningún alumno elegido cae dentro de la carrera (sin filtro).
+      completa: ![...alumnos].some((id) => seleccionados.has(id)),
+      alumnos: [...alumnos],
+    }))
+    const resumen = resumenEfectivoInstituto(efectivo)
+    return {
+      id: afectacion.id,
+      motivo: afectacion.motivo,
+      categoria: afectacion.categoria,
+      severidad: afectacion.severidad,
+      justificacionCritica: afectacion.justificacionCritica ?? null,
+      justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle ?? null,
+      descripcion: afectacion.descripcion,
+      rigeDesde: afectacion.rigeDesde,
+      creadaEn: afectacion.creadaEn,
+      causadaPorId: afectacion.causadaPorId ?? null,
+      secciones: [],
+      carreras: carrerasFicha,
+      totales: { secciones: 0, carreras: resumen.carreras, alumnos: resumen.alumnos },
+    }
+  })
+
+  return {
+    carreras,
+    servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
+    afectaciones,
+  }
+}
+
+// `alcance` es opcional: quien ya resolvió el adaptador del CUE en esta request
+// (la ruta GET) lo pasa para no resolverlo dos veces.
+export async function armarFichaParte(
+  cueAnexo: string,
+  corteId: number,
+  alcance?: AlcanceCue,
+): Promise<FichaParte | null> {
   const actual = await obtenerParteActual(cueAnexo, corteId)
   if (!actual) return null
 
   const snapshot = snapshotDesde(actual)
-  const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, actual.secciones, carrerasDelCue(cueAnexo))
+  const client = crearEjecutorSql(getRawClient())
+  const alcanceCue = alcance ?? (await alcanceParaCue(client, corteId, cueAnexo))
+  if (alcanceCue.sistema === 'matricula') {
+    const instituto = await armarFichaInstituto(actual, snapshot, alcanceCue, client)
+    return {
+      periodo: actual.periodo,
+      parte: fichaParteResumen(actual, snapshot),
+      servicio: instituto.servicio,
+      afectaciones: instituto.afectaciones,
+      secciones: actual.secciones,
+      carreras: instituto.carreras,
+      ultimaActualizacion: actual.parte?.actualizadaEn ?? null,
+    }
+  }
+  const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, actual.secciones)
 
   const afectaciones: AfectacionFicha[] = snapshot.afectaciones.map((afectacion) => {
     const alumnosUnicos = new Set<number>()
@@ -386,44 +493,39 @@ export async function armarFichaParte(cueAnexo: string, corteId: number): Promis
       motivo: afectacion.motivo,
       categoria: afectacion.categoria,
       severidad: afectacion.severidad,
-      ...(afectacion.justificacionCritica
-        ? {
-            justificacionCritica: afectacion.justificacionCritica,
-            ...(afectacion.justificacionCritica === 'otro' && afectacion.justificacionCriticaDetalle
-              ? { justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle }
-              : {}),
-          }
-        : {}),
       impactoAlumnos: afectacion.impactoAlumnos,
-      descripcion: afectacion.descripcion,
       justificacionCritica: afectacion.justificacionCritica ?? null,
       justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle ?? null,
+      descripcion: afectacion.descripcion,
       rigeDesde: afectacion.rigeDesde,
       creadaEn: afectacion.creadaEn,
       causadaPorId: afectacion.causadaPorId ?? null,
       secciones: afectacion.secciones,
-      ...(afectacion.carreras ? { carreras: afectacion.carreras } : {}),
       totales: { secciones: afectacion.secciones.length, alumnos: alumnosUnicos.size },
     }
   })
 
   return {
     periodo: actual.periodo,
-    parte: actual.parte
-      ? {
-          id: actual.parte.id,
-          cueAnexo: actual.parte.cueAnexo,
-          estadoEstablecimiento: snapshot.estadoEstablecimiento,
-          estadoEstablecimientoRigeDesde: actual.parte.estadoEstablecimientoRigeDesde,
-          actualizadaEn: actual.parte.actualizadaEn,
-          asistenciaPedagogica: actual.parte.asistenciaPedagogica,
-        }
-      : null,
+    parte: fichaParteResumen(actual, snapshot),
     servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
     afectaciones,
     secciones: actual.secciones,
     ultimaActualizacion: actual.parte?.actualizadaEn ?? null,
   }
+}
+
+function fichaParteResumen(actual: ParteActual, snapshot: ParteSnapshot): FichaParte['parte'] {
+  return actual.parte
+    ? {
+        id: actual.parte.id,
+        cueAnexo: actual.parte.cueAnexo,
+        estadoEstablecimiento: snapshot.estadoEstablecimiento,
+        estadoEstablecimientoRigeDesde: actual.parte.estadoEstablecimientoRigeDesde,
+        actualizadaEn: actual.parte.actualizadaEn,
+        asistenciaPedagogica: actual.parte.asistenciaPedagogica,
+      }
+    : null
 }
 
 export interface MovimientoDescrito {

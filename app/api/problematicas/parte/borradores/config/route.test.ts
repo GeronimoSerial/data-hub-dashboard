@@ -19,7 +19,7 @@ afterEach(() => {
 describe('GET /api/problematicas/parte/borradores/config', () => {
   it('exposes only safe boolean flags and defaults them off', async () => {
     for (const name of FLAGS) delete process.env[name]
-    const response = await GET()
+    const response = await GET(new Request('http://localhost/api/problematicas/parte/borradores/config'))
     expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(await response.json()).toEqual({ borradoresSync: false, fotos: false, mapaBorradores: false })
   })
@@ -28,7 +28,7 @@ describe('GET /api/problematicas/parte/borradores/config', () => {
     process.env.REPORTES_OFFLINE_BORRADORES_SYNC = 'true'
     process.env.REPORTES_OFFLINE_FOTOS = 'false'
     process.env.REPORTES_OFFLINE_MAPA_BORRADORES = 'true'
-    const response = await GET()
+    const response = await GET(new Request('http://localhost/api/problematicas/parte/borradores/config'))
     expect(await response.json()).toEqual({ borradoresSync: true, fotos: false, mapaBorradores: true })
   })
 })

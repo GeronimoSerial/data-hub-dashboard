@@ -38,3 +38,6 @@ Motor v0.4/
 # Copias locales de PDF y renders de control de materiales.
 output/pdf/
 tmp/pdfs/
+
+# CSV de filas excluidas de la importación de matrícula (contiene nombres en claro).
+*.excluidas-*.csv

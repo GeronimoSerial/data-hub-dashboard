@@ -8,6 +8,7 @@ import { sinTokenHash } from '@/lib/infraestructura/verificacion-route'
 import {
   cancelarVerificacion,
 } from '@/lib/infraestructura/verificaciones'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,7 +37,7 @@ function mensajeMotivo(motivo: string): string {
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 
-export async function POST(
+async function handlePOST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
@@ -75,3 +76,5 @@ export async function POST(
 
   return jsonNoStore({ ok: true, verificacion: sinTokenHash(resultado.verificacion) })
 }
+
+export const POST = ruta('infraestructura.verificaciones.id.cancelar.post', handlePOST)

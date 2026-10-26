@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { NuevoParteContenido } from '@/components/infraestructura/nuevo-parte-contenido'
-import { bloqueoDeAcceso, cargarContextoParte, ErrorContexto } from '../compartido'
+import { bloqueoDeAcceso, cargarCarrerasDelCue, cargarContextoParte, ErrorContexto } from '../compartido'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
 import { obtenerParteActual } from '@/lib/infraestructura/parte-consulta'
 import { redirect } from 'next/navigation'
@@ -16,6 +16,8 @@ export const metadata: Metadata = {
 }
 
 const TITULO = 'Cargar una situación'
+// Nivel Superior con matrícula que no se pudo leer: no se cae al padrón GE.
+const MENSAJE_ERROR_CARRERAS = 'No pudimos cargar las carreras de este instituto. Intente nuevamente más tarde.'
 
 /**
  * Pantalla para cargar una situación (spec §7): primer paso del parte, donde el
@@ -61,10 +63,21 @@ export default async function NuevoPartePage({
   if (destino !== 'nuevo') redirect(enlaceDestino(destino, escuela.cueAnexo))
 
   const motivos = await listarMotivos()
+  // Institutos superiores informan por carreras: se pasan en lugar de secciones.
+  const carga = await cargarCarrerasDelCue(escuela.cueAnexo)
+  if (carga.tipo === 'error') {
+    return (
+      <div className="publico-content">
+        <EncabezadoParte pantalla={TITULO} />
+        <p className="estado-actual-aviso__texto" role="alert">{MENSAJE_ERROR_CARRERAS}</p>
+      </div>
+    )
+  }
+  const carreras = carga.tipo === 'instituto' ? carga.carreras : undefined
 
   return (
     <div className="publico-content publico-content--parte">
-      <NuevoParteContenido cue={escuela.cueAnexo} escuela={escuela} turnos={turnos} motivos={motivos} />
+      <NuevoParteContenido cue={escuela.cueAnexo} escuela={escuela} turnos={turnos} motivos={motivos} carreras={carreras} />
     </div>
   )
 }

@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { RecorridoActualizacion } from './recorrido-actualizacion'
 import { abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { vaciarEscriturasBorrador } from '@/lib/infraestructura/parte/borrador-formulario'
 import { crearColaTrabajosEnvio } from '@/lib/infraestructura/parte/cola-trabajos-envio'
-import catalogoSuperior from '@/data/carreras-superior-2026.json'
 
 const syncMocks = vi.hoisted(() => ({ registrar: vi.fn(), pedir: vi.fn(), callback: null as ((clave: string) => void) | null }))
 vi.mock('@/lib/infraestructura/parte/registrar-sync', () => ({
@@ -24,7 +24,6 @@ vi.mock('@/lib/infraestructura/fotos/flujo-formulario', () => ({
 }))
 
 const CUE = '1801605-41'
-const CUE_SUPERIOR = Object.keys(catalogoSuperior)[0]!
 const CLAVE = `parte-actualizar:draft:${CUE}`
 const DRAFT_ID = `parte-actualizacion:${CUE}`
 async function leerBorradorGuardado(draftId = DRAFT_ID) { return (await abrirAlmacenParte()).obtenerBorrador(draftId) }
@@ -80,9 +79,9 @@ async function irAlResumen() {
   fireEvent.click(screen.getByRole('radio', { name: 'No' }))
 }
 // An unmounted recorrido may still have a draft save in flight; its `.then` mirrors the draft into
-// localStorage. Queue a read on the same store so that save (and its mirror) settles before the
+// localStorage. Flush the draft write queue so that save (and its mirror) settles before the
 // storage reset, otherwise the stale draft leaks into the next test as a "parte sin enviar".
-async function esperarGuardadosPendientes() { await leerBorradorGuardado() }
+async function esperarGuardadosPendientes() { await vaciarEscriturasBorrador() }
 afterEach(async () => { cleanup(); await esperarGuardadosPendientes(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); globalThis.indexedDB = new IDBFactory(); vi.clearAllMocks() })
 
 function elegirAsistencia(valor: 'Sí' | 'No') {
@@ -190,48 +189,6 @@ describe('RecorridoActualizacion: borrador local', () => {
     stub(); montar()
     expect(await screen.findByRole('alert')).toHaveTextContent('La situación cambió desde que empezó. El borrador anterior se conservó')
     expect(await leerBorradorGuardado()).not.toBeNull()
-  })
-
-  it('retoma un borrador Superior con carrera obsoleta, permite corregirla y conserva el alcance carrera al enviar', async () => {
-    const cue = CUE_SUPERIOR
-    const clave = `parte-actualizar:draft:${cue}`
-    const careers = catalogoSuperior[cue as keyof typeof catalogoSuperior]
-    const carreraVigente = careers[0]
-    const borrador = {
-      generacion: 'g-superior',
-      etapa: 'resumen',
-      recorrido: {
-        respuestas: { a: { tipo: 'sigue' }, b: { tipo: 'sigue' } },
-        nueva: null,
-        clasesEdificio: { servicioEstado: 'suspendido', estadoEstablecimiento: 'habitual', confirmarInterrupcionTotal: false },
-      },
-      asistenciaPedagogica: { brinda: 'no', modalidades: [] },
-      idsSituaciones: ['a', 'b'],
-      servicioCarreras: ['Carrera que ya no existe'],
-    }
-    localStorage.setItem(clave, JSON.stringify(borrador))
-    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
-      if (init?.method === 'POST') return new Response(JSON.stringify({ ok: true, movimientoId: 'm1' }), { status: 201 })
-      return new Response(JSON.stringify(_url.includes('/historial') ? { ok: true, movimientos: [] } : base), { status: 200 })
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    montar(cue)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Carrera que ya no existe')
-    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
-    const selector = screen.getByRole('group', { name: 'Carreras afectadas' })
-    expect(within(selector).getByRole('checkbox', { name: 'Carrera que ya no existe (ya no disponible)' })).toBeChecked()
-    fireEvent.click(within(selector).getByRole('checkbox', { name: 'Carrera que ya no existe (ya no disponible)' }))
-    fireEvent.click(within(selector).getByRole('checkbox', { name: carreraVigente }))
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
-
-    await screen.findByRole('heading', { name: 'Parte actualizado' })
-    const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
-    const payload = JSON.parse(String(post?.[1]?.body))
-    expect(payload.servicioEducativo).toEqual({
-      estado: 'suspendido',
-      alcance: { tipo: 'carrera', carreras: [carreraVigente] },
-    })
   })
 
   it('cancelar el descarte conserva banner y borrador; confirmar lo elimina', async () => {

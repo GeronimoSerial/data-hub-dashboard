@@ -35,9 +35,12 @@ export interface DiffAfectacionAgregada {
   severidad: Severidad
   secciones: number
   alumnos: number
-  carreras?: string[]
+  /** Unidad que cuentan `secciones`: ausente = sección (diffs GE y viejos); 'carrera' en institutos. */
+  unidad?: DiffUnidadAlcance
   /** Cubre completas todas las secciones del establecimiento. Ausente en diffs viejos. */
   todaLaEscuela?: boolean
+  /** Sólo institutos: nombres de las carreras alcanzadas al informar. Ausente en diffs viejos. */
+  carreras?: string[]
   causadaPor?: { afectacionId: string; motivo: string }
 }
 
@@ -59,19 +62,27 @@ export interface DiffSeveridadCambio {
   a: Severidad
 }
 
+export type DiffUnidadAlcance = 'seccion' | 'carrera'
+
 export interface DiffAlcanceCambio {
   afectacionId: string
   motivo: string
+  /** Unidad de seccionesAgregadas/seccionesRetiradas; ausente = sección. */
+  unidad?: DiffUnidadAlcance
   seccionesAgregadas: number
   seccionesRetiradas: number
   alumnosAgregados: number
   alumnosRetirados: number
   /** Después del cambio, cubre completas todas las secciones del establecimiento. */
   todaLaEscuela?: boolean
+  /** Sólo institutos: carreras alcanzadas después del cambio. Ausente en diffs viejos. */
+  carreras?: string[]
+  /** Sólo institutos: alumnos alcanzados después del cambio. Ausente en diffs viejos. */
+  alumnosAlcanzados?: number
 }
 
 export interface DiffCampoCambio {
-  campo: 'motivo' | 'categoria' | 'descripcion' | 'carreras'
+  campo: 'motivo' | 'categoria' | 'descripcion'
   de: string | null
   a: string | null
 }
@@ -217,11 +228,6 @@ function diffAlcanceAfectacion(
 
 function diffDatosAfectacion(antes: Afectacion, despues: Afectacion): DiffDatosCambio | null {
   const campos: DiffCampoCambio[] = []
-  const carrerasAntes = [...(antes.carreras ?? [])].sort().join('\n')
-  const carrerasDespues = [...(despues.carreras ?? [])].sort().join('\n')
-  if (carrerasAntes !== carrerasDespues) {
-    campos.push({ campo: 'carreras', de: carrerasAntes || null, a: carrerasDespues || null })
-  }
   if (antes.motivo !== despues.motivo) {
     campos.push({ campo: 'motivo', de: antes.motivo, a: despues.motivo })
   }
@@ -272,7 +278,6 @@ function diffAfectaciones(antes: Afectacion[], despues: Afectacion[], seccionesE
         severidad: afectacion.severidad,
         secciones,
         alumnos,
-        ...(afectacion.carreras?.length ? { carreras: [...afectacion.carreras] } : {}),
         ...(cubreTodaLaEscuela(afectacion, seccionesEstablecimiento) ? { todaLaEscuela: true } : {}),
       })
       continue

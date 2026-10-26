@@ -26,6 +26,7 @@ import {
   type NivelPeligro,
   type NivelPeligroCelda,
 } from '@/lib/infraestructura/riesgo/peligro/nivel'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -160,7 +161,7 @@ function construirDepartamentos(
   return departamentos
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const inicio = performance.now()
   let anterior = inicio
   const tiempos: string[] = []
@@ -399,3 +400,5 @@ export async function GET(request: Request) {
   respuesta.headers.set('X-Radar-Cache', peligroCacheado.cacheHit ? 'hit' : 'miss')
   return respuesta
 }
+
+export const GET = ruta('infraestructura.radar.get', handleGET)

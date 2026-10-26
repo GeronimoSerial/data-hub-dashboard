@@ -52,8 +52,46 @@ describe('describirMovimiento', () => {
     const diff = diffParte(crearSnapshotVacio(), { ...crearSnapshotVacio(), asistenciaPedagogica: { brinda: true, modalidades: ['Asistencia virtual', 'Cuadernillos impresos'] } })
     expect(describirMovimiento(diff)).toContain('Se brinda asistencia pedagógica: Asistencia virtual y Cuadernillos impresos')
   })
+  it('institutos con nombres: lista las carreras alcanzadas', () => {
+    const diff: DiffParte = {
+      ...normalizarDiff({}),
+      afectacionesAgregadas: [{ afectacionId: 'a1', motivo: 'Acceso interrumpido', categoria: 'alumnos', severidad: 'Baja', secciones: 2, alumnos: 2, unidad: 'carrera', carreras: ['A', 'B'] }],
+      alcancesCambiados: [{ afectacionId: 'a2', motivo: 'Inundación', unidad: 'carrera', seccionesAgregadas: 1, seccionesRetiradas: 0, alumnosAgregados: 0, alumnosRetirados: 0, carreras: ['A', 'B'], alumnosAlcanzados: 5 }],
+    }
+    const lineas = describirMovimiento(diff)
+    expect(lineas).toContain('Alcanza a 2 carreras: A, B (2 alumnos)')
+    expect(lineas).toContain('Alcanza a 2 carreras: A, B (5 alumnos)')
+  })
+
+  it('movimientos viejos sin nombres de carrera mantienen la redacción anterior', () => {
+    const diff: DiffParte = {
+      ...normalizarDiff({}),
+      afectacionesAgregadas: [{ afectacionId: 'a1', motivo: 'Acceso interrumpido', categoria: 'alumnos', severidad: 'Baja', secciones: 2, alumnos: 2, unidad: 'carrera' }],
+    }
+    expect(describirMovimiento(diff)).toContain('Alcanza a 2 carreras (2 alumnos)')
+  })
+
   it('diff vacío no produce líneas', () => {
     expect(describirMovimiento(diffVacio)).toEqual([])
+  })
+
+  it('institutos: cuenta carreras (no secciones) y nombra la carrera del servicio', () => {
+    const diff: DiffParte = {
+      ...normalizarDiff({}),
+      afectacionesAgregadas: [{ afectacionId: 'a1', motivo: 'Acceso interrumpido', categoria: 'alumnos', severidad: 'Baja', secciones: 2, alumnos: 3, unidad: 'carrera' }],
+      alcancesCambiados: [{ afectacionId: 'a2', motivo: 'Inundación', unidad: 'carrera', seccionesAgregadas: 1, seccionesRetiradas: 0, alumnosAgregados: 0, alumnosRetirados: 0 }],
+      serviciosCambiados: [{ alcance: { tipo: 'carrera', referenciaId: '7', etiqueta: 'Tecnicatura en Sistemas' }, de: null, a: 'suspendido' }],
+    }
+    const texto = describirMovimiento(diff).join(' | ')
+    expect(texto).toContain('Alcanza a 2 carreras (3 alumnos)')
+    expect(texto).toContain('Se amplió el alcance de Inundación: 1 carrera más')
+    expect(texto).toContain('en la carrera Tecnicatura en Sistemas')
+    expect(texto).not.toMatch(/sección/)
+  })
+
+  it('sin unidad declarada, el alcance sigue hablando de secciones (GE)', () => {
+    const diff = { ...normalizarDiff({}), afectacionesAgregadas: [{ afectacionId: 'a1', motivo: 'Inundación', categoria: 'establecimiento' as const, severidad: 'Alta' as const, secciones: 2, alumnos: 0 }] }
+    expect(describirMovimiento(diff)).toContain('Alcanza a 2 secciones')
   })
 
   it('cambio de servicio con transición explícita usa flecha, como el ejemplo de §13/§15', () => {
@@ -65,28 +103,6 @@ describe('describirMovimiento', () => {
     }
     const lineas = describirMovimiento(diff)
     expect(lineas).toContain('Funcionamiento: habitual → interrumpido en 2.º A')
-  })
-
-  it('describe alcance por carrera tanto en servicio como en afectaciones', () => {
-    const diff: DiffParte = {
-      ...diffVacio,
-      afectacionesAgregadas: [{ afectacionId: 'af-1', motivo: 'Inundación', categoria: 'establecimiento', severidad: 'Alta', secciones: 0, alumnos: 0, carreras: ['Carrera A'] }],
-      serviciosCambiados: [{ alcance: { tipo: 'carrera', referenciaId: 'Carrera A' }, de: null, a: 'suspendido' }],
-    }
-    expect(describirMovimiento(diff)).toContain('Carreras afectadas: Carrera A')
-    expect(describirMovimiento(diff)).toContain('Funcionamiento: interrumpido en carrera Carrera A')
-  })
-
-  it('describe cambios de carreras en el alcance guardado', () => {
-    const diff: DiffParte = {
-      ...diffVacio,
-      datosCambiados: [{
-        afectacionId: 'af-1', motivo: 'Inundación',
-        campos: [{ campo: 'carreras', de: 'Carrera A', a: 'Carrera B' }],
-        seccionesConSeleccionCambiada: [],
-      }],
-    }
-    expect(describirMovimiento(diff)).toContain('Carreras afectadas de "Inundación" actualizadas: Carrera A → Carrera B')
   })
 
   it('cambio de servicio sin estado anterior (primer alcance) no usa flecha', () => {

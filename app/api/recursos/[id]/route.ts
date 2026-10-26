@@ -11,6 +11,7 @@ import {
   rutaStorageKeyConflict,
 } from '@/lib/recurso-write'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,7 @@ async function existingStorageKey(id: string) {
   return row?.storageKey ?? null
 }
 
-export async function PUT(request: Request, ctx: Ctx) {
+async function handlePUT(request: Request, ctx: Ctx) {
   await ensureSeeded()
   const denied = staffGuard(await getSessionUser())
   if (denied) {
@@ -79,7 +80,7 @@ export async function PUT(request: Request, ctx: Ctx) {
   return Response.json({ ok: true, id })
 }
 
-export async function DELETE(_request: Request, ctx: Ctx) {
+async function handleDELETE(_request: Request, ctx: Ctx) {
   await ensureSeeded()
   const denied = staffGuard(await getSessionUser())
   if (denied) {
@@ -95,3 +96,6 @@ export async function DELETE(_request: Request, ctx: Ctx) {
   await unlinkStoredFile(previousKey)
   return Response.json({ ok: true, id })
 }
+
+export const PUT = ruta('recursos.id.put', handlePUT)
+export const DELETE = ruta('recursos.id.delete', handleDELETE)

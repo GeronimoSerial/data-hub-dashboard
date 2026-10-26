@@ -9,7 +9,7 @@ import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-ac
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
-import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { detalleNivelOInstituto, ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
@@ -140,7 +140,7 @@ export function VistaPreviaEscuela({
           <p className={styles.meta}>
             CUE {escuela.cueAnexo}
             {ubicacionTexto ? ` · ${ubicacionTexto}` : ''}
-            {escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''}
+            {detalleNivelOInstituto(escuela) ? ` · ${detalleNivelOInstituto(escuela)}` : ''}
           </p>
         </div>
         <button

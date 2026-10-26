@@ -7,6 +7,7 @@ import {
   obtenerExposicionRuta,
 } from '@/lib/infraestructura/exposicion-ruta'
 import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,8 +17,8 @@ const cueAnexoSchema = z.string().min(1).max(50)
 
 // GET de sólo lectura: indicador histórico/estático de inundación a lo largo
 // de la ruta escolar. No es pronóstico ni estado del camino.
-export async function GET(request: Request, ctx: Ctx) {
-  const acceso = await verificarAccesoLectura()
+async function handleGET(request: Request, ctx: Ctx) {
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()
@@ -30,3 +31,5 @@ export async function GET(request: Request, ctx: Ctx) {
     headers: { 'Cache-Control': 'private, no-cache' },
   })
 }
+
+export const GET = ruta('mapas.infraestructura.accesos.cueAnexo.exposicion-inundacion.get', handleGET)

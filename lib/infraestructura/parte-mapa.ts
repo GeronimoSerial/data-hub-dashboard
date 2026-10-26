@@ -1,6 +1,5 @@
-import { proyectarImpactoAlumnos, prioridadEfectiva } from './prioridad-alumnos'
-import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
+import { proyectarImpactoAlumnos, prioridadEfectiva, type ImpactoAlumnos } from './prioridad-alumnos'
 // Proyección de los partes vigentes para el mapa de infraestructura (Fase 1
 // de odd/tasks/mapa-parte-operativo.md). Es la proyección, sobre el modelo de
 // parte/trayectoria (infra_parte / infra_afectacion / infra_servicio_alcance),
@@ -15,12 +14,20 @@ import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // afectación (secciones/alumnos) por IN. Todo lo demás (vigencia, alcance,
 // estado general de servicio, dedupe de alumnos) se resuelve en memoria con
 // las funciones puras que ya existen — nunca una consulta por parte.
-import { getRawClient } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from './ge-db'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import { listarSeccionesDeCues } from './secciones-cue'
-import { calcularEstadoServicioGeneral } from './servicio-educativo'
+import { cuesDeInstitutoVigentes, totalesMatriculaInstitutos } from './alcance'
+import { membresiaMatricula } from './alcance/matricula'
+import {
+  carrerasVigentesPorCue,
+  efectivosPorAfectacion,
+  leerScopeInstituto,
+  type EfectivoInstituto,
+} from './parte/instituto-alcance'
+import { estadoGeneralDelCue } from './parte/instituto-estado'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import { esCategoria, type CategoriaAfectacion } from './categorias'
 import { normalizarNombreDepartamento } from '@/lib/mapas/departamentos'
@@ -85,6 +92,8 @@ export interface ParteMapa {
   categorias: CategoriaAfectacion[]
   afectaciones: AfectacionMapa[]
   seccionesAlcanzadas: number
+  // Sólo institutos superiores: carreras alcanzadas (matrícula, corte guardado).
+  carrerasAlcanzadas?: number
   alumnosDelHecho: number
   alumnosAlcanzados: number
   // El rigeDesde vigente MÁS ANTIGUO entre las afectaciones que quedaron
@@ -383,6 +392,19 @@ function coincideFiltrosAfectacion(afectacion: Afectacion, filtros: FiltrosMapa)
   return true
 }
 
+// Carreras y alumnos efectivos de afectaciones de institutos, cada una contra
+// el corte con que se guardó. Dos consultas (alcance y membresía por corte),
+// nunca una por afectación. Vacío sin corte de matrícula.
+export async function efectivosDeAfectacionesInstituto(
+  client: EjecutorSql,
+  afectaciones: Afectacion[],
+  corteMatricula: number | null,
+): Promise<Map<string, EfectivoInstituto>> {
+  if (corteMatricula === null || afectaciones.length === 0) return new Map()
+  const scopes = await leerScopeInstituto(getDb(), afectaciones.map((a) => a.id))
+  return efectivosPorAfectacion(client, scopes, corteMatricula)
+}
+
 export async function listarPartesVigentes(
   filtros: FiltrosMapa = {},
 ): Promise<{ partes: ParteMapa[]; indicadores: IndicadoresMapa }> {
@@ -412,6 +434,21 @@ export async function listarPartesVigentes(
   ])
   const todasLasSeccionesDelPadron = [...new Set([...seccionesPorCue.values()].flat().map((s) => s.geSectionId))]
   const padronCompleto = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: todasLasSeccionesDelPadron })
+
+  // Institutos superiores: un lote para todos los CUEs (nivel + corte de
+  // matrícula, carreras vigentes, alcance por afectación con su corte guardado
+  // y membresía por corte). Número constante de consultas, nunca por CUE.
+  const { cues: cuesInstituto, corteId: corteMatricula } = await cuesDeInstitutoVigentes(client, cueAnexos)
+  const cuePorParte = new Map(parteRows.map((p) => [p.id, p.cueAnexo]))
+  const carrerasPorCue = cuesInstituto.size > 0
+    ? await carrerasVigentesPorCue(client, [...cuesInstituto])
+    : new Map<string, number[]>()
+  const afectacionesInstituto = afectacionesRows.filter((a) => cuesInstituto.has(cuePorParte.get(a.parteId) ?? ''))
+  const efectivosPorAfectacionInstituto = await efectivosDeAfectacionesInstituto(client, afectacionesInstituto, corteMatricula)
+  const todasLasCarrerasInstituto = [...new Set([...carrerasPorCue.values()].flat())]
+  const membresiaCarrerasInstituto = corteMatricula !== null && todasLasCarrerasInstituto.length > 0
+    ? await membresiaMatricula(client, corteMatricula, todasLasCarrerasInstituto)
+    : new Map<number, Set<number>>()
 
   // Vigencia de afectaciones: sin `clave` de agrupación porque cada
   // afectación es su propia fila independiente (spec §3.2) — a diferencia
@@ -445,15 +482,21 @@ export async function listarPartesVigentes(
     // mapa (nada que mostrar, aunque el parte exista).
     if (vigentes.length === 0) continue
 
+    const esInstituto = cuesInstituto.has(parteRow.cueAnexo)
     const secciones = seccionesPorCue.get(parteRow.cueAnexo) ?? []
-    const matriculados = new Set(secciones.flatMap((s) => [...(padronCompleto.get(s.geSectionId) ?? [])]))
-    const calculadas = vigentes.map((a) => proyectarImpactoAlumnos(a, matriculados, corte?.id ?? null))
+    // Prioridad de alumnos (GE): matriculados de todo el CUE. Institutos: gravedad manual.
+    const matriculadosGe = new Set(secciones.flatMap((s) => [...(padronCompleto.get(s.geSectionId) ?? [])]))
+    const calculadas = esInstituto
+      ? vigentes
+      : vigentes.map((a) => proyectarImpactoAlumnos(a, matriculadosGe, corte?.id ?? null))
     const filtradas = calculadas.filter((a) => coincideFiltrosAfectacion(a, filtros))
     // Un parte cuyas afectaciones vigentes no matchean el filtro tampoco
     // aparece: el filtro no oculta afectaciones dentro de una escuela que sí
     // se muestra, oculta la escuela entera si no le queda ninguna.
     if (filtradas.length === 0) continue
 
+    // Carreras vigentes del CUE (sólo existen en institutos; en GE queda []). Mismo criterio que evolucion.
+    const carrerasDelCue = carrerasPorCue.get(parteRow.cueAnexo) ?? []
     // El estado del edificio puede quedar viejo al solucionar una situación de establecimiento: sólo se
     // proyecta si existe alguna abierta. El servicio se deriva igual que en la ficha (parte-consulta),
     // sin importar la categoría de las situaciones abiertas.
@@ -464,23 +507,25 @@ export async function listarPartesVigentes(
     const servicioVigente = resolverAlcanceVigente(servicioPorParte.get(parteRow.id) ?? [], {
       clave: claveServicioAlcance,
     })
-    const servicioGeneral = calcularEstadoServicioGeneral(servicioVigente, secciones)
+    const servicioGeneral = estadoGeneralDelCue(servicioVigente, secciones, carrerasDelCue)
     if (filtros.servicio !== undefined && servicioGeneral !== filtros.servicio) continue
 
-    const alumnosAlcanzados = new Set<number>()
+    const alumnosAlcanzados = new Set<string>()
     const seccionesAlcanzadas = new Set<number>()
+    const carrerasAlcanzadas = new Set<number>()
     const categorias = new Set<CategoriaAfectacion>()
-    let peorSeveridad = prioridadEfectiva(filtradas[0]) ?? ''
-    let peorIndice = SEVERIDADES.indexOf(peorSeveridad as Severidad)
+    let peorSeveridad: Severidad = prioridadEfectiva(filtradas[0]) ?? filtradas[0].severidad
+    let peorIndice = SEVERIDADES.indexOf(peorSeveridad)
     let rigeDesdeMasAntiguo = filtradas[0].rigeDesde
 
     for (const afectacion of filtradas) {
       categorias.add(afectacion.categoria)
 
-      const indice = SEVERIDADES.indexOf(prioridadEfectiva(afectacion) as Severidad)
+      const severidadAfectacion = prioridadEfectiva(afectacion) ?? afectacion.severidad
+      const indice = SEVERIDADES.indexOf(severidadAfectacion)
       if (indice > peorIndice) {
         peorIndice = indice
-        peorSeveridad = afectacion.severidad
+        peorSeveridad = severidadAfectacion
       }
 
       if (new Date(afectacion.rigeDesde).getTime() < new Date(rigeDesdeMasAntiguo).getTime()) {
@@ -491,13 +536,29 @@ export async function listarPartesVigentes(
         seccionesAlcanzadas.add(seccion.geSectionId)
         // Dedupe a nivel PARTE, no a nivel afectación: un alumno alcanzado
         // por dos afectaciones distintas del mismo parte cuenta una vez.
-        for (const alumnoId of seccion.alumnos) alumnosAlcanzados.add(alumnoId)
+        for (const alumnoId of seccion.alumnos) alumnosAlcanzados.add(`ge:${alumnoId}`)
+      }
+      // Institutos: carreras y alumnos efectivos de la afectación (corte guardado).
+      // Prefijo de origen: ids de persona GE y de matrícula son espacios distintos.
+      for (const [carreraId, alumnos] of efectivosPorAfectacionInstituto.get(afectacion.id) ?? []) {
+        carrerasAlcanzadas.add(carreraId)
+        for (const alumnoId of alumnos) alumnosAlcanzados.add(`mat:${alumnoId}`)
       }
     }
 
     const alumnosDelHecho = alumnosAlcanzados.size
     let alumnosDelEstablecimiento: number | null = null
-    if (estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados') {
+    if (esInstituto && (estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados')) {
+      // Mismo criterio que GE por turno: si hay carreras suspendidas, el padrón
+      // interrumpido son sus alumnos; si no, toda la matrícula del CUE.
+      const suspendidas = new Set(servicioVigente.filter((s) => s.estado === 'suspendido' && s.tipo === 'carrera').map((s) => Number(s.referenciaId)))
+      const carrerasInterrumpidas = suspendidas.size > 0 ? carrerasDelCue.filter((id) => suspendidas.has(id)) : carrerasDelCue
+      const roster = new Set<number>()
+      for (const carreraId of carrerasInterrumpidas) {
+        for (const alumno of membresiaCarrerasInstituto.get(carreraId) ?? []) roster.add(alumno)
+      }
+      if (carrerasInterrumpidas.length > 0) alumnosDelEstablecimiento = roster.size
+    } else if (estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados') {
       const turnosInterrumpidos = new Set(servicioVigente.filter((s) => s.estado === 'suspendido' && s.tipo === 'turno').map((s) => s.referenciaId))
       const seccionesInterrumpidas = turnosInterrumpidos.size > 0
         ? secciones.filter((s) => turnosInterrumpidos.has(s.turno))
@@ -533,6 +594,7 @@ export async function listarPartesVigentes(
         creadaEn: a.creadaEn,
       })),
       seccionesAlcanzadas: seccionesAlcanzadas.size,
+      ...(esInstituto ? { carrerasAlcanzadas: carrerasAlcanzadas.size } : {}),
       alumnosDelHecho,
       alumnosAlcanzados: alumnosConsecuencia,
       rigeDesde: rigeDesdeMasAntiguo,
@@ -840,6 +902,10 @@ export async function listarEscuelasMapaEnriquecidas(
     }
   }
 
+  // Institutos superiores: niveles y matrícula salen de la matrícula vigente
+  // (sus secciones GE no describen al instituto). GE queda como estaba.
+  const totalesInstitutos = await totalesMatriculaInstitutos(client)
+
   const partes = resultado.escuelas.flatMap((escuela) => escuela.parte ? [escuela.parte] : [])
   const asistenciaPorParte = new Map<string, AsistenciaPedagogica | null>()
   if (partes.length > 0) {
@@ -857,22 +923,30 @@ export async function listarEscuelasMapaEnriquecidas(
     ...resultado,
     escuelas: resultado.escuelas.map((escuela) => {
       const datos = datosPorCue.get(escuela.cueAnexo)
+      const instituto = totalesInstitutos.get(escuela.cueAnexo)
       const asistencia = escuela.parte ? asistenciaPorParte.get(escuela.parte.parteId) ?? null : null
       return {
         ...escuela,
         ...enriquecerEscuela(escuela, {
-          niveles: datos ? [...datos.niveles] : [],
-          alumnos: datos?.alumnos ?? 0,
+          niveles: instituto ? [] : datos ? [...datos.niveles] : [],
+          alumnos: instituto ? instituto.alumnos : datos?.alumnos ?? 0,
+          carreras: instituto?.carreras,
           asistencia,
           situacionesHistoricas: situacionesPorCue.get(escuela.cueAnexo) ?? 0,
           solucionadasRecientes: solucionadasRecientesPorCue.get(escuela.cueAnexo) ?? 0,
         }, ahoraMs),
+        ...(instituto ? { carreras: instituto.carreras } : {}),
       }
     }),
   }
 }
 
-export type EscuelaFichaEnriquecida = EscuelaMapaPadron & {
+// Sólo institutos superiores: cantidad de carreras vigentes del CUE. Ausente en GE.
+export interface DatosInstitutoMapa {
+  carreras: number
+}
+
+export type EscuelaFichaEnriquecida = EscuelaMapaPadron & Partial<DatosInstitutoMapa> & {
   ubicacionDisponible: boolean
 }
 
@@ -951,6 +1025,8 @@ export async function obtenerEscuelaFichaEnriquecida(
 
   const desde = new Date(ahoraMs - VENTANA_CAUSA_DIAS * 24 * 60 * 60 * 1000).toISOString()
 
+  const instituto = (await totalesMatriculaInstitutos(client, cueAnexo)).get(cueAnexo)
+
   const [situacionesRes, solucionadasRes, datosRes, asistenciaRes] = await Promise.all([
     client.execute({
       sql: `SELECT COUNT(a.id) AS situaciones
@@ -1003,8 +1079,8 @@ export async function obtenerEscuelaFichaEnriquecida(
   const enriquecida = enriquecerEscuela(
     escuelaBase,
     {
-      niveles: [...nivelesSet],
-      alumnos,
+      niveles: instituto ? [] : [...nivelesSet],
+      alumnos: instituto ? instituto.alumnos : alumnos,
       asistencia,
       situacionesHistoricas,
       solucionadasRecientes,
@@ -1018,6 +1094,7 @@ export async function obtenerEscuelaFichaEnriquecida(
       ...escuelaBase,
       ...enriquecida,
       ubicacionDisponible,
+      ...(instituto ? { carreras: instituto.carreras } : {}),
     },
   }
 }

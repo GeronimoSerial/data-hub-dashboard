@@ -160,6 +160,22 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
 })
 
 describe('EstadoActualParte — con situación en seguimiento (spec §6)', () => {
+  it('en un instituto, singulariza "1 alumno" al listar carreras alcanzadas', async () => {
+    const base = CON_SITUACION.afectaciones![0]!
+    vi.stubGlobal('fetch', responderCon({
+      ...CON_SITUACION,
+      afectaciones: [{
+        ...base,
+        secciones: [],
+        totales: { secciones: 0, alumnos: 1, carreras: 1 },
+        carreras: [{ id: 1, nombre: 'Enfermería', completa: false, alumnos: [{ id: 9, nombre: 'Ana', apellido: 'Lopez' }] }],
+      }],
+    }))
+    render(<EstadoActualParte cue={CUE} />)
+    await screen.findByText('Inundación del establecimiento')
+    expect(screen.getByText(/Enfermería \(1 alumno\)/)).toBeInTheDocument()
+  })
+
   it('renders both afectaciones with their own severity and scope', async () => {
     render(<EstadoActualParte cue={CUE} />)
 

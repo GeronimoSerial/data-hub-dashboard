@@ -3,7 +3,7 @@ import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { NextResponse } from 'next/server'
-import { puedeAbrir } from '@/lib/acl'
+import { puedeAbrir, puedeVerEnSeccion } from '@/lib/acl'
 import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
@@ -14,6 +14,10 @@ import {
   publicOrigin,
 } from '@/lib/gate-static'
 import { getSessionUser } from '@/lib/session'
+import { ruta } from '@/lib/http/ruta'
+import { getDb } from '@/lib/db'
+import { recursos } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,7 +39,7 @@ async function resolveReadableFile(abs: string): Promise<string | null> {
   return null
 }
 
-export async function GET(request: Request, ctx: Ctx) {
+async function handleGET(request: Request, ctx: Ctx) {
   await ensureSeeded()
   const { path: segments } = await ctx.params
   const requestPath = `/${segments.join('/')}`
@@ -53,7 +57,14 @@ export async function GET(request: Request, ctx: Ctx) {
   if (!found) {
     return new NextResponse(null, { status: 404 })
   }
-  if (!puedeAbrir(user, found.access)) {
+  const [resource] = await getDb().select({ formato: recursos.formato, ruta: recursos.ruta })
+    .from(recursos).where(eq(recursos.id, found.id)).limit(1)
+  const sectionAllowed = Boolean(resource && puedeVerEnSeccion(user, {
+    ...found.access,
+    formato: resource.formato as 'reporte' | 'tablero' | 'mapa',
+    ruta: resource.ruta,
+  }, user.hubPolicy))
+  if (!puedeAbrir(user, found.access) || !sectionAllowed) {
     return absoluteRedirect(request, '/forbidden')
   }
 
@@ -72,3 +83,5 @@ export async function GET(request: Request, ctx: Ctx) {
     },
   })
 }
+
+export const GET = ruta('gate.path.get', handleGET)

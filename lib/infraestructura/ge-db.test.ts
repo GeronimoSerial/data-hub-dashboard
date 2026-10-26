@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { EjecutorSqlRaw } from './ge-db'
 import { getRawClient } from '../db'
 import { activarCorte, attachGe, crearEjecutorSql, ensureGeSchema, getCorteVigente } from './ge-db'
 
@@ -208,3 +209,73 @@ describe('activarCorte', () => {
     expect(res.rows[0].estado).toBe('vigente')
   })
 })
+
+// Pool falso con la forma de pg.Pool: registra qué sentencias salen por el
+// pool suelto y cuáles por la conexión reservada con connect().
+function poolFalso(respuestas: { estado: string; seccionesSinLoc?: number }) {
+  const porPool: string[] = []
+  const porConexion: string[] = []
+  let liberaciones = 0
+  const responder = (sql: string) => {
+    if (sql.includes('FOR UPDATE')) return { rows: [{ id: 1, estado: respuestas.estado }] }
+    if (sql.includes('ge_localizacion')) return { rows: [{ n: respuestas.seccionesSinLoc ?? 0 }] }
+    if (sql.includes('COUNT(*)')) return { rows: [{ n: 0 }] }
+    return { rows: [] }
+  }
+  const pool = {
+    async query(sql: string) {
+      porPool.push(sql)
+      return responder(sql)
+    },
+    async connect() {
+      return {
+        async query(sql: string) {
+          porConexion.push(sql.trim().split(/\s+/).slice(0, 2).join(' '))
+          return responder(sql)
+        },
+        release() {
+          liberaciones++
+        },
+      }
+    },
+  }
+  return { pool: pool as unknown as EjecutorSqlRaw, porPool, porConexion, liberaciones: () => liberaciones }
+}
+
+describe('activarCorte sobre pg.Pool (conexión dedicada)', () => {
+  it('corre BEGIN, lock, validaciones, updates y COMMIT en la misma conexión reservada y la libera', async () => {
+    const f = poolFalso({ estado: 'importando' })
+    await activarCorte(crearEjecutorSql(f.pool), 1)
+    expect(f.porPool).toEqual([])
+    expect(f.porConexion[0]).toBe('BEGIN')
+    expect(f.porConexion[1]).toBe('LOCK TABLE')
+    expect(f.porConexion.filter((s) => s === 'UPDATE ge.ge_corte')).toHaveLength(2)
+    expect(f.porConexion.at(-1)).toBe('COMMIT')
+    expect(f.liberaciones()).toBe(1)
+  })
+
+  it('ante un invariante roto hace ROLLBACK, no actualiza nada y libera la conexión', async () => {
+    const f = poolFalso({ estado: 'importando', seccionesSinLoc: 3 })
+    await expect(activarCorte(f.pool, 1)).rejects.toThrow('3 secciones')
+    expect(f.porConexion).not.toContain('UPDATE ge.ge_corte')
+    expect(f.porConexion.at(-1)).toBe('ROLLBACK')
+    expect(f.liberaciones()).toBe(1)
+  })
+
+  it('en PGlite deja un único vigente tras activaciones sucesivas', async () => {
+    const client = cliente()
+    await client.execute(
+      "INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801605-04', 'CUI1', 'Escuela 4', 'Entre Rios', 'Parana')",
+    )
+    for (const id of [1, 2, 3]) {
+      await client.execute({
+        sql: "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (?, 2026, '2026-03-01T00:00:00Z', 'importando')",
+        args: [id],
+      })
+      await activarCorte(client, id)
+    }
+    const res = await client.execute('SELECT id, estado FROM ge.ge_corte ORDER BY id')
+    expect(res.rows.map((r) => `${r.id}:${r.estado}`)).toEqual(['1:historico', '2:historico', '3:vigente'])
+  })
+})
+

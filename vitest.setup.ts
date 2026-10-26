@@ -1,4 +1,9 @@
 import '@testing-library/jest-dom/vitest'
+import { beforeEach } from 'vitest'
+import { _reiniciarLimitadoresParaTests } from './lib/http/limitador'
+
+// Rate limiters are module-level state: start every test with empty buckets.
+beforeEach(() => _reiniciarLimitadoresParaTests())
 
 class ResizeObserverStub {
   observe() {}

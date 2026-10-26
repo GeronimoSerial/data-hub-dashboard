@@ -7,6 +7,7 @@ import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/e
 import { estacionParaLocalidad } from '@/lib/infraestructura/hidrometria/tramos-prefectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,7 @@ const localidadSchema = z.string().min(1).max(120)
 // Estado hidrométrico de la estación de referencia de una localidad: sólo
 // tramos aprobados (default de estacionParaLocalidad) y la última lectura
 // publicada por Prefectura.
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
@@ -59,3 +60,5 @@ export async function GET(request: Request) {
       : null,
   })
 }
+
+export const GET = ruta('infraestructura.hidrometria.estado.get', handleGET)

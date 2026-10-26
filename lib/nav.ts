@@ -38,6 +38,11 @@ export function isMapViewerPath(pathname: string) {
   return pathname.startsWith('/mapas/') && pathname !== '/mapas'
 }
 
+/** Admin is a full-width workspace with the compact header, like the map viewer. */
+export function isAdminWorkspacePath(pathname: string) {
+  return pathname === '/admin' || pathname.startsWith('/admin/')
+}
+
 export function isBleedViewerPath(pathname: string) {
   if (isMapViewerPath(pathname)) return true
   if (!pathname.startsWith('/recursos/')) return false

@@ -1,12 +1,5 @@
-import { redirect } from 'next/navigation'
-import { AdminPage } from '@/components/admin-page'
-import { getSessionUser } from '@/lib/session'
-import { adminPageGate } from '@/lib/acl'
+import { AdminIndexRedirect } from '@/components/admin/admin-index-redirect'
 
-export default async function Admin() {
-  const user = await getSessionUser()
-  const gate = adminPageGate(user)
-  if (gate === 'login') redirect('/login?callbackUrl=/admin')
-  if (gate === 'forbidden') redirect('/forbidden')
-  return <AdminPage role={user!.role} />
+export default function Admin() {
+  return <AdminIndexRedirect />
 }

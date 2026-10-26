@@ -7,6 +7,7 @@ import {
   obtenerGeometriaAcceso,
 } from '@/lib/infraestructura/territorio-mapa'
 import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,9 +22,9 @@ const cueAnexoSchema = z.string().min(1).max(50)
 // cálculo de aislamiento de UN cueAnexo. Es contexto derivado de OpenStreetMap,
 // NUNCA un pronóstico. La falta de geometría es falta de cobertura: siempre
 // 200, nunca 404.
-export async function GET(request: Request, ctx: Ctx) {
+async function handleGET(request: Request, ctx: Ctx) {
   // ACL PRIMERO.
-  const acceso = await verificarAccesoLectura()
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()
@@ -41,3 +42,5 @@ export async function GET(request: Request, ctx: Ctx) {
     headers: { 'Cache-Control': 'private, no-cache' },
   })
 }
+
+export const GET = ruta('mapas.infraestructura.accesos.cueAnexo.geometria.get', handleGET)

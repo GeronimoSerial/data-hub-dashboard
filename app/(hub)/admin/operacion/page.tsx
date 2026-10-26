@@ -13,22 +13,8 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { apiKeyDesdeEntorno, obtenerResumenCupo } from '@/lib/infraestructura/riesgo/providers/cupo-om'
 import { obtenerAvanceClimatologia } from '@/lib/infraestructura/riesgo/avance-climatologia'
 import { listarFlagsOperativas } from '@/lib/infraestructura/riesgo/flags'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
-const contenedor: React.CSSProperties = { padding: '2rem', color: 'var(--ink)' }
-const bloque: React.CSSProperties = {
-  border: '1px solid var(--line)',
-  borderRadius: 8,
-  padding: '1rem',
-  marginBottom: '1.5rem',
-  background: 'var(--fill)',
-}
-const tabla: React.CSSProperties = { width: '100%', borderCollapse: 'collapse' }
-const celda: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '0.5rem',
-  borderBottom: '1px solid var(--line)',
-}
-const alerta: React.CSSProperties = { ...celda, color: 'var(--danger)' }
 
 // Fuera del componente a propósito: `react-hooks/purity` marca `Date.now()`
 // llamado directamente en el cuerpo de un componente, aun siendo un Server
@@ -44,6 +30,7 @@ function calcularFrescura(
 }
 
 export default async function OperacionSalud() {
+  await requireServerHubPageAccess('/admin/operacion', 'infrastructure')
   const user = await getSessionUser()
   const gate = adminPageGate(user)
   if (gate === 'login') redirect('/login?callbackUrl=/admin/operacion')
@@ -55,36 +42,40 @@ export default async function OperacionSalud() {
   const fuentes = await getDb().select().from(hazardSourceHealth)
   const datoMasRecienteImerg = await obtenerDatoMasRecienteImerg()
   const cupo = await obtenerResumenCupo({ apiKeyPresente: Boolean(apiKeyDesdeEntorno()) })
-  const avanceClimatologia = await obtenerAvanceClimatologia()
+  // A missing published dataset must not take down the whole health page.
+  const avanceClimatologia = await obtenerAvanceClimatologia().catch(() => null)
   const flagsOperativas = listarFlagsOperativas()
 
   return (
-    <div style={contenedor}>
-      <h1>Operación</h1>
+    <div className="admin-page">
+      <header className="admin-page__header">
+        <h1>Salud</h1>
+        <p className="page-intro">Flags, jobs, fuentes de amenazas y cupos del motor de riesgo.</p>
+      </header>
 
-      <section style={bloque}>
+      <section className="admin-panel">
         <h2>Flags</h2>
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        <ul className="admin-plain-list">
           {flagsOperativas.map(({ nombre, valor }) => <li key={nombre}>{nombre}: {valor}</li>)}
         </ul>
       </section>
 
-      <section style={bloque}>
+      <section className="admin-panel">
         <h2>Jobs</h2>
         {estado.jobs.length === 0 ? (
           <p>Sin ejecuciones registradas todavía</p>
         ) : (
-          <table style={tabla}>
+          <div className="ui-table-wrap"><table className="ui-table">
             <thead>
               <tr>
-                <th style={celda}>tipo</th>
-                <th style={celda}>estado</th>
-                <th style={celda}>intento</th>
-                <th style={celda}>actualizadaEn</th>
-                <th style={celda}>errorSaneado</th>
-                <th style={celda}>última corrida</th>
-                <th style={celda}>próxima esperada</th>
-                <th style={celda}>atrasado</th>
+                <th>tipo</th>
+                <th>estado</th>
+                <th>intento</th>
+                <th>actualizadaEn</th>
+                <th>errorSaneado</th>
+                <th>última corrida</th>
+                <th>próxima esperada</th>
+                <th>atrasado</th>
               </tr>
             </thead>
             <tbody>
@@ -107,91 +98,91 @@ export default async function OperacionSalud() {
                   : null
                 const resaltado =
                   !desactivadoPorConfig && (job.leaseVencido || job.estado === 'fallido' || atrasado)
-                const estilo = resaltado ? alerta : celda
+                const estilo = resaltado ? 'is-danger' : undefined
                 return (
                   <tr key={job.tipo}>
-                    <td style={estilo}>{job.tipo}</td>
-                    <td style={estilo}>{job.estado}</td>
-                    <td style={estilo}>{job.intento}</td>
-                    <td style={estilo}>{job.actualizadaEn}</td>
-                    <td style={estilo}>{job.errorSaneado ?? '—'}</td>
-                    <td style={estilo}>{nombreJob ? (job.ultimaCompletadaEn ?? '—') : '—'}</td>
-                    <td style={estilo}>{proxima ? proxima.toISOString() : '—'}</td>
-                    <td style={estilo}>{textoAtraso}</td>
+                    <td className={estilo}>{job.tipo}</td>
+                    <td className={estilo}>{job.estado}</td>
+                    <td className={estilo}>{job.intento}</td>
+                    <td className={estilo}>{job.actualizadaEn}</td>
+                    <td className={estilo}>{job.errorSaneado ?? '—'}</td>
+                    <td className={estilo}>{nombreJob ? (job.ultimaCompletadaEn ?? '—') : '—'}</td>
+                    <td className={estilo}>{proxima ? proxima.toISOString() : '—'}</td>
+                    <td className={estilo}>{textoAtraso}</td>
                   </tr>
                 )
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 
-      <section style={bloque}>
+      <section className="admin-panel">
         <h2>Fuentes de amenazas</h2>
         {fuentes.length === 0 ? (
           <p>Sin proveedores registrados todavía</p>
         ) : (
-          <table style={tabla}>
+          <div className="ui-table-wrap"><table className="ui-table">
             <thead>
               <tr>
-                <th style={celda}>provider</th>
-                <th style={celda}>estado</th>
-                <th style={celda}>ultimoExitoEn</th>
-                <th style={celda}>frescura</th>
-                <th style={celda}>ttlMinutos</th>
-                <th style={celda}>licencia</th>
-                <th style={celda}>aviso</th>
+                <th>provider</th>
+                <th>estado</th>
+                <th>ultimoExitoEn</th>
+                <th>frescura</th>
+                <th>ttlMinutos</th>
+                <th>licencia</th>
+                <th>aviso</th>
               </tr>
             </thead>
             <tbody>
               {fuentes.map((fuente) => {
                 const { frescuraMinutos: frescura, limiteMinutos, vencida, base } = calcularFrescura(fuente, datoMasRecienteImerg)
                 const resaltado = fuente.estado !== 'ok' || vencida
-                const estilo = resaltado ? alerta : celda
+                const estilo = resaltado ? 'is-danger' : undefined
                 return (
                   <tr key={fuente.provider}>
-                    <td style={estilo}>{fuente.provider}</td>
-                    <td style={estilo}>{fuente.estado}</td>
-                    <td style={estilo}>{fuente.ultimoExitoEn ?? '—'}</td>
-                    <td style={estilo}>{frescura === null ? '—' : `${frescura} min`}{base === 'dato' ? ' (edad del dato)' : ''}</td>
-                    <td style={estilo}>{base === 'dato' ? `${limiteMinutos} (dato)` : fuente.ttlMinutos}</td>
-                    <td style={estilo}>{fuente.licencia}</td>
-                    <td style={estilo}>{vencida ? 'vencida' : '—'}</td>
+                    <td className={estilo}>{fuente.provider}</td>
+                    <td className={estilo}>{fuente.estado}</td>
+                    <td className={estilo}>{fuente.ultimoExitoEn ?? '—'}</td>
+                    <td className={estilo}>{frescura === null ? '—' : `${frescura} min`}{base === 'dato' ? ' (edad del dato)' : ''}</td>
+                    <td className={estilo}>{base === 'dato' ? `${limiteMinutos} (dato)` : fuente.ttlMinutos}</td>
+                    <td className={estilo}>{fuente.licencia}</td>
+                    <td className={estilo}>{vencida ? 'vencida' : '—'}</td>
                   </tr>
                 )
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
-        <p style={{ color: 'var(--ink-soft)', fontSize: 'var(--t-micro)' }}>
+        <p className="ui-hint">
           Datos meteorológicos: Open-Meteo.com (CC BY 4.0), ECMWF.
         </p>
       </section>
 
-      <section style={bloque}>
+      <section className="admin-panel">
         <h2>Avance de climatología (cursor resumable de cupo)</h2>
-        <p style={{ marginTop: 0 }}>
+        <p>
           Precipitación: {estado.climatologiaPrecipitacion.celdasUsables}/{estado.climatologiaPrecipitacion.celdasTotal} celdas
           con ≥{estado.climatologiaPrecipitacion.minimoUsable} años · años acumulados{' '}
           {estado.climatologiaPrecipitacion.aniosMin}–{estado.climatologiaPrecipitacion.aniosMax} (mediana{' '}
           {estado.climatologiaPrecipitacion.aniosMediana}) de {estado.climatologiaPrecipitacion.aniosObjetivo}
         </p>
-        <p style={{ color: 'var(--ink-soft)', fontSize: 'var(--t-micro)', marginTop: 0 }}>
+        <p className="ui-hint">
           Las celdas con menos de {estado.climatologiaPrecipitacion.minimoUsable} años siguen usando los umbrales provisorios.
         </p>
-        <p style={{ color: 'var(--ink-soft)', fontSize: 'var(--t-micro)', marginTop: 0 }}>
+        <p className="ui-hint">
           El cálculo completo excede el cupo diario/mensual de Open-Meteo en una
           sola corrida: el timer diario avanza el cursor hasta el tope de cupo
           disponible ese día, sin recomputar lo ya hecho. Ver
           docs/ejecucion-enos/OM-cupo/registro.md.
         </p>
-        <table style={tabla}>
+        {avanceClimatologia ? <div className="ui-table-wrap"><table className="ui-table">
           <thead>
             <tr>
-              <th style={celda}>climatología</th>
-              <th style={celda}>celdas/puntos completos</th>
-              <th style={celda}>total</th>
-              <th style={celda}>%</th>
+              <th>climatología</th>
+              <th>celdas/puntos completos</th>
+              <th>total</th>
+              <th>%</th>
             </tr>
           </thead>
           <tbody>
@@ -205,70 +196,70 @@ export default async function OperacionSalud() {
               const completo = avance.total > 0 && avance.completas >= avance.total
               return (
                 <tr key={etiqueta}>
-                  <td style={celda}>{etiqueta}</td>
-                  <td style={celda}>{avance.completas}</td>
-                  <td style={celda}>{avance.total}</td>
-                  <td style={completo ? celda : alerta}>{porcentaje}%{completo ? ' (completo)' : ''}</td>
+                  <td>{etiqueta}</td>
+                  <td>{avance.completas}</td>
+                  <td>{avance.total}</td>
+                  <td className={completo ? undefined : 'is-danger'}>{porcentaje}%{completo ? ' (completo)' : ''}</td>
                 </tr>
               )
             })}
           </tbody>
-        </table>
+        </table></div> : <p className="ui-hint is-danger">No se pudo calcular el avance: falta publicar algún dataset de referencia.</p>}
       </section>
 
-      <section style={bloque}>
+      <section className="admin-panel">
         <h2>Cupo Open-Meteo</h2>
         {cupo.filas.length === 0 ? (
           <p>Sin uso registrado todavía</p>
         ) : (
-          <table style={tabla}>
+          <div className="ui-table-wrap"><table className="ui-table">
             <thead>
               <tr>
-                <th style={celda}>host</th>
-                <th style={celda}>ventana</th>
-                <th style={celda}>usado</th>
-                <th style={celda}>límite</th>
-                <th style={celda}>%</th>
-                <th style={celda}>estado</th>
+                <th>host</th>
+                <th>ventana</th>
+                <th>usado</th>
+                <th>límite</th>
+                <th>%</th>
+                <th>estado</th>
               </tr>
             </thead>
             <tbody>
               {cupo.filas.map((fila) => {
                 const resaltado = fila.agotado || fila.porcentaje >= 100
-                const estilo = resaltado ? alerta : celda
+                const estilo = resaltado ? 'is-danger' : undefined
                 return (
                   <tr key={`${fila.host}-${fila.ventana}`}>
-                    <td style={estilo}>{fila.host}</td>
-                    <td style={estilo}>{fila.ventana}</td>
-                    <td style={estilo}>{fila.usado.toFixed(1)}</td>
-                    <td style={estilo}>{fila.limite}</td>
-                    <td style={estilo}>{fila.porcentaje}%</td>
-                    <td style={estilo}>{fila.agotado ? 'cupo agotado' : '—'}</td>
+                    <td className={estilo}>{fila.host}</td>
+                    <td className={estilo}>{fila.ventana}</td>
+                    <td className={estilo}>{fila.usado.toFixed(1)}</td>
+                    <td className={estilo}>{fila.limite}</td>
+                    <td className={estilo}>{fila.porcentaje}%</td>
+                    <td className={estilo}>{fila.agotado ? 'cupo agotado' : '—'}</td>
                   </tr>
                 )
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
         {cupo.cooldowns.length > 0 && (
-          <div style={{ marginTop: '1rem' }}>
+          <div>
             <strong>Hosts en cooldown (post-429):</strong>
             <ul>
               {cupo.cooldowns.map((c) => (
-                <li key={c.host} style={{ color: 'var(--danger)' }}>
+                <li key={c.host} className="is-danger">
                   {c.host}: hasta {c.hastaEn} ({c.motivoSaneado})
                 </li>
               ))}
             </ul>
           </div>
         )}
-        <p style={{ color: 'var(--ink-soft)', fontSize: 'var(--t-micro)' }}>
+        <p className="ui-hint">
           Límites del nivel gratuito de Open-Meteo, con margen de seguridad. Ver
           docs/ejecucion-enos/OM-cupo/registro.md.
         </p>
       </section>
 
-      <p style={{ color: 'var(--ink-soft)' }}>Generado en: {estado.generadoEn}</p>
+      <p className="ui-hint">Generado en: {estado.generadoEn}</p>
     </div>
   )
 }

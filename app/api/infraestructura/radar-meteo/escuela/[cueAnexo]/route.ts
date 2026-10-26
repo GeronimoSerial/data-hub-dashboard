@@ -6,10 +6,11 @@ import { riskRadarEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { alertasAndEnsemble } from '@/lib/infraestructura/radar-meteo/ensemble'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export async function GET(request: Request, context: { params: Promise<{ cueAnexo: string }> }) {
+async function handleGET(request: Request, context: { params: Promise<{ cueAnexo: string }> }) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
   if (!riskRadarEnabled()) return Response.json({ error: 'Radar no habilitado' }, { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
@@ -48,3 +49,5 @@ export async function GET(request: Request, context: { params: Promise<{ cueAnex
     sinDatos: false,
   }, { headers })
 }
+
+export const GET = ruta('infraestructura.radar-meteo.escuela.cueAnexo.get', handleGET)

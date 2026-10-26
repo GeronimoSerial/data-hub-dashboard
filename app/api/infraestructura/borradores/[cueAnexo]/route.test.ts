@@ -34,12 +34,16 @@ describe('GET /api/infraestructura/borradores/[cueAnexo]', () => {
 
   afterEach(() => vi.unstubAllEnvs())
 
-  it('requires map read access and validates pagination parameters', async () => {
+  it('denies users without infrastructure access before listing map drafts', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 403 })
     const { GET } = await import('./route')
     expect((await GET(request(), context)).status).toBe(403)
+    expect(verificarAccesoLectura).toHaveBeenCalledWith()
+  })
 
+  it('validates pagination parameters', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user })
+    const { GET } = await import('./route')
     const badLimit = await GET(request('?limit=51'), context)
     expect(badLimit.status).toBe(400)
     expect(listDraftsForMap).not.toHaveBeenCalled()

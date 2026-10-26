@@ -5,13 +5,17 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { materialesPublicados } from '@/lib/materiales'
 import { getDataDir } from '@/lib/data-dir'
 import { opcionesClienteObs, readObsConfig } from '@/lib/infraestructura/adjuntos/obs'
+import { crearLimitador } from '@/lib/http/limitador'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 150 })
+
+async function handleGET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const material = materialesPublicados.find(item => item.id === id)
-  if (!material) return Response.json({ error: 'Material no encontrado.' }, { status: 404 })
+  if (!material || material.tipo === 'video') return Response.json({ error: 'Material no encontrado.' }, { status: 404 })
   const disposition = `attachment; filename="${material.id}.pdf"`
   try {
     if (process.env.MATERIALES_STORAGE === 's3') {
@@ -41,3 +45,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: 'No se pudo descargar el material. Volvé a intentarlo en unos minutos.' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '60' } })
   }
 }
+
+export const GET = ruta('materiales.id.descargar.get', handleGET, { limite: { limitador } })

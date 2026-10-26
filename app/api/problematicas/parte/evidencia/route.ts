@@ -7,6 +7,7 @@ import {
 } from '@/lib/infraestructura/adjuntos/evidencia-fotografica'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic'
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 const MAX_BODY_BYTES = 16 * 1024
 
-export async function POST(request: Request): Promise<Response> {
+async function handlePOST(request: Request): Promise<Response> {
   if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   let body: unknown
   try {
@@ -59,3 +60,5 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ code: 'error_interno' }, { status: 500, headers: NO_STORE })
   }
 }
+
+export const POST = ruta('parte.evidencia.post', handlePOST)

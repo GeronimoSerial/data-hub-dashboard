@@ -1,0 +1,553 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`parte characterization > freezes the parte, history and map responses across its lifecycle 1`] = `
+{
+  "alta": {
+    "body": {
+      "cambios": [
+        "Funcionamiento: interrumpido en 1 sección",
+        "Se informó Inundación",
+        "Gravedad Alta",
+        "Toda la escuela",
+        "Se informó Anegamiento",
+        "Gravedad Media",
+        "Alcanza a 1 sección (2 alumnos)",
+      ],
+      "movimientoId": "<id-2>",
+      "ok": true,
+      "parteId": "<id-1>",
+      "servicio": {
+        "alcanceVigente": [
+          {
+            "creadaEn": "<fecha>",
+            "estado": "suspendido",
+            "id": "<id-3>",
+            "parteId": "<id-1>",
+            "referenciaId": "7120",
+            "retiradaEn": null,
+            "rigeDesde": "<fecha>",
+            "tipo": "seccion",
+          },
+        ],
+        "estadoGeneral": "parcial",
+      },
+      "tipo": "reporte_inicial",
+      "verificacionVinculada": false,
+    },
+    "cacheControl": null,
+    "status": 201,
+  },
+  "final": {
+    "body": {
+      "afectaciones": [
+        {
+          "categoria": "establecimiento",
+          "causadaPorId": null,
+          "creadaEn": "<fecha>",
+          "descripcion": null,
+          "id": "<id-4>",
+          "motivo": "Inundación",
+          "rigeDesde": "<fecha>",
+          "secciones": [
+            {
+              "alumnos": [
+                {
+                  "apellido": "",
+                  "gePersonId": 71000,
+                  "nombre": "71000",
+                },
+                {
+                  "apellido": "",
+                  "gePersonId": 71001,
+                  "nombre": "71001",
+                },
+                {
+                  "apellido": "",
+                  "gePersonId": 71002,
+                  "nombre": "71002",
+                },
+              ],
+              "geSectionId": 7110,
+              "seccionCompleta": true,
+            },
+            {
+              "alumnos": [
+                {
+                  "apellido": "",
+                  "gePersonId": 71100,
+                  "nombre": "71100",
+                },
+                {
+                  "apellido": "",
+                  "gePersonId": 71101,
+                  "nombre": "71101",
+                },
+              ],
+              "geSectionId": 7120,
+              "seccionCompleta": true,
+            },
+          ],
+          "severidad": "Crítica",
+          "totales": {
+            "alumnos": 5,
+            "secciones": 2,
+          },
+        },
+      ],
+      "ok": true,
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "asistenciaPedagogica": null,
+        "cueAnexo": "1801605-71",
+        "estadoEstablecimiento": "habitual",
+        "estadoEstablecimientoRigeDesde": "<fecha>",
+        "id": "<id-1>",
+      },
+      "periodo": {
+        "id": "periodo-enos-2026-2027",
+        "nombre": "Protocolo ENOS 2026/2027",
+      },
+      "recientes": [
+        {
+          "cierre": "retirada",
+          "id": "<id-5>",
+          "motivo": "Anegamiento",
+          "retiradaEn": "<fecha>",
+          "severidad": "Media",
+        },
+      ],
+      "secciones": [
+        {
+          "curso": "1",
+          "division": "A",
+          "geSectionId": 7110,
+          "nivel": "PRIMARIA",
+          "turno": "MAÑANA",
+        },
+        {
+          "curso": "1",
+          "division": "B",
+          "geSectionId": 7120,
+          "nivel": "PRIMARIA",
+          "turno": "TARDE",
+        },
+      ],
+      "servicio": {
+        "alcanceVigente": [
+          {
+            "creadaEn": "<fecha>",
+            "estado": "suspendido",
+            "id": "<id-3>",
+            "parteId": "<id-1>",
+            "referenciaId": "7120",
+            "retiradaEn": null,
+            "rigeDesde": "<fecha>",
+            "tipo": "seccion",
+          },
+        ],
+        "estadoGeneral": "parcial",
+      },
+      "ultimaActualizacion": "<fecha>",
+      "ultimaCarga": {
+        "cambios": [
+          "Se dejó de informar Anegamiento",
+        ],
+        "creadaEn": "<fecha>",
+        "titulo": "Se dejó de informar Anegamiento",
+      },
+    },
+    "cacheControl": "private, no-store",
+    "status": 200,
+  },
+  "historial": {
+    "body": {
+      "movimientos": [
+        {
+          "cambios": [
+            "Se dejó de informar Anegamiento",
+          ],
+          "creadaEn": "<fecha>",
+          "id": "<id-7>",
+          "rigeDesde": "<fecha>",
+          "rol": "director",
+          "severidad": null,
+          "tipo": "actualizacion",
+          "titulo": "Se dejó de informar Anegamiento",
+        },
+        {
+          "cambios": [
+            "Situación: Inundación",
+          ],
+          "creadaEn": "<fecha>",
+          "id": "<id-6>",
+          "rigeDesde": "<fecha>",
+          "rol": "director",
+          "severidad": "Crítica",
+          "tipo": "actualizacion",
+          "titulo": "Cambió la gravedad: Alta → Crítica",
+        },
+        {
+          "cambios": [
+            "Funcionamiento: interrumpido en 1 "B" (TARDE)",
+            "Se informó Inundación",
+            "Gravedad Alta",
+            "Toda la escuela",
+            "Se informó Anegamiento",
+            "Gravedad Media",
+            "Alcanza a 1 sección (2 alumnos)",
+          ],
+          "creadaEn": "<fecha>",
+          "id": "<id-2>",
+          "rigeDesde": "<fecha>",
+          "rol": "director",
+          "severidad": "Alta",
+          "tipo": "reporte_inicial",
+          "titulo": "Se actualizaron 2 situaciones",
+        },
+      ],
+      "ok": true,
+    },
+    "cacheControl": "private, no-store",
+    "status": 200,
+  },
+  "invalido": {
+    "body": {
+      "error": "Alguna de las secciones no pertenece al establecimiento indicado",
+    },
+    "cacheControl": null,
+    "status": 400,
+  },
+  "mapa": {
+    "body": {
+      "afectaciones": [
+        {
+          "categoria": "establecimiento",
+          "causadaPorId": null,
+          "creadaEn": "<fecha>",
+          "descripcion": null,
+          "id": "<id-4>",
+          "motivo": "Inundación",
+          "rigeDesde": "<fecha>",
+          "severidad": "Crítica",
+          "totales": {
+            "alumnos": 5,
+            "secciones": 2,
+          },
+        },
+      ],
+      "datosPadron": {
+        "matriculaTotal": 5,
+        "niveles": [
+          "PRIMARIA",
+        ],
+        "secciones": 2,
+        "turnos": [
+          "MAÑANA",
+          "TARDE",
+        ],
+      },
+      "ok": true,
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "asistenciaPedagogica": null,
+        "cueAnexo": "1801605-71",
+        "estadoEstablecimiento": "habitual",
+        "estadoEstablecimientoRigeDesde": "<fecha>",
+        "id": "<id-1>",
+      },
+      "periodo": {
+        "id": "periodo-enos-2026-2027",
+        "nombre": "Protocolo ENOS 2026/2027",
+      },
+      "recientes": [],
+      "secciones": [
+        {
+          "curso": "1",
+          "division": "A",
+          "geSectionId": 7110,
+          "nivel": "PRIMARIA",
+          "turno": "MAÑANA",
+        },
+        {
+          "curso": "1",
+          "division": "B",
+          "geSectionId": 7120,
+          "nivel": "PRIMARIA",
+          "turno": "TARDE",
+        },
+      ],
+      "servicio": {
+        "alcanceVigente": [
+          {
+            "creadaEn": "<fecha>",
+            "estado": "suspendido",
+            "id": "<id-3>",
+            "parteId": "<id-1>",
+            "referenciaId": "7120",
+            "retiradaEn": null,
+            "rigeDesde": "<fecha>",
+            "tipo": "seccion",
+          },
+        ],
+        "estadoGeneral": "parcial",
+      },
+      "ultimaActualizacion": "<fecha>",
+    },
+    "cacheControl": "private, no-store",
+    "status": 200,
+  },
+  "modificacion": {
+    "body": {
+      "cambios": [
+        "Situación: Inundación",
+      ],
+      "movimientoId": "<id-6>",
+      "ok": true,
+      "parteId": "<id-1>",
+      "servicio": {
+        "alcanceVigente": [
+          {
+            "creadaEn": "<fecha>",
+            "estado": "suspendido",
+            "id": "<id-3>",
+            "parteId": "<id-1>",
+            "referenciaId": "7120",
+            "retiradaEn": null,
+            "rigeDesde": "<fecha>",
+            "tipo": "seccion",
+          },
+        ],
+        "estadoGeneral": "parcial",
+      },
+      "tipo": "actualizacion",
+      "verificacionVinculada": false,
+    },
+    "cacheControl": null,
+    "status": 201,
+  },
+  "retiro": {
+    "body": {
+      "cambios": [
+        "Se dejó de informar Anegamiento",
+      ],
+      "movimientoId": "<id-7>",
+      "ok": true,
+      "parteId": "<id-1>",
+      "servicio": {
+        "alcanceVigente": [
+          {
+            "creadaEn": "<fecha>",
+            "estado": "suspendido",
+            "id": "<id-3>",
+            "parteId": "<id-1>",
+            "referenciaId": "7120",
+            "retiradaEn": null,
+            "rigeDesde": "<fecha>",
+            "tipo": "seccion",
+          },
+        ],
+        "estadoGeneral": "parcial",
+      },
+      "tipo": "actualizacion",
+      "verificacionVinculada": false,
+    },
+    "cacheControl": null,
+    "status": 201,
+  },
+  "trasAlta": {
+    "body": {
+      "afectaciones": [
+        {
+          "categoria": "establecimiento",
+          "causadaPorId": null,
+          "creadaEn": "<fecha>",
+          "descripcion": null,
+          "id": "<id-4>",
+          "motivo": "Inundación",
+          "rigeDesde": "<fecha>",
+          "secciones": [
+            {
+              "alumnos": [
+                {
+                  "apellido": "",
+                  "gePersonId": 71000,
+                  "nombre": "71000",
+                },
+                {
+                  "apellido": "",
+                  "gePersonId": 71001,
+                  "nombre": "71001",
+                },
+                {
+                  "apellido": "",
+                  "gePersonId": 71002,
+                  "nombre": "71002",
+                },
+              ],
+              "geSectionId": 7110,
+              "seccionCompleta": true,
+            },
+            {
+              "alumnos": [
+                {
+                  "apellido": "",
+                  "gePersonId": 71100,
+                  "nombre": "71100",
+                },
+                {
+                  "apellido": "",
+                  "gePersonId": 71101,
+                  "nombre": "71101",
+                },
+              ],
+              "geSectionId": 7120,
+              "seccionCompleta": true,
+            },
+          ],
+          "severidad": "Alta",
+          "totales": {
+            "alumnos": 5,
+            "secciones": 2,
+          },
+        },
+        {
+          "categoria": "alumnos",
+          "causadaPorId": null,
+          "creadaEn": "<fecha>",
+          "descripcion": null,
+          "id": "<id-5>",
+          "impactoAlumnos": {
+            "afectados": 2,
+            "corteId": 1,
+            "matricula": 5,
+            "porcentaje": 40,
+            "prioridad": "Media",
+            "version": 1,
+          },
+          "motivo": "Anegamiento",
+          "rigeDesde": "<fecha>",
+          "secciones": [
+            {
+              "alumnos": [
+                {
+                  "apellido": "",
+                  "gePersonId": 71000,
+                  "nombre": "71000",
+                },
+                {
+                  "apellido": "",
+                  "gePersonId": 71001,
+                  "nombre": "71001",
+                },
+              ],
+              "geSectionId": 7110,
+              "seccionCompleta": false,
+            },
+          ],
+          "severidad": "Media",
+          "totales": {
+            "alumnos": 2,
+            "secciones": 1,
+          },
+        },
+      ],
+      "ok": true,
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "asistenciaPedagogica": null,
+        "cueAnexo": "1801605-71",
+        "estadoEstablecimiento": "habitual",
+        "estadoEstablecimientoRigeDesde": "<fecha>",
+        "id": "<id-1>",
+      },
+      "periodo": {
+        "id": "periodo-enos-2026-2027",
+        "nombre": "Protocolo ENOS 2026/2027",
+      },
+      "recientes": [],
+      "secciones": [
+        {
+          "curso": "1",
+          "division": "A",
+          "geSectionId": 7110,
+          "nivel": "PRIMARIA",
+          "turno": "MAÑANA",
+        },
+        {
+          "curso": "1",
+          "division": "B",
+          "geSectionId": 7120,
+          "nivel": "PRIMARIA",
+          "turno": "TARDE",
+        },
+      ],
+      "servicio": {
+        "alcanceVigente": [
+          {
+            "creadaEn": "<fecha>",
+            "estado": "suspendido",
+            "id": "<id-3>",
+            "parteId": "<id-1>",
+            "referenciaId": "7120",
+            "retiradaEn": null,
+            "rigeDesde": "<fecha>",
+            "tipo": "seccion",
+          },
+        ],
+        "estadoGeneral": "parcial",
+      },
+      "ultimaActualizacion": "<fecha>",
+      "ultimaCarga": {
+        "cambios": [
+          "Funcionamiento: interrumpido en 1 "B" (TARDE)",
+          "Se informó Inundación",
+          "Gravedad Alta",
+          "Toda la escuela",
+          "Se informó Anegamiento",
+          "Gravedad Media",
+          "Alcanza a 1 sección (2 alumnos)",
+        ],
+        "creadaEn": "<fecha>",
+        "titulo": "Se actualizaron 2 situaciones",
+      },
+    },
+    "status": 200,
+  },
+  "vacio": {
+    "body": {
+      "afectaciones": [],
+      "ok": true,
+      "parte": null,
+      "periodo": {
+        "id": "periodo-enos-2026-2027",
+        "nombre": "Protocolo ENOS 2026/2027",
+      },
+      "recientes": [],
+      "secciones": [
+        {
+          "curso": "1",
+          "division": "A",
+          "geSectionId": 7110,
+          "nivel": "PRIMARIA",
+          "turno": "MAÑANA",
+        },
+        {
+          "curso": "1",
+          "division": "B",
+          "geSectionId": 7120,
+          "nivel": "PRIMARIA",
+          "turno": "TARDE",
+        },
+      ],
+      "servicio": {
+        "alcanceVigente": [],
+        "estadoGeneral": "normal",
+      },
+      "ultimaActualizacion": null,
+      "ultimaCarga": null,
+    },
+    "cacheControl": "private, no-store",
+    "status": 200,
+  },
+}
+`;
