@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
-import { puedeAbrir } from '@/lib/acl'
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
-import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
 import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
+import { puedeLeerMapaInfraestructura } from '@/lib/infraestructura/acceso-lectura'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
   hazardContextEnabled,
@@ -25,7 +24,7 @@ export default async function InfraestructuraMapLayout({
   const user = await getSessionUser()
   if (!user) redirect('/login?callbackUrl=/mapas/infraestructura')
   const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
-  if (!found || !puedeAbrir(user, found.access) || alcanceMapa(user).tipo === 'ninguno') {
+  if (!puedeLeerMapaInfraestructura(user, found?.access ?? null)) {
     redirect('/forbidden')
   }
   const mostrarEnlaceNominal = await puedeVerNominal(user, new Date())

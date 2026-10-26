@@ -38,3 +38,22 @@ describe('GET /api/gate/[...path]', () => {
     expect(response.headers.get('location')).toContain('/forbidden')
   })
 })
+
+describe('GET /api/gate/[...path] for confined roles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getSessionUser.mockResolvedValue({
+      id: 'director', role: 'director_nivel', banned: false, nivelJurIds: [3],
+      accesoRecursos: 'todos', recursoIds: [],
+    })
+  })
+
+  it('sends a director de nivel to /forbidden without resolving any recurso', async () => {
+    const response = await GET(new Request('http://localhost/api/gate/recursos/private.pdf'), {
+      params: Promise.resolve({ path: ['recursos', 'private.pdf'] }),
+    })
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toContain('/forbidden')
+    expect(loadRecursoAccessByRuta).not.toHaveBeenCalled()
+  })
+})

@@ -1,11 +1,12 @@
 import { adminPageGate, puedeAbrir, puedeVerEnSeccion, type SessionUser } from '@/lib/acl'
-import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
+import { puedeLeerMapaInfraestructura } from '@/lib/infraestructura/acceso-lectura'
 import { getDb } from '@/lib/db'
 import { recursos } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { loadRecursoAccess, loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
 import type { Formato } from '@/lib/model'
 import { pathAllowedByHubPolicy, resolveHubEntry } from '@/lib/hub-entry'
+import { hubConfined } from '@/lib/access/hub-confinement'
 import { effectiveSections, type HubSection } from '@/lib/hub-sections'
 import { legacyRecursoRedirect } from '@/lib/nav'
 import { redirect } from 'next/navigation'
@@ -25,6 +26,7 @@ async function resourceEntryAllowed(user: SessionUser, id: string) {
 }
 
 export async function serverHubPathAllowedByPolicy(user: SessionUser, path: string) {
+  if (hubConfined(user)) return pathAllowedByHubPolicy(path, user)
   const resourcePath = path.match(/^\/recursos\/([^/]+)$/)
   if (resourcePath) return resourceEntryAllowed(user, decodeURIComponent(resourcePath[1]))
   return pathAllowedByHubPolicy(path, user)
@@ -53,10 +55,12 @@ export async function serverHubPathAllowedByExistingAcl(user: SessionUser, path:
   if (resourcePath) return resourceEntryAllowed(user, decodeURIComponent(resourcePath[1]))
 
   const infrastructurePath = path === '/mapas/infraestructura' || path.startsWith('/mapas/infraestructura/')
-  if (infrastructurePath && alcanceMapa(user).tipo === 'ninguno') return false
-  const resourceRoute = infrastructurePath
-    ? '/mapas/infraestructura'
-    : ['/mapas/matricula', '/mapas/natalidad'].find((route) => path === route)
+  if (infrastructurePath) {
+    // Same decision as the infra map pages and APIs; exempt from the allow-list (S8).
+    const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
+    return Boolean(found && puedeLeerMapaInfraestructura(user, found.access))
+  }
+  const resourceRoute = ['/mapas/matricula', '/mapas/natalidad'].find((route) => path === route)
   if (resourceRoute) {
     const found = await loadRecursoAccessByRuta(resourceRoute)
     return Boolean(found && puedeAbrir(user, found.access))
@@ -81,12 +85,12 @@ export async function requireServerHubPageAccess(path: string, requiredSection?:
   const user = await getSessionUser()
   if (!user) redirect(`/login?callbackUrl=${encodeURIComponent(path)}`)
   if (user.banned) redirect('/forbidden')
-  const sectionAllowed = requiredSection
+  const sectionAllowed = requiredSection && !hubConfined(user)
     ? effectiveSections(user.hubPolicy ?? {}).has(requiredSection)
     : await serverHubPathAllowedByPolicy(user, path)
   if (!sectionAllowed
     || !(await serverHubPathAllowedByExistingAcl(user, path))) {
-    if (path === '/') {
+    if (path === '/' || hubConfined(user)) {
       const destination = await resolveServerHubEntry(user, { currentPath: '/' })
       redirect(destination ?? '/forbidden')
     }

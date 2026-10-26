@@ -1,26 +1,45 @@
-import { puedeAbrir, type SessionUser } from '@/lib/acl'
+import { puedeAbrir, type RecursoAccess, type SessionUser } from '@/lib/acl'
+import { can } from '@/lib/access/capabilities'
 import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
 import { getSessionUser } from '@/lib/session'
-import { effectiveSections } from '@/lib/hub-sections'
-import type { HubSection } from '@/lib/hub-sections'
+import { effectiveSections, type HubSection } from '@/lib/hub-sections'
 
 export type AccesoLectura =
   | { ok: true; user: SessionUser }
   | { ok: false; status: 401 }
   | { ok: false; status: 403 }
 
-export async function verificarAccesoLectura(options: { section?: 'infrastructure' } = {}): Promise<AccesoLectura> {
+/** Apertura del recurso del mapa con su excepción de lista de permitidos (S8), que vive en lib/acl.ts. */
+export function puedeAbrirMapaInfraestructura(
+  user: SessionUser | null,
+  recurso: RecursoAccess,
+): boolean {
+  return puedeAbrir(user, { ...recurso, ruta: '/mapas/infraestructura' })
+}
+
+/**
+ * Única decisión de lectura del mapa de infraestructura, compartida por páginas
+ * y APIs. La capacidad `infra.map.read` (lib/access/capabilities.ts) ya cubre
+ * sección, alcance por nivel y rol. El recurso sólo restringe a consulta, que
+ * es la forma en que el administrador limita a esos usuarios.
+ */
+export function puedeLeerMapaInfraestructura(
+  user: SessionUser | null,
+  recursoAccess: RecursoAccess | null,
+): boolean {
+  if (!can(user, 'infra.map.read')) return false
+  if (user?.role !== 'consulta') return true
+  return recursoAccess !== null && puedeAbrirMapaInfraestructura(user, recursoAccess)
+}
+
+export async function verificarAccesoLectura(
+  _options: { section?: 'infrastructure' } = {},
+): Promise<AccesoLectura> {
   const user = await getSessionUser()
   if (!user) return { ok: false, status: 401 }
-  const section = options.section ?? 'infrastructure'
-  if (!effectiveSections(user.hubPolicy ?? {}).has(section)) {
-    return { ok: false, status: 403 }
-  }
 
   const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
-  if (!found) return { ok: false, status: 403 }
-
-  if (!puedeAbrir(user, found.access)) return { ok: false, status: 403 }
+  if (!puedeLeerMapaInfraestructura(user, found?.access ?? null)) return { ok: false, status: 403 }
 
   return { ok: true, user }
 }

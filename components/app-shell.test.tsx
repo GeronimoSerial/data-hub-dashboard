@@ -119,3 +119,18 @@ describe('AppShell', () => {
     expect(screen.queryByRole('menuitem', { name: 'Centro de Situación' })).not.toBeInTheDocument()
   })
 })
+
+describe('AppShell for confined roles', () => {
+  it('hides the hub navigation and the logo link for a director de nivel', () => {
+    render(<AppShell initialUser={{ name: 'Director', role: 'director_nivel' }}>Contenido</AppShell>)
+    expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Buscar recursos' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Hub de Datos, inicio' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the hub navigation for a consulta user', () => {
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
+    expect(screen.getByRole('link', { name: 'Inicio' })).toBeInTheDocument()
+  })
+})

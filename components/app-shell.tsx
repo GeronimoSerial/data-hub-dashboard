@@ -9,6 +9,7 @@ import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
 import type { ShellUser } from '@/lib/session'
 import { canUseLanding, effectiveSections, sectionForPath } from '@/lib/hub-sections'
+import { confinedAreaCapability, roleIsHubConfined } from '@/lib/access/hub-confinement'
 import { decideScrollAction, isAdminWorkspacePath, isBleedViewerPath, isMapViewerPath, isRestoreSettled, scrollRestorationKey } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu'
@@ -277,7 +278,10 @@ export function AppShell({
   const role = (sessionUser as { role?: Role } | null)?.role
   const policy = (sessionUser as ShellUser | null)?.hubPolicy ?? initialUser?.hubPolicy ?? {}
   const sections = effectiveSections(policy)
+  // Confined roles see only their own area in the chrome: no Inicio, Explorar, search or logo link.
+  const confined = roleIsHubConfined(role ?? initialUser?.role)
   const canAccessPath = (path: string) => {
+    if (confined) return confinedAreaCapability(path) !== null
     const section = sectionForPath(path)
     return section === 'landing' ? canUseLanding(policy) : section ? sections.has(section) : true
   }
