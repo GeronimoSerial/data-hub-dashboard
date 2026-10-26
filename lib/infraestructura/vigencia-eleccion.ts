@@ -50,9 +50,19 @@ export function resolverVigencia(eleccion: EleccionVigencia, ahora: Date = new D
   return momento.toISOString()
 }
 
-/** Mensaje accionable para una hora de hoy que aún no ocurrió. */
+export const MENSAJE_ELIJA_HORA = 'Elija la hora.'
+export const MENSAJE_ELIJA_FECHA_Y_HORA = 'Elija la fecha y la hora.'
+
+/**
+ * Mensaje para una elección que no se puede resolver. Una elección incompleta
+ * pide lo que falta; sólo una elección completa fuera de rango recibe el
+ * mensaje de la ventana, que no debe aparecer mientras el director todavía
+ * no terminó de cargarla.
+ */
 export function errorVigencia(eleccion: EleccionVigencia, ahora: Date = new Date()): string | null {
   if (eleccion.modo === 'ahora' || resolverVigencia(eleccion, ahora) !== null) return null
+  if (eleccion.modo === 'hoy' && !eleccion.hora) return MENSAJE_ELIJA_HORA
+  if (eleccion.modo === 'otro' && (!fechaLocal(eleccion.fecha) || !eleccion.hora)) return MENSAJE_ELIJA_FECHA_Y_HORA
   if (eleccion.modo === 'hoy' && eleccion.hora) {
     const momento = combinar(ahora, eleccion.hora)
     if (momento && momento.getTime() > ahora.getTime()) return MENSAJE_HORA_FUTURA

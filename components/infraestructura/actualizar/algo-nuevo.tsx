@@ -5,7 +5,7 @@ import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type Afectacio
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
 import { InstitutoCamposAQuienAfecta } from '@/components/infraestructura/instituto-alcance-campos'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
-import { contar, type CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
+import { carrerasSinAlumno, contar, type CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
@@ -180,7 +180,7 @@ export function AlgoNuevo({
   // GE: los alumnos no eligen gravedad a mano (la marca la prioridad de la matrícula).
   const completaLaGravedad = (borrador.categoria === 'alumnos' && !esInstituto) || gravedadCompleta(borrador, sugerida)
   const alcanceCompleto = esInstituto
-    ? (borrador.carreras ?? []).length > 0
+    ? (borrador.carreras ?? []).length > 0 && !(borrador.categoria === 'alumnos' && carrerasSinAlumno(borrador.carreras ?? [], borrador.alumnosElegidos ?? []).length > 0)
     : borrador.secciones.length > 0 && (borrador.categoria !== 'establecimiento' || borrador.alcanceEstablecimiento !== '')
   const datosCompletos = borrador.categoria !== '' && borrador.motivo !== '' && completaLaGravedad && alcanceCompleto
 
@@ -191,6 +191,7 @@ export function AlgoNuevo({
     if (!completaLaGravedad) faltantes.push('la gravedad')
     if (esInstituto) {
       if ((borrador.carreras ?? []).length === 0) faltantes.push('al menos una carrera')
+      else if (borrador.categoria === 'alumnos' && carrerasSinAlumno(borrador.carreras ?? [], borrador.alumnosElegidos ?? []).length > 0) faltantes.push('al menos un alumno de cada carrera')
     } else if (borrador.categoria === 'establecimiento' && !borrador.alcanceEstablecimiento) {
       faltantes.push('el alcance del establecimiento')
     } else if (borrador.secciones.length === 0) {

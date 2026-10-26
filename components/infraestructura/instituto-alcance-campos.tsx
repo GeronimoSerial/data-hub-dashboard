@@ -35,7 +35,7 @@ const MENSAJE_SIN_RESULTADOS = 'No encontramos alumnos con esa búsqueda en las 
 const MENSAJE_TRUNCADO =
   'Hay más coincidencias. Escriba más letras o el DNI completo para acotar la lista.'
 const MENSAJE_DNI_INCOMPLETO = 'Ingrese el DNI completo'
-const AYUDA_PREDETERMINADA = 'Si no elige alumnos, se informa la carrera completa.'
+const AYUDA_PREDETERMINADA = 'Elija al menos un alumno de cada carrera.'
 const MENSAJE_SIN_CARRERA = 'Elija primero una carrera para buscar alumnos.'
 
 interface RespuestaBusqueda {
@@ -95,7 +95,7 @@ export interface InstitutoCamposAQuienAfectaProps {
   descripcionObligatoria?: boolean
   /**
    * Si la categoría admite selección nominal (CATEGORIA_META.permiteAlumnos).
-   * Sin ella no hay buscador de alumnos: la carrera cuenta completa.
+   * Sin ella no hay buscador de alumnos: la carrera cuenta completa. Con ella, cada carrera exige alumnos.
    */
   permiteAlumnos?: boolean
   /** Falso cuando el paso sólo elige alcance (actualizar): sin campo de descripción. */
@@ -106,8 +106,8 @@ export interface InstitutoCamposAQuienAfectaProps {
 
 /**
  * Paso "¿A quiénes afecta?" para institutos superiores: se eligen carreras y,
- * opcionalmente, alumnos dentro de ellas. Una carrera sin alumnos elegidos
- * cuenta completa (mismo criterio que el servidor). El buscador es uno solo:
+ * en las categorías con alumnos, al menos un alumno por carrera (igual que GE
+ * por sección). Sin categoría de alumnos, la carrera cuenta completa. El buscador es uno solo:
  * DNI completo si son dígitos, apellido o nombre si son letras.
  */
 export function InstitutoCamposAQuienAfecta({
@@ -232,7 +232,7 @@ export function InstitutoCamposAQuienAfecta({
       <div className="afectacion-campos__grupo">
         {permiteAlumnos && (
           <>
-            <Label htmlFor={`${idPrefijo}-buscar-alumnos`}>Alumnos (opcional)</Label>
+            <Label htmlFor={`${idPrefijo}-buscar-alumnos`}>Alumnos afectados</Label>
             <Input
               id={`${idPrefijo}-buscar-alumnos`}
               type="search"

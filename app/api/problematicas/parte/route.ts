@@ -888,6 +888,14 @@ async function handlePOST(request: Request) {
         if (modificacion.secciones) modificacion.secciones = [...new Set(modificacion.secciones)]
         continue
       }
+      // Institutos: igual que el alta y que GE, en la categoría de alumnos cada carrera elegida lleva al menos uno.
+      if (esInstituto && fila.categoria === 'alumnos' && modificacion.carreras !== undefined) {
+        const alumnosDelCambio = new Set(modificacion.alumnos ?? [])
+        const membresiaDelCambio = await alcanceCue.listMembers(modificacion.carreras)
+        const cadaCarreraConAlumno = modificacion.carreras.length > 0 && modificacion.carreras.every((carreraId) =>
+          [...(membresiaDelCambio.get(carreraId) ?? [])].some((alumno) => alumnosDelCambio.has(alumno)))
+        if (!cadaCarreraConAlumno) return jsonError(mensajeCadaUnidad, 400)
+      }
       if (!esInstituto) {
         const permitidoGe = validarAlumnosPermitidos(fila.categoria as CategoriaAfectacion, modificacion.alumnos)
         if (!permitidoGe.ok) return jsonError(permitidoGe.error, 400)

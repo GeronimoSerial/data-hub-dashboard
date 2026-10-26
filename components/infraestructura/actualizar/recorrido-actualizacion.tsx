@@ -25,7 +25,7 @@ import { claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnvia
 import { alcanceDe, mensajesDeBloqueo, respuestasDeSituacion } from '@/components/infraestructura/actualizar/consistencia-actualizacion'
 import { evaluarCambioAHabitual } from '@/lib/infraestructura/consistencia-estado-activo'
 import { bloqueoOpcion } from '@/lib/infraestructura/consistencia-parte'
-import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
+import { CamposClasesEdificio, type ValorClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { carrerasDelServicio, construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { alcanceInstituto, nombresDeCarreras, textoAlcanceInstitutoConNombres, type AlumnoElegido, type CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
 import { MENSAJE_GUARDADO_INSTITUTO } from '@/lib/copy/institutos'
@@ -686,12 +686,22 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
   // se restablece: la propuesta por defecto es habitual con clases normales.
   const todasCerradas = situaciones.every((situacion) => recorrido.respuestas[situacion.id]?.tipo === 'solucionada')
   const restablecer = todasCerradas && (estadoEstablecimiento !== 'habitual' || estadoServicio !== 'normal')
-  const clasesActuales = { servicioEstado: estadoServicio === 'suspendido' ? 'suspendido' as const : 'normal' as const, estadoEstablecimiento, confirmarInterrupcionTotal: false }
+  // Con carreras (o secciones) suspendidas sólo algunas, "Parcial" no es una
+  // opción de ¿Hay clases?: no se propone ni "normal" ni "suspendido" y la
+  // persona elige. Así una edición no reabre las clases por omisión.
+  const servicioActual: ValorClasesEdificio['servicioEstado'] = estadoServicio === 'parcial' ? '' : estadoServicio
+  const clasesActuales = { servicioEstado: servicioActual, estadoEstablecimiento, confirmarInterrupcionTotal: false }
   const clasesEdificio = recorrido.clasesEdificio ?? (restablecer
-    ? { servicioEstado: 'normal' as const, estadoEstablecimiento: 'habitual' as const, confirmarInterrupcionTotal: false }
+    ? { servicioEstado: estadoServicio === 'parcial' ? '' as const : 'normal' as const, estadoEstablecimiento: 'habitual' as const, confirmarInterrupcionTotal: false }
     : clasesActuales)
   // Lo que se envía: si la propuesta de restablecer no se tocó, también viaja.
-  const recorridoEnvio = restablecer && recorrido.clasesEdificio === null ? { ...recorrido, clasesEdificio } : recorrido
+  // Sin "¿Hay clases?" elegido (servicio parcial) no hay valor que enviar: el bloqueo lo impide.
+  const clasesEdificioElegidas = clasesEdificio.servicioEstado === ''
+    ? null
+    : { ...clasesEdificio, servicioEstado: clasesEdificio.servicioEstado }
+  const recorridoEnvio = restablecer && recorrido.clasesEdificio === null && clasesEdificioElegidas !== null
+    ? { ...recorrido, clasesEdificio: clasesEdificioElegidas }
+    : recorrido
   const seccionesEscuela = turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones.map((seccion) => seccion.geSectionId)))
   const motivoIdDe = (nombre: string): string | null => motivos.find((motivo) => motivo.nombre === nombre)?.id ?? null
   // Cada afectación activa que siguiera como está bloquea habitual si su motivo lo impide.
@@ -712,7 +722,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
     estadoActual: estadoEstablecimiento,
     nuevoEstado: clasesEdificio.estadoEstablecimiento,
     servicioActual: estadoServicio,
-    servicioEnvio: clasesEdificio.servicioEstado,
+    servicioEnvio: clasesEdificio.servicioEstado || null,
     afectacionesActivas: situaciones.map((situacion) => ({ id: situacion.id })),
     solucionadas: idsCon('solucionada'),
     sigueActiva: idsCon('sigue'),
@@ -730,7 +740,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
         severidad: respuesta.cambio.severidad ?? situacion.severidad,
         justificacionCritica: respuesta.cambio.justificacionCritica ?? null,
         alcance: respuesta.cambio.aspectos.includes('alcance') ? alcanceDe(respuesta.cambio.secciones, seccionesEscuela) : null,
-        clases: conClases ? clasesEdificio.servicioEstado : null,
+        clases: conClases ? clasesEdificio.servicioEstado || null : null,
         edificio: conClases ? clasesEdificio.estadoEstablecimiento : null,
       }), { descripcion: false })
     }),
@@ -742,12 +752,15 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
         justificacionCritica: recorrido.nueva.justificacionCritica ?? null,
         descripcion: recorrido.nueva.descripcion ?? '',
         alcance: alcanceDe(recorrido.nueva.secciones, seccionesEscuela),
-        clases: clasesEdificio.servicioEstado,
+        clases: clasesEdificio.servicioEstado || null,
         edificio: clasesEdificio.estadoEstablecimiento,
       }), { descripcion: true })
       : []),
   ]
-  const bloqueos = [...new Set([...mensajesDeCambios, ...habitual.bloqueos.map((regla) => regla.mensaje)])]
+  const faltaServicio = restablecer && clasesEdificio.servicioEstado === ''
+    ? ['Indique cómo están las clases para restablecer el funcionamiento.']
+    : []
+  const bloqueos = [...new Set([...mensajesDeCambios, ...faltaServicio, ...habitual.bloqueos.map((regla) => regla.mensaje)])]
   function decidirAfectacionesHabitual(decisiones: Record<string, 'solucionada' | 'sigue'>): void {
     const ahora = new Date().toISOString()
     setRecorrido((r) => Object.entries(decisiones).reduce(
@@ -965,7 +978,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
 
       {etapa === 'resumen' ? (
         <ResumenEnvio
-          lineasResumen={restablecer ? [...lineasResumen, { titulo: 'Edificio y clases', filas: [{ etiqueta: 'Edificio', valor: ETIQUETA_ESTABLECIMIENTO[clasesEdificio.estadoEstablecimiento] }, { etiqueta: 'Clases', valor: ETIQUETA_CLASES[clasesEdificio.servicioEstado] }] }] : lineasResumen}
+          lineasResumen={restablecer ? [...lineasResumen, { titulo: 'Edificio y clases', filas: [{ etiqueta: 'Edificio', valor: ETIQUETA_ESTABLECIMIENTO[clasesEdificio.estadoEstablecimiento] }, { etiqueta: 'Clases', valor: clasesEdificio.servicioEstado === '' ? 'Sin elegir' : ETIQUETA_CLASES[clasesEdificio.servicioEstado] }] }] : lineasResumen}
           asistenciaVigente={asistenciaVigente.brinda ? 'Sí' : 'No'}
           asistenciaPedagogica={asistenciaPedagogica}
           enviando={enviando}

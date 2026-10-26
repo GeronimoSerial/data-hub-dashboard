@@ -112,6 +112,20 @@ describe('ReporteInicialForm para institutos superiores', () => {
     expect(await screen.findByText('Elija al menos una carrera para esta situación.')).toBeTruthy()
   })
 
+  it('en "Inaccesibilidad de alumnos" no deja continuar con una carrera sin alumnos, como GE', async () => {
+    const user = userEvent.setup()
+    const llamadas = stubFetch([alumnoAna])
+    renderInstituto()
+    llegarAPaso2ConAlumnos()
+    await elegirCarrera(user, 'Enfermería')
+    expect(screen.getByText('Alumnos afectados')).toBeTruthy()
+    expect(screen.getByText('Elija al menos un alumno de cada carrera.')).toBeTruthy()
+    continuar()
+    expect(await screen.findByText('Seleccione al menos un alumno afectado en cada carrera elegida.')).toBeTruthy()
+    expect(screen.queryByText('Si no elige alumnos, se informa la carrera completa.')).toBeNull()
+    expect(llamadas.some((l) => l.metodo === 'POST')).toBe(false)
+  })
+
   it('envía carreras y servicio por carrera, sin secciones', async () => {
     const user = userEvent.setup()
     const llamadas = stubFetch()

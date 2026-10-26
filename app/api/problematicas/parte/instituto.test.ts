@@ -280,6 +280,16 @@ describe('instituto superior: alta por carreras', () => {
     expect((await res.json()).error).toBe('Alguno de los alumnos seleccionados no pertenece a las carreras indicadas')
   })
 
+  it('responde 400 si una carrera de la categoría alumnos no lleva ningún alumno', async () => {
+    const res = await POST(
+      postReq(cuerpo(CUE_SUP, {
+        afectacionesNuevas: [{ motivo: 'Acceso interrumpido', severidad: 'Baja', carreras: [id.tecnicatura, id.profesorado], alumnos: [alumno.juana] }],
+      })),
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Cada carrera elegida debe incluir al menos un alumno')
+  })
+
   it('detecta una afectación equivalente (misma carrera y alumnos) y no la duplica', async () => {
     const primera = await POST(
       postReq(cuerpo(CUE_SUP, {
@@ -491,6 +501,29 @@ describe('instituto superior: ficha GET e historial', () => {
   })
 })
 
+describe('instituto superior: modificación de alumnos por carrera', () => {
+  it('responde 400 si al cambiar las carreras de una afectación de alumnos una carrera queda sin alumno', async () => {
+    const creada = await POST(
+      postReq(cuerpo(CUE_SUP, {
+        afectacionesNuevas: [{ motivo: 'Otro problema de acceso', severidad: 'Baja', descripcion: 'Acceso por el puente', carreras: [id.tecnicatura], alumnos: [alumno.juana] }],
+      })),
+    )
+    expect(creada.status).toBe(201)
+    const { parteId } = (await creada.json()) as { parteId: string }
+    const [afectacion] = await getDb().select().from(infraAfectacion)
+      .where(and(eq(infraAfectacion.parteId, parteId), eq(infraAfectacion.motivo, 'Otro problema de acceso'))).limit(1)
+    const afectacionId = afectacion!.id
+
+    const cambio = await POST(
+      postReq(cuerpo(CUE_SUP, {
+        afectacionesModificadas: [{ id: afectacionId, carreras: [id.tecnicatura, id.profesorado], alumnos: [alumno.juana] }],
+      })),
+    )
+    expect(cambio.status).toBe(400)
+    expect((await cambio.json()).error).toBe('Cada carrera elegida debe incluir al menos un alumno')
+  })
+})
+
 describe('instituto superior: cortes reemplazados', () => {
   it('no mezcla cortes: lee con el corte guardado y rechaza alumnos sin carreras sobre un corte viejo', async () => {
     const client = crearEjecutorSql(getRawClient())
@@ -611,4 +644,3 @@ describe('regresión GE: primer error igual al esquema original', () => {
     expect((await res.json()).error).toBe(esperado)
   })
 })
-

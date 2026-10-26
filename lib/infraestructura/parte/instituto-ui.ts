@@ -91,6 +91,15 @@ export function nombresDeCarreras(carreras: number[], catalogo: CarreraElegible[
   return catalogo.filter((carrera) => carreras.includes(carrera.id)).map((carrera) => etiquetas.get(carrera.id) ?? carrera.nombre)
 }
 
+/**
+ * Carreras elegidas sin ningún alumno elegido. En la categoría de alumnos el
+ * servidor exige al menos uno por carrera (igual que GE por sección), así que
+ * una carrera en esta lista no puede enviarse.
+ */
+export function carrerasSinAlumno(carreras: number[], alumnosElegidos: AlumnoElegido[]): number[] {
+  return carreras.filter((carreraId) => !alumnosElegidos.some((alumno) => alumno.carreraId === carreraId))
+}
+
 /** Deja sólo los alumnos que siguen dentro de las carreras elegidas. */
 export function ajustarAlumnosA(carreras: number[], alumnosElegidos: AlumnoElegido[]): AlumnoElegido[] {
   return alumnosElegidos.filter((alumno) => carreras.includes(alumno.carreraId))

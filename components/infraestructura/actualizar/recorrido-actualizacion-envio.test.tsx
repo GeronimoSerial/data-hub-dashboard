@@ -408,6 +408,18 @@ function avanzarHastaAsistencia() {
   }
 }
 
+/** Instituto con carreras suspendidas sólo en parte (servicio "parcial"). */
+function stubInstitutoParcial() {
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') return respuesta()
+    if (url.includes('/matricula')) return new Response(JSON.stringify({ ok: true, alumnos: [], truncado: false }), { status: 200 })
+    if (url.includes('/historial')) return new Response(JSON.stringify({ ok: true, movimientos: [] }), { status: 200 })
+    return new Response(JSON.stringify({ ...institutoCon('establecimiento'), servicio: { estadoGeneral: 'parcial', alcanceVigente: [] }, parte: { ...base.parte, cueAnexo: CUE } }), { status: 200 })
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
 describe('RecorridoActualizacion: institutos superiores', () => {
   it('envía el alcance por carreras y la interrupción de clases por carrera', async () => {
     const fetchMock = stubInstituto('establecimiento')
@@ -440,6 +452,15 @@ describe('RecorridoActualizacion: institutos superiores', () => {
     // Sin alumnos elegidos la carrera cuenta completa: viaja la lista vacía.
     expect(cuerpo.afectacionesModificadas).toEqual([{ id: 'a', carreras: [1], alumnos: [] }])
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/matricula'))).toBe(false)
+  })
+
+  it('en "Inaccesibilidad de alumnos" no deja continuar con una carrera sin alumnos, como GE', async () => {
+    const fetchMock = stubInstituto('alumnos')
+    montarInstituto()
+    await elegirAspectos('A quién afecta (carreras / alumnos)')
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(await screen.findByText('Seleccione al menos un alumno afectado en cada carrera elegida.')).toBeTruthy()
+    expect(posteos(fetchMock)).toHaveLength(0)
   })
 
   it('en "Inaccesibilidad de alumnos" busca alumnos por la misma búsqueda y los envía dentro de la carrera', async () => {
@@ -518,5 +539,32 @@ describe('RecorridoActualizacion: institutos, situación nueva', () => {
     await screen.findByText(guardado)
     const cuerpo = JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))
     expect(cuerpo.afectacionesNuevas).toEqual([{ motivo: 'Anegamiento', severidad: 'Alta', carreras: [2], alumnos: [200] }])
+  })
+})
+
+describe('RecorridoActualizacion: institutos con carreras suspendidas en parte', () => {
+  it('no preselecciona "¿Hay clases?" como normal cuando el servicio es parcial', async () => {
+    stubInstitutoParcial()
+    montarInstituto()
+    await elegirAspectos('Las clases o el edificio')
+    expect(screen.getByRole('radio', { name: 'Sí, con normalidad' })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: 'No, se suspendieron' })).not.toBeChecked()
+  })
+
+  it('conserva "Evacuado" confirmado con "Sí, todo el instituto" al continuar', async () => {
+    const fetchMock = stubInstitutoParcial()
+    montarInstituto()
+    await elegirAspectos('Las clases o el edificio')
+    fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Sí, todo el instituto' }))
+    avanzarHastaAsistencia()
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+
+    await screen.findByText(guardado)
+    expect(JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))).toMatchObject({
+      estadoEstablecimiento: { estado: 'evacuado' },
+      servicioEducativo: { estado: 'suspendido' },
+    })
   })
 })

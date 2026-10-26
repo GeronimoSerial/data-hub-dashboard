@@ -930,6 +930,7 @@ export async function listarEscuelasMapaEnriquecidas(
         ...enriquecerEscuela(escuela, {
           niveles: instituto ? [] : datos ? [...datos.niveles] : [],
           alumnos: instituto ? instituto.alumnos : datos?.alumnos ?? 0,
+          carreras: instituto?.carreras,
           asistencia,
           situacionesHistoricas: situacionesPorCue.get(escuela.cueAnexo) ?? 0,
           solucionadasRecientes: solucionadasRecientesPorCue.get(escuela.cueAnexo) ?? 0,

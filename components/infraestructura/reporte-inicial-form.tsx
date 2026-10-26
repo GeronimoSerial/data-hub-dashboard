@@ -31,7 +31,7 @@ import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
-import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
+import { armarResumen, type FilaResumen } from '@/components/infraestructura/reporte-inicial-resumen'
 import { SelectorFotosFormulario } from '@/components/infraestructura/fotos/selector-fotos-formulario'
 import { declararFotosFormulario, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
@@ -43,6 +43,7 @@ import { InstitutoCamposAQuienAfecta } from '@/components/infraestructura/instit
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import {
   alcanceInstituto,
+  carrerasSinAlumno,
   esListaAlumnosElegidos,
   esListaDeNumeros,
   nombresDeCarreras,
@@ -52,7 +53,7 @@ import {
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
-import type { Severidad } from '@/lib/infraestructura/validacion'
+import { esSeveridad, type Severidad } from '@/lib/infraestructura/validacion'
 import { JUSTIFICACIONES_CRITICA } from '@/lib/infraestructura/justificacion-critica'
 import { requiereJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { esModalidadAsistenciaPedagogica, MODALIDADES_ASISTENCIA_PEDAGOGICA, type EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
@@ -97,7 +98,14 @@ export interface ReporteInicialFormProps {
   onGuardadoChange?: (guardado: boolean) => void
 }
 
+/** Gravedad de una fila del resumen sólo si es una gravedad válida: sin ella no hay separador. */
+function severidadDeFila(fila: FilaResumen): Severidad | null {
+  const texto = fila.severidad?.trim() ?? ''
+  return esSeveridad(texto) ? texto : null
+}
+
 const MENSAJE_FALTA_CARRERA = 'Elija al menos una carrera para esta situación.'
+const MENSAJE_FALTA_ALUMNO_CADA_CARRERA = 'Seleccione al menos un alumno afectado en cada carrera elegida.'
 
 const MENSAJE_ERROR_GUARDADO =
   'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
@@ -870,7 +878,13 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
       return completo ? null : prioridadPorAlumnos ? 'Elija el motivo de la inaccesibilidad.' : MENSAJE_FALTA_QUE_PASO
     }
     if (actual === 2) {
-      if (esInstituto) return seleccionDeAfectacion().carreras.length > 0 ? null : MENSAJE_FALTA_CARRERA
+      if (esInstituto) {
+        const seleccion = seleccionDeAfectacion()
+        if (seleccion.carreras.length === 0) return MENSAJE_FALTA_CARRERA
+        // Igual que GE: en la categoría de alumnos, cada unidad lleva al menos un alumno.
+        const exigeAlumno = afectacion.categoria === 'alumnos' && carrerasSinAlumno(seleccion.carreras, seleccion.alumnosElegidos).length > 0
+        return exigeAlumno ? MENSAJE_FALTA_ALUMNO_CADA_CARRERA : null
+      }
       if (afectacion.categoria === 'establecimiento' && afectacion.alcanceEstablecimiento === '') {
         return MENSAJE_FALTA_ALCANCE_AFECTACION
       }
@@ -1225,7 +1239,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
                   <dt>{fila.etiqueta}</dt>
                   <dd>
                     {fila.valor}
-                    {fila.severidad ? <> · <EstadoActualSeveridad severidad={fila.severidad as Severidad} prefijo={false} /></> : null}
+                    {fila.valor.trim() !== '' && severidadDeFila(fila) ? <> · <EstadoActualSeveridad severidad={severidadDeFila(fila) as Severidad} prefijo={false} /></> : null}
                   </dd>
                 </div>
               ))}
@@ -1304,6 +1318,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
               omitirEscrituraRef.current = true
               setBorradorPendiente(null)
               setConfirmarDescarte(false)
+              setError(null)
+              setMotivoEnvio(null)
+              setErrorVigencia(null)
             } catch (error) {
               setAvisoAlmacen(error instanceof Error ? error.message : 'No se pudo descartar el borrador local. Puede enviar las respuestas.')
             }
