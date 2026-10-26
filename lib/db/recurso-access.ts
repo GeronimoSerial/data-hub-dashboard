@@ -26,6 +26,7 @@ export async function loadRecursoAccess(
     estado: row.estado as RecursoAccess['estado'],
     audienciaNivelJurIds: niveles.map((n) => n.nivelJurisdiccionalId),
     audienciaUserIds: users.map((u) => u.userId),
+    ruta: row.ruta,
   }
 }
 

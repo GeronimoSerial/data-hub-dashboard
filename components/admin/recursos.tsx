@@ -309,7 +309,7 @@ function RecursoForm({
 
           <AdminField
             label="Audiencia por dirección"
-            hint="Si no se selecciona ninguna persona ni dirección, puede abrirlo cualquier usuario con sesión iniciada."
+            hint="Si no elegís a nadie, solo lo ve el equipo administrador."
           >
             <MultiSelect<string>
               value={idsADirecciones(draft.audienciaNivelJurIds)}
@@ -319,7 +319,7 @@ function RecursoForm({
             />
           </AdminField>
 
-          <AdminField label="Audiencia — personas">
+          <AdminField label="Visible para — personas">
             <MultiSelect<string>
               value={draft.audienciaUserIds ?? []}
               onChange={(next) => set('audienciaUserIds', next)}

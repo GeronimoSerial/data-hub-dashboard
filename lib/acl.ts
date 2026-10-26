@@ -11,7 +11,7 @@ export type SessionUser = {
   banned: boolean
   nivelJurIds: number[]
   // 'todos' | 'seleccionados': si es 'seleccionados', puedeAbrir restringe al
-  // usuario consulta a los recursos listados en recursoIds, antes de aplicar
+  // usuario no staff a los recursos listados en recursoIds, antes de aplicar
   // la audiencia propia del recurso.
   accesoRecursos: 'todos' | 'seleccionados'
   recursoIds: string[]
@@ -26,7 +26,15 @@ export type RecursoAccess = {
   estado: 'publicado' | 'borrador'
   audienciaNivelJurIds: number[]
   audienciaUserIds: string[]
+  // Ruta interna del recurso, cuando se conoce: habilita las excepciones de
+  // RUTAS_ABIERTAS_SIN_AUDIENCIA.
+  ruta?: string | null
 }
+
+/** Recursos que no pueden perder acceso con la regla de lista de permitidos
+ *  (S8, odd/tasks/hub-acceso-por-rol.md): sin audiencia siguen abiertos a todo
+ *  usuario con sesión, como antes. */
+export const RUTAS_ABIERTAS_SIN_AUDIENCIA: ReadonlySet<string> = new Set(['/mapas/infraestructura'])
 
 import {
   effectiveSections,
@@ -52,15 +60,14 @@ export function puedeAbrir(
   if (user.banned) return false
   if (recurso.estado === 'borrador' && !isStaff(user.role)) return false
   if (user.role === 'admin' || user.role === 'editor') return true
-  if (
-    user.accesoRecursos === 'seleccionados' &&
-    !user.recursoIds.includes(recurso.id)
-  )
-    return false
+  const assigned = user.accesoRecursos === 'seleccionados'
+  if (assigned && !user.recursoIds.includes(recurso.id)) return false
   const noAudience =
     recurso.audienciaNivelJurIds.length === 0 &&
     recurso.audienciaUserIds.length === 0
-  if (noAudience) return true
+  // Allow-list: sin audiencia sólo lo ve el staff. La asignación explícita
+  // (seleccionados + recursoIds) sí es permiso por sí misma.
+  if (noAudience) return assigned || (!assigned && RUTAS_ABIERTAS_SIN_AUDIENCIA.has(recurso.ruta ?? ''))
   if (recurso.audienciaUserIds.includes(user.id)) return true
   return user.nivelJurIds.some((id) => recurso.audienciaNivelJurIds.includes(id))
 }
@@ -74,6 +81,7 @@ type FiltrableAccess = {
   estado: 'publicado' | 'borrador'
   audienciaNivelJurIds?: number[]
   audienciaUserIds?: string[]
+  ruta?: string | null
 }
 
 export type NivelAcceso = 'abrir' | 'ingresar' | 'restringido'
@@ -81,8 +89,8 @@ export type NivelAcceso = 'abrir' | 'ingresar' | 'restringido'
 /** Nivel de acceso de un recurso para el visitante actual, sin filtrar el
  *  catálogo: anónimo -> 'ingresar' (requiere loguearse para saber si puede);
  *  con sesión y puedeAbrir -> 'abrir'; con sesión pero sin permiso ->
- *  'restringido' (consulta+seleccionados sin ese id, o audiencia que lo
- *  excluye). */
+ *  'restringido' (no staff sin asignación o audiencia que lo excluye, y
+ *  recursos sin audiencia, que sólo ve el staff). */
 export function accesoDe<T extends FiltrableAccess>(
   user: SessionUser | null,
   recurso: T,
@@ -93,6 +101,7 @@ export function accesoDe<T extends FiltrableAccess>(
     estado: recurso.estado,
     audienciaNivelJurIds: recurso.audienciaNivelJurIds ?? [],
     audienciaUserIds: recurso.audienciaUserIds ?? [],
+    ruta: recurso.ruta,
   })
   return puede ? 'abrir' : 'restringido'
 }
