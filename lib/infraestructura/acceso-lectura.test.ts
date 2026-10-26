@@ -88,6 +88,13 @@ describe('verificarAccesoLectura by capability (infra.map.read)', () => {
     expect(await verificarAccesoLectura()).toEqual({ ok: true, user: directorNivel })
   })
 
+  it('grants admin_ge on a no-audience recurso by capability alone', async () => {
+    const adminGe = { ...directorNivel, id: 'admin-ge', role: 'admin_ge' as const, nivelJurIds: [] }
+    vi.mocked(getSessionUser).mockResolvedValue(adminGe)
+    vi.mocked(loadRecursoAccessByRuta).mockResolvedValue(recursoSinAudiencia)
+    expect(await verificarAccesoLectura()).toEqual({ ok: true, user: adminGe })
+  })
+
   it('denies director_nivel without niveles', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({ ...directorNivel, nivelJurIds: [] })
     vi.mocked(loadRecursoAccessByRuta).mockResolvedValue(recursoSinAudiencia)

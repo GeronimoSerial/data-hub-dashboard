@@ -52,6 +52,7 @@ const users: Record<string, SessionUser> = {
   'director con niveles': { ...base, id: 'u-dir', role: 'director_nivel', nivelJurIds: [3] },
   'director sin niveles': { ...base, id: 'u-dir0', role: 'director_nivel' },
   'operador con cue': { ...base, id: 'u-op', role: 'operador_establecimiento', cueAnexo: '1-2' },
+  'admin ge': { ...base, id: 'u-admin-ge', role: 'admin_ge' },
 }
 
 const paths = [
@@ -83,6 +84,8 @@ const expected: Record<string, readonly string[]> = {
   'director con niveles': [toInfra, toInfra, toInfra, toInfra, toInfra, toInfra, ALLOWED, ALLOWED, ALLOWED, toInfra],
   'director sin niveles': [forbidden, forbidden, forbidden, forbidden, forbidden, forbidden, forbidden, forbidden, ALLOWED, forbidden],
   'operador con cue': [toParte, toParte, toParte, toParte, toParte, toParte, toParte, toParte, toParte, ALLOWED],
+  // Admin GE: sólo el mapa de infraestructura (y su carga); el resto vuelve a su inicio.
+  'admin ge': [toInfra, toInfra, toInfra, toInfra, toInfra, toInfra, ALLOWED, ALLOWED, ALLOWED, toInfra],
 }
 
 // Post-login destination: resolveServerHubEntry with the login callbackUrl.
@@ -92,6 +95,8 @@ const postLogin: Array<[string, string | undefined, string]> = [
   ['director con niveles', '/mapas/infraestructura/escuelas/123', '/mapas/infraestructura/escuelas/123'],
   ['director sin niveles', undefined, '/forbidden'],
   ['director sin niveles', '/mapas/infraestructura', '/forbidden'],
+  ['admin ge', undefined, '/mapas/infraestructura'],
+  ['admin ge', '/', '/mapas/infraestructura'],
   ['operador con cue', undefined, '/problematicas/parte/nuevo'],
   ['operador con cue', '/', '/problematicas/parte/nuevo'],
   ['admin', '/mapas/infraestructura/escuelas/123', '/mapas/infraestructura/escuelas/123'],
@@ -157,7 +162,7 @@ describe('role x route matrix', () => {
 })
 
 describe('hub API decision for confined roles', () => {
-  it.each(['director con niveles', 'director sin niveles', 'operador con cue'])('answers 403 on /api/hub for %s', async (label) => {
+  it.each(['director con niveles', 'director sin niveles', 'operador con cue', 'admin ge'])('answers 403 on /api/hub for %s', async (label) => {
     const response = await hubApiAccessResponse(users[label], '/explorar')
     expect(response?.status).toBe(403)
   })

@@ -10,6 +10,7 @@ import {
   editor,
   consulta,
   directorNivel,
+  adminGe,
   operadorEstablecimiento,
 } from '@/lib/auth-permissions'
 import { geSsoPlugin } from '@/lib/ge-sso/plugin'
@@ -41,6 +42,7 @@ function crearInstanciaAuth() {
           editor,
           consulta,
           director_nivel: directorNivel,
+          admin_ge: adminGe,
           operador_establecimiento: operadorEstablecimiento,
         },
         defaultRole: 'consulta',

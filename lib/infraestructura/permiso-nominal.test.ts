@@ -63,6 +63,12 @@ describe('puedeVerNominal', () => {
     ).toBe(false)
   })
 
+  it('un admin_ge sin grant no ve nominal, igual que un director', async () => {
+    const { puedeVerNominal } = await import('./permiso-nominal')
+    const id = idUnico('admin-ge')
+    expect(await puedeVerNominal(user({ id, role: 'admin_ge' }), new Date())).toBe(false)
+  })
+
   it('un editor sin grant tampoco tiene acceso', async () => {
     const { puedeVerNominal } = await import('./permiso-nominal')
     const id = idUnico('editor')

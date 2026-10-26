@@ -15,7 +15,7 @@ export const UNKNOWN_RECURSOS_ERROR = 'Hay recursos seleccionados que no existen
 export const UNKNOWN_NIVELES_JUR_ERROR =
   'Hay niveles jurisdiccionales seleccionados que no existen'
 
-const ROLES: Role[] = ['admin', 'editor', 'consulta', 'director_nivel', 'operador_establecimiento']
+const ROLES: Role[] = ['admin', 'editor', 'consulta', 'director_nivel', 'operador_establecimiento', 'admin_ge']
 const MIN_PASSWORD = 8
 
 export type AccesoRecursos = 'todos' | 'seleccionados'

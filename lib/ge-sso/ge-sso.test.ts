@@ -273,7 +273,7 @@ describe('provisión y tickets contra la base', () => {
 
     await loginOk({ email, nombre: 'Ana', apellido: 'Pérez', rol: 'administrador' })
     const admin = await usuarioPorEmail(email)
-    expect(admin.role).toBe('admin')
+    expect(admin.role).toBe('admin_ge')
     expect(admin.geCueAnexo).toBeNull()
     const sinNiveles = await getDb()
       .select()

@@ -3,6 +3,7 @@ export type Role =
   | 'editor'
   | 'consulta'
   | 'director_nivel'
+  | 'admin_ge'
   | 'operador_establecimiento'
 
 export type SessionUser = {

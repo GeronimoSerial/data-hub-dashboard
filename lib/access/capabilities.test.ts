@@ -49,6 +49,27 @@ describe('capabilitiesFor', () => {
     expect([...caps].some((cap) => cap.startsWith('hub.'))).toBe(false)
   })
 
+  it('admin_ge solo tiene authenticated, mapa de infraestructura y cargar', () => {
+    const caps = capabilitiesFor(user({ role: 'admin_ge' }))
+    expect(sorted(caps)).toEqual(['authenticated', 'infra.cargar', 'infra.map.read'].sort())
+  })
+
+  it('admin_ge queda confinado y no tiene capacidades hub, staff ni parte', () => {
+    const caps = capabilitiesFor(user({ role: 'admin_ge' }))
+    expect(caps.has('hub.recursos')).toBe(false)
+    expect(caps.has('admin')).toBe(false)
+    expect(caps.has('staff' as Capability)).toBe(false)
+    expect(caps.has('parte.access')).toBe(false)
+    expect([...caps].some((cap) => cap.startsWith('hub.'))).toBe(false)
+  })
+
+  it('admin sin restriccion mantiene todas las capacidades aunque exista admin_ge', () => {
+    const adminCaps = capabilitiesFor(user({ role: 'admin' }))
+    expect(adminCaps.has('hub.recursos')).toBe(true)
+    expect(adminCaps.has('admin')).toBe(true)
+    expect(adminCaps.has('parte.access')).toBe(true)
+  })
+
   it('operador_establecimiento solo tiene parte.access y authenticated', () => {
     const caps = capabilitiesFor(user({ role: 'operador_establecimiento', cueAnexo: '1-2' }))
     expect(sorted(caps)).toEqual(['authenticated', 'parte.access'].sort())

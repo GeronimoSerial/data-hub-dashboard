@@ -16,6 +16,10 @@ describe('shellNavAllowed', () => {
     expect(visible('operador_establecimiento')).toEqual([])
   })
 
+  it('hides both to admin_ge, que no ve el hub', () => {
+    expect(visible('admin_ge')).toEqual([])
+  })
+
   it('follows the consulta policy for each destination', () => {
     expect(visible('consulta')).toEqual(['/', '/explorar'])
     expect(visible('consulta', { enabledSections: ['explore'], landing: false })).toEqual(['/explorar'])

@@ -51,6 +51,10 @@ export function capabilitiesFor(user: SessionUser | null): ReadonlySet<Capabilit
     case 'editor':
       for (const cap of ALL_CAPABILITIES) if (cap !== 'admin') caps.add(cap)
       break
+    case 'admin_ge':
+      caps.add('infra.map.read')
+      caps.add('infra.cargar')
+      break
     case 'director_nivel':
       if (alcanceMapa(user).tipo !== 'ninguno') caps.add('infra.map.read')
       caps.add('infra.cargar')
