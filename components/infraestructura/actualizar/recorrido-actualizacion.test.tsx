@@ -512,3 +512,59 @@ describe('RecorridoActualizacion: cierre de la última afectación (T8)', () => 
     expect(cuerpo.servicioEducativo.estado).toBe('normal')
   })
 })
+
+/** Servicio en parte (algunas secciones suspendidas) sin afectaciones activas. */
+function estadoParcialSinAfectaciones() {
+  const base = estadoActual()
+  return { ...base, servicio: { estadoGeneral: 'parcial', alcanceVigente: [] }, afectaciones: [] }
+}
+
+describe('RecorridoActualizacion: servicio parcial en GE', () => {
+  it('no preselecciona "¿Hay clases?" como normal', async () => {
+    stubConEstado(estadoConSituacion('habitual', 'parcial'))
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    await abrirCambioDeEdificio()
+    expect(screen.getByRole('radio', { name: 'Sí, con normalidad' })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: 'No, se suspendieron' })).not.toBeChecked()
+  })
+
+  it('restablecer con servicio parcial pide elegir las clases y envía la elección', async () => {
+    const fetchMock = stubConEstado(estadoParcialSinAfectaciones())
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    const restablecer = screen.getByRole('region', { name: 'Restablecer el funcionamiento' })
+    expect(within(restablecer).getByRole('radio', { name: 'Sí, con normalidad' })).not.toBeChecked()
+    expect(within(restablecer).getByRole('radio', { name: 'No, se suspendieron' })).not.toBeChecked()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    elegirAsistencia('No')
+    expect(screen.getByText(/hoy hay clases suspendidas en parte/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardar actualización' })).toBeDisabled()
+    expect(fetchMock.mock.calls.filter(([, i]) => i?.method === 'POST')).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+    fireEvent.click(within(screen.getByRole('region', { name: 'Restablecer el funcionamiento' })).getByRole('radio', { name: 'Sí, con normalidad' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    const cuerpo = await cuerpoDelPost(fetchMock)
+    expect(cuerpo.servicioEducativo).toMatchObject({ estado: 'normal' })
+    expect(cuerpo.estadoEstablecimiento).toEqual({ estado: 'habitual' })
+  })
+
+  it('GE: "Evacuado" con "Sí, toda la escuela" envía evacuado y servicio suspendido', async () => {
+    const base = estadoActual()
+    const fetchMock = stubConEstado({ ...base, afectaciones: [base.afectaciones[0]] })
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    await abrirCambioDeEdificio()
+    fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Sí, toda la escuela' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    const cuerpo = await cuerpoDelPost(fetchMock)
+    expect(cuerpo.estadoEstablecimiento).toEqual({ estado: 'evacuado' })
+    expect(cuerpo.servicioEducativo).toMatchObject({ estado: 'suspendido' })
+  })
+})

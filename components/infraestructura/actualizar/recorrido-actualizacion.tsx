@@ -758,7 +758,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       : []),
   ]
   const faltaServicio = restablecer && clasesEdificio.servicioEstado === ''
-    ? ['Indique cómo están las clases para restablecer el funcionamiento.']
+    ? ['Indique cómo están las clases para restablecer el funcionamiento (hoy hay clases suspendidas en parte).']
     : []
   const bloqueos = [...new Set([...mensajesDeCambios, ...faltaServicio, ...habitual.bloqueos.map((regla) => regla.mensaje)])]
   function decidirAfectacionesHabitual(decisiones: Record<string, 'solucionada' | 'sigue'>): void {

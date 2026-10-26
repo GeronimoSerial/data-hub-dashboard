@@ -524,6 +524,33 @@ describe('instituto superior: modificación de alumnos por carrera', () => {
   })
 })
 
+describe('instituto superior: cambio de severidad sobre una afectación heredada', () => {
+  it('cambiar sólo la severidad no exige alumnos en una carrera heredada sin alumnos', async () => {
+    const creada = await POST(
+      postReq(cuerpo(CUE_SUP, {
+        afectacionesNuevas: [{ motivo: 'Anegamiento', severidad: 'Baja', carreras: [id.tecnicatura], alumnos: [alumno.juana] }],
+      })),
+    )
+    expect(creada.status).toBe(201)
+    const { parteId } = (await creada.json()) as { parteId: string }
+    const [afectacion] = await getDb().select().from(infraAfectacion)
+      .where(and(eq(infraAfectacion.parteId, parteId), eq(infraAfectacion.motivo, 'Anegamiento'))).limit(1)
+    // Afectación heredada: la carrera queda sin alumnos guardados.
+    await crearEjecutorSql(getRawClient()).execute({
+      sql: 'DELETE FROM infra_afectacion_matricula_alumno WHERE afectacion_id = ?',
+      args: [afectacion!.id],
+    })
+
+    const cambio = await POST(
+      postReq(cuerpo(CUE_SUP, {
+        afectacionesModificadas: [{ id: afectacion!.id, severidad: 'Media' }],
+      })),
+    )
+    expect(cambio.status).toBe(201)
+    expect(await filasCarreras(afectacion!.id)).toEqual([id.tecnicatura])
+  })
+})
+
 describe('instituto superior: cortes reemplazados', () => {
   it('no mezcla cortes: lee con el corte guardado y rechaza alumnos sin carreras sobre un corte viejo', async () => {
     const client = crearEjecutorSql(getRawClient())

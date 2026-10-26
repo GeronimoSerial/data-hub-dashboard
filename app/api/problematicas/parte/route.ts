@@ -13,6 +13,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import {
   infraAfectacion,
   infraAfectacionAlumno,
+  infraAfectacionMatriculaAlumno,
   infraAfectacionCarrera,
   infraAfectacionSeccion,
   infraBorrador,
@@ -888,12 +889,20 @@ async function handlePOST(request: Request) {
         if (modificacion.secciones) modificacion.secciones = [...new Set(modificacion.secciones)]
         continue
       }
-      // Institutos: igual que el alta y que GE, en la categoría de alumnos cada carrera elegida lleva al menos uno.
-      if (esInstituto && fila.categoria === 'alumnos' && modificacion.carreras !== undefined) {
-        const alumnosDelCambio = new Set(modificacion.alumnos ?? [])
-        const membresiaDelCambio = await alcanceCue.listMembers(modificacion.carreras)
-        const cadaCarreraConAlumno = modificacion.carreras.length > 0 && modificacion.carreras.every((carreraId) =>
-          [...(membresiaDelCambio.get(carreraId) ?? [])].some((alumno) => alumnosDelCambio.has(alumno)))
+      // Institutos: igual que el alta y que GE, en la categoría de alumnos cada carrera
+      // efectiva lleva al menos uno. Sin cambio de carreras ni de alumnos no se evalúa:
+      // una edición de severidad no reabre una afectación heredada.
+      // Una afectación de un corte reemplazado sin carreras nuevas la cubre la validación de corte de abajo.
+      const cortePrevioSinCarreras = modificacion.carreras === undefined && scopesActuales.get(fila.id)?.corteId != null && scopesActuales.get(fila.id)?.corteId !== corteInstituto
+      if (esInstituto && fila.categoria === 'alumnos' && (modificacion.carreras !== undefined || modificacion.alumnos !== undefined) && !cortePrevioSinCarreras) {
+        const carrerasEfectivas = modificacion.carreras ?? (await unidadesVigentes(fila.id))
+        const alumnosEfectivos = modificacion.alumnos ?? (await db
+          .select({ alumnoId: infraAfectacionMatriculaAlumno.alumnoId })
+          .from(infraAfectacionMatriculaAlumno)
+          .where(eq(infraAfectacionMatriculaAlumno.afectacionId, fila.id))).map((a) => a.alumnoId)
+        const membresiaEfectiva = await alcanceCue.listMembers(carrerasEfectivas)
+        const cadaCarreraConAlumno = carrerasEfectivas.length > 0 && carrerasEfectivas.every((carreraId) =>
+          [...(membresiaEfectiva.get(carreraId) ?? [])].some((alumno) => alumnosEfectivos.includes(alumno)))
         if (!cadaCarreraConAlumno) return jsonError(mensajeCadaUnidad, 400)
       }
       if (!esInstituto) {
