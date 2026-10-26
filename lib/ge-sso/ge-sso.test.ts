@@ -394,6 +394,17 @@ describe('formato legacy (asistencias) en el mismo endpoint', () => {
     expect(JSON.stringify(filas)).not.toContain(API_KEY)
   })
 
+  it('acepta dos logins simultáneos de un usuario nuevo y crea un solo usuario', async () => {
+    const body = { CUE: '1800554-00', USUARIO: 1003, secret: API_KEY }
+    const respuestas = await Promise.all([
+      manejarGeLogin(pedidoLegacy(body)),
+      manejarGeLogin(pedidoLegacy(body)),
+    ])
+    expect(respuestas.map((r) => r.status)).toEqual([200, 200])
+    const filas = await getDb().select().from(user).where(eq(user.email, 'ge-1003@ge-sso.invalid'))
+    expect(filas).toHaveLength(1)
+  })
+
   it('responde 401 con un secret incorrecto o ausente y no crea usuario', async () => {
     const mala = await manejarGeLogin(pedidoLegacy({ CUE: '1800554-00', USUARIO: 1002, secret: 'otra' }))
     expect(mala.status).toBe(401)
