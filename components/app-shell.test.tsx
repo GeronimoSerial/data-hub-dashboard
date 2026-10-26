@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { AppShell } from './app-shell'
 
 const { push, route } = vi.hoisted(() => ({ push: vi.fn(), route: { pathname: '/' } }))
@@ -88,17 +88,17 @@ describe('AppShell', () => {
     expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Buscar recursos' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Infraestructura escolar/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Infraestructura escolar/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Menú de cuenta' }))
     expect(screen.getByRole('menuitem', { name: 'Cerrar sesión' })).toBeInTheDocument()
   })
 
-  it('shows multiple enabled sections without exposing disabled navigation', () => {
+  it('does not render section links (Mapas, Tableros) in the shell navigation', () => {
     render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta', hubPolicy: { enabledSections: ['maps', 'dashboards'], landing: false } }}>Contenido</AppShell>)
     expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Mapas' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Tableros' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Mapas' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Tableros' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Infraestructura escolar' })).not.toBeInTheDocument()
   })
 
@@ -132,5 +132,54 @@ describe('AppShell for confined roles', () => {
   it('keeps the hub navigation for a consulta user', () => {
     render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
     expect(screen.getByRole('link', { name: 'Inicio' })).toBeInTheDocument()
+  })
+})
+
+describe('AppShell primary navigation', () => {
+  const navLinks = () => within(screen.getByRole('navigation', { name: 'Navegación principal' }))
+    .queryAllByRole('link')
+    .map((link) => link.textContent)
+
+  it('muestra solo Inicio y Explorar al admin en /', () => {
+    render(<AppShell initialUser={{ name: 'Admin', role: 'admin' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual(['Inicio', 'Explorar'])
+  })
+
+  it('no muestra items de navegación en /mapas/infraestructura para admin', () => {
+    route.pathname = '/mapas/infraestructura'
+    render(<AppShell initialUser={{ name: 'Admin', role: 'admin' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual([])
+  })
+
+  it('no muestra items de navegación en mapas para consulta', () => {
+    route.pathname = '/mapas/infraestructura'
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual([])
+  })
+
+  it('no muestra items de hub a un director de nivel en /mapas/infraestructura', () => {
+    route.pathname = '/mapas/infraestructura'
+    render(<AppShell initialUser={{ name: 'Director', role: 'director_nivel' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual([])
+  })
+
+  it('no muestra Inicio ni Explorar a un operador de establecimiento', () => {
+    render(<AppShell initialUser={{ name: 'Operador', role: 'operador_establecimiento' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual([])
+  })
+
+  it('muestra solo Explorar a una consulta sin landing', () => {
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta', hubPolicy: { enabledSections: ['explore'], landing: false } }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual(['Explorar'])
+  })
+
+  it('muestra solo Inicio a una consulta sin explore', () => {
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta', hubPolicy: { enabledSections: ['maps'], landing: true } }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual(['Inicio'])
+  })
+
+  it('muestra Inicio y Explorar a una consulta legacy', () => {
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual(['Inicio', 'Explorar'])
   })
 })
