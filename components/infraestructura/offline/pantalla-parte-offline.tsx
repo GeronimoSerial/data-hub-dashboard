@@ -12,6 +12,7 @@ import type { EstadoActualRespuesta } from '@/components/infraestructura/estado-
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 import { reportesDelRecorrido, seleccionarReporteLocal } from '@/lib/infraestructura/parte/retomar-reporte-local'
 import { reconectarParte, type ConflictoContexto } from '@/lib/infraestructura/parte/reconexion'
+import type { CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
 
 type ContextoLocal = ContextoReporte & {
   /** Form-ready values are captured when the online flow starts. */
@@ -19,6 +20,8 @@ type ContextoLocal = ContextoReporte & {
     escuela: EscuelaEncabezado
     turnos: TurnoContexto[]
     motivos: MotivoRow[]
+    /** Sólo institutos superiores. */
+    carreras?: CarreraElegible[]
     estadoActual?: EstadoActualRespuesta
     historial?: MovimientoHistorial[]
   }
@@ -194,7 +197,7 @@ export function PantallaParteOffline(): JSX.Element {
       {contexto.flujo === 'inicial' ? (
         <>
           <h1>Reporte inicial · {formulario.escuela.nombre}</h1>
-          <ReporteInicialForm cue={contexto.cue} turnos={formulario.turnos} motivos={formulario.motivos} />
+          <ReporteInicialForm cue={contexto.cue} turnos={formulario.turnos} motivos={formulario.motivos} carreras={formulario.carreras} />
         </>
       ) : (
         <>

@@ -5,11 +5,9 @@ import { and, count, eq, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, getRawClient } from '@/lib/db'
 import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
-import { infraAfectacion, infraAfectacionSeccion, infraBorrador, infraBorradorCierre, infraMovimiento, infraParte, infraServicioAlcance, infraVerificacionEvento } from '@/lib/db/schema'
+import { infraAfectacion, infraAfectacionSeccion, infraBorrador, infraBorradorCierre, infraMovimiento, infraParte, infraVerificacionEvento } from '@/lib/db/schema'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
-import { carrerasDelCue } from '@/lib/infraestructura/carreras-superior'
-import catalogoSuperior from '@/data/carreras-superior-2026.json'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import { BorradorError, syncDraft } from '@/lib/infraestructura/borradores/service'
@@ -145,9 +143,6 @@ const CUE_V = '1801605-67'
 const CUE_W = '1801605-68'
 const CUE_X = '1801605-69'
 const CUE_CENTRO_EVACUADOS = '1801605-70'
-const CUE_SUPERIOR = Object.keys(catalogoSuperior).find((cue) => !cue.startsWith('1801605-'))!
-// Workbook-backed institutional CUE with both ABIERTA and CERRADA careers.
-const CUE_SUPERIOR_CARRERA_CERRADA = '1801426-00'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -191,12 +186,6 @@ beforeAll(async () => {
       })
     }
   }
-  await client.execute(
-    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SUPERIOR}', NULL, 'Escuela Superior de prueba', 'ER', 'Parana')`,
-  )
-  await client.execute(
-    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SUPERIOR_CARRERA_CERRADA}', NULL, 'Escuela Superior con carreras cerradas', 'ER', 'Parana')`,
-  )
   await client.execute(
     `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SIN_SECCIONES}', NULL, 'Escuela sin secciones', 'ER', 'Parana')`,
   )
@@ -1394,186 +1383,6 @@ describe('POST /api/problematicas/parte — estado activo al pasar a habitual (T
       afectacionesSolucionadas: [{ id: afectacion!.id }],
     }))
     expect(res.status).toBe(201)
-  })
-})
-
-describe('POST /api/problematicas/parte — Superior career scope', () => {
-  it('persists and reads multiple catalog careers including a workbook CERRADA career, and records an idempotent career-only update', async () => {
-    const carrerasDisponibles = carrerasDelCue(CUE_SUPERIOR_CARRERA_CERRADA)
-    const carreraAbierta = 'PROFESORADO DE ARTES VISUALES'
-    // Carrera Estado = CERRADA in the institutional Estatales workbook sheet.
-    const carreraCerrada = 'TECNICATURA SUPERIOR EN BROMATOLOGIA'
-    expect(carrerasDisponibles).toContain(carreraAbierta)
-    expect(carrerasDisponibles).toContain(carreraCerrada)
-
-    const payloadInicial = {
-      cue: CUE_SUPERIOR_CARRERA_CERRADA,
-      idempotencyKey: crypto.randomUUID(),
-      rigeDesde: new Date().toISOString(),
-      afectacionesNuevas: [{
-        motivo: 'Inundación',
-        severidad: 'Alta' as const,
-        secciones: [],
-        carreras: [carreraAbierta, carreraCerrada],
-      }],
-    }
-    const creada = await POST(postReq(payloadInicial))
-    expect(creada.status, await creada.clone().text()).toBe(201)
-    const cuerpoInicial = await creada.json()
-    const db = getDb()
-    const [afectacion] = await db.select().from(infraAfectacion)
-      .where(eq(infraAfectacion.parteId, cuerpoInicial.parteId))
-    expect(afectacion?.carreras).toEqual([carreraAbierta, carreraCerrada])
-
-    const lecturaInicial = await GET(getReq(CUE_SUPERIOR_CARRERA_CERRADA))
-    expect(lecturaInicial.status).toBe(200)
-    const fichaInicial = await lecturaInicial.json()
-    expect(fichaInicial.afectaciones.find((a: { id: string }) => a.id === afectacion!.id)?.carreras)
-      .toEqual([carreraAbierta, carreraCerrada])
-
-    const movimientosAntes = await db.select().from(infraMovimiento)
-      .where(eq(infraMovimiento.parteId, cuerpoInicial.parteId))
-    expect(movimientosAntes).toHaveLength(1)
-
-    const payloadActualizacion = {
-      cue: CUE_SUPERIOR_CARRERA_CERRADA,
-      idempotencyKey: crypto.randomUUID(),
-      rigeDesde: new Date().toISOString(),
-      afectacionesModificadas: [{ id: afectacion!.id, carreras: [carreraCerrada] }],
-    }
-    const actualizada = await POST(postReq(payloadActualizacion))
-    expect(actualizada.status, await actualizada.clone().text()).toBe(201)
-    const cuerpoActualizado = await actualizada.json()
-    expect(cuerpoActualizado.cambios).toEqual([
-      `Carreras afectadas de "Inundación" actualizadas: ${carreraAbierta}\n${carreraCerrada} → ${carreraCerrada}`,
-    ])
-
-    const movimientosDespues = await db.select().from(infraMovimiento)
-      .where(eq(infraMovimiento.parteId, cuerpoInicial.parteId))
-    expect(movimientosDespues).toHaveLength(movimientosAntes.length + 1)
-    const movimientoActualizacion = movimientosDespues.find((movimiento) => movimiento.id === cuerpoActualizado.movimientoId)
-    expect(movimientoActualizacion).toBeDefined()
-    expect(movimientoActualizacion?.resumen).toMatchObject({
-      afectacionesAgregadas: [],
-      afectacionesRetiradas: [],
-      severidadesCambiadas: [],
-      alcancesCambiados: [],
-      datosCambiados: [{
-        afectacionId: afectacion!.id,
-        motivo: 'Inundación',
-        campos: [{
-          campo: 'carreras',
-          de: `${carreraAbierta}\n${carreraCerrada}`,
-          a: carreraCerrada,
-        }],
-        seccionesConSeleccionCambiada: [],
-      }],
-      serviciosCambiados: [],
-      establecimientoCambiado: null,
-    })
-
-    const replay = await POST(postReq(payloadActualizacion))
-    expect(replay.status).toBe(200)
-    const movimientosTrasReplay = await db.select().from(infraMovimiento)
-      .where(eq(infraMovimiento.parteId, cuerpoInicial.parteId))
-    expect(movimientosTrasReplay).toHaveLength(movimientosDespues.length)
-    expect(movimientosTrasReplay.filter((movimiento) => movimiento.id === cuerpoActualizado.movimientoId)).toHaveLength(1)
-
-    const lecturaActualizada = await GET(getReq(CUE_SUPERIOR_CARRERA_CERRADA))
-    expect(lecturaActualizada.status).toBe(200)
-    const fichaActualizada = await lecturaActualizada.json()
-    expect(fichaActualizada.afectaciones.find((a: { id: string }) => a.id === afectacion!.id)?.carreras)
-      .toEqual([carreraCerrada])
-  })
-
-  it('validates and persists career affectation/service scopes on create and update without losing scope', async () => {
-    const disponibles = carrerasDelCue(CUE_SUPERIOR)
-    const carreraA = disponibles[0]!
-    const carreraB = disponibles[1]!
-    const cueAjeno = Object.keys(catalogoSuperior).find((cue) => cue !== CUE_SUPERIOR)!
-    const carreraAjena = carrerasDelCue(cueAjeno)[0]!
-    const rigeDesde = new Date().toISOString()
-    const initialKey = crypto.randomUUID()
-    const initialPayload = {
-      cue: CUE_SUPERIOR,
-      idempotencyKey: initialKey,
-      rigeDesde,
-      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta' as const, secciones: [], carreras: [carreraA] }],
-      servicioEducativo: { estado: 'suspendido' as const, alcance: { tipo: 'carrera' as const, carreras: [carreraA] } },
-    }
-
-    const created = await POST(postReq(initialPayload))
-    expect(created.status).toBe(201)
-    const createdBody = await created.json()
-    const db = getDb()
-    const [storedAffectation] = await db.select().from(infraAfectacion)
-      .where(eq(infraAfectacion.parteId, createdBody.parteId))
-    expect(storedAffectation?.carreras).toEqual([carreraA])
-    expect(await db.select().from(infraAfectacionSeccion).where(eq(infraAfectacionSeccion.afectacionId, storedAffectation!.id))).toEqual([])
-    const serviceRows = await db.select().from(infraServicioAlcance)
-      .where(eq(infraServicioAlcance.parteId, createdBody.parteId))
-    expect(serviceRows).toContainEqual(expect.objectContaining({ tipo: 'carrera', referenciaId: carreraA, estado: 'suspendido' }))
-
-    const replay = await POST(postReq(initialPayload))
-    expect(replay.status).toBe(200)
-    expect(await db.select().from(infraMovimiento).where(eq(infraMovimiento.idempotencyKey, initialKey))).toHaveLength(1)
-
-    const readInitial = await GET(getReq(CUE_SUPERIOR))
-    const initialView = await readInitial.json()
-    expect(initialView.afectaciones.find((a: { id: string }) => a.id === storedAffectation!.id)?.carreras).toEqual([carreraA])
-
-    const updateKey = crypto.randomUUID()
-    const updatePayload = {
-      cue: CUE_SUPERIOR,
-      idempotencyKey: updateKey,
-      rigeDesde: new Date().toISOString(),
-      afectacionesModificadas: [{ id: storedAffectation!.id, carreras: [carreraB] }],
-      servicioEducativo: { estado: 'normal', alcance: { tipo: 'carrera', carreras: [carreraA] } },
-    }
-    const changed = await POST(postReq(updatePayload))
-    expect(changed.status).toBe(201)
-    expect((await changed.json()).cambios).toContain(`Carreras afectadas de "Inundación" actualizadas: ${carreraA} → ${carreraB}`)
-    expect(await POST(postReq(updatePayload)).then((response) => response.status)).toBe(200)
-    expect(await db.select().from(infraMovimiento).where(eq(infraMovimiento.idempotencyKey, updateKey))).toHaveLength(1)
-    const activeServiceRows = await db.select().from(infraServicioAlcance).where(and(
-      eq(infraServicioAlcance.parteId, createdBody.parteId),
-      eq(infraServicioAlcance.tipo, 'carrera'),
-      eq(infraServicioAlcance.referenciaId, carreraA),
-      isNull(infraServicioAlcance.retiradaEn),
-    ))
-    expect(activeServiceRows).toHaveLength(1)
-    expect(activeServiceRows[0]?.estado).toBe('normal')
-    const readChanged = await GET(getReq(CUE_SUPERIOR))
-    expect((await readChanged.json()).afectaciones.find((a: { id: string }) => a.id === storedAffectation!.id)?.carreras).toEqual([carreraB])
-
-    for (const seleccion of [[], [carreraB, carreraB], [carreraAjena]]) {
-      const invalidUpdate = await POST(postReq({
-        cue: CUE_SUPERIOR,
-        idempotencyKey: crypto.randomUUID(),
-        rigeDesde: new Date().toISOString(),
-        afectacionesModificadas: [{ id: storedAffectation!.id, carreras: seleccion }],
-      }))
-      expect(invalidUpdate.status).toBe(400)
-    }
-
-    const forgedStudents = await POST(postReq({
-      cue: CUE_SUPERIOR,
-      idempotencyKey: crypto.randomUUID(),
-      rigeDesde: new Date().toISOString(),
-      afectacionesNuevas: [{ motivo: 'Anegamiento', severidad: 'Alta', secciones: [], carreras: [carreraA], alumnos: [123] }],
-    }))
-    expect(forgedStudents.status).toBe(400)
-
-    const invalidService = await POST(postReq({
-      cue: CUE_SUPERIOR,
-      idempotencyKey: crypto.randomUUID(),
-      rigeDesde: new Date().toISOString(),
-      servicioEducativo: { estado: 'suspendido', alcance: { tipo: 'carrera', carreras: [carreraAjena] } },
-    }))
-    expect(invalidService.status).toBe(400)
-
-    const unchanged = await db.select().from(infraAfectacion).where(eq(infraAfectacion.id, storedAffectation!.id))
-    expect(unchanged[0]?.carreras).toEqual([carreraB])
   })
 })
 

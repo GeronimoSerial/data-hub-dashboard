@@ -20,6 +20,8 @@ export interface EscuelaMapaEnriquecida {
   nivelJurisdiccionalId?: number | null
   nivelJurisdiccionalNombre?: string | null
   alumnos: number
+  // Sólo institutos superiores: carreras vigentes en la matrícula (sin niveles GE).
+  carreras?: number
   gravedad: GravedadMapa
   categoriaPrincipal: string | null
   clases: EstadoClases

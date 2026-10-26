@@ -7,13 +7,14 @@ import {
 } from '@/lib/infraestructura/hidrometria/lecturas-repo'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-export async function GET(request: Request, ctx: Ctx) {
+async function handleGET(request: Request, ctx: Ctx) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
@@ -45,3 +46,5 @@ export async function GET(request: Request, ctx: Ctx) {
 
   return jsonNoStore(respuesta)
 }
+
+export const GET = ruta('infraestructura.hidrometria.estaciones.id.lecturas.get', handleGET)

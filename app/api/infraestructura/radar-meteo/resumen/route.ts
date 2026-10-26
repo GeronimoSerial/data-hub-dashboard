@@ -7,11 +7,12 @@ import { GRID_VERSION } from '@/lib/infraestructura/radar-meteo/grilla'
 import { alertasSmnActivas, severidadCAPEnEspanol } from '@/lib/infraestructura/radar-meteo/smn-alertas'
 import { alertasAndEnsemble } from '@/lib/infraestructura/radar-meteo/ensemble'
 import { obtenerMetricasVerificacion } from '@/lib/infraestructura/radar-meteo/verificacion'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 const cache = new Map<string, ReturnType<typeof calcularResumen>>()
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
   if (!riskRadarEnabled()) return Response.json({ error: 'Radar no habilitado' }, { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
@@ -34,3 +35,5 @@ export async function GET(request: Request) {
   const departamentos = resumen.departamentos.map(d => ({...d, dias:d.dias.map(day=>({...day,ensamble:ensemble?.diarios?.[d.id]?.[day.fecha] ?? null}))}))
   return Response.json({ runId: run.id, runAt: run.runAt, frescura: { edadMinutos, desactualizado: edadMinutos > 420 }, gridVersion: run.gridVersion ?? GRID_VERSION, ...resumen, departamentos, alertasSmn, verificacion, ensamble: ensemble ? {runId:ensemble.runId,runAt:ensemble.runAt,modelo:ensemble.modelo} : null, sinDatos: false }, { headers })
 }
+
+export const GET = ruta('infraestructura.radar-meteo.resumen.get', handleGET)

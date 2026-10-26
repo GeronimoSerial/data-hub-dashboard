@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { etiquetaDepartamento } from './etiquetas'
+import { detalleNivelOInstituto, etiquetaDepartamento } from './etiquetas'
 
 describe('etiquetaDepartamento', () => {
   it('presenta los 25 departamentos de Corrientes con tildes y capitalización correctas', () => {
@@ -38,5 +38,17 @@ describe('etiquetaDepartamento', () => {
   it('capitaliza palabra por palabra en el fallback y conserva conectores en minúscula', () => {
     expect(etiquetaDepartamento('VILLA DE LOS DOLORES')).toBe('Villa de los Dolores')
     expect(etiquetaDepartamento('SAN LUIS DEL PALMAR')).toBe('San Luis del Palmar')
+  })
+})
+
+describe('detalleNivelOInstituto', () => {
+  it('en GE muestra los niveles y nada cuando no hay', () => {
+    expect(detalleNivelOInstituto({ niveles: ['Primario', 'Secundario'], alumnos: 10 })).toBe('Primario, Secundario')
+    expect(detalleNivelOInstituto({ niveles: [], alumnos: 0 })).toBe('')
+  })
+
+  it('en un instituto cuenta carreras y alumnos matriculados, como la ficha', () => {
+    expect(detalleNivelOInstituto({ niveles: [], carreras: 3, alumnos: 1520 })).toBe('3 carreras · 1.520 alumnos matriculados')
+    expect(detalleNivelOInstituto({ niveles: [], carreras: 1, alumnos: 1 })).toBe('1 carrera · 1 alumno matriculado')
   })
 })

@@ -6,6 +6,7 @@ import { esCategoria } from '@/lib/infraestructura/categorias'
 import { esSeveridad } from '@/lib/infraestructura/validacion'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,7 +36,7 @@ async function readId(request: Request) {
   return null
 }
 
-export async function GET() {
+async function handleGET() {
   await ensureSeeded()
   const denied = staffGuard(await getSessionUser())
   if (denied) return Response.json({ error: denied.error }, { status: denied.status })
@@ -49,7 +50,7 @@ export async function GET() {
   return Response.json({ motivos })
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   await ensureSeeded()
   const denied = adminDenied(await getSessionUser())
   if (denied) return Response.json({ error: denied.error }, { status: denied.status })
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
   return Response.json({ ok: true })
 }
 
-export async function DELETE(request: Request) {
+async function handleDELETE(request: Request) {
   await ensureSeeded()
   const denied = adminDenied(await getSessionUser())
   if (denied) return Response.json({ error: denied.error }, { status: denied.status })
@@ -151,3 +152,7 @@ export async function DELETE(request: Request) {
   await db.delete(infraMotivo).where(eq(infraMotivo.id, id))
   return Response.json({ ok: true })
 }
+
+export const GET = ruta('infraestructura.motivos.get', handleGET)
+export const POST = ruta('infraestructura.motivos.post', handlePOST)
+export const DELETE = ruta('infraestructura.motivos.delete', handleDELETE)

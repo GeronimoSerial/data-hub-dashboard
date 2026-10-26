@@ -9,13 +9,14 @@ import { normalizeCue } from '@/lib/infraestructura/cue'
 import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { listarMovimientosDescritos } from '@/lib/infraestructura/parte-consulta'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const { searchParams } = new URL(request.url)
   const cue = normalizeCue(searchParams.get('cue') ?? '')
   if (!cue) {
@@ -47,3 +48,5 @@ export async function GET(request: Request) {
 
   return Response.json({ ok: true, movimientos }, { status: 200, headers: CACHE_HEADERS })
 }
+
+export const GET = ruta('parte.historial.get', handleGET)

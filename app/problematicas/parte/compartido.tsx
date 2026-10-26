@@ -4,6 +4,7 @@ import { resolverAccesoParteDesdeCookies } from '@/lib/infraestructura/acceso-pa
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { crearEjecutorSql, ensureGeSchema, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { getRawClient } from '@/lib/db'
+import { cargarCarrerasInstituto, type CargaCarrerasInstituto } from '@/lib/infraestructura/parte/instituto-ui-carga'
 
 // Keep one consistent explanation of the same context errors for every public parte entry point.
 const MENSAJES_ERROR: Record<ContextoErrorKind, string> = {
@@ -32,6 +33,14 @@ export async function bloqueoDeAcceso(cue: string | undefined, titulo: string) {
 
 export function ErrorContexto({ kind }: { kind: ContextoErrorKind }) {
   return <p className="estado-actual-aviso__texto" role="alert">{MENSAJES_ERROR[kind]}</p>
+}
+
+/**
+ * Carreras del CUE para el parte de institutos superiores (ver
+ * cargarCarrerasInstituto). Usa el cliente SQL de la app.
+ */
+export async function cargarCarrerasDelCue(cue: string): Promise<CargaCarrerasInstituto> {
+  return cargarCarrerasInstituto(crearEjecutorSql(getRawClient()), cue)
 }
 
 export async function cargarContextoParte(cue: string | undefined, incluirCorte = true) {

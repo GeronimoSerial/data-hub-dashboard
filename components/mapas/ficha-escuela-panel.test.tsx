@@ -501,6 +501,19 @@ describe('FichaEscuelaPanel', () => {
     expect(onVerAlumnosAlcanzados).toHaveBeenCalledWith('afectacion-1')
   })
 
+  it('en un instituto cuenta carreras, sin niveles GE y sin enlace a alumnos alcanzados', async () => {
+    const instituto = { ...escuela, niveles: [], alumnos: 83, carreras: 2 }
+    const situacionesInstituto: AfectacionFicha[] = [{
+      ...afectaciones[0]!, categoria: 'establecimiento', totales: { secciones: 0, alumnos: 1084, carreras: 2 },
+    }]
+    instalarFetch({ situaciones: situacionesInstituto })
+    renderFicha({ escuela: instituto, mostrarEnlaceNominal: true })
+    expect(await screen.findByText(/2 carreras/)).toBeInTheDocument()
+    expect(screen.queryByText(/Inicial, Primario/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/secciones/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ver alumnos alcanzados' })).not.toBeInTheDocument()
+  })
+
   it('muestra los estados de error de ficha e historial', async () => {
     instalarFetch({ error: true })
     renderFicha()

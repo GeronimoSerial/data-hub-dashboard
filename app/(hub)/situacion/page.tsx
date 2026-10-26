@@ -6,6 +6,7 @@ import { situacionEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { obtenerEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
 import { obtenerEstadoDatosSeguro } from '@/lib/infraestructura/riesgo/estado-datos/consulta'
 import { SituacionClient } from '@/components/infraestructura/situacion-client'
+import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,7 @@ const contenedor: React.CSSProperties = { padding: '2rem', color: 'var(--ink)' }
 // /mapas/infraestructura: el Centro de Situación es un panel ejecutivo
 // interno, no un recurso del catálogo.
 export default async function SituacionPage() {
+  await requireServerHubPageAccess('/situacion')
   const user = await getSessionUser()
   const gate = adminPageGate(user)
   if (gate === 'login') redirect('/login?callbackUrl=/situacion')

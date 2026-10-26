@@ -2,6 +2,7 @@ import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alum
 import type { JSX } from 'react'
 import { EstadoActualSeveridad } from './estado-actual-severidad'
 import { resumirAlcance, type AfectacionVigente } from './estado-actual-textos'
+import { contar } from '@/lib/infraestructura/parte/instituto-ui'
 
 // Nombres de los alumnos alcanzados, ya descifrados por la ruta. Cuando la
 // ruta no pudo resolver una identidad devuelve el id como nombre y el
@@ -19,6 +20,8 @@ function nombreVisible(alumno: { nombre: string; apellido: string }): string {
  */
 export function EstadoActualAfectacion({ afectacion }: { afectacion: AfectacionVigente }): JSX.Element {
   const alumnos = afectacion.secciones.flatMap((seccion) => seccion.alumnos)
+  // Sólo institutos superiores: carreras con su alcance (completa o alumnos).
+  const carreras = afectacion.carreras ?? []
 
   return (
     <li className="estado-actual-afectacion">
@@ -31,6 +34,29 @@ export function EstadoActualAfectacion({ afectacion }: { afectacion: AfectacionV
 
       {afectacion.descripcion && (
         <p className="estado-actual-afectacion__descripcion">{afectacion.descripcion}</p>
+      )}
+
+      {carreras.length > 0 && (
+        <details className="estado-actual-afectacion__alumnos">
+          <summary className="estado-actual-afectacion__alumnos-resumen">
+            Ver carreras alcanzadas
+          </summary>
+          <ul className="estado-actual-afectacion__alumnos-lista">
+            {carreras.map((carrera) => (
+              <li key={carrera.id}>
+                {carrera.nombre}
+                {carrera.completa ? ' (toda la carrera)' : ` (${contar(carrera.alumnos.length, 'alumno', 'alumnos')})`}
+                {!carrera.completa && carrera.alumnos.length > 0 && (
+                  <ul>
+                    {carrera.alumnos.map((alumno) => (
+                      <li key={alumno.id}>{nombreVisible(alumno)}</li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {alumnos.length > 0 && (

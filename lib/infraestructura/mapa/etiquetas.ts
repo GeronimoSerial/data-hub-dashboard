@@ -1,6 +1,21 @@
 import { ETIQUETA_ESTABLECIMIENTO, ETIQUETA_SERVICIO } from '@/components/infraestructura/estado-actual-textos'
 import type { EstadoClases, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import { severidadDeGravedad } from './gravedad'
+import { contar } from '@/lib/infraestructura/parte/instituto-ui'
+
+const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
+
+/**
+ * Detalle de una escuela en listas y paneles: los niveles GE, o para un
+ * instituto superior "N carreras · M alumnos matriculados" (igual que la ficha).
+ */
+export function detalleNivelOInstituto(escuela: { niveles: string[]; carreras?: number; alumnos: number }): string {
+  if (escuela.carreras === undefined) return escuela.niveles.join(', ')
+  return [
+    contar(escuela.carreras, 'carrera', 'carreras'),
+    `${FORMATO_NUMERO.format(escuela.alumnos)} ${escuela.alumnos === 1 ? 'alumno matriculado' : 'alumnos matriculados'}`,
+  ].join(' · ')
+}
 
 const ETIQUETAS_DEPARTAMENTO: Record<string, string> = {
   'BELLA VISTA': 'Bella Vista',

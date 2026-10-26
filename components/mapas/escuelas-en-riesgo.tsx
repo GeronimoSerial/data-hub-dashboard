@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type JSX } from 'react'
-import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { detalleNivelOInstituto, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import {
   colorRiesgo,
   escuelasEnRadar,
@@ -66,7 +66,8 @@ export function EscuelasEnRiesgo(props: EscuelasEnRiesgoProps): JSX.Element {
             <div className="map-sitact__lista">
               {listaVisible.map(({ escuela, nivel, amenaza, vulnerabilidad }) => {
                 const departamento = etiquetaDepartamento(escuela.departamento)
-                const niveles = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
+                const detalle = detalleNivelOInstituto(escuela)
+                const niveles = detalle ? ` · ${detalle}` : ''
                 const motivo = [
                   amenaza && `Clima: ${ETIQUETA_NIVEL_CLIMA[amenaza]}`,
                   vulnerabilidad && `Vulnerabilidad: ${ETIQUETA_NIVEL_VULNERABILIDAD[vulnerabilidad]}`,

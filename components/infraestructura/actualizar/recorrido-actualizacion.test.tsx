@@ -88,6 +88,37 @@ describe('RecorridoActualizacion', () => {
     expect(declararFotosMock).toHaveBeenCalledWith(expect.objectContaining({ movimientoBaseId: 'movement-base' }))
   })
 
+  it('la confirmación de un instituto nombra la institución y no la escuela', async () => {
+    prepararFotosMock.mockImplementation(async (_draftId: string, fotos: Array<{ attachmentId: string }>) => ({
+      preparadas: fotos.map(({ attachmentId }) => ({
+        attachmentId,
+        bytesOptimizado: 1000,
+        bytesMiniatura: 200,
+        optimizadaContentType: 'image/jpeg',
+        miniaturaContentType: 'image/jpeg',
+      })),
+      errores: [],
+    }))
+    declararFotosMock.mockResolvedValue(undefined)
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/borradores/config')) {
+        return new Response(JSON.stringify({ borradoresSync: false, fotos: true, mapaBorradores: false }), { status: 200 })
+      }
+      const body = url.includes('/historial')
+        ? { ok: true, movimientos: [{ id: 'movement-base', tipo: 'actualizacion' }] }
+        : estadoActual()
+      return new Response(JSON.stringify(body), { status: 200 })
+    }))
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} esInstituto />)
+    const input = await screen.findByLabelText('Agregar fotos')
+    fireEvent.change(input, { target: { files: [new File(['photo'], 'aula.jpg', { type: 'image/jpeg' })] } })
+    const guardar = await screen.findByRole('button', { name: 'Guardar solo fotos' })
+    await waitFor(() => expect(guardar).toBeEnabled())
+    fireEvent.click(guardar)
+    expect(await screen.findByText('Ya figura en el estado actual de su institución.')).toBeInTheDocument()
+    expect(screen.queryByText(/escuela/)).toBeNull()
+  })
+
   it('conserva las fotos agregadas en la entrada al avanzar al siguiente paso', async () => {
     prepararFotosMock.mockImplementation(async (_draftId: string, fotos: Array<{ attachmentId: string }>) => ({
       preparadas: fotos.map(({ attachmentId }) => ({
@@ -479,5 +510,61 @@ describe('RecorridoActualizacion: cierre de la última afectación (T8)', () => 
     expect(cuerpo.afectacionesSolucionadas.map((s: { id: string }) => s.id)).toEqual(['e'])
     expect(cuerpo.estadoEstablecimiento).toEqual({ estado: 'habitual' })
     expect(cuerpo.servicioEducativo.estado).toBe('normal')
+  })
+})
+
+/** Servicio en parte (algunas secciones suspendidas) sin afectaciones activas. */
+function estadoParcialSinAfectaciones() {
+  const base = estadoActual()
+  return { ...base, servicio: { estadoGeneral: 'parcial', alcanceVigente: [] }, afectaciones: [] }
+}
+
+describe('RecorridoActualizacion: servicio parcial en GE', () => {
+  it('no preselecciona "¿Hay clases?" como normal', async () => {
+    stubConEstado(estadoConSituacion('habitual', 'parcial'))
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    await abrirCambioDeEdificio()
+    expect(screen.getByRole('radio', { name: 'Sí, con normalidad' })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: 'No, se suspendieron' })).not.toBeChecked()
+  })
+
+  it('restablecer con servicio parcial pide elegir las clases y envía la elección', async () => {
+    const fetchMock = stubConEstado(estadoParcialSinAfectaciones())
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    const restablecer = screen.getByRole('region', { name: 'Restablecer el funcionamiento' })
+    expect(within(restablecer).getByRole('radio', { name: 'Sí, con normalidad' })).not.toBeChecked()
+    expect(within(restablecer).getByRole('radio', { name: 'No, se suspendieron' })).not.toBeChecked()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    elegirAsistencia('No')
+    expect(screen.getByText(/hoy hay clases suspendidas en parte/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardar actualización' })).toBeDisabled()
+    expect(fetchMock.mock.calls.filter(([, i]) => i?.method === 'POST')).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+    fireEvent.click(within(screen.getByRole('region', { name: 'Restablecer el funcionamiento' })).getByRole('radio', { name: 'Sí, con normalidad' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    const cuerpo = await cuerpoDelPost(fetchMock)
+    expect(cuerpo.servicioEducativo).toMatchObject({ estado: 'normal' })
+    expect(cuerpo.estadoEstablecimiento).toEqual({ estado: 'habitual' })
+  })
+
+  it('GE: "Evacuado" con "Sí, toda la escuela" envía evacuado y servicio suspendido', async () => {
+    const base = estadoActual()
+    const fetchMock = stubConEstado({ ...base, afectaciones: [base.afectaciones[0]] })
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    await abrirCambioDeEdificio()
+    fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Sí, toda la escuela' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    elegirAsistencia('No')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    const cuerpo = await cuerpoDelPost(fetchMock)
+    expect(cuerpo.estadoEstablecimiento).toEqual({ estado: 'evacuado' })
+    expect(cuerpo.servicioEducativo).toMatchObject({ estado: 'suspendido' })
   })
 })

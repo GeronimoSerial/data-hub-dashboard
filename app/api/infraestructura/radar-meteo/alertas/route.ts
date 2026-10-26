@@ -2,11 +2,12 @@ import { alertasSmnActivas, severidadCAPEnEspanol } from '@/lib/infraestructura/
 import { riskRadarEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+async function handleGET() {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
@@ -42,3 +43,5 @@ export async function GET() {
     { headers: { 'Cache-Control': 'private, max-age=60' } },
   )
 }
+
+export const GET = ruta('infraestructura.radar-meteo.alertas.get', handleGET)

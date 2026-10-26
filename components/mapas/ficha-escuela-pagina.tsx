@@ -13,6 +13,7 @@ import { formatearMomentoHistorial } from '@/components/infraestructura/historia
 import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
 import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { ObservacionReporte } from './observacion-reporte'
+import { contar } from '@/lib/infraestructura/parte/instituto-ui'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
@@ -56,6 +57,7 @@ export interface FichaEscuelaPaginaProps {
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
+
 
 export function FichaEscuelaPagina({
   escuela,
@@ -287,9 +289,11 @@ export function FichaEscuelaPagina({
           .sort((a, b) => b.creadaEn.localeCompare(a.creadaEn))[0]?.id ?? null)
       : null
   const etiquetaAlumnos = escuela.alumnos === 1 ? 'alumno' : 'alumnos'
+  // Institutos superiores: la ficha cuenta carreras y no muestra nombres de alumnos.
+  const esInstituto = escuela.carreras !== undefined
 
   const verAlumnos = (afectacionId: string, className: string) =>
-    mostrarEnlaceNominal ? (
+    mostrarEnlaceNominal && !esInstituto ? (
       <button
         type="button"
         className={className}
@@ -335,7 +339,9 @@ export function FichaEscuelaPagina({
               </p>
               <p>
                 {[
-                  escuela.niveles.length > 0 ? escuela.niveles.join(', ') : null,
+                  esInstituto
+                    ? contar(escuela.carreras ?? 0, 'carrera', 'carreras')
+                    : escuela.niveles.length > 0 ? escuela.niveles.join(', ') : null,
                   `${FORMATO_NUMERO.format(escuela.alumnos)} ${etiquetaAlumnos} matriculados`,
                 ]
                   .filter(Boolean)
@@ -400,7 +406,7 @@ export function FichaEscuelaPagina({
                     className={styles.incidenteDot}
                     aria-hidden="true"
                   />
-                  Situación activa · {incidente.categoria === 'alumnos' ? 'Prioridad' : 'Gravedad'} {prioridadEfectiva(incidente)?.toLowerCase() ?? 'sin datos'}
+                  Situación activa · {incidente.impactoAlumnos ? 'Prioridad' : 'Gravedad'} {prioridadEfectiva(incidente)?.toLowerCase() ?? 'sin datos'}
                 </span>
                 <h2 className={styles.incidenteTitulo}>{incidente.motivo}</h2>
                 {!incidente.descripcion && (
@@ -409,7 +415,7 @@ export function FichaEscuelaPagina({
                   </p>
                 )}
                 <ObservacionReporte texto={incidente.descripcion} />
-                {incidente.categoria === 'alumnos' && <p><ImpactoAlumnosResumen impacto={incidente.impactoAlumnos} /></p>}
+                {incidente.impactoAlumnos && <p><ImpactoAlumnosResumen impacto={incidente.impactoAlumnos} /></p>}
                 {justificacionIncidente && (
                   <p className={styles.incidenteTexto}>
                     <strong>Justificación de gravedad:</strong> {justificacionIncidente.etiqueta}
@@ -429,9 +435,11 @@ export function FichaEscuelaPagina({
                   </div>
                   <div className={styles.incidenteDetalle}>
                     <p className={styles.incidenteDetalleFuerte}>
-                      {incidente.totales.secciones === 1
-                        ? '1 sección'
-                        : `${incidente.totales.secciones} secciones`}
+                      {esInstituto
+                        ? contar(incidente.totales.carreras ?? 0, 'carrera', 'carreras')
+                        : incidente.totales.secciones === 1
+                          ? '1 sección'
+                          : `${incidente.totales.secciones} secciones`}
                     </p>
                     <p>Desde {desde(incidente.rigeDesde)}</p>
                     {verAlumnos(incidente.id, styles.linkSubrayado)}
@@ -462,7 +470,7 @@ export function FichaEscuelaPagina({
                     <article className={styles.itemSecundario} key={afectacion.id}>
                       <div className={styles.itemSecundarioTop}>
                         <h4 className={styles.itemSecundarioTitulo}>{afectacion.motivo}</h4>
-                        {afectacion.categoria === 'alumnos' ? <ImpactoAlumnosResumen impacto={afectacion.impactoAlumnos} /> : <EstadoActualSeveridad severidad={afectacion.severidad} />}
+                        {afectacion.impactoAlumnos ? <ImpactoAlumnosResumen impacto={afectacion.impactoAlumnos} /> : <EstadoActualSeveridad severidad={afectacion.severidad} />}
                       </div>
                       <p className={styles.itemSecundarioTexto}>
                         {[
@@ -480,7 +488,7 @@ export function FichaEscuelaPagina({
                         </p>
                       )}
                       <ObservacionReporte texto={afectacion.descripcion} />
-                      {afectacion.categoria === 'alumnos' && <ImpactoAlumnosResumen impacto={afectacion.impactoAlumnos} />}
+                      {afectacion.impactoAlumnos && <ImpactoAlumnosResumen impacto={afectacion.impactoAlumnos} />}
                       {verAlumnos(afectacion.id, styles.linkAccion)}
                     </article>
                   )

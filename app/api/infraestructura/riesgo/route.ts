@@ -11,6 +11,7 @@ import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -55,7 +56,7 @@ function sinCorte(page: number, pageSize: number) {
   }
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   // ACL primero: una request sin sesión no debe disparar trabajo de DB
   // (ensureSeeded) antes de fallar.
   const acceso = await verificarAccesoLectura()
@@ -157,3 +158,5 @@ export async function GET(request: Request) {
     },
   )
 }
+
+export const GET = ruta('infraestructura.riesgo.get', handleGET)

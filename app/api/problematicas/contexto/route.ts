@@ -8,6 +8,7 @@ import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestru
 import { ensureGeSchema, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,7 +35,7 @@ const STATUS_ERROR: Record<ContextoErrorKind, number> = {
 // lib/infraestructura/acceso-publico.ts (reemplazo provisorio de la
 // autenticación por token que viene después) porque ahora el contexto puede
 // incluir identidad de alumnos (ver lib/infraestructura/contexto.ts).
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const url = new URL(request.url)
   let cue = url.searchParams.get('cue')
 
@@ -63,3 +64,5 @@ export async function GET(request: Request) {
 
   return Response.json(resultado.contexto)
 }
+
+export const GET = ruta('problematicas.contexto.get', handleGET)

@@ -11,6 +11,13 @@ import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { severidadDeGravedad } from '@/lib/infraestructura/mapa/gravedad'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
+import { detalleNivelOInstituto } from '@/lib/infraestructura/mapa/etiquetas'
+
+/** " · " más el detalle de la escuela, o nada si no tiene. */
+function textoDetalle(escuela: EscuelaMapaEnriquecida): string {
+  const detalle = detalleNivelOInstituto(escuela)
+  return detalle ? ` · ${detalle}` : ''
+}
 
 interface PanelSituacionActualProps {
   escuelas: EscuelaMapaEnriquecida[]
@@ -159,7 +166,7 @@ export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: Pan
           <div className="map-sitact__lista">
             {reportes.map((escuela) => {
               const severidad = severidadDeGravedad(escuela.gravedad)
-              const nivel = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
+              const nivel = textoDetalle(escuela)
               const novedad = escuela.ultimaNovedad ? tiempoRelativo(escuela.ultimaNovedad, ahoraMs) : ''
               const departamento = etiquetaDepartamento(escuela.departamento)
               return (
@@ -202,7 +209,7 @@ export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: Pan
           </summary>
           <div className="map-sitact__lista">
             {solucionadasRecientes.map((escuela) => {
-              const nivel = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
+              const nivel = textoDetalle(escuela)
               const departamento = etiquetaDepartamento(escuela.departamento)
               return (
                 <button

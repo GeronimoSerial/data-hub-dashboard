@@ -5,11 +5,12 @@ import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-
 import { esDatasetReferencia } from '@/lib/infraestructura/datasets/catalogo'
 import { leerVersion, listarVersiones } from '@/lib/infraestructura/datasets/repositorio'
 import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export async function GET(request: Request, contexto: { params: Promise<{ dataset: string }> }) {
-  const acceso = await verificarAccesoLectura()
+async function handleGET(request: Request, contexto: { params: Promise<{ dataset: string }> }) {
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
   if (alcanceMapa(acceso.user).tipo === 'ninguno') return Response.json({ error: 'Sin acceso al mapa' }, { status: 403 })
   const { dataset } = await contexto.params
@@ -29,3 +30,5 @@ export async function GET(request: Request, contexto: { params: Promise<{ datase
   }
   return jsonComprimido(request, seleccion.documento, { headers })
 }
+
+export const GET = ruta('mapas.infraestructura.datasets.dataset.get', handleGET)

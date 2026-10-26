@@ -110,31 +110,6 @@ describe('diffParte', () => {
     expect(esDiffVacio(diff)).toBe(false)
   })
 
-  it('preserva carreras en altas y detecta cambios de conjunto sin depender del orden', () => {
-    const antes: ParteSnapshot = {
-      ...crearSnapshotVacio(),
-      afectaciones: [afectacion({ id: 'af-1', carreras: ['Carrera A', 'Carrera B'] })],
-    }
-    const mismoAlcance: ParteSnapshot = {
-      ...crearSnapshotVacio(),
-      afectaciones: [afectacion({ id: 'af-1', carreras: ['Carrera B', 'Carrera A'] })],
-    }
-    const cambiado: ParteSnapshot = {
-      ...crearSnapshotVacio(),
-      afectaciones: [afectacion({ id: 'af-1', carreras: ['Carrera B', 'Carrera C'] })],
-    }
-    const nueva: ParteSnapshot = {
-      ...crearSnapshotVacio(),
-      afectaciones: [afectacion({ id: 'af-2', carreras: ['Carrera A'] })],
-    }
-
-    expect(diffParte(antes, mismoAlcance).datosCambiados).toEqual([])
-    expect(diffParte(antes, cambiado).datosCambiados[0]?.campos).toContainEqual({
-      campo: 'carreras', de: 'Carrera A\nCarrera B', a: 'Carrera B\nCarrera C',
-    })
-    expect(diffParte(crearSnapshotVacio(), nueva).afectacionesAgregadas[0]?.carreras).toEqual(['Carrera A'])
-  })
-
   it('afectación retirada: presente antes, ausente después', () => {
     const antes: ParteSnapshot = {
       estadoEstablecimiento: 'habitual',

@@ -86,47 +86,6 @@ describe('RevisarSituacion', () => {
     expect(within(actual).queryByText('Sugerido')).not.toBeInTheDocument()
   })
 
-  it('restaura y modifica carreras sin fabricar secciones ni alumnos', () => {
-    const p = base({
-      carrerasDisponibles: ['Tecnicatura A', 'Profesorado B'],
-      situacion: { ...base().situacion, carreras: ['Tecnicatura A'] },
-    })
-    render(<RevisarSituacion {...p} />)
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
-    const sheet = screen.getByRole('dialog')
-    fireEvent.click(within(sheet).getByRole('checkbox', { name: 'Las carreras afectadas' }))
-    fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
-    expect(screen.getByRole('checkbox', { name: 'Tecnicatura A' })).toBeChecked()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Profesorado B' }))
-
-    expect(p.onResponder).toHaveBeenLastCalledWith({
-      tipo: 'cambio',
-      cambio: { aspectos: ['alcance'], carreras: ['Tecnicatura A', 'Profesorado B'] },
-    })
-  })
-
-  it('expone una carrera obsoleta del borrador para quitarla y elegir las vigentes', () => {
-    const p = base({
-      carrerasDisponibles: ['Tecnicatura A'],
-      situacion: { ...base().situacion, carreras: ['Carrera cerrada'] },
-    })
-    render(<RevisarSituacion {...p} />)
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
-    const sheet = screen.getByRole('dialog')
-    fireEvent.click(within(sheet).getByRole('checkbox', { name: 'Las carreras afectadas' }))
-    fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('Carrera cerrada')
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Carrera cerrada (ya no disponible)' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Tecnicatura A' }))
-
-    expect(p.onResponder).toHaveBeenLastCalledWith({
-      tipo: 'cambio',
-      cambio: { aspectos: ['alcance'], carreras: ['Tecnicatura A'] },
-    })
-  })
-
   it('cancelar “¿Qué cambió?” conserva “Sigue igual” sin aplicar bloques de edición', () => {
     const p = base({ respuesta: { tipo: 'sigue' } })
     render(<RevisarSituacion {...p} />)

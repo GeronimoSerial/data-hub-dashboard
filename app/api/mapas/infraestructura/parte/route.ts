@@ -18,6 +18,8 @@ import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { armarFichaParte, listarSituacionesRecientes } from '@/lib/infraestructura/parte-consulta'
 import { verificarCueEnAlcance } from '@/lib/infraestructura/parte-mapa'
+import { totalesMatriculaInstitutos } from '@/lib/infraestructura/alcance'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,8 +28,8 @@ export const dynamic = 'force-dynamic'
 // devuelva vacío, mientras permite leer el parte y sus afectaciones.
 const SIN_CORTE = 0
 
-export async function GET(request: Request) {
-  const acceso = await verificarAccesoLectura()
+async function handleGET(request: Request) {
+  const acceso = await verificarAccesoLectura({ section: 'infrastructure' })
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   const alcance = alcanceMapa(acceso.user)
@@ -60,9 +62,13 @@ export async function GET(request: Request) {
   // siempre que haya CUE válido y corte (incluso para escuelas con
   // `parte: null`). Es sólo un agregado por escuela — nunca identidad de
   // alumno. Sin corte no se consulta el padrón.
-  const datosPadron = corte
-    ? await obtenerDatosPadronEscuela(client, corte.id, cue.value)
-    : null
+  // Institutos superiores: matrícula y carreras de la matrícula vigente, no del padrón GE.
+  const instituto = (await totalesMatriculaInstitutos(client, cue.value)).get(cue.value)
+  const datosPadron = instituto
+    ? { niveles: [], secciones: 0, matriculaTotal: instituto.alumnos, turnos: [], carreras: instituto.carreras }
+    : corte
+      ? await obtenerDatosPadronEscuela(client, corte.id, cue.value)
+      : null
 
   const ficha = await armarFichaParte(cue.value, corte?.id ?? SIN_CORTE)
   const recientes = (await listarSituacionesRecientes(cue.value))
@@ -96,7 +102,6 @@ export async function GET(request: Request) {
           : {}),
         impactoAlumnos: afectacion.impactoAlumnos,
         descripcion: afectacion.descripcion,
-        ...(afectacion.carreras ? { carreras: afectacion.carreras } : {}),
         causadaPorId: afectacion.causadaPorId,
         rigeDesde: afectacion.rigeDesde,
         creadaEn: afectacion.creadaEn,
@@ -109,3 +114,5 @@ export async function GET(request: Request) {
     },
   )
 }
+
+export const GET = ruta('mapas.infraestructura.parte.get', handleGET)

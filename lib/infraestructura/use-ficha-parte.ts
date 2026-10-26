@@ -2,7 +2,6 @@
 
 import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 
-
 import { useEffect, useState } from 'react'
 import type { DatosPadronEscuela } from './datos-padron-escuela'
 import type {
@@ -30,8 +29,8 @@ export interface AfectacionFicha {
   causadaPorId: string | null
   rigeDesde: string
   creadaEn: string
-  totales: { secciones: number; alumnos: number }
-  carreras?: string[]
+  /** `carreras` sólo en institutos superiores. */
+  totales: { secciones: number; alumnos: number; carreras?: number }
 }
 
 export interface SolucionadaFicha {

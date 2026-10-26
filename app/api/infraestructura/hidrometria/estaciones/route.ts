@@ -7,6 +7,7 @@ import { ultimaLecturaEstacion } from '@/lib/infraestructura/hidrometria/lectura
 import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic'
 // Todas las estaciones del catálogo con coordenadas declaradas, cada una con su
 // última lectura publicada y el estado (altura y tendencia) derivado de ella.
 // Las coordenadas son las del publicador (no verificadas).
-export async function GET() {
+async function handleGET() {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
@@ -63,3 +64,5 @@ export async function GET() {
 
   return jsonNoStore({ estaciones })
 }
+
+export const GET = ruta('infraestructura.hidrometria.estaciones.get', handleGET)

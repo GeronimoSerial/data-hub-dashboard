@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   RECORRIDO_INICIAL,
   consecuenciasActivas,
+  carrerasDelServicio,
   construirEnvio,
   ordenarSituaciones,
   responder,
@@ -56,5 +57,47 @@ describe('recorrido de actualización', () => {
     e = responder(e, 'b', { tipo: 'sigue' })
     expect(construirEnvio(situaciones, e).afectacionesModificadas).toEqual([{ id: 'a', secciones: [10, 20] }])
     expect(construirEnvio(situaciones, e).afectacionesConfirmadas).toEqual(['b'])
+  })
+})
+
+describe('institutos: alcance por carrera en el envío', () => {
+  const situacion: SituacionRecorrido = {
+    id: 'a', motivo: 'Inundación', categoria: 'establecimiento', severidad: 'Media',
+    rigeDesde: '2026-10-02T10:00:00.000Z', creadaEn: '2026-10-02T10:00:00.000Z', causadaPorId: null,
+  }
+
+  it('envía carreras y alumnos de la modificación, y el servicio por carrera', () => {
+    const estado = responder(RECORRIDO_INICIAL, 'a', {
+      tipo: 'cambio',
+      cambio: { aspectos: ['alcance', 'clases-edificio'], carreras: [1], alumnos: [], alumnosElegidos: [] },
+    })
+    const envio = construirEnvio([situacion], { ...estado, clasesEdificio: { servicioEstado: 'suspendido', estadoEstablecimiento: 'habitual', confirmarInterrupcionTotal: false } }, { carreras: [1] })
+    expect(envio.afectacionesModificadas).toEqual([{ id: 'a', carreras: [1], alumnos: [] }])
+    expect(envio.servicioEducativo).toEqual({ estado: 'suspendido', alcance: { tipo: 'carrera', carreras: [1] } })
+  })
+
+  it('sin alcance de carreras el servicio sigue siendo del establecimiento (GE)', () => {
+    const estado = { ...RECORRIDO_INICIAL, clasesEdificio: { servicioEstado: 'suspendido' as const, estadoEstablecimiento: 'habitual' as const, confirmarInterrupcionTotal: false } }
+    expect(construirEnvio([situacion], estado).servicioEducativo).toEqual({ estado: 'suspendido', alcance: { tipo: 'establecimiento' } })
+  })
+
+  it('la interrupción de clases alcanza las carreras de las situaciones activas, no las solucionadas', () => {
+    const otra: SituacionRecorrido = { ...situacion, id: 'b' }
+    const estado = responder(
+      responder(RECORRIDO_INICIAL, 'a', { tipo: 'sigue' }),
+      'b',
+      { tipo: 'solucionada', solucionadaEn: '2026-10-03T10:00:00.000Z' },
+    )
+    const carreras = carrerasDelServicio([situacion, otra], estado, [1, 2, 3], (s) => (s.id === 'a' ? [2] : [3]))
+    expect(carreras).toEqual([2])
+  })
+
+  it('sin situaciones activas la interrupción vale para todo el catálogo del CUE', () => {
+    expect(carrerasDelServicio([], RECORRIDO_INICIAL, [1, 2], () => [])).toEqual([1, 2])
+  })
+
+  it('la interrupción de clases incluye las carreras de la situación nueva', () => {
+    const estado = { ...RECORRIDO_INICIAL, nueva: { causadaPorId: null, motivo: 'Tormenta severa', severidad: 'Alta' as const, carreras: [3] } }
+    expect(carrerasDelServicio([situacion], estado, [1, 2, 3], () => [1]).sort()).toEqual([1, 3])
   })
 })

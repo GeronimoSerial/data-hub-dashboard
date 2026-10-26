@@ -90,28 +90,6 @@ describe('AlgoNuevo', () => {
     expect(screen.getByLabelText('Descripción (opcional)')).toBeInTheDocument()
   })
 
-  it('restaura una situación Superior guardada y permite corregir su carrera obsoleta', () => {
-    const estado = {
-      ...RECORRIDO_INICIAL,
-      nueva: {
-        causadaPorId: null,
-        motivo: 'Tormenta severa',
-        severidad: 'Alta' as const,
-        secciones: [],
-        carreras: ['Carrera cerrada'],
-      },
-    }
-    renderAlgo({ estado, carreras: ['Tecnicatura A'] })
-
-    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ })).toBeDisabled()
-    expect(screen.getByRole('alert')).toHaveTextContent('Carrera cerrada')
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Carrera cerrada (ya no disponible)' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Tecnicatura A' }))
-
-    expect(screen.getByText('1 carrera seleccionada')).toBeInTheDocument()
-  })
-
   it('organiza los datos en los dos bloques del asistente', () => {
     renderAlgo()
     entrarDatosIndependiente()

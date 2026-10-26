@@ -11,7 +11,7 @@ describe('compact map header logo sizing', () => {
     expect(68).toBeLessThanOrEqual(72)
   })
 
-  it('hides the map logo at widths of 720px and below', () => {
-    expect(css).toMatch(/@media\s*\(max-width:\s*920px\)[\s\S]{0,300}\.app-header--mapa \.app-header__logo\s*\{\s*display:\s*none\s*;/)
+  it('hides the map header brand mark at widths of 1520px and below', () => {
+    expect(css).toMatch(/@media\s*\(max-width:\s*1520px\)[\s\S]{0,300}\.app-header--mapa__marca\s*\{\s*display:\s*none\s*;/)
   })
 })

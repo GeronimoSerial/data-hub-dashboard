@@ -6,6 +6,7 @@ import {
   otorgarPermisoNominal,
   revocarPermisoNominal,
 } from '@/lib/infraestructura/permiso-nominal'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,7 +21,7 @@ function adminGuard(user: Awaited<ReturnType<typeof getSessionUser>>) {
   return null
 }
 
-export async function GET() {
+async function handleGET() {
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = adminGuard(user)
@@ -30,7 +31,7 @@ export async function GET() {
   return Response.json({ permisos })
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = adminGuard(user)
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
   return Response.json({ permiso }, { status: 201 })
 }
 
-export async function DELETE(request: Request) {
+async function handleDELETE(request: Request) {
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = adminGuard(user)
@@ -69,3 +70,7 @@ export async function DELETE(request: Request) {
   await revocarPermisoNominal(id)
   return Response.json({ ok: true })
 }
+
+export const GET = ruta('infraestructura.nominal.permisos.get', handleGET)
+export const POST = ruta('infraestructura.nominal.permisos.post', handlePOST)
+export const DELETE = ruta('infraestructura.nominal.permisos.delete', handleDELETE)

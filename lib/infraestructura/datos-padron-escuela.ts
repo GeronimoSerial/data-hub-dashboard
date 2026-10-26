@@ -20,6 +20,8 @@ export interface DatosPadronEscuela {
   secciones: number
   matriculaTotal: number
   turnos: string[]
+  /** Sólo institutos superiores: su matrícula sale de las carreras, no del padrón GE. */
+  carreras?: number
 }
 
 // Cuenta la matrícula TOTAL de una escuela sin repetir alumnos entre secciones

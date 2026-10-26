@@ -6,15 +6,14 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MENSAJE_BORRADOR_PENDIENTE, ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
+import { vaciarEscriturasBorrador } from '@/lib/infraestructura/parte/borrador-formulario'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 import { MENSAJES_ESTADO, guardarBorrador as guardarBorradorEnvio } from '@/lib/infraestructura/parte/envio-offline'
 import { crearAlmacenParte, abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 import { crearColaTrabajosEnvio } from '@/lib/infraestructura/parte/cola-trabajos-envio'
-import catalogoSuperior from '@/data/carreras-superior-2026.json'
 
 const props = { cue: '12345678', turnos, motivos }
-const CUE_SUPERIOR = Object.keys(catalogoSuperior)[0]!
 
 const MENSAJE_REPORTE_EXITOSO =
   'Ya figura en el estado actual de su escuela.'
@@ -131,8 +130,10 @@ function guardarReporte() {
   fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   cleanup()
+  // Las escrituras del borrador del test anterior terminan antes de aislar el almacén.
+  await vaciarEscriturasBorrador()
   localStorage.clear()
   sessionStorage.clear()
   globalThis.indexedDB = new IDBFactory()
@@ -154,45 +155,6 @@ afterEach(() => {
 })
 
 describe('ReporteInicialForm', () => {
-  it('uses career-only scope for catalogued Superior CUEs and keeps the student option available elsewhere', () => {
-    const carreras = catalogoSuperior[CUE_SUPERIOR as keyof typeof catalogoSuperior]
-    renderFormulario({ cue: CUE_SUPERIOR })
-    expect(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ })).toBeDisabled()
-
-    completarQuePaso()
-    continuar()
-    const selector = screen.getByRole('group', { name: 'Carreras afectadas' })
-    fireEvent.click(within(selector).getByRole('checkbox', { name: carreras[0] }))
-    fireEvent.click(within(selector).getByRole('checkbox', { name: carreras[1] }))
-    expect(within(selector).getByText('2 carreras seleccionadas')).toBeInTheDocument()
-    expect(screen.queryByText('Secciones afectadas')).not.toBeInTheDocument()
-
-    cleanup()
-    renderFormulario()
-    expect(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ })).toBeEnabled()
-  })
-
-  it('restores a Superior draft with an obsolete career and requires replacing it before continuing', async () => {
-    const carreras = catalogoSuperior[CUE_SUPERIOR as keyof typeof catalogoSuperior]
-    sembrarBorradorWizard({ paso: 2, categoria: 'establecimiento', cue: CUE_SUPERIOR })
-    const clave = `parte-nuevo:draft:${CUE_SUPERIOR}`
-    const borrador = JSON.parse(localStorage.getItem(clave) ?? '{}')
-    borrador.afectacion.carreras = ['Carrera cerrada']
-    localStorage.setItem(clave, JSON.stringify(borrador))
-
-    renderFormulario({ cue: CUE_SUPERIOR })
-    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
-    const selector = screen.getByRole('group', { name: 'Carreras afectadas' })
-    expect(within(selector).getByRole('alert')).toHaveTextContent('Carrera cerrada')
-    continuar()
-    expect(textoAlertas()).toContain('no pertenece al establecimiento')
-
-    fireEvent.click(within(selector).getByRole('checkbox', { name: 'Carrera cerrada (ya no disponible)' }))
-    fireEvent.click(within(selector).getByRole('checkbox', { name: carreras[0] }))
-    continuar()
-    expect(await screen.findByText('¿Hay clases?')).toBeInTheDocument()
-  })
-
   it('shows a B2 confirmation on reopen without restoring the sent draft or removing photo work', async () => {
     const id = `parte-inicial:${props.cue}`
     const almacen = await abrirAlmacenParte()
@@ -329,7 +291,7 @@ describe('ReporteInicialForm', () => {
     completarEstadoEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
     await elegirModalidades(userEvent.setup(), 'Asistencia virtual', 'Cuadernillos impresos')
-    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toHaveTextContent('Asistencia virtual, Cuadernillos impresos')
+    expect(screen.getByRole('combobox', { name: '¿De qué tipo?' })).toHaveTextContent('2 seleccionadas')
   })
 
   it('se abre, marca y cierra con el teclado', async () => {
@@ -352,7 +314,7 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('option', { name: 'Asistencia virtual' })).toHaveAttribute('aria-selected', 'true')
     await user.keyboard('{Escape}')
     expect(desplegable).toHaveAttribute('aria-expanded', 'false')
-    expect(desplegable).toHaveTextContent('Cuadernillos digitales, Asistencia virtual')
+    expect(desplegable).toHaveTextContent('2 seleccionadas')
   })
 
   it('exige al menos una modalidad cuando se elige Sí', () => {
@@ -1524,4 +1486,19 @@ describe('foto del reporte en el primer paso (T5)', () => {
     await act(async () => { await new Promise((resolver) => setTimeout(resolver, 0)) })
     expect(screen.queryByText('Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.')).toBeNull()
   })
+
+  it('al cambiar de paso, un error de envío anterior deja de mostrarse', async () => {
+    stubFetch({ error: 'dato inválido' }, 422)
+
+    renderFormulario()
+    await screen.findByRole('radio', { name: /Afecta al establecimiento/ })
+    guardarReporte()
+    expect(await screen.findByText('No se pudo enviar: dato inválido')).toBeInTheDocument()
+
+    volver()
+    expect(screen.queryByText('No se pudo enviar: dato inválido')).toBeNull()
+    // El borrador local se escribe en segundo plano: esperar evita que se filtre al test siguiente.
+    await waitFor(() => expect(localStorage.getItem(`parte-nuevo:draft:${props.cue}`)).not.toBeNull())
+  })
+
 })

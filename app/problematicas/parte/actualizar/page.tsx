@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { RecorridoActualizacion } from '@/components/infraestructura/actualizar/recorrido-actualizacion'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
-import { bloqueoDeAcceso, cargarContextoParte, ErrorContexto } from '../compartido'
+import { bloqueoDeAcceso, cargarCarrerasDelCue, cargarContextoParte, ErrorContexto } from '../compartido'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
 import { obtenerParteActual } from '@/lib/infraestructura/parte-consulta'
 import { redirect } from 'next/navigation'
@@ -60,6 +60,7 @@ export default async function ActualizarPartePage({
   if (destino !== 'actualizar') redirect(enlaceDestino(destino, escuela.cueAnexo))
 
   const motivos = await listarMotivos()
+  const carga = await cargarCarrerasDelCue(escuela.cueAnexo)
 
   return (
     <div className="publico-content publico-content--parte">
@@ -68,7 +69,13 @@ export default async function ActualizarPartePage({
         escuela={escuela}
         pantallaOculta
       />
-      <RecorridoActualizacion cue={escuela.cueAnexo} turnos={turnos} motivos={motivos} />
+      <RecorridoActualizacion
+        cue={escuela.cueAnexo}
+        turnos={turnos}
+        motivos={motivos}
+        esInstituto={carga.tipo === 'instituto'}
+        carreras={carga.tipo === 'instituto' ? carga.carreras : undefined}
+      />
     </div>
   )
 }

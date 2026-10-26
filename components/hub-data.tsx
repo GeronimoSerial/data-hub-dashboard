@@ -7,11 +7,6 @@ import {
   type Recurso,
   type Tag,
   type Tipo,
-  categorias as seedCategorias,
-  niveles as seedNiveles,
-  recursos as seedRecursos,
-  tags as seedTags,
-  tipos as seedTipos,
 } from '@/lib/model'
 import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
@@ -64,29 +59,30 @@ async function readError(res: Response) {
 export function HubDataProvider({
   children,
   initialCatalog,
+  canRefreshCatalog = true,
 }: {
   children: React.ReactNode
   initialCatalog?: Catalog
+  canRefreshCatalog?: boolean
 }) {
   const session = authClient.useSession()
   const role = (session.data?.user as { role?: Role } | undefined)?.role
   const catalogPath = catalogPathForRole(role)
   const pending = session.isPending
+  const refreshDenied = !canRefreshCatalog && catalogPath === '/api/hub'
 
-  const [recursos, setRecursos] = React.useState<Recurso[]>(
-    initialCatalog?.recursos ?? seedRecursos,
-  )
+  const [recursos, setRecursos] = React.useState<Recurso[]>(initialCatalog?.recursos ?? [])
   const [niveles, setNiveles] = React.useState<Nivel[]>(
-    initialCatalog?.niveles ?? seedNiveles,
+    initialCatalog?.niveles ?? [],
   )
   const [tipos, setTipos] = React.useState<Tipo[]>(
-    initialCatalog?.tipos ?? seedTipos,
+    initialCatalog?.tipos ?? [],
   )
   const [categorias, setCategorias] = React.useState<Categoria[]>(
-    initialCatalog?.categorias ?? seedCategorias,
+    initialCatalog?.categorias ?? [],
   )
   const [tags, setTags] = React.useState<Tag[]>(
-    initialCatalog?.tags ?? seedTags,
+    initialCatalog?.tags ?? [],
   )
   const [writeError, setWriteError] = React.useState<string | null>(null)
 
@@ -114,7 +110,7 @@ export function HubDataProvider({
   }, [applyCatalog])
 
   React.useEffect(() => {
-    if (pending) return
+    if (pending || refreshDenied) return
     let cancelled = false
     fetch(catalogPath)
       .then((res) => (res.ok ? res.json() : null))
@@ -125,7 +121,7 @@ export function HubDataProvider({
     return () => {
       cancelled = true
     }
-  }, [applyCatalog, catalogPath, pending])
+  }, [applyCatalog, catalogPath, pending, refreshDenied])
 
   const upsertRecurso = React.useCallback(
     async (r: Recurso, file?: File | null) => {

@@ -6,6 +6,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,7 @@ type Ctx = { params: Promise<{ cueAnexo: string }> }
 
 const cueAnexoSchema = z.string().min(1).max(50)
 
-export async function GET(_request: Request, ctx: Ctx) {
+async function handleGET(_request: Request, ctx: Ctx) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
@@ -66,3 +67,5 @@ export async function GET(_request: Request, ctx: Ctx) {
     },
   )
 }
+
+export const GET = ruta('infraestructura.geo-perfiles.cueAnexo.get', handleGET)

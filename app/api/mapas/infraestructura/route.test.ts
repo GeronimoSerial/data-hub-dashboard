@@ -82,6 +82,21 @@ describe('GET /api/mapas/infraestructura', () => {
     await db.delete(recursoAudienciaNivelesJur)
   })
 
+  it('rechaza el API del mapa cuando la sección infraestructura está deshabilitada', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({
+      id: 'u-section-denied',
+      role: 'consulta',
+      banned: false,
+      nivelJurIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
+      hubPolicy: { enabledSections: ['maps'], landing: false },
+    })
+    const res = await GET(req())
+    expect(res.status).toBe(403)
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+  })
+
   it('un usuario permitido obtiene el mismo total en lista e indicadores', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'u2',

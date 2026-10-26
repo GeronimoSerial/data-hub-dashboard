@@ -6,14 +6,18 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
 import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
+import { ruta } from '@/lib/http/ruta'
+import { crearLimitador } from '@/lib/http/limitador'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const limitador = crearLimitador({ ventanaMs: 60_000, max: 50 })
+
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const CABECERAS_PRIVADAS = { 'Cache-Control': 'private, no-cache', Vary: 'Cookie, Accept-Encoding' }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) {
     const error = acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
@@ -82,3 +86,5 @@ export async function GET(request: Request) {
     }),
   })
 }
+
+export const GET = ruta('infraestructura.exportar.get', handleGET, { limite: { limitador } })

@@ -5,14 +5,16 @@ import { EncabezadoParte, type EscuelaEncabezado, TITULO_PROGRAMA_COMPLETO } fro
 import { ReporteInicialForm } from '@/components/infraestructura/reporte-inicial-form'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import type { CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
 import { abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 import type { ContextoReporte } from '@/lib/infraestructura/reportes-offline-contratos'
 
-export function NuevoParteContenido({ cue, escuela, turnos, motivos }: {
+export function NuevoParteContenido({ cue, escuela, turnos, motivos, carreras }: {
   cue: string
   escuela: EscuelaEncabezado
   turnos: TurnoContexto[]
   motivos: MotivoRow[]
+  carreras?: CarreraElegible[]
 }): JSX.Element {
   const [guardado, setGuardado] = useState(false)
   const pantalla = guardado ? 'Parte registrado' : 'Cargar una situación'
@@ -34,7 +36,7 @@ export function NuevoParteContenido({ cue, escuela, turnos, motivos }: {
       escuela: { nombre: escuela.nombre, cue: escuela.cueAnexo, departamento: escuela.departamento ?? '' },
       turnos: turnos.map(({ turno }) => turno),
       motivos: motivos.map(({ id, nombre, categoria }) => ({ id, nombre, categoria })),
-      formulario: { escuela, turnos, motivos },
+      formulario: { escuela, turnos, motivos, ...(carreras ? { carreras } : {}) },
     }
     void abrirAlmacenParte().then(async (almacen) => {
       try {
@@ -44,7 +46,7 @@ export function NuevoParteContenido({ cue, escuela, turnos, motivos }: {
       }
     }).catch(() => undefined)
     return () => { vigente = false }
-  }, [cue, escuela, turnos, motivos])
+  }, [cue, escuela, turnos, motivos, carreras])
 
   return (
     <>
@@ -53,7 +55,7 @@ export function NuevoParteContenido({ cue, escuela, turnos, motivos }: {
         escuela={escuela}
         pantallaOculta={!guardado}
       />
-      <ReporteInicialForm cue={cue} turnos={turnos} motivos={motivos} onGuardadoChange={setGuardado} />
+      <ReporteInicialForm cue={cue} turnos={turnos} motivos={motivos} carreras={carreras} onGuardadoChange={setGuardado} />
     </>
   )
 }

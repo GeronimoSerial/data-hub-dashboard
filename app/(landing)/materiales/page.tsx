@@ -51,10 +51,19 @@ export default async function MaterialesPage() {
                 </div>
                 <div className={styles.files}>
                   {coleccion.materiales.length ? coleccion.materiales.map(material => (
-                    <article className={styles.file} key={material.href}>
-                      <div><h3>{material.titulo}</h3><p>PDF · {material.paginas} páginas · {material.peso}</p></div>
-                      <a className={styles.download} href={material.href} download aria-label={`Descargar ${material.titulo}, PDF, ${material.peso}`}><Download size={19} aria-hidden="true" /> Descargar PDF</a>
-                    </article>
+                    material.tipo === 'video' ? (
+                      <article className={`${styles.file} ${styles.video}`} key={material.href}>
+                        <div><h3>{material.titulo}</h3><p>Video · {material.duracion}</p></div>
+                        <video controls preload="metadata" playsInline poster={material.poster} src={material.href} aria-label={material.titulo}>
+                          Tu navegador no puede reproducir este video.
+                        </video>
+                      </article>
+                    ) : (
+                      <article className={styles.file} key={material.href}>
+                        <div><h3>{material.titulo}</h3><p>PDF · {material.paginas} páginas · {material.peso}</p></div>
+                        <a className={styles.download} href={material.href} download aria-label={`Descargar ${material.titulo}, PDF, ${material.peso}`}><Download size={19} aria-hidden="true" /> Descargar PDF</a>
+                      </article>
+                    )
                   )) : (
                     <div className={styles.empty}>
                       <p className={styles.emptyTitle}>Estamos preparando estos materiales</p>
