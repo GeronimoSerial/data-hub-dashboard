@@ -9,6 +9,7 @@ import type { Capability } from './capabilities'
  * Esta tabla documenta la intención actual de cada guarda. Las rutas con
  * `TODO(T3)` mezclan guardas o tienen un método más restrictivo que el
  * declarado; T3 las lleva a capacidades exactas.
+ * Que la ruta referencie su guarda lo verifica lib/access/route-enforcement.test.ts.
  */
 export const ROUTE_MANIFEST: Record<string, Capability | readonly Capability[]> = {
   // --- Pages (app/(hub)) ---
@@ -22,8 +23,7 @@ export const ROUTE_MANIFEST: Record<string, Capability | readonly Capability[]> 
   'app/(hub)/mapas/infraestructura/escuelas/[cue]/page.tsx': 'infra.map.read',
   'app/(hub)/tableros/page.tsx': 'hub.section.dashboards',
   'app/(hub)/recursos/[id]/page.tsx': 'hub.recursos',
-  // TODO(T3): page is gated by adminPageGate (staff) today; the section
-  // capability hub.section.situation is not what enforces it.
+  // Gated by adminPageGate (staff); the section capability hub.section.situation does not enforce it.
   'app/(hub)/situacion/page.tsx': 'staff',
   'app/(hub)/infraestructura/cargar/page.tsx': 'infra.cargar',
   'app/(hub)/admin/page.tsx': 'staff',
@@ -47,7 +47,8 @@ export const ROUTE_MANIFEST: Record<string, Capability | readonly Capability[]> 
   'app/problematicas/parte/actualizar/page.tsx': 'parte.access',
   'app/problematicas/parte/historial/page.tsx': 'parte.access',
   'app/problematicas/parte/nuevo/page.tsx': 'parte.access',
-  'app/problematicas/parte/offline/page.tsx': 'parte.access',
+  // Cáscara estática sin datos: los datos del parte los lee el cliente de IndexedDB y sus APIs exigen parte.access.
+  'app/problematicas/parte/offline/page.tsx': 'public',
   // Pública a propósito: el enlace con PIN/token es la credencial.
   'app/problematicas/verificaciones/[id]/page.tsx': 'public',
 
@@ -88,7 +89,7 @@ export const ROUTE_MANIFEST: Record<string, Capability | readonly Capability[]> 
   'app/api/problematicas/parte/borradores/[draftId]/descarte/route.ts': 'parte.access',
   'app/api/problematicas/parte/adjuntos/autorizaciones/route.ts': 'parte.access',
   'app/api/problematicas/parte/adjuntos/[attachmentId]/confirmacion/route.ts': 'parte.access',
-  // TODO(T3): no guard detected in the handler; confirm it is parte-scoped.
+  // Guarda delegada: crearEvidenciaFotografica llama tieneAccesoAlParteParaCue (ver DELEGATED_ENFORCEMENT).
   'app/api/problematicas/parte/evidencia/route.ts': 'parte.access',
   // Credencial por enlace (token/PIN), sin sesión de parte.
   'app/api/problematicas/verificaciones/[id]/canjear-sesion/route.ts': 'public',

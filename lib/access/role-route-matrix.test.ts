@@ -1,29 +1,40 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionUser } from '@/lib/acl'
 
-// Role x route matrix. It runs the real hub decision functions (page gate,
-// hub layout gate and post-login entry) and pins who reaches what. Any change
-// in reach shows up as a diff in the expectations below.
+// Role x route matrix. Hub outcomes come from invoking the real default export
+// of app/(hub)/layout.tsx (the same way its own test does), followed by the
+// page gate of the page itself. Any change in reach, including a layout
+// regression, shows up as a diff in the expectations below.
 
 const mocks = vi.hoisted(() => ({
   getSessionUser: vi.fn(),
+  getShellUser: vi.fn(),
+  headers: vi.fn(),
+  migrarDb: vi.fn(),
+  ensureSeeded: vi.fn(),
+  loadCatalogFor: vi.fn(),
   redirect: vi.fn((path: string) => { throw new Error(`REDIRECT:${path}`) }),
   getDb: vi.fn(),
   loadRecursoAccess: vi.fn(),
   loadRecursoAccessByRuta: vi.fn(),
 }))
 
+vi.mock('next/headers', () => ({ headers: mocks.headers }))
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }))
-vi.mock('@/lib/session', () => ({ getSessionUser: mocks.getSessionUser }))
-vi.mock('@/lib/db', () => ({ getDb: mocks.getDb }))
+vi.mock('@/lib/session', () => ({ getSessionUser: mocks.getSessionUser, getShellUser: mocks.getShellUser }))
+vi.mock('@/lib/db', () => ({ getDb: mocks.getDb, migrarDb: mocks.migrarDb }))
+vi.mock('@/lib/db/seed', () => ({ ensureSeeded: mocks.ensureSeeded }))
+vi.mock('@/lib/db/hub-catalog-for', () => ({ loadCatalogFor: mocks.loadCatalogFor }))
+vi.mock('@/components/hub-data', () => ({ HubDataProvider: () => null }))
+vi.mock('@/components/app-shell', () => ({ AppShell: () => null }))
 vi.mock('@/lib/db/recurso-access', () => ({
   loadRecursoAccess: mocks.loadRecursoAccess,
   loadRecursoAccessByRuta: mocks.loadRecursoAccessByRuta,
 }))
 
 import { adminPageGate } from '@/lib/acl'
-import { hubConfined } from './hub-confinement'
-import { hubApiAccessResponse, resolveServerHubEntry, requireServerHubPageAccess, serverHubPathAllowedByPolicy } from '@/lib/hub-entry-server'
+import HubLayout from '../../app/(hub)/layout'
+import { hubApiAccessResponse, resolveServerHubEntry, requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 const base = { banned: false, nivelJurIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
 
@@ -60,15 +71,15 @@ const ALLOWED = 'allowed'
 const forbidden = 'redirect:/forbidden'
 const toParte = 'redirect:/problematicas/parte/nuevo'
 const toInfra = 'redirect:/mapas/infraestructura'
+const toMapas = 'redirect:/mapas'
 
 // Expected outcome per user, in the order of `paths`.
 const expected: Record<string, readonly string[]> = {
   'admin': [ALLOWED, ALLOWED, ALLOWED, ALLOWED, ALLOWED, ALLOWED, ALLOWED, ALLOWED, ALLOWED, forbidden],
   'editor': [ALLOWED, ALLOWED, ALLOWED, ALLOWED, ALLOWED, ALLOWED, ALLOWED, ALLOWED, ALLOWED, forbidden],
   'consulta legacy': [ALLOWED, ALLOWED, ALLOWED, ALLOWED, forbidden, forbidden, ALLOWED, ALLOWED, ALLOWED, forbidden],
-  'consulta restringida': [
-    'redirect:/mapas', forbidden, forbidden, forbidden, forbidden, forbidden, forbidden, forbidden, forbidden, forbidden,
-  ],
+  // Real layout: a restricted consulta is sent to its own home (/mapas) for any hub path outside its sections, not to /forbidden.
+  'consulta restringida': [toMapas, toMapas, toMapas, toMapas, toMapas, forbidden, toMapas, toMapas, toMapas, forbidden],
   'director con niveles': [toInfra, toInfra, toInfra, toInfra, toInfra, toInfra, ALLOWED, ALLOWED, ALLOWED, toInfra],
   'director sin niveles': [forbidden, forbidden, forbidden, forbidden, forbidden, forbidden, forbidden, forbidden, ALLOWED, forbidden],
   'operador con cue': [toParte, toParte, toParte, toParte, toParte, toParte, toParte, toParte, toParte, ALLOWED],
@@ -87,26 +98,38 @@ const postLogin: Array<[string, string | undefined, string]> = [
   ['admin', undefined, '/'],
 ]
 
+function redirectOutcome(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  if (!message.startsWith('REDIRECT:')) throw error
+  return message.replace(/^REDIRECT:/, 'redirect:')
+}
+
 async function outcomeOf(user: SessionUser, path: string): Promise<string> {
-  // Confined roles (no hub.recursos) are bounced by the hub layout before any page gate runs.
-  if (hubConfined(user) && !(await serverHubPathAllowedByPolicy(user, path))) {
-    return `redirect:${(await resolveServerHubEntry(user, { currentPath: path })) ?? '/forbidden'}`
-  }
-  // Admin pages are gated by the admin layout (adminPageGate), not by the hub page gate.
-  if (path === '/admin') return adminPageGate(user) === 'ok' ? ALLOWED : forbidden
   mocks.getSessionUser.mockResolvedValue(user)
+  mocks.headers.mockResolvedValue(new Headers({ 'x-hub-request-url': path }))
+  try {
+    await HubLayout({ children: null })
+  } catch (error) {
+    return redirectOutcome(error)
+  }
+  // The layout let the request through: the page's own gate runs next, as the page does.
+  // Admin pages are also gated by the nested admin layout (adminPageGate).
+  if (path === '/admin') return adminPageGate(user) === 'ok' ? ALLOWED : forbidden
   try {
     await requireServerHubPageAccess(path)
     return ALLOWED
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return message.replace(/^REDIRECT:/, 'redirect:')
+    return redirectOutcome(error)
   }
 }
 
 describe('role x route matrix', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.migrarDb.mockResolvedValue(undefined)
+    mocks.ensureSeeded.mockResolvedValue(undefined)
+    mocks.loadCatalogFor.mockResolvedValue({ recursos: [] })
+    mocks.getShellUser.mockResolvedValue({ name: 'Matrix user', role: 'consulta' })
     mocks.getDb.mockReturnValue({
       select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ id: 'r1', formato: 'reporte', ruta: null }] }) }) }),
     })
