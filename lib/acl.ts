@@ -36,6 +36,7 @@ export type RecursoAccess = {
  *  usuario con sesión, como antes. */
 export const RUTAS_ABIERTAS_SIN_AUDIENCIA: ReadonlySet<string> = new Set(['/mapas/infraestructura'])
 
+import { can } from './access/capabilities'
 import {
   effectiveSections,
   resourceInSections,
@@ -48,6 +49,8 @@ export function puedeVerEnSeccion(
   resource: RecursoAccess & { formato: 'reporte' | 'tablero' | 'mapa'; ruta?: string | null },
   policy: SectionPolicy = {},
 ): boolean {
+  // Roles confined to their own area never see hub resources (S1).
+  if (user && !can(user, 'hub.recursos')) return false
   if (!puedeAbrir(user, resource)) return false
   return resourceInSections(resource, effectiveSections(policy))
 }

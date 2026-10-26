@@ -5,6 +5,7 @@ import {
   isStaff,
   marcarAcceso,
   puedeAbrir,
+  puedeVerEnSeccion,
   type RecursoAccess,
   type SessionUser,
 } from './acl'
@@ -296,5 +297,20 @@ describe('allow-list exemptions (S8)', () => {
 
   it('does not extend the exemption to other routes', () => {
     expect(puedeAbrir(consultaUser, { ...sinAudiencia, ruta: '/mapas/natalidad' })).toBe(false)
+  })
+})
+
+describe('confined roles never see hub resources (S1)', () => {
+  const enAudiencia: RecursoAccess = { id: 'r1', estado: 'publicado', audienciaNivelJurIds: [3], audienciaUserIds: [] }
+  const recurso = { ...enAudiencia, formato: 'reporte' as const, ruta: null }
+
+  it.each(['director_nivel', 'operador_establecimiento'] as const)('denies %s even when its nivel is in the audience', (role) => {
+    const user: SessionUser = { id: 'd1', role, banned: false, nivelJurIds: [3], accesoRecursos: 'todos', recursoIds: [], cueAnexo: '1800000-00' }
+    expect(puedeVerEnSeccion(user, recurso)).toBe(false)
+  })
+
+  it('keeps consulta in the audience allowed', () => {
+    const user: SessionUser = { id: 'c1', role: 'consulta', banned: false, nivelJurIds: [3], accesoRecursos: 'todos', recursoIds: [] }
+    expect(puedeVerEnSeccion(user, recurso)).toBe(true)
   })
 })
