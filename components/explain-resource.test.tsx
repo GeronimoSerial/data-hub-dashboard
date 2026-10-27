@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ExplainResource } from './explain-resource'
 
 afterEach(() => {
+  cleanup()
   vi.unstubAllGlobals()
-  document.body.innerHTML = ''
 })
 
 function jsonResponse(body: unknown, status: number) {
