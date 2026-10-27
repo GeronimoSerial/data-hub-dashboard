@@ -66,9 +66,25 @@ describe('upsertRecursoInfraestructura', () => {
       .where(eq(recursos.id, 'recurso-infraestructura'))
 
     expect(row).toBeDefined()
+    expect(row?.titulo).toBe('ENOS 2026')
     expect(row?.ruta).toBe('/mapas/infraestructura')
     expect(row?.formato).toBe('mapa')
     expect(row?.estado).toBe('publicado')
+  })
+
+  it('actualiza el nombre anterior al reiniciar', async () => {
+    await restart()
+    const { getDb } = await import('@/lib/db')
+    const { recursos } = await import('@/lib/db/schema')
+    await getDb().update(recursos).set({ titulo: 'Mapa de infraestructura' })
+      .where(eq(recursos.id, 'recurso-infraestructura'))
+
+    await restart()
+    const { getDb: getDbAfter } = await import('@/lib/db')
+    const { recursos: recursosAfter } = await import('@/lib/db/schema')
+    const [row] = await getDbAfter().select().from(recursosAfter)
+      .where(eq(recursosAfter.id, 'recurso-infraestructura'))
+    expect(row?.titulo).toBe('ENOS 2026')
   })
 
   it('reiniciar la aplicación dos veces no altera la audiencia configurada', async () => {

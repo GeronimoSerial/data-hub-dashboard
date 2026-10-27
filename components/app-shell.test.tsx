@@ -90,7 +90,7 @@ describe('AppShell', () => {
     expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Buscar recursos' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Infraestructura escolar/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /ENOS 2026/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Menú de cuenta' }))
     expect(screen.getByRole('menuitem', { name: 'Cerrar sesión' })).toBeInTheDocument()
   })
@@ -101,7 +101,7 @@ describe('AppShell', () => {
     expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Mapas' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Tableros' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Infraestructura escolar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'ENOS 2026' })).not.toBeInTheDocument()
   })
 
   it('preserves legacy defaults and removes section links for explicit no-access policy', () => {
