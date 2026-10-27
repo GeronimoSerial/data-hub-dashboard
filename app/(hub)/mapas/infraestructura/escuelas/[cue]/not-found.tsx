@@ -26,7 +26,7 @@ export default function EscuelaFichaNotFound() {
           className="ui-button ui-button--secondary ui-button--sm"
           data-testid="not-found-volver-mapa"
         >
-          Volver al mapa de infraestructura
+          Volver a ENOS 2026
         </Link>
       </div>
     </main>

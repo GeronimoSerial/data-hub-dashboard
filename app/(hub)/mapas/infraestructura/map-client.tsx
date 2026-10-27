@@ -242,7 +242,7 @@ export function InfraestructuraMapClient(props: {
             <TabsList
               ref={tabsListRef}
               className={styles.tabsList}
-              aria-label="Modos y vistas del mapa de infraestructura"
+              aria-label="Modos y vistas de ENOS 2026"
               onFocusCapture={(event) => {
                 const target = (event.target as HTMLElement | null)?.closest<HTMLElement>('[role="tab"]')
                 if (target) revealTab(target)
