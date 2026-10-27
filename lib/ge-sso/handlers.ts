@@ -17,6 +17,7 @@ import {
   origenGePermitido,
 } from './seguridad'
 import { esStagingForwardActivo, reenviarGeLoginAStaging } from './staging-forward'
+import { emitirLogLogin, identificarIntento, nuevaTrazaLoginGe, type TrazaLoginGe } from './login-log'
 
 const CABECERAS_BASE = {
   'Cache-Control': 'no-store',
@@ -47,10 +48,38 @@ export function responderPreflightGe(request: Request): Response {
  *   -> `201 { redirectUrl }`.
  * - legacy ("asistencias"): `{ CUE, USUARIO, secret }` -> `200 { url }`.
  * Orden: origen -> rate limit -> clave -> body -> reglas de negocio.
+ * Cada intento deja una línea `ge-sso-login` (ver login-log.ts), también si falla.
  */
 export async function manejarGeLogin(request: Request): Promise<Response> {
+  const traza = nuevaTrazaLoginGe(request)
+  try {
+    const response = await procesarGeLogin(request, traza)
+    emitirLogLogin(traza, response.status)
+    return response
+  } catch (err) {
+    traza.motivo = 'error_interno'
+    emitirLogLogin(traza, 500)
+    throw err
+  }
+}
+
+/** Tells an invalid or missing CUE apart from any other invalid body. */
+function motivoBodyInvalido(issues: { path: PropertyKey[] }[]): string {
+  return issues.some((issue) => issue.path[0] === 'CUE' || issue.path[0] === 'cue')
+    ? 'cue_invalido'
+    : 'body_invalido'
+}
+
+async function conMotivoStaging(traza: TrazaLoginGe, envio: Promise<Response>): Promise<Response> {
+  const response = await envio
+  if (!response.ok) traza.motivo = 'error_reenvio_staging'
+  return response
+}
+
+async function procesarGeLogin(request: Request, traza: TrazaLoginGe): Promise<Response> {
   const origin = request.headers.get('origin')
   if (!origenGePermitido(origin)) {
+    traza.motivo = 'origen_no_permitido'
     return json({ error: 'Origen no permitido' }, 403)
   }
   const cors = cabecerasCors(origin!)
@@ -61,6 +90,7 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
     mensaje: string,
     parcial: Omit<EventoGeSso, 'resultado' | 'ip'> = {},
   ) => {
+    traza.motivo ??= resultado
     await registrarEventoGeSso({ ...parcial, ip, resultado })
     return json({ error: mensaje }, status, cors)
   }
@@ -72,6 +102,7 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
   const esperada = process.env.GE_SSO_API_KEY
   if (!esperada) {
     console.error('[ge-sso] GE_SSO_API_KEY no configurada: SSO deshabilitado')
+    traza.motivo = 'sso_no_configurado'
     return json({ error: 'SSO de GE no configurado' }, 503, cors)
   }
 
@@ -81,6 +112,7 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
   } catch {
     return rechazar(400, 'json_invalido', 'JSON inválido')
   }
+  identificarIntento(traza, raw)
 
   const legacy = esFormatoLegacyGe(raw)
   const campoClave = legacy ? 'secret' : 'api_key'
@@ -88,6 +120,7 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
   const valorClave = registro[campoClave]
   const recibida = typeof valorClave === 'string' ? valorClave : ''
   if (!recibida || !apiKeyCoincide(recibida, esperada)) {
+    traza.motivo = 'firma_invalida'
     return rechazar(401, 'api_key_invalida', 'api_key inválida')
   }
 
@@ -96,7 +129,8 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
     if (legacy) {
       const parsedLegacy = geLoginLegacySchema.safeParse(raw)
       if (parsedLegacy.success) {
-        return reenviarGeLoginAStaging({
+        traza.reenviadoStaging = true
+        return conMotivoStaging(traza, reenviarGeLoginAStaging({
           raw,
           origin: origin!,
           ip,
@@ -106,12 +140,13 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
             rol: parsedLegacy.data.rol,
             cue: parsedLegacy.data.cue ?? null,
           },
-        })
+        }))
       }
     } else {
       const parsed = geLoginSchema.safeParse(raw)
       if (parsed.success && parsed.data.rol === 'operador_establecimiento') {
-        return reenviarGeLoginAStaging({
+        traza.reenviadoStaging = true
+        return conMotivoStaging(traza, reenviarGeLoginAStaging({
           raw,
           origin: origin!,
           ip,
@@ -122,17 +157,18 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
             cue: parsed.data.cue ?? null,
             nivelJurisdiccionalId: null,
           },
-        })
+        }))
       }
     }
   }
 
   if (legacy) {
-    return manejarGeLoginLegacy(raw, { ip, cors, rechazar })
+    return manejarGeLoginLegacy(raw, { ip, cors, rechazar, traza })
   }
 
   const parsed = geLoginSchema.safeParse(raw)
   if (!parsed.success) {
+    traza.motivo = motivoBodyInvalido(parsed.error.issues)
     return rechazar(400, 'body_invalido', 'Body inválido')
   }
   const body: GeLoginBody = parsed.data
@@ -153,6 +189,7 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
   const base = process.env.BETTER_AUTH_URL?.trim().replace(/\/$/, '')
   if (!base) {
     console.error('[ge-sso] BETTER_AUTH_URL no configurada')
+    traza.motivo = 'sso_no_configurado'
     return json({ error: 'SSO de GE no configurado' }, 503, cors)
   }
 
@@ -164,6 +201,7 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
     nivelJurisdiccionalId: body.nivelJurisdiccionalId,
   })
   if (!provision.ok) {
+    traza.motivo = 'usuario_bloqueado'
     return rechazar(403, 'bloqueado', 'Usuario bloqueado', evento)
   }
 
@@ -175,6 +213,7 @@ export async function manejarGeLogin(request: Request): Promise<Response> {
 type ContextoRechazo = {
   ip: string
   cors: Record<string, string>
+  traza: TrazaLoginGe
   rechazar: (
     status: number,
     resultado: string,
@@ -187,6 +226,7 @@ type ContextoRechazo = {
 async function manejarGeLoginLegacy(raw: unknown, ctx: ContextoRechazo): Promise<Response> {
   const parsed = geLoginLegacySchema.safeParse(raw)
   if (!parsed.success) {
+    ctx.traza.motivo = motivoBodyInvalido(parsed.error.issues)
     return ctx.rechazar(400, 'body_invalido', 'Body inválido')
   }
   const input: UsuarioGeInput = parsed.data
@@ -195,11 +235,13 @@ async function manejarGeLoginLegacy(raw: unknown, ctx: ContextoRechazo): Promise
   const base = process.env.BETTER_AUTH_URL?.trim().replace(/\/$/, '')
   if (!base) {
     console.error('[ge-sso] BETTER_AUTH_URL no configurada')
+    ctx.traza.motivo = 'sso_no_configurado'
     return json({ error: 'SSO de GE no configurado' }, 503, ctx.cors)
   }
 
   const provision = await provisionarUsuarioGe(input)
   if (!provision.ok) {
+    ctx.traza.motivo = 'usuario_bloqueado'
     return ctx.rechazar(403, 'bloqueado', 'Usuario bloqueado', evento)
   }
 
