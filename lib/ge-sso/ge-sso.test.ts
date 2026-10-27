@@ -13,6 +13,7 @@ import { manejarGeCallback, manejarGeLogin, responderPreflightGe } from './handl
 import { emitirTicket, consumirTicket, hashTicket } from './ticket'
 import { geRateLimit } from './seguridad'
 import { esStagingForwardActivo } from './staging-forward'
+import * as provision from './provision'
 
 usarDbTemporal('ge-sso')
 
@@ -588,5 +589,111 @@ describe('Reenvío a staging para operador_establecimiento', () => {
     expect(res.status).toBe(201)
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(await usuarioPorEmail(OPERADOR_LOCAL.email)).toBeDefined()
+  })
+})
+
+describe('log estructurado ge-sso-login', () => {
+  function capturarLog() {
+    const lineas: string[] = []
+    const guardar = (...args: unknown[]) => {
+      const texto = args.map(String).join(' ')
+      if (texto.startsWith('ge-sso-login ')) lineas.push(texto)
+    }
+    vi.spyOn(console, 'info').mockImplementation(guardar)
+    vi.spyOn(console, 'warn').mockImplementation(guardar)
+    vi.spyOn(console, 'error').mockImplementation(guardar)
+    return {
+      lineas,
+      unica(): Record<string, unknown> {
+        expect(lineas).toHaveLength(1)
+        return JSON.parse(lineas[0].slice('ge-sso-login '.length))
+      },
+    }
+  }
+
+  function sinSecretos(linea: string, ...secretos: string[]) {
+    for (const secreto of [API_KEY, 'api_key', 'secret', 'token', ...secretos]) {
+      expect(linea).not.toContain(secreto)
+    }
+  }
+
+  it('loguea un ingreso ok con CUE, usuario, request id y sin secretos', async () => {
+    const log = capturarLog()
+    const pedido = pedidoLegacy({ CUE: '9000001', USUARIO: 21324, secret: API_KEY })
+    pedido.headers.set('x-request-id', 'req-abc-1')
+    const res = await manejarGeLogin(pedido)
+    expect(res.status).toBe(200)
+    const { url } = (await res.json()) as { url: string }
+    const ticket = new URL(url).searchParams.get('token')!
+
+    const linea = log.unica()
+    expect(linea).toMatchObject({
+      evento: 'ge-sso-login',
+      requestId: 'req-abc-1',
+      cueRecibido: '9000001',
+      usuarioGe: 'ge-21324',
+      resultado: 'ok',
+      status: 200,
+      motivo: 'ok',
+      reenviadoStaging: false,
+    })
+    expect(linea.cueNormalizado).toEqual(expect.any(String))
+    expect(Number.isNaN(Date.parse(String(linea.timestamp)))).toBe(false)
+    sinSecretos(log.lineas[0], ticket)
+  })
+
+  it('loguea 400 cue_invalido con el CUE tal cual llegó', async () => {
+    const log = capturarLog()
+    const res = await manejarGeLogin(pedidoLegacy({ CUE: 'no-es-cue', USUARIO: 77, secret: API_KEY }))
+    expect(res.status).toBe(400)
+    expect(log.unica()).toMatchObject({
+      cueRecibido: 'no-es-cue',
+      cueNormalizado: null,
+      usuarioGe: 'ge-77',
+      resultado: '400',
+      motivo: 'cue_invalido',
+    })
+    expect(log.unica().requestId).toEqual(expect.any(String))
+    sinSecretos(log.lineas[0])
+  })
+
+  it('loguea 403 usuario_bloqueado', async () => {
+    const email = 'bloqueado-log@ejemplo.gob.ar'
+    await loginOk({ ...OPERADOR, email })
+    await getDb().update(user).set({ banned: true }).where(eq(user.email, email))
+    const log = capturarLog()
+    const res = await manejarGeLogin(pedidoLogin({ ...OPERADOR, email }))
+    expect(res.status).toBe(403)
+    expect(log.unica()).toMatchObject({
+      usuarioGe: email,
+      cueRecibido: '9000001',
+      resultado: '403',
+      motivo: 'usuario_bloqueado',
+    })
+    sinSecretos(log.lineas[0])
+  })
+
+  it('loguea 5xx error_interno y no cambia el error que sale del handler', async () => {
+    vi.spyOn(provision, 'provisionarUsuarioGe').mockRejectedValue(new Error('db caída'))
+    const log = capturarLog()
+    await expect(manejarGeLogin(pedidoLogin({ ...OPERADOR, email: 'interno@ejemplo.gob.ar' }))).rejects.toThrow(
+      'db caída',
+    )
+    expect(log.unica()).toMatchObject({ resultado: '5xx', status: 500, motivo: 'error_interno' })
+    sinSecretos(log.lineas[0], 'db caída')
+  })
+
+  it('marca reenviadoStaging cuando el login va a staging', async () => {
+    process.env.GE_SSO_STAGING_FORWARD_ENABLED = 'true'
+    process.env.GE_SSO_STAGING_FORWARD_URL = 'https://staging.test'
+    process.env.GE_SSO_STAGING_FORWARD_UNTIL = '2999-01-01T00:00:00Z'
+    expect(esStagingForwardActivo()).toBe(true)
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ url: 'https://staging.test/auth/ge-callback?token=t' }), { status: 200 }),
+    )
+    const log = capturarLog()
+    const res = await manejarGeLogin(pedidoLegacy({ CUE: '9000001', USUARIO: 5, secret: API_KEY }))
+    expect(res.status).toBe(200)
+    expect(log.unica()).toMatchObject({ reenviadoStaging: true, resultado: 'ok' })
   })
 })
