@@ -20,7 +20,7 @@ const NAV = [
   { href: '/reportes', label: 'Reportes' },
   { href: '/mapas', label: 'Mapas' },
   { href: '/tableros', label: 'Tableros' },
-  { href: '/mapas/infraestructura', label: 'Infraestructura escolar' },
+  { href: '/mapas/infraestructura', label: 'ENOS 2026' },
   { href: '/situacion', label: 'Centro de Situación' },
 ]
 
@@ -437,7 +437,7 @@ export function AppShell({
                   </span>
                   <span className="app-footer__links">
                     {canAccessPath('/explorar') ? <Link href="/explorar">Explorar recursos</Link> : null}
-                    {canAccessPath('/mapas/infraestructura') ? <Link href="/mapas/infraestructura">Infraestructura escolar</Link> : null}
+                    {canAccessPath('/mapas/infraestructura') ? <Link href="/mapas/infraestructura">ENOS 2026</Link> : null}
                   </span>
                 </footer>
               </>

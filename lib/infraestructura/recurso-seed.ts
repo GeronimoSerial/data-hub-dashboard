@@ -19,7 +19,7 @@ const TAGS_REQUERIDOS = [
 
 const RECURSO_INFRAESTRUCTURA = {
   id: RECURSO_INFRAESTRUCTURA_ID,
-  titulo: 'Mapa de infraestructura',
+  titulo: 'ENOS 2026',
   descripcion:
     'Alertas activas de infraestructura escolar georreferenciadas, con indicadores consolidados por territorio, nivel y establecimiento.',
   formato: 'mapa' as const,

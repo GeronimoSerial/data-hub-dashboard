@@ -243,7 +243,7 @@ describe('AdminSectionView: direcciones (nivel jurisdiccional)', () => {
     await user.click(within(dialog).getByRole('checkbox', { name: 'Infraestructura' }))
     const destination = await within(dialog).findByRole('combobox', { name: 'Destino inicial' })
     await user.click(destination)
-    await user.click(await screen.findByRole('option', { name: 'Mapa de infraestructura' }))
+    await user.click(await screen.findByRole('option', { name: 'ENOS 2026' }))
     await user.click(within(dialog).getByRole('button', { name: 'Guardar' }))
 
     await waitFor(() => {

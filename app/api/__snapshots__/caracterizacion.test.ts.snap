@@ -343,7 +343,7 @@ exports[`hub and gate > GET /api/hub/admin as admin returns the full catalog 1`]
           "alertas",
         ],
         "tipoId": "georref",
-        "titulo": "Mapa de infraestructura",
+        "titulo": "ENOS 2026",
       },
       {
         "acceso": "abrir",
