@@ -1,5 +1,7 @@
 'use client'
 
+import { ArchivoMetadata } from '@/components/archivo-metadata'
+
 import * as React from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { FORMATOS, type Formato, type Recurso, categoria as findCategoria, formatearFecha, nivelNombre, tipoNombre } from '@/lib/model'
@@ -252,6 +254,7 @@ function RecursoForm({
 
           {destino === 'archivo' ? (
             <>
+              {editing ? <ArchivoMetadata recurso={editing} /> : null}
               <AdminField
                 label="Archivo"
                 required={!editing && draft.estado === 'publicado'}
@@ -386,6 +389,7 @@ export function RecursosAdmin() {
                   <td>
                     <div className="admin-cell-stack">
                       <strong>{r.titulo}</strong>
+                      <ArchivoMetadata recurso={r} />
                       <span className="ui-hint">{FORMATOS[r.formato].label} · {tipoNombre(tipos, r.tipoId)}</span>
                     </div>
                   </td>
@@ -435,4 +439,3 @@ export function RecursosAdmin() {
 }
 
 // ── Generic taxonomy dialog ────────────────────────────────────────────────
-

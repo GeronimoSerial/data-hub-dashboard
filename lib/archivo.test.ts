@@ -135,14 +135,14 @@ describe('archivoResponseHeaders', () => {
   it('uses inline disposition for viewer mimes without download=1', () => {
     const h = archivoResponseHeaders({ ...pdf, download: false })
     expect(h['Content-Disposition']).toBe(
-      'inline; filename="informe.pdf"',
+      "inline; filename=\"informe.pdf\"; filename*=UTF-8''informe.pdf",
     )
   })
 
   it('uses attachment when download=1', () => {
     const h = archivoResponseHeaders({ ...pdf, download: true })
     expect(h['Content-Disposition']).toBe(
-      'attachment; filename="informe.pdf"',
+      "attachment; filename=\"informe.pdf\"; filename*=UTF-8''informe.pdf",
     )
   })
 
@@ -153,7 +153,7 @@ describe('archivoResponseHeaders', () => {
       download: false,
     })
     expect(h['Content-Disposition']).toBe(
-      'attachment; filename="datos.xlsx"',
+      "attachment; filename=\"datos.xlsx\"; filename*=UTF-8''datos.xlsx",
     )
   })
 })

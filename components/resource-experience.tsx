@@ -9,6 +9,7 @@ import { ResourceCard } from '@/components/resource-card'
 import { RecursoViewer } from '@/components/recurso-viewer'
 import { ExplainResource } from '@/components/explain-resource'
 import { ShareView } from '@/components/share-view'
+import { ArchivoMetadata } from '@/components/archivo-metadata'
 
 export function ResourceExperience({
   recurso,
@@ -63,6 +64,7 @@ export function ResourceExperience({
         </section>
       ) : null}
       <section id="resource-content" aria-label="Contenido del recurso" className="resource-viewer-section">
+        <ArchivoMetadata recurso={recurso} />
         <RecursoViewer recurso={recurso} />
       </section>
       {recommendations.length ? (
