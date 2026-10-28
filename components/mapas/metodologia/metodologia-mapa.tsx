@@ -1,13 +1,40 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { Formula, Tex } from './formula'
+import { Formula, Tex, FORMULAS_MOTOR } from './formula'
+import {
+  MOTOR_VERSION, REGLAS_V04_VERSION, RIO_V04_MAPEO_VERSION,
+  PESOS_AMENAZA, PESOS_VULNERABILIDAD, NIVEL_PELIGRO_A_NUMERO,
+  BASE_COMBINACION_V04, TOPE_PROFUNDIDAD_FLUVIAL_V04_M, VENTANA_HISTORIAL_DIAS,
+  HISTORIAL_TOPE_DURACION_HORAS, UMBRAL_MODERADO, UMBRAL_ALTO, UMBRAL_MUY_ALTO,
+  PISO_AMENAZA_POR_ESTADO_RIO, PISO_RIESGO_POR_ESTADO_RIO,
+  PISO_AMENAZA_REDUCIDO_V04, PISO_RIESGO_REDUCIDO_V04,
+  UMBRAL_P_ALTO_V04, UMBRAL_P_MODERADO_V04, PISO_RIESGO_P_ALTO_V04, PISO_RIESGO_P_MODERADO_V04,
+  MARGEN_ERROR_DEM_V04_M, BANDA_EXPOSICION_V04_M, UMBRAL_ALCANZABLE_V04,
+  DIAS_POR_HORIZONTE_V04, CONFIANZA_MEDIA_MAX_FALTANTES, EDAD_MAX_SERIE_INA_V04_DIAS,
+  COBERTURA_MIN_VENTANA_V04_HORAS, EDAD_MAX_INGESTA_RESPALDO_V04_HORAS, EDAD_MAX_ENSEMBLE_V04_HORAS,
+  AGRAVANTES_ACCESO, BASE_ACCESO_POR_NIVEL_AISLAMIENTO, REGLA_ACCESO_VERSION,
+} from '@/lib/infraestructura/riesgo/motor/config'
+import { MAX_ANTIGUEDAD_LECTURA_HORAS } from '@/lib/infraestructura/riesgo/motor/rio-prefectura'
+import { CADENCIAS } from '@/lib/infraestructura/riesgo/cadencias'
+import { VERSION_UMBRALES_PROVISORIOS } from '@/lib/infraestructura/riesgo/peligro/umbrales-provisorios'
+import type { MotivoDegradacionV04 } from '@/lib/infraestructura/riesgo/jobs/insumos-operativo-v04'
+
+const numero = (x: number) => x.toLocaleString('es-AR')
+const porcentaje = (x: number) => `${numero(x * 100)} %`
+const HORIZONTES = Object.entries(DIAS_POR_HORIZONTE_V04).map(([h, dias]) => ({ horas: Number(h), dias }))
+const NIVELES_PELIGRO = Object.entries(NIVEL_PELIGRO_A_NUMERO).filter((e): e is [string, number] => e[1] !== null)
+const DEGRADACION = {
+  padron_no_disponible: 'No se pudo leer el padrón o estaba vacío. Se conservan las escuelas con perfil territorial y se las trata como ubicadas.',
+  altimetria_no_disponible: 'No se pudo cargar la altimetría. La probabilidad queda no estimable; se evalúa el río observado con las reglas de alcance actuales.',
+  terreno_no_disponible: 'Falló la carga o preparación de los insumos del río. Se continúa sin río probabilístico y se evalúa el respaldo observado.',
+  serie_ina_desactualizada: `Se descartan estaciones sin filas o cuya última fila INA + Prefectura tiene más de ${EDAD_MAX_SERIE_INA_V04_DIAS} días. Quedan identificadas en los metadatos de insumos.`,
+  peligro_240h_respaldo: 'Al menos una celda usó una ingesta anterior válida para completar la ventana de 240 h.',
+  peligro_240h_sin_dato: 'Al menos una escuela quedó sin peligro meteorológico a 240 h. El resto de sus componentes se evalúa igual.',
+} satisfies Record<MotivoDegradacionV04, string>
+
 import { iniciarSimuladores } from './simuladores'
 
-// Methodology of every model behind the infrastructure map, written for
-// non-programmer specialists. The markup is static; `iniciarSimuladores`
-// wires the interactive charts and simulators onto it. Numbers mirror the
-// code: change both together.
 export function MetodologiaMapa() {
   const raiz = useRef<HTMLElement>(null)
 
@@ -43,10 +70,10 @@ export function MetodologiaMapa() {
         <div className="models">
           <a href="#metodologia/afectacion"><b>Continuidad pedagógica</b><span>¿Qué secciones no tienen clase y cuántos alumnos alcanza?</span></a>
           <a href="#metodologia/lluvia"><b>Peligro por lluvia</b><span>¿Llueve de forma excepcional sobre la zona?</span></a>
-          <a href="#metodologia/riesgo"><b>Riesgo estimado</b><span>¿Qué escuelas pueden ver interrumpidas sus clases?</span></a>
+          <a href="#metodologia/riesgo"><b>Riesgo estimado</b><span>¿Dónde conviene priorizar la verificación y la respuesta?</span></a>
           <a href="#metodologia/aislamiento"><b>Aislamiento</b><span>¿Qué tan difícil es para alumnos y docentes llegar?</span></a>
           <a href="#metodologia/acceso"><b>Riesgo de acceso</b><span>¿Puede cortarse el camino a la escuela?</span></a>
-          <a href="#metodologia/inundacion"><b>Inundación</b><span>¿Llegó históricamente el agua al edificio o al camino?</span></a>
+          <a href="#metodologia/inundacion"><b>Inundación</b><span>¿Qué exposición a crecidas muestran las capas estáticas?</span></a>
         </div>
         <h3>Con datos de las principales agencias científicas del mundo</h3>
         <div className="sources">
@@ -54,7 +81,8 @@ export function MetodologiaMapa() {
           <a href="#metodologia/inundacion"><b>Comisión Europea · JRC</b><span>Mapas globales de crecidas de río y de agua superficial</span></a>
           <a href="#metodologia/inundacion"><b>Copernicus</b><span>Modelo de elevación del terreno a 30 m</span></a>
           <a href="#metodologia/lluvia"><b>NASA IMERG · ERA5</b><span>Climatología histórica de lluvia (IMERG Final 2001 en adelante; ERA5 como respaldo)</span></a>
-          <a href="#metodologia/lluvia"><b>Open-Meteo</b><span>Pronóstico de lluvia a 24, 72 y 240 horas</span></a>
+          <a href="#metodologia/lluvia"><b>Open-Meteo · ECMWF</b><span>Pronóstico de lluvia para {HORIZONTES.map((h) => `${h.horas} h`).join(" / ")}</span></a>
+          <a href="#metodologia/riesgo"><b>GloFAS · Prefectura · INA</b><span>Caudal pronosticado, alturas observadas y series diarias de los ríos</span></a>
           <a href="#metodologia/aislamiento"><b>OpenStreetMap</b><span>Red vial, puentes y vados</span></a>
           <a href="#metodologia/afectacion"><b>Gestión Educativa</b><span>Padrón de escuelas, secciones y matrícula</span></a>
         </div>
@@ -64,7 +92,7 @@ export function MetodologiaMapa() {
         <h2>Trazabilidad de los datos</h2>
         <p>Cada fuente pasa por un proceso propio antes de llegar al mapa. Las líneas muestran qué datos alimentan a qué indicador.</p>
         <div className="card">
-        <svg viewBox="0 0 900 440" role="img" aria-label="Diagrama de linaje de datos">
+        <svg viewBox="0 0 900 470" role="img" aria-label="Diagrama de linaje de datos">
           <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
           <g fontSize="13">
             <text x="20" y="24" fontWeight="600" fill="var(--muted)">FUENTES</text>
@@ -74,7 +102,7 @@ export function MetodologiaMapa() {
           <g id="lin-src"></g>
         </svg>
         </div>
-        <p className="why">El padrón de escuelas (con coordenadas) es la base común: todo indicador se calcula para cada escuela del padrón, incluidas las que no reportan problemas.</p>
+        <p className="why">El cálculo operativo evalúa escuelas con perfil territorial utilizable, aunque no hayan reportado problemas. El padrón aporta el estado de ubicación, la matrícula y las secciones; las escuelas sin coordenadas cuentan en la gestión educativa, pero no tienen una estimación geográfica de riesgo.</p>
       </section>
 
       <section id="afectacion">
@@ -177,11 +205,12 @@ export function MetodologiaMapa() {
         <h2>2 · Peligro por lluvia</h2>
         <p className="question">¿La lluvia pronosticada es excepcional para ese lugar?</p>
         <h3>Fuente</h3>
-        <p>Pronóstico de precipitación de Open-Meteo, actualizado cada 6 horas, por celda de grilla y para tres horizontes: 24, 72 y 240 horas. La referencia de “normal” es la <span className="term" tabIndex={0} data-def="Distribución histórica de la lluvia en un lugar. Aquí se usan los percentiles 90, 95 y 99 de la lluvia diaria.">climatología</span> de cada celda: la serie diaria NASA IMERG Final (0,1°) desde 2001 hasta el último año completo publicado (hoy 2001-2025, no el período OMM 1991-2020). Si una celda todavía no la tiene completa se usa la climatología ERA5; nunca se mezclan percentiles de las dos fuentes.</p>
+        <p>Pronóstico de precipitación de ECMWF vía Open-Meteo, con cadencia de {CADENCIAS['sync-ensemble'].minutos / 60} horas, por celda de grilla y para {HORIZONTES.map((h) => `${h.horas} h (${h.dias} días)`).join(', ')}. La referencia de “normal” es la <span className="term" tabIndex={0} data-def="Distribución histórica de la lluvia en un lugar. Aquí se usan los percentiles 90, 95 y 99 de la lluvia diaria.">climatología</span> de cada celda: la serie diaria NASA IMERG Final (0,1°) desde 2001 hasta el último año completo publicado (hoy 2001-2025, no el período OMM 1991-2020). Si una celda todavía no la tiene completa se usa la climatología ERA5; nunca se mezclan percentiles de las dos fuentes.</p>
         <h3>Método</h3>
-        <p>Se compara la lluvia acumulada con los percentiles históricos de la celda. La comparación es estricta: igualar un percentil no lo supera.</p>
+        <p>Con climatología, el pronóstico determinístico suma la lluvia de las últimas 24 horas de cada horizonte: (h − 24, h]. Esa ventana debe cubrir al menos {COBERTURA_MIN_VENTANA_V04_HORAS} horas. Se compara con los percentiles diarios de la celda: igualar un percentil no lo supera. Sin climatología, los umbrales provisorios reciben todo lo acumulado entre ahora y el horizonte (0, h].</p>
         <Formula tex={String.raw`\text{nivel}(mm)=\begin{cases}\text{rojo} & mm>P_{99}\\ \text{naranja} & mm>P_{95}\\ \text{amarillo} & mm>P_{90}\\ \text{verde} & \text{en otro caso}\end{cases}`} />
         <p>Cuando hay pronóstico por <span className="term" tabIndex={0} data-def="Conjunto de corridas del modelo con condiciones iniciales levemente distintas. Permite estimar la probabilidad de superar un umbral.">ensamble</span>, se usa la probabilidad de superar cada percentil: rojo si <Tex tex={String.raw`P(mm>P_{99})\ge 0{,}5`} />; naranja si <Tex tex={String.raw`P(mm>P_{95})\ge 0{,}5`} />; amarillo si <Tex tex={String.raw`P(mm>P_{95})>0{,}1`} />.</p>
+        <p>El ensamble debe ser anterior al cálculo y tener como máximo {EDAD_MAX_ENSEMBLE_V04_HORAS} horas. Si no sirve para ese horizonte, se intenta el determinístico. Si la ingesta más reciente no cubre la ventana, se admite una ingesta previa de hasta {EDAD_MAX_INGESTA_RESPALDO_V04_HORAS} horas; si tampoco alcanza, se informa sin dato.</p>
         <h3>Umbrales provisorios</h3>
         <p>Mientras una celda no tiene climatología completa se usan umbrales fijos. Son una decisión de arranque, <b>no umbrales oficiales</b>, y bajan la confianza del resultado.</p>
         <div className="card"><svg id="chart-umbrales" viewBox="0 0 640 260" role="img" aria-label="Umbrales provisorios por horizonte"></svg></div>
@@ -213,10 +242,11 @@ export function MetodologiaMapa() {
             </tbody></table></div>
           <div className="card"><h3 style={{ marginTop: '0' }}>Para qué se usa</h3>
             <ol className="steps">
-              <li><b>Lluvia ya caída sobre cada escuela</b> en las últimas 24 y 72 horas: alimenta la “lluvia antecedente” del riesgo estimado. Un suelo que ya recibió mucha agua se inunda con menos lluvia nueva.</li>
+              <li><b>Lluvia ya caída sobre cada escuela</b> en las últimas 24 y 72 horas: alimenta la “lluvia antecedente” del riesgo estimado. Para el horizonte de 24 h se usa lo observado en 24 h; para los de 72 y 240 h, lo observado en 72 h. Un suelo que ya recibió mucha agua se inunda con menos lluvia nueva.</li>
               <li><b>Control de calidad del pronóstico</b>: cada día se compara lo pronosticado con lo observado por NASA en cada departamento, para saber cuánto confiar en el pronóstico.</li>
             </ol></div>
         </div>
+        <p>Para el motor, una estación SMN cercana con cobertura completa (SYNOP vía Ogimet) tiene prioridad sobre IMERG en cada ventana. Si no hay esa medición, se usa el satélite. Un acumulado de cero significa que se midió y no llovió; sin dato significa que no se pudo medir con cobertura suficiente.</p>
         <h3>Acumulados con control de cobertura</h3>
         <p>Cada medición cubre media hora. El acumulado de 24 horas suma los últimos 48 registros y el de 72 horas, los últimos 144. Si falta más del 20 % de los registros, el acumulado se informa como <b>sin dato</b>: es preferible reconocer que no se sabe a mostrar una cifra que subestime la lluvia real.</p>
         <Formula tex={String.raw`L_{24}=\sum_{k=1}^{48} r_k,\qquad \text{cobertura}=\frac{\text{registros disponibles}}{48}\ \ge\ 0{,}8`} />
@@ -243,44 +273,72 @@ export function MetodologiaMapa() {
 
       <section id="riesgo">
         <h2>3 · Riesgo estimado</h2>
-        <p className="question">Combinando peligro y vulnerabilidad, ¿qué tan expuesta está la escuela?</p>
-        <p>Se sigue el esquema clásico <b>riesgo = amenaza × vulnerabilidad</b>. Ambas dimensiones se expresan en una escala de 0 a 100 y el producto se reescala a 0–100.</p>
-        <Formula tex={String.raw`R=\operatorname{round}\!\left(\frac{A\cdot V}{100}\right),\qquad A,V,R\in[0,100]`} />
+        <p className="question">¿Dónde conviene priorizar la verificación y la respuesta ante lluvia y crecidas?</p>
+        <p>El motor operativo es <b>{MOTOR_VERSION}</b>, con reglas <b>{REGLAS_V04_VERSION}</b>. Calcula por separado los horizontes de {HORIZONTES.map((h) => `${h.horas} horas (${h.dias} días)`).join(', ')}. El puntaje combina amenaza y vulnerabilidad en una escala de 0 a 100; <b>no es un porcentaje de probabilidad de suspensión de clases</b>.</p>
+        <Formula tex={FORMULAS_MOTOR.riesgo} />
+        <p>La amenaza <Tex tex="A" /> reúne las señales disponibles. La vulnerabilidad <Tex tex="V" /> modula su efecto: con vulnerabilidad cero se conserva el {porcentaje(BASE_COMBINACION_V04)} de la amenaza; con vulnerabilidad máxima, toda. Si la vulnerabilidad es desconocida, el factor es 1 y el riesgo base coincide con la amenaza. Luego se aplican los pisos del río, que sólo pueden subir el resultado.</p>
         <div className="grid2">
           <div className="card">
-            <h3 style={{ marginTop: '0' }}>Amenaza <Tex tex={String.raw`A`} /></h3>
-            <table><tbody><tr><th>Componente</th><th>Peso</th><th>Escala</th></tr>
-            <tr><td>Peligro en la celda</td><td className="mono">0,5</td><td>verde 0 · amarillo 33 · naranja 66 · rojo 100</td></tr>
-            <tr><td>Caudal del río asociado</td><td className="mono">0,3</td><td>misma escala</td></tr>
-            <tr><td>Lluvia ya caída (NASA GPM IMERG)</td><td className="mono">0,2</td><td><Tex tex={String.raw`\min(100,\ mm/150\cdot 100)`} /></td></tr></tbody></table>
+            <h3 style={{ marginTop: '0' }}>Amenaza</h3>
+            <table><tbody><tr><th>Componente</th><th>Peso base</th><th>Qué aporta</th></tr>
+              <tr><td>Peligro en celda</td><td>{porcentaje(PESOS_AMENAZA.peligroCelda)}</td><td>ECMWF vía Open-Meteo: {NIVELES_PELIGRO.map(([n, v]) => `${n} ${v}`).join(' · ')}.</td></tr>
+              <tr><td>Caudal asociado</td><td>{porcentaje(PESOS_AMENAZA.caudal)}</td><td>GloFAS vía Open-Meteo Flood: máximo pronosticado en (0, h], contra climatología de caudal. Sin climatología, queda sin dato.</td></tr>
+              <tr><td>Río</td><td>{porcentaje(PESOS_AMENAZA.rioPrefectura)}</td><td>100 × probabilidad principal de superación del terreno, si es estimable. Si no, estado y tendencia de Prefectura con alcance evaluado para el horizonte.</td></tr>
+              <tr><td>Lluvia antecedente</td><td>{porcentaje(PESOS_AMENAZA.lluviaAntecedente)}</td><td>IMERG o estación SMN: escala por tramos entre cero, P90, P95 y P99 (puntajes 0, 33, 66 y 100), con tope en 100 y un decimal. Sin climatología de la ventana, usa los umbrales absolutos de 24 o 72 h.</td></tr>
+            </tbody></table>
           </div>
           <div className="card">
-            <h3 style={{ marginTop: '0' }}>Vulnerabilidad <Tex tex={String.raw`V`} /></h3>
-            <table><tbody><tr><th>Componente</th><th>Peso</th><th>Escala</th></tr>
-            <tr><td>Historial de afectaciones (365 días)</td><td className="mono">0,7</td><td>promedio de tres términos saturados</td></tr>
-            <tr><td>Susceptibilidad física</td><td className="mono">0,3</td><td>promedio de indicadores × 100</td></tr></tbody></table>
+            <h3 style={{ marginTop: '0' }}>Vulnerabilidad</h3>
+            <table><tbody><tr><th>Componente</th><th>Peso base</th><th>Qué aporta</th></tr>
+              <tr><td>Historial</td><td>{porcentaje(PESOS_VULNERABILIDAD.historial)}</td><td>Afectaciones confirmadas en {VENTANA_HISTORIAL_DIAS} días, hasta el instante del cálculo.</td></tr>
+              <tr><td>Susceptibilidad JRC</td><td>{porcentaje(PESOS_VULNERABILIDAD.susceptibilidad)}</td><td>Sólo profundidad fluvial RP100, en metros. Satura en 100 desde {numero(TOPE_PROFUNDIDAD_FLUVIAL_V04_M)} m; cero es un dato válido. No combina calor, viento ni inundación pluvial.</td></tr>
+            </tbody></table>
+            <Formula tex={FORMULAS_MOTOR.susceptibilidad} />
           </div>
         </div>
         <h3>Historial</h3>
-        <Formula tex={String.raw`H=\frac{1}{3}\left[\min\!\left(100,\tfrac{n}{5}\cdot100\right)+\min\!\left(100,\tfrac{h}{720}\cdot100\right)+\min\!\left(100,\tfrac{c}{3}\cdot100\right)\right]`} />
-        <p><Tex tex={String.raw`n`} />: cantidad de partes en el último año; <Tex tex={String.raw`h`} />: horas acumuladas con parte vigente (720 h = 30 días); <Tex tex={String.raw`c`} />: partes con acceso interrumpido. Cada término satura en 100.</p>
-        <h3>Datos faltantes: redistribución de pesos</h3>
-        <p>Un dato faltante <b>nunca</b> se reemplaza por cero. Su peso se reparte proporcionalmente entre los componentes presentes:</p>
-        <Formula tex={String.raw`D=\sum_{i\in P}\frac{w_i}{\sum_{j\in P}w_j}\,x_i\qquad P=\{\text{componentes con dato}\}`} />
-        <p>A cambio, la <b>confianza</b> baja: alta sin faltantes, media con uno, baja con dos o más o sin evidencia de amenaza. Un umbral provisorio cuenta como faltante.</p>
+        <Formula tex={FORMULAS_MOTOR.historial} />
+        <p><Tex tex="n" /> es la cantidad de afectaciones confirmadas; <Tex tex="h" />, la suma de sus horas vigentes, cortadas al instante del cálculo; <Tex tex="c" />, las que tuvieron motivo Acceso interrumpido. Los términos saturan en 100. El tope de duración es {HISTORIAL_TOPE_DURACION_HORAS} horas. Si todavía no había ningún parte en todo el sistema, el historial es ausente. Si la fuente ya tenía partes y esta escuela no tiene antecedentes en la ventana, el cero es real.</p>
+        <h3>Datos faltantes y confianza</h3>
+        <p>Un insumo ausente no se reemplaza por cero. Dentro de cada dimensión se redistribuyen los pesos entre los componentes presentes, en la misma proporción:</p>
+        <Formula tex={FORMULAS_MOTOR.dimension} />
+        <p>Se redondea cada contribución y la suma a dos decimales; el riesgo base se redondea a entero antes de aplicar los pisos. Sin ninguna amenaza, el riesgo queda sin dato. Si faltan historial y susceptibilidad, la vulnerabilidad queda desconocida y no reduce la amenaza.</p>
+        <p>La confianza es alta sin faltantes, media hasta {CONFIANZA_MEDIA_MAX_FALTANTES} y baja por encima de ese límite o sin amenaza. También cuentan la ausencia de aislamiento OSM, un peligro de celda calculado con umbral provisorio y la exposición fluvial de baja confianza cuando entra el río observado. Un río sin vinculación o no aplicable no cuenta como faltante; uno vinculado sin lectura sí, salvo que lo reemplace la probabilidad modelada. La lluvia antecedente con umbral absoluto no agrega por sí sola una penalización de confianza.</p>
+        <h3 id="riesgo-rio">Probabilidad de superación del terreno</h3>
+        <p>Las series diarias INA A5 y la última lectura de Prefectura alimentan trayectorias históricas análogas del nivel del río. En tramos aprobados del Paraná con estaciones que encierran a la escuela, ceros de escala, kilómetros de río y cotas válidas, el motor interpola el nivel absoluto del agua en el sitio. La probabilidad es la fracción de trayectorias cuyo máximo dentro del horizonte alcanza o supera el terreno. Las ventanas comparten trayectorias: al ampliar el horizonte, esta probabilidad no disminuye.</p>
+        <Formula tex={String.raw`P_h=\frac{\#\{\text{trayectorias con }\max_{t\in(0,h]} Z_{\text{agua}}(t)\ge Z_{\text{terreno}}\}}{\#\{\text{trayectorias completas}\}}`} />
+        <p>La cota principal usa Copernicus; la conservadora toma la menor estimación válida comparable entre las fuentes de altimetría, incluida IGN. Se conserva la incertidumbre de la conversión vertical. Superar el terreno supone conexión con el cauce principal: <b>no significa agua dentro del edificio</b>, porque no hay cota de piso relevada, ni equivale a una probabilidad de interrupción educativa. El pronóstico INA se ingesta para seguimiento, pero no alimenta esta probabilidad.</p>
+        <p>Si la probabilidad principal es estimable, <b>reemplaza</b> al componente de Prefectura con el mismo peso de {porcentaje(PESOS_AMENAZA.rioPrefectura)}; no se cuentan dos veces. Prefectura sigue aportando los pisos observados. Sin probabilidad estimable, se evalúa el río observado bajo las reglas actuales de alcance; si tampoco hay evidencia utilizable, el peso se redistribuye. Sin alcance, la lectura observada queda como información y no entra al puntaje; con alcance reducido o completo, su valor depende del estado y de si el río está creciendo.</p>
+        <h3>Pisos del río</h3>
+        <p>Con lectura de Prefectura de hasta {MAX_ANTIGUEDAD_LECTURA_HORAS} horas, sin fecha futura, y alcance completo del agua posible, se fijan estos mínimos. El estado oficial es propio de cada estación; sus alturas de alerta y evacuación no son iguales en todos los tramos.</p>
+        <table><tbody><tr><th>Estado</th><th>Amenaza mínima</th><th>Riesgo mínimo</th></tr>
+          {(['alerta', 'evacuacion'] as const).map((estado) => <tr key={estado}><td>{estado === 'alerta' ? 'Alerta' : 'Evacuación'}</td><td>{PISO_AMENAZA_POR_ESTADO_RIO[estado]}</td><td>{PISO_RIESGO_POR_ESTADO_RIO[estado]} ({estado === 'alerta' ? 'moderado' : 'alto'})</td></tr>)}
+        </tbody></table>
+        <p>El alcance se evalúa por horizonte con la altura crítica de la escala, el margen vertical de {numero(MARGEN_ERROR_DEM_V04_M)} m y una banda adicional de {numero(BANDA_EXPOSICION_V04_M)} m. Es completo si la probabilidad de alcanzar esa altura es al menos {porcentaje(UMBRAL_ALCANZABLE_V04)}, o si la tendencia y la onda llegan; sin miembros de análogos se usa la subida posible. Las observaciones de terreno seco de Sentinel-2 pueden elevar la altura crítica. Fuera de ese cálculo se evalúa el DEM y, si no es evaluable, sólo se admite la clase fluvial JRC como respaldo de baja confianza.</p>
+        <p>Si sólo se llega a la banda, el piso es reducido: evacuación deja amenaza mínima {PISO_AMENAZA_REDUCIDO_V04.evacuacion} y riesgo mínimo {PISO_RIESGO_REDUCIDO_V04.evacuacion}; alerta no fija piso. Sin alcance, no hay piso observado. En localidades con defensa costera y coronamiento desconocido, el alcance baja un nivel: completo a reducido, reducido a ninguno. Este ajuste es provisorio y se aplica por localidad, no por polígono protegido.</p>
+        <ul>
+          <li>Probabilidad <b>principal ≥ {numero(UMBRAL_P_ALTO_V04)}</b>: riesgo mínimo {PISO_RIESGO_P_ALTO_V04} (alto).</li>
+          <li>Si no corresponde el anterior, probabilidad <b>conservadora ≥ {numero(UMBRAL_P_MODERADO_V04)}</b>: riesgo mínimo {PISO_RIESGO_P_MODERADO_V04} (moderado).</li>
+        </ul>
+        <p>Estos pisos probabilísticos usan las cotas sin el margen vertical. Sólo se habilitan si la probabilidad principal es estimable; el ajuste por defensa costera no los modifica. El resultado final es el máximo entre el riesgo base y los pisos que correspondan. Mapeo: {RIO_V04_MAPEO_VERSION}; sus umbrales siguen siendo provisorios.</p>
         <div className="sim" id="sim-riesgo">
           <h4>Simulador: riesgo estimado</h4>
-          <p className="hint">Mové cada componente o desmarcalo para ver cómo se redistribuyen los pesos.</p>
+          <p className="hint">Mové los insumos o desmarcalos. El alcance es un resultado previo del análisis del terreno, la tendencia y las defensas; acá podés elegirlo para ver su efecto. La lluvia usa umbrales absolutos de la ventana, sin climatología. El aislamiento se supone disponible.</p>
           <div className="ctrls">
-            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-pc-on" defaultChecked /> Peligro en celda</label><select defaultValue="66" id="r-pc"><option value="0">verde (0)</option><option value="33">amarillo (33)</option><option value="66">naranja (66)</option><option value="100">rojo (100)</option></select></div>
-            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-cq-on" /> Caudal (si hay río asociado)</label><select defaultValue="33" id="r-cq"><option value="0">verde (0)</option><option value="33">amarillo (33)</option><option value="66">naranja (66)</option><option value="100">rojo (100)</option></select></div>
-            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-ll-on" defaultChecked /> Lluvia antecedente <output id="r-ll-o"></output></label><input type="range" id="r-ll" min="0" max="250" defaultValue="90" /></div>
-            <div className="ctrl"><label>Partes en el año <output id="r-n-o"></output></label><input type="range" id="r-n" min="0" max="8" defaultValue="2" /></div>
-            <div className="ctrl"><label>Horas con parte vigente <output id="r-h-o"></output></label><input type="range" id="r-h" min="0" max="1000" step="10" defaultValue="200" /></div>
-            <div className="ctrl"><label>Partes con acceso interrumpido <output id="r-c-o"></output></label><input type="range" id="r-c" min="0" max="5" defaultValue="1" /></div>
-            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-su-on" defaultChecked /> Susceptibilidad <output id="r-su-o"></output></label><input type="range" id="r-su" min="0" max="100" defaultValue="40" /></div>
+            <div className="ctrl"><label htmlFor="r-horizonte">Horizonte</label><select id="r-horizonte" defaultValue="72">{HORIZONTES.map((h) => <option key={h.horas} value={h.horas}>{h.horas} horas</option>)}</select></div>
+            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-pc-on" defaultChecked /> Peligro en celda</label><select aria-label="Nivel de peligro en celda" defaultValue="66" id="r-pc">{NIVELES_PELIGRO.map(([n, v]) => <option key={n} value={v}>{n} ({v})</option>)}</select><label className="chk"><input type="checkbox" id="r-prov" /> Usa umbral provisorio</label></div>
+            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-cq-on" /> Caudal asociado</label><select aria-label="Nivel de caudal" defaultValue="33" id="r-cq">{NIVELES_PELIGRO.map(([n, v]) => <option key={n} value={v}>{n} ({v})</option>)}</select></div>
+            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-ll-on" defaultChecked /> Lluvia antecedente <output id="r-ll-o"></output></label><input aria-label="Lluvia antecedente en mm" type="range" id="r-ll" min="0" max="250" defaultValue="90" /></div>
+            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-hist-on" defaultChecked /> Fuente de historial disponible</label><label htmlFor="r-n">Afectaciones <output id="r-n-o"></output></label><input type="range" id="r-n" min="0" max="8" defaultValue="2" /></div>
+            <div className="ctrl"><label htmlFor="r-h">Horas acumuladas <output id="r-h-o"></output></label><input type="range" id="r-h" min="0" max="1000" step="10" defaultValue="200" /></div>
+            <div className="ctrl"><label htmlFor="r-c">Con acceso interrumpido <output id="r-c-o"></output></label><input type="range" id="r-c" min="0" max="5" defaultValue="1" /></div>
+            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-su-on" defaultChecked /> Profundidad JRC RP100 <output id="r-su-o"></output></label><input aria-label="Profundidad JRC en metros" type="range" id="r-su" min="0" max="2" step="0.01" defaultValue="0.4" /></div>
+            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-prob-on" /> Probabilidad principal estimable</label><label htmlFor="r-prob">Principal <output id="r-prob-o"></output></label><input type="range" id="r-prob" min="0" max="100" defaultValue="10" /></div>
+            <div className="ctrl"><label className="chk"><input type="checkbox" id="r-cons-on" defaultChecked /> Cota conservadora estimable</label><label htmlFor="r-cons">Conservadora <output id="r-cons-o"></output></label><input type="range" id="r-cons" min="0" max="100" defaultValue="20" /></div>
+            <div className="ctrl"><label htmlFor="r-estado">Río observado (ejemplo)</label><select id="r-estado"><option value="no_aplica">Sin vinculación / no aplica</option><option value="sin_dato">Vinculado sin lectura</option><option value="normal">Normal: lectura 4 m, alerta 5 m</option><option value="alerta">Alerta, estable</option><option value="crece">Alerta, creciendo</option><option value="evacuacion">Evacuación</option></select></div>
+            <div className="ctrl"><label htmlFor="r-alcance">Alcance del agua posible (resuelto)</label><select id="r-alcance" defaultValue="completo"><option value="completo">Completo</option><option value="reducido">Reducido</option><option value="ninguno">Ninguno</option></select><label className="chk"><input type="checkbox" id="r-expo-incierta" /> Exposición de baja confianza</label></div>
           </div>
-          <div className="result">
+          <div className="result" aria-live="polite">
             <div><div className="why">Amenaza</div><div className="big" id="r-A"></div></div>
             <div><div className="why">Vulnerabilidad</div><div className="big" id="r-V"></div></div>
             <div><div className="why">Riesgo</div><div className="big" id="r-R"></div></div>
@@ -288,18 +346,23 @@ export function MetodologiaMapa() {
           </div>
           <div id="r-weights" className="wf" style={{ marginTop: '14px' }}></div>
         </div>
-        <h3>Superficie de riesgo</h3>
-        <p>Como el riesgo es un producto, las curvas de nivel son hipérbolas: una amenaza muy alta con vulnerabilidad baja da el mismo riesgo que valores intermedios en ambas. El punto marca el caso del simulador.</p>
-        <div className="card"><canvas id="heat" width="560" height="420" style={{ width: '100%', maxWidth: '560px', height: 'auto' }} role="img" aria-label="Mapa de calor de riesgo según amenaza y vulnerabilidad"></canvas></div>
-        <table><tbody><tr><th>Riesgo</th><th>Nivel</th></tr><tr><td className="mono">0 – 24</td><td>bajo</td></tr><tr><td className="mono">25 – 49</td><td>moderado</td></tr><tr><td className="mono">50 – 74</td><td>alto</td></tr><tr><td className="mono">75 – 100</td><td>muy alto</td></tr></tbody></table>
+        <h3>Superficie de riesgo base</h3>
+        <p>El gráfico muestra la combinación de amenaza y vulnerabilidad antes de los pisos de riesgo del río. El punto indica los valores del simulador; si la vulnerabilidad es desconocida, no se dibuja un punto.</p>
+        <div className="card"><canvas id="heat" width="560" height="420" style={{ width: '100%', maxWidth: '560px', height: 'auto' }} role="img" aria-label="Mapa de calor de riesgo base según amenaza y vulnerabilidad"></canvas></div>
+        <table><tbody><tr><th>Puntaje final</th><th>Nivel</th></tr>
+          <tr><td>0 a {UMBRAL_MODERADO - 1}</td><td>bajo</td></tr><tr><td>{UMBRAL_MODERADO} a {UMBRAL_ALTO - 1}</td><td>moderado</td></tr><tr><td>{UMBRAL_ALTO} a {UMBRAL_MUY_ALTO - 1}</td><td>alto</td></tr><tr><td>{UMBRAL_MUY_ALTO} a 100</td><td>muy alto</td></tr>
+        </tbody></table>
+        <h3>Degradación y frecuencia de cálculo</h3>
+        <p>La cadencia base de cálculo es de {CADENCIAS['calcular-riesgo'].minutos / 60} horas, encadenada a las sincronizaciones de pronóstico; también puede dispararse después de IMERG. No es un cálculo continuo. Cada corrida conserva su versión, instante de cálculo y vigencia; la vigencia es la más temprana del peligro o caudal utilizado, o el instante del cálculo si ninguno aporta vigencia propia.</p>
+        <p>Si faltan insumos del río, el cálculo continúa con la evidencia disponible. Los problemas generales de la corrida quedan en <code>metadatos.degradacion</code>. Ese registro no es lo mismo que la confianza de cada escuela ni enumera todas las abstenciones individuales.</p>
+        <div className="tablewrap"><table><tbody><tr><th>Código</th><th>Qué significa</th></tr>{Object.entries(DEGRADACION).map(([codigo, texto]) => <tr key={codigo}><td><code>{codigo}</code></td><td>{texto}</td></tr>)}</tbody></table></div>
         <h3>Exposición educativa</h3>
-        <p>Junto al riesgo, cada escuela muestra su <b>matrícula y su cantidad de secciones</b>. Es una dimensión aparte que nunca se mezcla en el puntaje: el riesgo dice qué tan probable es una interrupción; la exposición dice cuántos estudiantes perderían clases. Leídas juntas permiten priorizar, por ejemplo, una escuela de riesgo moderado con 600 alumnos frente a una de riesgo alto con 15.</p>
+        <p>El padrón y el corte educativo aportan matrícula y secciones para dimensionar cuántos estudiantes podrían verse afectados. Se muestran aparte y no multiplican el puntaje. Tampoco se suma el riesgo de acceso: tiene su propia regla y su propia confianza.</p>
         <div className="sim" id="sim-expo">
           <h4>Simulador: riesgo y exposición juntos</h4>
           <p className="hint">Cada círculo es una escuela de ejemplo. El tamaño es la matrícula; la posición horizontal, el riesgo estimado.</p>
           <svg id="expo-svg" viewBox="0 0 760 240" role="img" aria-label="Escuelas según riesgo y matrícula"></svg>
         </div>
-        <p className="why">Versión del modelo: motor v0.2.</p>
       </section>
 
       <section id="aislamiento">
@@ -370,27 +433,27 @@ export function MetodologiaMapa() {
 
       <section id="acceso">
         <h2>5 · Riesgo de acceso</h2>
-        <p className="question">¿Qué probabilidad hay de que el camino a la escuela quede cortado?</p>
+        <p className="question">¿Qué condiciones pueden dificultar o cortar el camino a la escuela?</p>
         <p>Combina el aislamiento vial con el peligro actual y el historial. Es una dimensión separada: <b>no</b> se suma al riesgo estimado de la sección 3. Se parte de un puntaje base según el nivel de aislamiento y se suman agravantes, con tope en 100.</p>
-        <Formula tex={String.raw`S=\min\!\Big(100,\ B(\text{nivel})+\sum_k a_k\Big)\qquad B=(0,\,20,\,45,\,70)`} />
+        <Formula tex={FORMULAS_MOTOR.acceso} />
         <div className="sim" id="sim-acc">
           <h4>Simulador: riesgo de acceso</h4>
           <div className="ctrls">
-            <div className="ctrl"><label>Nivel de aislamiento</label><select defaultValue="2" id="c-n"><option value="0">0 · base 0</option><option value="1">1 · base 20</option><option value="2">2 · base 45</option><option value="3">3 · base 70</option></select></div>
-            <div className="ctrl"><label className="chk"><input type="checkbox" id="c-cr" defaultChecked /> Cruce de agua sin puente confirmado (+25)</label><label className="chk"><input type="checkbox" id="c-pa" /> Peligro naranja o rojo (+25)</label><label className="chk"><input type="checkbox" id="c-hi" /> Hubo acceso interrumpido (+15)</label></div>
-            <div className="ctrl"><label>Alternativa sin cruce</label><select defaultValue="nd" id="c-al"><option value="si">Existe (+0)</option><option value="no">No existe (+15)</option><option value="nd">Desconocida (+20)</option></select></div>
+            <div className="ctrl"><label>Nivel de aislamiento</label><select defaultValue="2" id="c-n">{Object.entries(BASE_ACCESO_POR_NIVEL_AISLAMIENTO).map(([n, base]) => <option key={n} value={n}>{n} · base {base}</option>)}<option value="sin_dato">Sin dato</option></select></div>
+            <div className="ctrl"><label className="chk"><input type="checkbox" id="c-cr" defaultChecked /> Cruce de riesgo (+{AGRAVANTES_ACCESO.cruceDeRiesgo})</label><label className="chk"><input type="checkbox" id="c-pa" /> Peligro naranja o rojo (+{AGRAVANTES_ACCESO.peligroAlto})</label><label className="chk"><input type="checkbox" id="c-hi" /> Hubo acceso interrumpido (+{AGRAVANTES_ACCESO.accesoInterrumpido})</label></div>
+            <div className="ctrl"><label>Alternativa sin cruce</label><select defaultValue="nd" id="c-al"><option value="si">Existe (+0)</option><option value="no">No existe (+{AGRAVANTES_ACCESO.sinAlternativa})</option><option value="nd">Desconocida (+{AGRAVANTES_ACCESO.alternativaDesconocida})</option></select></div>
           </div>
           <div id="c-wf" className="wf" style={{ marginTop: '16px' }}></div>
           <div className="result"><div className="big" id="c-s"></div><span className="badge" id="c-b"></span></div>
         </div>
-        <p>El riesgo de acceso anticipa exactamente lo que el directivo declara después como “problema de los alumnos”: demoras, inasistencias o un trayecto peligroso. También anticipa la llegada de docentes que viven lejos de la escuela.</p>
-        <p>Un dato desconocido suma más que un “no” confirmado (+20 contra +15): <b>la falta de información nunca abarata el riesgo</b>. Si el aislamiento no tiene dato, el riesgo de acceso tampoco lo tiene.</p>
-        <p className="why">A diferencia del riesgo estimado, el riesgo de acceso tiene tres niveles: bajo (menos de 25), moderado (25 a 49) y alto (50 o más). Versión de la regla: acceso v1.</p>
+        <p>El riesgo de acceso es un índice, no una probabilidad calibrada ni la confirmación de un corte. Considera vados, cruces que no tienen todos sus puentes registrados (incluidos los conteos de puentes desconocidos), peligro naranja o rojo de celda o caudal e historial de accesos interrumpidos.</p>
+        <p>Un dato desconocido suma más que un “no” confirmado (+{AGRAVANTES_ACCESO.alternativaDesconocida} contra +{AGRAVANTES_ACCESO.sinAlternativa}): <b>la falta de información nunca abarata el riesgo</b>. Si el aislamiento no tiene dato, el riesgo de acceso tampoco lo tiene.</p>
+        <p className="why">A diferencia del riesgo estimado, el riesgo de acceso tiene tres niveles: bajo (menos de {UMBRAL_MODERADO}), moderado ({UMBRAL_MODERADO} a {UMBRAL_ALTO - 1}) y alto ({UMBRAL_ALTO} o más). Versión de la regla: {REGLA_ACCESO_VERSION}. La confianza es alta con conteos y alternativa completos, media si alguno falta y baja si no hay índice de aislamiento utilizable.</p>
       </section>
 
       <section id="inundacion">
         <h2>6 · Inundación</h2>
-        <p className="question">¿Hasta dónde llegó históricamente el agua de los ríos y lagunas cercanos?</p>
+        <p className="question">¿Qué exposición a crecidas muestran los mapas estáticos de ríos y lagunas?</p>
         <h3>Fuentes</h3>
         <div className="tablewrap"><table><tbody>
           <tr><th>Fuente</th><th>Qué aporta</th><th>Resolución</th></tr>
@@ -450,7 +513,7 @@ export function MetodologiaMapa() {
             <li>OSM es colaborativo: puede faltar un puente o un vado, o el tipo de superficie.</li>
             <li>La lluvia satelital es una estimación sobre celdas de unos 11 km: puede no captar tormentas muy localizadas.</li>
             <li>El DEM incluye árboles y techos; su error vertical es de algunos metros.</li>
-            <li>JRC no modela defensas; la verificación de terreno sólo lo compensa en parte.</li>
+            <li>JRC y la probabilidad de superación del terreno suponen conexión con el cauce y no modelan defensas. El piso observado sí tiene un ajuste provisorio por defensas costeras.</li>
             <li>La afectación depende de que la escuela cargue el parte.</li>
           </ul></div>
           <div className="card"><h3 style={{ marginTop: '0' }}>Modelo</h3><ul>
@@ -463,11 +526,11 @@ export function MetodologiaMapa() {
         <div className="tablewrap"><table><tbody>
           <tr><th>Indicador</th><th>Versión</th><th>Actualización</th></tr>
           <tr><td>Afectación</td><td>—</td><td>en tiempo real (cada parte)</td></tr>
-          <tr><td>Peligro por lluvia</td><td className="mono">umbrales provisorios v0.1</td><td>cada 6 h</td></tr>
-          <tr><td>Lluvia observada (NASA)</td><td className="mono">IMERG Early Run</td><td>cada hora</td></tr>
-          <tr><td>Riesgo estimado</td><td className="mono">motor v0.2</td><td>con cada pronóstico</td></tr>
+          <tr><td>Peligro por lluvia</td><td className="mono">{REGLAS_V04_VERSION}; respaldo {VERSION_UMBRALES_PROVISORIOS}</td><td>cada {CADENCIAS['sync-ensemble'].minutos / 60} h</td></tr>
+          <tr><td>Lluvia observada (NASA)</td><td className="mono">IMERG Early Run</td><td>cada {CADENCIAS['sync-imerg'].minutos} min</td></tr>
+          <tr><td>Riesgo estimado</td><td className="mono">{MOTOR_VERSION} · {REGLAS_V04_VERSION}</td><td>cadencia base {CADENCIAS['calcular-riesgo'].minutos / 60} h; también después de IMERG</td></tr>
           <tr><td>Aislamiento vial</td><td className="mono">v4 · OSM 26/09/2026</td><td>con cada extracto OSM</td></tr>
-          <tr><td>Riesgo de acceso</td><td className="mono">acceso v1</td><td>con cada pronóstico</td></tr>
+          <tr><td>Riesgo de acceso</td><td className="mono">{REGLA_ACCESO_VERSION}</td><td>en cada cálculo de riesgo</td></tr>
           <tr><td>Inundación</td><td className="mono">v2 · job 1</td><td>estático</td></tr>
         </tbody></table></div>
       </section>

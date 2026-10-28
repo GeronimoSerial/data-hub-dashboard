@@ -246,3 +246,6 @@ export const EDAD_MAX_INGESTA_RESPALDO_V04_HORAS = 18
 export const EDAD_MAX_ENSEMBLE_V04_HORAS = 36
 // F6 — Caudal v0.4: máximo del pronóstico dentro de la ventana (0, h] de la
 // corrida más reciente, en lugar del horizonte más chico para los tres.
+
+// Vigencia máxima de la última fila diaria INA + Prefectura para el río v0.4.
+export const EDAD_MAX_SERIE_INA_V04_DIAS = 3

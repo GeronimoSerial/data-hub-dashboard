@@ -1,10 +1,11 @@
-// Interactive charts and simulators of the methodology tab. Plain DOM on top
-// of the static markup rendered by MetodologiaMapa: every control already
-// exists in the markup, this module only listens and redraws.
-//
-// The thresholds, weights and rules below mirror the production code (risk
-// engine, access rule, isolation job, flood classifier, IMERG verification).
-// Change them together.
+import {
+  AGRAVANTES_ACCESO, BASE_ACCESO_POR_NIVEL_AISLAMIENTO,
+  UMBRAL_MODERADO, UMBRAL_ALTO, UMBRAL_MUY_ALTO,
+} from '@/lib/infraestructura/riesgo/motor/config'
+import { UMBRALES_PROVISORIOS_MM, nivelDesdeUmbralProvisorio } from '@/lib/infraestructura/riesgo/peligro/umbrales-provisorios'
+import type { HorizontePeligro } from '@/lib/infraestructura/riesgo/motor/puertos'
+import type { AlcanceExposicion } from '@/lib/infraestructura/riesgo/motor/exposicion-v04'
+import { riesgoBaseV04, simularRiesgo, vulnerabilidadEnCorte } from './calculo-simulador'
 
 type Nivel = 'bajo' | 'moderado' | 'alto' | 'muy_alto'
 
@@ -20,8 +21,8 @@ const COLORES_NIVEL_ORDEN = ['--nivel-peligro-verde', '--nivel-peligro-amarillo'
 // Yellow and green fills need dark text to stay readable.
 const FONDOS_CLAROS = new Set(['--nivel-peligro-amarillo', '--nivel-peligro-verde', '--nivel-peligro-sin-dato'])
 
-const nivelRiesgo = (s: number): Nivel => (s < 25 ? 'bajo' : s < 50 ? 'moderado' : s < 75 ? 'alto' : 'muy_alto')
-const nivelAcceso = (s: number): Nivel => (s < 25 ? 'bajo' : s < 50 ? 'moderado' : 'alto')
+const nivelRiesgo = (s: number): Nivel => (s < UMBRAL_MODERADO ? 'bajo' : s < UMBRAL_ALTO ? 'moderado' : s < UMBRAL_MUY_ALTO ? 'alto' : 'muy_alto')
+const nivelAcceso = (s: number): Nivel => (s < UMBRAL_MODERADO ? 'bajo' : s < UMBRAL_ALTO ? 'moderado' : 'alto')
 const fmt = (x: number, d = 0) => x.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d })
 
 export function iniciarSimuladores(raiz: HTMLElement): () => void {
@@ -171,7 +172,7 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
   }
 
   // Provisional rain thresholds (mm): yellow, orange, red.
-  const PROVISORIOS: Record<string, [number, number, number]> = { 24: [50, 80, 120], 72: [80, 120, 180], 240: [120, 180, 270] }
+  const PROVISORIOS = Object.fromEntries(Object.entries(UMBRALES_PROVISORIOS_MM).map(([h, u]) => [h, [u.amarillo, u.naranja, u.rojo]]))
   function graficoUmbrales() {
     const s = svg('chart-umbrales')
     if (!s) return
@@ -195,68 +196,69 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
       el('rect', { x: W - 260 + j * 84, y: 8, width: 12, height: 12, rx: 2, fill: color(colores[j]) }, s)
       rotulo(s, W - 244 + j * 84, 18, n)
     })
-    rotulo(s, 70, 16, '240 h = 72 h × 1,5', { 'font-size': 11, fill: color('--ink-soft') })
+    rotulo(s, 70, 16, 'Umbrales absolutos de precipitación acumulada', { 'font-size': 11, fill: color('--ink-soft') })
   }
 
   function lluvia() {
-    const h = valor('ll-h')
+    const h = Number(valor('ll-h')) as HorizontePeligro
     const mm = num('ll-mm')
     const provisorio = valor('ll-m') === 'prov'
     texto('ll-mm-o', `${mm} mm`)
     const u = provisorio ? PROVISORIOS[h] : [60, 90, 140]
+    const nivel = provisorio ? nivelDesdeUmbralProvisorio(mm, h) : null
     const [nombre, token] =
-      mm > u[2] ? ['Rojo', '--nivel-peligro-rojo'] : mm > u[1] ? ['Naranja', '--nivel-peligro-naranja'] : mm > u[0] ? ['Amarillo', '--nivel-peligro-amarillo'] : ['Verde', '--nivel-peligro-verde']
+      (provisorio ? nivel === 'rojo' : mm > u[2]) ? ['Rojo', '--nivel-peligro-rojo'] : (provisorio ? nivel === 'naranja' : mm > u[1]) ? ['Naranja', '--nivel-peligro-naranja'] : (provisorio ? nivel === 'amarillo' : mm > u[0]) ? ['Amarillo', '--nivel-peligro-amarillo'] : ['Verde', '--nivel-peligro-verde']
     pastilla('ll-b', nombre, token)
     texto('ll-why', `Umbrales: ${u.join(' / ')} mm (amarillo / naranja / rojo).${provisorio ? ' Provisorio: la confianza baja un escalón.' : ''}`)
   }
 
-  // Risk engine: missing components redistribute their weight.
-  type Componente = { n: string; w: number; x: number; on: boolean }
-  const cerrar = (items: Componente[]) => {
-    const presentes = items.filter((i) => i.on)
-    const suma = presentes.reduce((a, i) => a + i.w, 0)
-    if (!suma) return { v: null, p: [] as Array<Componente & { wn: number }> }
-    return { v: presentes.reduce((a, i) => a + (i.w / suma) * i.x, 0), p: presentes.map((i) => ({ ...i, wn: i.w / suma })) }
-  }
-  let ultimo: [number | null, number] = [null, 0]
+  let ultimo: [number | null, number | null] = [null, null]
   function riesgo() {
     const ll = num('r-ll')
     const n = num('r-n')
-    const h = num('r-h')
-    const c = num('r-c')
-    const su = num('r-su')
+    const h = n === 0 ? 0 : num('r-h')
+    const c = Math.min(n, num('r-c'))
+    if (entrada('r-c')) entrada('r-c')!.max = String(n)
+    const principal = marcado('r-prob-on') ? num('r-prob') / 100 : null
+    // La cota conservadora es menor o igual a la principal: su P no puede bajar.
+    if (principal !== null && entrada('r-cons')) entrada('r-cons')!.min = String(num('r-prob'))
+    else if (entrada('r-cons')) entrada('r-cons')!.min = '0'
+    const conservador = principal !== null && marcado('r-cons-on') ? Math.max(principal, num('r-cons') / 100) : null
+    const estado = valor('r-estado')
+    const resultado = simularRiesgo({
+      horizonte: Number(valor('r-horizonte')) as HorizontePeligro,
+      peligro: marcado('r-pc-on') ? num('r-pc') : null,
+      peligroProvisorio: marcado('r-prov'),
+      caudal: marcado('r-cq-on') ? num('r-cq') : null,
+      lluviaMm: marcado('r-ll-on') ? ll : null,
+      historial: marcado('r-hist-on') ? { cantidad: n, horas: h, accesos: c } : null,
+      profundidadM: marcado('r-su-on') ? num('r-su') : null,
+      principal, conservador,
+      rio: estado === 'no_aplica' ? null : estado === 'sin_dato' ? 'sin_dato' : {
+        estado: estado === 'crece' ? 'alerta' : estado as 'normal' | 'alerta' | 'evacuacion',
+        lecturaM: estado === 'normal' ? 4 : estado === 'evacuacion' ? 7 : 5, alertaM: 5, variacionM: estado === 'crece' ? 1 : 0,
+      },
+      alcance: valor('r-alcance') as AlcanceExposicion,
+      exposicionIncierta: marcado('r-expo-incierta'),
+    })
     texto('r-ll-o', `${ll} mm`)
     texto('r-n-o', String(n))
     texto('r-h-o', `${h} h`)
     texto('r-c-o', String(c))
-    texto('r-su-o', String(su))
-    const A = cerrar([
-      { n: 'Peligro en celda', w: 0.5, x: Number(valor('r-pc')), on: marcado('r-pc-on') },
-      { n: 'Caudal', w: 0.3, x: Number(valor('r-cq')), on: marcado('r-cq-on') },
-      { n: 'Lluvia ya caída', w: 0.2, x: Math.min(100, (ll / 150) * 100), on: marcado('r-ll-on') },
-    ])
-    const historial = (Math.min(100, (n / 5) * 100) + Math.min(100, (h / 720) * 100) + Math.min(100, (c / 3) * 100)) / 3
-    const V = cerrar([
-      { n: 'Historial', w: 0.7, x: historial, on: true },
-      { n: 'Susceptibilidad', w: 0.3, x: su, on: marcado('r-su-on') },
-    ])
-    const vulnerabilidad = V.v ?? 0
-    const faltantes = ['r-pc-on', 'r-cq-on', 'r-ll-on', 'r-su-on'].filter((i) => !marcado(i)).length
-    texto('r-A', A.v === null ? '—' : fmt(A.v))
-    texto('r-V', fmt(vulnerabilidad))
-    if (A.v === null) {
-      texto('r-R', '—')
-      pastilla('r-b', 'Sin evidencia', '--nivel-peligro-sin-dato')
-      texto('r-conf', 'Confianza baja: no hay ningún dato de amenaza.')
-    } else {
-      const R = Math.max(0, Math.min(100, Math.round((A.v * vulnerabilidad) / 100)))
+    texto('r-su-o', `${fmt(num('r-su'), 2)} m`)
+    texto('r-prob-o', `${num('r-prob')} %`)
+    texto('r-cons-o', `${fmt(Math.max(principal ?? 0, num('r-cons') / 100) * 100)} %`)
+    const { A, V, R } = resultado
+    texto('r-A', A === null ? 'Sin dato' : fmt(A, 2))
+    texto('r-V', V === null ? 'Desconocida' : fmt(V, 2))
+    texto('r-R', R === null ? 'Sin dato' : String(R))
+    if (R === null) pastilla('r-b', 'Sin evidencia', '--nivel-peligro-sin-dato')
+    else {
       const l = nivelRiesgo(R)
-      texto('r-R', String(R))
       pastilla('r-b', NOMBRE_NIVEL[l], COLOR_NIVEL[l])
-      const confianza = faltantes === 0 ? 'alta' : faltantes <= 1 ? 'media' : 'baja'
-      texto('r-conf', `Confianza ${confianza} (${faltantes} componente${faltantes === 1 ? '' : 's'} faltante${faltantes === 1 ? '' : 's'}).`)
     }
-    ultimo = [A.v, vulnerabilidad]
+    texto('r-conf', `Confianza ${resultado.confianza}: ${resultado.faltantes === 1 ? "1 insumo o condición de menor confianza" : `${resultado.faltantes} insumos o condiciones de menor confianza`}.`)
+    ultimo = [A, V]
     const pesos = $('r-weights')
     if (pesos) {
       pesos.replaceChildren()
@@ -264,19 +266,19 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
       titulo.className = 'why'
       titulo.textContent = 'Pesos efectivos después de redistribuir'
       pesos.appendChild(titulo)
-      for (const p of [...A.p.map((p) => ({ ...p, d: 'A' })), ...V.p.map((p) => ({ ...p, d: 'V' }))]) {
+      for (const p of resultado.pesos) {
         const fila = document.createElement('div')
         fila.className = 'row'
         const nombre = document.createElement('span')
-        nombre.textContent = `${p.d} · ${p.n}`
+        nombre.textContent = `${p.dimension} · ${p.nombre}`
         const barra = document.createElement('div')
         barra.className = 'bar'
         const relleno = document.createElement('i')
-        relleno.style.width = `${p.wn * 100}%`
+        relleno.style.width = `${p.peso * 100}%`
         barra.appendChild(relleno)
         const cifra = document.createElement('span')
         cifra.className = 'mono'
-        cifra.textContent = `${fmt(p.wn * 100)}%`
+        cifra.textContent = `${fmt(p.peso * 100, 2)} %`
         fila.append(nombre, barra, cifra)
         pesos.appendChild(fila)
       }
@@ -297,8 +299,8 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
     const colores = COLORES_NIVEL_ORDEN.map(color)
     for (let i = 0; i < 100; i++) {
       for (let j = 0; j < 100; j++) {
-        const r = Math.round((i * j) / 100)
-        x.fillStyle = colores[r < 25 ? 0 : r < 50 ? 1 : r < 75 ? 2 : 3]
+        const r = riesgoBaseV04(i, j)
+        x.fillStyle = colores[r < UMBRAL_MODERADO ? 0 : r < UMBRAL_ALTO ? 1 : r < UMBRAL_MUY_ALTO ? 2 : 3]
         x.globalAlpha = 0.25 + (0.6 * r) / 100
         x.fillRect(p + (i * w) / 100, 10 + h - ((j + 1) * h) / 100, w / 100 + 1, h / 100 + 1)
       }
@@ -306,15 +308,17 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
     x.globalAlpha = 1
     x.strokeStyle = color('--ink')
     x.lineWidth = 1.2
-    for (const k of [25, 50, 75]) {
+    for (const k of [UMBRAL_MODERADO, UMBRAL_ALTO, UMBRAL_MUY_ALTO]) {
       x.beginPath()
-      for (let a = k; a <= 100; a += 0.5) {
-        const v = (k * 100) / a
-        if (v > 100) continue
+      let comenzada = false
+      for (let a = 0.5; a <= 100; a += 0.5) {
+        const v = vulnerabilidadEnCorte(a, k)
+        if (v === null) continue
         const px = p + (a / 100) * w
         const py = 10 + h - (v / 100) * h
-        if (a === k) x.moveTo(px, py)
+        if (!comenzada) x.moveTo(px, py)
         else x.lineTo(px, py)
+        comenzada = true
       }
       x.stroke()
     }
@@ -326,9 +330,9 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
     x.rotate(-Math.PI / 2)
     x.fillText('Vulnerabilidad →', -60, 0)
     x.restore()
-    for (const k of [25, 50, 75]) x.fillText(`R=${k}`, p + w - 46, 10 + h - (k / 100) * h - 4)
+    for (const k of [UMBRAL_MODERADO, UMBRAL_ALTO, UMBRAL_MUY_ALTO]) x.fillText(`R≥${k}`, p + ((k - 0.5) / 100) * w + 4, 24)
     const [a, v] = ultimo
-    if (a !== null) {
+    if (a !== null && v !== null) {
       x.beginPath()
       x.arc(p + (a / 100) * w, 10 + h - (v / 100) * h, 8, 0, 7)
       x.fillStyle = color('--card')
@@ -344,8 +348,8 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
     if (!s) return
     const escuelas: Array<[string, number, number]> = [['Rural A', 62, 15], ['Urbana B', 38, 600], ['Rural C', 81, 40], ['Periurbana D', 47, 320], ['Urbana E', 22, 450], ['Rural F', 55, 90]]
     const sx = (v: number) => 60 + (v / 100) * 660
-    ;[[0, 25], [25, 50], [50, 75], [75, 100]].forEach(([a, b], i) => el('rect', { x: sx(a), y: 20, width: sx(b) - sx(a), height: 180, fill: color(COLORES_NIVEL_ORDEN[i]), opacity: 0.14 }, s))
-    for (const v of [0, 25, 50, 75, 100]) rotulo(s, sx(v), 222, String(v), { 'text-anchor': 'middle', 'font-size': 11, fill: color('--ink-soft') })
+    ;[[0, UMBRAL_MODERADO], [UMBRAL_MODERADO, UMBRAL_ALTO], [UMBRAL_ALTO, UMBRAL_MUY_ALTO], [UMBRAL_MUY_ALTO, 100]].forEach(([a, b], i) => el('rect', { x: sx(a), y: 20, width: sx(b) - sx(a), height: 180, fill: color(COLORES_NIVEL_ORDEN[i]), opacity: 0.14 }, s))
+    for (const v of [0, UMBRAL_MODERADO, UMBRAL_ALTO, UMBRAL_MUY_ALTO, 100]) rotulo(s, sx(v), 222, String(v), { 'text-anchor': 'middle', 'font-size': 11, fill: color('--ink-soft') })
     rotulo(s, 390, 238, 'Riesgo estimado', { 'text-anchor': 'middle', 'font-size': 11.5 })
     escuelas.forEach(([n, r, m], i) => {
       const y = 60 + (i % 3) * 55
@@ -415,14 +419,20 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
 
   // Access rule v1: base by isolation level plus additive aggravating factors.
   function acceso() {
-    const nivel = Number(valor('c-n'))
+    if (valor('c-n') === 'sin_dato') {
+      texto('c-s', 'Sin dato')
+      pastilla('c-b', 'Desconocido', '--nivel-peligro-sin-dato')
+      $('c-wf')?.replaceChildren()
+      return
+    }
+    const nivel = Number(valor('c-n')) as 0 | 1 | 2 | 3
     const alternativa = valor('c-al') as 'si' | 'no' | 'nd'
     const items: Array<[string, number, string]> = [
-      [`Base (nivel ${nivel})`, [0, 20, 45, 70][nivel], '--accent'],
-      ['Cruce sin puente confirmado', marcado('c-cr') ? 25 : 0, '--info'],
-      ['Peligro naranja o rojo', marcado('c-pa') ? 25 : 0, '--nivel-peligro-naranja'],
-      [`Alternativa ${{ si: 'existe', no: 'no existe', nd: 'desconocida' }[alternativa]}`, { si: 0, no: 15, nd: 20 }[alternativa], '--nivel-peligro-amarillo'],
-      ['Acceso interrumpido antes', marcado('c-hi') ? 15 : 0, '--nivel-peligro-rojo'],
+      [`Base (nivel ${nivel})`, BASE_ACCESO_POR_NIVEL_AISLAMIENTO[nivel], '--accent'],
+      ['Cruce de riesgo', marcado('c-cr') ? AGRAVANTES_ACCESO.cruceDeRiesgo : 0, '--info'],
+      ['Peligro naranja o rojo', marcado('c-pa') ? AGRAVANTES_ACCESO.peligroAlto : 0, '--nivel-peligro-naranja'],
+      [`Alternativa ${{ si: 'existe', no: 'no existe', nd: 'desconocida' }[alternativa]}`, { si: 0, no: AGRAVANTES_ACCESO.sinAlternativa, nd: AGRAVANTES_ACCESO.alternativaDesconocida }[alternativa], '--nivel-peligro-amarillo'],
+      ['Acceso interrumpido antes', marcado('c-hi') ? AGRAVANTES_ACCESO.accesoInterrumpido : 0, '--nivel-peligro-rojo'],
     ]
     const bruto = items.reduce((a, i) => a + i[1], 0)
     const puntaje = Math.min(100, bruto)
@@ -566,11 +576,11 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
     const g = raiz.querySelector('#lin-src')
     if (!g) return
     g.replaceChildren()
-    const fuentes: Array<[string, number]> = [['Parte de la escuela', 60], ['Padrón (Gestión Educativa)', 105], ['Open-Meteo pronóstico', 150], ['ERA5 climatología', 195], ['NASA GPM IMERG', 240], ['OpenStreetMap', 285], ['JRC crecidas de río', 330], ['JRC Surface Water', 370], ['Copernicus DEM', 410]]
-    const procesos: Array<[string, number]> = [['Partes vigentes', 70], ['Nivel por percentil', 170], ['Motor de riesgo', 225], ['Ruteo y árbol de decisión', 285], ['Clase y margen', 360]]
-    const salidas: Array<[string, number]> = [['Continuidad pedagógica', 70], ['Peligro por lluvia', 140], ['Riesgo estimado', 200], ['Aislamiento vial', 260], ['Riesgo de acceso', 300], ['Inundación', 360]]
-    const enlaces = [[0, 0], [1, 0], [2, 1], [3, 1], [4, 2], [4, 1], [5, 3], [6, 4], [7, 4], [8, 4], [8, 3]]
-    const enlaces2 = [[0, 0], [1, 1], [1, 2], [2, 2], [3, 3], [3, 4], [2, 4], [4, 5]]
+    const fuentes: Array<[string, number]> = [['Partes confirmados', 55], ['Padrón y corte educativo', 95], ['Open-Meteo / ECMWF', 135], ['IMERG Final / ERA5', 175], ['IMERG / estaciones SMN', 215], ['GloFAS: caudal', 255], ['Prefectura + series INA', 295], ['Altimetría IGN / Copernicus', 335], ['JRC crecidas / agua', 375], ['OpenStreetMap', 415]]
+    const procesos: Array<[string, number]> = [['Partes vigentes', 55], ['Peligro por horizonte', 135], ['Motor de riesgo', 215], ['Río: superación / alcance', 295], ['Clase fluvial estática', 375], ['Ruteo y riesgo de acceso', 430]]
+    const salidas: Array<[string, number]> = [['Continuidad pedagógica', 55], ['Peligro por lluvia', 135], ['Riesgo estimado', 215], ['Exposición educativa', 265], ['Inundación estática', 375], ['Aislamiento / acceso', 430]]
+    const enlaces = [[0, 0], [0, 2], [1, 0], [1, 2], [2, 1], [3, 1], [4, 2], [5, 2], [6, 3], [7, 3], [7, 4], [8, 2], [8, 4], [9, 5]]
+    const enlaces2 = [[0, 0], [1, 1], [1, 2], [2, 2], [2, 3], [3, 2], [4, 4], [5, 5], [1, 5]]
     for (const [a, b] of enlaces) el('path', { d: `M230 ${fuentes[a][1]} C 290 ${fuentes[a][1]}, 290 ${procesos[b][1]}, 345 ${procesos[b][1]}`, stroke: color('--line'), 'stroke-width': 2, fill: 'none', 'marker-end': 'url(#ar)' }, g)
     for (const [a, b] of enlaces2) el('path', { d: `M560 ${procesos[a][1]} C 620 ${procesos[a][1]}, 620 ${salidas[b][1]}, 675 ${salidas[b][1]}`, stroke: color('--accent'), 'stroke-width': 2, fill: 'none', opacity: 0.6, 'marker-end': 'url(#ar)' }, g)
     const caja = (x: number, y: number, w: number, t: string, fill: string, stroke: string) => {
@@ -640,7 +650,7 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
   escuchar(['v-h', 'v-m', 'v-f'], verificacion)
   escuchar(['a-n-r', 'a-k-r', 'b-n-r', 'b-k-r'], afectacion)
   escuchar(['ll-h', 'll-mm', 'll-m'], lluvia)
-  escuchar(['r-pc', 'r-pc-on', 'r-cq', 'r-cq-on', 'r-ll', 'r-ll-on', 'r-n', 'r-h', 'r-c', 'r-su', 'r-su-on'], riesgo)
+  escuchar(['r-horizonte', 'r-pc', 'r-pc-on', 'r-prov', 'r-cq', 'r-cq-on', 'r-ll', 'r-ll-on', 'r-hist-on', 'r-n', 'r-h', 'r-c', 'r-su', 'r-su-on', 'r-prob-on', 'r-prob', 'r-cons-on', 'r-cons', 'r-estado', 'r-alcance', 'r-expo-incierta'], riesgo)
   escuchar(['c-n', 'c-cr', 'c-pa', 'c-hi', 'c-al'], acceso)
   escuchar(['i-v', 'i-alt', 'i-altp', 'i-dp', 'i-dl', 'i-km'], aislamiento)
   escuchar(['t-T', 't-n'], periodoRetorno)
