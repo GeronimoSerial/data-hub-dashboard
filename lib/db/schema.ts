@@ -55,6 +55,7 @@ export const recursos = pgTable('recursos', {
   storageKey: text('storage_key'),
   mime: text('mime'),
   nombreOriginal: text('nombre_original'),
+  cargadoEn: timestamp('cargado_en', { withTimezone: true, mode: 'string' }),
   size: integer('size'),
 })
 

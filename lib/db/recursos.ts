@@ -27,6 +27,7 @@ function columns(r: Recurso) {
     storageKey: r.storageKey?.trim() || null,
     mime: r.mime || null,
     nombreOriginal: r.nombreOriginal || null,
+    ...(r.storageKey?.trim() ? {} : { cargadoEn: null }),
     size: r.size ?? null,
   }
 }
