@@ -991,6 +991,24 @@ time {
 .resource-card:hover::before { height: 6px; }
 .resource-card:hover h3 { text-decoration: underline; text-underline-offset: 3px; }
 
+.archivo-metadata {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.resource-card > a { color: inherit; text-decoration: none; }
+.resource-card > a {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  flex: 1;
+}
+
 .resource-card h3 {
   font-family: var(--font-body);
   font-weight: 600;
