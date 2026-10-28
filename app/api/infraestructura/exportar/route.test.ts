@@ -131,7 +131,7 @@ describe('GET /api/infraestructura/exportar', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe(XLSX)
     expect(res.headers.get('Content-Disposition')).toMatch(
-      /^attachment; filename="escuelas-afectadas-\d{4}-\d{2}-\d{2}\.xlsx"$/,
+      /^attachment; filename="escuelas-afectadas-\d{4}-\d{2}-\d{2}\.xlsx"; filename\*=UTF-8''escuelas-afectadas-\d{4}-\d{2}-\d{2}\.xlsx$/,
     )
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
     expect(await filasDelLibro(res)).toEqual(['Escuela Afectada'])
