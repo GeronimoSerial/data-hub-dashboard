@@ -95,6 +95,7 @@ export interface Recurso {
   storageKey?: string
   mime?: string
   nombreOriginal?: string
+  cargadoEn?: string
   size?: number
   audienciaNivelJurIds?: number[]
   audienciaUserIds?: string[]

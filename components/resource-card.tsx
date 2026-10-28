@@ -8,6 +8,7 @@ import { RESOURCE_ACCESS_LABEL, resourceAccessState } from '@/lib/resource-prese
 import { useHubData } from '@/components/hub-data'
 import { authClient } from '@/lib/auth-client'
 import { resourceCardHref, resourceCardTarget } from '@/lib/resource-href'
+import { ArchivoMetadata } from '@/components/archivo-metadata'
 
 const ICON = { reporte: FileText, tablero: BarChart3, mapa: Map }
 
@@ -87,12 +88,18 @@ export function ResourceCard({ recurso }: { recurso: Recurso }) {
         aria-disabled="true"
       >
         {content}
+        <ArchivoMetadata recurso={recurso} />
       </article>
     )
   }
   return href ? (
-    <Link className="resource-card" data-formato={recurso.formato} href={href}>{content}</Link>
+    recurso.storageKey && recurso.mime === 'text/html' ? (
+      <article className="resource-card" data-formato={recurso.formato}>
+        <Link href={href}>{content}</Link>
+        <ArchivoMetadata recurso={recurso} />
+      </article>
+    ) : <Link className="resource-card" data-formato={recurso.formato} href={href}>{content}</Link>
   ) : (
-    <article className="resource-card" data-formato={recurso.formato}>{content}</article>
+    <article className="resource-card" data-formato={recurso.formato}>{content}<ArchivoMetadata recurso={recurso} /></article>
   )
 }

@@ -25,6 +25,7 @@ import { normalizeUploadedMapHtml } from '@/lib/html-map-tiles'
 import type { RecursoAccess } from '@/lib/acl'
 import { ruta } from '@/lib/http/ruta'
 import { puedeVerEnSeccion } from '@/lib/acl'
+import { nombreArchivo } from '@/lib/archivo-metadata'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -97,12 +98,12 @@ async function handleGET(request: Request, ctx: Ctx) {
   const download = url.searchParams.get('download') === '1'
   const headers = archivoResponseHeaders({
     mime,
-    nombreOriginal: loaded.row.nombreOriginal || 'archivo',
+    nombreOriginal: nombreArchivo(loaded.row) || (mime === 'text/html' ? 'archivo.html' : 'archivo'),
     download,
   })
   headers['Cache-Control'] = 'private, no-store'
 
-  if (mime === 'text/html') {
+  if (mime === 'text/html' && !download) {
     const html = await readFile(abs, 'utf8')
     return new Response(normalizeUploadedMapHtml(html), { headers })
   }
@@ -167,12 +168,14 @@ async function handlePOST(request: Request, ctx: Ctx) {
   }
 
   const previousKey = row.storageKey
+  const cargadoEn = new Date().toISOString()
   await db
     .update(recursos)
     .set({
       storageKey,
       mime: allowed.mime,
       nombreOriginal: file.name,
+      cargadoEn,
       size: storedBytes.length,
       ruta: null,
     })
@@ -187,6 +190,7 @@ async function handlePOST(request: Request, ctx: Ctx) {
     storageKey,
     mime: allowed.mime,
     nombreOriginal: file.name,
+    cargadoEn,
     size: storedBytes.length,
   })
 }
