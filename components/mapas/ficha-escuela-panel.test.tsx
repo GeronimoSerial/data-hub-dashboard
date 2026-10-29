@@ -544,3 +544,37 @@ describe('FichaEscuelaPanel', () => {
     expect(screen.queryByText('Dos aulas sin acceso')).not.toBeInTheDocument()
   })
 })
+
+describe('FichaEscuelaPanel — comedor y posible centro de evacuados', () => {
+  beforeEach(() => { instalarFetch() })
+  afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+
+  it.each([
+    ['desayuno_almuerzo', 'Comedor: desayuno y almuerzo'],
+    ['solo_desayuno', 'Comedor: solo desayuno'],
+    ['solo_almuerzo', 'Comedor: solo almuerzo'],
+    ['sin_servicio', 'Comedor: sin servicio registrado'],
+  ] as const)('muestra %s como "%s"', (comedor, texto) => {
+    renderFicha({ escuela: { ...escuela, comedor } })
+    expect(screen.getByText(texto)).toBeInTheDocument()
+  })
+
+  it('sin dato de comedor en la escuela no inventa ninguna línea de comedor', () => {
+    renderFicha()
+    expect(screen.queryByText(/^Comedor:/)).not.toBeInTheDocument()
+  })
+
+  it('una escuela apta muestra la insignia "Posible centro de evacuados"; una no apta no', () => {
+    const { unmount } = renderFicha({ escuela: { ...escuela, posibleCentroEvacuados: true } })
+    expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
+    unmount()
+    renderFicha({ escuela: { ...escuela, posibleCentroEvacuados: false } })
+    expect(screen.queryByText('Posible centro de evacuados')).not.toBeInTheDocument()
+  })
+
+  it('la insignia es distinta del estado reportado "Usado como centro de evacuados"', () => {
+    renderFicha({ escuela: { ...escuela, clases: 'centro', posibleCentroEvacuados: true } })
+    expect(screen.getAllByText('Usado como centro de evacuados').length).toBeGreaterThan(0)
+    expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
+  })
+})

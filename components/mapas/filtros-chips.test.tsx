@@ -59,7 +59,7 @@ function FiltrosControlados({ escuelas, onSeleccionar }: {
 let anchoContenedor = 500
 const anchosMedicion: Record<string, number> = {
   departamentos: 100, gravedades: 85, clases: 75,
-  apoyo: 150, direcciones: 110, sinActualizar: 115, solucionadasRecientes: 205, mas: 115,
+  apoyo: 150, direcciones: 110, sinActualizar: 115, solucionadasRecientes: 205, conComedor: 110, mas: 115,
 }
 const observadores: ResizeObserverCallback[] = []
 
@@ -177,7 +177,7 @@ describe('FiltrosChips', () => {
     expect(css).toMatch(/\.map-filtros-medicion\s*\{[^}]*visibility:\s*hidden/)
   })
 
-  it('mide los siete filtros en una fila oculta sin duplicar controles accesibles', () => {
+  it('mide los ocho filtros en una fila oculta sin duplicar controles accesibles', () => {
     const css = readFileSync('app/globals.css', 'utf8')
     renderFiltros()
     const fila = document.querySelector<HTMLElement>('.map-filtros-medicion')
@@ -185,21 +185,21 @@ describe('FiltrosChips', () => {
     const regla = readFileSync('app/globals.css', 'utf8').match(/\.map-filtros-medicion\s*\{[^}]*\}/)?.[0]
     expect(regla).toMatch(/visibility:\s*hidden/)
     expect(regla).toMatch(/position:\s*absolute/)
-    expect(fila?.querySelectorAll('[data-medicion-filtro]')).toHaveLength(8)
+    expect(fila?.querySelectorAll('[data-medicion-filtro]')).toHaveLength(9)
     expect(screen.getAllByRole('button', { name: 'Departamento' })).toHaveLength(1)
     expect(css).toMatch(/\.mapa-pestanas-barra \.filtros-chips-principales\s*\{[^}]*flex-wrap:\s*nowrap/)
   })
 
-  it('muestra los siete filtros en línea cuando hay ancho de sobra', () => {
+  it('muestra los ocho filtros en línea cuando hay ancho de sobra', () => {
     anchoContenedor = 1200
     renderFiltros()
     dispararResize()
     expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip-grupo')).toHaveLength(5)
-    expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip--interruptor')).toHaveLength(2)
+    expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip--interruptor')).toHaveLength(3)
     expect(screen.queryByRole('button', { name: /Más filtros/ })).not.toBeInTheDocument()
   })
 
-  it('deja cinco filtros en línea y lleva los otros dos al panel en el ancho justo', async () => {
+  it('deja cinco filtros en línea y lleva los otros tres al panel en el ancho justo', async () => {
     anchoContenedor = 660
     renderFiltros()
     dispararResize()
@@ -209,6 +209,7 @@ describe('FiltrosChips', () => {
     const panel = screen.getByRole('dialog', { name: 'Más filtros' })
     expect(within(panel).getByRole('switch', { name: 'Sin actualizar' })).toBeInTheDocument()
     expect(within(panel).getByRole('switch', { name: 'Solucionadas en los últimos 15 días' })).toBeInTheDocument()
+    expect(within(panel).getByRole('switch', { name: 'Con comedor' })).toBeInTheDocument()
     expect(within(panel).queryByText('Departamento')).not.toBeInTheDocument()
   })
 
@@ -498,6 +499,32 @@ describe('FiltrosChips', () => {
     expect(screen.getByRole('button', { name: 'Limpiar filtros' })).toBeInTheDocument()
     await user.click(screen.getByRole('switch', { name: nombre }))
     expect(onChange).toHaveBeenLastCalledWith(FILTROS_MAPA_VACIOS)
+  })
+
+  it('Con comedor alterna su filtro, cuenta como activo y se limpia con Limpiar filtros', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = renderFiltros(FILTROS_MAPA_VACIOS, onChange)
+    await user.click(screen.getByRole('button', { name: 'Más filtros' }))
+    const interruptor = screen.getByRole('switch', { name: 'Con comedor' })
+    expect(interruptor).toHaveAttribute('aria-checked', 'false')
+    await user.click(interruptor)
+    expect(onChange).toHaveBeenLastCalledWith({ ...FILTROS_MAPA_VACIOS, conComedor: true })
+
+    rerender(<FiltrosChips escuelas={padronEjemplo} filtros={{ ...FILTROS_MAPA_VACIOS, conComedor: true }} onChange={onChange} />)
+    expect(screen.getByRole('button', { name: 'Más filtros, 1 activos' })).toHaveClass('filtros-chip--activo')
+    await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }))
+    expect(onChange).toHaveBeenLastCalledWith(FILTROS_MAPA_VACIOS)
+  })
+
+  it('con ancho de sobra Con comedor se muestra como chip en línea', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    anchoContenedor = 2000
+    renderFiltros(FILTROS_MAPA_VACIOS, onChange)
+    dispararResize()
+    await user.click(getChip('Con comedor'))
+    expect(onChange).toHaveBeenLastCalledWith({ ...FILTROS_MAPA_VACIOS, conComedor: true })
   })
 
   it('escribir en la búsqueda llama onChange con q', () => {

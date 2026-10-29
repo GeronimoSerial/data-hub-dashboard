@@ -6,7 +6,7 @@ export interface ServicioComedor {
   almuerzo: boolean
 }
 
-const ETIQUETAS: Record<EstadoComedor, string> = {
+export const ETIQUETA_COMEDOR: Record<EstadoComedor, string> = {
   desayuno_almuerzo: 'Comedor: desayuno y almuerzo',
   solo_desayuno: 'Comedor: solo desayuno',
   solo_almuerzo: 'Comedor: solo almuerzo',
@@ -20,7 +20,13 @@ export function estadoComedor(servicio: ServicioComedor | null | undefined): { e
     : servicio.desayuno && servicio.almuerzo
       ? 'desayuno_almuerzo'
       : servicio.desayuno ? 'solo_desayuno' : 'solo_almuerzo'
-  return { estado, etiqueta: ETIQUETAS[estado] }
+  return { estado, etiqueta: ETIQUETA_COMEDOR[estado] }
+}
+
+// Valor para filas "Comedor / <valor>": la etiqueta sin el prefijo, con mayúscula inicial.
+export function valorComedor(estado: EstadoComedor): string {
+  const texto = ETIQUETA_COMEDOR[estado].replace(/^Comedor: /, '')
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
 export function tieneComedor(estado: EstadoComedor | null | undefined): boolean {
