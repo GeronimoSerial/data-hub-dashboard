@@ -18,7 +18,7 @@ Branch: serialgeronimo/feat-linktree-sistemas-mec. Delivery: ask-on-risk (one PR
 ## Tasks
 
 - [x] T1 (S1, A1) data layer: table, migration 0038, `lib/linktree` schema/defaults/read/write. Route: inline. Risk: item 1 (migration, additive new table), own commit 9b218836. RED then GREEN: 16 config tests, 4 store tests, migration order test.
-- [ ] T2 (S4, A2) admin-only write API `PUT /api/linktree`. Route: inline. Risk: item 2 (auth guard).
+- [x] T2 (S4, A2) admin-only write API `PUT /api/linktree`. Route: inline. Risk: item 2 (auth guard), commit 3078e78e. RED then GREEN: 7 route tests (401, 403 editor/consulta/banned admin, 400 invalid JSON, 400 javascript: url, 200 save and read).
 - [ ] T3 (S1, S2, S3) public page `/links`. Route: inline.
 - [ ] T4 (S4) admin section `links` in `/admin`. Route: inline.
 - [ ] T5 (S5) production build, local PGlite, cloudflared quick tunnel. Route: inline, runtime only, no repo change.
