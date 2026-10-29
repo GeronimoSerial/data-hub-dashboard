@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ArrowLeft, ChevronDown, Activity, FolderKanban, Link2, Tags, Users, Layers3, ListTree, ShieldAlert, Waves, ClipboardCheck, Building2, UserCheck } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Activity, FolderKanban, Tags, Users, Layers3, ListTree, ShieldAlert, Waves, ClipboardCheck, Building2, UserCheck } from 'lucide-react'
 import { isStaff, type Role } from '@/lib/acl'
 import { adminSection, adminSectionHref, type AdminSectionSlug } from '@/components/admin/sections'
 import { canUseLanding, effectiveSections, type SectionPolicy } from '@/lib/hub-sections'
@@ -18,14 +18,13 @@ type AdminLink = { label: string; href: string; icon: typeof FolderKanban }
 const EMPTY_FLAGS: AdminFlags = { riskEngineEnabled: false, episodiosDerivadosEnabled: false }
 
 const GROUPS: { label: string; slugs: AdminSectionSlug[] }[] = [
-  { label: 'Contenido', slugs: ['recursos', 'links'] },
+  { label: 'Contenido', slugs: ['recursos'] },
   { label: 'Organización', slugs: ['categorias', 'etiquetas', 'niveles', 'tipos', 'motivos', 'direcciones'] },
   { label: 'Accesos', slugs: ['usuarios', 'nominal'] },
 ]
 
 const ICONS: Record<AdminSectionSlug, typeof FolderKanban> = {
   recursos: FolderKanban,
-  links: Link2,
   categorias: Tags,
   etiquetas: ListTree,
   niveles: Layers3,
