@@ -89,9 +89,9 @@ y persistencia PGlite real. No equivalen a una prueba de navegador desplegado.
 PRs a main y pushes a dev, staging y prod que cambien las rutas cubiertas.
 Sólo el push a prod, después de los tests, publica `links-prod` y
 `links-prod-<sha>` en GHCR. El job deploy depende del job image mediante needs:
-sólo después dispara/espera el deploy de links, con force=false y los secrets
-COOLIFY_LINKS_TOKEN y COOLIFY_LINKS_APP_UUID. Si falta alguno, el job falla
-indicando que debe crearlo MEC Infra.
+sólo después dispara/espera el deploy de links, con force=false, el secret existente
+COOLIFY_TOKEN y el destino exclusivo COOLIFY_LINKS_APP_UUID. Si falta alguno,
+el job falla con un error explícito.
 No publica `latest`. La app debe estar configurada para consumir `links-prod`;
 este cambio no modifica la configuración de Coolify.
 
