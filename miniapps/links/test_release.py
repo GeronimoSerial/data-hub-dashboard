@@ -16,11 +16,13 @@ def deploy_script():
 
 MOCKS = r'''
 curl() {
-  local url="${!#}" data="" uuid=""
+  local url="${!#}" data="" uuid="" bearer_ok=false
   while [ "$#" -gt 0 ]; do
+    if [ "$1" = "-H" ] && [ "$2" = "Authorization: Bearer mock-only" ]; then bearer_ok=true; fi
     if [ "$1" = "--data" ]; then data="$2"; shift; fi
     shift
   done
+  if [ "$bearer_ok" != "true" ]; then return 98; fi
   case "$url" in
     */api/v1/deploy)
       jq -e '.force == false' <<< "$data" >/dev/null || return 97
@@ -58,7 +60,7 @@ class LinksReleaseTests(unittest.TestCase):
                 'GITHUB_REF': f'refs/heads/{branch}',
                 'GITHUB_EVENT_NAME': 'push',
                 'COOLIFY_URL': 'https://example.invalid',
-                'COOLIFY_LINKS_TOKEN': 'mock-only',
+                'COOLIFY_TOKEN': 'mock-only',
                 'COOLIFY_LINKS_APP_UUID': LINKS_APP,
                 **extra,
             }
@@ -116,12 +118,12 @@ class LinksReleaseTests(unittest.TestCase):
         self.assertEqual(polls.count(LINKS_APP), 60)
 
     def test_missing_credentials_or_target_fails(self):
-        for variable in ['COOLIFY_LINKS_TOKEN', 'COOLIFY_LINKS_APP_UUID']:
+        for variable in ['COOLIFY_TOKEN', 'COOLIFY_LINKS_APP_UUID']:
             with self.subTest(variable=variable):
                 result, requests, _ = self.run_deploy(**{variable: ''})
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(requests, [])
-                self.assertIn('::error::Falta el secret COOLIFY_LINKS_TOKEN/COOLIFY_LINKS_APP_UUID (lo crea MEC Infra)', result.stdout)
+                self.assertIn('::error::Falta el secret COOLIFY_TOKEN/COOLIFY_LINKS_APP_UUID', result.stdout)
 
     def test_poll_http_error_cannot_count_as_finished(self):
         result, _, polls = self.run_deploy(MOCK_LINKS_CODE='500')
