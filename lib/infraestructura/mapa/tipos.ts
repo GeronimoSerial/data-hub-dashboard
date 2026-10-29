@@ -1,5 +1,6 @@
 import type { ImpactoAlumnos } from '../prioridad-alumnos'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import type { EstadoComedor } from '@/lib/infraestructura/comedores/estado'
 
 export type PestanaMapa = 'actual' | 'radar' | 'planificacion' | 'estadisticas' | 'capas' | 'metodologia' | 'exportar'
 
@@ -33,6 +34,10 @@ export interface EscuelaMapaEnriquecida {
   situacionesHistoricas: number
   // Cantidad de situaciones solucionadas en los últimos 15 días.
   solucionadasRecientes: number
+  // Servicio de comedor (planilla MEC); ausente = sin dato de comedor cargado.
+  comedor?: EstadoComedor
+  // Sugerencia calculada a diario: riesgo bajo + exposición baja o nula. No es el estado reportado `centro`.
+  posibleCentroEvacuados?: boolean
   parte?: ParteMapa
 }
 
@@ -45,8 +50,9 @@ export interface FiltrosMapa {
   apoyo: Array<'brinda' | 'no' | 'sin_dato'>
   sinActualizar: boolean
   solucionadasRecientes: boolean
+  conComedor: boolean
 }
 
 export const FILTROS_MAPA_VACIOS: FiltrosMapa = {
-  q: '', departamentos: [], direcciones: [], gravedades: [], clases: [], apoyo: [], sinActualizar: false, solucionadasRecientes: false,
+  q: '', departamentos: [], direcciones: [], gravedades: [], clases: [], apoyo: [], sinActualizar: false, solucionadasRecientes: false, conComedor: false,
 }

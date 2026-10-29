@@ -68,6 +68,10 @@ import { PanelPlanificacion } from '@/components/mapas/panel-planificacion'
 import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
 import { useDraftCounts } from '@/components/infraestructura/borradores/use-draft-counts'
 import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
+import { BloqueCentroEvacuados } from '@/components/mapas/bloque-centro-evacuados'
+import { CapaCentroEvacuados } from '@/components/mapas/capa-centro-evacuados'
+import { construirCaminoCentro, construirPuntosPosiblesCentros } from '@/lib/infraestructura/evacuacion/mapa'
+import { useCentroEvacuados } from '@/lib/infraestructura/use-centro-evacuados'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
@@ -1317,6 +1321,34 @@ export default function MapInfraestructuraPage(props: {
     loading: exposicionLoading,
   } = useExposicionRuta(cueRuta, contextoTerritorial && cueRuta !== null)
 
+  // Camino al centro de evacuados más cercano: se pide recién cuando la persona
+  // aprieta el botón de la ficha, y se oculta solo al cambiar de escuela.
+  const [centroCaminoCue, setCentroCaminoCue] = useState<string | null>(null)
+  const centroCaminoVisible = cueRuta !== null && centroCaminoCue === cueRuta
+  const {
+    data: centroEvacuados,
+    loading: centroEvacuadosLoading,
+    error: centroEvacuadosError,
+  } = useCentroEvacuados(cueRuta, centroCaminoVisible)
+  const posiblesCentrosGeojson = useMemo(
+    () => construirPuntosPosiblesCentros(dataEscuelasMapaVisible?.escuelas ?? []),
+    [dataEscuelasMapaVisible],
+  )
+  const caminoCentro = useMemo(() => {
+    if (!centroCaminoVisible || centroEvacuados === null || centroEvacuados.cueAnexo !== cueRuta) return null
+    const origen = cueRuta !== null ? escuelasPorCue.get(cueRuta) : null
+    return construirCaminoCentro(
+      centroEvacuados,
+      origen && origen.lat !== null && origen.lon !== null ? { lat: origen.lat, lon: origen.lon } : null,
+    )
+  }, [centroCaminoVisible, centroEvacuados, cueRuta, escuelasPorCue])
+  useEffect(() => {
+    if (caminoCentro === null) return
+    const bbox = bboxRuta(caminoCentro.linea)
+    if (bbox === null) return
+    mapRef.current?.getMap()?.fitBounds(bbox, { padding: paddingEncuadre(), duration: 700 })
+  }, [caminoCentro])
+
   const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
   const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
   // La huella del edificio toma el mismo color que el pin de la escuela elegida.
@@ -1845,6 +1877,8 @@ export default function MapInfraestructuraPage(props: {
             />
           )}
 
+          <CapaCentroEvacuados posibles={posiblesCentrosGeojson} camino={caminoCentro} oscuro={mode === 'dark'} />
+
           {(
             <Source
               id="infra-partes-src"
@@ -2317,6 +2351,14 @@ export default function MapInfraestructuraPage(props: {
                     : ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })],
                 }))}
                 acceso={(
+                  <>
+                  <BloqueCentroEvacuados
+                    visible={centroCaminoVisible}
+                    onAlternar={() => setCentroCaminoCue(centroCaminoVisible ? null : escuelaSeleccionada.cueAnexo)}
+                    respuesta={centroEvacuados?.cueAnexo === escuelaSeleccionada.cueAnexo ? centroEvacuados : null}
+                    cargando={centroEvacuadosLoading}
+                    error={Boolean(centroEvacuadosError)}
+                  />
                   <BloqueAcceso
                     geometria={geometria}
                     exposicion={exposicion}
@@ -2325,6 +2367,7 @@ export default function MapInfraestructuraPage(props: {
                     cargando={geometriaLoading || exposicionLoading}
                     error={Boolean(geometriaError)}
                   />
+                  </>
                 )}
                 mostrarEnlaceNominal={props.mostrarEnlaceNominal}
                 onVerAlumnosAlcanzados={setNominalAfectacionId}

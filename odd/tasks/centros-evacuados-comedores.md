@@ -12,10 +12,11 @@ Branch: `GeronimoSerial/centros-evacuados-comedores` (from origin/main). Deliver
 ## Tasks
 - [x] T1 S3 comedores: tabla + migración + parser + importador + doc (inline) — d6b763d5
 - [x] T2 S1 aptitud: función pura + tabla + job diario + timer (inline) — 89598cfc
-- [ ] T3 S2 ruta: tipo geo `ruta-evacuacion` + job Python + endpoint + hook (inline)
-- [ ] T4 S4/S2 UI: enriquecimiento escuelas, ficha, chip, badge, capa de ruta, leyenda (inline)
+- [x] T3 S2 ruta: tipo geo `ruta-evacuacion` + job Python + endpoint + hook (inline) — 07d9a5c2
+- [x] T4 S4/S2 UI: enriquecimiento escuelas, ficha, chip, badge, capa de ruta, leyenda (inline)
 
 ## Log
 - L1 (user, 2026-10-29): "1. Escuelas con menos riesgos (o nulo) marcarlos como posibles centros de evacuados.
 2. Marcar el camino hacia la escuela mas cercana (como un boton que permita mostrar el camino hacia)
 3. y sumar que escuelas brindan un servicio de comida o no, ya que son doble riesgo, de pedagogia, y de servicio de comida ... la idea es saber que escuelas dan o no, no mucha mas informacion."
+- L2 (agent, 2026-10-29): decisions recorded as assumptions. Horizon 72 h (map default `horizonteSeleccionado`). Route precompute is offline Python (K=5 static-eligible candidates per school, `ruta-evacuacion` geo tipo); the daily Node job `centros-evacuados` picks the first candidate apt today, else straight line. Python job could not be executed here (no pbf/uv/pyrosm): only the pure routing function was tested (pytest, networkx).

@@ -150,7 +150,7 @@ describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
     expect((sinReporte as HTMLElement).style.backgroundColor).toBe('')
     expect(container.querySelectorAll('button')).toHaveLength(0)
     expect(Array.from(container.querySelectorAll('.map-leyenda__simbolos li')).map((item) => item.textContent)).toEqual([
-      'Funcionamiento interrumpido', 'Funcionamiento parcialmente interrumpido', 'Evacuado', 'Usado como centro de evacuados', 'Sin actualizar', 'Solucionada recientemente',
+      'Funcionamiento interrumpido', 'Funcionamiento parcialmente interrumpido', 'Evacuado', 'Usado como centro de evacuados', 'Sin actualizar', 'Posible centro de evacuados', 'Solucionada recientemente',
     ])
     expect(container.querySelector('.map-leyenda__simbolos li:last-child .map-insignia')).toHaveAttribute('aria-hidden', 'true')
     expect(container.querySelector('.map-leyenda__simbolos li:last-child .map-insignia svg')).not.toBeNull()

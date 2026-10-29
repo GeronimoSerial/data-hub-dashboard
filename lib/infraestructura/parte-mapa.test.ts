@@ -8,7 +8,7 @@ import { obtenerPeriodoVigente } from './parte-consulta'
 import type * as ParteConsultaModule from './parte-consulta'
 import { calcularAlumnosAlcanzados, listarCuesAfectadosEnMapa, listarEscuelasMapa, listarEscuelasMapaEnriquecidas, listarPartesVigentes, obtenerEscuelaFichaEnriquecida, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
 import { crearAfectacion, crearParte, crearServicioAlcance } from './test-utils/parte-fixtures'
-import { infraAfectacion, infraParte, infraPeriodo } from '@/lib/db/schema'
+import { infraAfectacion, infraCentroEvacuados, infraComedorEscuela, infraParte, infraPeriodo } from '@/lib/db/schema'
 
 // Se envuelve el obtenerPeriodoVigente real (no se reemplaza): el resto de los
 // tests sigue leyendo el período sembrado, y los tests de listarEscuelasMapa
@@ -485,6 +485,36 @@ describe('listarEscuelasMapa', () => {
     expect(escuelas[0].lat).toBe(-28.34568)
     expect(escuelas[0].lon).toBe(-58.32199)
     expect(sinUbicacion).toEqual([])
+  })
+})
+
+describe('comedor y posible centro de evacuados en el mapa', () => {
+  async function sembrar(cue: string, comedor: { desayuno: boolean; almuerzo: boolean } | null, apto: boolean | null) {
+    await sembrarEscuelaPadron({ cue, departamento: 'MAPA-COMEDOR', localidad: 'MAPA-COMEDOR', lat: -27.3, lon: -58.3 })
+    if (comedor) await getDb().insert(infraComedorEscuela).values({ cueAnexo: cue, ...comedor, proveedor: null, fuente: 't', importadoEn: '2026-10-29' })
+    if (apto !== null) {
+      await getDb().insert(infraCentroEvacuados).values({
+        cueAnexo: cue, apto, motivo: apto ? null : 'riesgo_no_bajo', destinoCue: null, destinoNombre: null,
+        distanciaRectaM: null, distanciaRutaM: null, calculadoEn: '2026-10-29T03:20:00Z',
+      })
+    }
+  }
+
+  it('el listado y la ficha incluyen comedor y posibleCentroEvacuados; sin datos quedan ausentes', async () => {
+    await sembrar('1809901-00', { desayuno: true, almuerzo: false }, true)
+    await sembrar('1809902-00', null, false)
+    await sembrar('1809903-00', null, null)
+
+    const { escuelas } = await listarEscuelasMapaEnriquecidas({ territorio: 'MAPA-COMEDOR' })
+    const por = Object.fromEntries(escuelas.map((e) => [e.cueAnexo, e]))
+    expect(por['1809901-00']).toMatchObject({ comedor: 'solo_desayuno', posibleCentroEvacuados: true })
+    expect(por['1809902-00']).toMatchObject({ comedor: 'sin_servicio', posibleCentroEvacuados: false })
+    expect(por['1809903-00']).toMatchObject({ comedor: 'sin_servicio' })
+    expect(por['1809903-00'].posibleCentroEvacuados).toBeUndefined()
+
+    const ficha = await obtenerEscuelaFichaEnriquecida('1809901-00', { tipo: 'todo' })
+    expect(ficha.estado).toBe('ok')
+    if (ficha.estado === 'ok') expect(ficha.escuela).toMatchObject({ comedor: 'solo_desayuno', posibleCentroEvacuados: true })
   })
 })
 
