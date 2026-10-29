@@ -3,7 +3,6 @@
 import { NominalPermisosAdmin } from '@/components/infraestructura/nominal-permisos-admin'
 import { AdminSection, TAXONOMY_NOTE } from '@/components/admin/admin-section'
 import { DireccionesGeCatalogo } from '@/components/admin/direcciones'
-import { LinktreeAdmin } from '@/components/admin/linktree'
 import { MotivosAdmin } from '@/components/admin/motivos'
 import { RecursosAdmin } from '@/components/admin/recursos'
 import { CategoriasAdmin, EtiquetasAdmin, NivelesAdmin, TiposAdmin } from '@/components/admin/taxonomias'
@@ -12,7 +11,6 @@ import { adminSection, type AdminSectionSlug } from '@/components/admin/sections
 
 const VIEWS: Record<AdminSectionSlug, () => React.ReactNode> = {
   recursos: RecursosAdmin,
-  links: LinktreeAdmin,
   categorias: CategoriasAdmin,
   etiquetas: EtiquetasAdmin,
   niveles: NivelesAdmin,

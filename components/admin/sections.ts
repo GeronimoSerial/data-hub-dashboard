@@ -1,6 +1,5 @@
 export type AdminSectionSlug =
   | 'recursos'
-  | 'links'
   | 'categorias'
   | 'etiquetas'
   | 'niveles'
@@ -23,7 +22,6 @@ export type AdminGroup = 'Contenido' | 'Organización' | 'Accesos'
 
 export const ADMIN_SECTIONS: AdminSectionMeta[] = [
   { slug: 'recursos', label: 'Recursos', title: 'Recursos', intro: 'Reportes, tableros y mapas publicados en el Hub.', adminOnly: false, group: 'Contenido' },
-  { slug: 'links', label: 'Página de enlaces', title: 'Página de enlaces', intro: 'Accesos públicos a los sistemas del Ministerio, publicados en /links.', adminOnly: true, group: 'Contenido' },
   { slug: 'categorias', label: 'Categorías', title: 'Categorías', intro: 'Agrupan los recursos y definen el color de su etiqueta visible.', adminOnly: true, group: 'Organización' },
   { slug: 'etiquetas', label: 'Etiquetas', title: 'Etiquetas', intro: 'Palabras clave para buscar y filtrar recursos.', adminOnly: true, group: 'Organización' },
   { slug: 'niveles', label: 'Niveles', title: 'Niveles', intro: 'Niveles educativos y su orden de presentación.', adminOnly: true, group: 'Organización' },
