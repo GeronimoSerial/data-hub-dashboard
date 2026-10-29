@@ -80,3 +80,16 @@ export function alternarVisible(config: LinktreeConfig, enlaceId: string, visibl
     })),
   )
 }
+
+/** Quick add: the description is the title, and the link lands at the end of the first group (created if there is none). */
+export function agregarEnlaceRapido(
+  config: LinktreeConfig,
+  enlaceId: string,
+  grupoNuevoId: string,
+  url: string,
+  descripcion: string,
+) {
+  const enlace: LinktreeEnlace = { id: enlaceId, titulo: descripcion, descripcion: '', url, icono: null, visible: true }
+  const base = config.grupos.length > 0 ? config : agregarGrupo(config, grupoNuevoId, 'Accesos')
+  return guardarEnlace(base, base.grupos[0].id, enlace)
+}

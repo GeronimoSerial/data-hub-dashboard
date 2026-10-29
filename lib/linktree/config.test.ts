@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CONFIG_INICIAL, configSchema, leerConfig } from './config'
+import { CONFIG_INICIAL, agregarEnlaceSchema, configSchema, leerConfig } from './config'
 
 const enlace = {
   id: 'e1',
@@ -70,5 +70,21 @@ describe('leerConfig', () => {
   it('devuelve el documento cuando es válido', () => {
     const doc = conEnlace({})
     expect(leerConfig(doc)).toEqual(doc)
+  })
+})
+
+describe('agregarEnlaceSchema', () => {
+  it('acepta una URL segura y una descripción, y recorta espacios', () => {
+    const r = agregarEnlaceSchema.parse({ url: ' https://x.mec.gob.ar ', descripcion: '  Portal de becas ' })
+    expect(r).toEqual({ url: 'https://x.mec.gob.ar', descripcion: 'Portal de becas' })
+  })
+
+  it.each([
+    [{ url: 'javascript:alert(1)', descripcion: 'x' }],
+    [{ url: 'https://x.mec.gob.ar', descripcion: '   ' }],
+    [{ url: 'https://x.mec.gob.ar', descripcion: 'a'.repeat(81) }],
+    [{ url: 'https://x.mec.gob.ar' }],
+  ])('rechaza %j', (entrada) => {
+    expect(agregarEnlaceSchema.safeParse(entrada).success).toBe(false)
   })
 })

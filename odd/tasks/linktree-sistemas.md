@@ -10,6 +10,7 @@ Branch: serialgeronimo/feat-linktree-sistemas-mec. Delivery: ask-on-risk (one PR
 - S3: "Va a ser una página publica"
 - S4: "módulo de customizacion total", "usar primitivas existentes de shadcn o base ui o arcui", "no quiero nada custom y a mano". Assumption: "total" means texts, official accent, logo and domain toggles, groups, links, icons, order, visibility. Colors are limited to official palette tokens.
 - S5: "levantame un cloudflared"
+- S6: "un \"admin\" sutil abajo como href nomas que permita añadir un link y una descripcion. NADA MAS, pero obviamente lo puede hacer un usuario registrado, si podemos hacer q solo sea un username y un password mejor."
 - A1 (assumption): config is one jsonb row (`linktree_config`), validated with zod on read and write; invalid or missing row falls back to defaults.
 - A2 (assumption): only `admin` role can write; the public page needs no session.
 - A3 (assumption): public path is `/links`; mapping `links.sistemas.mec.gob.ar` to it is ingress work, not part of this feature.
@@ -21,6 +22,7 @@ Branch: serialgeronimo/feat-linktree-sistemas-mec. Delivery: ask-on-risk (one PR
 - [x] T2 (S4, A2) admin-only write API `PUT /api/linktree`. Route: inline. Risk: item 2 (auth guard), commit 3078e78e. RED then GREEN: 7 route tests (401, 403 editor/consulta/banned admin, 400 invalid JSON, 400 javascript: url, 200 save and read).
 - [x] T3 (S1, S2, S3) public page `/links`. Route: inline. Risk: none. Commit 33d525b0. 9 component tests + 2 page tests (anonymous render, tab title).
 - [x] T4 (S4) admin section `links` in `/admin`. Route: inline. Risk: none beyond T2 guard (page gate reuses the adminOnly redirect in `[seccion]/page.tsx`). 11 edit-helper tests + 9 admin component tests. Found and fixed during GREEN: Base UI Switch is a span, so the row click-to-edit opened the dialog when toggling visibility.
+- [x] T6 (S6) footer "Admin" href on `/links` to `/links/admin`: staff-only form with only URL + description, `POST /api/linktree/enlaces`. Route: inline. Risk: item 2 (auth guard on a write that publishes to a public page). RED then GREEN: schema, quick-add edit, transactional update incl. two concurrent adds, 9 POST route tests (401/403 by role/400/201/409), 5 page-guard tests, 5 form tests, footer link tests. Login stays email + password: username login needs the better-auth `username` plugin and new columns on `user` (auth migration), left out.
 - [ ] T5 (S5) production build, local PGlite, cloudflared quick tunnel. Route: inline, runtime only, no repo change.
 
 ## Log
@@ -30,3 +32,5 @@ Branch: serialgeronimo/feat-linktree-sistemas-mec. Delivery: ask-on-risk (one PR
 - L3 (2026-10-29): antislop mode chosen by the user: "DURANTE"
 - L4: Evidence: no `DATABASE_URL` in shell and no `.env` in the worktree, so the app runs on PGlite (`lib/db/driver.ts`). Never run against the prod RDS.
 - L5: Design Read: public access page for ministry staff and citizens, Gobierno de Corrientes brand, dial ENERGY 1 / RHYTHM 1 / MOTION 1. Identity motif: the brand yellow marker as the state highlight on the active row.
+- L6 (2026-10-29): "la idea es que tenga un \"admin\" sutil abajo como href nomas que permita añadir un link y una descripcion. NADA MAS, pero obviamente lo puede hacer un usuario registrado, si podemos hacer q solo sea un username y un password mejor."
+- L7: Decision: the full `/admin/links` module stays for admins (edit, reorder, delete); the public footer entry is the minimal add flow. Writers of the minimal flow are staff (admin, editor), not every role, because school operators and read-only accounts must not publish URLs on a public page.

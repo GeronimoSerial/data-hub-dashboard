@@ -36,7 +36,7 @@
 }
 
 .cabecera {
-  padding: var(--s-5) 0 var(--s-6);
+  padding: var(--s-5) 0 var(--s-4);
 }
 
 .barra {
@@ -56,7 +56,7 @@
   margin: 0;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(2.25rem, 8vw, 3.5rem);
+  font-size: clamp(2rem, 7vw, 3rem);
   line-height: 0.96;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -116,7 +116,6 @@
   border-radius: var(--r-sm);
   color: inherit;
   text-decoration: none;
-  transition: background-color 120ms ease-out;
 }
 
 .enlace[data-con-icono] {
@@ -161,7 +160,9 @@
 }
 
 /* Hover and keyboard focus fill the row with the accent. Every text colour
-   switches to the accent's ink: the muted greys fail AA on these fills. */
+   switches to the accent's ink: the muted greys fail AA on these fills. The
+   fill and the ink change in the same frame: a fade would cross a moment where
+   dark ink sits on a still-dark row. Only the arrow is animated. */
 .enlace:hover,
 .enlace:focus-visible {
   background: var(--acento-fondo);
@@ -207,6 +208,10 @@
 }
 
 .pie {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
   width: 100%;
   max-width: 40rem;
   margin: 0 auto;
@@ -217,8 +222,45 @@
   line-height: 1.4;
 }
 
+/* The way in for editors stays quiet: small, muted, no icon. It is a plain
+   link, so it needs no more weight than the footer text beside it. */
+.admin {
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-size: var(--t-micro);
+  text-decoration: none;
+}
+
+.admin:hover,
+.admin:focus-visible {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.volver {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-6);
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  text-decoration: none;
+}
+
+.volver:hover,
+.volver:focus-visible {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin-top: var(--s-5);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .enlace,
   .flecha {
     transition: none;
   }
