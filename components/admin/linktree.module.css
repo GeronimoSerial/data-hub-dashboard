@@ -1,0 +1,70 @@
+/* Layout glue for the links admin. Controls, tables and dialogs come from the
+   shared ui-* primitives; this file only spaces them. */
+
+.modulo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.estado {
+  margin: 0 auto 0 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-5);
+}
+
+.formulario {
+  max-width: 32rem;
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+
+.grupoCabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.grupoTitulo {
+  margin: 0;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: var(--t-h3);
+}
+
+.celda {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.celdaTitulo {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.celdaUrl {
+  color: var(--ink-faint);
+  font-size: var(--t-micro);
+  overflow-wrap: anywhere;
+}
