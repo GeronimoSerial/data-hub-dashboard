@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer OPS1 ENOS: centros-evacuados (diario, tras calcular-riesgo de las 02:15)
+
+[Timer]
+# Usa la última corrida vigente de calcular-riesgo (02:15 UTC) y la exposición
+# estática; corre después de geo-perfiles (03:00) y asociacion-rio (03:10).
+OnCalendar=*-*-* 03:20:00 UTC
+RandomizedDelaySec=60
+Persistent=true
+Unit=enos-ops1@centros-evacuados.service
+
+[Install]
+WantedBy=timers.target
