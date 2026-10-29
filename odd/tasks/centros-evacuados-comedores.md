@@ -11,7 +11,7 @@ Branch: `GeronimoSerial/centros-evacuados-comedores` (from origin/main). Deliver
 
 ## Tasks
 - [x] T1 S3 comedores: tabla + migración + parser + importador + doc (inline) — d6b763d5
-- [ ] T2 S1 aptitud: función pura + tabla + job diario + timer (inline)
+- [x] T2 S1 aptitud: función pura + tabla + job diario + timer (inline) — 89598cfc
 - [ ] T3 S2 ruta: tipo geo `ruta-evacuacion` + job Python + endpoint + hook (inline)
 - [ ] T4 S4/S2 UI: enriquecimiento escuelas, ficha, chip, badge, capa de ruta, leyenda (inline)
 

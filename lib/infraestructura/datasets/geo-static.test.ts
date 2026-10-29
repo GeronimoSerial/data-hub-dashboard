@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getDb, migrarDb } from '@/lib/db'
-import { infraSusceptibilidadEstatica } from '@/lib/db/schema'
+import { infraRutaEvacuacionOsm, infraSusceptibilidadEstatica } from '@/lib/db/schema'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { ingestarGeo } from './geo-static'
 import { leerVersion, listarVersiones } from './repositorio'
@@ -29,5 +29,37 @@ describe('ingesta geográfica atómica', () => {
     await expect(ingestarGeo('inundacion-v2', [v2, { ...v2, cue_anexo: 'inexistente' }], opciones('inundacion-fallida'))).rejects.toThrow('No existe fila base')
     expect((await leerVersion('geo-inundacion-v2'))?.version.id).toBe(anterior?.version.id)
     expect(await listarVersiones('geo-inundacion-v2')).toHaveLength(1)
+  })
+})
+
+describe('ingesta de rutas a centros de evacuados', () => {
+  const candidato = (destino: string, distancia: number) => ({
+    destino_cue: destino, destino_nombre: `Escuela ${destino}`, distancia_m: distancia,
+    ruta: { type: 'LineString', coordinates: [[-58.1, -28.1], [-58.2, -28.2]] },
+  })
+  const fila = (cue: string, candidatos: unknown[]) => ({
+    cue_anexo: cue, version_job: '1', fecha_extracto_osm: '2026-09-26', licencia: 'ODbL', candidatos,
+  })
+
+  it('proyecta los candidatos por escuela y reimporta la misma versión sin duplicar', async () => {
+    await ingestarGeo('ruta-evacuacion', [fila('1800001-00', [candidato('1800002-00', 1200), candidato('1800003-00', 4000)])], opciones('rutas-1'))
+    await ingestarGeo('ruta-evacuacion', [fila('1800001-00', [candidato('1800002-00', 1300)])], opciones('rutas-2'))
+    const filas = await getDb().select().from(infraRutaEvacuacionOsm)
+    expect(filas).toHaveLength(1)
+    expect(filas[0].candidatos).toEqual([
+      { destinoCue: '1800002-00', destinoNombre: 'Escuela 1800002-00', distanciaM: 1300, ruta: { type: 'LineString', coordinates: [[-58.1, -28.1], [-58.2, -28.2]] } },
+    ])
+  })
+
+  it('rechaza una ruta de menos de 2 puntos o una distancia negativa', async () => {
+    const mala = { ...candidato('1800002-00', 10), ruta: { type: 'LineString', coordinates: [[-58.1, -28.1]] } }
+    await expect(ingestarGeo('ruta-evacuacion', [fila('1800009-00', [mala])], opciones('rutas-mala'))).rejects.toThrow()
+    await expect(ingestarGeo('ruta-evacuacion', [fila('1800009-00', [candidato('1800002-00', -5)])], opciones('rutas-neg'))).rejects.toThrow()
+  })
+
+  it('acepta una escuela sin candidatos (sin ruta hacia ninguno)', async () => {
+    await ingestarGeo('ruta-evacuacion', [fila('1800008-00', [])], opciones('rutas-vacia'))
+    const f = (await getDb().select().from(infraRutaEvacuacionOsm)).find((x) => x.cueAnexo === '1800008-00')
+    expect(f?.candidatos).toEqual([])
   })
 })
