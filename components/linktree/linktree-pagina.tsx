@@ -17,7 +17,15 @@ function dominioDe(url: string) {
   }
 }
 
-function Fila({ enlace, mostrarDominio }: { enlace: LinktreeEnlace; mostrarDominio: boolean }) {
+function Fila({
+  enlace,
+  mostrarDominio,
+  reservarIcono,
+}: {
+  enlace: LinktreeEnlace
+  mostrarDominio: boolean
+  reservarIcono: boolean
+}) {
   const externo = esExterno(enlace.url)
   const dominio = mostrarDominio && externo ? dominioDe(enlace.url) : null
   const Icono = enlace.icono ? ICONOS_UI[enlace.icono].Componente : null
@@ -28,9 +36,9 @@ function Fila({ enlace, mostrarDominio }: { enlace: LinktreeEnlace; mostrarDomin
         className={styles.enlace}
         href={enlace.url}
         {...(externo ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-        data-con-icono={Icono ? '' : undefined}
+        data-con-icono={reservarIcono ? '' : undefined}
       >
-        {Icono ? <Icono className={styles.icono} size={20} aria-hidden /> : null}
+        {Icono ? <Icono className={styles.icono} size={20} aria-hidden /> : reservarIcono ? <span className={styles.huecoIcono} aria-hidden /> : null}
         <span className={styles.texto}>
           <span className={styles.nombre}>{enlace.titulo}</span>
           {enlace.descripcion ? <span className={styles.descripcion}>{enlace.descripcion}</span> : null}
@@ -88,7 +96,12 @@ export function LinktreePagina({ config }: { config: LinktreeConfig }) {
               </h2>
               <ul className={styles.lista}>
                 {grupo.enlaces.map((enlace) => (
-                  <Fila key={enlace.id} enlace={enlace} mostrarDominio={config.mostrarDominio} />
+                  <Fila
+                    key={enlace.id}
+                    enlace={enlace}
+                    mostrarDominio={config.mostrarDominio}
+                    reservarIcono={grupo.enlaces.some((e) => e.icono)}
+                  />
                 ))}
               </ul>
             </section>
