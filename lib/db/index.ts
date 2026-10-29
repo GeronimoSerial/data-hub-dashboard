@@ -1,7 +1,6 @@
 import path from 'node:path'
 import { Pool, types } from 'pg'
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres'
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite'
 import type { PgliteDatabase } from 'drizzle-orm/pglite'
@@ -213,8 +212,8 @@ export async function migrarDb(): Promise<void> {
 
 async function correrMigracion(db: Db): Promise<void> {
   if (resolveDriver() === 'postgres') {
-    const { migrate } = await import('drizzle-orm/node-postgres/migrator')
-    await migrate(db as NodePgDatabase<typeof schema>, { migrationsFolder: './drizzle' })
+    const { migrarPostgres } = await import('./migrar-postgres')
+    await migrarPostgres(getRawClient() as Pool)
   } else {
     const { migrate } = await import('drizzle-orm/pglite/migrator')
     await migrate(db as PgliteDatabase<typeof schema>, { migrationsFolder: './drizzle' })

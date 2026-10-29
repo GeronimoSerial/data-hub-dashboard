@@ -1,0 +1,179 @@
+name: Links CADM
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'miniapps/links/**'
+      - 'app/(miniapps)/(links)/**'
+      - 'middleware.ts'
+      - 'middleware.test.ts'
+      - 'drizzle/0038_*'
+      - 'drizzle/0039_*'
+      - 'drizzle/meta/0038_snapshot.json'
+      - 'drizzle/meta/0039_snapshot.json'
+      - 'drizzle/meta/_journal.json'
+      - 'lib/db/**'
+      - 'app/api/health/**'
+      - '.github/workflows/links-cadm.yml'
+  push:
+    branches: [dev, staging, prod]
+    paths:
+      - 'miniapps/links/**'
+      - 'app/(miniapps)/(links)/**'
+      - 'middleware.ts'
+      - 'middleware.test.ts'
+      - 'drizzle/0038_*'
+      - 'drizzle/0039_*'
+      - 'drizzle/meta/0038_snapshot.json'
+      - 'drizzle/meta/0039_snapshot.json'
+      - 'drizzle/meta/_journal.json'
+      - 'lib/db/**'
+      - 'app/api/health/**'
+      - '.github/workflows/links-cadm.yml'
+
+concurrency:
+  group: links-cadm-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Test links and shared routing and database code
+        run: pnpm exec vitest run miniapps/links 'app/(miniapps)/(links)' middleware.test.ts app/api/health lib/db --maxWorkers=1 --hookTimeout=30000 --testTimeout=30000
+
+      - name: Test links release script without network
+        run: python3 miniapps/links/test_release.py
+
+  image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/prod'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push links image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          build-args: APP_REVISION=${{ github.sha }}
+          tags: |
+            ghcr.io/geronimoserial/data-hub-dashboard:links-prod
+            ghcr.io/geronimoserial/data-hub-dashboard:links-prod-${{ github.sha }}
+          cache-from: type=gha,scope=links-cadm
+          cache-to: type=gha,mode=max,scope=links-cadm
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/prod'
+    needs: image
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Trigger Coolify deploy
+        env:
+          COOLIFY_URL: https://coolify.sistemas.mec.gob.ar
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_LINKS_APP_UUID: ${{ secrets.COOLIFY_LINKS_APP_UUID }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "push" ] || [ "$GITHUB_REF" != "refs/heads/prod" ]; then
+            echo "::error::Links deploy is restricted to production pushes."
+            exit 1
+          fi
+          if [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_LINKS_APP_UUID" ]; then
+            echo "::error::Falta el secret COOLIFY_TOKEN/COOLIFY_LINKS_APP_UUID"
+            exit 1
+          fi
+
+          response=$(curl -fsS --connect-timeout 10 --max-time 30 -X POST \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            --data "$(jq -n --arg uuid "$COOLIFY_LINKS_APP_UUID" '{uuid: $uuid, force: false}')" \
+            "${COOLIFY_URL}/api/v1/deploy")
+          deployment_uuid=$(echo "$response" | jq -r '.deployments[0].deployment_uuid // empty')
+          if [ -z "$deployment_uuid" ]; then
+            echo "::error::Could not read deployment identifier from Coolify response."
+            exit 1
+          fi
+          echo "Links deployment queued."
+
+          # Poll every 10 seconds for up to 60 attempts; never print API responses.
+          max_attempts=60
+          attempt=0
+          while [ "$attempt" -lt "$max_attempts" ]; do
+            attempt=$((attempt + 1))
+            if ! http_code=$(curl -sS --connect-timeout 10 --max-time 30 -o deployment.json -w '%{http_code}' \
+              -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+              -H "Accept: application/json" \
+              "${COOLIFY_URL}/api/v1/deployments/${deployment_uuid}"); then
+              echo "::warning::Could not reach Coolify; retrying."
+              sleep 10
+              continue
+            fi
+            case "$http_code" in
+              401|403)
+                echo "::error::Cannot verify links deployment completion."
+                exit 1
+                ;;
+              2??) ;;
+              *)
+                echo "::warning::Coolify polling failed; retrying."
+                sleep 10
+                continue
+                ;;
+            esac
+            status=$(jq -r '.status // empty' deployment.json 2>/dev/null || true)
+            case "$status" in
+              finished)
+                echo "Links deployment finished successfully."
+                exit 0
+                ;;
+              failed|cancelled-by-user)
+                echo "::error::Links deployment failed or was cancelled."
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Timed out waiting for links deployment."
+          exit 1

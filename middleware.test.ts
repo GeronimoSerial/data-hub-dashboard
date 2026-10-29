@@ -59,3 +59,42 @@ describe('middleware: legacy static dashboards', () => {
     expect(response.headers.get('x-middleware-rewrite')).toBeNull()
   })
 })
+
+
+describe('middleware: host links CADM', () => {
+  const request = (path: string, host = 'links.sistemas.mec.gob.ar') => new NextRequest(`http://interno:3000${path}`, { headers: { host } })
+  it.each(['/cadm', '/cadm/', '/cadm/admin', '/cadm/api/sesion', '/cadm/api/contenido'])('reescribe %s conservando query', (path) => {
+    const res = middleware(request(`${path}?vista=1`))
+    expect(res.headers.get('x-middleware-rewrite')).toBe(`http://interno:3000/links${path.slice(5)}?vista=1`)
+  })
+  it.each(['/links', '/links/admin', '/links/api/sesion', '/links/api/x', '/api/hub/contenido', '/api/auth/sign-in', '/login', '/login/continue', '/mapas', '/admin', '/usuarios', '/cadmx', '/cadm/otro', '/explorar', '/api/auth', '/tablero', '/aleatoria/no-existe', '/api/health/otro'])('rechaza %s', (path) => {
+    const response = middleware(request(path))
+    expect(response.status).toBe(404)
+    expect(response.headers.get('x-middleware-rewrite')).toBeNull()
+    expect(response.headers.get('location')).toBeNull()
+  })
+  it('normaliza host y puerto y redirige raíz', () => {
+    expect(middleware(request('/', 'LINKS.SISTEMAS.MEC.GOB.AR:443')).headers.get('location')).toBe('https://links.sistemas.mec.gob.ar/cadm')
+  })
+  it.each(['/_next/static/app.js', '/_next/image', '/marca/escudo.svg', '/favicon.ico'])('sirve %s', (path) => {
+    expect(middleware(request(path)).headers.get('x-middleware-next')).toBe('1')
+  })
+  it.each(['hub.sistemas.mec.gob.ar', 'links.sistemas.mec.gob.ar.evil.test'])('no altera /links en %s', (host) => {
+    expect(middleware(request('/links', host)).headers.get('x-middleware-next')).toBe('1')
+  })
+  it('no confía en forwarded host', () => {
+    const req = request('/links', 'hub.sistemas.mec.gob.ar')
+    req.headers.set('x-forwarded-host', 'links.sistemas.mec.gob.ar')
+    expect(middleware(req).headers.get('x-middleware-next')).toBe('1')
+  })
+})
+
+
+describe('middleware: public health', () => {
+  it.each(['links.sistemas.mec.gob.ar', 'hub.sistemas.mec.gob.ar'])('lets health pass without session on %s', (host) => {
+    const response = middleware(new NextRequest(`https://${host}/api/health`, { headers: { host } }))
+    expect(response.headers.get('x-middleware-next')).toBe('1')
+    expect(response.headers.get('x-middleware-rewrite')).toBeNull()
+    expect(response.headers.get('location')).toBeNull()
+  })
+})
