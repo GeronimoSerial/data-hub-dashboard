@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   syncPrefecturaHistorico: vi.fn(),
   importarExposicionRioDem: vi.fn(),
   generarCorte: vi.fn(),
+  correrCalculoCentrosEvacuados: vi.fn(),
   enosJobsEnabled: vi.fn(),
   adquirirLease: vi.fn(),
   publicarResultado: vi.fn(),
@@ -78,6 +79,9 @@ vi.mock('../lib/infraestructura/riesgo/jobs/importar-exposicion-rio-dem.ts', () 
 }))
 vi.mock('../lib/infraestructura/riesgo/situacion/corte.ts', () => ({
   generarCorte: mocks.generarCorte,
+}))
+vi.mock('../lib/infraestructura/evacuacion/calculo.ts', () => ({
+  correrCalculoCentrosEvacuados: mocks.correrCalculoCentrosEvacuados,
 }))
 vi.mock('../lib/infraestructura/jobs/flags.ts', () => ({
   enosJobsEnabled: mocks.enosJobsEnabled,
@@ -191,6 +195,7 @@ describe('gating por ENOS_JOBS_ENABLED', () => {
   // ENOS_JOBS_ENABLED=false los casos cubiertos no importan ni llaman al job real.
   const casos: Array<[string, keyof typeof mocks]> = [
     ['geo-perfiles', 'calcularGeoPerfiles'],
+    ['centros-evacuados', 'correrCalculoCentrosEvacuados'],
     ['asociacion-rio', 'calcularAsociacionesRio'],
     ['sync-pronostico-caudal', 'ejecutarSyncPronosticoCaudal'],
     ['sync-ensemble', 'ejecutarSyncEnsemble'],
@@ -442,5 +447,41 @@ describe('RIESGO_DATOS_ROL=consumidor', () => {
     mocks.ejecutarSyncImerg.mockResolvedValue({ ejecutado: true })
     const { correrJob } = await import('./jobs.mjs')
     await expect(correrJob('sync-imerg')).resolves.toEqual({ ejecutado: true })
+  })
+})
+
+describe('centros-evacuados — lease diario', () => {
+  it('calcula con lease por día UTC y mapea el resultado a exit 0', async () => {
+    mocks.adquirirLease.mockResolvedValue({ adquirido: true, jobRunId: 'job-ce-1', leaseOwner: 'owner-ce-1' })
+    mocks.publicarResultado.mockResolvedValue(true)
+    mocks.correrCalculoCentrosEvacuados.mockResolvedValue({ escuelas: 10, aptas: 4 })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const ahora = new Date('2026-10-29T03:20:00Z')
+    const resultado = await correrJob('centros-evacuados', { ahora })
+
+    expect(mocks.adquirirLease).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'centros-evacuados-v1', claveIdempotente: '2026-10-29' }))
+    expect(mocks.correrCalculoCentrosEvacuados).toHaveBeenCalledWith({ ahora })
+    expect(mocks.publicarResultado).toHaveBeenCalledWith(expect.objectContaining({ estado: 'completado', contadores: { escuelas: 10, aptas: 4 } }))
+    expect(resultado).toMatchObject({ ejecutado: true, escuelas: 10, aptas: 4, leasePerdido: false })
+    expect(codigoSalida('centros-evacuados', resultado)).toBe(0)
+  })
+
+  it('si el lease no se adquiere, no calcula y sale con 0', async () => {
+    mocks.adquirirLease.mockResolvedValue({ adquirido: false, motivo: 'ya_completado' })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+    const resultado = await correrJob('centros-evacuados')
+    expect(resultado).toMatchObject({ ejecutado: false, motivo: 'ya_completado' })
+    expect(mocks.correrCalculoCentrosEvacuados).not.toHaveBeenCalled()
+    expect(codigoSalida('centros-evacuados', resultado)).toBe(0)
+  })
+
+  it('un error de cálculo publica el job como fallido y relanza', async () => {
+    mocks.adquirirLease.mockResolvedValue({ adquirido: true, jobRunId: 'job-ce-2', leaseOwner: 'owner-ce-2' })
+    mocks.publicarResultado.mockResolvedValue(true)
+    mocks.correrCalculoCentrosEvacuados.mockRejectedValue(new Error('boom'))
+    const { correrJob } = await import('./jobs.mjs')
+    await expect(correrJob('centros-evacuados')).rejects.toThrow('boom')
+    expect(mocks.publicarResultado).toHaveBeenCalledWith(expect.objectContaining({ estado: 'fallido', errorSaneado: 'boom' }))
   })
 })

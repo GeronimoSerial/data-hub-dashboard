@@ -288,6 +288,13 @@
       "when": 1793315996221,
       "tag": "0040_comedor_escuela",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793316121976,
+      "tag": "0041_centro_evacuados",
+      "breakpoints": true
     }
   ]
 }
