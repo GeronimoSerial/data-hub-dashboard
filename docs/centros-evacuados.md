@@ -20,7 +20,7 @@ Nada agenda geo-static a diario, así que el batch calcula, por escuela, las rut
 ```bash
 # desde services/geo-static/, con DATABASE_URL y el extracto .data/osm/argentina-latest.osm.pbf
 PYTHONPATH=src uv run python -m geo_static.jobs.calcular_ruta_evacuacion
-# o importar un archivo ya generado
+# con GEO_STATIC_EXPORT_FILES=1 además escribe output/rutas_evacuacion_osm-v1-AAAA-MM-DD.ndjson.gz; para importarlo
 node scripts/importar-geo-static.mjs --ruta-evacuacion rutas_evacuacion_osm-v1-AAAA-MM-DD.ndjson.gz
 ```
 Publica el tipo geo `ruta-evacuacion` (tabla `infra_ruta_evacuacion_osm`). La ruta arranca y termina en el nodo de la red vial más cercano a cada escuela. Sin ruta para el destino elegido, la ficha dibuja una línea recta rotulada como tal.

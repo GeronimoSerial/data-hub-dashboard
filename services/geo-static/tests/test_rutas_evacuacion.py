@@ -58,3 +58,19 @@ def test_destino_en_el_mismo_nodo_no_tiene_trazo_dibujable():
 def test_nodo_de_snap_elige_el_extremo_mas_cercano():
     assert nodo_de_snap({"u": 10, "v": 20, "frac": 0.2}) == 10
     assert nodo_de_snap({"u": 10, "v": 20, "frac": 0.5}) == 20
+
+
+def test_escribir_ndjson_gz_es_determinista_y_ordenado(tmp_path):
+    import gzip
+    import json
+
+    from geo_static.rutas_evacuacion import escribir_ndjson_gz
+
+    filas = [{"cue_anexo": "1800002-00", "candidatos": []}, {"cue_anexo": "1800001-00", "candidatos": []}]
+    a, b = tmp_path / "a.ndjson.gz", tmp_path / "b.ndjson.gz"
+    escribir_ndjson_gz(filas, a)
+    escribir_ndjson_gz(list(reversed(filas)), b)
+    assert a.read_bytes() == b.read_bytes()
+    lineas = gzip.decompress(a.read_bytes()).decode().strip().split("\n")
+    assert [json.loads(x)["cue_anexo"] for x in lineas] == ["1800001-00", "1800002-00"]
+    assert not list(tmp_path.glob("*.tmp"))

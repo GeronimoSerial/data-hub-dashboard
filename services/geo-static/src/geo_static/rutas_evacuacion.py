@@ -79,3 +79,24 @@ def calcular_rutas_candidatas(
             candidatos = sorted(candidatos, key=lambda c: (c["costo"], c["destino_cue"]))[:k]
         resultado[cue_origen] = [{c: v for c, v in cand.items() if c != "costo"} for cand in candidatos]
     return resultado
+
+
+def escribir_ndjson_gz(filas: list[dict], destino) -> None:
+    """Escribe las filas como NDJSON gzip determinista (ordenado por cue, mtime=0).
+
+    Se escribe a un `.tmp` y recien despues se renombra, igual que la geometria de
+    aislamiento; es el formato que importa `scripts/importar-geo-static.mjs
+    --ruta-evacuacion`.
+    """
+    import gzip
+    import json
+    from pathlib import Path
+
+    destino = Path(destino)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    tmp = destino.with_suffix(destino.suffix + ".tmp")
+    with open(tmp, "wb") as f:
+        with gzip.GzipFile(filename="", fileobj=f, mode="wb", mtime=0) as gz:
+            for fila in sorted(filas, key=lambda x: x["cue_anexo"]):
+                gz.write((json.dumps(fila, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8"))
+    tmp.replace(destino)
