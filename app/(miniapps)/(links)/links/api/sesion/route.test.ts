@@ -4,8 +4,7 @@ import { DELETE, POST } from './route'
 const SECRETO = 'x'.repeat(40)
 
 beforeEach(() => {
-  vi.stubEnv('LINKS_ADMIN_USER', 'editor')
-  vi.stubEnv('LINKS_ADMIN_PASSWORD', 'clave-larga-123')
+  vi.stubEnv('LINKS_ADMIN_USERS', 'editor:clave-larga-123,otro:otra-clave')
   vi.stubEnv('LINKS_SESSION_SECRET', SECRETO)
 })
 afterEach(() => vi.unstubAllEnvs())
@@ -28,6 +27,11 @@ describe('POST /links/api/sesion', () => {
     expect(cookie).toContain('Path=/links')
   })
 
+  it('acepta a cualquiera de los usuarios configurados', async () => {
+    const res = await POST(pedido({ usuario: 'otro', clave: 'otra-clave' }))
+    expect(res.status).toBe(200)
+  })
+
   it('rechaza credenciales incorrectas sin emitir cookie', async () => {
     const res = await POST(pedido({ usuario: 'editor', clave: 'mala' }))
     expect(res.status).toBe(401)
@@ -35,7 +39,7 @@ describe('POST /links/api/sesion', () => {
   })
 
   it('queda cerrada (503) cuando el servidor no tiene credenciales configuradas', async () => {
-    vi.stubEnv('LINKS_ADMIN_PASSWORD', '')
+    vi.stubEnv('LINKS_ADMIN_USERS', '')
     const res = await POST(pedido({ usuario: 'editor', clave: '' }))
     expect(res.status).toBe(503)
   })
