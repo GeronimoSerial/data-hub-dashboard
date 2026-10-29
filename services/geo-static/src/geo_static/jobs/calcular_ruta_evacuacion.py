@@ -21,14 +21,15 @@ from __future__ import annotations
 import time
 from datetime import date
 
-from geo_static.datasets import _node, finalizar_corrida, guardar_resultados
+from geo_static.datasets import _node, exportar_archivos, finalizar_corrida, guardar_resultados
 from geo_static.jobs.calcular_aislamiento import (
     FECHA_EXTRACTO_OSM,
     LICENCIA_OSM,
+    OUTPUT_DIR,
     PBF_LOCAL_DEFAULT,
     _bbox_departamento,
 )
-from geo_static.rutas_evacuacion import calcular_rutas_candidatas, nodo_de_snap
+from geo_static.rutas_evacuacion import calcular_rutas_candidatas, escribir_ndjson_gz, nodo_de_snap
 
 VERSION_JOB = "1"
 
@@ -78,7 +79,14 @@ def correr() -> None:
     con_ruta = sum(1 for f in filas if f["candidatos"])
     print(f"[ruta_evacuacion] escuelas con al menos un candidato: {con_ruta}/{len(filas)}", flush=True)
 
-    guardar_resultados("ruta-evacuacion", filas, "OpenStreetMap", f"v{VERSION_JOB}-{date.today().isoformat()}")
+    fecha = date.today().isoformat()
+    if exportar_archivos():
+        # GEO_STATIC_EXPORT_FILES=1: ademas deja el archivo versionado importable con
+        # `node scripts/importar-geo-static.mjs --ruta-evacuacion <archivo>`.
+        salida = OUTPUT_DIR / f"rutas_evacuacion_osm-v{VERSION_JOB}-{fecha}.ndjson.gz"
+        escribir_ndjson_gz(filas, salida)
+        print(f"[ruta_evacuacion] archivo: {salida}", flush=True)
+    guardar_resultados("ruta-evacuacion", filas, "OpenStreetMap", f"v{VERSION_JOB}-{fecha}")
     finalizar_corrida()
     print(f"[ruta_evacuacion] listo en {time.monotonic() - t0:.0f}s", flush=True)
 

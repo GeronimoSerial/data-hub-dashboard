@@ -13,7 +13,7 @@ Branch: `GeronimoSerial/centros-evacuados-comedores` (from origin/main). Deliver
 - [x] T1 S3 comedores: tabla + migración + parser + importador + doc (inline) — d6b763d5
 - [x] T2 S1 aptitud: función pura + tabla + job diario + timer (inline) — 89598cfc
 - [x] T3 S2 ruta: tipo geo `ruta-evacuacion` + job Python + endpoint + hook (inline) — 07d9a5c2
-- [x] T4 S4/S2 UI: enriquecimiento escuelas, ficha, chip, badge, capa de ruta, leyenda (inline)
+- [x] T4 S4/S2 UI: enriquecimiento escuelas, ficha, chip, badge, capa de ruta, leyenda (inline) — 25eee54d
 
 ## Log
 - L1 (user, 2026-10-29): "1. Escuelas con menos riesgos (o nulo) marcarlos como posibles centros de evacuados.
