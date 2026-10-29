@@ -5,6 +5,15 @@ on:
   # carry the exact tree already tested there, so re-running it only adds delay.
   pull_request:
     branches: [main]
+    # No required checks in branch protection; exclusive links changes may skip this workflow.
+    paths-ignore:
+      - 'miniapps/links/**'
+      - 'app/(miniapps)/(links)/**'
+      - 'drizzle/0038_*'
+      - 'drizzle/0039_*'
+      - 'drizzle/meta/0038_snapshot.json'
+      - 'drizzle/meta/0039_snapshot.json'
+      - '.github/workflows/links-cadm.yml'
 
 concurrency:
   group: ci-${{ github.ref }}
