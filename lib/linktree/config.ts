@@ -75,6 +75,13 @@ export const configSchema = z.object({
   grupos: z.array(grupoSchema).max(LIMITES.grupos),
 })
 
+// The quick-add form asks only for a URL and one description; the description
+// becomes the link's title, so it shares the title limit.
+export const agregarEnlaceSchema = z.object({
+  url: z.string().trim().max(LIMITES.url).refine(urlSegura, 'URL inválida'),
+  descripcion: z.string().trim().min(1).max(LIMITES.titulo),
+})
+
 export type LinktreeEnlace = z.infer<typeof enlaceSchema>
 export type LinktreeGrupo = z.infer<typeof grupoSchema>
 export type LinktreeConfig = z.infer<typeof configSchema>

@@ -85,14 +85,22 @@ describe('LinktreePagina', () => {
     expect(container.querySelector('[data-acento="celeste"]')).toBeTruthy()
     expect(screen.getByText('Soporte: sistemas@ejemplo.gob.ar')).toBeTruthy()
     rerender(<LinktreePagina config={{ ...config, pie: '' }} />)
-    expect(screen.queryByRole('contentinfo')).toBeNull()
+    expect(screen.queryByText('Soporte: sistemas@ejemplo.gob.ar')).toBeNull()
+  })
+
+  it('deja siempre un acceso discreto "Admin" al pie que lleva al alta de enlaces', () => {
+    const { rerender } = render(<LinktreePagina config={{ ...config, pie: '' }} />)
+    const pie = screen.getByRole('contentinfo')
+    expect(within(pie).getByRole('link', { name: 'Admin' }).getAttribute('href')).toBe('/links/admin')
+    rerender(<LinktreePagina config={{ ...config, grupos: [] }} />)
+    expect(screen.getByRole('link', { name: 'Admin' }).getAttribute('href')).toBe('/links/admin')
   })
 
   it('explica por qué está vacía cuando no hay enlaces visibles', () => {
     render(<LinktreePagina config={{ ...config, grupos: [] }} />)
     const vacio = screen.getByRole('status')
     expect(within(vacio).getByText(/Todavía no hay accesos publicados/)).toBeTruthy()
-    expect(screen.queryByRole('link')).toBeNull()
+    expect(within(screen.getByRole('main')).queryByRole('link')).toBeNull()
   })
 
   it('ofrece cambiar de tema con un nombre accesible', () => {

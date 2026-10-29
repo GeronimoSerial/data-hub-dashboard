@@ -96,7 +96,10 @@ export function LinktreePagina({ config }: { config: LinktreeConfig }) {
         )}
       </main>
 
-      {config.pie ? <footer className={styles.pie}>{config.pie}</footer> : null}
+      <footer className={styles.pie}>
+        {config.pie ? <span>{config.pie}</span> : null}
+        <a className={styles.admin} href="/links/admin">Admin</a>
+      </footer>
     </div>
   )
 }
