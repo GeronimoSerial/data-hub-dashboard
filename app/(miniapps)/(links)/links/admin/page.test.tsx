@@ -8,15 +8,14 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 
 beforeEach(() => {
   vi.mocked(esAdmin).mockReset()
-  vi.stubEnv('LINKS_ADMIN_USER', 'editor')
-  vi.stubEnv('LINKS_ADMIN_PASSWORD', 'clave-larga-123')
+  vi.stubEnv('LINKS_ADMIN_USERS', 'editor:clave-larga-123,otro:otra-clave')
   vi.stubEnv('LINKS_SESSION_SECRET', 'x'.repeat(40))
 })
 afterEach(() => vi.unstubAllEnvs())
 
 describe('/links/admin', () => {
   it('sin credenciales configuradas avisa que la administración no está habilitada', async () => {
-    vi.stubEnv('LINKS_ADMIN_PASSWORD', '')
+    vi.stubEnv('LINKS_ADMIN_USERS', '')
     expect(renderToStaticMarkup(await Page())).toContain('La administración no está habilitada')
   })
 

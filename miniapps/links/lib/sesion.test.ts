@@ -2,17 +2,28 @@ import { describe, expect, it } from 'vitest'
 import { COOKIE_PATH, DURACION_S, credencialesValidas, crearToken, leerCredenciales, origenPropio, tokenValido } from './sesion'
 
 const SECRETO = 'x'.repeat(40)
-const cred = { usuario: 'editor', clave: 'clave-larga-123', secreto: SECRETO }
+const USUARIOS = 'editor:clave-larga-123,otra:segunda:con-dos-puntos'
+const cred = {
+  usuarios: [
+    { usuario: 'editor', clave: 'clave-larga-123' },
+    { usuario: 'otra', clave: 'segunda:con-dos-puntos' },
+  ],
+  secreto: SECRETO,
+}
 const env = (extra: Record<string, string | undefined> = {}) =>
-  ({ LINKS_ADMIN_USER: 'editor', LINKS_ADMIN_PASSWORD: 'clave-larga-123', LINKS_SESSION_SECRET: SECRETO, ...extra })
+  ({ LINKS_ADMIN_USERS: USUARIOS, LINKS_SESSION_SECRET: SECRETO, ...extra })
 
 describe('leerCredenciales', () => {
-  it('devuelve las credenciales cuando están completas', () => {
+  it('lee varios usuarios y deja pasar ":" dentro de la contraseña', () => {
     expect(leerCredenciales(env())).toEqual(cred)
   })
 
-  it.each(['LINKS_ADMIN_USER', 'LINKS_ADMIN_PASSWORD', 'LINKS_SESSION_SECRET'])('queda cerrada si falta %s', (clave) => {
+  it.each(['LINKS_ADMIN_USERS', 'LINKS_SESSION_SECRET'])('queda cerrada si falta %s', (clave) => {
     expect(leerCredenciales(env({ [clave]: undefined }))).toBeNull()
+  })
+
+  it.each(['', 'sin-separador', ':sinusuario', 'usuario:', 'ok:clave,roto'])('queda cerrada con la lista mal formada %j', (valor) => {
+    expect(leerCredenciales(env({ LINKS_ADMIN_USERS: valor }))).toBeNull()
   })
 
   it('queda cerrada con un secreto de menos de 32 caracteres', () => {
@@ -21,8 +32,10 @@ describe('leerCredenciales', () => {
 })
 
 describe('credencialesValidas', () => {
-  it('acepta solo el par exacto', () => {
+  it('acepta el par exacto de cualquiera de los usuarios', () => {
     expect(credencialesValidas(cred, 'editor', 'clave-larga-123')).toBe(true)
+    expect(credencialesValidas(cred, 'otra', 'segunda:con-dos-puntos')).toBe(true)
+    expect(credencialesValidas(cred, 'otra', 'clave-larga-123')).toBe(false)
     expect(credencialesValidas(cred, 'editor', 'otra')).toBe(false)
     expect(credencialesValidas(cred, 'otro', 'clave-larga-123')).toBe(false)
     expect(credencialesValidas(cred, '', '')).toBe(false)
