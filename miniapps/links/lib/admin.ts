@@ -1,9 +1,12 @@
 import { cookies } from 'next/headers'
-import { COOKIE, leerCredenciales, tokenValido } from './sesion'
+import { COOKIE, leerCredenciales, usuarioSesion } from './sesion'
 
-/** Reads the miniapp cookie; false when the admin is not configured or the cookie is not valid. */
-export async function esAdmin() {
+export async function usuarioAdmin(): Promise<string | null> {
   const cred = leerCredenciales()
-  if (!cred) return false
-  return tokenValido(cred.secreto, (await cookies()).get(COOKIE)?.value)
+  if (!cred) return null
+  return usuarioSesion(cred, (await cookies()).get(COOKIE)?.value)
+}
+
+export async function esAdmin() {
+  return (await usuarioAdmin()) !== null
 }
