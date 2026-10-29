@@ -1,7 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { esAdmin } from '@/miniapps/links/lib/admin'
 import Page from './page'
+import { migrarDb } from '@/lib/db'
+beforeAll(() => migrarDb())
+vi.mock('next/headers', () => ({ headers: async () => new Headers({ host: 'links.sistemas.mec.gob.ar' }) }))
 
 vi.mock('@/miniapps/links/lib/admin', () => ({ esAdmin: vi.fn() }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
