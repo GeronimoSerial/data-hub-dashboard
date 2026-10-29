@@ -118,7 +118,7 @@ describe('agrupar', () => {
     ]
     const filtros: FiltrosMapa = {
       q: '', departamentos: ['Goya', 'Capital'], direcciones: [], gravedades: [],
-      clases: ['sin', 'parcial', 'evacuado'], apoyo: [], sinActualizar: false, solucionadasRecientes: false,
+      clases: ['sin', 'parcial', 'evacuado'], apoyo: [], sinActualizar: false, solucionadasRecientes: false, conComedor: false,
     }
     const filtradas = filtrarEscuelas(padron, filtros)
     const filas = agrupar(filtradas, 'departamento')

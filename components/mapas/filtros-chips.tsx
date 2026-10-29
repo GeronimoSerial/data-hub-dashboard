@@ -14,7 +14,13 @@ type ClaveFiltro = 'departamentos' | 'gravedades' | 'clases' | 'apoyo' | 'direcc
 type Opcion = { valor: string; etiqueta: string }
 
 const CLAVES_DESPLEGABLES: readonly ClaveFiltro[] = ['departamentos', 'gravedades', 'clases', 'apoyo', 'direcciones']
-const CLAVES_INTERRUPTOR = ['sinActualizar', 'solucionadasRecientes'] as const
+const CLAVES_INTERRUPTOR = ['sinActualizar', 'solucionadasRecientes', 'conComedor'] as const
+type ClaveInterruptor = (typeof CLAVES_INTERRUPTOR)[number]
+const ETIQUETAS_INTERRUPTOR: Record<ClaveInterruptor, string> = {
+  sinActualizar: 'Sin actualizar',
+  solucionadasRecientes: 'Solucionadas en los últimos 15 días',
+  conComedor: 'Con comedor',
+}
 const CLAVES_FILTROS_EN_ORDEN = [...CLAVES_DESPLEGABLES, ...CLAVES_INTERRUPTOR]
 
 const OPCIONES_GRAVEDAD: Opcion[] = [4, 3, 2, 1, 0].map((valor) => ({
@@ -223,7 +229,7 @@ export function FiltrosChips({
     if (busquedaAbierta) busquedaRef.current?.focus()
   }, [busquedaAbierta])
 
-  const interruptoresActivos = Number(filtros.sinActualizar) + Number(filtros.solucionadasRecientes)
+  const interruptoresActivos = Number(filtros.sinActualizar) + Number(filtros.solucionadasRecientes) + Number(filtros.conComedor)
   const cantidadFiltrosActivos = filtros.departamentos.length
     + filtros.gravedades.length + filtros.clases.length + filtros.apoyo.length + filtros.direcciones.length + interruptoresActivos
   const cantidadFuera = CLAVES_FILTROS_EN_ORDEN.length - cantidadEnLinea
@@ -237,6 +243,7 @@ export function FiltrosChips({
     filtros.direcciones.length,
     Number(filtros.sinActualizar),
     Number(filtros.solucionadasRecientes),
+    Number(filtros.conComedor),
   ]
   const cantidadActivosFuera = conteosActivosEnOrden.slice(cantidadEnLinea).reduce((total, conteo) => total + conteo, 0)
   const hayFiltrosActivos = Boolean(filtros.q.trim()) || cantidadFiltrosActivos > 0
@@ -289,9 +296,8 @@ export function FiltrosChips({
       />
     )
   }
-  function renderInterruptor(clave: 'sinActualizar' | 'solucionadasRecientes') {
-    const esSinActualizar = clave === 'sinActualizar'
-    const etiqueta = esSinActualizar ? 'Sin actualizar' : 'Solucionadas en los últimos 15 días'
+  function renderInterruptor(clave: ClaveInterruptor) {
+    const etiqueta = ETIQUETAS_INTERRUPTOR[clave]
     const activo = filtros[clave]
     return (
       <button key={clave} type="button" className={`filtros-chip filtros-chip--interruptor${activo ? ' filtros-chip--activo' : ''}`} aria-pressed={activo} onClick={() => onChange({ ...filtros, [clave]: !activo })}>
@@ -392,6 +398,7 @@ export function FiltrosChips({
         {CLAVES_DESPLEGABLES.slice(0, Math.min(cantidadEnLinea, CLAVES_DESPLEGABLES.length)).map((clave) => renderDesplegable(clave, 'principal'))}
         {cantidadEnLinea > CLAVES_DESPLEGABLES.length ? renderInterruptor('sinActualizar') : null}
         {cantidadEnLinea > CLAVES_DESPLEGABLES.length + 1 ? renderInterruptor('solucionadasRecientes') : null}
+        {cantidadEnLinea > CLAVES_DESPLEGABLES.length + 2 ? renderInterruptor('conComedor') : null}
       </div>
       {cantidadFuera > 0 ? <div className="filtros-mas">
         <Popover.Root open={masFiltrosAbiertos} onOpenChange={setMasFiltrosAbiertos} modal={false}>
@@ -421,6 +428,11 @@ export function FiltrosChips({
                   onCheckedChange={(solucionadasRecientes) => onChange({ ...filtros, solucionadasRecientes })}
                   label="Solucionadas en los últimos 15 días"
                 /></section> : null}
+                {cantidadEnLinea <= CLAVES_DESPLEGABLES.length + 2 ? <section className="map-filtros-mas-grupo" aria-label="Con comedor"><h3 className="map-filtros-mas-titulo">Con comedor</h3><Switch
+                  checked={filtros.conComedor}
+                  onCheckedChange={(conComedor) => onChange({ ...filtros, conComedor })}
+                  label="Con comedor"
+                /></section> : null}
                 {hayFiltrosActivos ? <button type="button" className="filtros-limpiar" onClick={() => onChange(FILTROS_MAPA_VACIOS)}>Limpiar filtros</button> : null}
               </Popover.Popup>
             </Popover.Positioner>
@@ -431,6 +443,7 @@ export function FiltrosChips({
         {CLAVES_DESPLEGABLES.map((clave) => <div key={clave} data-medicion-filtro={clave}>{renderDesplegable(clave, 'medicion')}</div>)}
         <div data-medicion-filtro="sinActualizar">{renderInterruptor('sinActualizar')}</div>
         <div data-medicion-filtro="solucionadasRecientes">{renderInterruptor('solucionadasRecientes')}</div>
+        <div data-medicion-filtro="conComedor">{renderInterruptor('conComedor')}</div>
         <button data-medicion-filtro="mas" type="button" className="filtros-chip">Más filtros</button>
       </div>
     </div>
