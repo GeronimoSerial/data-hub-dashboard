@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG_INICIAL, type LinktreeConfig, type LinktreeEnlace } from './config'
 import {
+  agregarEnlaceRapido,
   agregarGrupo,
   alternarVisible,
   eliminarEnlace,
@@ -94,5 +95,23 @@ describe('edición de enlaces', () => {
     const siguiente = alternarVisible(base, 'a', false)
     expect(siguiente.grupos[0].enlaces[0].visible).toBe(false)
     expect(siguiente.grupos[0].enlaces[1].visible).toBe(true)
+  })
+})
+
+describe('agregarEnlaceRapido', () => {
+  it('suma el enlace al final del primer grupo usando la descripción como título', () => {
+    const siguiente = agregarEnlaceRapido(base, 'nuevo', 'g-nuevo', 'https://x.mec.gob.ar', 'Portal de becas')
+    expect(ids(siguiente, 0)).toEqual(['a', 'b', 'c', 'nuevo'])
+    expect(siguiente.grupos[0].enlaces[3]).toEqual({
+      id: 'nuevo', titulo: 'Portal de becas', descripcion: '', url: 'https://x.mec.gob.ar', icono: null, visible: true,
+    })
+    expect(siguiente.grupos).toHaveLength(2)
+  })
+
+  it('crea el grupo "Accesos" cuando todavía no hay ninguno', () => {
+    const siguiente = agregarEnlaceRapido(CONFIG_INICIAL, 'nuevo', 'g-nuevo', '/mapas', 'Mapas')
+    expect(siguiente.grupos).toHaveLength(1)
+    expect(siguiente.grupos[0]).toMatchObject({ id: 'g-nuevo', titulo: 'Accesos' })
+    expect(ids(siguiente, 0)).toEqual(['nuevo'])
   })
 })
