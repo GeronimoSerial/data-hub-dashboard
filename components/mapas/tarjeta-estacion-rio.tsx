@@ -16,6 +16,7 @@ export type EstacionTarjeta = {
 }
 
 const DIAS_SERIE = 7
+const DEMORA_REINTENTO_MS = 1500
 const MS_POR_HORA = 3_600_000
 const ANCHO = 260
 const ALTO = 56
@@ -85,7 +86,29 @@ function textoDistancia(d: number | null): string {
   return d > 0 ? `Faltan ${metros(d)}` : `Superada por ${metros(-d)}`
 }
 
-type EstadoSerie = { tipo: 'cargando' } | { tipo: 'error' } | { tipo: 'lista'; puntos: PuntoNivel[] }
+type EstadoSerie = { tipo: 'cargando' } | { tipo: 'error' } | { tipo: 'lista'; puntos: PuntoNivel[] } | { tipo: 'respaldo'; puntos: PuntoNivel[] }
+
+// Última serie cargada por estación: respaldo si una recarga falla.
+const CACHE_SERIES = new Map<string, PuntoNivel[]>()
+export function limpiarCacheSeries() {
+  CACHE_SERIES.clear()
+}
+
+const esperar = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolver) => {
+    const timer = setTimeout(resolver, ms)
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer)
+      resolver()
+    }, { once: true })
+  })
+
+async function pedirSerie(url: string, signal: AbortSignal): Promise<PuntoNivel[]> {
+  const r = await fetch(url, { signal })
+  if (!r.ok) throw new Error('serie')
+  const cuerpo: { lecturas?: Array<{ medidaEn: string; lecturaM: number | null; inconsistente?: boolean }> } = await r.json()
+  return (cuerpo.lecturas ?? []).map((p) => ({ medidaEn: p.medidaEn, lecturaM: p.inconsistente ? null : p.lecturaM }))
+}
 
 function useSerie(estacionId: string, ultimaMedidaEn: string | null): EstadoSerie {
   // El resultado guarda la clave que lo produjo: si cambia la estación, se deriva 'cargando' en render.
@@ -100,15 +123,28 @@ function useSerie(estacionId: string, ultimaMedidaEn: string | null): EstadoSeri
     const fin = ultimaMedidaEn ? Math.min(hasta.getTime(), Date.parse(ultimaMedidaEn)) : hasta.getTime()
     const desde = new Date(fin - DIAS_SERIE * 24 * MS_POR_HORA)
     const params = new URLSearchParams({ desde: desde.toISOString(), hasta: hasta.toISOString() })
-    fetch(`/api/infraestructura/hidrometria/estaciones/${encodeURIComponent(estacionId)}/lecturas?${params}`, { signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('serie'))))
-      .then((cuerpo: { lecturas?: Array<{ medidaEn: string; lecturaM: number | null; inconsistente?: boolean }> }) => {
-        const puntos = (cuerpo.lecturas ?? []).map((p) => ({ medidaEn: p.medidaEn, lecturaM: p.inconsistente ? null : p.lecturaM }))
+    const url = `/api/infraestructura/hidrometria/estaciones/${encodeURIComponent(estacionId)}/lecturas?${params}`
+    const cargar = async () => {
+      // Un reintento tras una demora corta: fallos transitorios (timeout, 500) son frecuentes.
+      let puntos: PuntoNivel[] | null = null
+      for (let intento = 0; intento < 2 && puntos === null; intento++) {
+        if (intento > 0) await esperar(DEMORA_REINTENTO_MS, controller.signal)
+        if (controller.signal.aborted) return
+        try {
+          puntos = await pedirSerie(url, controller.signal)
+        } catch {
+          if (controller.signal.aborted) return
+        }
+      }
+      if (puntos) {
+        CACHE_SERIES.set(estacionId, puntos)
         setSerie({ tipo: 'lista', puntos })
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setSerie({ tipo: 'error' })
-      })
+        return
+      }
+      const previa = CACHE_SERIES.get(estacionId)
+      setSerie(previa ? { tipo: 'respaldo', puntos: previa } : { tipo: 'error' })
+    }
+    void cargar()
     return () => controller.abort()
   }, [estacionId, ultimaMedidaEn])
   return resultado?.clave === clave ? resultado.serie : { tipo: 'cargando' }
@@ -129,7 +165,7 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
     return () => document.removeEventListener('keydown', alPulsar)
   }, [estacion.estacionId, onCerrar])
 
-  const puntos = serie.tipo === 'lista' ? serie.puntos : []
+  const puntos = serie.tipo === 'lista' || serie.tipo === 'respaldo' ? serie.puntos : []
   const umbrales = [lectura?.alertaM ?? null, lectura?.evacuacionM ?? null]
   const trazo = trazoSparkline(puntos, { ancho: ANCHO, alto: ALTO, margen: 4, umbrales })
   const ahora = new Date()
@@ -185,7 +221,8 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
       <figure className="tarjeta-estacion__grafico">
         {serie.tipo === 'cargando' && <p className="tarjeta-estacion__sub">Cargando la serie…</p>}
         {serie.tipo === 'error' && <p className="tarjeta-estacion__sub">No se pudo cargar la serie.</p>}
-        {serie.tipo === 'lista' && !trazo && <p className="tarjeta-estacion__sub">Pocas lecturas para graficar.</p>}
+        {serie.tipo === 'respaldo' && <p className="tarjeta-estacion__sub">No se pudo actualizar la serie; se muestran los últimos datos disponibles.</p>}
+        {(serie.tipo === 'lista' || serie.tipo === 'respaldo') && !trazo && <p className="tarjeta-estacion__sub">Pocas lecturas para graficar.</p>}
         {trazo && (
           <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} width="100%" height={ALTO} role="img" aria-label={`Altura del río en los últimos ${DIAS_SERIE} días`}>
             {trazo.lineas.map((linea) => {
