@@ -1,9 +1,10 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/lib/db'
+import { linksSesiones } from '@/lib/db/schema'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
-// The miniapp has its own single credential, set through the environment, and
-// its own signed cookie. It shares nothing with the Hub's accounts or roles.
+// Sessions and credentials are independent of the Hub accounts.
 export const COOKIE = 'links_admin'
-export const COOKIE_PATH = '/links'
 export const DURACION_S = 8 * 60 * 60
 
 export interface Usuario {
@@ -27,6 +28,7 @@ function leerUsuarios(crudo: string | undefined): Usuario[] | null {
     const usuario = par.slice(0, corte).trim()
     const clave = par.slice(corte + 1)
     if (corte < 1 || !usuario || !clave) return null
+    if (usuarios.some((u) => u.usuario === usuario)) return null
     usuarios.push({ usuario, clave })
   }
   return usuarios.length > 0 ? usuarios : null
@@ -56,29 +58,32 @@ export function credencialesValidas(cred: Credenciales, usuario: string, clave: 
   return valido
 }
 
-const firmar = (secreto: string, expira: string) => createHmac('sha256', secreto).update(`links:${expira}`).digest('base64url')
+const credencialHash = (cred: Credenciales, usuario: Usuario) => createHmac('sha256', cred.secreto).update(JSON.stringify([usuario.usuario, usuario.clave])).digest('hex')
+const idHash = (token: string) => hash(token).toString('hex')
 
-export function crearToken(secreto: string, ahora = Date.now()) {
-  const expira = String(Math.floor(ahora / 1000) + DURACION_S)
-  return `${expira}.${firmar(secreto, expira)}`
+export async function crearSesion(cred: Credenciales, usuario: string, ahora = Date.now()) {
+  const cuenta = cred.usuarios.find((u) => u.usuario === usuario)
+  if (!cuenta) throw new Error('Usuario inválido')
+  const token = randomBytes(32).toString('base64url')
+  await getDb().insert(linksSesiones).values({
+    id: idHash(token), usuario, credencialHash: credencialHash(cred, cuenta),
+    expira: new Date(ahora + DURACION_S * 1000),
+  })
+  return token
 }
 
-export function tokenValido(secreto: string, token: string | undefined, ahora = Date.now()) {
-  if (!token) return false
-  const [expira, firma, ...resto] = token.split('.')
-  if (!expira || !firma || resto.length > 0 || !/^\d+$/.test(expira)) return false
-  if (!iguales(firma, firmar(secreto, expira))) return false
-  return Number(expira) > Math.floor(ahora / 1000)
+export async function usuarioSesion(cred: Credenciales, token: string | undefined, ahora = Date.now()): Promise<string | null> {
+  if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null
+  const [sesion] = await getDb().select().from(linksSesiones).where(eq(linksSesiones.id, idHash(token)))
+  if (!sesion || sesion.revocada || sesion.expira.getTime() <= ahora) return null
+  const cuenta = cred.usuarios.find((u) => u.usuario === sesion.usuario)
+  if (!cuenta || !iguales(sesion.credencialHash, credencialHash(cred, cuenta))) return null
+  return sesion.usuario
 }
 
-/** Mutations must come from this site: the Origin host has to match the request host. */
-export function origenPropio(request: Request) {
-  const origen = request.headers.get('origin')
-  if (!origen) return false
-  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
-  try {
-    return new URL(origen).host === host
-  } catch {
-    return false
-  }
+export async function revocarSesion(token: string | undefined) {
+  if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return
+  await getDb().update(linksSesiones).set({ revocada: true }).where(eq(linksSesiones.id, idHash(token)))
 }
+
+export { origenPropio } from './pedido'

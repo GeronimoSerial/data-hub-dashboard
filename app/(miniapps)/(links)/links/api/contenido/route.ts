@@ -1,27 +1,26 @@
-import { ruta } from '@/lib/http/ruta'
+import { z } from 'zod'
 import { configSchema } from '@/miniapps/links/lib/config'
-import { esAdmin } from '@/miniapps/links/lib/admin'
-import { origenPropio } from '@/miniapps/links/lib/sesion'
+import { usuarioAdmin } from '@/miniapps/links/lib/admin'
+import { leerJsonLimitado, origenPropio, rutaLinks } from '@/miniapps/links/lib/pedido'
 import { guardarConfig } from '@/miniapps/links/lib/store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const NO_STORE = { 'Cache-Control': 'private, no-store' }
+const escrituraSchema = configSchema.extend({ revision: z.number().int().min(0).max(2_147_483_646) })
 
-async function handlePUT(request: Request) {
-  if (!origenPropio(request)) return Response.json({ error: 'Origen no permitido' }, { status: 403, headers: NO_STORE })
-  if (!(await esAdmin())) return Response.json({ error: 'No autorizado' }, { status: 401, headers: NO_STORE })
-
-  const parsed = configSchema.safeParse(await request.json().catch(() => null))
+export const PUT = rutaLinks(async (request) => {
+  if (!origenPropio(request)) return Response.json({ error: 'Origen no permitido' }, { status: 403 })
+  const usuario = await usuarioAdmin()
+  if (!usuario) return Response.json({ error: 'No autorizado' }, { status: 401 })
+  const parsed = escrituraSchema.safeParse(await leerJsonLimitado(request, 512 * 1024))
   if (!parsed.success) {
     return Response.json({
       error: 'Contenido inválido',
       detalles: parsed.error.issues.map((issue) => ({ ruta: issue.path.join('.'), mensaje: issue.message })),
-    }, { status: 400, headers: NO_STORE })
+    }, { status: 400 })
   }
-  await guardarConfig(parsed.data)
-  return Response.json(parsed.data, { headers: NO_STORE })
-}
-
-export const PUT = ruta('links.contenido.put', handlePUT)
+  const guardado = await guardarConfig(parsed.data, usuario)
+  if (!guardado) return Response.json({ error: 'Otra persona publicó cambios. Tu borrador se conserva. Recargá para ver la versión publicada.' }, { status: 409 })
+  return Response.json(guardado)
+})

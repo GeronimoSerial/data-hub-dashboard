@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import { obtenerBasePath } from '@/miniapps/links/lib/base-path'
+import { LINKS_URL } from '@/miniapps/links/lib/host'
 import { LinksPagina } from '@/miniapps/links/components/links-pagina'
 import { cargarConfig } from '@/miniapps/links/lib/store'
 
@@ -9,12 +11,14 @@ export async function generateMetadata(): Promise<Metadata> {
   const config = await cargarConfig()
   const description = config.subtitulo || undefined
   return {
+    metadataBase: new URL(LINKS_URL),
+    alternates: { canonical: LINKS_URL },
     title: { absolute: config.titulo },
     description,
-    openGraph: { title: config.titulo, description },
+    openGraph: { url: LINKS_URL, title: config.titulo, description },
   }
 }
 
 export default async function LinksPage() {
-  return <LinksPagina config={await cargarConfig()} />
+  return <LinksPagina config={await cargarConfig()} basePath={await obtenerBasePath()} />
 }
