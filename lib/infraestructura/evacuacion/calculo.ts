@@ -1,6 +1,6 @@
 import { eq, and } from 'drizzle-orm'
 import { getDb, getRawClient } from '@/lib/db'
-import { infraCentroEvacuados, infraExposicionRutaInundacion, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
+import { infraCentroEvacuados, infraExposicionRutaInundacion, infraRiskRun, infraRiskSnapshot, infraRutaEvacuacionOsm } from '@/lib/db/schema'
 import { claseRutaDe, ultimaExposicionDeCue } from '@/lib/infraestructura/exposicion-ruta'
 import { cargarTerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
 import { crearEjecutorSql } from '@/lib/infraestructura/ge-db'
@@ -115,6 +115,22 @@ async function cargarClaseRuta(db: ReturnType<typeof getDb>): Promise<Map<string
   return new Map([...porCue].map(([cue, lista]) => [cue, claseRutaDe(ultimaExposicionDeCue(lista)?.claseRuta)]))
 }
 
+// Candidatos por camino (OSM) de la última versión importada por escuela, ya
+// ordenados por distancia. Compara importadoEn y, ante empate, versionJob.
+export async function cargarCandidatosOsm(db = getDb()): Promise<Map<string, CandidatoOsm[]>> {
+  const filas = await db.select().from(infraRutaEvacuacionOsm)
+  const ultima = new Map<string, (typeof filas)[number]>()
+  for (const f of filas) {
+    const actual = ultima.get(f.cueAnexo)
+    const nueva = Date.parse(f.importadoEn) - (actual ? Date.parse(actual.importadoEn) : -Infinity)
+    if (!actual || nueva > 0 || (nueva === 0 && Number(f.versionJob) > Number(actual.versionJob))) ultima.set(f.cueAnexo, f)
+  }
+  return new Map([...ultima].map(([cue, f]) => [
+    cue,
+    [...f.candidatos].sort((a, b) => a.distanciaM - b.distanciaM).map((c) => ({ cueAnexo: c.destinoCue, distanciaM: c.distanciaM })),
+  ]))
+}
+
 export async function reemplazarCentros(filas: readonly FilaCentroEvacuados[], db = getDb()): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.delete(infraCentroEvacuados)
@@ -122,17 +138,36 @@ export async function reemplazarCentros(filas: readonly FilaCentroEvacuados[], d
   })
 }
 
+// Escuelas con coordenadas y cuáles son elegibles como destino SÓLO por exposición
+// estática (sitio, laguna y ruta), sin mirar el riesgo vigente: es lo que el batch
+// OSM offline necesita para precomputar rutas candidatas; el job diario decide
+// después cuáles siguen aptas hoy.
+export async function cargarElegiblesEstaticos(): Promise<{ escuelas: EscuelaEntrada[]; elegibles: string[] }> {
+  const db = getDb()
+  const [escuelas, territorio, claseRutaPorCue] = await Promise.all([cargarEscuelas(), cargarTerritorioMapa(), cargarClaseRuta(db)])
+  const sitio = territorio.susceptibilidad?.escuelas ?? {}
+  const elegibles = escuelas.filter((e) => evaluarAptitud({
+    tieneCoordenadas: e.lat !== null && e.lon !== null,
+    riesgo: { evidenciaValida: true, nivelRiesgo: 'bajo' },
+    claseRio: sitio[e.cueAnexo]?.claseRio ?? null,
+    juntoLaguna: sitio[e.cueAnexo]?.juntoLaguna ?? null,
+    claseRuta: claseRutaPorCue.get(e.cueAnexo) ?? null,
+  }).apta).map((e) => e.cueAnexo)
+  return { escuelas: escuelas.filter((e) => e.lat !== null && e.lon !== null), elegibles }
+}
+
 export async function correrCalculoCentrosEvacuados(
   opciones: { ahora?: Date; candidatosOsmPorCue?: ReadonlyMap<string, readonly CandidatoOsm[]> } = {},
 ): Promise<{ escuelas: number; aptas: number }> {
   const db = getDb()
-  const [escuelas, riesgoPorCue, territorio, claseRutaPorCue] = await Promise.all([
+  const [escuelas, riesgoPorCue, territorio, claseRutaPorCue, candidatosOsmPorCue] = await Promise.all([
     cargarEscuelas(), cargarRiesgoVigente(db), cargarTerritorioMapa(), cargarClaseRuta(db),
+    opciones.candidatosOsmPorCue ? Promise.resolve(opciones.candidatosOsmPorCue) : cargarCandidatosOsm(db),
   ])
   const sitioPorCue = new Map(Object.entries(territorio.susceptibilidad?.escuelas ?? {}).map(([cue, s]) => [cue, { claseRio: s.claseRio, juntoLaguna: s.juntoLaguna }]))
   const filas = calcularFilasCentros({
     escuelas, riesgoPorCue, sitioPorCue, claseRutaPorCue,
-    candidatosOsmPorCue: opciones.candidatosOsmPorCue ?? new Map(),
+    candidatosOsmPorCue,
     ahora: opciones.ahora ?? new Date(),
   })
   await reemplazarCentros(filas, db)
