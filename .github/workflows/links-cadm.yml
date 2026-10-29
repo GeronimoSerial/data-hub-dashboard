@@ -112,20 +112,20 @@ jobs:
       - name: Trigger Coolify deploy
         env:
           COOLIFY_URL: https://coolify.sistemas.mec.gob.ar
-          COOLIFY_LINKS_TOKEN: ${{ secrets.COOLIFY_LINKS_TOKEN }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_LINKS_APP_UUID: ${{ secrets.COOLIFY_LINKS_APP_UUID }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != "push" ] || [ "$GITHUB_REF" != "refs/heads/prod" ]; then
             echo "::error::Links deploy is restricted to production pushes."
             exit 1
           fi
-          if [ -z "$COOLIFY_LINKS_TOKEN" ] || [ -z "$COOLIFY_LINKS_APP_UUID" ]; then
-            echo "::error::Falta el secret COOLIFY_LINKS_TOKEN/COOLIFY_LINKS_APP_UUID (lo crea MEC Infra)"
+          if [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_LINKS_APP_UUID" ]; then
+            echo "::error::Falta el secret COOLIFY_TOKEN/COOLIFY_LINKS_APP_UUID"
             exit 1
           fi
 
           response=$(curl -fsS --connect-timeout 10 --max-time 30 -X POST \
-            -H "Authorization: Bearer ${COOLIFY_LINKS_TOKEN}" \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
             -H "Accept: application/json" \
             -H "Content-Type: application/json" \
             --data "$(jq -n --arg uuid "$COOLIFY_LINKS_APP_UUID" '{uuid: $uuid, force: false}')" \
@@ -143,7 +143,7 @@ jobs:
           while [ "$attempt" -lt "$max_attempts" ]; do
             attempt=$((attempt + 1))
             if ! http_code=$(curl -sS --connect-timeout 10 --max-time 30 -o deployment.json -w '%{http_code}' \
-              -H "Authorization: Bearer ${COOLIFY_LINKS_TOKEN}" \
+              -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
               -H "Accept: application/json" \
               "${COOLIFY_URL}/api/v1/deployments/${deployment_uuid}"); then
               echo "::warning::Could not reach Coolify; retrying."
