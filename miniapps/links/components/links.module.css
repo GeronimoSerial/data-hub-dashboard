@@ -50,8 +50,9 @@
 /* The area name and its Instagram close the page, centred under the list. */
 .area {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--s-3);
+  gap: var(--s-2);
   color: var(--ink-soft);
   font-family: var(--font-title);
   font-weight: 600;
@@ -226,6 +227,7 @@
 /* The way in for editors stays quiet: small, muted, no icon. It is a plain
    link, so it needs no more weight than the footer text beside it. */
 .admin {
+  align-self: flex-end;
   color: var(--ink-faint);
   font-size: var(--t-micro);
   text-decoration: none;

@@ -51,11 +51,11 @@ describe('LinksPagina', () => {
     }
   })
 
-  it('deja un acceso discreto "Admin" al pie, también sin enlaces', () => {
+  it('deja un acceso discreto "access" al pie, también sin enlaces', () => {
     const { rerender } = render(<LinksPagina config={config} />)
-    expect(within(screen.getByRole('contentinfo')).getByRole('link', { name: 'Admin' }).getAttribute('href')).toBe('/links/admin')
+    expect(within(screen.getByRole('contentinfo')).getByRole('link', { name: 'access' }).getAttribute('href')).toBe('/links/admin')
     rerender(<LinksPagina config={{ ...config, enlaces: [] }} />)
-    expect(screen.getByRole('link', { name: 'Admin' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'access' })).toBeTruthy()
   })
 
   it('explica por qué está vacía cuando no hay enlaces', () => {
@@ -70,12 +70,11 @@ describe('LinksPagina', () => {
   })
 })
 
-describe('LinksPagina: Centro Administrativo', () => {
-  it('muestra el área y su Instagram en el pie, no en el encabezado', () => {
+describe('LinksPagina: Instagram', () => {
+  it('ofrece el Instagram del Centro Administrativo en el pie, sin repetir el nombre', () => {
     render(<LinksPagina config={config} />)
     const pie = screen.getByRole('contentinfo')
-    expect(within(pie).getByText('Centro Administrativo')).toBeTruthy()
-    expect(within(screen.getByRole('banner')).queryByText('Centro Administrativo')).toBeNull()
+    expect(within(pie).queryByText('Centro Administrativo')).toBeNull()
     const ig = within(pie).getByRole('link', { name: /Instagram de Centro Administrativo/ })
     expect(ig.getAttribute('href')).toBe('https://www.instagram.com/centroadministrativomec')
     expect(ig.getAttribute('target')).toBe('_blank')

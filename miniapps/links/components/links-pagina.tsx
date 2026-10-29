@@ -65,12 +65,11 @@ export function LinksPagina({ config }: { config: LinksConfig }) {
 
       <footer className={styles.pie}>
         <div className={styles.area}>
-          <span>Centro Administrativo</span>
           <a className={styles.red} href={INSTAGRAM} target="_blank" rel="noopener noreferrer" aria-label="Instagram de Centro Administrativo (se abre en una pestaña nueva)">
-            <IconoInstagram />
+            <IconoInstagram size={28} />
           </a>
         </div>
-        <a className={styles.admin} href="/links/admin">Admin</a>
+        <a className={styles.admin} href="/links/admin">access</a>
       </footer>
     </div>
   )
