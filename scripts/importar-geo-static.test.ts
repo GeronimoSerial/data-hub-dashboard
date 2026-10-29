@@ -37,6 +37,12 @@ describe('descubrirArchivosGeoStatic', () => {
     expect(descubrirArchivosGeoStatic(['aislamiento_osm_sin_ruta-v2-2026-09-26.csv'], '/salida')).toEqual({})
   })
 
+  it('descubre el archivo de rutas a centros de evacuados', () => {
+    expect(descubrirArchivosGeoStatic([
+      'rutas_evacuacion_osm-v1-2026-10-29.ndjson.gz', 'rutas_evacuacion_osm-v1-2026-11-02.ndjson.gz',
+    ], '/salida')).toEqual({ rutaEvacuacion: '/salida/rutas_evacuacion_osm-v1-2026-11-02.ndjson.gz' })
+  })
+
   it('devuelve un objeto vacio cuando no hay archivos', () => {
     expect(descubrirArchivosGeoStatic([], '/salida')).toEqual({})
   })

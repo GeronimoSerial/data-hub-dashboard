@@ -1778,6 +1778,27 @@ export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
   importadoEn: text('importado_en').notNull(),
 }, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
 
+export type CandidatoRutaEvacuacion = {
+  destinoCue: string
+  destinoNombre: string
+  // Distancia por camino (OSM) desde la escuela de origen hasta el destino.
+  distanciaM: number
+  ruta: RutaGeoJson
+}
+
+// Rutas OSM por camino desde cada escuela hacia sus K centros de evacuados
+// candidatos más cercanos (elegibles por exposición estática al momento de la
+// corrida offline), ordenadas por distancia. El job diario `centros-evacuados`
+// elige el primero que hoy sigue apto. Contexto derivado de OpenStreetMap.
+export const infraRutaEvacuacionOsm = pgTable('infra_ruta_evacuacion_osm', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  candidatos: jsonb('candidatos').$type<CandidatoRutaEvacuacion[]>().notNull(),
+  fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
+
 export type CeldaExposicionRuta = {
   lon: number
   lat: number

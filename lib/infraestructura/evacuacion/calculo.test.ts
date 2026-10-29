@@ -93,11 +93,27 @@ describe('correrCalculoCentrosEvacuados (PGlite)', () => {
     })
     await db.insert(schema.infraExposicionRutaInundacion).values([ruta('1800001-00', 'bajo'), ruta('1800002-00', 'bajo'), ruta('1800003-00', 'bajo')])
 
+    // Rutas OSM de la 3.ª escuela: prefiere el candidato por camino (1.º) aunque el 2.º esté más cerca en línea recta.
+    const trazo = { type: 'LineString' as const, coordinates: [[-58, -28] as [number, number], [-58, -28.2] as [number, number]] }
+    await db.insert(schema.infraRutaEvacuacionOsm).values({
+      cueAnexo: '1800003-00', versionJob: '1', fechaExtractoOsm: '2026-09-26', licencia: 'ODbL', importadoEn: '2026-10-01T00:00:00Z',
+      candidatos: [
+        { destinoCue: '1800002-00', destinoNombre: 'x', distanciaM: 9000, ruta: trazo },
+        { destinoCue: '1800001-00', destinoNombre: 'x', distanciaM: 2000, ruta: trazo },
+      ],
+    })
+
+    // Elegibilidad estática: ignora el riesgo vigente (la 3.ª tiene riesgo alto a 72 h pero exposición baja).
+    const { cargarElegiblesEstaticos } = await import('./calculo')
+    const estaticos = await cargarElegiblesEstaticos()
+    expect(estaticos.elegibles.sort()).toEqual(['1800001-00', '1800002-00', '1800003-00'])
+    expect(estaticos.escuelas).toHaveLength(3)
+
     expect(await correrCalculoCentrosEvacuados({ ahora: AHORA })).toEqual({ escuelas: 3, aptas: 2 })
     const filas = await db.select().from(schema.infraCentroEvacuados)
     const por = Object.fromEntries(filas.map((f) => [f.cueAnexo, f]))
     expect(por['1800001-00']).toMatchObject({ apto: true, destinoCue: '1800002-00' })
     // El horizonte relevante es 72 h: el 'bajo' a 24 h de la tercera no cuenta.
-    expect(por['1800003-00']).toMatchObject({ apto: false, motivo: 'riesgo_no_bajo', destinoCue: '1800002-00' })
+    expect(por['1800003-00']).toMatchObject({ apto: false, motivo: 'riesgo_no_bajo', destinoCue: '1800001-00', distanciaRutaM: 2000 })
   })
 })
