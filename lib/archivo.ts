@@ -31,8 +31,8 @@ export function archivoGate(
 }
 
 function safeFilename(name: string) {
-  const trimmed = name.trim() || 'archivo'
-  return trimmed.replace(/[\r\n"]/g, '_')
+  return (name.split(/[\\/]/).pop()?.trim() || 'archivo')
+    .replace(/[\u0000-\u001f\u007f"\\]/g, '_')
 }
 
 export function archivoCanServe(mime: string | null | undefined): mime is string {
@@ -48,6 +48,10 @@ export function archivoResponseHeaders(opts: {
     opts.download || (DOWNLOAD_MIMES as readonly string[]).includes(opts.mime)
   const disposition = attachment ? 'attachment' : 'inline'
   const filename = safeFilename(opts.nombreOriginal)
+  const asciiFilename = filename.replace(/[^\x20-\x7e]/g, '_')
+  const encodedFilename = encodeURIComponent(filename).replace(/[!'()*]/g, (char) =>
+    `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
   const csp =
     opts.mime === 'text/html'
       ? "frame-ancestors 'self'; sandbox allow-scripts allow-forms"
@@ -57,7 +61,7 @@ export function archivoResponseHeaders(opts: {
     'Cache-Control': 'private, no-store',
     'Content-Security-Policy': csp,
     'Content-Type': opts.mime,
-    'Content-Disposition': `${disposition}; filename="${filename}"`,
+    'Content-Disposition': `${disposition}; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`,
   }
 }
 

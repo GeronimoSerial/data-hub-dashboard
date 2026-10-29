@@ -69,6 +69,7 @@ export async function loadHubCatalog(opts: { publishedOnly: boolean }) {
     storageKey: row.storageKey ?? undefined,
     mime: row.mime ?? undefined,
     nombreOriginal: row.nombreOriginal ?? undefined,
+    cargadoEn: row.cargadoEn ?? undefined,
     size: row.size ?? undefined,
     audienciaNivelJurIds: audNivelesByRecurso.get(row.id) ?? [],
     audienciaUserIds: audUsersByRecurso.get(row.id) ?? [],

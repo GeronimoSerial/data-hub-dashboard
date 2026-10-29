@@ -1,0 +1,1 @@
+ALTER TABLE "recursos" ADD COLUMN "cargado_en" timestamp with time zone;
