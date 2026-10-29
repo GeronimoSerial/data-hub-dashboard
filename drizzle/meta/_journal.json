@@ -267,6 +267,13 @@
       "when": 1793206528256,
       "tag": "0037_archivos_html_fecha_carga",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793284600523,
+      "tag": "0038_linktree_config",
+      "breakpoints": true
     }
   ]
 }

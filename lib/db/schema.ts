@@ -235,6 +235,17 @@ export const verification = pgTable(
   (table) => [index('verification_identifier_idx').on(table.identifier)],
 )
 
+// Linktree público (/links): una sola fila (id = 1) con todo el documento de
+// configuración. Se valida con zod al leer y al escribir (lib/linktree/config.ts).
+export const linktreeConfig = pgTable('linktree_config', {
+  id: integer('id').primaryKey(),
+  config: jsonb('config').$type<Record<string, unknown>>().notNull(),
+  actualizadoEn: timestamp('actualizado_en', { withTimezone: true })
+    .default(sql`now()`)
+    .notNull(),
+  actualizadoPor: text('actualizado_por'),
+}, (t) => [check('linktree_config_unica', sql`${t.id} = 1`)])
+
 // Auditoría del SSO desde Gestión Educativa (GE, T6): cada login aceptado o
 // rechazado y cada consumo de ticket. Nunca guarda la api_key.
 export const geSsoEvento = pgTable('ge_sso_evento', {
