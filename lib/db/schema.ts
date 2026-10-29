@@ -1956,3 +1956,16 @@ export const matriculaAlumno = pgTable('matricula_alumno', {
   uniqueIndex('matricula_alumno_carrera_dni_uidx').on(t.carreraId, t.dniHash),
   index('matricula_alumno_busqueda_idx').on(t.carreraId, t.nombreBusqueda.op('text_pattern_ops')),
 ])
+
+// Servicio de comedor por establecimiento (planilla MEC "Servicios de Comidas").
+// Sólo se guarda si la escuela brinda desayuno y/o almuerzo: la ausencia de fila
+// significa "sin servicio registrado", nunca "sin servicio". Se reemplaza completa
+// en cada importación (scripts/importar-comedores.mjs).
+export const infraComedorEscuela = pgTable('infra_comedor_escuela', {
+  cueAnexo: text('cue_anexo').primaryKey(),
+  desayuno: boolean('desayuno').notNull(),
+  almuerzo: boolean('almuerzo').notNull(),
+  proveedor: text('proveedor'),
+  fuente: text('fuente').notNull(),
+  importadoEn: text('importado_en').notNull(),
+})
