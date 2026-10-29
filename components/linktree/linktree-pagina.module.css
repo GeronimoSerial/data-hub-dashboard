@@ -149,6 +149,10 @@
   overflow-wrap: anywhere;
 }
 
+.huecoIcono {
+  width: 20px;
+}
+
 .icono,
 .flecha {
   flex: none;
@@ -212,10 +216,11 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--s-4);
-  width: 100%;
-  max-width: 40rem;
+  /* Same measure as .principal's content box, so the rule lines up with the list. */
+  width: calc(100% - 2 * var(--gutter));
+  max-width: calc(40rem - 2 * var(--gutter));
   margin: 0 auto;
-  padding: var(--s-5) var(--gutter) var(--s-6);
+  padding: var(--s-5) 0 var(--s-6);
   border-top: 1px solid var(--line);
   color: var(--ink-faint);
   font-size: var(--t-small);

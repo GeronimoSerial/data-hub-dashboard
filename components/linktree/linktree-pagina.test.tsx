@@ -66,6 +66,23 @@ describe('LinktreePagina', () => {
     expect(propio.textContent).not.toContain('pestaña nueva')
   })
 
+  it('alinea el texto de las filas sin ícono con las que sí lo tienen dentro del grupo', () => {
+    render(<LinktreePagina config={config} />)
+    const conIcono = screen.getByRole('link', { name: /Hub de Datos/ })
+    const sinIcono = screen.getByRole('link', { name: /Explorar/ })
+    expect(conIcono.hasAttribute('data-con-icono')).toBe(true)
+    expect(sinIcono.hasAttribute('data-con-icono')).toBe(true)
+  })
+
+  it('no reserva columna de ícono en un grupo donde ningún enlace tiene ícono', () => {
+    const sinIconos: LinktreeConfig = {
+      ...config,
+      grupos: [{ id: 'g1', titulo: 'Datos', enlaces: [config.grupos[0].enlaces[1]] }],
+    }
+    render(<LinktreePagina config={sinIconos} />)
+    expect(screen.getByRole('link', { name: /Explorar/ }).hasAttribute('data-con-icono')).toBe(false)
+  })
+
   it('muestra el dominio solo si está activado', () => {
     const { rerender } = render(<LinktreePagina config={config} />)
     expect(screen.getByText('hub.sistemas.mec.gob.ar')).toBeTruthy()
