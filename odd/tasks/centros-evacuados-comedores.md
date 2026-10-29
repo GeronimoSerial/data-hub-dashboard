@@ -10,7 +10,7 @@ Branch: `GeronimoSerial/centros-evacuados-comedores` (from origin/main). Deliver
 - S4 Ficha: "Comedor: desayuno y almuerzo / solo desayuno / solo almuerzo / sin servicio registrado"; chip "Con comedor" en `filtros-chips.tsx`.
 
 ## Tasks
-- [ ] T1 S3 comedores: tabla + migración + parser + importador + doc (inline)
+- [x] T1 S3 comedores: tabla + migración + parser + importador + doc (inline) — d6b763d5
 - [ ] T2 S1 aptitud: función pura + tabla + job diario + timer (inline)
 - [ ] T3 S2 ruta: tipo geo `ruta-evacuacion` + job Python + endpoint + hook (inline)
 - [ ] T4 S4/S2 UI: enriquecimiento escuelas, ficha, chip, badge, capa de ruta, leyenda (inline)

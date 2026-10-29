@@ -25,6 +25,8 @@ const TIPO_GEO_PERFILES = 'geo-perfiles'
 const DURACION_LEASE_GEO_PERFILES_MS = 10 * 60 * 1000
 const TIPO_ASOCIACION_RIO = 'asociacion-rio-v1'
 const DURACION_LEASE_ASOCIACION_RIO_MS = 10 * 60 * 1000
+const TIPO_CENTROS_EVACUADOS = 'centros-evacuados-v1'
+const DURACION_LEASE_CENTROS_EVACUADOS_MS = 10 * 60 * 1000
 const TIPO_SITUACION_CORTE = 'situacion-corte-v1'
 const DURACION_LEASE_SITUACION_CORTE_MS = 10 * 60 * 1000
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
@@ -32,6 +34,7 @@ const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const NOMBRES_VALIDOS = [
   'geo-perfiles',
   'asociacion-rio',
+  'centros-evacuados',
   'sync-pronostico-caudal',
   'sync-radar-meteo',
   'verificar-radar-meteo',
@@ -147,6 +150,48 @@ async function correrGeoPerfiles(opts) {
       })
     } catch {
       // Ignorado a propósito: se relanza el error original de calcularGeoPerfiles.
+    }
+    throw error
+  }
+}
+
+// centros-evacuados deriva de la última corrida vigente de calcular-riesgo y de
+// la exposición estática; lease por día UTC (un único cálculo diario).
+async function correrCentrosEvacuados(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('centros-evacuados')
+
+  const { adquirirLease, publicarResultado } = await import(
+    '../lib/infraestructura/riesgo/job-run.ts'
+  )
+  const { correrCalculoCentrosEvacuados } = await import(
+    '../lib/infraestructura/evacuacion/calculo.ts'
+  )
+
+  const ahora = opts?.ahora ?? new Date()
+  const lease = await adquirirLease({
+    tipo: TIPO_CENTROS_EVACUADOS,
+    claveIdempotente: ahora.toISOString().slice(0, 10),
+    version: pkg.version,
+    duracionLeaseMs: DURACION_LEASE_CENTROS_EVACUADOS_MS,
+    ahora,
+  })
+  if (!lease.adquirido) return { ejecutado: false, motivo: lease.motivo }
+
+  try {
+    const resultado = await correrCalculoCentrosEvacuados({ ahora })
+    const publicado = await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'completado',
+      contadores: { escuelas: resultado.escuelas, aptas: resultado.aptas },
+    })
+    return { ejecutado: true, escuelas: resultado.escuelas, aptas: resultado.aptas, leasePerdido: !publicado }
+  } catch (error) {
+    const errorSaneado = error instanceof Error ? error.message : 'Error desconocido en job centros-evacuados'
+    try {
+      await publicarResultado({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, estado: 'fallido', errorSaneado })
+    } catch {
+      // Ignorado a propósito: se relanza el error original del cálculo.
     }
     throw error
   }
@@ -527,6 +572,8 @@ export async function correrJob(nombre, opts) {
       return correrEpisodiosDerivados()
     case 'sync-seasonal':
       return correrSyncSeasonal()
+    case 'centros-evacuados':
+      return correrCentrosEvacuados(opts)
     case 'situacion-corte':
       return correrSituacionCorte(opts)
     case 'veredicto-diario':

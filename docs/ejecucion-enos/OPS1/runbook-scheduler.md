@@ -286,7 +286,7 @@ La UI del Centro de Situación (E5) marca el corte como "desactualizado" con
 - `sync-imerg` requiere `EARTHDATA_TOKEN`; sin esa variable se registra como fuente no disponible.
 - `sync-pronostico-caudal`, `sync-ensemble`, `sync-seasonal`, `sync-radar-meteo`, `sync-radar-ensemble` y ambas climatologías (manuales) consultan Open-Meteo; `OPEN_METEO_API_KEY` habilita cuota paga si corresponde. Presupuesto diario: [docs/datos/cuota-open-meteo.md](../../datos/cuota-open-meteo.md). Sólo en producción: en rol consumidor (`RIESGO_DATOS_ROL`, inferido para `hub_staging`/`hub_dev`) `jobs.mjs` los responde con `rol_consumidor` sin llamar a la API.
 - `sync-smn-alertas` consulta el feed CAP oficial del SMN; no consume cupo Open-Meteo.
-- `geo-perfiles`, `asociacion-rio`, `calcular-riesgo`, `episodios-derivados` y `situacion-corte` son derivados locales; no requieren credenciales de red.
+- `geo-perfiles`, `asociacion-rio`, `centros-evacuados`, `calcular-riesgo`, `episodios-derivados` y `situacion-corte` son derivados locales; no requieren credenciales de red.
 
 Procedimiento de rotación de credenciales expuestas (octubre 2026): ver [rotacion-credenciales-2026-10.md](../../rotacion-credenciales-2026-10.md).
 
@@ -374,6 +374,7 @@ Referencia de `OnCalendar` en UTC de las unidades de `deploy/systemd/ops1/`. Par
 | episodios-derivados | 1h | `*-*-* *:00:00` | `enos-ops1-episodios-derivados.timer` |
 | geo-perfiles | diario | `*-*-* 03:00:00` | `enos-ops1-geo-perfiles.timer` |
 | asociacion-rio | diario | `*-*-* 03:10:00` | `enos-ops1-asociacion-rio.timer` |
+| centros-evacuados | diario | `*-*-* 03:20:00` | `enos-ops1-centros-evacuados.timer` (posibles centros de evacuados: riesgo vigente a 72 h bajo + exposición de sitio y ruta baja/nula) |
 | veredicto-diario | 4 veces al día | `*-*-* 00,06,12,18:45:00` | `enos-ops1-veredicto-diario.timer` |
 | veredicto-cierre | diario | `*-*-* 03:30:00` | `enos-ops1-veredicto-cierre.timer` |
 | situacion-corte | 1h | `*-*-* *:20:00` | `enos-ops1-situacion-corte.timer` |
