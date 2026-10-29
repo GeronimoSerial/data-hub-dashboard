@@ -6,6 +6,15 @@ on:
       - prod
       - staging
       - dev
+    # No required checks in branch protection; exclusive links changes may skip this workflow.
+    paths-ignore:
+      - 'miniapps/links/**'
+      - 'app/(miniapps)/(links)/**'
+      - 'drizzle/0038_*'
+      - 'drizzle/0039_*'
+      - 'drizzle/meta/0038_snapshot.json'
+      - 'drizzle/meta/0039_snapshot.json'
+      - '.github/workflows/links-cadm.yml'
 
 permissions:
   contents: read
