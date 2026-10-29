@@ -4,7 +4,8 @@ La miniapp conserva un único documento. En el Host exacto
 `links.sistemas.mec.gob.ar` (sin puerto, sin distinguir mayúsculas y aceptando
 el punto DNS final) sólo publica `/cadm`, `/cadm/admin` y `/cadm/api/*`.
 La raíz redirige a `/cadm`. Las rutas del Hub y `/links/*` responden 404;
-`/_next/*`, `/marca/*` y `/favicon.ico` siguen disponibles.
+`/_next/*`, `/marca/*`, `/favicon.ico` y `/api/health` siguen disponibles.
+El health devuelve únicamente `{ "ok": true }`, con no-store y sin DB o sesión.
 En el host del Hub conserva `/links`. No hay basePath global ni multi-slug.
 
 El servidor deriva el basePath del Host directo y lo pasa al cliente.
@@ -80,3 +81,27 @@ excepciones del driver ni credenciales. Logout fallido muestra un aviso.
 
 Los tests de integración ejecutan handlers, cookies simuladas por next/headers
 y persistencia PGlite real. No equivalen a una prueba de navegador desplegado.
+
+
+## CI y publicación independiente
+
+`.github/workflows/links-cadm.yml` prueba links, middleware, health y lib/db en
+PRs a main y pushes a dev, staging y prod que cambien las rutas cubiertas.
+Sólo el push a prod, después de los tests, publica `links-prod` y
+`links-prod-<sha>` en GHCR. El job deploy depende del job image mediante needs:
+sólo después dispara/espera el deploy de links, con force=false y los secrets
+COOLIFY_LINKS_TOKEN y COOLIFY_LINKS_APP_UUID. Si falta alguno, el job falla
+indicando que debe crearlo MEC Infra.
+No publica `latest`. La app debe estar configurada para consumir `links-prod`;
+este cambio no modifica la configuración de Coolify.
+
+CI y GHCR del Hub ignoran únicamente los paths exclusivos de links. Cambios
+en middleware, health, lib/db o el journal compartido siguen ejecutando ambos
+circuitos. Sin checks requeridos de branch protection, el workflow omitido por
+paths no necesita un job artificial de éxito. Dev/staging no despliegan links.
+El script de release se prueba con curl/sleep simulados y no usa infraestructura.
+
+Las migraciones Postgres toman un advisory lock estable en un PoolClient
+exclusivo, ejecutan Drizzle sobre ese mismo cliente y liberan el lock antes de
+devolverlo. Si falla el unlock se descarta la conexión para no devolver al pool
+una sesión posiblemente bloqueada. PGlite conserva su migrador anterior.
