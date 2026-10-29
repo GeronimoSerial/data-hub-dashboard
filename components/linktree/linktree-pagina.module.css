@@ -1,0 +1,230 @@
+/* Public links page. Surfaces, type and geometry come from the Manual de Marca
+   tokens in globals.css. The only configurable colour is the accent, and each
+   option is an official palette colour paired with an ink that passes AA. */
+
+.pagina {
+  --acento-fondo: var(--yellow);
+  --acento-tinta: var(--black);
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  background: var(--page);
+  color: var(--ink);
+}
+
+.pagina[data-acento='celeste'] {
+  --acento-fondo: var(--sky);
+  --acento-tinta: var(--black);
+}
+
+.pagina[data-acento='verde'] {
+  --acento-fondo: var(--green-dark);
+  --acento-tinta: var(--white);
+}
+
+.pagina[data-acento='bordo'] {
+  --acento-fondo: var(--burgundy);
+  --acento-tinta: var(--white);
+}
+
+.principal {
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0 var(--gutter) var(--s-8);
+  flex: 1;
+}
+
+.cabecera {
+  padding: var(--s-5) 0 var(--s-6);
+}
+
+.barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-7);
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+}
+
+.titulo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.25rem, 8vw, 3.5rem);
+  line-height: 0.96;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+/* The marker block is the brand's highlight element (Manual §3.1). It marks
+   where the page starts and is the only accent visible at rest. */
+.titulo::after {
+  content: '';
+  display: block;
+  width: 3rem;
+  height: 6px;
+  margin-top: var(--s-4);
+  background: var(--acento-fondo);
+}
+
+.subtitulo {
+  max-width: 34rem;
+  margin: var(--s-4) 0 0;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: 1.4;
+}
+
+.grupo {
+  margin-top: var(--s-7);
+}
+
+.grupoTitulo {
+  margin: 0 0 var(--s-2);
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: var(--t-h3);
+  line-height: 1.3;
+}
+
+.lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.item {
+  border-bottom: 1px solid var(--line);
+}
+
+.enlace {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 3.5rem;
+  padding: var(--s-4) var(--s-3);
+  border-radius: var(--r-sm);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 120ms ease-out;
+}
+
+.enlace[data-con-icono] {
+  grid-template-columns: auto 1fr auto;
+}
+
+.texto {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nombre {
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: var(--t-h3);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.descripcion {
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  line-height: 1.35;
+}
+
+.dominio {
+  color: var(--ink-faint);
+  font-size: var(--t-micro);
+  overflow-wrap: anywhere;
+}
+
+.icono,
+.flecha {
+  flex: none;
+  color: var(--ink-faint);
+}
+
+.flecha {
+  transition: transform 120ms ease-out;
+}
+
+/* Hover and keyboard focus fill the row with the accent. Every text colour
+   switches to the accent's ink: the muted greys fail AA on these fills. */
+.enlace:hover,
+.enlace:focus-visible {
+  background: var(--acento-fondo);
+  color: var(--acento-tinta);
+}
+
+.enlace:hover :is(.descripcion, .dominio, .icono, .flecha),
+.enlace:focus-visible :is(.descripcion, .dominio, .icono, .flecha) {
+  color: inherit;
+}
+
+.enlace:hover .flecha,
+.enlace:focus-visible .flecha {
+  transform: translateX(2px);
+}
+
+.vacio {
+  margin-top: var(--s-6);
+  padding: var(--s-5) 0;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+.vacio p {
+  margin: 0;
+}
+
+.vacio .vacioTitulo {
+  margin-bottom: var(--s-2);
+  color: var(--ink);
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: var(--t-h3);
+}
+
+.estado {
+  padding-top: var(--s-8);
+}
+
+.accion {
+  margin-top: var(--s-4);
+}
+
+.pie {
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: var(--s-5) var(--gutter) var(--s-6);
+  border-top: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-size: var(--t-small);
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enlace,
+  .flecha {
+    transition: none;
+  }
+
+  .enlace:hover .flecha,
+  .enlace:focus-visible .flecha {
+    transform: none;
+  }
+}
