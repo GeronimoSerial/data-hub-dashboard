@@ -13,6 +13,13 @@ export function TabsList({
   return <TabsPrimitive.List className={cn('ui-tabs-list', className)} {...props} />
 }
 
+export function TabsPanel({
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.Panel>) {
+  return <TabsPrimitive.Panel className={cn('ui-tabs-panel', className)} {...props} />
+}
+
 export function TabsTab({
   className,
   ...props
