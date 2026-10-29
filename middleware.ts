@@ -7,6 +7,9 @@ import { esHostLinks } from '@/miniapps/links/lib/host'
 export function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-hub-request-url', `${request.nextUrl.pathname}${request.nextUrl.search}`)
+  if (request.nextUrl.pathname === '/api/health') {
+    return NextResponse.next({ request: { headers: requestHeaders } })
+  }
   if (esHostLinks(request.headers.get('host') ?? request.nextUrl.host)) {
     const path = request.nextUrl.pathname
     if (path === '/') return NextResponse.redirect(new URL('/cadm', 'https://links.sistemas.mec.gob.ar'), 307)
