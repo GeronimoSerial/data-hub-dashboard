@@ -1,0 +1,35 @@
+import {
+  BookOpen,
+  Calendar,
+  ChartColumn,
+  Database,
+  FileText,
+  Folder,
+  Globe,
+  GraduationCap,
+  Mail,
+  Map as MapaIcon,
+  Phone,
+  School,
+  ShieldCheck,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
+import type { Icono } from '@/lib/linktree/config'
+
+export const ICONOS_UI: Record<Icono, { etiqueta: string; Componente: LucideIcon }> = {
+  globe: { etiqueta: 'Sitio web', Componente: Globe },
+  database: { etiqueta: 'Datos', Componente: Database },
+  map: { etiqueta: 'Mapa', Componente: MapaIcon },
+  chart: { etiqueta: 'Gráfico', Componente: ChartColumn },
+  'file-text': { etiqueta: 'Documento', Componente: FileText },
+  school: { etiqueta: 'Escuela', Componente: School },
+  'graduation-cap': { etiqueta: 'Formación', Componente: GraduationCap },
+  'book-open': { etiqueta: 'Biblioteca', Componente: BookOpen },
+  users: { etiqueta: 'Personas', Componente: Users },
+  calendar: { etiqueta: 'Calendario', Componente: Calendar },
+  folder: { etiqueta: 'Carpeta', Componente: Folder },
+  mail: { etiqueta: 'Correo', Componente: Mail },
+  phone: { etiqueta: 'Teléfono', Componente: Phone },
+  'shield-check': { etiqueta: 'Seguridad', Componente: ShieldCheck },
+}
