@@ -18,7 +18,7 @@ const inicial: LinksConfig = {
 
 const fetchMock = vi.fn()
 beforeEach(() => {
-  fetchMock.mockReset().mockResolvedValue(new Response('{}', { status: 200 }))
+  fetchMock.mockReset().mockImplementation(async (_url, options) => new Response(JSON.stringify({ ...JSON.parse(options.body), revision: 1 }), { status: 200 }))
   vi.stubGlobal('fetch', fetchMock)
 })
 afterEach(() => {
@@ -80,4 +80,46 @@ describe('AdminEnlaces', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('Contenido inválido')
     expect(screen.getByText('Hay cambios sin guardar.')).toBeTruthy()
   })
+})
+
+it('409 conserva borrador y ofrece recargar sin reintentar versión vieja', async () => {
+  fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: 'Otra persona publicó cambios.' }), { status: 409 }))
+  const user = userEvent.setup()
+  render(<AdminEnlaces inicial={inicial} basePath="/cadm" />)
+  await user.click(screen.getByRole('button', { name: 'Eliminar Uno' }))
+  await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+  expect((await screen.findByRole('alert')).textContent).toContain('Otra persona')
+  expect(screen.queryByText('Uno')).toBeNull()
+  expect(screen.getByText('Hay cambios sin guardar.')).toBeTruthy()
+  expect(screen.getByRole('button', { name: /Recargar versión publicada/ })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled()
+  expect(fetchMock.mock.calls[0][0]).toBe('/cadm/api/contenido')
+  expect(screen.getByRole('link', { name: /Ver la página/ })).toHaveAttribute('href', '/cadm')
+})
+it('logout fallido avisa', async () => {
+  fetchMock.mockRejectedValue(new Error('offline'))
+  const user = userEvent.setup()
+  render(<AdminEnlaces inicial={inicial} basePath="/cadm" />)
+  await user.click(screen.getByRole('button', { name: 'Salir' }))
+  expect((await screen.findByRole('alert')).textContent).toContain('No se pudo cerrar la sesión')
+  expect(fetchMock.mock.calls[0][0]).toBe('/cadm/api/sesion')
+})
+
+it('conserva ediciones hechas mientras guarda y usa la revisión confirmada', async () => {
+  let resolver!: (res: Response) => void
+  fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => { resolver = resolve }))
+  const user = userEvent.setup()
+  render(<AdminEnlaces inicial={inicial} />)
+  const titulo = screen.getByRole('textbox', { name: 'Título' })
+  await user.clear(titulo)
+  await user.type(titulo, 'Primero')
+  await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+  await user.clear(titulo)
+  await user.type(titulo, 'Segundo')
+  resolver(new Response(JSON.stringify({ ...inicial, titulo: 'Primero', revision: 1 })))
+  await screen.findByText('Cambios guardados.')
+  expect(titulo).toHaveValue('Segundo')
+  await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+  expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ titulo: 'Segundo', revision: 1 })
 })

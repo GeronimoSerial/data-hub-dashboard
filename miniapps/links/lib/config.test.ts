@@ -41,3 +41,8 @@ describe('leerConfig', () => {
     expect(leerConfig(null)).toEqual(CONFIG_INICIAL)
   })
 })
+
+it('rechaza ids repetidos', () => {
+  const enlace = { id: 'igual', titulo: 'Uno', descripcion: '', url: 'https://example.org' }
+  expect(configSchema.safeParse({ ...CONFIG_INICIAL, enlaces: [enlace, enlace] }).success).toBe(false)
+})

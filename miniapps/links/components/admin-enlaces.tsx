@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { LIMITES, urlSegura, type Enlace, type LinksConfig } from '@/miniapps/links/lib/config'
+import { configSchema, LIMITES, urlSegura, type Enlace, type LinksConfig } from '@/miniapps/links/lib/config'
 import { Cinta } from './cinta'
+import type { BasePath } from '../lib/host'
 import styles from './links.module.css'
 
 type Resultado = { tono: 'ok' | 'error'; texto: string } | null
@@ -66,12 +67,13 @@ function EditorEnlace({ inicial, onGuardar, onCerrar }: { inicial: Enlace | null
   )
 }
 
-export function AdminEnlaces({ inicial }: { inicial: LinksConfig }) {
+export function AdminEnlaces({ inicial, basePath = '/links' }: { inicial: LinksConfig; basePath?: BasePath }) {
   const router = useRouter()
   const [guardado, setGuardado] = React.useState(inicial)
   const [borrador, setBorrador] = React.useState(inicial)
   const [editando, setEditando] = React.useState<Enlace | 'nuevo' | null>(null)
   const [guardando, setGuardando] = React.useState(false)
+  const [conflicto, setConflicto] = React.useState(false)
   const [resultado, setResultado] = React.useState<Resultado>(null)
 
   const sucio = JSON.stringify(borrador) !== JSON.stringify(guardado)
@@ -86,11 +88,11 @@ export function AdminEnlaces({ inicial }: { inicial: LinksConfig }) {
   }
 
   const guardar = async () => {
-    if (!sucio || !tituloValido || guardando) return
+    if (!sucio || !tituloValido || guardando || conflicto) return
     setGuardando(true)
     setResultado(null)
     try {
-      const res = await fetch('/links/api/contenido', {
+      const res = await fetch(`${basePath}/api/contenido`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(borrador),
@@ -99,12 +101,16 @@ export function AdminEnlaces({ inicial }: { inicial: LinksConfig }) {
         router.refresh()
         return
       }
+      if (res.status === 409) setConflicto(true)
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: unknown } | null
         setResultado({ tono: 'error', texto: typeof data?.error === 'string' ? data.error : 'No se pudo guardar.' })
         return
       }
-      setGuardado(borrador)
+      const publicado = configSchema.parse(await res.json())
+      setGuardado(publicado)
+      setBorrador((actual) => actual === borrador ? publicado : { ...actual, revision: publicado.revision })
+      setConflicto(false)
       setResultado({ tono: 'ok', texto: 'Cambios guardados.' })
     } catch {
       setResultado({ tono: 'error', texto: 'No se pudo conectar. Revisá tu conexión e intentá de nuevo.' })
@@ -114,8 +120,13 @@ export function AdminEnlaces({ inicial }: { inicial: LinksConfig }) {
   }
 
   const salir = async () => {
-    await fetch('/links/api/sesion', { method: 'DELETE' }).catch(() => null)
-    router.refresh()
+    try {
+      const res = await fetch(`${basePath}/api/sesion`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('logout')
+      router.refresh()
+    } catch {
+      setResultado({ tono: 'error', texto: 'No se pudo cerrar la sesión. Intentá de nuevo.' })
+    }
   }
 
   const enlaces = borrador.enlaces
@@ -125,7 +136,7 @@ export function AdminEnlaces({ inicial }: { inicial: LinksConfig }) {
       <main className={styles.principal}>
         <header className={styles.cabecera}>
           <div className={styles.barraAdmin}>
-            <a className={styles.volver} href="/links">
+            <a className={styles.volver} href={basePath}>
               <ArrowLeft size={16} aria-hidden /> Ver la página
             </a>
             <Button variant="ghost" size="sm" onClick={salir}>Salir</Button>
@@ -135,6 +146,8 @@ export function AdminEnlaces({ inicial }: { inicial: LinksConfig }) {
 
         {resultado?.tono === 'error' ? <p role="alert" className="ui-messagebar ui-messagebar--error">{resultado.texto}</p> : null}
         {resultado?.tono === 'ok' ? <p role="status" className="ui-messagebar ui-messagebar--info">{resultado.texto}</p> : null}
+
+        {conflicto ? <Button onClick={() => window.location.reload()}>Recargar versión publicada (descarta el borrador)</Button> : null}
 
         <section className={styles.seccion} aria-labelledby="sec-pagina">
           <h2 className={styles.seccionTitulo} id="sec-pagina">Página</h2>
@@ -189,7 +202,7 @@ export function AdminEnlaces({ inicial }: { inicial: LinksConfig }) {
         </section>
 
         <div className={styles.guardar}>
-          <Button onClick={guardar} disabled={!sucio || !tituloValido || guardando}>Guardar cambios</Button>
+          <Button onClick={guardar} disabled={!sucio || !tituloValido || guardando || conflicto}>Guardar cambios</Button>
           {sucio ? <span className={styles.pendiente}>Hay cambios sin guardar.</span> : null}
         </div>
       </main>

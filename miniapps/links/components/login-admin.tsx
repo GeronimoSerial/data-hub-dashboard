@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Cinta } from './cinta'
+import type { BasePath } from '../lib/host'
 import styles from './links.module.css'
 
-export function LoginAdmin() {
+export function LoginAdmin({ basePath = '/links' }: { basePath?: BasePath }) {
   const router = useRouter()
   const [usuario, setUsuario] = React.useState('')
   const [clave, setClave] = React.useState('')
@@ -22,7 +23,7 @@ export function LoginAdmin() {
     setEnviando(true)
     setError(null)
     try {
-      const res = await fetch('/links/api/sesion', {
+      const res = await fetch(`${basePath}/api/sesion`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ usuario, clave }),
@@ -45,7 +46,7 @@ export function LoginAdmin() {
       <Cinta />
       <main className={styles.principal}>
         <header className={styles.cabecera}>
-          <a className={styles.volver} href="/links">
+          <a className={styles.volver} href={basePath}>
             <ArrowLeft size={16} aria-hidden /> Volver a la página
           </a>
           <h1 className={styles.titulo}>Administrar</h1>

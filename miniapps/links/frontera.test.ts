@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 // The miniapp may reuse shared infrastructure (db driver, ui primitives, brand,
 // rate limiter) but nothing that belongs to the Hub's domain.
 const PROHIBIDO = [
+  /@\/lib\/db\/seed|ensureSeeded|migrarDb/,
   /@\/lib\/(auth|session|acl)/,
   /@\/components\/admin/,
   /@\/components\/admin-shell/,

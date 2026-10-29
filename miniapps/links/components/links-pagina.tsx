@@ -1,6 +1,7 @@
 import { ArrowUpRight } from 'lucide-react'
 import { MarcaHorizontal, MarcaHorizontalInversa } from '@/components/marca'
 import type { Enlace, LinksConfig } from '@/miniapps/links/lib/config'
+import type { BasePath } from '../lib/host'
 import styles from './links.module.css'
 import { Cinta } from './cinta'
 import { IconoInstagram } from './icono-instagram'
@@ -33,7 +34,7 @@ function Fila({ enlace }: { enlace: Enlace }) {
   )
 }
 
-export function LinksPagina({ config }: { config: LinksConfig }) {
+export function LinksPagina({ config, basePath = '/links' }: { config: LinksConfig; basePath?: BasePath }) {
   return (
     <div className={styles.pagina}>
       <Cinta />
@@ -69,7 +70,7 @@ export function LinksPagina({ config }: { config: LinksConfig }) {
             <IconoInstagram size={28} />
           </a>
         </div>
-        <a className={styles.admin} href="/links/admin">access</a>
+        <a className={styles.admin} href={`${basePath}/admin`}>access</a>
       </footer>
     </div>
   )

@@ -274,6 +274,13 @@
       "when": 1793284600523,
       "tag": "0038_linktree_config",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793289497598,
+      "tag": "0039_links_revision_sesiones",
+      "breakpoints": true
     }
   ]
 }
