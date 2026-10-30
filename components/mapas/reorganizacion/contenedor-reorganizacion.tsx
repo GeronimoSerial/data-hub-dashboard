@@ -1,11 +1,10 @@
 'use client'
 
 import { useCallback, useMemo, useRef, useState } from 'react'
-import type { MapLayerMouseEvent } from 'react-map-gl/maplibre'
+import { Popup, type MapLayerMouseEvent } from 'react-map-gl/maplibre'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { useThemeMode } from '@/app/providers'
 import MapReorganizacionPage from '@/components/mapas/map-reorganizacion-page'
-import type { BasemapId } from '@/lib/map-types'
 import { idsInteractivos, resolverClic, type CaracteristicaClic } from '@/lib/reorganizacion/clics'
 import {
   FILTROS_INICIALES,
@@ -15,7 +14,7 @@ import {
   resaltarPorClasificacion,
   type FiltrosReorganizacion,
 } from '@/lib/reorganizacion/filtros'
-import { estiloDeFondo, FONDO_POR_DEFECTO } from '@/lib/reorganizacion/fondos'
+import { estiloDeFondo, FONDO_POR_DEFECTO, type FondoId } from '@/lib/reorganizacion/fondos'
 import type { EscuelaV29, ReferenciaV29 } from '@/lib/reorganizacion/tipos'
 import { etiquetaDeZona, miembrosPorZona, tendenciaPorZona } from '@/lib/reorganizacion/zonas'
 import { CapasReorganizacion, type VisibilidadCapas } from './capas-reorganizacion'
@@ -67,7 +66,7 @@ export function ContenedorReorganizacion({ visible = true }: ContenedorReorganiz
   const [clasificacion, setClasificacion] = useState('')
   const [seleccion, setSeleccion] = useState<Seleccion>(null)
   const [visibles, setVisibles] = useState<VisibilidadCapas>(VISIBLES_INICIALES)
-  const [fondo, setFondo] = useState<BasemapId>(FONDO_POR_DEFECTO)
+  const [fondo, setFondo] = useState<FondoId>(FONDO_POR_DEFECTO)
   const mapaRef = useRef<MaplibreMap | null>(null)
 
   const escuelas = dataset?.escuelas ?? SIN_ESCUELAS
@@ -149,7 +148,7 @@ export function ContenedorReorganizacion({ visible = true }: ContenedorReorganiz
       ? { origen: recorrido.origen, destino: recorrido.destino, geometria: recorrido.resultado.geometria }
       : null
 
-  const detalle = escuelaSeleccionada ? (
+  const fichaEstablecimiento = escuelaSeleccionada ? (
     <FichaEscuela
       escuela={escuelaSeleccionada}
       oferta={dataset?.ofertaPorCue[escuelaSeleccionada.cue]}
@@ -181,7 +180,10 @@ export function ContenedorReorganizacion({ visible = true }: ContenedorReorganiz
       onAcercar={acercar}
       recorridoActivo={medindo}
     />
-  ) : zonaSeleccionada ? (
+  ) : null
+  const puntoSeleccionado = escuelaSeleccionada ?? referenciaSeleccionada
+
+  const detalle = zonaSeleccionada ? (
     <FichaZona
       etiqueta={zonaSeleccionada}
       miembros={miembrosZona.get(zonaSeleccionada) ?? SIN_ESCUELAS}
@@ -189,6 +191,7 @@ export function ContenedorReorganizacion({ visible = true }: ContenedorReorganiz
       onSeleccionarEscuela={(cue) => abrirEstablecimiento('escuela', cue)}
     />
   ) : undefined
+
 
   const panel = dataset ? (
     <SidebarReorganizacion
@@ -209,7 +212,10 @@ export function ContenedorReorganizacion({ visible = true }: ContenedorReorganiz
           cantidadResaltadas={resaltados.cantidad}
           seleccionada={seleccionEnMapa}
           resaltadas={resaltados.cues}
-          onSeleccionarEscuela={(cue) => abrirEstablecimiento('escuela', cue)}
+          onSeleccionarEscuela={(cue) => {
+            abrirEstablecimiento('escuela', cue)
+            acercar(cue)
+          }}
         />
       }
       capas={<PanelCapasReorganizacion visibles={visibles} onVisibles={setVisibles} fondo={fondo} onFondo={setFondo} />}
@@ -242,6 +248,20 @@ export function ContenedorReorganizacion({ visible = true }: ContenedorReorganiz
       onMapClick={alHacerClic}
       panel={panel}
     >
+      {fichaEstablecimiento && puntoSeleccionado && (
+        <Popup
+          longitude={puntoSeleccionado.lon}
+          latitude={puntoSeleccionado.lat}
+          anchor="bottom"
+          offset={14}
+          maxWidth="none"
+          closeButton={false}
+          closeOnClick={false}
+          onClose={() => setSeleccion(null)}
+        >
+          <div className="map-popup rz-popup">{fichaEstablecimiento}</div>
+        </Popup>
+      )}
       {dataset && (
         <CapasReorganizacion
           dataset={dataset}

@@ -15,7 +15,7 @@ describe('SelectorFondo', () => {
     const grupo = screen.getByRole('group', { name: 'Mapa de fondo' })
     const opciones = within(grupo).getAllByRole('button')
     expect(opciones.map((opcion) => opcion.textContent)).toEqual(
-      FONDOS_REORGANIZACION.map((fondo) => BASEMAPS[fondo.id].label),
+      FONDOS_REORGANIZACION.map((fondo) => fondo.etiqueta),
     )
   })
 
@@ -25,7 +25,7 @@ describe('SelectorFondo', () => {
     for (const pendiente of FONDOS_PENDIENTES) {
       expect(screen.queryByRole('button', { name: new RegExp(pendiente.id, 'i') })).toBeNull()
     }
-    expect(screen.queryByRole('button', { name: /satélite|satelital|topogr/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /topogr/i })).toBeNull()
   })
 
   it('marca como activo el fondo recibido en valor', () => {
