@@ -1703,6 +1703,7 @@ time {
 .ui-alert-dialog__action { cursor: pointer; }
 
 .ui-menu-positioner, .ui-select-positioner { z-index: var(--z-popup); }
+.ui-menu-popup { max-height: min(20rem, var(--available-height, 50dvh)); overflow-y: auto; overscroll-behavior: contain; }
 .ui-menu-popup, .ui-select-popup {
   min-width: 12rem;
   background: var(--card);
