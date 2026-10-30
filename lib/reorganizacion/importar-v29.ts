@@ -185,7 +185,8 @@ function normalizarReferencia(crudo: unknown, indice: number): ReferenciaV29 {
     lon: numero(crudo.lon, `${contexto} lon`),
     primaria: booleano(crudo.primaria, `${contexto} primaria`),
     secundaria: booleano(crudo.secundaria, `${contexto} secundaria`),
-    matriculaPrimaria: numero(crudo.matriculaPrimaria, `${contexto} matriculaPrimaria`),
+    // null en el origen = sin dato de matrícula primaria; no se convierte en cero.
+    matriculaPrimaria: crudo.matriculaPrimaria === null ? null : numero(crudo.matriculaPrimaria, `${contexto} matriculaPrimaria`),
     localidad: texto(crudo.localidad),
     departamento: texto(crudo.departamento),
   }

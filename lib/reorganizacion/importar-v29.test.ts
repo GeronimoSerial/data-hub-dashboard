@@ -88,6 +88,18 @@ describe('normalizarV29', () => {
     ])
   })
 
+  it('conserva null cuando una referencia no informa matrícula primaria', () => {
+    const html = htmlCon({
+      data: [escuelaA, escuelaB, escuelaC],
+      datosNominales,
+      referentes: [{ ...referencias[0], matriculaPrimaria: null }, referencias[1]],
+      centers: centros,
+    })
+    const { dataset } = normalizarV29(html)
+    expect(dataset.referencias[0].matriculaPrimaria).toBeNull()
+    expect(dataset.referencias[1].matriculaPrimaria).toBe(0)
+  })
+
   it('normaliza referencias, centros y oferta por CUE', () => {
     const { dataset } = normalizarV29(htmlValido())
 
@@ -195,3 +207,4 @@ describe('extraerBloqueJson', () => {
     expect(() => extraerBloqueJson(html, 'data')).toThrow(/Bloque "data" no es JSON válido/)
   })
 })
+
