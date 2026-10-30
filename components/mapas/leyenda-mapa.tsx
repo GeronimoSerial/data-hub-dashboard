@@ -9,11 +9,8 @@ import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type Hori
 import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
-import type { ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
-import { IconoMapaLeyenda, InsigniaLeyenda, svgMarcadorEstacion, type EstadoEstacion, type IdInsignia } from '@/lib/mapas/insignias-mapa'
+import { IconoMapaLeyenda, svgMarcadorEstacion, type EstadoEstacion } from '@/lib/mapas/insignias-mapa'
 import { GLIFO_BADGE_ESTADO, SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, svgBadgeEstado } from '@/lib/mapas/iconos-mapa'
-
-type RegistroEventosLeyenda = Pick<ResumenEventosReportados, 'actualizadoAl'>
 
 type PropsLeyendaMapa =
   | { pestana: 'actual' }
@@ -39,20 +36,6 @@ const ESTADOS_ALTURA_RIO: ReadonlyArray<{ estado: EstadoEstacion; etiqueta: stri
   { estado: 'normal', etiqueta: 'Normal' },
   { estado: 'sin_dato', etiqueta: 'Sin dato' },
 ]
-
-const CONFIANZA_EVENTOS: ReadonlyArray<{ id: IdInsignia; etiqueta: string }> = [
-  { id: 'evento-alta', etiqueta: 'Confianza alta' },
-  { id: 'evento-media', etiqueta: 'Confianza media' },
-  { id: 'evento-baja', etiqueta: 'Confianza baja' },
-]
-
-const FORMATO_FECHA_REGISTRO = /^(\d{4})-(\d{2})-(\d{2})$/
-
-function formatearFechaRegistro(fecha: string): string | null {
-  const coincidencia = FORMATO_FECHA_REGISTRO.exec(fecha)
-  if (!coincidencia) return null
-  return `${coincidencia[3]}/${coincidencia[2]}`
-}
 
 const FORMATO_CORTE_LLUVIA = new Intl.DateTimeFormat('es-AR', {
   day: '2-digit',
@@ -103,16 +86,12 @@ function usePantallaEstrecha(): boolean {
   )
 }
 
-function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObservada, riesgoHoy, abierta }: {
+function SituacionActual({ estacionesRio, lluviaObservada, riesgoHoy, abierta }: {
   abierta: boolean
   riesgoHoy: boolean
   estacionesRio: boolean
-  eventosReportados: boolean
-  registro: RegistroEventosLeyenda | null | undefined
   lluviaObservada: MetaLluviaObservada | null
 }) {
-  const registroActualizado = registro?.actualizadoAl ? formatearFechaRegistro(registro.actualizadoAl) : null
-
   return (
     <details className="map-leyenda__seccion" open={abierta}>
       <summary className="map-leyenda__seccion-titulo">Situación actual</summary>
@@ -128,20 +107,6 @@ function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObs
                 </li>
               ))}
             </ul>
-          </div>
-        )}
-        {eventosReportados && (
-          <div className="map-leyenda__bloque">
-            <b className="map-leyenda__subtitulo">Lo que informan los medios</b>
-            <ul className="map-leyenda__situacion">
-              {CONFIANZA_EVENTOS.map(({ id, etiqueta }) => (
-                <li className="map-leyenda__elemento" key={id}>
-                  <InsigniaLeyenda id={id} />
-                  <span>{etiqueta}</span>
-                </li>
-              ))}
-            </ul>
-            {registroActualizado && <small className="muted">{`Registro actualizado al ${registroActualizado}`}</small>}
           </div>
         )}
         {lluviaObservada && <LeyendaLluviaObservada meta={lluviaObservada} />}
@@ -247,13 +212,12 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
   return null
 }
 
-export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; eventosReportados?: boolean; resumenEventos?: RegistroEventosLeyenda | null; lluviaObservada?: MetaLluviaObservada | null; riesgoHoy?: boolean }) {
+export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; lluviaObservada?: MetaLluviaObservada | null; riesgoHoy?: boolean }) {
   const estrecha = usePantallaEstrecha()
   const estacionesRio = Boolean(props.estacionesRio)
-  const eventosReportados = Boolean(props.eventosReportados)
   const lluviaObservada = props.lluviaObservada ?? null
   const riesgoHoy = Boolean(props.riesgoHoy)
-  const hayCapas = estacionesRio || eventosReportados || lluviaObservada !== null || riesgoHoy
+  const hayCapas = estacionesRio || lluviaObservada !== null || riesgoHoy
 
   if (props.pestana === 'estadisticas' && !hayCapas) return null
 
@@ -264,8 +228,6 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
           // Fuera de "Situación actual" manda la escala de la pestaña: estas referencias quedan plegadas.
           abierta={!estrecha && (props.pestana === 'actual' || props.pestana === 'estadisticas')}
           estacionesRio={estacionesRio}
-          eventosReportados={eventosReportados}
-          registro={props.resumenEventos}
           lluviaObservada={lluviaObservada}
           riesgoHoy={riesgoHoy}
         />
