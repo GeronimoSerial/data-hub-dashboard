@@ -564,6 +564,11 @@ describe('FichaEscuelaPanel — comedor y posible centro de evacuados', () => {
     expect(screen.queryByText(/^Comedor:/)).not.toBeInTheDocument()
   })
 
+  it('una escuela apta sin antecedentes aclara que no hay datos de riesgo', () => {
+    renderFicha({ escuela: { ...escuela, posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true } })
+    expect(screen.getByText('Posible centro de evacuados (sin antecedentes de riesgo)')).toBeInTheDocument()
+  })
+
   it('una escuela apta muestra la insignia "Posible centro de evacuados"; una no apta no', () => {
     const { unmount } = renderFicha({ escuela: { ...escuela, posibleCentroEvacuados: true } })
     expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
