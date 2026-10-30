@@ -155,15 +155,15 @@ describe('listarZonas', () => {
 })
 
 describe('tendenciaPorZona', () => {
-  it('asigna la etiqueta de tendencia a cada zona con miembros', () => {
+  it('asigna la clave de tendencia a cada zona con miembros', () => {
     const escuelas = [
       escuela({ cue: 'A', zona: 'Zona 1', historia: { '2023': 10, '2026': 5 } }),
       escuela({ cue: 'B', zona: 'Zona 2', historia: { '2026': 5 } }),
       escuela({ cue: 'C', zona: 'Aislado' }),
     ]
     expect(tendenciaPorZona(escuelas)).toEqual({
-      'Zona 1': 'Disminuyó',
-      'Zona 2': 'Sin comparación',
+      'Zona 1': 'baja',
+      'Zona 2': 'sin',
     })
   })
 })
