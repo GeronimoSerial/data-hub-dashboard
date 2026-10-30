@@ -29,6 +29,7 @@ import {
 } from './schema'
 import { RECURSO_INFRAESTRUCTURA_ID, upsertRecursoInfraestructura } from '@/lib/infraestructura/recurso-seed'
 import { upsertRecursoNatalidad } from '@/lib/mapas/recurso-seed-natalidad'
+import { upsertRecursoReorganizacion } from '@/lib/mapas/recurso-seed-reorganizacion'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
 import {
   ensureMotivoNombreUnico,
@@ -186,6 +187,7 @@ async function seedHub() {
   const catalogo = await db.select({ id: recursos.id }).from(recursos)
   if (catalogo.some((recurso) => recurso.id !== RECURSO_INFRAESTRUCTURA_ID)) {
     await upsertRecursoNatalidad()
+    await upsertRecursoReorganizacion()
   }
 
   // Motivos de infraestructura: siembra idempotente (onConflictDoNothing,
