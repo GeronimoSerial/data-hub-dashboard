@@ -37,7 +37,8 @@ export interface ReferenciaV29 {
   lon: number
   primaria: boolean
   secundaria: boolean
-  matriculaPrimaria: number
+  /** Null cuando el origen no informa matrícula primaria: sin dato, nunca cero. */
+  matriculaPrimaria: number | null
   localidad: string
   departamento: string
 }
