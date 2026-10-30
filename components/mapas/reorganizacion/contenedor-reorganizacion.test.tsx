@@ -35,6 +35,10 @@ vi.mock('@/components/mapas/map-reorganizacion-page', () => ({
   },
 }))
 
+vi.mock('react-map-gl/maplibre', () => ({
+  Popup: ({ children }: { children?: ReactNode }) => <div data-testid="popup">{children}</div>,
+}))
+
 vi.mock('@/components/mapas/reorganizacion/capas-reorganizacion', () => ({
   CapasReorganizacion: (props: Record<string, unknown>) => {
     CAPAS_PROPS.current = props
@@ -186,6 +190,7 @@ describe('ContenedorReorganizacion', () => {
 
     clicEnMapa([{ layer: CAPA_UNIVERSO, properties: { cue: '1800001' } }])
     expect(screen.getByTestId('ficha-escuela').textContent).toContain('1800001')
+    expect(screen.getByTestId('popup')).toContainElement(screen.getByTestId('ficha-escuela'))
     expect(capas().seleccionada).toBe('1800001')
 
     await usuario.click(screen.getByRole('button', { name: 'cerrar ficha escuela' }))
@@ -202,6 +207,25 @@ describe('ContenedorReorganizacion', () => {
 
     expect(screen.getByTestId('ficha-zona').textContent).toContain('Zona 2')
     expect(screen.getByText('miembros:2')).toBeTruthy()
+  })
+
+  it('la ficha de una zona queda en el panel lateral y no abre popup', () => {
+    render(<ContenedorReorganizacion />)
+
+    clicEnMapa([{ layer: CAPA_ZONAS, properties: { id: 2 } }])
+
+    expect(screen.queryByTestId('popup')).toBeNull()
+    expect(screen.getByTestId('ficha-zona')).toBeTruthy()
+  })
+
+  it('elegir Satélite cambia el estilo base a un estilo raster', async () => {
+    const usuario = userEvent.setup()
+    render(<ContenedorReorganizacion />)
+
+    await usuario.click(screen.getByRole('tab', { name: 'Capas' }))
+    await usuario.click(screen.getByText('Satélite'))
+
+    expect(typeof MAPA_PROPS.current.mapStyle).toBe('object')
   })
 
   it('clic sin entidad cierra la selección', () => {

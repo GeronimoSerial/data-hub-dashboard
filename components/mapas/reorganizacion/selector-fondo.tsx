@@ -4,13 +4,12 @@
 // vuelva a agregar Source/Layer tras ese cambio. El paquete `react-map-gl/maplibre`
 // no resuelve en el node_modules local y natalidad no lo prueba.
 
-import type { BasemapId } from '@/lib/map-types'
-import { FONDOS_REORGANIZACION } from '@/lib/reorganizacion/fondos'
+import { FONDOS_REORGANIZACION, type FondoId } from '@/lib/reorganizacion/fondos'
 import { SegmentedGroup, SegmentedItem } from '@/components/ui/toggle-group'
 
 type Props = {
-  valor: BasemapId
-  onCambio: (id: BasemapId) => void
+  valor: FondoId
+  onCambio: (id: FondoId) => void
 }
 
 export function SelectorFondo({ valor, onCambio }: Props) {
@@ -18,7 +17,7 @@ export function SelectorFondo({ valor, onCambio }: Props) {
     <SegmentedGroup
       aria-label="Mapa de fondo"
       value={valor}
-      onValueChange={(next) => onCambio(next as BasemapId)}
+      onValueChange={(next) => onCambio(next as FondoId)}
     >
       {FONDOS_REORGANIZACION.map((fondo) => (
         <SegmentedItem key={fondo.id} value={fondo.id} title={fondo.descripcion}>
