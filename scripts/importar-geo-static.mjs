@@ -14,6 +14,7 @@
  *   node scripts/importar-geo-static.mjs --exposicion-ruta <path.ndjson.gz>
  *   node scripts/importar-geo-static.mjs --aislamiento <a.csv> --susceptibilidad <s.csv>
  *   node scripts/importar-geo-static.mjs --aislamiento <a.csv> --geometria <g.ndjson.gz>
+ *   node scripts/importar-geo-static.mjs --ruta-evacuacion <rutas_evacuacion_osm-v1-2026-10-29.ndjson.gz>
  *   node scripts/importar-geo-static.mjs --inundacion-v2 <inundacion_v2.csv> --exposicion-ruta-v2 <ruta_v2.ndjson.gz>
  * Las capas v2 solo actualizan sus columnas v2 en filas existentes (por cue_anexo);
  * no tocan las columnas v1.
@@ -41,12 +42,13 @@ function parsearArgs(argv) {
     else if (argv[i] === '--exposicion-ruta') args.exposicionRuta = argv[++i]
     else if (argv[i] === '--inundacion-v2') args.inundacionV2 = argv[++i]
     else if (argv[i] === '--exposicion-ruta-v2') args.exposicionRutaV2 = argv[++i]
+    else if (argv[i] === '--ruta-evacuacion') args.rutaEvacuacion = argv[++i]
   }
   return args
 }
 
 /**
- * @typedef {{ aislamiento?: string, susceptibilidad?: string, geometria?: string, exposicionRuta?: string, inundacionV2?: string, exposicionRutaV2?: string }} ArchivosGeoStatic
+ * @typedef {{ aislamiento?: string, susceptibilidad?: string, geometria?: string, exposicionRuta?: string, inundacionV2?: string, exposicionRutaV2?: string, rutaEvacuacion?: string }} ArchivosGeoStatic
  */
 
 /**
@@ -65,6 +67,7 @@ export function descubrirArchivosGeoStatic(archivos, dir) {
   const exposicionRuta = ultimoQueCoincide(/^exposicion_ruta_inundacion-v1-.*\.ndjson\.gz$/)
   const inundacionV2 = ultimoQueCoincide(/^inundacion_v2-v.*\.csv$/)
   const exposicionRutaV2 = ultimoQueCoincide(/^exposicion_ruta_inundacion-v2-.*\.ndjson\.gz$/)
+  const rutaEvacuacion = ultimoQueCoincide(/^rutas_evacuacion_osm-v.*\.ndjson\.gz$/)
 
   return {
     ...(aislamiento ? { aislamiento: join(dir, aislamiento) } : {}),
@@ -73,6 +76,7 @@ export function descubrirArchivosGeoStatic(archivos, dir) {
     ...(exposicionRuta ? { exposicionRuta: join(dir, exposicionRuta) } : {}),
     ...(inundacionV2 ? { inundacionV2: join(dir, inundacionV2) } : {}),
     ...(exposicionRutaV2 ? { exposicionRutaV2: join(dir, exposicionRutaV2) } : {}),
+    ...(rutaEvacuacion ? { rutaEvacuacion: join(dir, rutaEvacuacion) } : {}),
   }
 }
 
@@ -82,11 +86,11 @@ export { importarAislamiento, importarSusceptibilidad, importarGeometria, import
 async function main() {
   const args = parsearArgs(process.argv.slice(2))
   const hayArchivos = (a) => Boolean(
-    a.aislamiento || a.susceptibilidad || a.geometria || a.exposicionRuta || a.inundacionV2 || a.exposicionRutaV2,
+    a.aislamiento || a.susceptibilidad || a.geometria || a.exposicionRuta || a.inundacionV2 || a.exposicionRutaV2 || a.rutaEvacuacion,
   )
   if (!hayArchivos(args)) {
     console.error(
-      'Uso: node scripts/importar-geo-static.mjs --aislamiento <csv> [--susceptibilidad <csv>] [--geometria <ndjson.gz>] [--exposicion-ruta <ndjson.gz>] [--inundacion-v2 <csv>] [--exposicion-ruta-v2 <ndjson.gz>]',
+      'Uso: node scripts/importar-geo-static.mjs --aislamiento <csv> [--susceptibilidad <csv>] [--geometria <ndjson.gz>] [--exposicion-ruta <ndjson.gz>] [--inundacion-v2 <csv>] [--exposicion-ruta-v2 <ndjson.gz>] [--ruta-evacuacion <ndjson.gz>]',
     )
     process.exit(1)
   }
@@ -96,7 +100,7 @@ async function main() {
   const { leerCsvGeo, leerNdjsonGeo } = await import('../lib/infraestructura/datasets/geo-static-contratos.mjs')
   await migrarDb()
   for (const [argumento, tipo] of Object.entries({ aislamiento: 'aislamiento', susceptibilidad: 'susceptibilidad',
-    geometria: 'geometria', exposicionRuta: 'exposicion-ruta', inundacionV2: 'inundacion-v2', exposicionRutaV2: 'exposicion-ruta-v2' })) {
+    geometria: 'geometria', exposicionRuta: 'exposicion-ruta', inundacionV2: 'inundacion-v2', exposicionRutaV2: 'exposicion-ruta-v2', rutaEvacuacion: 'ruta-evacuacion' })) {
     if (!args[argumento]) continue
     const path = args[argumento]
     const filas = path.endsWith('.csv') ? leerCsvGeo(path) : leerNdjsonGeo(path).map((linea) => JSON.parse(linea))

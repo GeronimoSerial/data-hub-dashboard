@@ -281,6 +281,27 @@
       "when": 1793289497598,
       "tag": "0039_links_revision_sesiones",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793315996221,
+      "tag": "0040_comedor_escuela",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793316121976,
+      "tag": "0041_centro_evacuados",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793316216486,
+      "tag": "0042_ruta_evacuacion_osm",
+      "breakpoints": true
     }
   ]
 }

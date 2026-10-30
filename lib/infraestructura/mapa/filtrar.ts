@@ -1,3 +1,4 @@
+import { tieneComedor } from '@/lib/infraestructura/comedores/estado'
 import type { EscuelaMapaEnriquecida, FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
 
 function normalizar(texto: string): string {
@@ -27,6 +28,7 @@ export function filtrarEscuelas<T extends EscuelaMapaEnriquecida>(escuelas: T[],
     if (f.apoyo.length > 0 && !f.apoyo.some((opcion) => coincideApoyo(escuela, opcion))) return false
     if (f.sinActualizar && !escuela.sinActualizar) return false
     if (f.solucionadasRecientes && escuela.solucionadasRecientes <= 0) return false
+    if (f.conComedor && !tieneComedor(escuela.comedor)) return false
     if (q && !normalizar(escuela.nombre).includes(q)) {
       const cue = normalizar(escuela.cueAnexo).replace(/-/g, '')
       if (!qCue || !cue.includes(qCue)) return false

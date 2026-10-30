@@ -4,7 +4,9 @@ import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alum
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { BookMinus, BookX, ChevronDown, Clock, DoorOpen, House, X } from 'lucide-react'
+import { BookMinus, BookX, ChevronDown, Clock, DoorOpen, House, ShieldCheck, Utensils, X } from 'lucide-react'
+import { ETIQUETA_COMEDOR } from '@/lib/infraestructura/comedores/estado'
+import { ETIQUETA_POSIBLE_CENTRO, ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES } from '@/lib/infraestructura/evacuacion/mapa'
 import { EstadoActualSeveridad, TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
 import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
@@ -85,6 +87,14 @@ function FilaEstado({ escuela }: { escuela: EscuelaMapaEnriquecida }) {
       )}
       {escuela.sinActualizar && (
         <span className="map-sitact__pill map-sitact__pill--neutro"><Clock aria-hidden="true" />Sin actualizar</span>
+      )}
+      {escuela.posibleCentroEvacuados === true && (
+        <span className="map-sitact__pill map-sitact__pill--posible-centro"><ShieldCheck aria-hidden="true" />{escuela.posibleCentroSinAntecedentes === true ? ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES : ETIQUETA_POSIBLE_CENTRO}</span>
+      )}
+      {escuela.comedor !== undefined && (
+        <span className={`map-sitact__pill ${escuela.comedor === 'sin_servicio' ? 'map-sitact__pill--neutro' : 'map-sitact__pill--apoyo'}`}>
+          <Utensils aria-hidden="true" />{ETIQUETA_COMEDOR[escuela.comedor]}
+        </span>
       )}
     </div>
   )
