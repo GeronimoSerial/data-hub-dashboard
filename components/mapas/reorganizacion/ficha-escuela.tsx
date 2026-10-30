@@ -190,6 +190,9 @@ export function FichaEscuela({
   return (
     <article className="map-ficha-escuela" aria-labelledby={tituloId}>
       <header className="map-ficha-escuela__head">
+        <Button variant="ghost" size="icon" className="map-ficha-escuela__cerrar" aria-label="Cerrar" onClick={onCerrar}>
+          <X aria-hidden="true" />
+        </Button>
         <h2 id={tituloId}>{escuela.nombre}</h2>
         <p>CUE-Anexo {escuela.cue}</p>
       </header>
@@ -205,24 +208,20 @@ export function FichaEscuela({
         <dd>{formatoNumero.format(escuela.matricula)}</dd>
       </dl>
 
-      <div role="group" aria-label="Acciones del establecimiento">
-        <Button variant="secondary" onClick={() => onAcercar(escuela.cue)}>
+      <div className="map-ficha-escuela__acciones" role="group" aria-label="Acciones del establecimiento">
+        <Button variant="secondary" size="sm" onClick={() => onAcercar(escuela.cue)}>
           Acercar
         </Button>
         {recorridoActivo && (
           <>
-            <Button variant="secondary" onClick={() => onOrigen(escuela.cue)}>
+            <Button variant="secondary" size="sm" onClick={() => onOrigen(escuela.cue)}>
               Medir desde aquí
             </Button>
-            <Button variant="secondary" onClick={() => onDestino(escuela.cue)}>
+            <Button variant="secondary" size="sm" onClick={() => onDestino(escuela.cue)}>
               Medir hasta aquí
             </Button>
           </>
         )}
-        <Button variant="ghost" onClick={onCerrar}>
-          <X aria-hidden="true" />
-          Cerrar
-        </Button>
       </div>
 
       <Seccion titulo="Evolución de matrícula primaria, 2023 a 2026">
