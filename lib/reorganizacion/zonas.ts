@@ -148,12 +148,12 @@ export function listarZonas(centros: CentroZona[], escuelas: EscuelaV29[]): Zona
   return [...zonas.values()].sort((a, b) => (a.id ?? Infinity) - (b.id ?? Infinity))
 }
 
-/** Etiqueta de tendencia por zona con miembros, para el filtro de tendencia. */
+/** Clave de tendencia por zona con miembros; es el valor que compara el filtro de tendencia. */
 export function tendenciaPorZona(escuelas: EscuelaV29[]): Record<string, string> {
   return Object.fromEntries(
     [...miembrosPorZona(escuelas)].map(([zona, miembros]) => [
       zona,
-      estadisticasDeZona(miembros).etiquetaTendencia,
+      estadisticasDeZona(miembros).tendencia,
     ]),
   )
 }
