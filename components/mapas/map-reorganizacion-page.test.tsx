@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { forwardRef, useEffect, useImperativeHandle, type ReactNode } from 'react'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { LIMITES_CORRIENTES } from '@/lib/mapas/departamentos'
+import { BASEMAPS } from '@/lib/map-types'
 
 const { MAPA, ESTADO_DATOS, RECARGAS, MAPGL } = vi.hoisted(() => ({
   MAPA: { resize: vi.fn(), fitBounds: vi.fn(), stop: vi.fn() },
@@ -171,5 +172,14 @@ describe('MapReorganizacionPage', () => {
 
     expect(MAPGL.props.interactiveLayerIds).toBeUndefined()
     expect(MAPGL.props.onMouseMove).toBeUndefined()
+  })
+
+  it('usa el estilo vial por defecto y cambia el estilo base con mapStyle', () => {
+    const { unmount } = render(<MapReorganizacionPage />)
+    expect(MAPGL.props.mapStyle).toBe(BASEMAPS.voyager.styleUrl)
+    unmount()
+
+    render(<MapReorganizacionPage mapStyle="https://estilo.test/satelite.json" />)
+    expect(MAPGL.props.mapStyle).toBe('https://estilo.test/satelite.json')
   })
 })
