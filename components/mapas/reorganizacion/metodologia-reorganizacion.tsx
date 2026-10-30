@@ -177,10 +177,10 @@ export function MetodologiaReorganizacion({ dataset }: MetodologiaReorganizacion
 
           <section>
             <h3>Pendientes</h3>
-            {/* Pendiente hasta que se confirme la fuente de fondo satelital y el proveedor vial de producción. */}
             <p>
-              El fondo satelital y el proveedor vial de producción están pendientes de confirmar: fuente, licencia,
-              atribución, disponibilidad y condiciones de uso.
+              El fondo satelital usa imágenes de Esri World Imagery, con atribución visible en el mapa. El proveedor vial de
+              producción y el fondo topográfico están pendientes de confirmar: fuente, licencia, atribución,
+              disponibilidad y condiciones de uso.
             </p>
           </section>
         </div>
