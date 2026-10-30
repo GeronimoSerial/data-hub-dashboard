@@ -45,9 +45,9 @@ export interface PanelReorganizacionProps {
   cantidadResaltadas: number
   /** CUE de la escuela seleccionada, o null. */
   seleccionada: string | null
+  /** CUE de las escuelas resaltadas por la clasificación salarial. */
+  resaltadas: ReadonlySet<string>
   onSeleccionarEscuela: (cue: string) => void
-  plegado: boolean
-  onPlegado: (plegado: boolean) => void
 }
 
 function formatearNumero(valor: number): string {
@@ -65,7 +65,7 @@ interface CampoSelectorProps {
 /** Selector accesible sobre components/ui/select. Traduce el valor vacío a TODOS. */
 function CampoSelector({ id, etiqueta, valor, opciones, onCambio }: CampoSelectorProps) {
   return (
-    <div className="map-filtro-campo">
+    <div className="rz-field">
       <label htmlFor={id} className="map-filtro-label">
         {etiqueta}
       </label>
@@ -98,18 +98,18 @@ export function PanelReorganizacion({
   onClasificacion,
   cantidadResaltadas,
   seleccionada,
+  resaltadas,
   onSeleccionarEscuela,
-  plegado,
-  onPlegado,
 }: PanelReorganizacionProps) {
   const id = useId()
   const idBusqueda = `${id}-busqueda`
-  const idPanel = `${id}-panel`
-  const idTitulo = `${id}-titulo`
 
   const visibles = escuelasFiltradas.slice(0, LIMITE_FILAS)
   // La clasificación se limpia con su propio selector; "Limpiar filtros" no la toca.
-  const hayFiltros = hayFiltroActivo({ ...filtros, clasificacion: '' })
+  const filtrosSinClasificacion = { ...filtros, clasificacion: '' }
+  const hayFiltros = hayFiltroActivo(filtrosSinClasificacion)
+  const filtrosActivos =
+    [filtros.departamento, filtros.zona, filtros.tendencia, filtros.pof].filter(Boolean).length + (clasificacion ? 1 : 0)
 
   const opcionesDepartamento: Opcion[] = [
     { value: TODOS, label: 'Todos los departamentos' },
@@ -133,89 +133,93 @@ export function PanelReorganizacion({
   ]
 
   return (
-    <section className="map-sitact" aria-labelledby={idTitulo}>
-      <div className="map-sitact__titulo-seccion">
-        <h2 id={idTitulo}>Establecimientos</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-expanded={!plegado}
-          aria-controls={idPanel}
-          onClick={() => onPlegado(!plegado)}
-        >
-          {plegado ? 'Mostrar panel' : 'Ocultar panel'}
-        </Button>
+    <>
+      <dl className="rz-stats" role="group" aria-label="Indicadores">
+        <div className="rz-stat">
+          <dt>Establecimientos filtrados</dt>
+          <dd>{formatearNumero(indicadores.establecimientos)}</dd>
+        </div>
+        <div className="rz-stat">
+          <dt>Alumnos</dt>
+          <dd>{formatearNumero(indicadores.alumnos)}</dd>
+        </div>
+        <div className="rz-stat">
+          <dt>Ubicados en el mapa</dt>
+          <dd>{formatearNumero(indicadores.ubicados)}</dd>
+        </div>
+        <div className="rz-stat">
+          <dt>Con POF identificada</dt>
+          <dd>{formatearNumero(indicadores.conPof)}</dd>
+        </div>
+      </dl>
+
+      <div className="rz-field">
+        <label htmlFor={idBusqueda} className="rz-vh">
+          Buscar
+        </label>
+        <Input
+          id={idBusqueda}
+          type="search"
+          className="map-filtro-input"
+          placeholder="Buscar por CUE, nombre o localidad"
+          value={filtros.busqueda}
+          onChange={(evento) => onFiltros({ ...filtros, busqueda: evento.target.value })}
+        />
       </div>
 
-      <div id={idPanel} hidden={plegado}>
-        <div className="map-sitact" role="group" aria-label="Indicadores">
-          <div className="map-sitact__kpis">
-            <div className="map-sitact__kpi">
-              <strong>{formatearNumero(indicadores.establecimientos)}</strong>
-              <span>Establecimientos filtrados</span>
-            </div>
-            <div className="map-sitact__kpi">
-              <strong>{formatearNumero(indicadores.alumnos)}</strong>
-              <span>Alumnos</span>
-            </div>
-            <div className="map-sitact__kpi">
-              <strong>{formatearNumero(indicadores.ubicados)}</strong>
-              <span>Ubicados en el mapa</span>
-            </div>
-            <div className="map-sitact__kpi">
-              <strong>{formatearNumero(indicadores.conPof)}</strong>
-              <span>Con POF identificada</span>
-            </div>
+      <details className="rz-filtros">
+        <summary>
+          <span className="rz-filtros__resumen">
+            Filtros
+            {filtrosActivos > 0 && (
+              <span className="rz-filtros__cuenta" aria-label={`${filtrosActivos} activos`}>
+                {filtrosActivos}
+              </span>
+            )}
+          </span>
+        </summary>
+        <div className="rz-filtros__cuerpo">
+          <CampoSelector
+            id={`${id}-departamento`}
+            etiqueta="Departamento"
+            valor={filtros.departamento}
+            opciones={opcionesDepartamento}
+            onCambio={(departamento) => onFiltros({ ...filtros, departamento })}
+          />
+          <CampoSelector
+            id={`${id}-zona`}
+            etiqueta="Zona histórica"
+            valor={filtros.zona}
+            opciones={opcionesZona}
+            onCambio={(zona) => onFiltros({ ...filtros, zona })}
+          />
+          <CampoSelector
+            id={`${id}-tendencia`}
+            etiqueta="Tendencia zonal"
+            valor={filtros.tendencia}
+            opciones={opcionesTendencia}
+            onCambio={(tendencia) => onFiltros({ ...filtros, tendencia: tendencia as FiltrosReorganizacion['tendencia'] })}
+          />
+          <CampoSelector
+            id={`${id}-pof`}
+            etiqueta="Registros POF"
+            valor={filtros.pof}
+            opciones={opcionesPof}
+            onCambio={(pof) => onFiltros({ ...filtros, pof: pof as FiltrosReorganizacion['pof'] })}
+          />
+          <div className="rz-ancho">
+            <CampoSelector
+              id={`${id}-clasificacion`}
+              etiqueta="Resaltar clasificación salarial"
+              valor={clasificacion}
+              opciones={opcionesClasificacion}
+              onCambio={onClasificacion}
+            />
+            {clasificacion && (
+              <p className="rz-nota">{formatearNumero(cantidadResaltadas)} resaltadas en el listado</p>
+            )}
           </div>
-        </div>
-
-        <div className="map-sitact">
-          <div className="map-filtros-grid">
-            <div className="map-filtro-campo">
-              <label htmlFor={idBusqueda} className="map-filtro-label">
-                Buscar
-              </label>
-              <Input
-                id={idBusqueda}
-                type="search"
-                className="map-filtro-input"
-                placeholder="CUE, nombre o localidad"
-                value={filtros.busqueda}
-                onChange={(evento) => onFiltros({ ...filtros, busqueda: evento.target.value })}
-              />
-            </div>
-            <CampoSelector
-              id={`${id}-departamento`}
-              etiqueta="Departamento"
-              valor={filtros.departamento}
-              opciones={opcionesDepartamento}
-              onCambio={(departamento) => onFiltros({ ...filtros, departamento })}
-            />
-            <CampoSelector
-              id={`${id}-zona`}
-              etiqueta="Zona histórica"
-              valor={filtros.zona}
-              opciones={opcionesZona}
-              onCambio={(zona) => onFiltros({ ...filtros, zona })}
-            />
-            <CampoSelector
-              id={`${id}-tendencia`}
-              etiqueta="Tendencia zonal"
-              valor={filtros.tendencia}
-              opciones={opcionesTendencia}
-              onCambio={(tendencia) => onFiltros({ ...filtros, tendencia: tendencia as FiltrosReorganizacion['tendencia'] })}
-            />
-            <CampoSelector
-              id={`${id}-pof`}
-              etiqueta="Registros POF"
-              valor={filtros.pof}
-              opciones={opcionesPof}
-              onCambio={(pof) => onFiltros({ ...filtros, pof: pof as FiltrosReorganizacion['pof'] })}
-            />
-          </div>
-
-          <div>
+          <div className="rz-ancho">
             <Button
               type="button"
               variant="secondary"
@@ -226,57 +230,59 @@ export function PanelReorganizacion({
               Limpiar filtros
             </Button>
           </div>
-
-          <CampoSelector
-            id={`${id}-clasificacion`}
-            etiqueta="Resaltar clasificación salarial"
-            valor={clasificacion}
-            opciones={opcionesClasificacion}
-            onCambio={onClasificacion}
-          />
-          {clasificacion && (
-            <p className="map-hint">{formatearNumero(cantidadResaltadas)} resaltadas en el listado</p>
-          )}
         </div>
+      </details>
 
-        <div className="map-sitact">
-          <p className="map-hint" aria-live="polite">
+      <div className="rz-seccion">
+        <p className="rz-resultado" aria-live="polite">
+          <span>
             Mostrando {formatearNumero(visibles.length)} de {formatearNumero(escuelasFiltradas.length)} establecimientos
             {escuelasFiltradas.length !== totalEscuelas && ` (corte de ${formatearNumero(totalEscuelas)})`}
-          </p>
+          </span>
+        </p>
 
-          {escuelasFiltradas.length === 0 ? (
-            <div>
-              <p className="map-status">Sin coincidencias</p>
-              <p className="map-hint">Ajuste la búsqueda o los filtros para ver establecimientos.</p>
-            </div>
-          ) : (
-            <ul className="map-sitact__lista" aria-label="Establecimientos filtrados">
-              {visibles.map((escuela) => {
-                const esSeleccionada = escuela.cue === seleccionada
-                return (
-                  <li key={escuela.cue}>
-                    <button
-                      type="button"
-                      className={esSeleccionada ? 'map-sitact__fila map-sitact__fila--seleccionada' : 'map-sitact__fila'}
-                      aria-current={esSeleccionada ? 'true' : undefined}
-                      onClick={() => onSeleccionarEscuela(escuela.cue)}
-                    >
-                      <span className="map-sitact__franja" aria-hidden="true" />
-                      <span className="map-sitact__contenido-fila">
-                        <span className="map-sitact__nombre">{escuela.nombre}</span>
-                        <span className="map-sitact__meta">
-                          CUE {escuela.cue} · {escuela.localidad} · {etiquetaOpcion(escuela.zona || ZONA_SIN_UBICACION)}
-                        </span>
+        {escuelasFiltradas.length === 0 ? (
+          <div>
+            <p className="map-status">Sin coincidencias</p>
+            <p className="rz-nota">Ajuste la búsqueda o los filtros para ver establecimientos.</p>
+          </div>
+        ) : (
+          <ul className="rz-lista" aria-label="Establecimientos filtrados">
+            {visibles.map((escuela) => {
+              const esSeleccionada = escuela.cue === seleccionada
+              const claseFila = [
+                'rz-fila',
+                resaltadas.has(escuela.cue) ? 'rz-fila--resaltada' : '',
+                esSeleccionada ? 'rz-fila--seleccionada' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')
+              return (
+                <li key={escuela.cue}>
+                  <button
+                    type="button"
+                    className={claseFila}
+                    aria-current={esSeleccionada ? 'true' : undefined}
+                    onClick={() => onSeleccionarEscuela(escuela.cue)}
+                  >
+                    <span className="rz-fila__marca" aria-hidden="true" />
+                    <span className="rz-fila__texto">
+                      <span className="rz-fila__nombre">{escuela.nombre}</span>
+                      <span className="rz-fila__meta">
+                        CUE {escuela.cue} · {escuela.localidad}
                       </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
+                    </span>
+                    <span className="rz-fila__lado">
+                      <span className="rz-fila__alumnos">{formatearNumero(escuela.matricula)}</span>
+                      <span className="rz-fila__zona">{etiquetaOpcion(escuela.zona || ZONA_SIN_UBICACION)}</span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
-    </section>
+    </>
   )
 }
