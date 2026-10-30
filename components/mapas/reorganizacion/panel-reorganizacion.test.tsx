@@ -48,8 +48,7 @@ function renderPanel(overrides: Partial<PanelReorganizacionProps> = {}) {
     cantidadResaltadas: 0,
     seleccionada: null,
     onSeleccionarEscuela: vi.fn(),
-    plegado: false,
-    onPlegado: vi.fn(),
+    resaltadas: new Set<string>(),
     ...overrides,
   }
   render(<PanelReorganizacion {...props} />)
@@ -129,21 +128,19 @@ describe('PanelReorganizacion · listado y selección', () => {
   })
 })
 
-describe('PanelReorganizacion · plegado', () => {
-  it('pliega el panel al pulsar "Ocultar panel"', async () => {
-    const props = renderPanel()
+describe('PanelReorganizacion · filtros plegables', () => {
+  it('muestra cuántos filtros hay activos junto al título', () => {
+    renderPanel({ filtros: { ...FILTROS_INICIALES, departamento: 'Capital' } })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Ocultar panel' }))
-    expect(props.onPlegado).toHaveBeenCalledWith(true)
+    expect(screen.getByLabelText('1 activos')).toBeTruthy()
   })
 
-  it('despliega el panel al pulsar "Mostrar panel" cuando está plegado', async () => {
-    const props = renderPanel({ plegado: true })
+  it('marca en el listado las escuelas resaltadas y la seleccionada', () => {
+    renderPanel({ resaltadas: new Set([ESCUELAS[0].cue]), seleccionada: ESCUELAS[1].cue })
 
-    const boton = screen.getByRole('button', { name: 'Mostrar panel' })
-    expect(boton).toHaveAttribute('aria-expanded', 'false')
-    await userEvent.click(boton)
-    expect(props.onPlegado).toHaveBeenCalledWith(false)
+    const filas = screen.getAllByRole('button', { name: /CUE/ })
+    expect(filas[0].className).toContain('rz-fila--resaltada')
+    expect(filas[1]).toHaveAttribute('aria-current', 'true')
   })
 })
 

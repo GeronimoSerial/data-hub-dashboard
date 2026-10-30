@@ -5,9 +5,7 @@ import type { MapLayerMouseEvent } from 'react-map-gl/maplibre'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { useThemeMode } from '@/app/providers'
 import MapReorganizacionPage from '@/components/mapas/map-reorganizacion-page'
-import { Checkbox } from '@/components/ui/checkbox'
 import type { BasemapId } from '@/lib/map-types'
-import { ETIQUETAS_CAPAS } from '@/lib/reorganizacion/capas'
 import { idsInteractivos, resolverClic, type CaracteristicaClic } from '@/lib/reorganizacion/clics'
 import {
   FILTROS_INICIALES,
@@ -24,13 +22,19 @@ import { CapasReorganizacion, type VisibilidadCapas } from './capas-reorganizaci
 import { FichaEscuela } from './ficha-escuela'
 import { FichaReferencia } from './ficha-referencia'
 import { FichaZona } from './ficha-zona'
-import { LeyendaReorganizacion } from './leyenda-reorganizacion'
 import { MetodologiaReorganizacion } from './metodologia-reorganizacion'
+import { PanelCapasReorganizacion } from './panel-capas-reorganizacion'
 import { PanelRecorrido } from './panel-recorrido'
 import { PanelReorganizacion } from './panel-reorganizacion'
-import { SelectorFondo } from './selector-fondo'
+import { SidebarReorganizacion } from './sidebar-reorganizacion'
 import { useDatasetReorganizacion } from './use-dataset-reorganizacion'
 import { useRecorrido, type PuntoRecorrido } from './use-recorrido'
+
+/** AAAA-MM-DD a DD/MM/AAAA sin pasar por la zona horaria del navegador. */
+function formatearCorte(corte: string): string {
+  const [anio, mes, dia] = corte.split('-')
+  return anio && mes && dia ? `${dia}/${mes}/${anio}` : corte
+}
 
 /** Zoom al ubicar un establecimiento desde la ficha o el listado. */
 const ZOOM_ACERCAR = 12
@@ -64,7 +68,6 @@ export function ContenedorReorganizacion({ visible = true }: ContenedorReorganiz
   const [seleccion, setSeleccion] = useState<Seleccion>(null)
   const [visibles, setVisibles] = useState<VisibilidadCapas>(VISIBLES_INICIALES)
   const [fondo, setFondo] = useState<BasemapId>(FONDO_POR_DEFECTO)
-  const [plegado, setPlegado] = useState(false)
   const mapaRef = useRef<MaplibreMap | null>(null)
 
   const escuelas = dataset?.escuelas ?? SIN_ESCUELAS
@@ -146,106 +149,86 @@ export function ContenedorReorganizacion({ visible = true }: ContenedorReorganiz
       ? { origen: recorrido.origen, destino: recorrido.destino, geometria: recorrido.resultado.geometria }
       : null
 
+  const detalle = escuelaSeleccionada ? (
+    <FichaEscuela
+      escuela={escuelaSeleccionada}
+      oferta={dataset?.ofertaPorCue[escuelaSeleccionada.cue]}
+      onCerrar={() => setSeleccion(null)}
+      onOrigen={(cue) => {
+        const punto = puntoDe('escuela', cue)
+        if (punto) recorrido.fijarOrigen(punto)
+      }}
+      onDestino={(cue) => {
+        const punto = puntoDe('escuela', cue)
+        if (punto) recorrido.fijarDestino(punto)
+      }}
+      onAcercar={acercar}
+      recorridoActivo={medindo}
+    />
+  ) : referenciaSeleccionada ? (
+    <FichaReferencia
+      referencia={referenciaSeleccionada}
+      oferta={dataset?.ofertaPorCue[referenciaSeleccionada.cue]}
+      onCerrar={() => setSeleccion(null)}
+      onOrigen={(cue) => {
+        const punto = puntoDe('referencia', cue)
+        if (punto) recorrido.fijarOrigen(punto)
+      }}
+      onDestino={(cue) => {
+        const punto = puntoDe('referencia', cue)
+        if (punto) recorrido.fijarDestino(punto)
+      }}
+      onAcercar={acercar}
+      recorridoActivo={medindo}
+    />
+  ) : zonaSeleccionada ? (
+    <FichaZona
+      etiqueta={zonaSeleccionada}
+      miembros={miembrosZona.get(zonaSeleccionada) ?? SIN_ESCUELAS}
+      onCerrar={() => setSeleccion(null)}
+      onSeleccionarEscuela={(cue) => abrirEstablecimiento('escuela', cue)}
+    />
+  ) : undefined
+
   const panel = dataset ? (
-    <>
-      <PanelReorganizacion
-        escuelasFiltradas={resultado.escuelas}
-        totalEscuelas={escuelas.length}
-        filtros={filtros}
-        onFiltros={setFiltros}
-        opciones={opciones}
-        indicadores={indicadores}
-        clasificacion={clasificacion}
-        onClasificacion={setClasificacion}
-        cantidadResaltadas={resaltados.cantidad}
-        seleccionada={seleccionEnMapa}
-        onSeleccionarEscuela={(cue) => abrirEstablecimiento('escuela', cue)}
-        plegado={plegado}
-        onPlegado={setPlegado}
-      />
-      <PanelRecorrido
-        estado={recorrido.estado}
-        origen={recorrido.origen}
-        destino={recorrido.destino}
-        resultado={recorrido.resultado}
-        error={recorrido.error}
-        onActivar={recorrido.activar}
-        onDesactivar={recorrido.desactivar}
-        onLimpiar={recorrido.limpiar}
-        onReintentar={() => {
-          if (recorrido.destino) recorrido.fijarDestino(recorrido.destino)
-        }}
-      />
-      <fieldset>
-        <legend>Capas</legend>
-        <Checkbox
-          label={ETIQUETAS_CAPAS.zonas}
-          checked={visibles.zonas}
-          onCheckedChange={(marcado) => setVisibles((v) => ({ ...v, zonas: marcado }))}
-        />
-        <Checkbox
-          label={ETIQUETAS_CAPAS.otrasPrimarias}
-          checked={visibles.otrasPrimarias}
-          onCheckedChange={(marcado) => setVisibles((v) => ({ ...v, otrasPrimarias: marcado }))}
-        />
-        <Checkbox
-          label={ETIQUETAS_CAPAS.secundarias}
-          checked={visibles.secundarias}
-          onCheckedChange={(marcado) => setVisibles((v) => ({ ...v, secundarias: marcado }))}
-        />
-      </fieldset>
-      <SelectorFondo valor={fondo} onCambio={setFondo} />
-      {escuelaSeleccionada && (
-        <FichaEscuela
-          escuela={escuelaSeleccionada}
-          oferta={dataset.ofertaPorCue[escuelaSeleccionada.cue]}
-          onCerrar={() => setSeleccion(null)}
-          onOrigen={(cue) => {
-            const punto = puntoDe('escuela', cue)
-            if (punto) recorrido.fijarOrigen(punto)
-          }}
-          onDestino={(cue) => {
-            const punto = puntoDe('escuela', cue)
-            if (punto) recorrido.fijarDestino(punto)
-          }}
-          onAcercar={acercar}
-          recorridoActivo={medindo}
-        />
-      )}
-      {referenciaSeleccionada && (
-        <FichaReferencia
-          referencia={referenciaSeleccionada}
-          oferta={dataset.ofertaPorCue[referenciaSeleccionada.cue]}
-          onCerrar={() => setSeleccion(null)}
-          onOrigen={(cue) => {
-            const punto = puntoDe('referencia', cue)
-            if (punto) recorrido.fijarOrigen(punto)
-          }}
-          onDestino={(cue) => {
-            const punto = puntoDe('referencia', cue)
-            if (punto) recorrido.fijarDestino(punto)
-          }}
-          onAcercar={acercar}
-          recorridoActivo={medindo}
-        />
-      )}
-      {zonaSeleccionada && (
-        <FichaZona
-          etiqueta={zonaSeleccionada}
-          miembros={miembrosZona.get(zonaSeleccionada) ?? SIN_ESCUELAS}
-          onCerrar={() => setSeleccion(null)}
+    <SidebarReorganizacion
+      subtitulo={`Primaria común, 1 a 10 alumnos. Corte ${formatearCorte(dataset.corte)}`}
+      accionEncabezado={<MetodologiaReorganizacion dataset={dataset} />}
+      detalle={detalle}
+      onCerrarDetalle={() => setSeleccion(null)}
+      escuelas={
+        <PanelReorganizacion
+          escuelasFiltradas={resultado.escuelas}
+          totalEscuelas={escuelas.length}
+          filtros={filtros}
+          onFiltros={setFiltros}
+          opciones={opciones}
+          indicadores={indicadores}
+          clasificacion={clasificacion}
+          onClasificacion={setClasificacion}
+          cantidadResaltadas={resaltados.cantidad}
+          seleccionada={seleccionEnMapa}
+          resaltadas={resaltados.cues}
           onSeleccionarEscuela={(cue) => abrirEstablecimiento('escuela', cue)}
         />
-      )}
-      <MetodologiaReorganizacion dataset={dataset} />
-      <LeyendaReorganizacion
-        capasVisibles={{
-          zonas: visibles.zonas,
-          otrasPrimarias: visibles.otrasPrimarias,
-          secundarias: visibles.secundarias,
-        }}
-      />
-    </>
+      }
+      capas={<PanelCapasReorganizacion visibles={visibles} onVisibles={setVisibles} fondo={fondo} onFondo={setFondo} />}
+      recorrido={
+        <PanelRecorrido
+          estado={recorrido.estado}
+          origen={recorrido.origen}
+          destino={recorrido.destino}
+          resultado={recorrido.resultado}
+          error={recorrido.error}
+          onActivar={recorrido.activar}
+          onDesactivar={recorrido.desactivar}
+          onLimpiar={recorrido.limpiar}
+          onReintentar={() => {
+            if (recorrido.destino) recorrido.fijarDestino(recorrido.destino)
+          }}
+        />
+      }
+    />
   ) : undefined
 
   return (
