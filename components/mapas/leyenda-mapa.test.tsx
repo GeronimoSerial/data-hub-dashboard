@@ -150,7 +150,7 @@ describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
     expect((sinReporte as HTMLElement).style.backgroundColor).toBe('')
     expect(container.querySelectorAll('button')).toHaveLength(0)
     expect(Array.from(container.querySelectorAll('.map-leyenda__simbolos li')).map((item) => item.textContent)).toEqual([
-      'Funcionamiento interrumpido', 'Funcionamiento parcialmente interrumpido', 'Evacuado', 'Usado como centro de evacuados', 'Sin actualizar', 'Posible centro de evacuados', 'Solucionada recientemente',
+      'Funcionamiento interrumpido', 'Funcionamiento parcialmente interrumpido', 'Evacuado', 'Usado como centro de evacuados', 'Sin actualizar', 'Solucionada recientemente',
     ])
     expect(container.querySelector('.map-leyenda__simbolos li:last-child .map-insignia')).toHaveAttribute('aria-hidden', 'true')
     expect(container.querySelector('.map-leyenda__simbolos li:last-child .map-insignia svg')).not.toBeNull()
@@ -261,5 +261,10 @@ describe('LeyendaMapa · posición', () => {
     expect(muestras.map((muestra) => muestra.style.backgroundColor)).toEqual(
       (['muy_alto', 'alto', 'moderado'] as const).map((nivel) => colorCss(colorRiesgo(nivel))),
     )
+  })
+
+  it('no lista el anillo verde de "Posible centro de evacuados" (los marcadores quedan como antes)', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" />)
+    expect(container.textContent).not.toContain('Posible centro de evacuados')
   })
 })

@@ -14,7 +14,7 @@ describe('BloqueCentroEvacuados', () => {
   it('muestra el botón y lo dispara al hacer click', async () => {
     const onAlternar = vi.fn()
     render(<BloqueCentroEvacuados {...base} onAlternar={onAlternar} />)
-    const boton = screen.getByRole('button', { name: 'Mostrar camino al centro de evacuados más cercano' })
+    const boton = screen.getByRole('button', { name: 'Ver camino al centro de evacuados más cercano' })
     expect(boton).toHaveAttribute('aria-pressed', 'false')
     await userEvent.setup().click(boton)
     expect(onAlternar).toHaveBeenCalledTimes(1)

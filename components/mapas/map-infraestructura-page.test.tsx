@@ -85,6 +85,7 @@ vi.mock('@/components/mapas/ficha-escuela-panel', () => ({
   FichaEscuelaPanel: (props: {
     escuela: { cueAnexo: string }
     acceso: ReactNode
+    centroEvacuados?: ReactNode
     onCerrar: () => void
     onVerAlumnosAlcanzados: (id: string) => void
     onVerHistorialCompleto: () => void
@@ -117,6 +118,7 @@ vi.mock('@/components/mapas/ficha-escuela-panel', () => ({
           Quitar selección
         </button>
       )}
+      {props.centroEvacuados}
       {props.acceso}
     </section>
   ),
@@ -945,13 +947,13 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     15000,
   )
 
-  it('el camino al centro de evacuados sólo se pide al apretar el botón de la ficha y se oculta al volver a apretarlo', async () => {
+  it('el camino al centro de evacuados (botón fuera del pliegue Acceso) sólo se pide al apretar el botón de la ficha y se oculta al volver a apretarlo', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
     await userEvent.click(screen.getByTestId('mock-click-parte'))
     const ficha = within(await screen.findByTestId('mock-ficha-escuela'))
 
     expect(llamadasCentro.llamadas.every(([, habilitado]) => !habilitado)).toBe(true)
-    await userEvent.click(ficha.getByRole('button', { name: 'Mostrar camino al centro de evacuados más cercano' }))
+    await userEvent.click(ficha.getByRole('button', { name: 'Ver camino al centro de evacuados más cercano' }))
     expect(llamadasCentro.llamadas.at(-1)).toEqual([CUE, true])
     expect(ficha.getByText('Buscando el centro de evacuados más cercano…')).toBeInTheDocument()
 

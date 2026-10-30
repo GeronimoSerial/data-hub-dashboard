@@ -37,6 +37,8 @@ import { ObservacionReporte } from './observacion-reporte'
 interface FichaEscuelaPanelProps {
   escuela: EscuelaMapaEnriquecida & Partial<DatosInstitutoMapa>
   acceso: ReactNode
+  /** Botón del camino al centro de evacuados: visible en la vista previa y en la ficha, fuera del pliegue Acceso. */
+  centroEvacuados?: ReactNode
   mostrarEnlaceNominal: boolean
   onCerrar: () => void
   onVerAlumnosAlcanzados: (afectacionId: string) => void
@@ -120,6 +122,7 @@ function Desplegable({
 export function FichaEscuelaPanel({
   escuela,
   acceso,
+  centroEvacuados = null,
   mostrarEnlaceNominal,
   onCerrar,
   onVerAlumnosAlcanzados,
@@ -219,7 +222,7 @@ export function FichaEscuelaPanel({
         urlFichaCompleta={urlFichaCompleta}
         onCerrarVistaPrevia={onCerrar}
         onQuitarSeleccion={onQuitarSeleccion ?? (() => {})}
-        extra={extraVistaPrevia}
+        extra={<>{extraVistaPrevia}{centroEvacuados}</>}
         aislamiento={aislamiento}
         distanciaLocalidad={distanciaLocalidad}
         onAbrirFichaCompleta={onAbrirFichaCompleta}
@@ -264,6 +267,8 @@ export function FichaEscuelaPanel({
       <GaleriaEvidencia cue={escuela.cueAnexo} />
 
       <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={horizonteRiesgo} planificacion={planificacion} />
+
+      {centroEvacuados}
 
       <div>
         <Desplegable titulo="Acceso" abierto>

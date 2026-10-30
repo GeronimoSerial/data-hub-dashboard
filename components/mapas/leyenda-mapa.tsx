@@ -11,7 +11,6 @@ import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import type { ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
 import { IconoMapaLeyenda, InsigniaLeyenda, svgMarcadorEstacion, type EstadoEstacion, type IdInsignia } from '@/lib/mapas/insignias-mapa'
-import { ETIQUETA_POSIBLE_CENTRO, SVG_ANILLO_POSIBLE_CENTRO } from '@/lib/infraestructura/evacuacion/mapa'
 import { GLIFO_BADGE_ESTADO, SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, svgBadgeEstado } from '@/lib/mapas/iconos-mapa'
 
 type RegistroEventosLeyenda = Pick<ResumenEventosReportados, 'actualizadoAl'>
@@ -31,7 +30,6 @@ const ESTADOS_LEYENDA = [
   { svg: svgEstadoLeyenda('evacuado'), etiqueta: ETIQUETA_ESTADO_CLASES.evacuado },
   { svg: svgEstadoLeyenda('centro'), etiqueta: ETIQUETA_ESTADO_CLASES.centro },
   { svg: svgEstadoLeyenda('reloj'), etiqueta: 'Sin actualizar' },
-  { svg: SVG_ANILLO_POSIBLE_CENTRO, etiqueta: ETIQUETA_POSIBLE_CENTRO },
   { svg: SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, etiqueta: 'Solucionada recientemente' },
 ] as const
 
