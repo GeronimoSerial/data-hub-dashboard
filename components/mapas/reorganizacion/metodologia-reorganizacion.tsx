@@ -46,27 +46,27 @@ export function MetodologiaReorganizacion({ dataset }: MetodologiaReorganizacion
         <DialogTitle>Metodología de la reorganización</DialogTitle>
         <DialogDescription>Fuentes, períodos, faltantes y límites de cada cálculo del mapa.</DialogDescription>
 
-        <div className="flex flex-col gap-5 pt-3 text-sm leading-relaxed">
-          <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Universo y corte</h3>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-              <dt className="text-slate-600">Versión</dt>
+        <div className="rz-met">
+          <section>
+            <h3>Universo y corte</h3>
+            <dl className="rz-kv">
+              <dt>Versión</dt>
               <dd>{dataset.version}</dd>
-              <dt className="text-slate-600">Fecha de corte</dt>
+              <dt>Fecha de corte</dt>
               <dd>{formatearCorte(dataset.corte)}</dd>
-              <dt className="text-slate-600">Establecimientos del universo</dt>
+              <dt>Establecimientos del universo</dt>
               <dd>{numero(cobertura.escuelas)}</dd>
-              <dt className="text-slate-600">Alumnos de primaria</dt>
+              <dt>Alumnos de primaria</dt>
               <dd>{numero(cobertura.alumnos)}</dd>
-              <dt className="text-slate-600">Con coordenadas</dt>
+              <dt>Con coordenadas</dt>
               <dd>{numero(cobertura.conCoordenadas)}</dd>
-              <dt className="text-slate-600">Con importe salarial positivo</dt>
+              <dt>Con importe salarial positivo</dt>
               <dd>{numero(cobertura.conImportePositivo)}</dd>
-              <dt className="text-slate-600">Con registros POF</dt>
+              <dt>Con registros POF</dt>
               <dd>{numero(cobertura.conRegistrosPof)}</dd>
-              <dt className="text-slate-600">Centros de zona</dt>
+              <dt>Centros de zona</dt>
               <dd>{numero(cobertura.centros)}</dd>
-              <dt className="text-slate-600">Zonas ocupadas</dt>
+              <dt>Zonas ocupadas</dt>
               <dd>{numero(cobertura.zonasOcupadas)}</dd>
             </dl>
             <p>
@@ -75,9 +75,9 @@ export function MetodologiaReorganizacion({ dataset }: MetodologiaReorganizacion
             </p>
           </section>
 
-          <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Fuentes y períodos</h3>
-            <ul className="flex list-disc flex-col gap-1 pl-5">
+          <section>
+            <h3>Fuentes y períodos</h3>
+            <ul>
               <li>Corte V29: establecimientos, matrícula y ubicación del mockup de origen.</li>
               <li>
                 Matrícula por año, de 2023 a 2026. Establecimientos con dato:{' '}
@@ -89,9 +89,9 @@ export function MetodologiaReorganizacion({ dataset }: MetodologiaReorganizacion
             </ul>
           </section>
 
-          <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Qué significa sin dato</h3>
-            <ul className="flex list-disc flex-col gap-1 pl-5">
+          <section>
+            <h3>Qué significa sin dato</h3>
+            <ul>
               <li>Sin dato no es cero. Un dato ausente se muestra como &quot;Sin dato&quot;.</li>
               <li>Un año sin matrícula registrada no equivale a cero alumnos.</li>
               <li>Un establecimiento sin importe positivo no aporta salario cero a su zona.</li>
@@ -99,8 +99,8 @@ export function MetodologiaReorganizacion({ dataset }: MetodologiaReorganizacion
             </ul>
           </section>
 
-          <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">POF y personal de liquidaciones</h3>
+          <section>
+            <h3>POF y personal de liquidaciones</h3>
             <p>
               {cobertura.conRegistrosPof === 0
                 ? 'La fuente POF de este corte no tiene registros para ningún establecimiento.'
@@ -110,9 +110,9 @@ export function MetodologiaReorganizacion({ dataset }: MetodologiaReorganizacion
             <p>El personal de liquidaciones y los agentes POF son conceptos separados. No se igualan entre sí.</p>
           </section>
 
-          <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Cómo se agrupan las zonas</h3>
-            <ul className="flex list-disc flex-col gap-1 pl-5">
+          <section>
+            <h3>Cómo se agrupan las zonas</h3>
+            <ul>
               <li>
                 Cada zona es un círculo de 20 km de diámetro (radio de {RADIO_ZONA_KM} km) alrededor de su centro.
               </li>
@@ -134,17 +134,17 @@ export function MetodologiaReorganizacion({ dataset }: MetodologiaReorganizacion
             </ul>
           </section>
 
-          <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Tendencia zonal</h3>
-            <ul className="flex list-disc flex-col gap-1 pl-5">
+          <section>
+            <h3>Tendencia zonal</h3>
+            <ul>
               <li>Compara 2023 y 2026 solo en los establecimientos que tienen matrícula registrada en ambos años.</li>
               <li>Una zona sin establecimientos comparables se marca como &quot;Sin comparación&quot;.</li>
             </ul>
           </section>
 
-          <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Economía de la zona</h3>
-            <ul className="flex list-disc flex-col gap-1 pl-5">
+          <section>
+            <h3>Economía de la zona</h3>
+            <ul>
               <li>Costo informado: suma de los importes salariales positivos disponibles.</li>
               <li>Referencia retenida: el establecimiento con mayor importe informado.</li>
               <li>Potencial bruto mensual: costo informado menos el importe de la referencia retenida.</li>
@@ -152,31 +152,31 @@ export function MetodologiaReorganizacion({ dataset }: MetodologiaReorganizacion
               <li>Se calcula solo con al menos 2 establecimientos y 2 importes positivos en la zona.</li>
               <li>Con cobertura parcial, la cifra considera solo los importes disponibles y lo indica.</li>
             </ul>
-            <p className="rounded-md bg-card p-3">
+            <p className="rz-nota rz-nota--aviso">
               Límites: no descuenta cargos a conservar o reubicar, transporte, adecuaciones ni costos del receptor. Es un
               potencial bruto bajo un supuesto, no un ahorro confirmado ni una recomendación de cierre.
             </p>
           </section>
 
-          <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Recorridos</h3>
-            <ul className="flex list-disc flex-col gap-1 pl-5">
+          <section>
+            <h3>Recorridos</h3>
+            <ul>
               <li>El tiempo es teórico: no considera el estado del camino ni el clima.</li>
               <li>OpenStreetMap puede tener información incompleta en zonas rurales, y entonces el recorrido puede faltar.</li>
               <li>Si el servicio vial falla o no hay conexión, no se muestra una distancia en línea recta.</li>
             </ul>
           </section>
 
-          <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Oferta educativa</h3>
+          <section>
+            <h3>Oferta educativa</h3>
             <p>
               Referencias del corte: {numero(referencias.length)}. Claves de agregados de oferta: {numero(clavesOferta)}.
               Si los números no coinciden, la diferencia se informa y no se descarta en silencio.
             </p>
           </section>
 
-          <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Pendientes</h3>
+          <section>
+            <h3>Pendientes</h3>
             {/* Pendiente hasta que se confirme la fuente de fondo satelital y el proveedor vial de producción. */}
             <p>
               El fondo satelital y el proveedor vial de producción están pendientes de confirmar: fuente, licencia,

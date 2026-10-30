@@ -1,6 +1,5 @@
 'use client'
 
-import { useId } from 'react'
 import { Button } from '@/components/ui/button'
 import type {
   CodigoErrorRecorrido,
@@ -60,58 +59,56 @@ export function PanelRecorrido({
   onLimpiar,
   onReintentar,
 }: PanelRecorridoProps) {
-  const idTitulo = useId()
   const activo = estado !== 'inactivo'
   const puedeReintentar = error !== null && CODIGOS_REINTENTABLES.has(error.codigo) && origen !== null && destino !== null
 
   return (
-    <section aria-labelledby={idTitulo} className="flex flex-col gap-3 p-4">
-      <h3 id={idTitulo} className="text-sm font-semibold">
-        Recorrido
-      </h3>
+    <section className="rz-ruta" aria-label="Recorrido">
+      <p className="rz-nota" aria-live="polite">
+        {INSTRUCCION[estado]}
+      </p>
 
-      <Button variant={activo ? 'secondary' : 'default'} onClick={activo ? onDesactivar : onActivar}>
-        {activo ? 'Terminar medición' : 'Medir recorrido'}
-      </Button>
-
-      <div aria-live="polite" className="flex flex-col gap-2 text-sm">
-        <p className="text-slate-700">{INSTRUCCION[estado]}</p>
-
+      <div className="rz-acciones">
+        <Button variant={activo ? 'secondary' : 'default'} onClick={activo ? onDesactivar : onActivar}>
+          {activo ? 'Terminar medición' : 'Medir recorrido'}
+        </Button>
+        {activo && puedeReintentar && (
+          <Button variant="secondary" onClick={onReintentar}>
+            Reintentar
+          </Button>
+        )}
         {activo && (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-            <dt className="text-slate-700">Origen</dt>
-            <dd className="break-words">{origen?.nombre ?? 'Sin elegir'}</dd>
-            <dt className="text-slate-700">Destino</dt>
-            <dd className="break-words">{destino?.nombre ?? 'Sin elegir'}</dd>
-          </dl>
+          <Button variant="ghost" onClick={onLimpiar}>
+            Limpiar
+          </Button>
         )}
-
-        {resultado && (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-            <dt className="text-slate-700">Distancia</dt>
-            <dd className="font-medium">{`${FORMATO_KM.format(resultado.distanciaKm)} km`}</dd>
-            <dt className="text-slate-700">Tiempo teórico</dt>
-            <dd className="font-medium">{formatearTiempo(Math.round(resultado.duracionMin))}</dd>
-          </dl>
-        )}
-
-        {error && <p className="font-medium text-red-800">{error.mensaje}</p>}
       </div>
 
       {activo && (
-        <div className="flex flex-wrap gap-2">
-          {puedeReintentar && (
-            <Button variant="secondary" size="sm" onClick={onReintentar}>
-              Reintentar
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={onLimpiar}>
-            Limpiar
-          </Button>
-        </div>
+        <dl className="rz-kv">
+          <dt>Origen</dt>
+          <dd>{origen?.nombre ?? 'Sin elegir'}</dd>
+          <dt>Destino</dt>
+          <dd>{destino?.nombre ?? 'Sin elegir'}</dd>
+        </dl>
       )}
 
-      <p className="text-xs text-slate-700">
+      {resultado && (
+        <dl className="rz-ruta__resultado">
+          <div>
+            <dt>Distancia</dt>
+            <dd>{`${FORMATO_KM.format(resultado.distanciaKm)} km`}</dd>
+          </div>
+          <div>
+            <dt>Tiempo teórico</dt>
+            <dd>{formatearTiempo(Math.round(resultado.duracionMin))}</dd>
+          </div>
+        </dl>
+      )}
+
+      {error && <p className="rz-ruta__error">{error.mensaje}</p>}
+
+      <p className="rz-nota">
         El tiempo es teórico: no contempla el estado del camino ni el clima, y puede faltar información rural en
         OpenStreetMap.
       </p>

@@ -217,6 +217,7 @@ describe('ContenedorReorganizacion', () => {
     const usuario = userEvent.setup()
     render(<ContenedorReorganizacion />)
 
+    await usuario.click(screen.getByRole('tab', { name: 'Recorrido' }))
     await usuario.click(screen.getByRole('button', { name: 'Medir recorrido' }))
     clicEnMapa([{ layer: CAPA_UNIVERSO, properties: { cue: '1800001' } }])
 
@@ -238,7 +239,8 @@ describe('ContenedorReorganizacion', () => {
     const usuario = userEvent.setup()
     render(<ContenedorReorganizacion />)
 
-    await usuario.click(screen.getByRole('checkbox', { name: ETIQUETAS_CAPAS.secundarias }))
+    await usuario.click(screen.getByRole('tab', { name: 'Capas' }))
+    await usuario.click(screen.getByRole('switch', { name: ETIQUETAS_CAPAS.secundarias }))
 
     expect(capas().visibles.secundarias).toBe(false)
     expect((MAPA_PROPS.current.interactiveLayerIds as string[])).not.toContain(CAPA_SECUNDARIAS)
@@ -248,6 +250,7 @@ describe('ContenedorReorganizacion', () => {
     const usuario = userEvent.setup()
     render(<ContenedorReorganizacion />)
 
+    await usuario.click(screen.getByRole('tab', { name: 'Capas' }))
     await usuario.click(screen.getByText(BASEMAPS.positron.label))
 
     expect(MAPA_PROPS.current.mapStyle).toBe(BASEMAPS.positron.styleUrl)
