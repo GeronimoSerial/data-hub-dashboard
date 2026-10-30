@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -62,11 +63,13 @@ function renderFicha(opciones: {
   onVerAlumnosAlcanzados?: (id: string) => void
   onVerHistorialCompleto?: () => void
   urlFichaCompleta?: string
+  centroEvacuados?: ReactNode
 } = {}) {
   return render(
     <FichaEscuelaPanel
       escuela={opciones.escuela ?? escuela}
       acceso={<p>Acceso de prueba</p>}
+      centroEvacuados={opciones.centroEvacuados}
       mostrarEnlaceNominal={opciones.mostrarEnlaceNominal ?? false}
       onCerrar={opciones.onCerrar ?? vi.fn()}
       onVerAlumnosAlcanzados={opciones.onVerAlumnosAlcanzados ?? vi.fn()}
@@ -581,5 +584,21 @@ describe('FichaEscuelaPanel — comedor y posible centro de evacuados', () => {
     renderFicha({ escuela: { ...escuela, clases: 'centro', posibleCentroEvacuados: true } })
     expect(screen.getAllByText('Usado como centro de evacuados').length).toBeGreaterThan(0)
     expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
+  })
+})
+
+describe('FichaEscuelaPanel — botón del camino al centro de evacuados', () => {
+  beforeEach(() => { instalarFetch() })
+  afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+
+  it('en la vista previa (la que se abre al tocar la escuela) el botón es visible y no está en el pliegue Acceso', () => {
+    renderFicha({ urlFichaCompleta: '/mapas/infraestructura/escuelas/1800123-00', centroEvacuados: <button>Ver camino al centro de evacuados más cercano</button> })
+    expect(screen.getByRole('button', { name: 'Ver camino al centro de evacuados más cercano' })).toBeInTheDocument()
+    expect(screen.queryByText('Acceso de prueba')).not.toBeInTheDocument()
+  })
+
+  it('en la ficha completa también aparece', () => {
+    renderFicha({ centroEvacuados: <button>Ver camino al centro de evacuados más cercano</button> })
+    expect(screen.getByRole('button', { name: 'Ver camino al centro de evacuados más cercano' })).toBeInTheDocument()
   })
 })
