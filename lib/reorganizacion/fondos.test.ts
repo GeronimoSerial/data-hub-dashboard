@@ -55,7 +55,7 @@ describe('estiloDeFondo', () => {
     const estilo = estiloDeFondo('satelital')
     expect(typeof estilo).toBe('object')
     const fuente = (estilo as typeof ESTILO_SATELITAL).sources['esri-imagenes']
-    expect(fuente).toMatchObject({ type: 'raster', maxzoom: 19 })
+    expect(fuente).toMatchObject({ type: 'raster', maxzoom: 17 })
     expect(JSON.stringify(estilo)).toContain('World_Imagery')
     expect(JSON.stringify(estilo)).toMatch(/Esri/)
     expect(JSON.stringify(estilo)).not.toMatch(/key=|token=/i)
