@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { forwardRef, useEffect, useImperativeHandle, type ReactNode } from 'react'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { LIMITES_CORRIENTES } from '@/lib/mapas/departamentos'
 
-const { MAPA, ESTADO_DATOS, RECARGAS } = vi.hoisted(() => ({
+const { MAPA, ESTADO_DATOS, RECARGAS, MAPGL } = vi.hoisted(() => ({
   MAPA: { resize: vi.fn(), fitBounds: vi.fn(), stop: vi.fn() },
+  MAPGL: { props: {} as Record<string, unknown> },
   ESTADO_DATOS: {
     valor: { estado: 'listo', dataset: undefined, mensaje: undefined } as {
       estado: 'cargando' | 'listo' | 'error' | 'sin_permiso'
@@ -27,6 +28,7 @@ vi.mock('react-map-gl/maplibre', () => {
   // `getMap()` con los espías de MAPA y dispara `onLoad` una vez montado,
   // como lo hace MapLibre al cargar el estilo.
   const MapGL = forwardRef<unknown, { children?: ReactNode; onLoad?: () => void }>(function MapGL(props, ref) {
+    MAPGL.props = props as Record<string, unknown>
     useImperativeHandle(ref, () => ({ getMap: () => MAPA }))
     useEffect(() => {
       props.onLoad?.()
@@ -143,5 +145,31 @@ describe('MapReorganizacionPage', () => {
     expect(screen.getByRole('button', { name: 'Mostrar panel' })).toHaveAttribute('aria-expanded', 'false')
     expect(panel).not.toBeVisible()
     expect(screen.getByText('Indicadores')).toBeInTheDocument()
+  })
+
+  it('pasa las capas interactivas y el clic al mapa', () => {
+    const alClic = vi.fn()
+    render(<MapReorganizacionPage interactiveLayerIds={['capa-a']} onMapClick={alClic} />)
+
+    expect(MAPGL.props.interactiveLayerIds).toEqual(['capa-a'])
+    expect(MAPGL.props.onClick).toBe(alClic)
+  })
+
+  it('usa puntero sólo con el mouse sobre una capa interactiva', () => {
+    render(<MapReorganizacionPage interactiveLayerIds={['capa-a']} />)
+    const mover = MAPGL.props.onMouseMove as (e: { features?: unknown[] }) => void
+
+    act(() => mover({ features: [{}] }))
+    expect(MAPGL.props.cursor).toBe('pointer')
+
+    act(() => mover({ features: [] }))
+    expect(MAPGL.props.cursor).toBeUndefined()
+  })
+
+  it('sin capas interactivas no cambia el puntero ni registra el movimiento', () => {
+    render(<MapReorganizacionPage />)
+
+    expect(MAPGL.props.interactiveLayerIds).toBeUndefined()
+    expect(MAPGL.props.onMouseMove).toBeUndefined()
   })
 })

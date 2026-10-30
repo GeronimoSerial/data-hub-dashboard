@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import MapGL, { Layer, NavigationControl, Source, type MapRef } from 'react-map-gl/maplibre'
+import MapGL, { Layer, NavigationControl, Source, type MapLayerMouseEvent, type MapRef } from 'react-map-gl/maplibre'
 import type { Map as MaplibreMap, PaddingOptions, SymbolLayerSpecification } from 'maplibre-gl'
 import type { Feature, FeatureCollection, Geometry, Point } from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -68,6 +68,9 @@ interface MapReorganizacionPageProps {
   onMapLoad?: (mapa: MaplibreMap) => void
   /** Panel lateral (indicadores, filtros, listado). Móvil: se apila debajo del mapa. */
   panel?: ReactNode
+  /** Capas que responden a clics y hover (puntero). Sin lista, el mapa no cambia de comportamiento. */
+  interactiveLayerIds?: string[]
+  onMapClick?: (e: MapLayerMouseEvent) => void
 }
 
 function paddingDesde(encuadre?: PaddingEncuadre): PaddingOptions {
@@ -114,6 +117,8 @@ export default function MapReorganizacionPage({
   children,
   onMapLoad,
   panel,
+  interactiveLayerIds,
+  onMapClick,
 }: MapReorganizacionPageProps) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
@@ -130,6 +135,12 @@ export default function MapReorganizacionPage({
 
   const [etiquetas, setEtiquetas] = useState<FeatureCollection<Point, { nombre: string }> | null>(null)
   const [panelAbierto, setPanelAbierto] = useState(true)
+  const [cursor, setCursor] = useState<'pointer' | undefined>(undefined)
+
+  // MapLibre sólo devuelve `features` para las capas de `interactiveLayerIds`.
+  function handleMouseMove(e: MapLayerMouseEvent) {
+    setCursor(e.features && e.features.length > 0 ? 'pointer' : undefined)
+  }
   // Ver handleLoad y el efecto de `visible`: sólo un encuadre hecho con el
   // contenedor en tamaño real (no display:none) cuenta como válido.
   const fitValidoRef = useRef(false)
@@ -215,6 +226,10 @@ export default function MapReorganizacionPage({
             initialViewState={{ bounds: LIMITES_CORRIENTES, fitBoundsOptions: { padding: MARGEN_ENCUADRE } }}
             style={{ width: '100%', height: '100%' }}
             onLoad={handleLoad}
+            interactiveLayerIds={interactiveLayerIds}
+            onClick={onMapClick}
+            onMouseMove={interactiveLayerIds ? handleMouseMove : undefined}
+            cursor={cursor}
           >
             <NavigationControl position="top-left" />
 
