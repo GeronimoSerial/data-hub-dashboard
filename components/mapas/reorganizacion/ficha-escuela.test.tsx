@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { FichaEscuela, type FichaEscuelaProps } from './ficha-escuela'
 import { formatearARS } from '@/lib/reorganizacion/economia'
 import type { EscuelaV29, OfertaNivel } from '@/lib/reorganizacion/tipos'
@@ -172,7 +172,7 @@ describe('FichaEscuela', () => {
     const onCerrar = vi.fn()
     render(<FichaEscuela {...crearProps({ onCerrar })} />)
 
-    fireEvent.click(within(screen.getByRole('group', { name: 'Acciones del establecimiento' })).getByRole('button', { name: 'Cerrar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }))
 
     expect(onCerrar).toHaveBeenCalledOnce()
   })
