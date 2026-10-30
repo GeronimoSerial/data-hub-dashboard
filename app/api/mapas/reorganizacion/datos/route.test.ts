@@ -19,9 +19,10 @@ const usuario: SessionUser = {
   nivelJurIds: [],
   accesoRecursos: 'todos',
   recursoIds: [],
+  hubPolicy: { enabledSections: ['maps'] },
 }
 
-const accesoPublico: RecursoAccess = { id: 'recurso-reorganizacion', estado: 'publicado', audienciaNivelJurIds: [], audienciaUserIds: [] }
+const accesoPublico: RecursoAccess = { id: 'recurso-reorganizacion', estado: 'publicado', audienciaNivelJurIds: [], audienciaUserIds: ['u1'] }
 const recursoPublico = { id: 'recurso-reorganizacion', access: accesoPublico }
 
 function pedido() {
