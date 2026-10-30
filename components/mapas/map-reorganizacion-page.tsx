@@ -30,7 +30,7 @@ const CAPA_DEPARTAMENTOS_NOMBRES_ID = 'reorganizacion-departamentos-nombres'
 const MARGEN_ENCUADRE = 24
 // Breakpoint del panel lateral: el mismo que usa el mapa de infraestructura.
 const CONSULTA_ESCRITORIO = '(min-width: 1080px)'
-const ANCHO_PANEL_ESCRITORIO = 340
+const ANCHO_PANEL_ESCRITORIO = 392
 
 const LAYOUT_NOMBRES_DEPARTAMENTOS: SymbolLayerSpecification['layout'] = {
   'text-field': ['get', 'nombre'],
@@ -210,7 +210,7 @@ export default function MapReorganizacionPage({
     : { position: 'relative' as const, width: '100%', height: 'min(62dvh, 620px)', minHeight: 320 }
 
   const panelStyle = escritorio
-    ? { flex: `0 0 ${ANCHO_PANEL_ESCRITORIO}px`, width: ANCHO_PANEL_ESCRITORIO, minHeight: 0, overflowY: 'auto' as const }
+    ? { flex: `0 0 ${ANCHO_PANEL_ESCRITORIO}px`, width: ANCHO_PANEL_ESCRITORIO, minHeight: 0, overflow: 'hidden' as const }
     : { width: '100%', minWidth: 0 }
 
   const mensajeEstado = dataset.estado === 'cargando'
