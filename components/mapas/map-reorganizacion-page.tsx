@@ -71,6 +71,8 @@ interface MapReorganizacionPageProps {
   /** Capas que responden a clics y hover (puntero). Sin lista, el mapa no cambia de comportamiento. */
   interactiveLayerIds?: string[]
   onMapClick?: (e: MapLayerMouseEvent) => void
+  /** URL del estilo base. Sin valor, usa el fondo vial por defecto. */
+  mapStyle?: string
 }
 
 function paddingDesde(encuadre?: PaddingEncuadre): PaddingOptions {
@@ -119,6 +121,7 @@ export default function MapReorganizacionPage({
   panel,
   interactiveLayerIds,
   onMapClick,
+  mapStyle = BASEMAPS.voyager.styleUrl,
 }: MapReorganizacionPageProps) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
@@ -222,7 +225,7 @@ export default function MapReorganizacionPage({
         <div className={styles.mapRoot}>
           <MapGL
             ref={mapRef}
-            mapStyle={BASEMAPS.voyager.styleUrl}
+            mapStyle={mapStyle}
             initialViewState={{ bounds: LIMITES_CORRIENTES, fitBoundsOptions: { padding: MARGEN_ENCUADRE } }}
             style={{ width: '100%', height: '100%' }}
             onLoad={handleLoad}
