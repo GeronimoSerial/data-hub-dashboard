@@ -1,11 +1,11 @@
 import type { LucideIcon } from 'lucide-react';
-import { TriangleAlert, Waves } from 'lucide-react';
+import { Waves } from 'lucide-react';
 
 import { PALETA_ESTADO_ALTURA, RELLENO_ESTACION_SIN_DATO } from './paleta-tonal';
 import { GROSOR_TRAZO_ICONO, PIXEL_RATIO_ICONOS } from './colores-mapa';
 
 // Rasterizador único de íconos del mapa: lo usan las capas `symbol` de
-// MapLibre (estaciones, eventos, escuelas, clusters, accesos) y la leyenda,
+// MapLibre (estaciones, escuelas, clusters, accesos) y la leyenda,
 // así ambos muestran exactamente el mismo dibujo. Un solo estilo: forma
 // rellena + halo de 2 px + glifo Lucide real (blanco o tinta), trazo 2.
 
@@ -170,27 +170,6 @@ export const INSIGNIAS = {
     icono: Waves,
     etiqueta: 'Estación: sin dato',
   },
-  'evento-alta': {
-    forma: 'triangulo',
-    relleno: '#7c2d12',
-    anillo: '#7c2d12',
-    icono: TriangleAlert,
-    etiqueta: 'Evento reportado: confianza alta',
-  },
-  'evento-media': {
-    forma: 'triangulo',
-    relleno: '#c2410c',
-    anillo: '#c2410c',
-    icono: TriangleAlert,
-    etiqueta: 'Evento reportado: confianza media',
-  },
-  'evento-baja': {
-    forma: 'triangulo',
-    relleno: '#fdba74',
-    anillo: '#c2410c',
-    icono: TriangleAlert,
-    etiqueta: 'Evento reportado: confianza baja',
-  },
 } satisfies Record<string, DefinicionInsignia>;
 
 export type IdInsignia = keyof typeof INSIGNIAS;
@@ -238,29 +217,9 @@ export async function registrarImagenesSvg(
   );
 }
 
-/** Registers every missing marker as a MapLibre image. Never throws; failures are skipped. */
-export function registrarInsignias(
-  map: MapaImagenes,
-  ids: readonly string[] = Object.keys(INSIGNIAS),
-): Promise<void> {
-  const imagenes = ids.flatMap((id) => {
-    const definicion = INSIGNIAS[id as IdInsignia];
-    if (!definicion) return [];
-    const { etiqueta: _etiqueta, ...opciones } = definicion;
-    return [{ id, svg: svgIconoMapa({ ...opciones, tamano: 32, escala: PIXEL_RATIO_ICONOS }) }];
-  });
-  return registrarImagenesSvg(map, imagenes);
-}
-
 /** Inline marker for the legend, rendered from the same SVG as the map image. */
 export function IconoMapaLeyenda({ svg }: { svg: string }) {
   return <span className="map-insignia" aria-hidden="true" dangerouslySetInnerHTML={{ __html: svg }} />;
-}
-
-/** Inline legend marker rendered from the same SVG used on the map. */
-export function InsigniaLeyenda({ id, tamano = 24 }: { id: IdInsignia; tamano?: number }) {
-  const { etiqueta: _etiqueta, ...opciones } = INSIGNIAS[id];
-  return <IconoMapaLeyenda svg={svgInsignia({ ...opciones, tamano })} />;
 }
 
 // ── River station markers and level chips ────────────────────────────────
