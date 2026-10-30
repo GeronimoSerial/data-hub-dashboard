@@ -60,7 +60,7 @@ export async function serverHubPathAllowedByExistingAcl(user: SessionUser, path:
     const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
     return Boolean(found && puedeLeerMapaInfraestructura(user, found.access))
   }
-  const resourceRoute = ['/mapas/matricula', '/mapas/natalidad'].find((route) => path === route)
+  const resourceRoute = ['/mapas/matricula', '/mapas/natalidad', '/mapas/reorganizacion'].find((route) => path === route)
   if (resourceRoute) {
     const found = await loadRecursoAccessByRuta(resourceRoute)
     return Boolean(found && puedeAbrir(user, found.access))

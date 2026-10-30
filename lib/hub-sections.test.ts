@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { puedeVerEnSeccion, type SessionUser } from './acl'
-import { effectiveSections, normalizeSectionPolicy, resourceInSections, safeDestination, sectionForPath, type SectionPolicy } from './hub-sections'
+import { effectiveSections, HUB_DESTINATIONS, normalizeSectionPolicy, resourceInSections, safeDestination, sectionForPath, type SectionPolicy } from './hub-sections'
 
 const user: SessionUser = { id: 'u', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
 const resource = { id: 'r', estado: 'publicado' as const, audienciaNivelJurIds: [], audienciaUserIds: [], formato: 'mapa' as const }
@@ -54,6 +54,21 @@ describe('hub section registry', () => {
     const bannedUser = { ...user, banned: true }
     const landingAcl = (path: string) => path === '/' && !bannedUser.banned
     expect(safeDestination({ policy: landingPolicy, destination: '/', allowedByExistingAcl: landingAcl })).toBeNull()
+  })
+
+  it('registers reorganizacion as a maps destination with the same section gate as natalidad', () => {
+    expect(HUB_DESTINATIONS).toContainEqual({ kind: 'section', section: 'maps', path: '/mapas/reorganizacion' })
+    expect(sectionForPath('/mapas/reorganizacion')).toBe('maps')
+    expect(resourceInSections({ formato: 'mapa', ruta: '/mapas/reorganizacion' }, new Set(['maps']))).toBe(true)
+    expect(resourceInSections({ formato: 'mapa', ruta: '/mapas/reorganizacion' }, new Set(['infrastructure']))).toBe(false)
+
+    const mapsOnly: SectionPolicy = { enabledSections: ['maps'], landing: false }
+    const noMaps: SectionPolicy = { enabledSections: ['infrastructure'], landing: false }
+    for (const destination of ['/mapas/reorganizacion', '/mapas/natalidad']) {
+      expect(safeDestination({ policy: mapsOnly, destination, allowedByExistingAcl: () => true })?.path).toBe(destination)
+      expect(safeDestination({ policy: noMaps, destination, allowedByExistingAcl: () => true })).toBeNull()
+      expect(safeDestination({ policy: mapsOnly, destination, allowedByExistingAcl: () => false })).toBeNull()
+    }
   })
 
   it('allows reports-only destination and registered GE special destination without a hub section grant', () => {

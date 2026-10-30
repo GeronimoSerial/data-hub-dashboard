@@ -26,6 +26,7 @@ export const HUB_DESTINATIONS: readonly HubDestination[] = [
   { kind: 'section', section: 'situation', path: '/situacion' },
   { kind: 'section', section: 'maps', path: '/mapas/matricula' },
   { kind: 'section', section: 'maps', path: '/mapas/natalidad' },
+  { kind: 'section', section: 'maps', path: '/mapas/reorganizacion' },
   { kind: 'section', section: 'dashboards', path: '/tablero' },
   { kind: 'section', section: 'maps', path: '/mapa_interactivo' },
   { kind: 'section', section: 'maps', path: '/mapa_sobreedad' },

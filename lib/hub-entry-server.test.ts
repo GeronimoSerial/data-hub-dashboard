@@ -5,13 +5,17 @@ const mocks = vi.hoisted(() => ({
   redirect: vi.fn((path: string) => { throw new Error(`REDIRECT:${path}`) }),
   getDb: vi.fn(),
   loadRecursoAccess: vi.fn(),
+  loadRecursoAccessByRuta: vi.fn(),
   resourceRow: { id: 'infra-resource', formato: 'mapa', ruta: '/mapas/infraestructura' as string | null },
 }))
 
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }))
 vi.mock('@/lib/session', () => ({ getSessionUser: mocks.getSessionUser }))
 vi.mock('@/lib/db', () => ({ getDb: mocks.getDb }))
-vi.mock('@/lib/db/recurso-access', () => ({ loadRecursoAccess: mocks.loadRecursoAccess }))
+vi.mock('@/lib/db/recurso-access', () => ({
+  loadRecursoAccess: mocks.loadRecursoAccess,
+  loadRecursoAccessByRuta: mocks.loadRecursoAccessByRuta,
+}))
 
 import { requireServerHubPageAccess, serverHubPathAllowedByExistingAcl } from './hub-entry-server'
 
@@ -64,5 +68,47 @@ describe('page-level hub authorization', () => {
       await expect(serverHubPathAllowedByExistingAcl({ ...selectedUser, banned: true, recursoIds: [id] }, alias)).resolves.toBe(false)
       expect(mocks.loadRecursoAccess).toHaveBeenLastCalledWith(id)
     }
+  })
+})
+
+describe('resource audience gate for route-registered maps', () => {
+  const audienceOf = (id: string, nivel: number[]) => ({ id, access: { id, estado: 'publicado' as const, audienciaNivelJurIds: nivel, audienciaUserIds: [] } })
+  const consulta = (nivelJurIds: number[]) => ({
+    id: 'consulta-user', role: 'consulta' as const, banned: false,
+    nivelJurIds, accesoRecursos: 'todos' as const, recursoIds: [], hubPolicy: {},
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('denies reorganizacion to a user whose audience excludes the resource and admits an allowed user', async () => {
+    mocks.loadRecursoAccessByRuta.mockResolvedValue(audienceOf('reorg-resource', [7]))
+    await expect(serverHubPathAllowedByExistingAcl(consulta([1]), '/mapas/reorganizacion')).resolves.toBe(false)
+    await expect(serverHubPathAllowedByExistingAcl(consulta([7]), '/mapas/reorganizacion')).resolves.toBe(true)
+    expect(mocks.loadRecursoAccessByRuta).toHaveBeenLastCalledWith('/mapas/reorganizacion')
+  })
+
+  it('fails closed for reorganizacion when no resource is registered at its route', async () => {
+    mocks.loadRecursoAccessByRuta.mockResolvedValue(null)
+    await expect(serverHubPathAllowedByExistingAcl(consulta([7]), '/mapas/reorganizacion')).resolves.toBe(false)
+  })
+
+  it('keeps matricula and natalidad gated by their own resource audience', async () => {
+    for (const route of ['/mapas/matricula', '/mapas/natalidad']) {
+      mocks.loadRecursoAccessByRuta.mockResolvedValue(audienceOf(`${route}-resource`, [7]))
+      await expect(serverHubPathAllowedByExistingAcl(consulta([1]), route)).resolves.toBe(false)
+      await expect(serverHubPathAllowedByExistingAcl(consulta([7]), route)).resolves.toBe(true)
+      expect(mocks.loadRecursoAccessByRuta).toHaveBeenLastCalledWith(route)
+    }
+  })
+
+  it('leaves infrastructure and unlisted map routes on their previous behavior', async () => {
+    mocks.loadRecursoAccessByRuta.mockResolvedValue(audienceOf('infra-resource', [7]))
+    await expect(serverHubPathAllowedByExistingAcl(consulta([1]), '/mapas/infraestructura')).resolves.toBe(false)
+    expect(mocks.loadRecursoAccessByRuta).toHaveBeenLastCalledWith('/mapas/infraestructura')
+    mocks.loadRecursoAccessByRuta.mockClear()
+    await expect(serverHubPathAllowedByExistingAcl(consulta([1]), '/mapas')).resolves.toBe(true)
+    expect(mocks.loadRecursoAccessByRuta).not.toHaveBeenCalled()
   })
 })
