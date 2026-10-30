@@ -12,19 +12,10 @@ export interface PermisoNominal {
   revocadoEn: string | null
 }
 
-// El rol 'admin' accede al alcance nominal sin grant previo. Decisión
-// explícita del titular del dato, que revierte el criterio original de B7: un
-// admin ya podía otorgarse el permiso a sí mismo (otorgarPermisoNominal no
-// impide el auto-otorgamiento), de modo que el grant no era una barrera para
-// ese rol sino un trámite previo. Lo que sostiene el control sigue en pie y no
-// depende de esta función: cada consulta efectiva queda registrada en
-// infra_acceso_nominal_log dentro de la misma transacción que sirve los
-// nombres (ver consultarYRegistrarAfectados en identidad.ts).
-//
-// 'editor' NO entra acá: lib/acl.ts:23 le da true incondicional en puedeAbrir(),
-// y extender ese criterio al dato nominal sí vaciaría infra_permiso_nominal de
-// sentido. Para cualquier rol distinto de 'admin' el grant vigente y no vencido
-// sigue siendo la única puerta. Ver B7 en docs/alertas-infraestructura-batches.md.
+// Admin and SSO management roles have nominal access without a separate grant.
+// Callers must still enforce section/resource and jurisdiction scope; actual
+// identity reads remain transactionally audited by consultarYRegistrarAfectados.
+// Editors and consulta users still require a valid, unrevoked grant.
 export async function puedeVerNominal(
   user: SessionUser | null,
   ahora: Date,
@@ -32,7 +23,7 @@ export async function puedeVerNominal(
   if (!user || user.banned) return false
   // operador_establecimiento nunca ve nombres de alumnos, ni con grant vigente.
   if (user.role === 'operador_establecimiento') return false
-  if (user.role === 'admin') return true
+  if (user.role === 'admin' || user.role === 'admin_ge' || user.role === 'director_nivel') return true
 
   const db = getDb()
   const [grant] = await db

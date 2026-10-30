@@ -14,6 +14,7 @@ import { emitirTicket, consumirTicket, hashTicket } from './ticket'
 import { geRateLimit } from './seguridad'
 import { esStagingForwardActivo } from './staging-forward'
 import * as provision from './provision'
+import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 
 usarDbTemporal('ge-sso')
 
@@ -253,6 +254,11 @@ describe('provisión y tickets contra la base', () => {
     expect(creado.name).toBe('Ana Pérez')
     expect(creado.emailVerified).toBe(true)
     expect(creado.geCueAnexo).toBe('9000001')
+    const nominalUser = {
+      id: creado.id, banned: false, nivelJurIds: [],
+      accesoRecursos: 'todos' as const, recursoIds: [],
+    }
+    expect(await puedeVerNominal({ ...nominalUser, role: 'operador_establecimiento' }, new Date())).toBe(false)
 
     const nivel = await nivelValido()
     await loginOk({
@@ -271,10 +277,14 @@ describe('provisión y tickets contra la base', () => {
       .from(userNivelesJur)
       .where(eq(userNivelesJur.userId, creado.id))
     expect(niveles.map((n) => n.nivelJurisdiccionalId)).toEqual([nivel])
+    expect(await puedeVerNominal({
+      ...nominalUser, role: actualizado.role as 'director_nivel', nivelJurIds: [nivel],
+    }, new Date())).toBe(true)
 
     await loginOk({ email, nombre: 'Ana', apellido: 'Pérez', rol: 'administrador' })
     const admin = await usuarioPorEmail(email)
     expect(admin.role).toBe('admin_ge')
+    expect(await puedeVerNominal({ ...nominalUser, role: admin.role as 'admin_ge' }, new Date())).toBe(true)
     expect(admin.geCueAnexo).toBeNull()
     const sinNiveles = await getDb()
       .select()
