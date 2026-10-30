@@ -70,7 +70,7 @@ import { useDraftCounts } from '@/components/infraestructura/borradores/use-draf
 import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
 import { BloqueCentroEvacuados } from '@/components/mapas/bloque-centro-evacuados'
 import { CapaCentroEvacuados } from '@/components/mapas/capa-centro-evacuados'
-import { construirCaminoCentro, construirPuntosPosiblesCentros } from '@/lib/infraestructura/evacuacion/mapa'
+import { construirCaminoCentro } from '@/lib/infraestructura/evacuacion/mapa'
 import { useCentroEvacuados } from '@/lib/infraestructura/use-centro-evacuados'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
@@ -1330,10 +1330,6 @@ export default function MapInfraestructuraPage(props: {
     loading: centroEvacuadosLoading,
     error: centroEvacuadosError,
   } = useCentroEvacuados(cueRuta, centroCaminoVisible)
-  const posiblesCentrosGeojson = useMemo(
-    () => construirPuntosPosiblesCentros(dataEscuelasMapaVisible?.escuelas ?? []),
-    [dataEscuelasMapaVisible],
-  )
   const caminoCentro = useMemo(() => {
     if (!centroCaminoVisible || centroEvacuados === null || centroEvacuados.cueAnexo !== cueRuta) return null
     const origen = cueRuta !== null ? escuelasPorCue.get(cueRuta) : null
@@ -1877,7 +1873,7 @@ export default function MapInfraestructuraPage(props: {
             />
           )}
 
-          <CapaCentroEvacuados posibles={posiblesCentrosGeojson} camino={caminoCentro} oscuro={mode === 'dark'} />
+          <CapaCentroEvacuados camino={caminoCentro} oscuro={mode === 'dark'} />
 
           {(
             <Source
@@ -2350,8 +2346,7 @@ export default function MapInfraestructuraPage(props: {
                     ? `${ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })]} (${escuelaSeleccionada.situacionesHistoricas})`
                     : ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })],
                 }))}
-                acceso={(
-                  <>
+                centroEvacuados={(
                   <BloqueCentroEvacuados
                     visible={centroCaminoVisible}
                     onAlternar={() => setCentroCaminoCue(centroCaminoVisible ? null : escuelaSeleccionada.cueAnexo)}
@@ -2359,6 +2354,9 @@ export default function MapInfraestructuraPage(props: {
                     cargando={centroEvacuadosLoading}
                     error={Boolean(centroEvacuadosError)}
                   />
+                )}
+                acceso={(
+                  <>
                   <BloqueAcceso
                     geometria={geometria}
                     exposicion={exposicion}

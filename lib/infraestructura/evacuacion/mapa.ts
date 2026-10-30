@@ -4,35 +4,6 @@ export const COLOR_POSIBLE_CENTRO = '#15803d'
 export const ETIQUETA_POSIBLE_CENTRO = 'Posible centro de evacuados'
 export const ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES = 'Posible centro de evacuados (sin antecedentes de riesgo)'
 
-// Mismo anillo que dibuja la capa del mapa (trazo verde, sin relleno), a tamaño de leyenda.
-export const SVG_ANILLO_POSIBLE_CENTRO =
-  `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="${COLOR_POSIBLE_CENTRO}" stroke-width="2.5"/></svg>`
-
-interface EscuelaConMarca {
-  cueAnexo: string
-  nombre: string
-  lat: number | null
-  lon: number | null
-  posibleCentroEvacuados?: boolean
-}
-
-export function construirPuntosPosiblesCentros(
-  escuelas: readonly EscuelaConMarca[],
-): GeoJSON.FeatureCollection<GeoJSON.Point, { cueAnexo: string; nombre: string }> {
-  return {
-    type: 'FeatureCollection',
-    features: escuelas.flatMap((e) =>
-      e.posibleCentroEvacuados === true && e.lat !== null && e.lon !== null
-        ? [{
-          type: 'Feature' as const,
-          geometry: { type: 'Point' as const, coordinates: [e.lon, e.lat] },
-          properties: { cueAnexo: e.cueAnexo, nombre: e.nombre },
-        }]
-        : [],
-    ),
-  }
-}
-
 export interface CaminoCentro {
   linea: GeoJSON.FeatureCollection<GeoJSON.LineString, { tipo: 'camino' | 'linea_recta' }>
   destino: GeoJSON.FeatureCollection<GeoJSON.Point, { nombre: string }>

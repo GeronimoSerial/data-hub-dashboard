@@ -28,6 +28,6 @@ node scripts/importar-geo-static.mjs --ruta-evacuacion rutas_evacuacion_osm-v1-A
 Publica el tipo geo `ruta-evacuacion` (tabla `infra_ruta_evacuacion_osm`). La ruta arranca y termina en el nodo de la red vial más cercano a cada escuela. Sin ruta para el destino elegido, la ficha dibuja una línea recta rotulada como tal.
 
 ## Ficha y mapa
-- Botón "Mostrar camino al centro de evacuados más cercano" (`GET /api/mapas/infraestructura/accesos/[cueAnexo]/centro-evacuados`, a demanda).
+- Botón "Ver camino al centro de evacuados más cercano" (en la vista previa y en la ficha, fuera del pliegue Acceso) (`GET /api/mapas/infraestructura/accesos/[cueAnexo]/centro-evacuados`, a demanda).
 - Anillo verde en el mapa (zoom 8+) y entrada "Posible centro de evacuados" en la leyenda.
 - Servicio de comedor: ver `docs/importar-comedores.md`; filtro "Con comedor".

@@ -23,7 +23,7 @@ export function BloqueCentroEvacuados({ visible, onAlternar, respuesta, cargando
     <div className="map-bloque-acceso map-bloque-centro" aria-label="Centro de evacuados más cercano">
       <button type="button" className="map-bloque-centro__boton" aria-pressed={visible} onClick={onAlternar}>
         <Route aria-hidden="true" />
-        {visible ? 'Ocultar camino al centro de evacuados' : 'Mostrar camino al centro de evacuados más cercano'}
+        {visible ? 'Ocultar camino al centro de evacuados' : 'Ver camino al centro de evacuados más cercano'}
       </button>
       {visible && cargando && <p className="map-bloque-acceso__estado">Buscando el centro de evacuados más cercano…</p>}
       {visible && !cargando && error && <p className="map-bloque-acceso__estado">No se pudo cargar el centro de evacuados más cercano.</p>}
