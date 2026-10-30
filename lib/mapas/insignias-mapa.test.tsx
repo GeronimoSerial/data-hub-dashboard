@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Waves } from 'lucide-react';
-import { INSIGNIAS, registrarInsignias, svgInsignia } from './insignias-mapa';
+import { INSIGNIAS, registrarImagenesSvg, svgInsignia } from './insignias-mapa';
 
 class ImagenFalsa {
   onload: (() => void) | null = null;
@@ -34,22 +34,21 @@ describe('svgInsignia', () => {
 });
 
 describe('INSIGNIAS', () => {
-  it('contiene todos los ids de estaciones y eventos', () => {
+  it('contiene los ids de estaciones', () => {
     expect(Object.keys(INSIGNIAS).sort()).toEqual(
       [
         'estacion-alerta',
         'estacion-evacuacion',
         'estacion-normal',
         'estacion-sin-dato',
-        'evento-alta',
-        'evento-baja',
-        'evento-media',
       ].sort(),
     );
   });
 });
 
-describe('registrarInsignias', () => {
+describe('registrarImagenesSvg', () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+
   beforeEach(() => {
     vi.stubGlobal('Image', ImagenFalsa);
   });
@@ -66,11 +65,13 @@ describe('registrarInsignias', () => {
       addImage,
     };
 
-    await registrarInsignias(map);
+    await registrarImagenesSvg(map, [
+      { id: 'estacion-normal', svg },
+      { id: 'estacion-alerta', svg },
+    ]);
 
-    expect(addImage).toHaveBeenCalledTimes(Object.keys(INSIGNIAS).length - 1);
-    expect(addImage.mock.calls.map((c) => c[0])).not.toContain('estacion-normal');
-    expect(addImage).toHaveBeenCalledWith(expect.any(String), expect.any(ImagenFalsa), {
+    expect(addImage).toHaveBeenCalledTimes(1);
+    expect(addImage).toHaveBeenCalledWith('estacion-alerta', expect.any(ImagenFalsa), {
       pixelRatio: 2,
     });
   });
@@ -83,8 +84,8 @@ describe('registrarInsignias', () => {
     const map = { hasImage: (id: string) => existentes.has(id), addImage };
 
     await Promise.all([
-      registrarInsignias(map, ['evento-alta']),
-      registrarInsignias(map, ['evento-alta']),
+      registrarImagenesSvg(map, [{ id: 'estacion-alerta', svg }]),
+      registrarImagenesSvg(map, [{ id: 'estacion-alerta', svg }]),
     ]);
 
     expect(addImage).toHaveBeenCalledTimes(1);
@@ -104,7 +105,7 @@ describe('registrarInsignias', () => {
     const addImage = vi.fn();
 
     await expect(
-      registrarInsignias({ hasImage: () => false, addImage }, ['evento-alta']),
+      registrarImagenesSvg({ hasImage: () => false, addImage }, [{ id: 'estacion-alerta', svg }]),
     ).resolves.toBeUndefined();
     expect(addImage).not.toHaveBeenCalled();
   });

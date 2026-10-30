@@ -20,19 +20,18 @@ describe('LeyendaMapa · contenedor único', () => {
     const props = pestana === 'radar'
       ? { pestana, horizonte: 72 as const }
       : pestana === 'planificacion' ? { pestana, vista: 'aisladas' as const } : { pestana }
-    const { container } = render(<LeyendaMapa {...props} estacionesRio eventosReportados lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
+    const { container } = render(<LeyendaMapa {...props} estacionesRio lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
 
     expect(container.querySelectorAll('aside')).toHaveLength(1)
     expect(container.querySelector('aside.map-leyenda')).toHaveAttribute('aria-label', 'Referencias del mapa')
   })
 
-  it('usa un solo contenedor con los bloques de altura de ríos, eventos y lluvia dentro', () => {
-    const { container } = render(<LeyendaMapa pestana="actual" estacionesRio eventosReportados lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
+  it('usa un solo contenedor con los bloques de altura de ríos y lluvia dentro', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" estacionesRio lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
 
     expect(container.querySelectorAll('aside')).toHaveLength(1)
     const leyenda = within(container.querySelector('aside.map-leyenda') as HTMLElement)
     expect(leyenda.getByText('Estaciones de Prefectura')).toBeTruthy()
-    expect(leyenda.getByText('Lo que informan los medios')).toBeTruthy()
     expect(leyenda.getByText('Lluvia observada 24 h')).toBeTruthy()
   })
 
@@ -63,13 +62,6 @@ describe('LeyendaMapa · secciones', () => {
     const { container } = render(<LeyendaMapa pestana="estadisticas" estacionesRio />)
 
     expect(titulosSecciones(container)).toEqual(['Situación actual'])
-  })
-
-  it('no muestra el resumen provincial ni la ubicación imprecisa en la leyenda', () => {
-    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={{ actualizadoAl: '2026-10-13' }} />)
-
-    expect(within(container).queryByText('Resumen provincial')).toBeNull()
-    expect(within(container).queryByText(/Sin ubicación precisa/)).toBeNull()
   })
 })
 
@@ -196,49 +188,6 @@ describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
       expect(container.querySelector('p')).toBeNull()
       unmount()
     }
-  })
-})
-
-describe('LeyendaMapa · eventos reportados', () => {
-  it('muestra la escala de confianza con insignias y sin la referencia de ubicación departamental', () => {
-    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados />)
-
-    const leyenda = within(container)
-    expect(leyenda.getByText('Lo que informan los medios')).toBeTruthy()
-    expect(leyenda.getByText('Confianza alta')).toBeTruthy()
-    expect(leyenda.getByText('Confianza media')).toBeTruthy()
-    expect(leyenda.getByText('Confianza baja')).toBeTruthy()
-    expect(container.querySelectorAll('.map-insignia')).toHaveLength(3)
-    expect(leyenda.queryByText('Ubicado sólo a nivel de departamento')).toBeNull()
-  })
-
-  it('muestra la fecha de registro actualizado en dd/MM sin desplazamiento de zona horaria', () => {
-    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={{ actualizadoAl: '2026-10-13' }} />)
-
-    expect(within(container).getByText('Registro actualizado al 13/10')).toBeTruthy()
-  })
-
-  it('no muestra la leyenda de eventos reportados cuando la capa está apagada', () => {
-    const { container } = render(<LeyendaMapa pestana="actual" eventosReportados={false} />)
-
-    expect(within(container).queryByText('Lo que informan los medios')).toBeNull()
-  })
-
-  it.each(['actual', 'radar'] as const)('muestra ambos bloques en la pestaña %s cuando las capas están visibles', (pestana) => {
-    const props = pestana === 'radar' ? { pestana, horizonte: 72 as const } : { pestana }
-    const { container } = render(<LeyendaMapa {...props} estacionesRio eventosReportados />)
-
-    const leyenda = within(container)
-    expect(leyenda.getByText('Estaciones de Prefectura')).toBeTruthy()
-    expect(leyenda.getByText('Evacuación')).toBeTruthy()
-    expect(leyenda.getByText('Alerta')).toBeTruthy()
-    expect(leyenda.getByText('Normal')).toBeTruthy()
-    expect(leyenda.getByText('Sin dato')).toBeTruthy()
-    expect(leyenda.getByText('Lo que informan los medios')).toBeTruthy()
-    expect(leyenda.getByText('Confianza alta')).toBeTruthy()
-    expect(leyenda.getByText('Confianza media')).toBeTruthy()
-    expect(leyenda.getByText('Confianza baja')).toBeTruthy()
-    expect(leyenda.queryByText('Ubicado sólo a nivel de departamento')).toBeNull()
   })
 })
 
