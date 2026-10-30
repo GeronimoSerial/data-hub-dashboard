@@ -544,7 +544,7 @@ export function FichaEscuelaPagina({
               {escuela.posibleCentroEvacuados === true && (
                 <div>
                   <dt>{ETIQUETA_POSIBLE_CENTRO}</dt>
-                  <dd>Sí</dd>
+                  <dd>{escuela.posibleCentroSinAntecedentes === true ? 'Sí (sin antecedentes de riesgo)' : 'Sí'}</dd>
                 </div>
               )}
             </dl>

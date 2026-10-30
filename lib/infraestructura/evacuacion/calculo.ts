@@ -30,7 +30,7 @@ export interface EntradaCalculo {
 export type FilaCentroEvacuados = typeof infraCentroEvacuados.$inferInsert & {
   cueAnexo: string
   apto: boolean
-  motivo: MotivoNoApta | null
+  motivo: MotivoNoApta | 'sin_antecedentes' | null
   destinoCue: string | null
   destinoNombre: string | null
   distanciaRectaM: number | null
@@ -71,7 +71,7 @@ export function calcularFilasCentros(entrada: EntradaCalculo): FilaCentroEvacuad
     return {
       cueAnexo: escuela.cueAnexo,
       apto: resultado.apta,
-      motivo: resultado.motivo,
+      motivo: resultado.motivo ?? (resultado.sinAntecedentes ? 'sin_antecedentes' : null),
       destinoCue: destino?.cueAnexo ?? null,
       destinoNombre: destino?.nombre ?? null,
       distanciaRectaM: destino ? Math.round(destino.distanciaRectaM) : null,
@@ -148,7 +148,7 @@ export async function cargarElegiblesEstaticos(): Promise<{ escuelas: EscuelaEnt
   const sitio = territorio.susceptibilidad?.escuelas ?? {}
   const elegibles = escuelas.filter((e) => evaluarAptitud({
     tieneCoordenadas: e.lat !== null && e.lon !== null,
-    riesgo: { evidenciaValida: true, nivelRiesgo: 'bajo' },
+    riesgo: null,
     claseRio: sitio[e.cueAnexo]?.claseRio ?? null,
     juntoLaguna: sitio[e.cueAnexo]?.juntoLaguna ?? null,
     claseRuta: claseRutaPorCue.get(e.cueAnexo) ?? null,
