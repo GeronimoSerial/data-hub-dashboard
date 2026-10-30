@@ -33,8 +33,15 @@ const ATRIBUCION_SATELITAL =
   'Imágenes © Esri, Maxar, Earthstar Geographics y la comunidad de usuarios de GIS'
 
 /**
+ * Último nivel con imagen real en el interior de Corrientes. Medido contra el
+ * servicio: desde el 18 devuelve la lámina "Map data not yet available". Más
+ * cerca, MapLibre amplía el nivel 17 en vez de pedir tiles inexistentes.
+ */
+const ZOOM_MAXIMO_IMAGENES = 17
+
+/**
  * Esri World Imagery (sin clave de API) con la capa de referencia de límites y
- * lugares encima. Los tiles llegan hasta el nivel 19; más cerca, MapLibre amplía.
+ * lugares encima. 
  */
 export const ESTILO_SATELITAL: StyleSpecification = {
   version: 8,
@@ -43,7 +50,7 @@ export const ESTILO_SATELITAL: StyleSpecification = {
       type: 'raster',
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
-      maxzoom: 19,
+      maxzoom: ZOOM_MAXIMO_IMAGENES,
       attribution: ATRIBUCION_SATELITAL,
     },
     'esri-lugares': {
@@ -52,7 +59,7 @@ export const ESTILO_SATELITAL: StyleSpecification = {
         'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
       ],
       tileSize: 256,
-      maxzoom: 19,
+      maxzoom: ZOOM_MAXIMO_IMAGENES,
     },
   },
   layers: [
