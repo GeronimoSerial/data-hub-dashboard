@@ -7463,6 +7463,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .rz-met ul { display: grid; gap: var(--s-1); margin: 0; padding-left: var(--s-5); }
 .rz-met p { margin: 0; }
 
+/* Popup de un establecimiento: la ficha completa sobre el punto, con desplazamiento propio. */
+.rz-popup { width: min(380px, calc(100vw - 48px)); max-width: none; max-height: min(58dvh, 520px); overflow-y: auto; overscroll-behavior: contain; padding-right: var(--s-3); }
+
 @media (max-width: 1079px) {
   .rz-side { border-left: 0; border-top: 1px solid var(--line); height: auto; }
   .rz-body { overflow: visible; }

@@ -1,18 +1,18 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import type { BasemapId } from '@/lib/map-types'
 import { Switch } from '@/components/ui/switch'
 import { COLORES_CAPAS, ETIQUETAS_CAPAS } from '@/lib/reorganizacion/capas'
 import { COLOR_TENDENCIA, ETIQUETA_TENDENCIA, RADIO_ZONA_KM, type Tendencia } from '@/lib/reorganizacion/zonas'
 import type { VisibilidadCapas } from './capas-reorganizacion'
+import type { FondoId } from '@/lib/reorganizacion/fondos'
 import { SelectorFondo } from './selector-fondo'
 
 export interface PanelCapasReorganizacionProps {
   visibles: VisibilidadCapas
   onVisibles: (visibles: VisibilidadCapas) => void
-  fondo: BasemapId
-  onFondo: (fondo: BasemapId) => void
+  fondo: FondoId
+  onFondo: (fondo: FondoId) => void
 }
 
 const TENDENCIAS = Object.keys(ETIQUETA_TENDENCIA) as Tendencia[]

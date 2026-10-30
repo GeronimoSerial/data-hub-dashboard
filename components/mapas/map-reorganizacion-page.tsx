@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import MapGL, { Layer, NavigationControl, Source, type MapLayerMouseEvent, type MapRef } from 'react-map-gl/maplibre'
-import type { Map as MaplibreMap, PaddingOptions, SymbolLayerSpecification } from 'maplibre-gl'
+import type { Map as MaplibreMap, PaddingOptions, StyleSpecification, SymbolLayerSpecification } from 'maplibre-gl'
 import type { Feature, FeatureCollection, Geometry, Point } from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
@@ -72,7 +72,7 @@ interface MapReorganizacionPageProps {
   interactiveLayerIds?: string[]
   onMapClick?: (e: MapLayerMouseEvent) => void
   /** URL del estilo base. Sin valor, usa el fondo vial por defecto. */
-  mapStyle?: string
+  mapStyle?: string | StyleSpecification
 }
 
 function paddingDesde(encuadre?: PaddingEncuadre): PaddingOptions {
