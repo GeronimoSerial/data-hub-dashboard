@@ -180,7 +180,7 @@ Las reglas se verifican con las filas indicadas; no tienen prueba propia.
 | Clasificación salarial solo modifica resaltados | R1 | Cubierto con prueba |
 | Escuela y zona conservan su información y advertencias | FE1-FE6, FZ1, EC10 | Cubierto con prueba |
 | Resúmenes económicos sobre la zona completa, con fórmula, cobertura y condiciones | EC1-EC12 | Cubierto con prueba |
-| Medición entre escuelas de las tres categorías; errores sin falso recorrido | RT2, RT3, RT7, RT8 (la medición desde el listado es RT4, pendiente) | Pendiente (RT4) |
+| Medición entre escuelas de las tres categorías; errores sin falso recorrido | RT2, RT3, RT7, RT8 y RT4 | Cubierto con prueba (clic en fila sin prueba propia) |
 | Alternativas cartográficas, límites y nombres sin perder capas | M1-M8 | Pendiente (M1-M3, M9, M10); M4-M8 verificar en navegador |
 | Primera apertura encuadra Corrientes; el retorno no reinicia la cámara | N1, N2 | Cubierto con prueba |
 | Página y APIs respetan la audiencia; el dataset salarial no es archivo público | `datos/route.test.ts`: rechaza sin sesión y no expone datos de escuelas; rechaza a un usuario sin audiencia y no expone datos de escuelas; `ruta/route.test.ts`: rechaza a un usuario sin audiencia sobre el recurso; `page.test.tsx` (`app/(hub)/mapas/reorganizacion/`): redirige a /forbidden cuando el usuario no tiene audiencia; `lib/reorganizacion/sin-datos-publicos.test.ts`: ningún archivo de public/ referencia el dataset; `lib/hub-entry-server.test.ts`: denies reorganizacion to a user whose audience excludes the resource and admits an allowed user | Cubierto con prueba |
