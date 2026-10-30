@@ -1591,6 +1591,10 @@ time {
 .ui-select-trigger > :last-child { flex-shrink: 0; }
 .ui-select-positioner { max-width: calc(100vw - 1rem); }
 .ui-select-positioner .ui-select-popup {
+  /* El Select simple no envuelve sus ítems en una lista: el popup mismo debe desplazarse. */
+  max-height: min(20rem, var(--available-height, 50dvh));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   width: max-content;
   max-width: min(28rem, calc(100vw - 1rem));
   min-width: min(var(--anchor-width), calc(100vw - 1rem));
