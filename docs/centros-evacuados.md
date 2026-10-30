@@ -3,11 +3,13 @@
 Sugerencia calculada, distinta del estado reportado `centro_evacuados` de los partes.
 
 ## Qué es "posible centro de evacuados"
-Una escuela es apta cuando se cumplen TODAS estas condiciones (cualquier dato ausente, `sin_dato` o `sin_ruta` la deja NO apta):
-- Tiene coordenadas.
-- Snapshot de la corrida vigente del motor de riesgo (operativa), horizonte 72 h (el horizonte por defecto de la capa de riesgo del mapa): `evidencia_valida` y `nivel_riesgo = 'bajo'`.
-- Exposición histórica del sitio (`clase_rio`) `bajo` o `sin_riesgo`, y no está junto a una laguna.
-- Exposición histórica de la ruta de acceso (`clase_ruta`) `bajo` o `sin_riesgo`.
+Un dato ausente NUNCA descarta: una escuela es apta salvo que haya evidencia positiva de riesgo. Es NO apta si:
+- No tiene coordenadas.
+- Su snapshot vigente (corrida operativa, horizonte 72 h) tiene `evidencia_valida` y `nivel_riesgo` `moderado`, `alto` o `muy_alto`.
+- La exposición histórica del sitio (`clase_rio`) o de la ruta de acceso (`clase_ruta`) es `medio` o `alto`.
+- Está junto a una laguna (`junto_laguna = true`).
+
+Sin snapshot, sin evidencia válida, `sin_dato`, `sin_ruta`, sin fila de exposición o `junto_laguna` nulo no descartan. Si además no hay ningún dato de riesgo, sitio ni ruta, la escuela es apta "sin antecedentes": se guarda con `motivo = 'sin_antecedentes'` y la ficha muestra "Posible centro de evacuados (sin antecedentes de riesgo)" con la misma insignia y estilo de mapa.
 
 Reglas en `lib/infraestructura/evacuacion/aptitud.ts`.
 
@@ -15,7 +17,7 @@ Reglas en `lib/infraestructura/evacuacion/aptitud.ts`.
 `node scripts/jobs.mjs centros-evacuados` (timer `deploy/systemd/ops1/enos-ops1-centros-evacuados.timer`, 03:20 UTC, después de `calcular-riesgo`). Recalcula `infra_centro_evacuados`: una fila por escuela con `apto`, motivo si no lo es y el destino (otra escuela apta) más cercano. Si hay rutas por camino precomputadas, gana el primer candidato que hoy sigue apto; si no, la apta más cercana en línea recta.
 
 ## Rutas por camino (batch OSM, offline)
-Nada agenda geo-static a diario, así que el batch calcula, por escuela, las rutas OSM hacia sus K=5 destinos más cercanos entre las elegibles por exposición ESTÁTICA (no mira el riesgo vigente). El job diario elige cuál sigue apto hoy.
+Nada agenda geo-static a diario, así que el batch calcula, por escuela, las rutas OSM hacia sus K=5 destinos más cercanos entre las elegibles por exposición ESTÁTICA positiva (no mira el riesgo vigente; la falta de dato no descarta). El job diario elige cuál sigue apto hoy.
 
 ```bash
 # desde services/geo-static/, con DATABASE_URL y el extracto .data/osm/argentina-latest.osm.pbf

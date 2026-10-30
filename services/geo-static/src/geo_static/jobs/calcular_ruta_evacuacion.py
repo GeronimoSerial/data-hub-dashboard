@@ -6,7 +6,7 @@ local .data/osm/argentina-latest.osm.pbf, igual que calcular_aislamiento):
 
 Para cada escuela con coordenadas calcula las rutas OSM hacia sus K destinos mas
 cercanos entre las escuelas elegibles por exposicion ESTATICA (sitio, laguna y
-ruta de acceso con exposicion baja o nula; ver `cargar_elegibles_estaticos` en
+ruta de acceso sin exposicion media/alta; el dato ausente no descarta; ver `cargar_elegibles_estaticos` en
 lib/infraestructura/evacuacion/calculo.ts). NO mira el riesgo vigente: ese cambia
 a diario y lo resuelve el job Node `centros-evacuados`, que elige el primer
 candidato que hoy sigue apto. Publica el tipo geo `ruta-evacuacion` (tabla

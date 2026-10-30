@@ -36,8 +36,10 @@ export interface EscuelaMapaEnriquecida {
   solucionadasRecientes: number
   // Servicio de comedor (planilla MEC); ausente = sin dato de comedor cargado.
   comedor?: EstadoComedor
-  // Sugerencia calculada a diario: riesgo bajo + exposición baja o nula. No es el estado reportado `centro`.
+  // Sugerencia calculada a diario: sin evidencia positiva de riesgo (el dato ausente no descarta). No es el estado reportado `centro`.
   posibleCentroEvacuados?: boolean
+  // Apta porque no hay ningún dato de riesgo, sitio ni ruta (no por evidencia de seguridad).
+  posibleCentroSinAntecedentes?: boolean
   parte?: ParteMapa
 }
 

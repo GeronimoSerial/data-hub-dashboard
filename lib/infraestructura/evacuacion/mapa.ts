@@ -2,6 +2,7 @@ import type { CentroEvacuadosRespuesta } from './respuesta'
 
 export const COLOR_POSIBLE_CENTRO = '#15803d'
 export const ETIQUETA_POSIBLE_CENTRO = 'Posible centro de evacuados'
+export const ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES = 'Posible centro de evacuados (sin antecedentes de riesgo)'
 
 // Mismo anillo que dibuja la capa del mapa (trazo verde, sin relleno), a tamaño de leyenda.
 export const SVG_ANILLO_POSIBLE_CENTRO =

@@ -46,10 +46,21 @@ describe('calcularFilasCentros', () => {
 
   it('sin otras aptas no hay destino (la única apta no se apunta a sí misma)', () => {
     const filas = calcularFilasCentros(entrada({
-      riesgoPorCue: new Map([['A', { evidenciaValida: true, nivelRiesgo: 'bajo' }]]),
+      riesgoPorCue: new Map([['A', { evidenciaValida: true, nivelRiesgo: 'bajo' }], ['B', { evidenciaValida: true, nivelRiesgo: 'alto' }], ['C', { evidenciaValida: true, nivelRiesgo: 'alto' }]]),
     }))
     expect(filas.find((f) => f.cueAnexo === 'A')).toMatchObject({ apto: true, destinoCue: null })
-    expect(filas.find((f) => f.cueAnexo === 'B')).toMatchObject({ apto: false, motivo: 'sin_dato_riesgo', destinoCue: 'A' })
+    expect(filas.find((f) => f.cueAnexo === 'B')).toMatchObject({ apto: false, motivo: 'riesgo_no_bajo', destinoCue: 'A' })
+  })
+
+  it('una escuela sin ningún antecedente es apta y se guarda con motivo sin_antecedentes', () => {
+    const filas = calcularFilasCentros(entrada({
+      escuelas: [
+        { cueAnexo: 'A', nombre: 'Escuela A', lat: -28, lon: -58 },
+        { cueAnexo: 'N', nombre: 'Sin datos', lat: -28.05, lon: -58 },
+      ],
+    }))
+    expect(filas.find((f) => f.cueAnexo === 'N')).toMatchObject({ apto: true, motivo: 'sin_antecedentes', destinoCue: 'A' })
+    expect(filas.find((f) => f.cueAnexo === 'A')).toMatchObject({ apto: true, motivo: null, destinoCue: 'N' })
   })
 
   it('usa el primer candidato OSM que hoy es apto y guarda su distancia por camino', () => {

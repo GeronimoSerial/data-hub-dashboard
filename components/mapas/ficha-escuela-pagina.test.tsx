@@ -300,6 +300,11 @@ describe('FichaEscuelaPagina — comedor y posible centro de evacuados', () => {
     expect(screen.getByText('Posible centro de evacuados').nextElementSibling).toHaveTextContent('Sí')
   })
 
+  it('aclara cuando es apta sin antecedentes de riesgo', () => {
+    renderPagina({ posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true })
+    expect(screen.getByText('Posible centro de evacuados').nextElementSibling).toHaveTextContent('Sí (sin antecedentes de riesgo)')
+  })
+
   it('no muestra la fila si la escuela no es apta', () => {
     renderPagina({ posibleCentroEvacuados: false })
     expect(screen.queryByText('Posible centro de evacuados')).not.toBeInTheDocument()
