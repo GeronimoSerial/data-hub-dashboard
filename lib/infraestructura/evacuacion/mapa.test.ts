@@ -1,22 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { CentroEvacuadosRespuesta } from './respuesta'
-import { construirCaminoCentro, construirPuntosPosiblesCentros, etiquetaDistanciaCentro } from './mapa'
+import { construirCaminoCentro, etiquetaDistanciaCentro } from './mapa'
 
 const destino = { cueAnexo: '1800002-00', nombre: 'Escuela B', lat: -28.2, lon: -58.2 }
 const resp = (c: Partial<CentroEvacuadosRespuesta> = {}): CentroEvacuadosRespuesta => ({ cueAnexo: 'A', apto: false, disponible: true, destino, ...c })
-
-describe('construirPuntosPosiblesCentros', () => {
-  it('incluye sólo escuelas aptas con coordenadas', () => {
-    const fc = construirPuntosPosiblesCentros([
-      { cueAnexo: 'A', nombre: 'A', lat: -28, lon: -58, posibleCentroEvacuados: true },
-      { cueAnexo: 'B', nombre: 'B', lat: -28, lon: -58, posibleCentroEvacuados: false },
-      { cueAnexo: 'C', nombre: 'C', lat: -28, lon: -58 },
-      { cueAnexo: 'D', nombre: 'D', lat: null, lon: null, posibleCentroEvacuados: true },
-    ])
-    expect(fc.features).toHaveLength(1)
-    expect(fc.features[0]).toMatchObject({ geometry: { type: 'Point', coordinates: [-58, -28] }, properties: { cueAnexo: 'A' } })
-  })
-})
 
 describe('construirCaminoCentro', () => {
   it('no dibuja nada sin destino o con respuesta no disponible', () => {
