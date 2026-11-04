@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MatriculaNatalidadPanel } from './matricula-natalidad-panel'
+import { RenaperNatalidadPanel, type DatosRenaperNatalidad } from './renaper-natalidad-panel'
 import type { DatosMatriculaNatalidad } from '@/lib/mapas/matricula-natalidad'
 import MapGL, {
   Layer,
@@ -200,6 +201,8 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
   const [error, setError] = useState<string | null>(null)
   const [matricula, setMatricula] = useState<DatosMatriculaNatalidad | null>(null)
   const [errorMatricula, setErrorMatricula] = useState(false)
+  const [renaper, setRenaper] = useState<DatosRenaperNatalidad | null>(null)
+  const [errorRenaper, setErrorRenaper] = useState(false)
 
   const [modo, setModo] = useState<ModoMetrica>('anio')
   const [anioSeleccionado, setAnioSeleccionado] = useState<number | null>(null)
@@ -264,6 +267,13 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
       })
       .then((data) => { if (!cancelado) setMatricula(data) })
       .catch(() => { if (!cancelado) setErrorMatricula(true) })
+    fetch('/data/natalidad/renaper.json')
+      .then((response) => {
+        if (!response.ok) throw new Error('No se pudo cargar RENAPER')
+        return response.json() as Promise<DatosRenaperNatalidad>
+      })
+      .then((data) => { if (!cancelado) setRenaper(data) })
+      .catch(() => { if (!cancelado) setErrorRenaper(true) })
     return () => { cancelado = true }
   }, [])
 
@@ -789,6 +799,7 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
             panel de título hasta ~2-3 líneas y rompía el ancho fijo de la
             columna. */}
         <MatriculaNatalidadPanel datos={matricula} error={errorMatricula} />
+        <RenaperNatalidadPanel datos={renaper} error={errorRenaper} departamento={dptoSeleccionadoDatos?.nombre} />
         <details className="natalidad-fuentes">
           <summary>Fuentes</summary>
           <span className={styles.hint}>
