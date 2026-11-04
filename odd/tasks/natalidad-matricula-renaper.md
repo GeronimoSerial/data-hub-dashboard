@@ -16,3 +16,5 @@ L2: Workbook37754 rows1181CUEs;17 unmatched retained in totals. Coverage CGE Ini
 L3: Separate RENAPER2012–2025 public Shiny snapshot25 departments×14 years, reverse-order independent replay350/350.2025 provincial12077 vs department12076 reconciled, not redistributed. Risk:item4 asynchronous extraction; independent review no blockers, identity assertion advisory.
 L4: User authorized feature-only remote promotion with GeronimoSerial. Original dirty checkout preserved. Clean origin/main61f67fd worktree used; no whole-main merge into environments.
 L5: Fresh Node24.15.0 pnpm11.21.0 frozen install0;81 focused tests pass;types0;lint0(36warnings);build0. Full suite6088passed27skipped, sole failure backup-postgres spawn podman ENOENT reproduced on clean base. Generated next-env change restored, no package/lock changes. RDD globally off. Risk:item5 promotion.
+
+L6: T1 committed d06baa6a (384 lines including generated JSON). T2 isolated snapshot/UI prepared; parent spot-check19 tests passed.
