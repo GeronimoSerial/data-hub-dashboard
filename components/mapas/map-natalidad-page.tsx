@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MatriculaNatalidadPanel } from './matricula-natalidad-panel'
-import { RenaperNatalidadPanel, type DatosRenaperNatalidad } from './renaper-natalidad-panel'
+import { etiquetaNacimientos } from '@/lib/mapas/datos-natalidad-renaper'
 import type { DatosMatriculaNatalidad } from '@/lib/mapas/matricula-natalidad'
 import MapGL, {
   Layer,
@@ -128,14 +128,14 @@ function symbolLayoutClusterCount(): SymbolLayerSpecification['layout'] {
   }
 }
 
-/** Mini sparkline SVG 2014–2023: puros trazos, sin librería de gráficos (una serie de 10 puntos no lo justifica). */
+/** Annual birth series for the currently selected source. */
 function Sparkline({ serie, anios }: { serie: DepartamentoNatalidad['serie']; anios: number[] }) {
   const width = 160
   const height = 36
   const puntos = construirPuntosSparkline(serie, anios, width, height)
   const path = puntos.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Serie de nacidos vivos 2014-2023">
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Serie de nacimientos ${anios[0]}–${anios[anios.length - 1]}`}>
       <path d={path} fill="none" stroke="#1d4ed8" strokeWidth={1.5} />
     </svg>
   )
@@ -181,18 +181,19 @@ function fmtVariacionContra(anioBase: number, variacion: Variacion): string {
 }
 
 interface MapNatalidadPageProps {
+  datos: DatosNatalidad
   /** Pestaña "Mapa" activa (ver app/(hub)/mapas/natalidad/map-client.tsx). El
       mapa nunca se desmonta al cambiar de pestaña, así que esto es lo único
       que distingue "visible" de "oculto detrás de Estadísticas". */
   visible?: boolean
 }
 
-export default function MapNatalidadPage({ visible = true }: MapNatalidadPageProps) {
+export default function MapNatalidadPage({ visible = true, datos }: MapNatalidadPageProps) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
 
-  const [datos, setDatos] = useState<DatosNatalidad | null>(null)
+  const medida = etiquetaNacimientos(datos)
   const [escuelas, setEscuelas] = useState<FeatureCollection<Point, EscuelaProperties> | null>(null)
   const [departamentosGeojson, setDepartamentosGeojson] = useState<FeatureCollection<
     Polygon | MultiPolygon,
@@ -201,13 +202,11 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
   const [error, setError] = useState<string | null>(null)
   const [matricula, setMatricula] = useState<DatosMatriculaNatalidad | null>(null)
   const [errorMatricula, setErrorMatricula] = useState(false)
-  const [renaper, setRenaper] = useState<DatosRenaperNatalidad | null>(null)
-  const [errorRenaper, setErrorRenaper] = useState(false)
 
   const [modo, setModo] = useState<ModoMetrica>('anio')
-  const [anioSeleccionado, setAnioSeleccionado] = useState<number | null>(null)
-  const [anioVariacionA, setAnioVariacionA] = useState<number | null>(null)
-  const [anioVariacionB, setAnioVariacionB] = useState<number | null>(null)
+  const [anioSeleccionado, setAnioSeleccionado] = useState<number | null>(datos.meta.anioFin)
+  const [anioVariacionA, setAnioVariacionA] = useState<number | null>(datos.meta.anioInicio)
+  const [anioVariacionB, setAnioVariacionB] = useState<number | null>(datos.meta.anioFin)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<{
     clave: string
     lng: number
@@ -229,10 +228,6 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
   useEffect(() => {
     let cancelado = false
     Promise.all([
-      fetch('/data/natalidad/departamentos.json').then((r) => {
-        if (!r.ok) throw new Error('No se pudo cargar departamentos.json')
-        return r.json() as Promise<DatosNatalidad>
-      }),
       fetch('/data/natalidad/escuelas.geojson').then((r) => {
         if (!r.ok) throw new Error('No se pudo cargar escuelas.geojson')
         return r.json() as Promise<FeatureCollection<Point, EscuelaProperties>>
@@ -241,14 +236,10 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
         FeatureCollection<Polygon | MultiPolygon, { nombre: string }>
       >,
     ])
-      .then(([datosNatalidad, escuelasTodas, departamentos]) => {
+      .then(([escuelasTodas, departamentos]) => {
         if (cancelado) return
-        setDatos(datosNatalidad)
         setEscuelas(escuelasTodas)
         setDepartamentosGeojson(departamentos)
-        setAnioSeleccionado(datosNatalidad.meta.anioFin)
-        setAnioVariacionA(datosNatalidad.meta.anioInicio)
-        setAnioVariacionB(datosNatalidad.meta.anioFin)
       })
       .catch((err: unknown) => {
         if (!cancelado) setError(err instanceof Error ? err.message : 'Error al cargar los datos')
@@ -267,15 +258,16 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
       })
       .then((data) => { if (!cancelado) setMatricula(data) })
       .catch(() => { if (!cancelado) setErrorMatricula(true) })
-    fetch('/data/natalidad/renaper.json')
-      .then((response) => {
-        if (!response.ok) throw new Error('No se pudo cargar RENAPER')
-        return response.json() as Promise<DatosRenaperNatalidad>
-      })
-      .then((data) => { if (!cancelado) setRenaper(data) })
-      .catch(() => { if (!cancelado) setErrorRenaper(true) })
     return () => { cancelado = true }
   }, [])
+
+  const [fuenteAnterior, setFuenteAnterior] = useState(datos)
+  if (fuenteAnterior !== datos) {
+    setFuenteAnterior(datos)
+    setAnioSeleccionado(datos.meta.anioFin)
+    setAnioVariacionA(datos.meta.anioInicio)
+    setAnioVariacionB(datos.meta.anioFin)
+  }
 
   const departamentosPorClave = useMemo(() => {
     if (!datos) return new Map<string, DepartamentoNatalidad>()
@@ -616,7 +608,7 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
               <div className={styles.popup}>
                 <h3 className={styles.popupTitle}>{dptoSeleccionadoDatos.nombre}</h3>
                 <div className={styles.popupRow}>
-                  <b>Nacidos vivos {anioSeleccionado}:</b>{' '}
+                  <b>{medida} {anioSeleccionado}:</b>{' '}
                   {fmt(dptoSeleccionadoDatos.serie[String(anioSeleccionado)] ?? 0)}
                 </div>
                 {rangoResumen && (
@@ -733,7 +725,7 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
           <details> colapsable chico ("Fuentes"), el título y el resumen
           quedan como única línea de contexto. */}
       <div className={`${styles.panel} ${styles.titlePanel} natalidad-title-panel`}>
-        <b>Nacidos vivos por departamento</b>
+        <b>{medida} por departamento</b>
         <br />
         {/* Bug corregido (2026-09-25): este resumen quedaba fijo en
             meta.anioInicio→meta.anioFin sin importar los controles — ahora
@@ -799,11 +791,10 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
             panel de título hasta ~2-3 líneas y rompía el ancho fijo de la
             columna. */}
         <MatriculaNatalidadPanel datos={matricula} error={errorMatricula} />
-        <RenaperNatalidadPanel datos={renaper} error={errorRenaper} departamento={dptoSeleccionadoDatos?.nombre} />
         <details className="natalidad-fuentes">
           <summary>Fuentes</summary>
           <span className={styles.hint}>
-            Nacidos vivos: {datos.meta.fuenteNatalidad.nombre}. {datos.meta.fuenteLocalizaciones}.{' '}
+            {medida}: {datos.meta.fuenteNatalidad.nombre}. {datos.meta.fuenteLocalizaciones}.{' '}
             {datos.meta.fuenteSecciones}. Período {datos.meta.anioInicio}–{datos.meta.anioFin}.
           </span>
         </details>
@@ -819,7 +810,7 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
         <summary className={styles.legendSummary}>Referencias</summary>
         {modo === 'anio' && escalaAnio && (
           <>
-            <div className={styles.hint}>Nacidos vivos en {anioSeleccionado} (cuantiles, claro = menos, oscuro = más)</div>
+            <div className={styles.hint}>{medida} en {anioSeleccionado} (cuantiles, claro = menos, oscuro = más)</div>
             {escalaAnio.colors.map((color, i) => (
               <div key={color + i} className={styles.legendItem}>
                 <span className={styles.swatch} style={{ background: color }} />
