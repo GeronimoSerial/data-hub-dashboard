@@ -48,7 +48,7 @@
   .header { padding: 20px; } .headerLabel { display: none; }
   .header .brand { height: auto; width: 303px; max-width: 100%; }
   .hero { padding: 40px 20px; grid-template-columns: 1fr; gap: 32px; }
-  .hero h1 { font-size: 64px; } .intro { font-size: 18px; }
+  .hero h1 { font-size: clamp(48px, 16vw, 64px); } .intro { font-size: 18px; }
   .eyebrow { font-size: 13px; } .primary { width: 100%; justify-content: space-between; }
   .index { padding: 20px; } .index a { font-size: 20px; padding: 20px 0; }
   .collections { margin: 0 20px; padding: 0; }
