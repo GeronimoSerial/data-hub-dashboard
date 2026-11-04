@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type JSX } from 'react'
+import { useMemo, useState, type JSX } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import {
   buscarPuestoNacidosPorSeccion,
@@ -14,42 +14,23 @@ import {
   type FiltroDepartamento,
 } from '@/lib/mapas/estadisticas-natalidad'
 import type { DatosNatalidad } from '@/lib/mapas/natalidad'
+import { etiquetaNacimientos } from '@/lib/mapas/datos-natalidad-renaper'
 import {
   GraficoNacidosPorSeccion,
   GraficoSerieNacimientos,
   GraficoVariacionPorDepartamento,
 } from './estadisticas-natalidad-graficos'
 
-// T8: pestaña "Estadísticas" — mismo dato ya cargado por el mapa
-// (public/data/natalidad/departamentos.json), sin pedir un endpoint nuevo.
+// Both tabs receive the same selected birth series from NatalidadMapClient.
 // Feedback 2026-09-25: 3 gráficos, cada uno con un título y una línea de
 // "por qué importa" — nada de un gráfico que no sirva para planificar
 // inicial/primario a partir de la caída de nacidos. La matrícula (T7) se
 // retiró del feature (ver odd/tasks/mapa-natalidad.md): la fuente sólo cubre
 // un panel de 288 establecimientos rurales de baja matrícula, no era
 // representativa a nivel departamento/provincia.
-export function EstadisticasNatalidadPanel(): JSX.Element {
-  const [datos, setDatos] = useState<DatosNatalidad | null>(null)
-  const [error, setError] = useState<string | null>(null)
+export function EstadisticasNatalidadPanel({ datos }: { datos: DatosNatalidad }): JSX.Element {
+  const medida = etiquetaNacimientos(datos)
   const [filtro, setFiltro] = useState<FiltroDepartamento>('Todos')
-
-  useEffect(() => {
-    let cancelado = false
-    fetch('/data/natalidad/departamentos.json')
-      .then((r) => {
-        if (!r.ok) throw new Error(`No se pudo cargar departamentos.json (HTTP ${r.status})`)
-        return r.json() as Promise<DatosNatalidad>
-      })
-      .then((resultado) => {
-        if (!cancelado) setDatos(resultado)
-      })
-      .catch((causa: unknown) => {
-        if (!cancelado) setError(causa instanceof Error ? causa.message : 'No se pudieron cargar las estadísticas')
-      })
-    return () => {
-      cancelado = true
-    }
-  }, [])
 
   const serieNacimientos = useMemo(
     () => (datos ? construirSerieNacimientos(datos, filtro) : { titulo: '', puntos: [] }),
@@ -117,7 +98,6 @@ export function EstadisticasNatalidadPanel(): JSX.Element {
     [nacidosPorSeccion.filas],
   )
 
-  if (error) return <div className="map-status map-status-error">{error}</div>
   if (!datos || !kpis) return <div className="map-status">Cargando estadísticas…</div>
 
   return (
@@ -139,7 +119,7 @@ export function EstadisticasNatalidadPanel(): JSX.Element {
 
       <div className="natalidad-kpis">
         <div className="natalidad-kpi-tile">
-          <div className="natalidad-kpi-etiqueta">Nacidos vivos {datos.meta.anioFin}</div>
+          <div className="natalidad-kpi-etiqueta">{medida} {datos.meta.anioFin}</div>
           <div className="natalidad-kpi-valor">{fmt(kpis.nacidosUltimoAnio)}</div>
         </div>
         <div className="natalidad-kpi-tile">
@@ -159,21 +139,22 @@ export function EstadisticasNatalidadPanel(): JSX.Element {
       </div>
 
       <div className="evolucion-vista">
-        <h3 className="evolucion-subtitulo">Nacidos vivos — {serieNacimientos.titulo}</h3>
+        <h3 className="evolucion-subtitulo">{medida} — {serieNacimientos.titulo}</h3>
         <p className="evolucion-descripcion">
           Por qué importa: la generación que hoy ocupa las salas de 3 a 5 años nació en estos años — ver cómo bajó
           ayuda a anticipar cuánto va a achicarse la demanda de inicial.
         </p>
-        <GraficoSerieNacimientos puntos={serieNacimientos.puntos} />
+        <GraficoSerieNacimientos puntos={serieNacimientos.puntos} medida={medida} />
       </div>
 
       <div className="evolucion-vista">
-        <h3 className="evolucion-subtitulo">Variación de nacidos vivos por departamento</h3>
+        <h3 className="evolucion-subtitulo">Variación de {medida.toLowerCase()} por departamento</h3>
         <p className="evolucion-descripcion">
           Por qué importa: ubica dónde cayó más fuerte la natalidad, para priorizar dónde revisar primero la oferta
           de inicial y primario.
         </p>
         <GraficoVariacionPorDepartamento
+          medida={medida}
           barras={variacionPorDepartamento}
           seleccionado={filtro}
           onSeleccionar={setFiltro}
@@ -210,7 +191,7 @@ export function EstadisticasNatalidadPanel(): JSX.Element {
         <p className="evolucion-descripcion natalidad-nota-metodologica">
           Alineación de cohorte: Sala de 5 ≈ nacidos {nacidosPorSeccion.ciclo - 6}, Sala de 4 ≈ nacidos{' '}
           {nacidosPorSeccion.ciclo - 5}, Sala de 3 ≈ nacidos {nacidosPorSeccion.ciclo - 4} (cumple la edad al 30/6 del
-          ciclo). Nacidos vivos por domicilio de la madre (DEIS), no del establecimiento.
+          ciclo). Fuente: {datos.meta.fuenteNatalidad.nombre}; no corresponde al domicilio del establecimiento.
           {departamentosSinSecciones.length > 0
             ? ` Excluidos del gráfico por no tener secciones de ese tramo (división inválida, no 0): ${departamentosSinSecciones.join(', ')}.`
             : ''}
