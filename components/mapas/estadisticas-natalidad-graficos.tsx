@@ -153,21 +153,21 @@ function etiquetaValorMiles(
   )
 }
 
-// 1. Nacidos vivos — tendencia provincial 2014–2023.
+// 1. Annual births for the selected source and department.
 //
 // Bug corregido (2026-09-25): la caída sólo se veía si el contenedor tenía
 // alto suficiente — el genérico de 17rem la aplanaba demasiado. Se sube a
 // 20rem (sólo para este gráfico, via el `alto` opcional de
 // GraficoContenedor) y se agregan las etiquetas de valor en el primer y
-// último punto (2014/2023), que son los que importan para leer la caída sin
+// último punto del período, que son los que importan para leer la caída sin
 // pasar el mouse. El eje sigue arrancando en 0 (honesto: no exagerar la
 // pendiente cortando el eje).
-export function GraficoSerieNacimientos(props: { puntos: PuntoSerieAnual[] }) {
+export function GraficoSerieNacimientos(props: { puntos: PuntoSerieAnual[]; medida?: string }) {
   const paleta = usePaleta()
   const primero = props.puntos[0]
   const ultimo = props.puntos[props.puntos.length - 1]
   return (
-    <GraficoContenedor etiqueta="Nacidos vivos en Corrientes por año" alto={320}>
+    <GraficoContenedor etiqueta={`${props.medida ?? 'Nacidos vivos'} por año`} alto={320}>
       <LineChart data={props.puntos} margin={{ top: 20, right: 24, bottom: 4, left: -4 }}>
         <CartesianGrid vertical={false} stroke={paleta.grilla} strokeWidth={1} />
         <XAxis
@@ -191,7 +191,7 @@ export function GraficoSerieNacimientos(props: { puntos: PuntoSerieAnual[] }) {
         <Line
           type="monotone"
           dataKey="valor"
-          name="Nacidos vivos"
+          name={props.medida ?? 'Nacidos vivos'}
           stroke={paleta.nacimientos}
           strokeWidth={2}
           dot={(dotProps: { cx?: number; cy?: number; payload?: PuntoSerieAnual }) => {
@@ -353,13 +353,14 @@ function GraficoBarrasHorizontales<T extends FilaBarraHorizontal>(
 }
 
 export function GraficoVariacionPorDepartamento(props: {
+  medida?: string
   barras: BarraVariacionDepartamento[]
   seleccionado?: string
   onSeleccionar?: (clave: string) => void
 }) {
   return (
     <GraficoBarrasHorizontales
-      etiqueta="Variación de nacidos vivos por departamento"
+      etiqueta={`Variación de ${(props.medida ?? 'Nacidos vivos').toLowerCase()} por departamento`}
       filas={props.barras}
       dataKey="pct"
       nombreSerie="Variación"
