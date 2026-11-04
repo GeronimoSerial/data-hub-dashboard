@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { MatriculaNatalidadPanel } from './matricula-natalidad-panel'
+import type { DatosMatriculaNatalidad } from '@/lib/mapas/matricula-natalidad'
 import MapGL, {
   Layer,
   NavigationControl,
@@ -196,6 +198,8 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
     { nombre: string }
   > | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [matricula, setMatricula] = useState<DatosMatriculaNatalidad | null>(null)
+  const [errorMatricula, setErrorMatricula] = useState(false)
 
   const [modo, setModo] = useState<ModoMetrica>('anio')
   const [anioSeleccionado, setAnioSeleccionado] = useState<number | null>(null)
@@ -249,6 +253,18 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
     return () => {
       cancelado = true
     }
+  }, [])
+
+  useEffect(() => {
+    let cancelado = false
+    fetch('/data/natalidad/matricula.json')
+      .then((response) => {
+        if (!response.ok) throw new Error('No se pudo cargar la matrícula')
+        return response.json() as Promise<DatosMatriculaNatalidad>
+      })
+      .then((data) => { if (!cancelado) setMatricula(data) })
+      .catch(() => { if (!cancelado) setErrorMatricula(true) })
+    return () => { cancelado = true }
   }, [])
 
   const departamentosPorClave = useMemo(() => {
@@ -614,6 +630,7 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
                   </div>
                 )}
                 <Sparkline serie={dptoSeleccionadoDatos.serie} anios={datos.meta.anios} />
+                <MatriculaNatalidadPanel datos={matricula} error={errorMatricula} departamento={dptoSeleccionadoDatos.nombre} />
                 <hr className={styles.popupRule} />
                 {/* Feedback 2026-09-25: sólo Inicial y Primario, que son los
                     niveles que reciben directamente la cohorte de nacidos —
@@ -674,6 +691,7 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
                   <b>Departamento:</b> {escuelaSeleccionada.props.departamento}
                 </div>
                 <hr className={styles.popupRule} />
+                <MatriculaNatalidadPanel key={escuelaSeleccionada.props.cueAnexo} datos={matricula} error={errorMatricula} cueAnexo={escuelaSeleccionada.props.cueAnexo} />
                 <div className={styles.sectionTitle}>Niveles (padrón, ciclo 2026)</div>
                 {escuelaSeleccionada.props.tienePadron ? (
                   escuelaSeleccionada.props.niveles.map((nivelOferta) => (
@@ -770,6 +788,7 @@ export default function MapNatalidadPage({ visible = true }: MapNatalidadPagePro
             por defecto — antes era un <span> siempre visible que estiraba el
             panel de título hasta ~2-3 líneas y rompía el ancho fijo de la
             columna. */}
+        <MatriculaNatalidadPanel datos={matricula} error={errorMatricula} />
         <details className="natalidad-fuentes">
           <summary>Fuentes</summary>
           <span className={styles.hint}>
