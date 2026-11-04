@@ -1,5 +1,15 @@
 [
   {
+    "id": "cuadernillo-nivel-inicial",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo para estudiantes del nivel inicial",
+    "archivo": "cuadernillo-nivel-inicial-04da3c0fb9fa.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-nivel-inicial-04da3c0fb9fa.pdf",
+    "bytes": 31439477,
+    "paginas": 112,
+    "sha256": "04da3c0fb9fafe1a586c7c5c6152ca071d8136264ed1f598548b55de9377ff5a"
+  },
+  {
     "id": "cuadernillo-1-grado",
     "coleccion": "cuadernillos",
     "titulo": "Cuadernillo para estudiantes de 1.er grado",
@@ -18,6 +28,46 @@
     "bytes": 12589818,
     "paginas": 132,
     "sha256": "620fe95942579b3ff515cdd2804ae82d492abb29fb060ccecfc63a8953cb05f1"
+  },
+  {
+    "id": "cuadernillo-3-grado",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo para estudiantes de 3.er grado",
+    "archivo": "cuadernillo-3-grado-84d14e452e46.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-3-grado-84d14e452e46.pdf",
+    "bytes": 26610503,
+    "paginas": 212,
+    "sha256": "84d14e452e46b9a7ffdd0ae0321b5f1ed15ed6c8c0f28158e82329c22af17ef0"
+  },
+  {
+    "id": "cuadernillo-4-grado",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo para estudiantes de 4.º grado",
+    "archivo": "cuadernillo-4-grado-643c07b65678.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-4-grado-643c07b65678.pdf",
+    "bytes": 7760697,
+    "paginas": 135,
+    "sha256": "643c07b656783174f7aaca539d07af9464723304409159c60c534e61ace75e5b"
+  },
+  {
+    "id": "cuadernillo-5-grado",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo para estudiantes de 5.º grado",
+    "archivo": "cuadernillo-5-grado-0bf439d82865.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-5-grado-0bf439d82865.pdf",
+    "bytes": 8969022,
+    "paginas": 176,
+    "sha256": "0bf439d82865c47e3fad062a75d3706857cadeafe7ab92f5ec1dc19960785be0"
+  },
+  {
+    "id": "cuadernillo-6-grado",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo para estudiantes de 6.º grado",
+    "archivo": "cuadernillo-6-grado-051e54b9cfb2.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-6-grado-051e54b9cfb2.pdf",
+    "bytes": 7950905,
+    "paginas": 136,
+    "sha256": "051e54b9cfb2f8a32e98f454412eec8fb35d5662856d54fa4f6bb46370072a53"
   },
   {
     "id": "manual-1",
@@ -40,35 +90,5 @@
     "duracion": "7 min",
     "poster": "/materiales/manuales/video-manual-directivos.jpg",
     "sha256": "fcba5cb517a15511935cdf934b52d938a1a63fb46626771c8f2957817adb79ce"
-  },
-  {
-    "id": "cuadernillo-4-grado",
-    "coleccion": "cuadernillos",
-    "titulo": "Cuadernillo para estudiantes de 4.º grado",
-    "archivo": "cuadernillo-4-grado-34f55c4b69be.pdf",
-    "storageKey": "materiales/cuadernillos/cuadernillo-4-grado-34f55c4b69be.pdf",
-    "bytes": 7290799,
-    "paginas": 135,
-    "sha256": "34f55c4b69be0e30dbea796388c0dfbf29e79f55f1ee5877944235638019176d"
-  },
-  {
-    "id": "cuadernillo-5-grado",
-    "coleccion": "cuadernillos",
-    "titulo": "Cuadernillo para estudiantes de 5.º grado",
-    "archivo": "cuadernillo-5-grado-b40b32d0f226.pdf",
-    "storageKey": "materiales/cuadernillos/cuadernillo-5-grado-b40b32d0f226.pdf",
-    "bytes": 8960197,
-    "paginas": 176,
-    "sha256": "b40b32d0f22686f0305487a470fbe6afa55ac0ca18a0eb7e5b647f18a7c25c33"
-  },
-  {
-    "id": "cuadernillo-6-grado",
-    "coleccion": "cuadernillos",
-    "titulo": "Cuadernillo para estudiantes de 6.º grado",
-    "archivo": "cuadernillo-6-grado-a40ad648f130.pdf",
-    "storageKey": "materiales/cuadernillos/cuadernillo-6-grado-a40ad648f130.pdf",
-    "bytes": 7483468,
-    "paginas": 136,
-    "sha256": "a40ad648f13032fe8dec3402b2a773a698bcb6b62f4048db84575447c906082d"
   }
 ]

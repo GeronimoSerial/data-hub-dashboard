@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
-import { BookOpen, Download, FileText, ArrowDown } from 'lucide-react'
+import { BookOpen, Download, FileText, ArrowDown, ExternalLink } from 'lucide-react'
 import { MarcaHorizontal } from '@/components/marca'
 import { cargarMateriales } from '@/lib/materiales'
 import styles from './page.module.css'
 
 export const metadata: Metadata = {
   title: 'Materiales y recursos',
-  description: 'Manuales del flujo de reportes y cuadernillos de asistencia pedagógica del Ministerio de Educación de Corrientes.',
+  description: 'Manuales del flujo de reportes, cuadernillos de asistencia pedagógica y solicitud de aula virtual del Ministerio de Educación de Corrientes.',
 }
 export const dynamic = 'force-static'
 
@@ -36,6 +36,11 @@ export default async function MaterialesPage() {
                 <ArrowDown size={20} aria-hidden="true" />
               </a>
             ))}
+            <a href="#aula-virtual">
+              <span className={styles.number}>03</span>
+              <span>Aula virtual<small>Formulario de solicitud</small></span>
+              <ArrowDown size={20} aria-hidden="true" />
+            </a>
           </nav>
         </section>
         <div id="colecciones" className={styles.collections}>
@@ -74,6 +79,17 @@ export default async function MaterialesPage() {
               </section>
             )
           })}
+          <section className={styles.collection} id="aula-virtual" aria-labelledby="aula-virtual-titulo">
+            <div className={styles.collectionHeading}>
+              <h2 id="aula-virtual-titulo">Solicitud de aula virtual</h2>
+              <p>Formulario para solicitar un aula virtual.</p>
+            </div>
+            <div className={styles.files}>
+              <a className={styles.download} href="https://forms.gle/vrFAisMjeMWEa9TKA">
+                Solicitar aula virtual <ExternalLink size={19} aria-hidden="true" />
+              </a>
+            </div>
+          </section>
         </div>
         <aside className={styles.note}>
           <Download size={24} strokeWidth={1.7} aria-hidden="true" />
