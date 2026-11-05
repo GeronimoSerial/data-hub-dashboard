@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import diagnosticStyles from '@/components/mapas/natalidad-diagnostico.module.css'
 import dynamic from 'next/dynamic'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import type { DatosNatalidad } from '@/lib/mapas/natalidad'
@@ -96,23 +97,22 @@ export function NatalidadMapClient() {
             <TabsTab value="estadisticas">Estadísticas</TabsTab>
           </TabsList>
         </Tabs>
-      </div>
-
-      <div className="map-filtro-campo">
+      <div className={diagnosticStyles.fuente}>
         <label className="map-filtro-label" htmlFor="fuente-natalidad">Fuente de natalidad</label>
         <select id="fuente-natalidad" className="map-filtro-input" value={fuente}
           onChange={(event) => setFuente(event.target.value === 'deis' ? 'deis' : 'renaper')}>
           <option value="renaper">RENAPER · 2012–2025</option>
           <option value="deis">DEIS · 2014–2023</option>
         </select>
-        {datos && <p className="map-hint">{datos.meta.fuenteNatalidad.nombre} · {datos.meta.anioInicio}–{datos.meta.anioFin}. {fuente === 'renaper' && notaRenaper}</p>}
       </div>
+      </div>
+
       {errores[fuente] ? <p role="alert">{errores[fuente]}</p> : !datos ? <p role="status">Cargando {fuente.toUpperCase()}…</p> : <div className="mapa-pestanas-cuerpo">
         {/* El mapa NUNCA se desmonta al cambiar de pestaña (misma regla F5.1
             que infraestructura): sólo se oculta con [hidden], así MapLibre no
             pierde el encuadre ni vuelve a bajar el basemap al volver. */}
         <div className="mapa-pestana-panel" hidden={!mapaVisible} data-testid="pestana-mapa">
-          <MapNatalidadPage visible={mapaVisible} datos={datos} />
+          <MapNatalidadPage visible={mapaVisible} datos={datos} notaFuente={fuente === 'renaper' ? notaRenaper : ''} />
         </div>
 
         {/* Estadísticas sí se monta/desmonta: es un fetch + gráficos, sin
