@@ -1,0 +1,63 @@
+.diagnostico table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-small);
+}
+
+.diagnostico th,
+.diagnostico td {
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--border, #d5dce2);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.diagnostico th:first-child { text-align: left; }
+.diagnostico caption { text-align: left; font-weight: 600; padding: 0.75rem 0; }
+.diagnostico section { overflow-x: auto; }
+
+.hoverPreview { pointer-events: none; }
+.fuente { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.fuente select { max-width: 12rem; }
+@media (max-width: 640px) {
+  .fuente label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .fuente select { max-width: 9.5rem; }
+}
+
+.titlePanel { max-height: 44%; overflow-y: auto; overscroll-behavior: contain; }
+.control { display: grid; gap: 0.2rem; margin-top: 0.45rem; }
+.control label, .control small { font-size: var(--t-small); }
+.control select { max-width: 100%; }
+.resumen { margin: 0.5rem 0; font-size: var(--t-small); }
+
+.matricula { font-size: var(--t-small); }
+.detalle {
+  position: absolute;
+  z-index: 4;
+  top: 12px;
+  right: 12px;
+  width: min(22rem, calc(100% - 24px));
+  height: min(32rem, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--e-float);
+}
+.detalleContenido {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.cerrar { position: sticky; top: 0; display: block; margin-left: auto; background: var(--card); z-index: 1; }
+@media (max-width: 640px) {
+  .detalle { top: auto; bottom: 12px; height: min(60%, 32rem); }
+  .shellOpen :global(.natalidad-legend-panel),
+  .shellOpen :global(.natalidad-title-panel) { visibility: hidden; }
+}
