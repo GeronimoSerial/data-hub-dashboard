@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import diagnosticStyles from './natalidad-diagnostico.module.css'
 import { MatriculaNatalidadPanel } from './matricula-natalidad-panel'
 import { etiquetaNacimientos } from '@/lib/mapas/datos-natalidad-renaper'
+import { resumirMatricula } from '@/lib/mapas/diagnostico-matricula-natalidad'
 import type { DatosMatriculaNatalidad } from '@/lib/mapas/matricula-natalidad'
 import MapGL, {
   Layer,
@@ -186,9 +188,10 @@ interface MapNatalidadPageProps {
       mapa nunca se desmonta al cambiar de pestaña, así que esto es lo único
       que distingue "visible" de "oculto detrás de Estadísticas". */
   visible?: boolean
+  notaFuente?: string
 }
 
-export default function MapNatalidadPage({ visible = true, datos }: MapNatalidadPageProps) {
+export default function MapNatalidadPage({ visible = true, datos, notaFuente }: MapNatalidadPageProps) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
@@ -203,6 +206,21 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
   const [matricula, setMatricula] = useState<DatosMatriculaNatalidad | null>(null)
   const [errorMatricula, setErrorMatricula] = useState(false)
 
+  const [indicador, setIndicador] = useState<'nacimientos' | 'matricula' | 'ratio'>('nacimientos')
+  const [cicloCge, setCicloCge] = useState(2026)
+  const [controlesAbiertos, setControlesAbiertos] = useState(true)
+  const [leyendaAbierta, setLeyendaAbierta] = useState(true)
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia('(max-width: 640px)')
+    const actualizar = () => { setControlesAbiertos(!media.matches); setLeyendaAbierta(!media.matches) }
+    actualizar()
+    media.addEventListener('change', actualizar)
+    return () => media.removeEventListener('change', actualizar)
+  }, [])
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+  const departmentSelectRef = useRef<HTMLSelectElement>(null)
   const [modo, setModo] = useState<ModoMetrica>('anio')
   const [anioSeleccionado, setAnioSeleccionado] = useState<number | null>(datos.meta.anioFin)
   const [anioVariacionA, setAnioVariacionA] = useState<number | null>(datos.meta.anioInicio)
@@ -212,6 +230,7 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
     lng: number
     lat: number
   } | null>(null)
+  const [vistaPrevia, setVistaPrevia] = useState<{ clave: string; lng: number; lat: number } | null>(null)
   const [escuelaSeleccionada, setEscuelaSeleccionada] = useState<{
     props: EscuelaProperties
     lng: number
@@ -221,6 +240,20 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
   // de la capa de clusters — el marcador buscado puede estar agrupado en un
   // cluster hasta que el flyTo termine de acercar el zoom.
   const [escuelaResaltada, setEscuelaResaltada] = useState<{ lng: number; lat: number } | null>(null)
+  useEffect(() => {
+    if (!departamentoSeleccionado && !escuelaSeleccionada) return
+    triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    closeRef.current?.focus()
+    const cerrar = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setDepartamentoSeleccionado(null)
+      setEscuelaSeleccionada(null)
+      setEscuelaResaltada(null)
+      requestAnimationFrame(() => triggerRef.current?.focus())
+    }
+    window.addEventListener('keydown', cerrar)
+    return () => window.removeEventListener('keydown', cerrar)
+  }, [departamentoSeleccionado, escuelaSeleccionada])
   // Ver handleLoad/efecto de `visible` más abajo: sólo un fit hecho con el
   // contenedor en tamaño real (no display:none) cuenta como válido.
   const fitValidoRef = useRef(false)
@@ -274,54 +307,44 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
     return new Map(datos.departamentos.map((d) => [d.clave, d]))
   }, [datos])
 
-  // Escala secuencial (nacimientos en el año elegido): cuantiles sobre los
-  // 25 departamentos, recalculada cada vez que cambia el año.
+  const valoresMapa = useMemo(() => {
+    const valores = new Map<string, number | null>()
+    for (const d of datos.departamentos) {
+      let valor: number | null = null
+      if (indicador === 'nacimientos') {
+        if (modo === 'anio' && anioSeleccionado != null) valor = d.serie[String(anioSeleccionado)] ?? null
+        else if (anioVariacionA != null && anioVariacionB != null) {
+          const a = d.serie[String(anioVariacionA)]
+          const b = d.serie[String(anioVariacionB)]
+          valor = a != null && a > 0 && b != null ? (b - a) / a * 100 : null
+        }
+      } else if (matricula) {
+        const actual = resumirMatricula(matricula, cicloCge, { departamento: d.nombre })
+        if (indicador === 'matricula') valor = actual?.matricula ?? null
+        if (indicador === 'ratio') valor = actual?.alumnosPorSeccion ?? null
+      }
+      valores.set(d.clave, valor)
+    }
+    return valores
+  }, [datos, indicador, modo, anioSeleccionado, anioVariacionA, anioVariacionB, matricula, cicloCge])
+  const divergente = indicador === 'nacimientos' && modo === 'variacion'
   const escalaAnio = useMemo(() => {
-    if (!datos || anioSeleccionado == null) return null
-    const valores = datos.departamentos.map((d) => d.serie[String(anioSeleccionado)] ?? 0)
-    return construirEscalaSecuencial(valores)
-  }, [datos, anioSeleccionado])
-
-  // Bug corregido (2026-09-25): la leyenda de "Variación %" mostraba sólo la
-  // fila "Sin dato" (siempre, incluso cuando ningún departamento la tenía) y
-  // nunca los tramos de color divergentes — se agregan abajo en el render
-  // (ESCALA_VARIACION_BREAKS/COLORS) y esta fila pasa a ser condicional.
-  const hayVariacionSinDato = useMemo(() => {
-    if (!datos || anioVariacionA == null) return false
-    return datos.departamentos.some((d) => (d.serie[String(anioVariacionA)] ?? 0) <= 0)
-  }, [datos, anioVariacionA])
-
+    const valores = [...valoresMapa.values()].filter((valor): valor is number => valor != null)
+    return valores.length ? construirEscalaSecuencial(valores) : null
+  }, [valoresMapa])
+  const hayVariacionSinDato = [...valoresMapa.values()].some((valor) => valor == null)
   const departamentosConDato = useMemo(() => {
     if (!departamentosGeojson) return null
-
-    const features = departamentosGeojson.features.map((feature) => {
+    return { type: 'FeatureCollection' as const, features: departamentosGeojson.features.map((feature) => {
       const clave = normalizarNombreDepartamento(feature.properties.nombre)
-      const dpto = departamentosPorClave.get(clave)
-
-      let valor: number | null = null
-      let color = COLOR_SIN_DATO
-
-      if (dpto) {
-        if (modo === 'anio' && anioSeleccionado != null && escalaAnio) {
-          valor = dpto.serie[String(anioSeleccionado)] ?? 0
-          color = colorSecuencial(valor, escalaAnio)
-        } else if (modo === 'variacion' && anioVariacionA != null && anioVariacionB != null) {
-          const a = dpto.serie[String(anioVariacionA)] ?? 0
-          const b = dpto.serie[String(anioVariacionB)] ?? 0
-          const pct = a > 0 ? ((b - a) / a) * 100 : null
-          valor = pct
-          color = colorVariacion(pct)
-        }
-      }
-
-      return {
-        ...feature,
-        properties: { ...feature.properties, clave, valor, color },
-      }
-    })
-
-    return { type: 'FeatureCollection' as const, features }
-  }, [departamentosGeojson, departamentosPorClave, modo, anioSeleccionado, anioVariacionA, anioVariacionB, escalaAnio])
+      const valor = valoresMapa.get(clave) ?? null
+      const color = valor == null ? COLOR_SIN_DATO : divergente ? colorVariacion(valor) : escalaAnio ? colorSecuencial(valor, escalaAnio) : COLOR_SIN_DATO
+      return { ...feature, properties: { ...feature.properties, clave, valor, color } }
+    }) }
+  }, [departamentosGeojson, valoresMapa, divergente, escalaAnio])
+  const etiquetaIndicador = indicador === 'nacimientos' ? medida : indicador === 'matricula' ? 'Matrícula CGE' : 'Alumnos por sección activa CGE'
+  const periodoIndicador = indicador === 'nacimientos' ? (modo === 'anio' ? String(anioSeleccionado) : `${anioVariacionA}→${anioVariacionB}`) : String(cicloCge)
+  const formatoIndicador = (valor: number | null | undefined) => valor == null ? 'Sin dato' : divergente ? fmtPct(valor) : indicador === 'ratio' ? valor.toFixed(1) : fmt(valor)
 
   // Rango efectivo del resumen (T10, corrección 2026-09-25): el panel de
   // título y el popup de departamento mostraban siempre la variación fija
@@ -432,30 +455,14 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
   // odd/tasks/mapa-natalidad.md T9.
   const mapStyle = BASEMAPS.voyager.styleUrl
 
-  // Feedback 2026-09-25: el popup de departamento se muestra al pasar el
-  // mouse (sigue al cursor, se cierra al salir del polígono o del mapa) en
-  // vez de requerir un click — es información de referencia rápida, no una
-  // selección persistente. `handleClick` se mantiene como fallback para
-  // touch (sin mouse no hay "hover": un tap todavía tiene que poder abrirlo).
-  //
-  // Las escuelas SIGUEN siendo por click, a propósito: son ~2000 puntos que
-  // MapLibre agrupa en clusters según el zoom, así que qué feature hay bajo
-  // el cursor cambia todo el tiempo (un cluster se separa en puntos
-  // individuales al acercarse el zoom). Recalcular y mostrar un popup en
-  // cada mousemove sobre esa capa parpadearía constantemente y sería
-  // ilegible; el click es una selección explícita y estable.
   function handleMouseMove(event: MapLayerMouseEvent) {
-    const features = event.features ?? []
-    const departamento = features.find((f) => f.layer?.id === CAPA_DEPARTAMENTOS_RELLENO_ID)
-    const clave = departamento?.properties?.clave
-    if (typeof clave === 'string') {
-      setDepartamentoSeleccionado({ clave, lng: event.lngLat.lng, lat: event.lngLat.lat })
-    } else if (departamentoSeleccionado) {
-      setDepartamentoSeleccionado(null)
-    }
+    if (departamentoSeleccionado || escuelaSeleccionada) return
+    const clave = event.features?.find((f) => f.layer?.id === CAPA_DEPARTAMENTOS_RELLENO_ID)?.properties?.clave
+    setVistaPrevia(typeof clave === 'string' ? { clave, lng: event.lngLat.lng, lat: event.lngLat.lat } : null)
   }
 
   function handleClick(event: MapLayerMouseEvent) {
+    setVistaPrevia(null)
     const features = event.features ?? []
     const escuela = features.find((f) => f.layer?.id === CAPA_ESCUELAS_ID)
     if (escuela?.geometry.type === 'Point') {
@@ -496,8 +503,8 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
   }
 
   return (
-    <div className={styles.shell} ref={shellRef}>
-      <div className={styles.mapRoot} onMouseLeave={() => setDepartamentoSeleccionado(null)}>
+    <div className={`${styles.shell} ${departamentoSeleccionado || escuelaSeleccionada ? diagnosticStyles.shellOpen : ''}`} ref={shellRef}>
+      <div className={styles.mapRoot} onMouseLeave={() => setVistaPrevia(null)}>
         <MapGL
           ref={mapRef}
           mapStyle={mapStyle}
@@ -596,20 +603,21 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
             </Source>
           )}
 
+          {vistaPrevia && departamentosPorClave.get(vistaPrevia.clave) && (
+            <Popup className={diagnosticStyles.hoverPreview} longitude={vistaPrevia.lng} latitude={vistaPrevia.lat} anchor="bottom" closeButton={false} closeOnClick={false}>
+              <span>{departamentosPorClave.get(vistaPrevia.clave)?.nombre} · {etiquetaIndicador} {periodoIndicador}: {formatoIndicador(valoresMapa.get(vistaPrevia.clave))} · Seleccione para ver el detalle</span>
+            </Popup>
+          )}
+        </MapGL>
           {departamentoSeleccionado && dptoSeleccionadoDatos && (
-            <Popup
-              longitude={departamentoSeleccionado.lng}
-              latitude={departamentoSeleccionado.lat}
-              anchor="bottom"
-              onClose={() => setDepartamentoSeleccionado(null)}
-              closeOnClick={false}
-              maxWidth="320px"
-            >
-              <div className={styles.popup}>
+            <div role="region" aria-label={`Detalle de ${dptoSeleccionadoDatos.nombre}`} className={diagnosticStyles.detalle}>
+              <div data-testid="detalle-contenido" className={`${styles.popup} ${diagnosticStyles.detalleContenido}`} tabIndex={0}>
+                <button className={diagnosticStyles.cerrar} ref={closeRef} type="button" aria-label="Cerrar detalle del departamento" onClick={() => { setDepartamentoSeleccionado(null); requestAnimationFrame(() => triggerRef.current?.focus()) }}>Cerrar</button>
                 <h3 className={styles.popupTitle}>{dptoSeleccionadoDatos.nombre}</h3>
-                <div className={styles.popupRow}>
-                  <b>{medida} {anioSeleccionado}:</b>{' '}
-                  {fmt(dptoSeleccionadoDatos.serie[String(anioSeleccionado)] ?? 0)}
+                {indicador !== 'nacimientos' && <p>{etiquetaIndicador} {periodoIndicador}: <b>{formatoIndicador(valoresMapa.get(dptoSeleccionadoDatos.clave))}</b></p>}
+                {indicador === 'nacimientos' && <><div className={styles.popupRow}>
+                  <b>{medida} {rangoResumen?.hasta}:</b>{' '}
+                  {dptoSeleccionadoDatos.serie[String(rangoResumen?.hasta)] == null ? '—' : fmt(dptoSeleccionadoDatos.serie[String(rangoResumen?.hasta)])}
                 </div>
                 {rangoResumen && (
                   <div className={styles.popupRow}>
@@ -631,15 +639,15 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
                     })()}
                   </div>
                 )}
-                <Sparkline serie={dptoSeleccionadoDatos.serie} anios={datos.meta.anios} />
-                <MatriculaNatalidadPanel datos={matricula} error={errorMatricula} departamento={dptoSeleccionadoDatos.nombre} />
+                <Sparkline serie={dptoSeleccionadoDatos.serie} anios={datos.meta.anios} /></>}
+                <MatriculaNatalidadPanel datos={matricula} error={errorMatricula} departamento={dptoSeleccionadoDatos.nombre} cicloSeleccionado={cicloCge} onCicloChange={setCicloCge} />
                 <hr className={styles.popupRule} />
                 {/* Feedback 2026-09-25: sólo Inicial y Primario, que son los
                     niveles que reciben directamente la cohorte de nacidos —
                     Secundario/Superior/Servicios Educativos no aportan a esa
                     comparación y se sacaron de este resumen (el filtro de
                     nivel de las escuelas en el mapa sigue teniendo los 5). */}
-                <div className={styles.sectionTitle}>Escuelas por nivel</div>
+                <div className={styles.sectionTitle}>Escuelas y secciones por nivel (padrón, ciclo 2026)</div>
                 {NIVELES_POPUP_DEPARTAMENTO.map((nivel) => (
                   <div key={nivel} className={styles.popupRow}>
                     <b>{nivel}:</b> {dptoSeleccionadoDatos.porNivel[nivel].escuelas} escuela(s) ·{' '}
@@ -647,29 +655,20 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
                   </div>
                 ))}
                 <hr className={styles.popupRule} />
-                <div className={styles.sectionTitle}>Oferta de inicial por sala</div>
+                <div className={styles.sectionTitle}>Oferta de inicial por sala (padrón, ciclo 2026)</div>
                 {Object.entries(dptoSeleccionadoDatos.inicial.seccionesPorCurso).map(([curso, secciones]) => (
                   <div key={curso} className={styles.popupMuted}>
                     {curso}: {secciones}
                   </div>
                 ))}
               </div>
-            </Popup>
+            </div>
           )}
 
           {escuelaSeleccionada && (
-            <Popup
-              longitude={escuelaSeleccionada.lng}
-              latitude={escuelaSeleccionada.lat}
-              anchor="bottom"
-              onClose={() => {
-                setEscuelaSeleccionada(null)
-                setEscuelaResaltada(null)
-              }}
-              closeOnClick={false}
-              maxWidth="320px"
-            >
-              <div className={styles.popup}>
+            <div role="region" aria-label={`Detalle de ${escuelaSeleccionada.props.nombre}`} className={diagnosticStyles.detalle}>
+              <div data-testid="detalle-contenido" className={`${styles.popup} ${diagnosticStyles.detalleContenido}`} tabIndex={0}>
+                <button className={diagnosticStyles.cerrar} ref={closeRef} type="button" aria-label="Cerrar detalle de la escuela" onClick={() => { setEscuelaSeleccionada(null); setEscuelaResaltada(null); requestAnimationFrame(() => triggerRef.current?.focus()) }}>Cerrar</button>
                 <h3 className={styles.popupTitle}>{escuelaSeleccionada.props.nombre}</h3>
                 {escuelaSeleccionada.props.sector && (
                   <div className={styles.popupRow}>
@@ -693,7 +692,7 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
                   <b>Departamento:</b> {escuelaSeleccionada.props.departamento}
                 </div>
                 <hr className={styles.popupRule} />
-                <MatriculaNatalidadPanel key={escuelaSeleccionada.props.cueAnexo} datos={matricula} error={errorMatricula} cueAnexo={escuelaSeleccionada.props.cueAnexo} />
+                <MatriculaNatalidadPanel key={escuelaSeleccionada.props.cueAnexo} datos={matricula} error={errorMatricula} cueAnexo={escuelaSeleccionada.props.cueAnexo} cicloSeleccionado={cicloCge} onCicloChange={setCicloCge} />
                 <div className={styles.sectionTitle}>Niveles (padrón, ciclo 2026)</div>
                 {escuelaSeleccionada.props.tienePadron ? (
                   escuelaSeleccionada.props.niveles.map((nivelOferta) => (
@@ -712,9 +711,9 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
                   </div>
                 )}
               </div>
-            </Popup>
+            </div>
           )}
-        </MapGL>
+
       </div>
 
       {/* T10a: ancho fijo (natalidad-title-panel, ~330px) para que este panel,
@@ -724,20 +723,40 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
           descentrado/asimétrico frente a la leyenda. Las fuentes pasan a un
           <details> colapsable chico ("Fuentes"), el título y el resumen
           quedan como única línea de contexto. */}
-      <div className={`${styles.panel} ${styles.titlePanel} natalidad-title-panel`}>
-        <b>{medida} por departamento</b>
+      <div className={`${styles.panel} ${styles.titlePanel} natalidad-title-panel ${diagnosticStyles.titlePanel}`} tabIndex={0} aria-label="Controles del mapa">
+        <b>{etiquetaIndicador} {periodoIndicador} por departamento</b>
+        <details open={controlesAbiertos} onToggle={(event) => setControlesAbiertos(event.currentTarget.open)}>
+        <summary>Controles y fuentes</summary>
+        <div className={diagnosticStyles.control}>
+          <label htmlFor="indicador-mapa">Indicador del mapa</label>
+          <select id="indicador-mapa" value={indicador} onChange={(e) => setIndicador(e.target.value as typeof indicador)}>
+            <option value="nacimientos">Nacimientos</option><option value="matricula">Matrícula CGE</option><option value="ratio">Alumnos por sección activa CGE</option>
+          </select>
+        </div>
+        {indicador !== 'nacimientos' && <div className={diagnosticStyles.control}><label htmlFor="ciclo-cge-mapa">Ciclo CGE del mapa</label><select id="ciclo-cge-mapa" value={cicloCge} onChange={(e) => setCicloCge(Number(e.target.value))}>{(matricula?.meta.anios ?? [2026]).map((year) => <option key={year} value={year}>{year}</option>)}</select><small>Inicial y Primario · cobertura CGE parcial; 2026 provisional.</small>{indicador === 'ratio' && <small>Secciones con alumnos; no mide capacidad ni vacantes.</small>}</div>}
+        <div className={diagnosticStyles.control}><label htmlFor="seleccionar-departamento">Seleccionar departamento</label><select id="seleccionar-departamento" ref={departmentSelectRef} value={departamentoSeleccionado?.clave ?? ''} onChange={(event) => {
+          const clave = event.target.value
+          const feature = departamentosGeojson?.features.find((item) => normalizarNombreDepartamento(item.properties.nombre) === clave)
+          if (!feature) { setDepartamentoSeleccionado(null); return }
+          const ring = feature.geometry.type === 'Polygon' ? feature.geometry.coordinates[0] : feature.geometry.coordinates[0][0]
+          const [lng, lat] = ring.reduce(([x, y], point) => [x + point[0] / ring.length, y + point[1] / ring.length], [0, 0])
+          mapRef.current?.flyTo({ center: [lng, lat], zoom: 8 })
+          setEscuelaSeleccionada(null)
+          setVistaPrevia(null)
+          setDepartamentoSeleccionado({ clave, lng, lat })
+        }}><option value="">Seleccione…</option>{datos.departamentos.map((d) => <option key={d.clave} value={d.clave}>{d.nombre}</option>)}</select></div>
         <br />
         {/* Bug corregido (2026-09-25): este resumen quedaba fijo en
             meta.anioInicio→meta.anioFin sin importar los controles — ahora
             sigue el modo activo (rangoResumen, calculado más arriba). */}
-        {modo === 'anio' && anioSeleccionado != null && variacionProvincialResumen && (
+        {indicador === 'nacimientos' && modo === 'anio' && anioSeleccionado != null && variacionProvincialResumen && (
           <>
             Total provincial {anioSeleccionado}:{' '}
             <b>{fmt(valorSerie(datos.provincia.serie, anioSeleccionado))}</b> ·{' '}
             {fmtVariacionContra(datos.meta.anioInicio, variacionProvincialResumen)}
           </>
         )}
-        {modo === 'variacion' && anioVariacionA != null && anioVariacionB != null && variacionProvincialResumen && (
+        {indicador === 'nacimientos' && modo === 'variacion' && anioVariacionA != null && anioVariacionB != null && variacionProvincialResumen && (
           <>
             {anioVariacionA}: <b>{fmt(valorSerie(datos.provincia.serie, anioVariacionA))}</b> → {anioVariacionB}:{' '}
             <b>{fmt(valorSerie(datos.provincia.serie, anioVariacionB))}</b> ·{' '}
@@ -751,7 +770,7 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
             aplican a la métrica elegida. Escuelas y mapa base ya no son
             configurables (ver comentarios en `mapStyle` y en la fuente de
             escuelas más abajo). */}
-        <div className="natalidad-metrica-control">
+        {indicador === 'nacimientos' && <div className="natalidad-metrica-control">
           <SegmentedGroup value={modo} onValueChange={(v) => setModo(v as ModoMetrica)}>
             <SegmentedItem value="anio">Nacidos en el año</SegmentedItem>
             <SegmentedItem value="variacion">Variación %</SegmentedItem>
@@ -782,7 +801,7 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
               />
             </div>
           )}
-        </div>
+        </div>}
 
         <NatalidadEscuelaSearchBox escuelas={escuelas} onSeleccionar={handleSeleccionarEscuelaBuscada} />
 
@@ -790,13 +809,15 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
             por defecto — antes era un <span> siempre visible que estiraba el
             panel de título hasta ~2-3 líneas y rompía el ancho fijo de la
             columna. */}
-        <MatriculaNatalidadPanel datos={matricula} error={errorMatricula} />
+        {matricula && <p className={diagnosticStyles.resumen}>CGE {cicloCge}: {matricula.provincia[cicloCge] ? `${fmt(matricula.provincia[cicloCge].matricula)} estudiantes · ${fmt(matricula.provincia[cicloCge].secciones)} secciones activas` : 'Sin dato'}</p>}
+        {errorMatricula && <p role="status">No se pudo cargar la matrícula.</p>}
         <details className="natalidad-fuentes">
           <summary>Fuentes</summary>
           <span className={styles.hint}>
             {medida}: {datos.meta.fuenteNatalidad.nombre}. {datos.meta.fuenteLocalizaciones}.{' '}
-            {datos.meta.fuenteSecciones}. Período {datos.meta.anioInicio}–{datos.meta.anioFin}.
+            {datos.meta.fuenteSecciones}. Período {datos.meta.anioInicio}–{datos.meta.anioFin}. {notaFuente}
           </span>
+        </details>
         </details>
       </div>
 
@@ -806,19 +827,19 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
           consistente con el resto de los mapas del proyecto.
           T10a: natalidad-legend-panel iguala el ancho fijo del panel de
           título (~330px) para que ambos paneles queden alineados. */}
-      <details className={`${styles.panel} ${styles.legendPanel} natalidad-legend-panel`} open>
+      <details className={`${styles.panel} ${styles.legendPanel} natalidad-legend-panel`} open={leyendaAbierta} onToggle={(event) => setLeyendaAbierta(event.currentTarget.open)}>
         <summary className={styles.legendSummary}>Referencias</summary>
-        {modo === 'anio' && escalaAnio && (
+        {!divergente && escalaAnio && (
           <>
-            <div className={styles.hint}>{medida} en {anioSeleccionado} (cuantiles, claro = menos, oscuro = más)</div>
+            <div className={styles.hint}>{etiquetaIndicador} {periodoIndicador} (cuantiles, claro = menos, oscuro = más)</div>
             {escalaAnio.colors.map((color, i) => (
               <div key={color + i} className={styles.legendItem}>
                 <span className={styles.swatch} style={{ background: color }} />
                 {i === 0
-                  ? `< ${fmt(escalaAnio.breaks[0] ?? 0)}`
+                  ? `< ${formatoIndicador(escalaAnio.breaks[0])}`
                   : i === escalaAnio.colors.length - 1
-                    ? `≥ ${fmt(escalaAnio.breaks[i - 1])}`
-                    : `${fmt(escalaAnio.breaks[i - 1])} – ${fmt(escalaAnio.breaks[i])}`}
+                    ? `≥ ${formatoIndicador(escalaAnio.breaks[i - 1])}`
+                    : `${formatoIndicador(escalaAnio.breaks[i - 1])} – ${formatoIndicador(escalaAnio.breaks[i])}`}
               </div>
             ))}
           </>
@@ -828,10 +849,10 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
             los mismos que pinta el mapa via colorVariacion) faltaban por
             completo. "Sin dato" ahora sólo aparece si algún departamento
             realmente no tiene base comparable en el año Desde. */}
-        {modo === 'variacion' && (
+        {divergente && (
           <>
             <div className={styles.hint}>
-              % variación {anioVariacionA}→{anioVariacionB} (rojo = caída, azul = crecimiento)
+              {etiquetaIndicador} {periodoIndicador} · % (rojo = caída, azul = crecimiento)
             </div>
             {ESCALA_VARIACION_COLORS.map((color, i) => (
               <div key={color + i} className={styles.legendItem}>
@@ -846,11 +867,12 @@ export default function MapNatalidadPage({ visible = true, datos }: MapNatalidad
             {hayVariacionSinDato && (
               <div className={styles.legendItem}>
                 <span className={styles.swatch} style={{ background: COLOR_SIN_DATO }} />
-                Sin dato en {anioVariacionA}
+                Sin dato o sin base comparable
               </div>
             )}
           </>
         )}
+        {!divergente && hayVariacionSinDato && <div className={styles.legendItem}><span className={styles.swatch} style={{ background: COLOR_SIN_DATO }} />Sin dato</div>}
         <div className={styles.legendItem}>
           <span className={styles.swatch} style={{ background: COLOR_INICIAL }} />
           Escuela con oferta de nivel inicial
