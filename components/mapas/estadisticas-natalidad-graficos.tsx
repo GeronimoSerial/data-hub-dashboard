@@ -416,3 +416,30 @@ export function GraficoNacidosPorSeccion(props: {
     />
   )
 }
+
+export function GraficoMatriculaObservada({ puntos }: { puntos: { anio: number; matricula: number | null }[] }) {
+  const paleta = usePaleta()
+  return <GraficoContenedor etiqueta="Evolución de matrícula observada por ciclo" alto={280}>
+    <LineChart data={puntos} margin={{ top: 20, right: 24, bottom: 4, left: 0 }}>
+      <CartesianGrid vertical={false} stroke={paleta.grilla} />
+      <XAxis dataKey="anio" {...propsEje(paleta)} />
+      <YAxis domain={[0, 'auto']} width={56} tickFormatter={formatearMiles} {...propsEje(paleta)} />
+      <Tooltip contentStyle={estiloTooltip(paleta)} formatter={formatearValorTooltipMiles} />
+      <Line type="monotone" dataKey="matricula" name="Estudiantes" stroke={paleta.inicial} strokeWidth={3} connectNulls={false} />
+    </LineChart>
+  </GraficoContenedor>
+}
+
+export function GraficoAlumnosPorSeccion({ filas }: { filas: { clave: string; departamento: string; valor: number | null }[] }) {
+  const paleta = usePaleta()
+  const datos = filas.filter((fila) => fila.valor != null)
+  return <GraficoContenedor etiqueta="Alumnos por sección activa por departamento" alto={Math.max(280, datos.length * 25 + 40)}>
+    <BarChart layout="vertical" data={datos} margin={{ top: 5, right: 35, bottom: 5, left: 4 }}>
+      <CartesianGrid horizontal={false} stroke={paleta.grilla} />
+      <XAxis type="number" domain={[0, 'auto']} {...propsEje(paleta)} />
+      <YAxis type="category" dataKey="departamento" width={120} interval={0} {...propsEje(paleta)} />
+      <Tooltip contentStyle={estiloTooltip(paleta)} formatter={(valor) => typeof valor === 'number' ? valor.toFixed(1) : 'Sin dato'} />
+      <Bar dataKey="valor" name="Estudiantes por sección" fill={paleta.inicial} />
+    </BarChart>
+  </GraficoContenedor>
+}
