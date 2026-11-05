@@ -3,6 +3,8 @@
 import { useId, useState } from 'react'
 import type { DatosMatriculaNatalidad, MatriculaEscuelaAnual } from '@/lib/mapas/matricula-natalidad'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
+import { resumirMatricula } from '@/lib/mapas/diagnostico-matricula-natalidad'
+import styles from './natalidad-diagnostico.module.css'
 import { fmt } from '@/lib/mapas/estadisticas-natalidad'
 
 interface Props {
@@ -10,9 +12,11 @@ interface Props {
   error?: boolean
   departamento?: string
   cueAnexo?: string
+  cicloSeleccionado?: number
+  onCicloChange?: (ciclo: number) => void
 }
 
-export function MatriculaNatalidadPanel({ datos, error, departamento, cueAnexo }: Props) {
+export function MatriculaNatalidadPanel({ datos, error, departamento, cueAnexo, cicloSeleccionado, onCicloChange }: Props) {
   const id = useId()
   const [ciclo, setCiclo] = useState<number | null>(null)
   const serie = datos && (cueAnexo
@@ -20,17 +24,25 @@ export function MatriculaNatalidadPanel({ datos, error, departamento, cueAnexo }
     : departamento
       ? datos.departamentos[normalizarNombreDepartamento(departamento)]
       : datos.provincia)
-  const anio = ciclo ?? datos?.meta.anios.at(-1)
+  const anio = cicloSeleccionado ?? ciclo ?? datos?.meta.anios.at(-1)
   const escuelaAnual = cueAnexo && anio != null ? serie?.[anio] as MatriculaEscuelaAnual | undefined : undefined
+  const resumen = datos && anio != null ? resumirMatricula(datos, anio, { departamento, cueAnexo }) : null
   const valor = (n: number | undefined) => n == null ? '—' : fmt(n)
 
   return (
-    <details>
-      <summary>Matrícula CGE 2021–2026</summary>
-      <div style={{ maxHeight: 320, overflow: 'auto', fontSize: '0.8125rem' }}>
+    <section aria-label="Matrícula CGE">
+      <strong>Matrícula CGE {anio}</strong>
+      <div className={styles.matricula}>
         {error ? <p role="status">No se pudo cargar la matrícula. El mapa de nacimientos sigue disponible.</p>
           : !datos ? <p role="status">Cargando matrícula…</p>
           : <>
+            <label htmlFor={id}>Ciclo lectivo de matrícula</label>{' '}
+            <select id={id} value={anio} onChange={(event) => { const valor = Number(event.target.value); if (onCicloChange) onCicloChange(valor); else setCiclo(valor) }}>
+              {datos.meta.anios.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
+            {resumen ? <p><b>{fmt(resumen.matricula)} estudiantes</b> · {fmt(resumen.secciones)} secciones activas · Alumnos por sección activa: {resumen.alumnosPorSeccion == null ? '—' : resumen.alumnosPorSeccion.toFixed(1)}</p> : <p>Sin registro para el ciclo seleccionado.</p>}
+            <p>Secciones con alumnos; no mide capacidad ni vacantes. Cobertura parcial CGE; 2026 provisional.</p>
+            <details><summary>Ver evolución y cobertura</summary>
             <p>{datos.meta.cobertura}</p>
             <p>Fecha del reporte: 28/09/2026. Los ciclos de matrícula son independientes del año de nacimiento.</p>
             {!serie ? <p>Sin registros para {cueAnexo ? 'esta escuela' : 'este departamento'} en el reporte. No equivale a matrícula cero.</p>
@@ -44,10 +56,6 @@ export function MatriculaNatalidadPanel({ datos, error, departamento, cueAnexo }
                 </table>
                 <p>—: sin registro en el reporte; 0: valor informado como cero.</p>
                 {cueAnexo && <>
-                  <label htmlFor={id}>Ciclo lectivo de matrícula</label>{' '}
-                  <select id={id} value={anio} onChange={(event) => setCiclo(Number(event.target.value))}>
-                    {datos.meta.anios.map((year) => <option key={year} value={year}>{year}</option>)}
-                  </select>
                   {escuelaAnual ? <table style={{ width: '100%' }}>
                     <caption>Detalle de matrícula {anio}</caption>
                     <thead><tr><th scope="col">Nivel</th><th scope="col">Curso</th><th scope="col">Matrícula</th><th scope="col">Secciones</th></tr></thead>
@@ -60,8 +68,9 @@ export function MatriculaNatalidadPanel({ datos, error, departamento, cueAnexo }
               </>}
             {!cueAnexo && !departamento && <p>{datos.meta.cueSinCoincidencia.length} CUE-anexo sin coincidencia con el archivo de escuelas del mapa. Permanecen incluidos en los totales.</p>}
             <p>Fuente: {datos.meta.fuente}. No se publican cantidades de alumnos con CUD.</p>
+            </details>
           </>}
       </div>
-    </details>
+    </section>
   )
 }
