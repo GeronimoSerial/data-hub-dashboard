@@ -5,9 +5,10 @@ import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { HistorialParte } from './historial-parte'
 import { EstadoActualAfectacion } from './estado-actual-afectacion'
+import { etiquetaClases, etiquetaFuncionamiento, tieneServicioInformado } from '@/lib/infraestructura/funcionamiento'
+import { derivarClases } from '@/lib/infraestructura/mapa/enriquecer'
 import {
   ETIQUETA_ESTABLECIMIENTO,
-  ETIQUETA_SERVICIO,
   MENSAJE_ACCESO_VENCIDO,
   MENSAJE_ERROR_LECTURA,
   MENSAJE_SIN_CORTE,
@@ -121,6 +122,12 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
   const { datos } = estado
   const sinSituacion = sinSituacionEnSeguimiento(datos)
   const afectaciones = datos.afectaciones ?? []
+  const estadoEdificio = afectaciones.some((a) => a.categoria === 'establecimiento')
+    ? datos.parte?.estadoEstablecimiento ?? 'habitual' : 'habitual'
+  const clases = derivarClases(estadoEdificio, datos.servicio?.estadoGeneral ?? 'normal')
+  const carreras = 'carreras' in datos && Array.isArray(datos.carreras) ? datos.carreras.map((c) => c.id as number) : []
+  const clasesInformadas = tieneServicioInformado(datos.servicio?.alcanceVigente ?? [], datos.secciones ?? [], carreras) ||
+    ['sin_clases', 'evacuado', 'centro_evacuados'].includes(estadoEdificio)
   const rigeServicio = formatearMomento(rigeDesdeDelServicio(datos.servicio?.alcanceVigente))
   const rigeEstablecimiento = formatearMomento(datos.parte?.estadoEstablecimientoRigeDesde)
   const ultimaActualizacion = formatearMomento(datos.ultimaActualizacion)
@@ -129,17 +136,17 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
 
   return (
     <div className="estado-actual">
-      {datos.parte && datos.servicio && (
-        <section className="estado-actual-bloque" aria-labelledby="estado-actual-servicio">
+      <section className="estado-actual-bloque" aria-labelledby="estado-actual-servicio">
           <h2 className="estado-actual-bloque__titulo" id="estado-actual-servicio">
             Funcionamiento
           </h2>
-          <p className="estado-actual-bloque__valor">{ETIQUETA_SERVICIO[datos.servicio.estadoGeneral]}</p>
-          {rigeServicio && (
-            <p className="estado-actual-bloque__vigencia">Rige desde el {rigeServicio}</p>
-          )}
-        </section>
-      )}
+          <p className="estado-actual-bloque__valor">{etiquetaFuncionamiento(afectaciones)}</p>
+      </section>
+      <section className="estado-actual-bloque" aria-labelledby="estado-actual-clases">
+        <h2 className="estado-actual-bloque__titulo" id="estado-actual-clases">Clases</h2>
+        <p className="estado-actual-bloque__valor">{etiquetaClases(clases, clasesInformadas)}</p>
+        {clasesInformadas && rigeServicio && <p className="estado-actual-bloque__vigencia">Rige desde el {rigeServicio}</p>}
+      </section>
 
       {datos.parte && (
         <section className="estado-actual-bloque" aria-labelledby="estado-actual-establecimiento">

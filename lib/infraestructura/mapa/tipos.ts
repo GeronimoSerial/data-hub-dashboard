@@ -25,6 +25,7 @@ export interface EscuelaMapaEnriquecida {
   gravedad: GravedadMapa
   categoriaPrincipal: string | null
   clases: EstadoClases
+  clasesInformadas?: boolean
   apoyo: ApoyoPedagogico
   sinActualizar: boolean
   ultimaNovedad: string | null
