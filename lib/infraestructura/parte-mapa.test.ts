@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getDb, getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
@@ -82,7 +82,59 @@ beforeAll(async () => {
   await ensureSeeded()
 })
 
+afterAll(async () => {
+  await getDb().delete(infraParte).where(eq(infraParte.cueAnexo, 'CUE-TX-PROJECTION'))
+  await crearEjecutorSql(getRawClient()).execute({
+    sql: 'DELETE FROM ge.ge_localizacion WHERE cue_anexo = ?',
+    args: ['CUE-TX-PROJECTION'],
+  })
+})
+
 describe('listarPartesVigentes', () => {
+  it('projects current severity from the supplied transaction executor', async () => {
+    const cue = 'CUE-TX-PROJECTION'
+    const client = crearEjecutorSql(getRawClient())
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, nombre, departamento, localidad) VALUES (?, ?, ?, ?)',
+      args: [cue, cue, 'Fixture', 'Fixture'],
+    })
+    const sectionId = 998981
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+      args: [sectionId, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'],
+    })
+    const partId = await crearParte(cue)
+    const affectationId = await crearAfectacion({ parteId: partId, severidad: 'Alta', secciones: [sectionId] })
+
+    const geSchema = await ensureGeSchema(client)
+    const transactionSql: string[] = []
+    const projection = await getDb().transaction(async (tx) => {
+      await tx.update(infraAfectacion).set({ severidad: 'Crítica' }).where(eq(infraAfectacion.id, affectationId))
+      const txClient = crearEjecutorSql(tx)
+      return listarPartesVigentes(
+        { cueAnexo: cue },
+        {
+          db: tx,
+          client: {
+            async execute(query) {
+              const statement = typeof query === 'string' ? query : query.sql
+              transactionSql.push(statement)
+              return txClient.execute(query)
+            },
+          },
+          geSchema,
+        },
+      )
+    })
+
+    expect(projection.partes).toHaveLength(1)
+    expect(projection.partes[0]?.peorSeveridad).toBe('Crítica')
+    await getDb().delete(infraParte).where(eq(infraParte.id, partId))
+    await client.execute({ sql: 'DELETE FROM ge.ge_seccion WHERE ge_section_id = ?', args: [sectionId] })
+    await client.execute({ sql: 'DELETE FROM ge.ge_localizacion WHERE cue_anexo = ?', args: [cue] })
+    expect(transactionSql.some((statement) => /^\s*(CREATE|DO)\b/i.test(statement))).toBe(false)
+  })
+
   it('cuenta partes abiertos sin actualizar y excluye los recientes y los retirados', async () => {
     const client = crearEjecutorSql(getRawClient())
     const cues = [

@@ -15,7 +15,7 @@ import { proyectarImpactoAlumnos, prioridadEfectiva, type ImpactoAlumnos } from 
 // estado general de servicio, dedupe de alumnos) se resuelve en memoria con
 // las funciones puras que ya existen — nunca una consulta por parte.
 import { getDb, getRawClient } from '@/lib/db'
-import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from './ge-db'
+import { crearEjecutorSql, getCorteVigente, type EjecutorSql, type GeSchemaReady } from './ge-db'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import { listarSeccionesDeCues } from './secciones-cue'
@@ -281,8 +281,10 @@ export async function cargarAfectacionesDeVariosPartes(
   client: EjecutorSql,
   corteId: number,
   parteIds: string[],
+  db: Pick<Awaited<ReturnType<typeof getDb>>, 'execute'> = getDb(),
+  schemaReady?: GeSchemaReady,
 ): Promise<Afectacion[]> {
-  await cargarReferencias()
+  await cargarReferencias(db)
   if (parteIds.length === 0) return []
 
   const placeholders = parteIds.map(() => '?').join(',')
@@ -326,7 +328,11 @@ export async function cargarAfectacionesDeVariosPartes(
   // afectaciones de TODOS los partes: nunca una por afectación ni una por
   // parte.
   const todasLasSecciones = [...new Set(seccionesRes.rows.map((s) => Number(s.ge_section_id)))]
-  const membresia = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: todasLasSecciones })
+  const membresia = await obtenerMembresiaSecciones(
+    client,
+    { corteId, geSectionIds: todasLasSecciones },
+    schemaReady,
+  )
 
   return res.rows.map((fila): Afectacion => {
     const id = stringValor(fila.id)
@@ -362,8 +368,9 @@ export async function cargarAfectacionesDeVariosPartes(
 export async function cargarServicioAlcanceDeVariosPartes(
   client: EjecutorSql,
   parteIds: string[],
+  db: Pick<Awaited<ReturnType<typeof getDb>>, 'execute'> = getDb(),
 ): Promise<ServicioAlcance[]> {
-  await cargarReferencias()
+  await cargarReferencias(db)
   if (parteIds.length === 0) return []
 
   const placeholders = parteIds.map(() => '?').join(',')
@@ -399,21 +406,30 @@ export async function efectivosDeAfectacionesInstituto(
   client: EjecutorSql,
   afectaciones: Afectacion[],
   corteMatricula: number | null,
+  db: Pick<Awaited<ReturnType<typeof getDb>>, 'select'> = getDb(),
 ): Promise<Map<string, EfectivoInstituto>> {
   if (corteMatricula === null || afectaciones.length === 0) return new Map()
-  const scopes = await leerScopeInstituto(getDb(), afectaciones.map((a) => a.id))
+  const scopes = await leerScopeInstituto(db, afectaciones.map((a) => a.id))
   return efectivosPorAfectacion(client, scopes, corteMatricula)
+}
+
+export type PartesVigentesSource = {
+  db: Pick<Awaited<ReturnType<typeof getDb>>, 'execute' | 'select'>
+  client: EjecutorSql
+  geSchema: GeSchemaReady
 }
 
 export async function listarPartesVigentes(
   filtros: FiltrosMapa = {},
+  source?: PartesVigentesSource,
 ): Promise<{ partes: ParteMapa[]; indicadores: IndicadoresMapa }> {
-  await cargarReferencias()
-  const periodo = await obtenerPeriodoVigente()
+  const db = source?.db ?? getDb()
+  const client = source?.client ?? crearEjecutorSql(getRawClient())
+  await cargarReferencias(db)
+  const periodo = await obtenerPeriodoVigente(db)
   if (!periodo) return resultadoVacio
 
-  const client = crearEjecutorSql(getRawClient())
-  await asegurarGeAdjuntada(client)
+  if (!source) await asegurarGeAdjuntada(client)
 
   const corte = await getCorteVigente(client)
   // Con partes de demo creados sin padrón se conserva la vista del mapa: el
@@ -428,12 +444,16 @@ export async function listarPartesVigentes(
   const cueAnexos = [...new Set(parteRows.map((p) => p.cueAnexo))]
 
   const [afectacionesRows, servicioRows, seccionesPorCue] = await Promise.all([
-    cargarAfectacionesDeVariosPartes(client, corteId, parteIds),
-    cargarServicioAlcanceDeVariosPartes(client, parteIds),
+    cargarAfectacionesDeVariosPartes(client, corteId, parteIds, db, source?.geSchema),
+    cargarServicioAlcanceDeVariosPartes(client, parteIds, db),
     listarSeccionesDeCues(client, corteId, cueAnexos),
   ])
   const todasLasSeccionesDelPadron = [...new Set([...seccionesPorCue.values()].flat().map((s) => s.geSectionId))]
-  const padronCompleto = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: todasLasSeccionesDelPadron })
+  const padronCompleto = await obtenerMembresiaSecciones(
+    client,
+    { corteId, geSectionIds: todasLasSeccionesDelPadron },
+    source?.geSchema,
+  )
 
   // Institutos superiores: un lote para todos los CUEs (nivel + corte de
   // matrícula, carreras vigentes, alcance por afectación con su corte guardado
@@ -444,7 +464,7 @@ export async function listarPartesVigentes(
     ? await carrerasVigentesPorCue(client, [...cuesInstituto])
     : new Map<string, number[]>()
   const afectacionesInstituto = afectacionesRows.filter((a) => cuesInstituto.has(cuePorParte.get(a.parteId) ?? ''))
-  const efectivosPorAfectacionInstituto = await efectivosDeAfectacionesInstituto(client, afectacionesInstituto, corteMatricula)
+  const efectivosPorAfectacionInstituto = await efectivosDeAfectacionesInstituto(client, afectacionesInstituto, corteMatricula, db)
   const todasLasCarrerasInstituto = [...new Set([...carrerasPorCue.values()].flat())]
   const membresiaCarrerasInstituto = corteMatricula !== null && todasLasCarrerasInstituto.length > 0
     ? await membresiaMatricula(client, corteMatricula, todasLasCarrerasInstituto)
