@@ -102,12 +102,15 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   const [clases, setClases] = useState<ValorClasesEdificio>(p.clasesEdificio)
   const [interrumpeTodo, setInterrumpeTodo] = useState(p.clasesEdificio.confirmarInterrupcionTotal ?? false)
   const [cuando, setCuando] = useState<EleccionVigencia>(VIGENCIA_AHORA)
+  const [errorSolucion, setErrorSolucion] = useState<string | null>(null)
   const [cascada, setCascada] = useState<{ pendientes: SituacionRecorrido[]; solucionadaEn: string } | null>(null)
   const solucionRef = useRef<HTMLDivElement>(null)
 
   function completarSolucion(eleccion: EleccionVigencia) {
     const solucionadaEn = resolverVigencia(eleccion)
-    if (!solucionadaEn) {
+    const anteriorAlInicio = solucionadaEn !== null && Date.parse(solucionadaEn) < Date.parse(p.situacion.rigeDesde)
+    setErrorSolucion(anteriorAlInicio ? 'La fecha de solución no puede ser anterior al inicio de la situación.' : null)
+    if (!solucionadaEn || anteriorAlInicio) {
       p.onResponder(null)
       setCascada(null)
       return
@@ -186,6 +189,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
     edificio: clases.estadoEstablecimiento || null,
   })
   const actual = cascada?.pendientes[0]
+  const cascadaAnteriorAlInicio = Boolean(actual && cascada && Date.parse(cascada.solucionadaEn) < Date.parse(actual.rigeDesde))
   const tipoRespondido = p.respuesta?.tipo
   const carrerasSinAlumnoElegido = p.carreras !== undefined && p.situacion.categoria === 'alumnos'
     ? carrerasSinAlumno(alcance.carreras, alumnosEfectivos)
@@ -306,7 +310,8 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
             onChange={(valor) => { setCuando(valor); completarSolucion(valor) }}
             label="¿Cuándo se solucionó?"
             etiquetaMomento="Se solucionó"
-            error={p.faltaRespuesta ? 'Falta indicar cuándo se solucionó.' : null}
+            minimo={p.situacion.rigeDesde}
+            error={errorSolucion ?? (p.faltaRespuesta ? 'Falta indicar cuándo se solucionó.' : null)}
           />
         </div>
       )}
@@ -334,13 +339,16 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
         titulo={`${p.situacion.motivo} se solucionó`}
         confirmarLabel="Sí, también se solucionó"
         cancelarLabel="No, sigue activo"
+        confirmarDeshabilitado={cascadaAnteriorAlInicio}
         onCancelar={() => setCascada((actualCascada) => actualCascada ? { ...actualCascada, pendientes: actualCascada.pendientes.slice(1) } : null)}
         onConfirmar={() => {
+          if (cascadaAnteriorAlInicio) return
           if (actual && cascada) p.onCascada(actual.id, cascada.solucionadaEn)
           setCascada((actualCascada) => actualCascada ? { ...actualCascada, pendientes: actualCascada.pendientes.slice(1) } : null)
         }}
       >
         <p>{actual ? `${actual.motivo} (causado por ${p.situacion.motivo}), ¿también?` : null}</p>
+        {cascadaAnteriorAlInicio ? <p role="alert">La fecha de solución es anterior al inicio de esta consecuencia. Revísela por separado.</p> : null}
       </ConfirmSheet>
     </section>
   )
