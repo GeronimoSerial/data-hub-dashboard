@@ -25,11 +25,13 @@ export interface VigenciaChipsProps {
   disabled?: boolean
   error?: string | null
   etiquetaMomento?: string
+  minimo?: string
 }
 
-export function VigenciaChips({ value, onChange, label, disabled = false, error = null, etiquetaMomento = 'Desde' }: VigenciaChipsProps): JSX.Element {
+export function VigenciaChips({ value, onChange, label, disabled = false, error = null, etiquetaMomento = 'Desde', minimo }: VigenciaChipsProps): JSX.Element {
   const id = useId()
   const { min, max } = rangoVigencia()
+  const fechaMinima = minimo && Date.parse(minimo) > min.getTime() ? new Date(minimo) : min
   const mostrarResumen = value.modo === 'hoy'
     ? Boolean(value.hora)
     : value.modo === 'otro' && Boolean(value.fecha && value.hora)
@@ -67,7 +69,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
                 id={`${id}-fecha`}
                 type="date"
                 lang="es-AR"
-                min={fechaInput(min)}
+                min={fechaInput(fechaMinima)}
                 max={fechaInput(max)}
                 value={value.fecha}
                 aria-invalid={error ? true : undefined}

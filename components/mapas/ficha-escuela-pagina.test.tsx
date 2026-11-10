@@ -77,6 +77,23 @@ function crearEscuelaFicha(
 }
 
 describe('FichaEscuelaPagina', () => {
+  it('usa la severidad vigente y no conserva el funcionamiento del mapa anterior', () => {
+    mockUseFichaParte.mockReturnValue({ estado: { fase: 'listo', datos: { parte: null, afectaciones: [], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } }, historial: { fase: 'listo', movimientos: [] } })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 4 })} mostrarEnlaceNominal={false} />)
+    expect(screen.getByText('Sin afectaciones reportadas')).toBeVisible()
+    expect(screen.getByText('Sin información de clases')).toBeVisible()
+    expect(screen.queryByText('Funcionamiento habitual')).not.toBeInTheDocument()
+  })
+
+  it.each([true, false])('muestra funcionamiento crítico con información de clases %s', (informadas) => {
+    const afectacion = { id: 'critical-live', categoria: 'establecimiento', severidad: 'Crítica', motivo: 'Inundación', descripcion: null, causadaPorId: null, rigeDesde: '2026-04-10T08:00:00Z', creadaEn: '2026-04-10T08:00:00Z', totales: { secciones: 1, alumnos: 10 } }
+    const alcance = informadas ? [{ id: 's1', parteId: 'p1', tipo: 'establecimiento', referenciaId: null, estado: 'normal', rigeDesde: '2026-04-10T08:00:00Z', creadaEn: '2026-04-10T08:00:00Z', retiradaEn: null }] : []
+    mockUseFichaParte.mockReturnValue({ estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [afectacion], servicio: { estadoGeneral: 'normal', alcanceVigente: alcance }, secciones: [] } }, historial: { fase: 'listo', movimientos: [] } })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 1 })} mostrarEnlaceNominal={false} />)
+    expect(screen.getByText('Funcionamiento críticamente afectado')).toBeVisible()
+    expect(screen.getByText(informadas ? 'Clases normales' : 'Sin información de clases')).toBeVisible()
+    expect(screen.queryByText('Funcionamiento habitual')).not.toBeInTheDocument()
+  })
   it('muestra la justificación crítica de la situación principal y de las secundarias', () => {
     const base = {
       categoria: 'establecimiento', severidad: 'Crítica', descripcion: null,

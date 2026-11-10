@@ -31,6 +31,13 @@ function crearEscuelaBase(
 }
 
 describe('VistaPreviaEscuela', () => {
+  it('no afirma normalidad cuando no hay situaciones ni información de clases', () => {
+    render(<VistaPreviaEscuela escuela={crearEscuelaBase()} urlFichaCompleta="/ficha" onCerrarVistaPrevia={vi.fn()} onQuitarSeleccion={vi.fn()} />)
+    expect(screen.getByText('Sin afectaciones reportadas')).toBeVisible()
+    expect(screen.getByText('Sin información de clases')).toBeVisible()
+    expect(screen.queryByText('Funcionamiento habitual')).not.toBeInTheDocument()
+  })
+
   it.each(['Media', null] as const)('muestra la prioridad %s del parte actualizado en lugar de la gravedad anterior', (prioridad) => {
     const escuela = crearEscuelaBase({
       gravedad: 4, categoriaPrincipal: 'alumnos',
@@ -50,6 +57,8 @@ describe('VistaPreviaEscuela', () => {
     const situacion = screen.getByTestId('preview-bloque-situacion')
     expect(situacion).toHaveTextContent(prioridad ? 'Prioridad Media' : 'Sin datos para calcular la prioridad')
     expect(situacion).not.toHaveTextContent('Crítica')
+    expect(screen.getByText(prioridad ? 'Funcionamiento afectado' : 'Sin datos para calcular el funcionamiento')).toBeVisible()
+    expect(screen.getByText('Sin información de clases')).toBeVisible()
   })
   afterEach(() => {
     cleanup()

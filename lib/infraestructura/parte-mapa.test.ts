@@ -171,6 +171,7 @@ describe('listarPartesVigentes', () => {
     const { partes } = await listarPartesVigentes({ cueAnexo: 'CUE-3' })
     expect(partes).toHaveLength(1)
     expect(partes[0].servicio).toBe('parcial')
+    expect(partes[0].servicioInformado).toBe(true)
   })
 
   it('reporta servicio parcial con situaciones de alumnos sin establecimiento, igual que la ficha', async () => {
