@@ -590,7 +590,7 @@ describe('FichaEscuelaPanel — comedor y posible centro de evacuados', () => {
   })
 
   it('la insignia es distinta del estado reportado "Usado como centro de evacuados"', () => {
-    renderFicha({ escuela: { ...escuela, clases: 'centro', posibleCentroEvacuados: true } })
+    renderFicha({ escuela: { ...escuela, clases: 'centro', clasesInformadas: true, posibleCentroEvacuados: true } })
     expect(screen.getAllByText('Usado como centro de evacuados').length).toBeGreaterThan(0)
     expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
   })
