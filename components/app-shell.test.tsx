@@ -102,6 +102,15 @@ describe('AppShell', () => {
     expect(screen.queryByRole('link', { name: 'ENOS 2026' })).not.toBeInTheDocument()
   })
 
+  it('shows the booklet entry only when its dedicated section is enabled', () => {
+    const { rerender } = render(<AppShell initialUser={{ name: 'Planificación', role: 'consulta', hubPolicy: { enabledSections: ['cuadernillos'], landing: false } }}>Contenido</AppShell>)
+    expect(screen.getByRole('link', { name: 'Cuadernillos' })).toHaveAttribute('href', '/cuadernillos')
+    expect(screen.queryByRole('link', { name: 'Mapas' })).not.toBeInTheDocument()
+
+    rerender(<AppShell initialUser={{ name: 'Consulta', role: 'consulta', hubPolicy: { enabledSections: ['maps'], landing: false } }}>Contenido</AppShell>)
+    expect(screen.queryByRole('link', { name: 'Cuadernillos' })).not.toBeInTheDocument()
+  })
+
   it('preserves legacy defaults and removes section links for explicit no-access policy', () => {
     const { rerender } = render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
     expect(screen.getByRole('link', { name: 'Hub de Datos, inicio' })).toBeInTheDocument()

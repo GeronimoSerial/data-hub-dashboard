@@ -41,6 +41,16 @@ describe('page-level hub authorization', () => {
     await expect(requireServerHubPageAccess('/mapas')).resolves.toMatchObject({ role: 'editor' })
   })
 
+  it('requires the dedicated booklet section at the server page boundary', async () => {
+    await expect(requireServerHubPageAccess('/cuadernillos')).rejects.toThrow('REDIRECT:/forbidden')
+    mocks.getSessionUser.mockResolvedValue({
+      id: 'planning-user', role: 'consulta', banned: false,
+      nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [],
+      hubPolicy: { enabledSections: ['cuadernillos'], landing: false },
+    })
+    await expect(requireServerHubPageAccess('/cuadernillos')).resolves.toMatchObject({ role: 'consulta' })
+  })
+
   it('denies a direct resource detail URL when its canonical route belongs to a disabled section', async () => {
     await expect(requireServerHubPageAccess('/recursos/infra-resource')).rejects.toThrow('REDIRECT:/forbidden')
   })

@@ -22,6 +22,7 @@ const NAV = [
   { href: '/tableros', label: 'Tableros' },
   { href: '/mapas/infraestructura', label: 'ENOS 2026' },
   { href: '/situacion', label: 'Centro de Situación' },
+  { href: '/cuadernillos', label: 'Cuadernillos' },
 ]
 
 const SectionAccessContext = React.createContext<(path: string) => boolean>(() => true)
