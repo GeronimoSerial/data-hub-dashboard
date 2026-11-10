@@ -1,5 +1,7 @@
 'use client'
 
+import { etiquetaClases, etiquetaFuncionamiento, tieneServicioInformado } from '@/lib/infraestructura/funcionamiento'
+import { derivarClases } from '@/lib/infraestructura/mapa/enriquecer'
 import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -10,12 +12,12 @@ import { ETIQUETA_POSIBLE_CENTRO, ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES } fro
 import { EstadoActualSeveridad, TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
 import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
-import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
+import { CATEGORIA_META, esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { contar } from '@/lib/infraestructura/parte/instituto-ui'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { prioridadEfectiva } from '@/lib/infraestructura/prioridad-alumnos'
-import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa, valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
@@ -76,10 +78,10 @@ function FilaEstado({ escuela }: { escuela: EscuelaMapaEnriquecida }) {
   return (
     <div className="map-sitact__chips map-ficha-escuela__chips" aria-label="Estado de la escuela">
       {escuela.clases === 'normal' ? (
-        <span className="map-sitact__pill map-sitact__pill--ok">{ETIQUETA_ESTADO_CLASES.normal}</span>
+        <span className={`map-sitact__pill ${escuela.clasesInformadas ? 'map-sitact__pill--ok' : 'map-sitact__pill--neutro'}`}>{etiquetaClases('normal', escuela.clasesInformadas === true)}</span>
       ) : (
         <span className="map-sitact__pill map-sitact__pill--clases">
-          <IconoClases estado={escuela.clases} />{ETIQUETA_ESTADO_CLASES[escuela.clases]}
+          <IconoClases estado={escuela.clases} />{etiquetaClases(escuela.clases, escuela.clasesInformadas === true)}
         </span>
       )}
       {etiquetaApoyo && (
@@ -142,7 +144,18 @@ export function FichaEscuelaPanel({
   const [ahoraMs] = useState(() => Date.now())
   const datos = estado.fase === 'listo' ? estado.datos : null
   const afectaciones = datos?.afectaciones ?? []
+  const situacionesFuncionamiento = datos ? afectaciones : escuela.parte?.afectaciones ?? []
   const recientes = datos?.recientes ?? []
+  const edificioActual = datos
+    ? (afectaciones.some((a) => a.categoria === 'establecimiento') ? datos.parte?.estadoEstablecimiento ?? 'habitual' : 'habitual')
+    : escuela.parte?.estadoEstablecimiento ?? 'habitual'
+  const clasesActuales = datos ? derivarClases(edificioActual, datos.servicio?.estadoGeneral ?? 'normal') : escuela.clases
+  const carrerasActuales = datos && 'carreras' in datos && Array.isArray(datos.carreras) ? datos.carreras.map((c) => c.id as number) : []
+  const clasesInformadas = datos
+    ? tieneServicioInformado(datos.servicio?.alcanceVigente ?? [], datos.secciones ?? [], carrerasActuales) || ['sin_clases', 'evacuado', 'centro_evacuados'].includes(edificioActual)
+    : escuela.clasesInformadas === true
+  const escuelaActual = { ...escuela, clases: clasesActuales, clasesInformadas }
+
   const principal = situacionPrincipal(afectaciones.map((afectacion) => ({
     ...afectacion,
     estadoEstablecimiento: datos?.parte?.estadoEstablecimiento ?? 'habitual',
@@ -169,7 +182,7 @@ export function FichaEscuelaPanel({
     return (
       <VistaPreviaEscuela
         escuela={{
-          ...escuela,
+          ...escuelaActual,
           parte: datos?.parte
             ? {
                 parteId: datos.parte.id,
@@ -187,11 +200,12 @@ export function FichaEscuelaPanel({
                     : escuela.clases === 'parcial'
                     ? 'parcial'
                     : 'suspendido'),
+                servicioInformado: clasesInformadas,
                 estadoEstablecimiento: datos.parte.estadoEstablecimiento,
                 peorSeveridad: severidad ?? '',
                 categorias: Array.from(
                   new Set(afectaciones.map((a) => a.categoria)),
-                ) as import('@/lib/infraestructura/categorias').CategoriaAfectacion[],
+                ) as CategoriaAfectacion[],
                 afectaciones: afectaciones.map((a) => ({
                   id: a.id,
                   motivo: a.motivo,
@@ -216,7 +230,7 @@ export function FichaEscuelaPanel({
                 rigeDesde: datos.parte.actualizadaEn,
                 actualizadaEn: datos.parte.actualizadaEn,
               }
-            : undefined,
+            : datos ? undefined : escuela.parte,
           ubicacionDisponible: escuela.lat !== null && escuela.lon !== null,
         }}
         urlFichaCompleta={urlFichaCompleta}
@@ -262,7 +276,8 @@ export function FichaEscuelaPanel({
         <p className="map-ficha-escuela__sin-reportes">{afectaciones.length ? 'Sin datos para calcular la prioridad' : 'Sin situaciones abiertas'}</p>
       )}
 
-      <FilaEstado escuela={escuela} />
+      <p>{etiquetaFuncionamiento(situacionesFuncionamiento)}</p>
+      <FilaEstado escuela={escuelaActual} />
 
       <GaleriaEvidencia cue={escuela.cueAnexo} />
 
@@ -275,10 +290,10 @@ export function FichaEscuelaPanel({
           {acceso}
         </Desplegable>
 
-        <Desplegable titulo="Clases y asistencia pedagógica" abierto={escuela.clases !== 'normal'}>
+        <Desplegable titulo="Clases y asistencia pedagógica" abierto={clasesActuales !== 'normal'}>
           <dl className="map-ficha-escuela__kv">
-            <dt>Clases</dt><dd>{ETIQUETA_ESTADO_CLASES[escuela.clases]}</dd>
-            <dt>Asistencia pedagógica</dt><dd>{valorApoyoMapa(escuela.clases, escuela.apoyo) ?? 'No corresponde'}</dd>
+            <dt>Clases</dt><dd>{etiquetaClases(clasesActuales, clasesInformadas)}</dd>
+            <dt>Asistencia pedagógica</dt><dd>{valorApoyoMapa(clasesActuales, escuela.apoyo) ?? 'No corresponde'}</dd>
             <dt>Alumnos</dt><dd>{FORMATO_NUMERO.format(escuela.alumnos)}</dd>
             {datos?.parte && afectaciones.some((afectacion) => afectacion.categoria === 'establecimiento') && <><dt>Edificio</dt><dd>{ETIQUETA_ESTABLECIMIENTO[datos.parte.estadoEstablecimiento]}</dd></>}
           </dl>
