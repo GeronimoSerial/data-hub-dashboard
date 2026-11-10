@@ -848,6 +848,14 @@ async function handlePOST(request: Request) {
       }
     }
 
+    for (const solucionada of input.afectacionesSolucionadas) {
+      const fila = existentesPorId.get(solucionada.id)!
+      const solucionadaEn = solucionada.solucionadaEn ?? input.rigeDesde
+      if (Date.parse(solucionadaEn) < Date.parse(fila.rigeDesde)) {
+        return jsonError('La fecha de solución no puede ser anterior al inicio de la situación', 400)
+      }
+    }
+
     // Unidades vigentes de una afectación: sólo se leen si el cambio no trae
     // las suyas. Institutos: carreras de la matrícula; GE: filas de sección.
     const scopesActuales = esInstituto

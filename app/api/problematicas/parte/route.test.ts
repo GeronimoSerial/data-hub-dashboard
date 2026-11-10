@@ -5,7 +5,7 @@ import { and, count, eq, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, getRawClient } from '@/lib/db'
 import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
-import { infraAfectacion, infraAfectacionSeccion, infraBorrador, infraBorradorCierre, infraMovimiento, infraParte, infraVerificacionEvento } from '@/lib/db/schema'
+import { infraAfectacion, infraAfectacionSeccion, infraBorrador, infraBorradorCierre, infraMovimiento, infraParte, infraServicioAlcance, infraVerificacionEvento } from '@/lib/db/schema'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
@@ -1576,4 +1576,58 @@ it('mantiene obligatoria la severidad manual del establecimiento', async () => {
   }))
   expect(response.status).toBe(400)
   expect(await response.json()).toMatchObject({ error: 'La severidad es obligatoria para afectaciones del establecimiento' })
+})
+
+describe('cronología de solución', () => {
+  async function fixture() {
+    const db = getDb()
+    const inicio = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    await db.insert(infraParte).values({
+      id: crypto.randomUUID(), periodoId: PERIODO_ENOS_2026_2027_ID, cueAnexo: CUE_R,
+      estadoEstablecimientoRigeDesde: inicio, corteId: 1, creadaEn: inicio, actualizadaEn: inicio,
+    }).onConflictDoNothing()
+    const [parte] = await db.select().from(infraParte).where(eq(infraParte.cueAnexo, CUE_R))
+    const ids = [crypto.randomUUID(), crypto.randomUUID()]
+    await db.insert(infraAfectacion).values(ids.map((id) => ({
+      id, parteId: parte.id, motivo: 'Tormenta severa', categoria: 'establecimiento',
+      severidad: 'Alta', rigeDesde: inicio, creadaEn: inicio,
+    })))
+    const snapshot = async () => ({
+      parte: await db.select().from(infraParte).where(eq(infraParte.id, parte.id)),
+      afectaciones: await db.select().from(infraAfectacion).where(eq(infraAfectacion.parteId, parte.id)),
+      movimientos: await db.select().from(infraMovimiento).where(eq(infraMovimiento.parteId, parte.id)),
+      servicio: await db.select().from(infraServicioAlcance).where(eq(infraServicioAlcance.parteId, parte.id)),
+    })
+    return { inicio, ids, snapshot }
+  }
+
+  it.each([true, false])('rechaza una solución anterior al inicio sin ninguna escritura (fecha explícita: %s)', async (explicita) => {
+    const { inicio, ids, snapshot } = await fixture()
+    const anterior = new Date(Date.parse(inicio) - 1).toISOString()
+    const antes = await snapshot()
+    const res = await POST(postReq({
+      cue: CUE_R, idempotencyKey: crypto.randomUUID(), rigeDesde: anterior,
+      afectacionesSolucionadas: [
+        { id: ids[0], solucionadaEn: inicio },
+        { id: ids[1], ...(explicita ? { solucionadaEn: anterior } : {}) },
+      ],
+      servicioEducativo: { estado: 'suspendido', alcance: { tipo: 'establecimiento' } },
+    }))
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: 'La fecha de solución no puede ser anterior al inicio de la situación' })
+    expect(await snapshot()).toEqual(antes)
+  })
+
+  it.each([[0, true], [1, true], [0, false], [1, false]] as const)(
+    'acepta una solución igual o posterior al inicio (diferencia: %s ms, fecha explícita: %s)', async (diferencia, explicita) => {
+      const { inicio, ids } = await fixture()
+      const solucionadaEn = new Date(Date.parse(inicio) + diferencia).toISOString()
+      const res = await POST(postReq({ cue: CUE_R, idempotencyKey: crypto.randomUUID(), rigeDesde: explicita ? new Date().toISOString() : solucionadaEn,
+        afectacionesSolucionadas: [{ id: ids[0], ...(explicita ? { solucionadaEn } : {}) }],
+      }))
+      expect(res.status, await res.clone().text()).toBe(201)
+      const [cerrada] = await getDb().select().from(infraAfectacion).where(eq(infraAfectacion.id, ids[0]))
+      expect(cerrada).toMatchObject({ cierre: 'solucionada', retiradaEn: solucionadaEn, rigeDesde: inicio })
+    },
+  )
 })
