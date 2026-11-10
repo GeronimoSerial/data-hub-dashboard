@@ -21,13 +21,13 @@ const RECURSO_NATALIDAD = {
   id: RECURSO_NATALIDAD_ID,
   titulo: 'Mapa de natalidad',
   descripcion:
-    'Nacidos vivos por departamento (2014–2023) contra la oferta vigente de nivel inicial, para planificar dónde la caída de la natalidad ya alcanza a la matrícula de Sala de 3/4/5.',
+    'Nacimientos identificados por departamento (RENAPER 2012–2025), con DEIS 2014–2023 como fuente alternativa y matrícula CGE 2021–2026 para planificar la oferta de nivel inicial y primario.',
   formato: 'mapa' as const,
   nivelId: 'transversal',
   tipoId: 'georref',
   categoriaId: CATEGORIA_NATALIDAD.id,
   area: 'Dirección de Planeamiento',
-  actualizado: '2026-09-25',
+  actualizado: '2026-11-04',
   estado: 'publicado' as const,
   ruta: '/mapas/natalidad',
 }

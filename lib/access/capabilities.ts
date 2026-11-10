@@ -23,6 +23,7 @@ export const ALL_CAPABILITIES = [
   'hub.section.dashboards',
   'hub.section.infrastructure',
   'hub.section.situation',
+  'hub.section.cuadernillos',
   'hub.recursos',
   'infra.map.read',
   'infra.cargar',
@@ -38,6 +39,7 @@ const SECTION_CAPABILITY: Record<HubSection, Capability> = {
   dashboards: 'hub.section.dashboards',
   infrastructure: 'hub.section.infrastructure',
   situation: 'hub.section.situation',
+  cuadernillos: 'hub.section.cuadernillos',
 }
 
 /** Única política rol -> capacidades. */

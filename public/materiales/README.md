@@ -2,6 +2,8 @@
 
 Página pública: `/materiales`. El catálogo versionado está en `data/materiales.json`; los PDF no se guardan en Git.
 
+La landing también incluye el [formulario para solicitar aula virtual](https://forms.gle/vrFAisMjeMWEa9TKA), separado de las descargas PDF. Los cuadernillos abarcan nivel inicial y de 1.º a 6.º grado.
+
 ## Desarrollo local
 
 Los archivos optimizados se guardan en `DATA_DIR/materiales` (por defecto `.data/materiales`). El catálogo contiene sus nombres, peso, páginas y hash SHA-256. Las descargas públicas pasan por `/api/materiales/[id]/descargar`.
