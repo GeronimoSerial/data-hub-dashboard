@@ -47,12 +47,12 @@ const movimientos: MovimientoHistorial[] = [
   { id: 'mov-3', tipo: 'confirmacion', rol: 'director', creadaEn: '2026-09-03T12:00:00.000Z', rigeDesde: '2026-09-03T12:00:00.000Z', titulo: 'Situación confirmada', cambios: ['Sigue igual: "Inaccesibilidad"'], severidad: 'Alta' },
 ]
 
-function instalarFetch({ error = false, situaciones = afectaciones, recientes, estadoEstablecimiento = 'habitual' }: { error?: boolean; situaciones?: AfectacionFicha[]; recientes?: SolucionadaFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' | 'evacuado' } = {}) {
+function instalarFetch({ error = false, situaciones = afectaciones, recientes, estadoEstablecimiento = 'habitual', informarServicio = true }: { error?: boolean; situaciones?: AfectacionFicha[]; recientes?: SolucionadaFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' | 'evacuado'; informarServicio?: boolean } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: !error,
     json: async () => url.includes('/api/infraestructura/adjuntos')
       ? { movements: [] }
-      : url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones, ...(recientes === undefined ? {} : { recientes }) },
+      : url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones, servicio: { estadoGeneral: informarServicio ? 'suspendido' : 'normal', alcanceVigente: informarServicio ? [{ id: 's1', parteId: 'p1', tipo: 'establecimiento', referenciaId: null, estado: 'suspendido', rigeDesde: '2026-10-01T10:00:00Z', creadaEn: '2026-10-01T10:00:00Z', retiradaEn: null }] : [] }, ...(recientes === undefined ? {} : { recientes }) },
   })))
 }
 
@@ -80,6 +80,14 @@ function renderFicha(opciones: {
 }
 
 describe('FichaEscuelaPanel', () => {
+  it('separa funcionamiento vigente de clases no informadas', async () => {
+    instalarFetch({ informarServicio: false })
+    renderFicha({ escuela: { ...escuela, clases: 'normal' } })
+    expect(await screen.findByText('Funcionamiento gravemente afectado')).toBeVisible()
+    expect(screen.getAllByText('Sin información de clases').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Funcionamiento habitual')).not.toBeInTheDocument()
+  })
+
   it('actualiza la banda con la prioridad calculada, aunque el mapa conserve una gravedad anterior', async () => {
     instalarFetch({ situaciones: [{
       ...afectaciones[0], severidad: 'Crítica',
@@ -184,7 +192,8 @@ describe('FichaEscuelaPanel', () => {
 
     expect(screen.getByText('Prioridad Alta')).toBeInTheDocument()
     expect(screen.getByText('CUE 180000123-00 · Capital · Inicial, Primario · 1.234 alumnos')).toBeInTheDocument()
-    expect(screen.getAllByText('Funcionamiento interrumpido').length).toBeGreaterThan(0)
+    expect(await screen.findByText('Funcionamiento gravemente afectado')).toBeVisible()
+    expect(screen.getAllByText('Clases suspendidas').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Asistencia pedagógica: clase virtual').length).toBeGreaterThan(0)
     expect(screen.getByText('Sin actualizar')).toBeInTheDocument()
     expect(screen.getByText('Acceso de prueba')).toBeInTheDocument()
@@ -365,12 +374,12 @@ describe('FichaEscuelaPanel', () => {
     vi.useRealTimers()
   })
 
-  it('muestra clases normales cerradas con la etiqueta de servicio compartida', () => {
+  it('muestra clases normales informadas separadas del funcionamiento', () => {
     instalarFetch()
-    const normal = { ...escuela, clases: 'normal' as const, apoyo: null }
+    const normal = { ...escuela, clases: 'normal' as const, clasesInformadas: true, apoyo: null }
     renderFicha({ escuela: normal })
 
-    expect(screen.getAllByText('Funcionamiento habitual').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Clases normales').length).toBeGreaterThan(0)
     expect(screen.getByText('Clases y asistencia pedagógica').closest('details')).toHaveProperty('open', false)
   })
 
