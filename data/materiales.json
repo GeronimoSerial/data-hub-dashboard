@@ -70,6 +70,16 @@
     "sha256": "051e54b9cfb2f8a32e98f454412eec8fb35d5662856d54fa4f6bb46370072a53"
   },
   {
+    "id": "cuadernillo-nivel-superior",
+    "coleccion": "cuadernillos",
+    "titulo": "Cuadernillo Nivel Superior",
+    "archivo": "cuadernillo-nivel-superior-e95d4896e522.pdf",
+    "storageKey": "materiales/cuadernillos/cuadernillo-nivel-superior-e95d4896e522.pdf",
+    "bytes": 213858,
+    "paginas": 12,
+    "sha256": "e95d4896e5228036911ab1e1b0d6fffd3d1ed6cb5d7b93aeb0fa6b100d692704"
+  },
+  {
     "id": "manual-1",
     "coleccion": "manuales",
     "titulo": "Manual Nº 1 · Registro y seguimiento de eventos ENOS",
