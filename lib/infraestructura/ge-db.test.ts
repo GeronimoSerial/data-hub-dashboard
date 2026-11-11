@@ -42,6 +42,29 @@ describe('ensureGeSchema', () => {
       'ge_seccion',
     ])
   })
+
+  it('installs eligibility-source write guards on every effective GE table, idempotently', async () => {
+    const client = cliente()
+    await ensureGeSchema(client)
+    await ensureGeSchema(client)
+
+    const triggers = await client.execute(`
+      SELECT c.relname AS table_name
+      FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'ge'
+        AND t.tgname = 'booklet_eligibility_source_guard'
+        AND NOT t.tgisinternal
+      ORDER BY c.relname
+    `)
+    expect(triggers.rows.map((row) => row.table_name)).toEqual([
+      'ge_alumno_seccion',
+      'ge_corte',
+      'ge_localizacion',
+      'ge_seccion',
+    ])
+  })
 })
 
 describe('getCorteVigente', () => {
