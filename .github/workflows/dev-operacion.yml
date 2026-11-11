@@ -100,7 +100,8 @@ jobs:
           DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
         run: |
           set -uo pipefail
-          sudo apt-get update -qq > /dev/null; sudo apt-get install -y --no-install-recommends postgresql-client > /dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+          sudo apt-get install -y --no-install-recommends postgresql-client-17 > /dev/null
           u="$DEV_DATABASE_URL"; case "$u" in *sslmode=*) ;; *) u="$u$( [[ "$u" == *\?* ]] && echo '&' || echo '?')sslmode=require";; esac
           psql "$u" -X -At -c "select 'recovery='||pg_is_in_recovery(), 'readonly='||current_setting('transaction_read_only'), 'default_ro='||current_setting('default_transaction_read_only'), 'size='||pg_size_pretty(pg_database_size(current_database())), 'start='||pg_postmaster_start_time(), 'version='||version()"
           psql "$u" -X -At -c "select 'tables='||count(*) from information_schema.tables where table_schema not in ('pg_catalog','information_schema')"
