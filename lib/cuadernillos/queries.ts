@@ -2,7 +2,7 @@ import { and, eq, gt, isNotNull } from 'drizzle-orm'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import { bookletCampaign, bookletProduct, bookletProductMapping, bookletQuota, bookletSchoolAssignment, bookletStock } from '@/lib/db/schema'
-import { getBookletRequestPage, hasBookletCapability } from './permissions'
+import { getBookletRequestPage, hasBookletCapability, isBookletAdminViewer } from './permissions'
 import type { BookletAssignmentView, BookletAssignmentsPage, BookletBalanceView, BookletCapability, BookletOverview, BookletRequestsPage } from './types'
 
 const DEFAULT_PAGE_SIZE = 25
@@ -24,6 +24,7 @@ export type BookletAssignmentsQueryOptions = {
   pageSize?: number
   repository?: BookletAssignmentsQueryRepository
   authorize?: (actor: SessionUser | null, capability: BookletCapability) => Promise<boolean>
+  isAdminViewer?: (actor: SessionUser | null) => Promise<boolean>
 }
 
 const databaseRepository: BookletAssignmentsQueryRepository = {
@@ -65,7 +66,12 @@ export async function getBookletAssignmentsPage(
 ): Promise<BookletAssignmentsPage | null> {
   if (!actor || actor.banned) return null
   const authorize = options.authorize ?? hasBookletCapability
-  if (!await authorize(actor, capability)) return null
+  let scopeCapability = capability
+  if (!await authorize(actor, capability)) {
+    // Read-only admin viewers see every school in planning scope; no write authority is implied.
+    if (!await (options.isAdminViewer ?? isBookletAdminViewer)(actor)) return null
+    scopeCapability = 'planning'
+  }
 
   const pageSize = Number.isInteger(options.pageSize) && options.pageSize! > 0
     ? Math.min(options.pageSize!, MAX_PAGE_SIZE)
@@ -76,7 +82,7 @@ export async function getBookletAssignmentsPage(
   const repository = options.repository ?? databaseRepository
   const rows = await repository.listAssignments({
     userId: actor.id,
-    capability,
+    capability: scopeCapability,
     cursor,
     limit: pageSize + 1,
   })
@@ -107,6 +113,7 @@ export type BookletOverviewQueryOptions = {
   campaignId?: string
   repository?: BookletOverviewQueryRepository
   authorize?: (actor: SessionUser | null, capability: BookletCapability) => Promise<boolean>
+  isAdminViewer?: (actor: SessionUser | null) => Promise<boolean>
   loadRequests?: (actor: SessionUser | null, query: BookletOverviewRequestQuery) => Promise<BookletRequestsPage>
 }
 
@@ -178,7 +185,12 @@ export async function getBookletOverviewPage(
 ): Promise<BookletOverview | null> {
   if (!actor || actor.banned) return null
   const authorize = options.authorize ?? hasBookletCapability
-  if (!await authorize(actor, capability)) return null
+  let scopeCapability = capability
+  if (!await authorize(actor, capability)) {
+    // Read-only admin viewers see balances for every school in planning scope; the requested tab is kept.
+    if (!await (options.isAdminViewer ?? isBookletAdminViewer)(actor)) return null
+    scopeCapability = 'planning'
+  }
 
   const loadRequests = options.loadRequests ?? getBookletRequestPage
   const requestPage = await loadRequests(actor, {
@@ -193,7 +205,7 @@ export async function getBookletOverviewPage(
   const balances = selectedCampaignId
     ? await repository.listBalances({
         userId: actor.id,
-        capability,
+        capability: scopeCapability,
         campaignId: selectedCampaignId,
       })
     : []

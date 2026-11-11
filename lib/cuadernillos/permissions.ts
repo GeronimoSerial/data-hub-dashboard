@@ -208,6 +208,24 @@ export async function canAccessSchool(
 }
 
 /**
+ * Read-only visibility for global admins. It never grants a membership or school
+ * assignment, so write services keep using hasBookletCapability and canAccessSchool.
+ * Only read paths may call this helper.
+ */
+export async function isBookletAdminViewer(
+  actor: SessionUser | null,
+  repository: BookletPermissionRepository = databaseRepository,
+): Promise<boolean> {
+  if (!actor || actor.banned || actor.role !== 'admin') return false
+  try {
+    const account = await repository.getAccountStatus(actor.id)
+    return Boolean(account && account.emailVerified && !account.banned)
+  } catch {
+    return false
+  }
+}
+
+/**
  * Evaluates request scope supplied by an internal, transaction-bound query.
  * There is no default reader until the request table is introduced; absent
  * scope evidence therefore cannot grant access.
@@ -261,7 +279,8 @@ export async function getBookletRequestPage(
   const capabilityChecks = await Promise.all((['planning', 'cabecera', 'supervisor'] as const).map(async (capability) =>
     await hasBookletCapability(actor, capability, repository) ? capability : null))
   const capabilities = capabilityChecks.filter((value): value is BookletCapability => value !== null)
-  if (capabilities.length === 0) throw new BookletRequestReadError('forbidden', 403)
+  const adminViewer = await isBookletAdminViewer(actor, repository)
+  if (capabilities.length === 0 && !adminViewer) throw new BookletRequestReadError('forbidden', 403)
 
   let campaignOptions: BookletCampaignOption[]
   try { campaignOptions = await repository.listActiveCampaigns() } catch { throw new BookletRequestReadError('request_read_failed', 503) }
@@ -277,7 +296,7 @@ export async function getBookletRequestPage(
     return { campaignId: null, campaignOptions: [], requests: [], hasMore: false, nextCursor: null }
   }
 
-  const planning = capabilities.includes('planning')
+  const planning = capabilities.includes('planning') || adminViewer
   const [cabeceraCues, supervisorCues] = await Promise.all([
     capabilities.includes('cabecera') ? repository.listAssignedCues(actor!.id, 'cabecera') : Promise.resolve([]),
     capabilities.includes('supervisor') ? repository.listAssignedCues(actor!.id, 'supervisor') : Promise.resolve([]),
@@ -298,12 +317,10 @@ export async function getBookletRequestPage(
     for (const candidate of candidates) {
       scanned += 1
       scanCursor = { createdAt: candidate.createdAt, requestId: candidate.requestId }
-      let allowed = false
+      let allowed = adminViewer
       for (const capability of capabilities) {
-        if (await canAccessRequest(actor, candidate.requestId, capability, repository)) {
-          allowed = true
-          break
-        }
+        if (allowed) break
+        if (await canAccessRequest(actor, candidate.requestId, capability, repository)) allowed = true
       }
       if (allowed) visible.push(candidate)
       if (visible.length > pageSize) {
