@@ -83,7 +83,7 @@ export async function publicarVersion(datasetId: string, versionId: string, db: 
   estadoReferencias().cargadoEn = 0
 }
 
-export async function cargarReferencias(db: Db = getDb(), forzar = false) {
+export async function cargarReferencias(db: Pick<Db, 'execute'> = getDb(), forzar = false) {
   const estado = estadoReferencias()
   if (!forzar && estado.cargadoEn && Date.now() - estado.cargadoEn < 60_000) return
   const ids = Object.keys(DATASETS_REFERENCIA)

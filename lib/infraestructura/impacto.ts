@@ -6,7 +6,7 @@ import {
   infraParte,
 } from '../db/schema'
 import { eq } from 'drizzle-orm'
-import { attachGe, type EjecutorSql } from './ge-db'
+import { attachGe, type EjecutorSql, type GeSchemaReady } from './ge-db'
 
 export type { EjecutorSql }
 
@@ -52,12 +52,13 @@ export async function asegurarGeAdjuntada(client: EjecutorSql): Promise<void> {
 export async function obtenerMembresiaSecciones(
   client: EjecutorSql,
   params: { corteId: number; geSectionIds: number[] },
+  schemaReady?: GeSchemaReady,
 ): Promise<Map<number, Set<number>>> {
   const { corteId, geSectionIds } = params
   const membresiaPorSeccion = new Map<number, Set<number>>()
   if (geSectionIds.length === 0) return membresiaPorSeccion
 
-  await asegurarGeAdjuntada(client)
+  if (!schemaReady) await asegurarGeAdjuntada(client)
   const placeholders = geSectionIds.map(() => '?').join(',')
   const membresiaRes = await client.execute({
     sql: `SELECT ge_section_id, ge_person_id FROM ge.ge_alumno_seccion
