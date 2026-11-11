@@ -2,6 +2,8 @@
 
 import { prioridadEfectiva } from '@/lib/infraestructura/prioridad-alumnos'
 
+import { etiquetaClases, etiquetaFuncionamiento, tieneServicioInformado } from '@/lib/infraestructura/funcionamiento'
+import { derivarClases } from '@/lib/infraestructura/mapa/enriquecer'
 import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react'
@@ -14,12 +16,11 @@ import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
 import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { ObservacionReporte } from './observacion-reporte'
 import { contar } from '@/lib/infraestructura/parte/instituto-ui'
-import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { valorComedor } from '@/lib/infraestructura/comedores/estado'
 import { ETIQUETA_POSIBLE_CENTRO } from '@/lib/infraestructura/evacuacion/mapa'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
-import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
 import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
 import { FichaTerritorial } from '@/components/infraestructura/ficha-territorial'
@@ -214,8 +215,8 @@ export function FichaEscuelaPagina({
 
   const datos = estado.fase === 'listo' ? estado.datos : null
   const afectaciones = datos?.afectaciones ?? []
+  const situacionesFuncionamiento = datos ? afectaciones : escuela.parte?.afectaciones ?? []
   const recientes = datos?.recientes ?? []
-  const severidad = escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
 
   const principal =
     afectaciones.length > 0
@@ -225,7 +226,7 @@ export function FichaEscuelaPagina({
             estadoEstablecimiento: datos?.parte?.estadoEstablecimiento ?? 'habitual',
           })),
         )
-      : escuela.parte && escuela.parte.afectaciones.length > 0
+      : !datos && escuela.parte && escuela.parte.afectaciones.length > 0
         ? situacionPrincipal(
             escuela.parte.afectaciones.map((afectacion) => ({
               ...afectacion,
@@ -277,7 +278,14 @@ export function FichaEscuelaPagina({
       : null
   const otrasAfectaciones = afectaciones.filter((afectacion) => afectacion.id !== incidente?.id)
   const justificacionIncidente = incidente ? presentarJustificacionCritica(incidente) : null
-  const severidadIncidente = incidente?.severidad ?? severidad
+  const edificioActual = datos
+    ? (afectaciones.some((a) => a.categoria === 'establecimiento') ? datos.parte?.estadoEstablecimiento ?? 'habitual' : 'habitual')
+    : escuela.parte?.estadoEstablecimiento ?? 'habitual'
+  const clasesActuales = datos ? derivarClases(edificioActual, datos.servicio?.estadoGeneral ?? 'normal') : escuela.clases
+  const carrerasActuales = datos && 'carreras' in datos && Array.isArray(datos.carreras) ? datos.carreras.map((c) => c.id as number) : []
+  const clasesInformadas = datos
+    ? tieneServicioInformado(datos.servicio?.alcanceVigente ?? [], datos.secciones ?? [], carrerasActuales) || ['sin_clases', 'evacuado', 'centro_evacuados'].includes(edificioActual)
+    : escuela.clasesInformadas === true
   const estadoEdificio = tieneParteRegistrado
     ? ETIQUETA_ESTABLECIMIENTO[
         datos?.parte?.estadoEstablecimiento ?? escuela.parte?.estadoEstablecimiento ?? 'habitual'
@@ -524,8 +532,12 @@ export function FichaEscuelaPagina({
             </h3>
             <dl className={styles.continuidad}>
               <div>
+                <dt>Funcionamiento</dt>
+                <dd>{etiquetaFuncionamiento(situacionesFuncionamiento)}</dd>
+              </div>
+              <div>
                 <dt>Clases</dt>
-                <dd>{ETIQUETA_ESTADO_CLASES[escuela.clases]}</dd>
+                <dd>{etiquetaClases(clasesActuales, clasesInformadas)}</dd>
               </div>
               <div>
                 <dt>Edificio</dt>
@@ -533,7 +545,7 @@ export function FichaEscuelaPagina({
               </div>
               <div>
                 <dt>Asistencia</dt>
-                <dd>{valorApoyoMapa(escuela.clases, escuela.apoyo) ?? 'No corresponde'}</dd>
+                <dd>{valorApoyoMapa(clasesActuales, escuela.apoyo) ?? 'No corresponde'}</dd>
               </div>
               {escuela.comedor !== undefined && (
                 <div>
@@ -548,12 +560,7 @@ export function FichaEscuelaPagina({
                 </div>
               )}
             </dl>
-            {severidadIncidente && escuela.clases === 'normal' && (
-              <p className={styles.notaPie}>
-                El funcionamiento habitual corresponde al estado informado en el parte. Las
-                situaciones activas se registran por separado.
-              </p>
-            )}
+
           </section>
 
           <div id="evidencia" className={styles.anchor}>

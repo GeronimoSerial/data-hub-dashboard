@@ -29,6 +29,7 @@ import {
   type EfectivoInstituto,
 } from './parte/instituto-alcance'
 import { estadoGeneralDelCue } from './parte/instituto-estado'
+import { tieneServicioInformado } from './funcionamiento'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import { esCategoria, type CategoriaAfectacion } from './categorias'
 import { normalizarNombreDepartamento } from '@/lib/mapas/departamentos'
@@ -88,6 +89,7 @@ export interface ParteMapa {
   lat: number | null
   lon: number | null
   servicio: EstadoServicioGeneral
+  servicioInformado?: boolean
   estadoEstablecimiento: EstadoEstablecimiento
   peorSeveridad: string
   categorias: CategoriaAfectacion[]
@@ -581,6 +583,7 @@ export async function listarPartesVigentes(
       lat: parteRow.lat,
       lon: parteRow.lon,
       servicio: servicioGeneral,
+      servicioInformado: tieneServicioInformado(servicioVigente, secciones, carrerasDelCue),
       estadoEstablecimiento,
       peorSeveridad,
       categorias: [...categorias],
