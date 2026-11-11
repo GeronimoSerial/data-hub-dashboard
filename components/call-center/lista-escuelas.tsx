@@ -134,26 +134,43 @@ export function ListaEscuelas({ callerNombreInicial }: ListaEscuelasProps) {
                         aria-pressed={activa}
                         onClick={() => setCueSeleccionado(escuela.cueAnexo)}
                         className="admin-panel"
-                        style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          gap: 'var(--s-1)',
+                          padding: 'var(--s-3) var(--s-4)',
+                          borderColor: activa ? 'var(--ink)' : undefined,
+                          boxShadow: activa ? '0 0 0 1px var(--ink)' : undefined,
+                        }}
                       >
-                        <strong>{escuela.nombre}</strong>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'baseline',
+                            gap: 'var(--s-3)',
+                          }}
+                        >
+                          <strong>{escuela.nombre}</strong>
+                          {escuela.contactada ? (
+                            <span className="admin-status admin-status--ok">Contactada</span>
+                          ) : (
+                            <span className="admin-status admin-status--warn">Pendiente</span>
+                          )}
+                        </div>
                         <div className="ui-hint">
                           CUE {escuela.cueAnexo} · {escuela.departamento}, {escuela.localidad}
                         </div>
-                        <div>{textoSinActualizar(escuela.horasSinActualizar)}</div>
-                        {escuela.contactada ? (
-                          <div>
-                            Contactada
-                            {escuela.ultimaLlamada && (
-                              <>
-                                {' '}por {escuela.ultimaLlamada.callerNombre} el{' '}
-                                {formatearFecha(escuela.ultimaLlamada.creadaEn)}
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <div>Pendiente</div>
-                        )}
+                        <div className="ui-hint">
+                          {textoSinActualizar(escuela.horasSinActualizar)}
+                          {escuela.contactada && escuela.ultimaLlamada && (
+                            <>
+                              {' · '}llamó {escuela.ultimaLlamada.callerNombre},{' '}
+                              {formatearFecha(escuela.ultimaLlamada.creadaEn)}
+                            </>
+                          )}
+                        </div>
                       </button>
                     </li>
                   )
@@ -164,17 +181,28 @@ export function ListaEscuelas({ callerNombreInicial }: ListaEscuelasProps) {
         )}
       </section>
 
-      {seleccionada && (
-        <section style={{ flex: '1 1 320px', minWidth: 0 }}>
-          <FormularioLlamada
-            key={seleccionada.cueAnexo}
-            cueAnexo={seleccionada.cueAnexo}
-            nombreEscuela={seleccionada.nombre}
-            callerNombreInicial={callerNombreInicial}
-            onGuardada={recargar}
-          />
-        </section>
-      )}
+      <section
+        className="admin-panel"
+        style={{ flex: '1 1 320px', minWidth: 0, position: 'sticky', top: 'var(--s-4)' }}
+      >
+        {seleccionada ? (
+          <>
+            <h2>{seleccionada.nombre}</h2>
+            <p className="ui-hint">
+              CUE {seleccionada.cueAnexo} · {textoSinActualizar(seleccionada.horasSinActualizar)}
+            </p>
+            <FormularioLlamada
+              key={seleccionada.cueAnexo}
+              cueAnexo={seleccionada.cueAnexo}
+              nombreEscuela={seleccionada.nombre}
+              callerNombreInicial={callerNombreInicial}
+              onGuardada={recargar}
+            />
+          </>
+        ) : (
+          <p className="ui-hint">Elegí una escuela de la lista para registrar la llamada.</p>
+        )}
+      </section>
     </div>
   )
 }

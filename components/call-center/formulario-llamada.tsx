@@ -93,6 +93,9 @@ export function FormularioLlamada({
     }
   }, [cueAnexo, aplicarHistorial])
 
+  // Con nombre de sesión el campo queda fijo; sin nombre, el operador debe poder escribirlo.
+  const nombreBloqueado = callerNombreInicial.trim() !== ''
+
   const camposCompletos =
     callerNombre.trim() !== '' && justificacion.trim() !== '' && respuestaDirector.trim() !== ''
 
@@ -129,18 +132,19 @@ export function FormularioLlamada({
   }
 
   return (
-    <section aria-label={`Llamadas de ${nombreEscuela}`} className="flex flex-col gap-6">
-      <form onSubmit={guardar} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
+    <section aria-label={`Llamadas de ${nombreEscuela}`} style={{ display: 'grid', gap: 'var(--s-6, 2rem)' }}>
+      <form onSubmit={guardar} style={{ display: 'grid', gap: 'var(--s-4)' }}>
+        <div style={{ display: 'grid', gap: 'var(--s-1)' }}>
           <Label htmlFor="llamada-caller">Nombre de quien llama</Label>
           <Input
             id="llamada-caller"
             value={callerNombre}
             maxLength={LIMITES.callerNombre}
+            disabled={nombreBloqueado}
             onChange={(e) => setCallerNombre(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div style={{ display: 'grid', gap: 'var(--s-1)' }}>
           <Label htmlFor="llamada-justificacion">Por qué no se actualizó el parte</Label>
           <Textarea
             id="llamada-justificacion"
@@ -149,7 +153,7 @@ export function FormularioLlamada({
             onChange={(e) => setJustificacion(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div style={{ display: 'grid', gap: 'var(--s-1)' }}>
           <Label htmlFor="llamada-director">Qué dijo el director</Label>
           <Textarea
             id="llamada-director"
@@ -170,31 +174,31 @@ export function FormularioLlamada({
         </div>
       </form>
 
-      <div className="flex flex-col gap-3">
-        <h2 className="text-base font-semibold">Llamadas anteriores</h2>
+      <div style={{ display: 'grid', gap: 'var(--s-3)', paddingTop: 'var(--s-5)', borderTop: '1px solid var(--line)' }}>
+        <h2 style={{ fontSize: 'var(--t-h3)', margin: 0 }}>Llamadas anteriores</h2>
         {errorHistorial ? (
           <p role="alert" className="ui-field__error">
             {errorHistorial}
           </p>
         ) : cargandoHistorial ? (
-          <p className="text-sm text-muted">Cargando llamadas…</p>
+          <p className="ui-hint">Cargando llamadas…</p>
         ) : llamadas.length === 0 ? (
-          <p className="text-sm text-muted">
+          <p className="ui-hint">
             Todavía no hay llamadas registradas para esta escuela.
           </p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 'var(--s-3)' }}>
             {llamadas.map((llamada) => (
-              <li key={llamada.id} className="flex flex-col gap-1 border-b pb-3">
-                <p className="text-sm text-muted">
+              <li key={llamada.id} style={{ display: 'grid', gap: 'var(--s-1)', paddingBottom: 'var(--s-3)', borderBottom: '1px solid var(--line)' }}>
+                <p className="ui-hint">
                   {formatearFecha(llamada.creadaEn)} · {llamada.callerNombre}
                 </p>
-                <p className="text-sm">
-                  <span className="font-medium">Motivo: </span>
+                <p style={{ fontSize: 'var(--t-small)', margin: 0 }}>
+                  <span style={{ fontWeight: 600 }}>Motivo: </span>
                   {llamada.justificacion}
                 </p>
-                <p className="text-sm">
-                  <span className="font-medium">Director: </span>
+                <p style={{ fontSize: 'var(--t-small)', margin: 0 }}>
+                  <span style={{ fontWeight: 600 }}>Director: </span>
                   {llamada.respuestaDirector}
                 </p>
               </li>
