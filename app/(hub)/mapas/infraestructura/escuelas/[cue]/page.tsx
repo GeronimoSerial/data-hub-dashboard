@@ -8,6 +8,8 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { hazardContextEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { obtenerEscuelaFichaEnriquecida } from '@/lib/infraestructura/parte-mapa'
 import { FichaEscuelaPagina } from '@/components/mapas/ficha-escuela-pagina'
+import { can } from '@/lib/access/capabilities'
+import { listarLlamadasPorCue } from '@/lib/call-center/llamadas'
 import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
 export const runtime = 'nodejs'
@@ -52,11 +54,24 @@ export default async function EscuelaFichaRoute({
     searchParams ? searchParams : Promise.resolve({}),
   ])
 
+  const llamadasCallCenter = can(user, 'callcenter.access')
+    ? (await listarLlamadasPorCue(resultado.escuela.cueAnexo)).map(
+        ({ id, callerNombre, justificacion, respuestaDirector, creadaEn }) => ({
+          id,
+          callerNombre,
+          justificacion,
+          respuestaDirector,
+          creadaEn,
+        }),
+      )
+    : undefined
+
   return (
     <FichaEscuelaPagina
       escuela={resultado.escuela}
       mostrarEnlaceNominal={mostrarEnlaceNominal}
       hazardContextEnabled={hazardContextEnabled()}
+      llamadasCallCenter={llamadasCallCenter}
       searchParams={resolvedSearchParams}
     />
   )
