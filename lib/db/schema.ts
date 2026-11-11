@@ -2020,3 +2020,208 @@ export const infraCentroEvacuados = pgTable('infra_centro_evacuados', {
   distanciaRutaM: real('distancia_ruta_m'),
   calculadoEn: text('calculado_en').notNull(),
 })
+
+// Booklet product codes and school assignments are intentionally empty until
+// the source catalog, school mappings, and responsible accounts are confirmed.
+export const bookletCampaign = pgTable('booklet_campaign', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  status: text('status').notNull().default('draft'),
+  distributionEnabled: boolean('distribution_enabled').notNull().default(false),
+  overassignmentAllowed: boolean('overassignment_allowed'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check('booklet_campaign_status_check', sql`${t.status} IN ('draft', 'active', 'closed')`),
+])
+
+export const bookletProduct = pgTable('booklet_product', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  levelCode: text('level_code').notNull(),
+  gradeCode: text('grade_code').notNull(),
+})
+
+// GE source codes are not inferred from the booklet catalog labels. Each
+// product mapping is explicit and auditable; absent mappings remain unknown.
+export const bookletProductMapping = pgTable('booklet_product_mapping', {
+  productId: text('product_id').primaryKey().references(() => bookletProduct.id, { onDelete: 'restrict' }),
+  sourceLevelCode: text('source_level_code').notNull(),
+  sourceGradeCode: text('source_grade_code').notNull(),
+  confirmedByUserId: text('confirmed_by_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }).notNull(),
+}, (t) => [
+  check('booklet_product_mapping_source_level_check', sql`length(trim(${t.sourceLevelCode})) > 0`),
+  check('booklet_product_mapping_source_grade_check', sql`length(trim(${t.sourceGradeCode})) > 0`),
+])
+
+// Module capabilities are account-bound, durable across GE sign-ins, and
+// revoked without deleting the grant's audit history. No memberships are
+// seeded by this migration.
+export const bookletMembership = pgTable('booklet_membership', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  capability: text('capability').notNull(),
+  grantedByUserId: text('granted_by_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+}, (t) => [
+  check('booklet_membership_capability_check', sql`${t.capability} IN ('planning', 'cabecera', 'supervisor')`),
+  uniqueIndex('booklet_membership_active_user_capability_uidx')
+    .on(t.userId, t.capability)
+    .where(sql`${t.revokedAt} IS NULL`),
+])
+
+export const bookletStock = pgTable('booklet_stock', {
+  campaignId: text('campaign_id').notNull().references(() => bookletCampaign.id, { onDelete: 'restrict' }),
+  productId: text('product_id').notNull().references(() => bookletProduct.id, { onDelete: 'restrict' }),
+  quantity: integer('quantity').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.campaignId, t.productId] }),
+  check('booklet_stock_quantity_check', sql`${t.quantity} >= 0`),
+])
+
+export const bookletStockMovement = pgTable('booklet_stock_movement', {
+  id: text('id').primaryKey(),
+  campaignId: text('campaign_id').notNull().references(() => bookletCampaign.id, { onDelete: 'restrict' }),
+  productId: text('product_id').notNull().references(() => bookletProduct.id, { onDelete: 'restrict' }),
+  quantity: integer('quantity').notNull(),
+  movement: text('movement').notNull(),
+  idempotencyKey: text('idempotency_key').notNull(),
+  requestId: text('request_id').references(() => bookletRequest.id, { onDelete: 'restrict' }),
+  actorUserId: text('actor_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('booklet_stock_movement_campaign_product_created_idx').on(t.campaignId, t.productId, t.createdAt),
+  check('booklet_stock_movement_quantity_check', sql`${t.quantity} > 0`),
+  check('booklet_stock_movement_kind_check', sql`${t.movement} IN ('initial', 'replenishment', 'approval')`),
+  check('booklet_stock_movement_request_check', sql`(${t.movement} = 'approval' AND ${t.requestId} IS NOT NULL) OR (${t.movement} <> 'approval' AND ${t.requestId} IS NULL)`),
+])
+
+export const bookletQuota = pgTable('booklet_quota', {
+  campaignId: text('campaign_id').notNull().references(() => bookletCampaign.id, { onDelete: 'restrict' }),
+  cabeceraCueAnexo: text('cabecera_cue_anexo').notNull().references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
+  productId: text('product_id').notNull().references(() => bookletProduct.id, { onDelete: 'restrict' }),
+  quantity: integer('quantity').notNull(),
+  updatedByUserId: text('updated_by_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.campaignId, t.cabeceraCueAnexo, t.productId] }),
+  check('booklet_quota_quantity_check', sql`${t.quantity} >= 0`),
+])
+
+export const bookletRequest = pgTable('booklet_request', {
+  id: text('id').primaryKey(),
+  campaignId: text('campaign_id').notNull().references(() => bookletCampaign.id, { onDelete: 'restrict' }),
+  recipientCueAnexo: text('recipient_cue_anexo').notNull().references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
+  cabeceraCueAnexo: text('cabecera_cue_anexo').notNull().references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
+  parentRequestId: text('parent_request_id'),
+  rootRequestId: text('root_request_id'),
+  status: text('status').notNull(),
+  createdByUserId: text('created_by_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  approvedByUserId: text('approved_by_user_id').references(() => user.id, { onDelete: 'restrict' }),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  rejectedByUserId: text('rejected_by_user_id').references(() => user.id, { onDelete: 'restrict' }),
+  rejectedAt: timestamp('rejected_at', { withTimezone: true }),
+  rejectionReason: text('rejection_reason'),
+}, (t) => [
+  foreignKey({ columns: [t.parentRequestId], foreignColumns: [t.id], name: 'booklet_request_parent_request_fk' }).onDelete('restrict'),
+  foreignKey({ columns: [t.rootRequestId], foreignColumns: [t.id], name: 'booklet_request_root_request_fk' }).onDelete('restrict'),
+  index('booklet_request_campaign_status_created_idx').on(t.campaignId, t.status, t.createdAt),
+  index('booklet_request_recipient_cabecera_idx').on(t.recipientCueAnexo, t.cabeceraCueAnexo, t.createdAt),
+  index('booklet_request_root_chain_idx').on(t.rootRequestId, t.createdAt),
+  check('booklet_request_status_check', sql`${t.status} IN ('draft', 'pending', 'approved', 'rejected')`),
+  check('booklet_request_approval_signature_check', sql`(${t.status} = 'approved' AND ${t.approvedByUserId} IS NOT NULL AND ${t.approvedAt} IS NOT NULL) OR (${t.status} <> 'approved' AND ${t.approvedByUserId} IS NULL AND ${t.approvedAt} IS NULL)`),
+  check('booklet_request_rejection_signature_check', sql`(${t.status} = 'rejected' AND ${t.rejectedByUserId} IS NOT NULL AND ${t.rejectedAt} IS NOT NULL AND ${t.rejectionReason} IS NOT NULL) OR (${t.status} <> 'rejected' AND ${t.rejectedByUserId} IS NULL AND ${t.rejectedAt} IS NULL AND ${t.rejectionReason} IS NULL)`),
+])
+
+export const bookletRequestLine = pgTable('booklet_request_line', {
+  requestId: text('request_id').notNull().references(() => bookletRequest.id, { onDelete: 'cascade' }),
+  productId: text('product_id').notNull().references(() => bookletProduct.id, { onDelete: 'restrict' }),
+  quantity: integer('quantity').notNull(),
+  approvedQuantity: integer('approved_quantity').notNull().default(0),
+}, (t) => [
+  primaryKey({ columns: [t.requestId, t.productId] }),
+  check('booklet_request_line_quantity_check', sql`${t.quantity} > 0`),
+  check('booklet_request_line_approved_quantity_check', sql`${t.approvedQuantity} >= 0 AND ${t.approvedQuantity} <= ${t.quantity}`),
+])
+
+export const bookletIdempotency = pgTable('booklet_idempotency', {
+  actorUserId: text('actor_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  operation: text('operation').notNull(),
+  idempotencyKey: text('idempotency_key').notNull(),
+  payloadHash: text('payload_hash').notNull(),
+  responsePayload: jsonb('response_payload').$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.actorUserId, t.operation, t.idempotencyKey] }),
+  check('booklet_idempotency_key_check', sql`length(trim(${t.idempotencyKey})) > 0`),
+])
+
+// Only explicitly confirmed assignments belong here; names from source files
+// are not account identities, so both responsible accounts are mandatory.
+export const bookletSchoolAssignment = pgTable('booklet_school_assignment', {
+  cueAnexo: text('cue_anexo').primaryKey(),
+  schoolName: text('school_name').notNull(),
+  relationship: text('relationship').notNull(),
+  supervisorName: text('supervisor_name').notNull(),
+  supervisorUserId: text('supervisor_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  cabeceraCue: text('cabecera_cue').notNull(),
+  cabeceraUserId: text('cabecera_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  sourceRevisionId: text('source_revision_id').references(() => bookletAssignmentSourceRevision.id, { onDelete: 'restrict' }),
+  sourceRowHash: text('source_row_hash'),
+  confirmedAssignmentHash: text('confirmed_assignment_hash'),
+  provenance: jsonb('provenance').$type<Array<{ sourceId: string; location: string }>>().notNull(),
+  confirmedByUserId: text('confirmed_by_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }).notNull(),
+}, (t) => [
+  check('booklet_school_assignment_cue_check', sql`${t.cueAnexo} ~ '^[0-9]{9}$'`),
+  check('booklet_school_assignment_head_cue_check', sql`${t.cabeceraCue} ~ '^[0-9]{9}$'`),
+  check('booklet_school_assignment_relationship_check', sql`${t.relationship} IN ('cabecera', 'dependiente')`),
+  check('booklet_school_assignment_provenance_check', sql`jsonb_array_length(${t.provenance}) > 0`),
+  check('booklet_school_assignment_source_hash_check', sql`${t.sourceRowHash} IS NULL OR ${t.sourceRowHash} ~ '^[a-f0-9]{64}$'`),
+  check('booklet_school_assignment_confirmation_hash_check', sql`${t.confirmedAssignmentHash} IS NULL OR ${t.confirmedAssignmentHash} ~ '^[a-f0-9]{64}$'`),
+  check('booklet_school_assignment_source_binding_check', sql`(${t.sourceRevisionId} IS NULL AND ${t.sourceRowHash} IS NULL AND ${t.confirmedAssignmentHash} IS NULL) OR (${t.sourceRevisionId} IS NOT NULL AND ${t.sourceRowHash} IS NOT NULL AND ${t.confirmedAssignmentHash} IS NOT NULL)`),
+])
+
+// Server-staged, immutable previews are the only source from which assignment
+// rows may become trusted. HTTP payloads never create these revisions.
+export const bookletAssignmentSourceRevision = pgTable('booklet_assignment_source_revision', {
+  id: text('id').primaryKey(),
+  sourceId: text('source_id').notNull(),
+  sourceHash: text('source_hash').notNull(),
+  previewHash: text('preview_hash').notNull().unique(),
+  sourceRows: jsonb('source_rows').$type<unknown[]>().notNull(),
+  preview: jsonb('preview').$type<unknown>().notNull(),
+  status: text('status').notNull().default('staged'),
+  stagedByUserId: text('staged_by_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  stagedAt: timestamp('staged_at', { withTimezone: true }).notNull().defaultNow(),
+  confirmedByUserId: text('confirmed_by_user_id').references(() => user.id, { onDelete: 'restrict' }),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+}, (t) => [
+  check('booklet_assignment_source_hash_check', sql`${t.sourceHash} ~ '^[a-f0-9]{64}$'`),
+  check('booklet_assignment_preview_hash_check', sql`${t.previewHash} ~ '^[a-f0-9]{64}$'`),
+  check('booklet_assignment_source_status_check', sql`${t.status} IN ('staged', 'confirmed')`),
+  check('booklet_assignment_source_confirmation_check', sql`(${t.status} = 'staged' AND ${t.confirmedByUserId} IS NULL AND ${t.confirmedAt} IS NULL) OR (${t.status} = 'confirmed' AND ${t.confirmedByUserId} IS NOT NULL AND ${t.confirmedAt} IS NOT NULL)`),
+])
+
+// Conflicting source rows are retained apart from enabled assignments and can
+// never be mistaken for an approved school-to-account association.
+export const bookletAssignmentConflict = pgTable('booklet_assignment_conflict', {
+  cueAnexo: text('cue_anexo').primaryKey(),
+  rows: jsonb('rows').$type<Array<{
+    cue: string | null
+    schoolName: string
+    relationship: 'cabecera' | 'dependiente'
+    supervisorName: string | null
+    cabeceraCue: string | null
+    provenance: { sourceId: string; location: string }
+  }>>().notNull(),
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check('booklet_assignment_conflict_cue_check', sql`${t.cueAnexo} ~ '^[0-9]{9}$'`),
+  check('booklet_assignment_conflict_rows_check', sql`jsonb_array_length(${t.rows}) > 1`),
+])
