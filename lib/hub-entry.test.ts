@@ -65,6 +65,24 @@ describe('hub entry routing', () => {
     await expect(resolveHubEntry({ user: restricted, allowedByExistingAcl: () => true })).resolves.toBe('/mapas')
   })
 
+  it('keeps booklet entry independent from maps and landing grants', async () => {
+    const bookletOnly = user({
+      hubPolicy: { enabledSections: ['cuadernillos'], landing: false },
+      hubDestination: '/cuadernillos',
+    })
+    expect(pathAllowedByHubPolicy('/cuadernillos', bookletOnly)).toBe(true)
+    expect(pathAllowedByHubPolicy('/mapas', bookletOnly)).toBe(false)
+    expect(pathAllowedByHubPolicy('/cuadernillos/solicitudes/x', bookletOnly)).toBe(true)
+    await expect(resolveHubEntry({ user: bookletOnly, allowedByExistingAcl: () => true })).resolves.toBe('/cuadernillos')
+  })
+
+  it('lets an admin without an explicit section list reach opt-in sections, but honors an explicit list', () => {
+    expect(pathAllowedByHubPolicy('/cuadernillos', user({ role: 'admin', hubPolicy: {} }))).toBe(true)
+    expect(pathAllowedByHubPolicy('/mapas', user({ role: 'admin', hubPolicy: {} }))).toBe(true)
+    expect(pathAllowedByHubPolicy('/cuadernillos', user({ role: 'admin', hubPolicy: { enabledSections: ['maps'] } }))).toBe(false)
+    expect(pathAllowedByHubPolicy('/cuadernillos', user({ role: 'consulta', hubPolicy: {} }))).toBe(false)
+  })
+
   it('returns no destination for an explicit-empty or banned account when no valid target exists', async () => {
     const empty = user({ hubPolicy: { enabledSections: [], landing: false }, hubDestination: null })
     await expect(resolveHubEntry({ user: empty, allowedByExistingAcl: () => true })).resolves.toBeNull()
