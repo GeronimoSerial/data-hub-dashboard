@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { FichaEscuelaPanel } from './ficha-escuela-panel'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
@@ -47,12 +47,12 @@ const movimientos: MovimientoHistorial[] = [
   { id: 'mov-3', tipo: 'confirmacion', rol: 'director', creadaEn: '2026-09-03T12:00:00.000Z', rigeDesde: '2026-09-03T12:00:00.000Z', titulo: 'Situación confirmada', cambios: ['Sigue igual: "Inaccesibilidad"'], severidad: 'Alta' },
 ]
 
-function instalarFetch({ error = false, situaciones = afectaciones, recientes, estadoEstablecimiento = 'habitual' }: { error?: boolean; situaciones?: AfectacionFicha[]; recientes?: SolucionadaFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' | 'evacuado' } = {}) {
+function instalarFetch({ error = false, situaciones = afectaciones, recientes, estadoEstablecimiento = 'habitual', informarServicio = true, alumnosUnicos }: { error?: boolean; situaciones?: AfectacionFicha[]; recientes?: SolucionadaFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' | 'evacuado'; informarServicio?: boolean; alumnosUnicos?: number } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: !error,
     json: async () => url.includes('/api/infraestructura/adjuntos')
       ? { movements: [] }
-      : url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones, ...(recientes === undefined ? {} : { recientes }) },
+      : url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones, servicio: { estadoGeneral: informarServicio ? 'suspendido' : 'normal', alcanceVigente: informarServicio ? [{ id: 's1', parteId: 'p1', tipo: 'establecimiento', referenciaId: null, estado: 'suspendido', rigeDesde: '2026-10-01T10:00:00Z', creadaEn: '2026-10-01T10:00:00Z', retiradaEn: null }] : [] }, ...(recientes === undefined ? {} : { recientes }), ...(alumnosUnicos === undefined ? {} : { alumnosUnicos }) },
   })))
 }
 
@@ -80,6 +80,14 @@ function renderFicha(opciones: {
 }
 
 describe('FichaEscuelaPanel', () => {
+  it('separa funcionamiento vigente de clases no informadas', async () => {
+    instalarFetch({ informarServicio: false })
+    renderFicha({ escuela: { ...escuela, clases: 'normal' } })
+    expect(await screen.findByText('Funcionamiento gravemente afectado')).toBeVisible()
+    expect(screen.getAllByText('Sin información de clases').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Funcionamiento habitual')).not.toBeInTheDocument()
+  })
+
   it('actualiza la banda con la prioridad calculada, aunque el mapa conserve una gravedad anterior', async () => {
     instalarFetch({ situaciones: [{
       ...afectaciones[0], severidad: 'Crítica',
@@ -184,7 +192,8 @@ describe('FichaEscuelaPanel', () => {
 
     expect(screen.getByText('Prioridad Alta')).toBeInTheDocument()
     expect(screen.getByText('CUE 180000123-00 · Capital · Inicial, Primario · 1.234 alumnos')).toBeInTheDocument()
-    expect(screen.getAllByText('Funcionamiento interrumpido').length).toBeGreaterThan(0)
+    expect(await screen.findByText('Funcionamiento gravemente afectado')).toBeVisible()
+    expect(screen.getAllByText('Clases suspendidas').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Asistencia pedagógica: clase virtual').length).toBeGreaterThan(0)
     expect(screen.getByText('Sin actualizar')).toBeInTheDocument()
     expect(screen.getByText('Acceso de prueba')).toBeInTheDocument()
@@ -247,6 +256,29 @@ describe('FichaEscuelaPanel', () => {
     const justificacion = await screen.findByTestId('preview-justificacion-critica')
     expect(justificacion).toHaveTextContent('Justificación de gravedad: Otro · Cableado expuesto')
     expect(screen.getByTestId('vista-previa-escuela')).toBeInTheDocument()
+  })
+
+  it('usa los alumnos únicos del servidor como alumnos afectados en la vista previa', async () => {
+    instalarFetch({ alumnosUnicos: 45, situaciones: [
+      { ...afectaciones[0], id: 'afectacion-1', totales: { secciones: 1, alumnos: 30 } },
+      { ...afectaciones[0], id: 'afectacion-2', motivo: 'Filtración', totales: { secciones: 1, alumnos: 30 } },
+    ] })
+    renderFicha({ escuela: { ...escuela, alumnosSinClases: 0 }, urlFichaCompleta: '/escuelas/180000123-00' })
+
+    const impacto = await screen.findByTestId('preview-bloque-impacto')
+    expect(within(impacto).getByText('45')).toBeInTheDocument()
+    expect(within(impacto).queryByText('60')).not.toBeInTheDocument()
+  })
+
+  it('cae a la suma de totales en la vista previa cuando el servidor no envía alumnos únicos', async () => {
+    instalarFetch({ situaciones: [
+      { ...afectaciones[0], id: 'afectacion-1', totales: { secciones: 1, alumnos: 30 } },
+      { ...afectaciones[0], id: 'afectacion-2', motivo: 'Filtración', totales: { secciones: 1, alumnos: 30 } },
+    ] })
+    renderFicha({ escuela: { ...escuela, alumnosSinClases: 0 }, urlFichaCompleta: '/escuelas/180000123-00' })
+
+    const impacto = await screen.findByTestId('preview-bloque-impacto')
+    expect(within(impacto).getByText('60')).toBeInTheDocument()
   })
 
   it('muestra las situaciones solucionadas recientes con gravedad y fecha absoluta', async () => {
@@ -365,12 +397,12 @@ describe('FichaEscuelaPanel', () => {
     vi.useRealTimers()
   })
 
-  it('muestra clases normales cerradas con la etiqueta de servicio compartida', () => {
+  it('muestra clases normales informadas separadas del funcionamiento', () => {
     instalarFetch()
-    const normal = { ...escuela, clases: 'normal' as const, apoyo: null }
+    const normal = { ...escuela, clases: 'normal' as const, clasesInformadas: true, apoyo: null }
     renderFicha({ escuela: normal })
 
-    expect(screen.getAllByText('Funcionamiento habitual').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Clases normales').length).toBeGreaterThan(0)
     expect(screen.getByText('Clases y asistencia pedagógica').closest('details')).toHaveProperty('open', false)
   })
 
@@ -581,7 +613,7 @@ describe('FichaEscuelaPanel — comedor y posible centro de evacuados', () => {
   })
 
   it('la insignia es distinta del estado reportado "Usado como centro de evacuados"', () => {
-    renderFicha({ escuela: { ...escuela, clases: 'centro', posibleCentroEvacuados: true } })
+    renderFicha({ escuela: { ...escuela, clases: 'centro', clasesInformadas: true, posibleCentroEvacuados: true } })
     expect(screen.getAllByText('Usado como centro de evacuados').length).toBeGreaterThan(0)
     expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
   })

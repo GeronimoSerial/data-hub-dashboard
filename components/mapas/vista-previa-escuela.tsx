@@ -1,5 +1,6 @@
 'use client'
 
+import { etiquetaClases, etiquetaFuncionamiento } from '@/lib/infraestructura/funcionamiento'
 import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
 
 import { useEffect, useRef, type ReactNode } from 'react'
@@ -9,7 +10,7 @@ import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-ac
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
-import { detalleNivelOInstituto, ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { detalleNivelOInstituto, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { valorComedor } from '@/lib/infraestructura/comedores/estado'
@@ -234,6 +235,7 @@ export function VistaPreviaEscuela({
       )}
 
       <dl className={styles.datos} data-testid="preview-bloque-clases">
+        <div><dt>Funcionamiento</dt><dd>{etiquetaFuncionamiento(afectaciones)}</dd></div>
         {seccionesAfectadas > 0 && (
           <div>
             <dt>Secciones afectadas</dt>
@@ -243,7 +245,7 @@ export function VistaPreviaEscuela({
         <div>
           <dt>Clases</dt>
           <dd className={escuela.clases === 'normal' ? undefined : escuela.clases === 'parcial' ? styles.aviso : styles.alerta}>
-            {ETIQUETA_ESTADO_CLASES[escuela.clases]}
+            {etiquetaClases(escuela.clases, escuela.clasesInformadas === true)}
             {escuela.alumnosSinClases > 0 && (
               <span className={styles.atenuado}>
                 {FORMATO_NUMERO.format(escuela.alumnosSinClases)} sin clases

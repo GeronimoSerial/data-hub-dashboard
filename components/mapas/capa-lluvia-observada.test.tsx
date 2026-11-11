@@ -17,7 +17,7 @@ vi.mock('react-map-gl/maplibre', () => ({
   useMap: () => ({ current: mapa }),
 }))
 
-const CELDA_PARCIAL = { geometryRef: 'b', acumuladoMm: 12, granulos: 100, esperados: 144, cobertura: 69.4, parcial: true }
+const CELDA_PARCIAL = { geometryRef: 'b', acumuladoMm: 12, granulos: 100, esperados: 144, cobertura: 0.694, parcial: true }
 
 const RESPUESTA = {
   horas: 72,
@@ -27,7 +27,7 @@ const RESPUESTA = {
   geojson: {
     type: 'FeatureCollection',
     features: [
-      { type: 'Feature', geometry: { type: 'Polygon', coordinates: [] }, properties: { geometryRef: '-27.4_-58.8', acumuladoMm: 30, granulos: 144, esperados: 144, cobertura: 100, parcial: false } },
+      { type: 'Feature', geometry: { type: 'Polygon', coordinates: [] }, properties: { geometryRef: '-27.4_-58.8', acumuladoMm: 30, granulos: 144, esperados: 144, cobertura: 1, parcial: false } },
       { type: 'Feature', geometry: { type: 'Polygon', coordinates: [] }, properties: CELDA_PARCIAL },
     ],
   },

@@ -126,6 +126,34 @@ describe('gravedadDe', () => {
 })
 
 describe('enriquecerEscuela', () => {
+  it('distinguishes default normal classes from explicitly informed classes without changing counts', () => {
+    const extra = { niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1, solucionadasRecientes: 0 }
+    const sinDato = enriquecerEscuela(escuela({ parte: parte({ severidad: 'Crítica' }) }), extra, ahora)
+    const informado = enriquecerEscuela(escuela({ parte: { ...parte({ severidad: 'Crítica' }), servicioInformado: true } }), extra, ahora)
+    expect(sinDato).toMatchObject({ clases: 'normal', clasesInformadas: false, alumnosSinClases: 0 })
+    expect(informado).toMatchObject({ clases: 'normal', clasesInformadas: true, alumnosSinClases: 0 })
+    expect(enriquecerEscuela(escuela(), extra, ahora).clasesInformadas).toBe(false)
+  })
+
+  it('preserves explicit building interruption and class counts independently of severity', () => {
+    const extra = { niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1, solucionadasRecientes: 0 }
+    for (const severidad of ['Baja', 'Crítica'] as const) {
+      expect(enriquecerEscuela(escuela({ parte: parte({ severidad, estadoEstablecimiento: 'evacuado' }) }), extra, ahora))
+        .toMatchObject({ clases: 'evacuado', clasesInformadas: true, alumnosSinClases: 12 })
+    }
+  })
+
+  it('alumnosSinClases de un parcial cuenta sólo el padrón de las secciones suspendidas', () => {
+    const extra = { niveles: [], alumnos: 176, asistencia: null, situacionesHistoricas: 0, solucionadasRecientes: 0 }
+    const conSuspendidas = { ...parte({ servicio: 'parcial' }), alumnosEnServicioSuspendido: 59 }
+    expect(enriquecerEscuela(escuela({ parte: conSuspendidas }), extra, ahora))
+      .toMatchObject({ clases: 'parcial', alumnosSinClases: 59 })
+    expect(enriquecerEscuela(escuela({ parte: parte({ servicio: 'normal' }) }), extra, ahora))
+      .toMatchObject({ clases: 'normal', alumnosSinClases: 0 })
+    expect(enriquecerEscuela(escuela({ parte: parte({ estadoEstablecimiento: 'sin_clases' }) }), extra, ahora))
+      .toMatchObject({ clases: 'sin', alumnosSinClases: 176 })
+  })
+
   it('deriva clases normales cuando el parte no tiene situaciones abiertas', () => {
     const original = escuela({ parte: parte({ estadoEstablecimiento: 'evacuado', abiertas: 0 }) })
 

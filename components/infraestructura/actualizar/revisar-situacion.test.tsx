@@ -8,6 +8,7 @@ const scrollOriginal = HTMLElement.prototype.scrollIntoView
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   if (scrollOriginal) HTMLElement.prototype.scrollIntoView = scrollOriginal
   else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
 })
@@ -29,6 +30,41 @@ const base = (over: Partial<RevisarSituacionProps> = {}): RevisarSituacionProps 
 })
 
 describe('RevisarSituacion', () => {
+  it('rejects a solution before the situation start and accepts the same instant or later', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-10T13:00:00.000Z'))
+    const p = base({ situacion: { ...base().situacion, rigeDesde: '2026-10-26T14:00:00.000Z' } })
+    render(<RevisarSituacion {...p} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Se solucionó' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
+    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-10-26' } })
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '10:59' } })
+    expect(p.onResponder).toHaveBeenLastCalledWith(null)
+    expect(screen.getByRole('alert')).toHaveTextContent('La fecha de solución no puede ser anterior al inicio de la situación.')
+    expect(screen.getByLabelText('Fecha')).toHaveAttribute('min', '2026-10-26')
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '11:00' } })
+    expect(p.onResponder).toHaveBeenLastCalledWith({ tipo: 'solucionada', solucionadaEn: '2026-10-26T14:00:00.000Z' })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '11:01' } })
+    expect(p.onResponder).toHaveBeenLastCalledWith({ tipo: 'solucionada', solucionadaEn: '2026-10-26T14:01:00.000Z' })
+  })
+
+  it('does not cascade a solution to a consequence that started later', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-10T13:00:00.000Z'))
+    const p = base({ consecuencias: [{ ...base().situacion, id: 'b', motivo: 'Sin energía o agua', rigeDesde: '2026-10-27T14:00:00.000Z', causadaPorId: 'a' }] })
+    render(<RevisarSituacion {...p} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Se solucionó' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'No, sigue activo' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
+    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-10-26' } })
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '11:00' } })
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('button', { name: 'Sí, también se solucionó' })).toBeDisabled()
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('La fecha de solución es anterior al inicio de esta consecuencia. Revísela por separado.')
+    expect(p.onCascada).not.toHaveBeenCalled()
+  })
+
   it('"Sigue igual" responde de inmediato', () => {
     const p = base()
     render(<RevisarSituacion {...p} />)

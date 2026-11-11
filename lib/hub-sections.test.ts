@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { puedeVerEnSeccion, type SessionUser } from './acl'
-import { HUB_DESTINATIONS, HUB_SECTIONS, LEGACY_SECTION_POLICY, effectiveSections, normalizeSectionPolicy, resourceInSections, safeDestination, sectionForPath, type SectionPolicy } from './hub-sections'
+import { effectiveSections, HUB_DESTINATIONS, HUB_SECTIONS, LEGACY_SECTION_POLICY, normalizeSectionPolicy, resourceInSections, safeDestination, sectionForPath, type SectionPolicy } from './hub-sections'
 
 const user: SessionUser = { id: 'u', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
 const resource = { id: 'r', estado: 'publicado' as const, audienciaNivelJurIds: [], audienciaUserIds: [], formato: 'mapa' as const }

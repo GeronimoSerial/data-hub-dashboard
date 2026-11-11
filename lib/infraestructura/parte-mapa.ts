@@ -29,6 +29,7 @@ import {
   type EfectivoInstituto,
 } from './parte/instituto-alcance'
 import { estadoGeneralDelCue } from './parte/instituto-estado'
+import { tieneServicioInformado } from './funcionamiento'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import { esCategoria, type CategoriaAfectacion } from './categorias'
 import { normalizarNombreDepartamento } from '@/lib/mapas/departamentos'
@@ -88,6 +89,9 @@ export interface ParteMapa {
   lat: number | null
   lon: number | null
   servicio: EstadoServicioGeneral
+  servicioInformado?: boolean
+  // Alumnos del padrón de las secciones o carreras suspendidas (servicio parcial).
+  alumnosEnServicioSuspendido?: number
   estadoEstablecimiento: EstadoEstablecimiento
   peorSeveridad: string
   categorias: CategoriaAfectacion[]
@@ -131,6 +135,7 @@ export function calcularAlumnosAlcanzados(params: {
 // el mapa lo necesita en runtime y este modulo arrastra node:fs via getDb.
 import { UMBRAL_SIN_ACTUALIZAR_HORAS } from './umbrales'
 import { ubicacionEnCorrientes } from './radar-meteo/departamentos'
+import { seccionesEfectivamenteSuspendidas } from './servicio-educativo'
 export { UMBRAL_SIN_ACTUALIZAR_HORAS }
 
 const resultadoVacio = { partes: [] as ParteMapa[], indicadores: indicadoresVacios() }
@@ -591,6 +596,29 @@ export async function listarPartesVigentes(
       if (seccionesInterrumpidas.length > 0) alumnosDelEstablecimiento = roster.size
     }
     const alumnosConsecuencia = calcularAlumnosAlcanzados({ alumnosDelHecho, estado: estadoEstablecimiento, alumnosDelEstablecimiento })
+    // Padrón interrumpido por el servicio suspendido: mismas unidades que el cálculo de servicio
+    // (carreras en institutos, secciones con precedencia única en GE). Ausente si nada está suspendido.
+    let alumnosEnServicioSuspendido: number | undefined
+    if (esInstituto) {
+      const suspendidas = new Set(servicioVigente.filter((s) => s.estado === 'suspendido' && s.tipo === 'carrera').map((s) => Number(s.referenciaId)))
+      const carrerasInterrumpidas = carrerasDelCue.filter((id) => suspendidas.has(id))
+      if (carrerasInterrumpidas.length > 0) {
+        const roster = new Set<number>()
+        for (const carreraId of carrerasInterrumpidas) {
+          for (const alumno of membresiaCarrerasInstituto.get(carreraId) ?? []) roster.add(alumno)
+        }
+        alumnosEnServicioSuspendido = roster.size
+      }
+    } else {
+      const seccionesInterrumpidas = seccionesEfectivamenteSuspendidas(servicioVigente, secciones)
+      if (seccionesInterrumpidas.length > 0) {
+        const roster = new Set<number>()
+        for (const seccion of seccionesInterrumpidas) {
+          for (const alumno of padronCompleto.get(seccion.geSectionId) ?? []) roster.add(alumno)
+        }
+        alumnosEnServicioSuspendido = roster.size
+      }
+    }
 
     partes.push({
       parteId: parteRow.id,
@@ -601,6 +629,7 @@ export async function listarPartesVigentes(
       lat: parteRow.lat,
       lon: parteRow.lon,
       servicio: servicioGeneral,
+      servicioInformado: tieneServicioInformado(servicioVigente, secciones, carrerasDelCue),
       estadoEstablecimiento,
       peorSeveridad,
       categorias: [...categorias],
@@ -616,6 +645,7 @@ export async function listarPartesVigentes(
       })),
       seccionesAlcanzadas: seccionesAlcanzadas.size,
       ...(esInstituto ? { carrerasAlcanzadas: carrerasAlcanzadas.size } : {}),
+      ...(alumnosEnServicioSuspendido !== undefined ? { alumnosEnServicioSuspendido } : {}),
       alumnosDelHecho,
       alumnosAlcanzados: alumnosConsecuencia,
       rigeDesde: rigeDesdeMasAntiguo,
