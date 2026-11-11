@@ -255,8 +255,9 @@ const positiveLines = (lines: QuantityLine[]) => Array.isArray(lines) && lines.l
 /** Returns whether the actor acts as a global admin, which skips supervisor membership and assignment. */
 async function authorize(actor: SessionUser, request: ApprovalRequestRecord, repo: ApprovalRepository): Promise<boolean> {
   const account = await repo.getAccountStatus(actor.id)
-  if (!account?.emailVerified || account.banned || actor.banned) throw new BookletServiceError('forbidden', 403)
+  if (!account || account.banned || actor.banned) throw new BookletServiceError('forbidden', 403)
   if (await isBookletAdmin(actor, repo)) return true
+  if (!account.emailVerified) throw new BookletServiceError('forbidden', 403)
   if (!await repo.hasActiveMembership(actor.id, 'supervisor')
     || !await repo.isAssignedSupervisor(actor.id, request.cabeceraCueAnexo)) {
     throw new BookletServiceError('forbidden', 403)
