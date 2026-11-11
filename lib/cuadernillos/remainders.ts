@@ -67,9 +67,10 @@ export async function getRequestChain(
     }
 
     const account = actor ? await tx.getAccountStatus(actor.id) : null
-    const inScope = actor && !actor.banned && account?.emailVerified && !account.banned
+    const inScope = actor && !actor.banned && account && !account.banned
       && (await isBookletAdmin(actor, tx)
-        || (await tx.hasActiveMembership(actor.id, 'cabecera')
+        || (account.emailVerified
+          && await tx.hasActiveMembership(actor.id, 'cabecera')
           && await tx.hasSchoolAssignment(actor.id, root.cabeceraCueAnexo, 'cabecera')
           && await tx.hasSchoolAssignment(actor.id, root.recipientCueAnexo, 'cabecera')))
     if (!inScope) throw new BookletServiceError('request_not_found', 404)
@@ -96,8 +97,9 @@ export async function createRemainderRequest(
     if (!root || root.status !== 'approved') throw new BookletServiceError('request_not_remainder_eligible', 409)
     const account = await tx.getAccountStatus(actor.id)
     const admin = await isBookletAdmin(actor, tx)
-    if (!account?.emailVerified || account.banned || actor.banned
-      || (!admin && (!await tx.hasActiveMembership(actor.id, 'cabecera')
+    if (!account || account.banned || actor.banned
+      || (!admin && (!account.emailVerified
+        || !await tx.hasActiveMembership(actor.id, 'cabecera')
         || !await tx.hasSchoolAssignment(actor.id, root.cabeceraCueAnexo, 'cabecera')))) {
       throw new BookletServiceError('forbidden', 403)
     }
