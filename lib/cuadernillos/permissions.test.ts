@@ -5,7 +5,7 @@ import {
   canAccessSchool,
   hasBookletCapability,
   getBookletRequestPage,
-  isBookletAdminViewer,
+  isBookletAdmin,
   type BookletRequestReadRepository,
   type BookletRequestReadCandidate,
   type BookletRequestPermissionRepository,
@@ -42,10 +42,13 @@ beforeEach(() => {
 })
 
 describe('booklet permissions', () => {
-  it('denies an account without active membership even when its global role is admin', async () => {
+  it('grants every module capability to a verified admin without membership and denies non-admins', async () => {
     accountStore.accounts.set('user-1', { emailVerified: true, banned: false })
+    accountStore.accounts.set('consulta-1', { emailVerified: true, banned: false })
 
-    await expect(hasBookletCapability(actor('user-1'), 'planning', repository)).resolves.toBe(false)
+    await expect(hasBookletCapability(actor('user-1'), 'planning', repository)).resolves.toBe(true)
+    await expect(hasBookletCapability(actor('user-1'), 'supervisor', repository)).resolves.toBe(true)
+    await expect(hasBookletCapability(actor('consulta-1', false, 'consulta'), 'planning', repository)).resolves.toBe(false)
   })
 
   it('denies banned and unverified accounts despite stored membership', async () => {
@@ -66,7 +69,7 @@ describe('booklet permissions', () => {
     await expect(hasBookletCapability(actor('cabecera-user', true), 'cabecera', repository)).resolves.toBe(false)
     await expect(hasBookletCapability(actor('cabecera-user', false, 'consulta'), 'cabecera', repository)).resolves.toBe(true)
     await expect(canAccessSchool(actor('cabecera-user', false, 'consulta'), '180123456', 'cabecera', repository)).resolves.toBe(true)
-    await expect(canAccessSchool(actor('cabecera-user'), '180123457', 'cabecera', repository)).resolves.toBe(false)
+    await expect(canAccessSchool(actor('cabecera-user', false, 'consulta'), '180123457', 'cabecera', repository)).resolves.toBe(false)
   })
 
   it('denies a supervisor with a membership but no matching responsibility', async () => {
@@ -190,20 +193,20 @@ describe('booklet admin read-only viewer', () => {
     accountStore.accounts.set('admin-banned', { emailVerified: true, banned: true })
     accountStore.accounts.set('admin-unverified', { emailVerified: false, banned: false })
 
-    await expect(isBookletAdminViewer(actor('admin-1'), repository)).resolves.toBe(true)
-    await expect(isBookletAdminViewer(actor('admin-banned'), repository)).resolves.toBe(false)
-    await expect(isBookletAdminViewer(actor('admin-unverified'), repository)).resolves.toBe(false)
-    await expect(isBookletAdminViewer(actor('admin-1', true), repository)).resolves.toBe(false)
-    await expect(isBookletAdminViewer(actor('admin-1', false, 'consulta'), repository)).resolves.toBe(false)
-    await expect(isBookletAdminViewer(null, repository)).resolves.toBe(false)
+    await expect(isBookletAdmin(actor('admin-1'), repository)).resolves.toBe(true)
+    await expect(isBookletAdmin(actor('admin-banned'), repository)).resolves.toBe(false)
+    await expect(isBookletAdmin(actor('admin-unverified'), repository)).resolves.toBe(false)
+    await expect(isBookletAdmin(actor('admin-1', true), repository)).resolves.toBe(false)
+    await expect(isBookletAdmin(actor('admin-1', false, 'consulta'), repository)).resolves.toBe(false)
+    await expect(isBookletAdmin(null, repository)).resolves.toBe(false)
   })
 
-  it('never grants write membership or school authority to an admin without memberships', async () => {
-    for (const capability of ['planning', 'cabecera', 'supervisor'] as const) {
-      await expect(hasBookletCapability(actor('admin-1'), capability, repository)).resolves.toBe(false)
-    }
-    await expect(canAccessSchool(actor('admin-1'), '180123456', 'cabecera', repository)).resolves.toBe(false)
-    await expect(canAccessSchool(actor('admin-1'), '180123456', 'supervisor', repository)).resolves.toBe(false)
+  it('grants school authority to a verified admin and never to a banned or non-admin account', async () => {
+    await expect(canAccessSchool(actor('admin-1'), '180123456', 'cabecera', repository)).resolves.toBe(true)
+    await expect(canAccessSchool(actor('admin-1'), '180123456', 'supervisor', repository)).resolves.toBe(true)
+    await expect(canAccessSchool(actor('admin-1', true), '180123456', 'cabecera', repository)).resolves.toBe(false)
+    accountStore.accounts.set('consulta-1', { emailVerified: true, banned: false })
+    await expect(canAccessSchool(actor('consulta-1', false, 'consulta'), '180123456', 'cabecera', repository)).resolves.toBe(false)
   })
 
   it('lets a verified admin read requests across every cabecera without membership', async () => {

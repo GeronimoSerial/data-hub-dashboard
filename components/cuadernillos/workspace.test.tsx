@@ -136,34 +136,4 @@ describe('CuadernillosWorkspace', () => {
     expect(screen.queryByText('Unvalidated school')).not.toBeInTheDocument()
     expect(screen.queryByText('private@example.test')).not.toBeInTheDocument()
   })
-
-  it('renders every section for an admin viewer read-only with no write controls', async () => {
-    vi.stubGlobal('fetch', fetchWithAssignments())
-
-    render(<CuadernillosWorkspace capabilities={['planning', 'cabecera', 'supervisor']} readOnlyCapabilities={['planning', 'cabecera', 'supervisor']} />)
-
-    expect(screen.getByRole('button', { name: 'Planeamiento' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cabecera' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Supervisión' })).toBeInTheDocument()
-    expect(screen.getByText('Vista de solo lectura (administrador)')).toBeInTheDocument()
-    await screen.findByText(/Saldos vigentes/)
-    expect(screen.queryByRole('button', { name: 'Registrar movimiento' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Guardar cupo' })).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cabecera' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Cabecera' })).toHaveAttribute('aria-pressed', 'true'))
-    expect(screen.getByText('Vista de solo lectura (administrador)')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Enviar a revisión' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Guardar borrador' })).toBeNull()
-  })
-
-  it('keeps the planning write controls for a member without the read-only note', async () => {
-    vi.stubGlobal('fetch', fetchWithAssignments())
-
-    render(<CuadernillosWorkspace capabilities={['planning']} />)
-
-    await screen.findByText(/Saldos vigentes/)
-    expect(screen.queryByText('Vista de solo lectura (administrador)')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Registrar movimiento' })).toBeInTheDocument()
-  })
 })

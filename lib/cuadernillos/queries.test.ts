@@ -179,7 +179,7 @@ describe('booklet admin read-only fallback', () => {
     const result = await getBookletAssignmentsPage(admin, 'cabecera', {
       repository: { listAssignments },
       authorize: async () => false,
-      isAdminViewer: async () => true,
+      isAdmin: async () => true,
     })
 
     expect(result?.items).toHaveLength(2)
@@ -191,7 +191,7 @@ describe('booklet admin read-only fallback', () => {
     const result = await getBookletAssignmentsPage(actor, 'cabecera', {
       repository: { listAssignments },
       authorize: async () => false,
-      isAdminViewer: async () => false,
+      isAdmin: async () => false,
     })
 
     expect(result).toBeNull()
@@ -202,7 +202,7 @@ describe('booklet admin read-only fallback', () => {
     const listBalances = vi.fn(async () => [])
     const result = await getBookletOverviewPage(admin, 'supervisor', {
       authorize: async () => false,
-      isAdminViewer: async () => true,
+      isAdmin: async () => true,
       loadRequests: async () => page,
       repository: {
         listActiveCampaigns: async () => [{ id: 'campaign-1', name: 'Campaign one', distributionEnabled: true, overassignmentAllowed: false }],
@@ -218,7 +218,7 @@ describe('booklet admin read-only fallback', () => {
     const listBalances = vi.fn(async () => [])
     const result = await getBookletOverviewPage(actor, 'planning', {
       authorize: async () => false,
-      isAdminViewer: async () => false,
+      isAdmin: async () => false,
       loadRequests: async () => page,
       repository: { listActiveCampaigns: async () => [], listBalances },
     })

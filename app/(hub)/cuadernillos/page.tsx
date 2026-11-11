@@ -1,5 +1,5 @@
 import { CuadernillosWorkspace } from '@/components/cuadernillos/workspace'
-import { hasBookletCapability, isBookletAdminViewer } from '@/lib/cuadernillos/permissions'
+import { hasBookletCapability } from '@/lib/cuadernillos/permissions'
 import type { BookletCapability } from '@/lib/cuadernillos/types'
 import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
@@ -11,11 +11,7 @@ const CAPABILITIES: readonly BookletCapability[] = ['planning', 'cabecera', 'sup
 export default async function CuadernillosPage() {
   const actor = await requireServerHubPageAccess('/cuadernillos', 'cuadernillos')
   const access = await Promise.all(CAPABILITIES.map((capability) => hasBookletCapability(actor, capability)))
-  const memberships = CAPABILITIES.filter((_, index) => access[index])
-  // Admin viewers see every tab read-only; writes stay gated by memberships on the server and in the UI.
-  const adminViewer = await isBookletAdminViewer(actor)
-  const visible = adminViewer ? [...CAPABILITIES] : memberships
-  const readOnlyCapabilities = visible.filter((capability) => !memberships.includes(capability))
+  const capabilities = CAPABILITIES.filter((_, index) => access[index])
 
-  return <CuadernillosWorkspace capabilities={visible} readOnlyCapabilities={readOnlyCapabilities} />
+  return <CuadernillosWorkspace capabilities={[...capabilities]} />
 }
