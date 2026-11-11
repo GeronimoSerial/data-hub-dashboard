@@ -45,14 +45,21 @@ vi.mock('@/lib/infraestructura/parte-mapa', () => ({
     mockObtenerEscuelaFichaEnriquecida(...args),
 }))
 
+const mockListarLlamadasPorCue = vi.fn()
+vi.mock('@/lib/call-center/llamadas', () => ({
+  listarLlamadasPorCue: (...args: unknown[]) => mockListarLlamadasPorCue(...args),
+}))
+
 vi.mock('@/components/mapas/ficha-escuela-pagina', () => ({
   FichaEscuelaPagina: (props: {
     escuela: EscuelaFichaEnriquecida
     mostrarEnlaceNominal: boolean
+    llamadasCallCenter?: { id: string }[]
   }) => (
     <div data-testid="mock-ficha-pagina">
       <span>{props.escuela.nombre}</span>
       <span>nominal:{String(props.mostrarEnlaceNominal)}</span>
+      <span>llamadas:{props.llamadasCallCenter ? props.llamadasCallCenter.length : 'oculta'}</span>
     </div>
   ),
 }))
@@ -168,5 +175,56 @@ describe('EscuelaFichaRoute (/mapas/infraestructura/escuelas/[cue])', () => {
       'Escuela N° 105 Sarmiento',
     )
     expect(screen.getByTestId('mock-ficha-pagina').textContent).toContain('nominal:true')
+  })
+
+  it('pasa las llamadas sin usuarioId a quien tiene callcenter.access', async () => {
+    mockGetSessionUser.mockResolvedValue({
+      id: 'u-admin',
+      role: 'admin',
+      banned: false,
+      nivelJurIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
+    })
+    mockObtenerEscuelaFichaEnriquecida.mockResolvedValue({ estado: 'ok', escuela: ESCUELA_MOCK })
+    mockListarLlamadasPorCue.mockResolvedValue([
+      {
+        id: 'l1',
+        cueAnexo: '1801605-00',
+        usuarioId: 'u-secreto',
+        callerNombre: 'Ana',
+        justificacion: 'Sin internet',
+        respuestaDirector: 'Lo actualiza hoy',
+        creadaEn: '2026-11-11T12:00:00.000Z',
+      },
+    ])
+
+    const jsx = await EscuelaFichaRoute({ params: Promise.resolve({ cue: '1801605-00' }) })
+    expect(jsx.props.llamadasCallCenter).toEqual([
+      {
+        id: 'l1',
+        callerNombre: 'Ana',
+        justificacion: 'Sin internet',
+        respuestaDirector: 'Lo actualiza hoy',
+        creadaEn: '2026-11-11T12:00:00.000Z',
+      },
+    ])
+    expect(mockListarLlamadasPorCue).toHaveBeenCalledWith('1801605-00')
+  })
+
+  it('no consulta ni pasa llamadas a quien no tiene callcenter.access', async () => {
+    mockGetSessionUser.mockResolvedValue({
+      id: 'u-consulta',
+      role: 'consulta',
+      banned: false,
+      nivelJurIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
+    })
+    mockObtenerEscuelaFichaEnriquecida.mockResolvedValue({ estado: 'ok', escuela: ESCUELA_MOCK })
+
+    const jsx = await EscuelaFichaRoute({ params: Promise.resolve({ cue: '1801605-00' }) })
+    expect(jsx.props.llamadasCallCenter).toBeUndefined()
+    expect(mockListarLlamadasPorCue).not.toHaveBeenCalled()
   })
 })
