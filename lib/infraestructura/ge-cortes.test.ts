@@ -174,4 +174,74 @@ describe('eliminarCorte / mantenerCortes (PGlite)', () => {
     expect(real.eliminados).toEqual([2])
     expect((await listarCortes(cliente())).map((c) => `${c.id}:${c.estado}`)).toEqual(['3:historico', '4:vigente', '5:importando'])
   })
+
+  describe('borrado por tramos', () => {
+    const FILAS = 50_001
+
+    /** Ejecutor crudo que registra BEGIN/COMMIT/ROLLBACK y los DELETE, y puede fallar en el n-ésimo DELETE de membresías. */
+    function rawEspiado(fallarEnDeleteMembresia?: number) {
+      const real = getRawClient() as unknown as { query: (t: string, p?: unknown[]) => Promise<{ rows: unknown[] }> }
+      const log: string[] = []
+      let deletesMembresia = 0
+      const raw = {
+        query: async (text: string, params?: unknown[]) => {
+          if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') log.push(text)
+          if (text.startsWith('DELETE FROM ge.ge_alumno_seccion')) {
+            deletesMembresia += 1
+            if (deletesMembresia === fallarEnDeleteMembresia) throw new Error('fallo simulado')
+          }
+          if (text.startsWith('DELETE FROM')) log.push(text.split(' WHERE')[0])
+          return real.query(text, params)
+        },
+      }
+      return { raw, log }
+    }
+
+    async function contar() {
+      const res = await cliente().execute(
+        'SELECT (SELECT COUNT(*) FROM ge.ge_corte) AS c, (SELECT COUNT(*) FROM ge.ge_seccion) AS s, (SELECT COUNT(*) FROM ge.ge_alumno_seccion) AS m',
+      )
+      return { c: Number(res.rows[0].c), s: Number(res.rows[0].s), m: Number(res.rows[0].m) }
+    }
+
+    it('borra un histórico con más filas que un tramo por completo', async () => {
+      await sembrarCorte(7, 'historico', '2026-09-01T00:00:00Z', FILAS)
+      expect(await eliminarCorte(cliente(), 7, ['historico'])).toBe(true)
+      expect(await contar()).toEqual({ c: 0, s: 0, m: 0 })
+    })
+
+    it('nunca borra el vigente aunque tenga más filas que un tramo', async () => {
+      await sembrarCorte(8, 'vigente', '2026-09-17T13:01:34Z', FILAS)
+      expect(await eliminarCorte(cliente(), 8, ['vigente', 'historico'])).toBe(false)
+      expect(await contar()).toEqual({ c: 1, s: 1, m: FILAS })
+    })
+
+    it('un fallo tras el primer tramo deja el corte presente y una segunda llamada lo termina', async () => {
+      await sembrarCorte(9, 'historico', '2026-09-01T00:00:00Z', FILAS)
+      const { raw } = rawEspiado(2)
+      await expect(eliminarCorte(crearEjecutorSql(raw), 9, ['historico'])).rejects.toThrow('fallo simulado')
+      expect(await contar()).toEqual({ c: 1, s: 1, m: 1 })
+
+      expect(await eliminarCorte(cliente(), 9, ['historico'])).toBe(true)
+      expect(await contar()).toEqual({ c: 0, s: 0, m: 0 })
+    })
+
+    it('cada tramo corre en su propia transacción: el COMMIT libera el lock entre tramos', async () => {
+      await sembrarCorte(10, 'historico', '2026-09-01T00:00:00Z', FILAS)
+      const { raw, log } = rawEspiado()
+      expect(await eliminarCorte(crearEjecutorSql(raw), 10, ['historico'])).toBe(true)
+      expect(log).toEqual([
+        'BEGIN',
+        'DELETE FROM ge.ge_alumno_seccion',
+        'COMMIT',
+        'BEGIN',
+        'DELETE FROM ge.ge_alumno_seccion',
+        'COMMIT',
+        'BEGIN',
+        'DELETE FROM ge.ge_seccion',
+        'DELETE FROM ge.ge_corte',
+        'COMMIT',
+      ])
+    })
+  })
 })
