@@ -2,7 +2,7 @@
 
 Página pública: `/materiales`. El catálogo versionado está en `data/materiales.json`; los PDF no se guardan en Git.
 
-La landing también incluye el [formulario para solicitar aula virtual](https://forms.gle/vrFAisMjeMWEa9TKA), separado de las descargas PDF. Los cuadernillos abarcan nivel inicial y de 1.º a 6.º grado.
+La landing también incluye el [formulario para solicitar aula virtual](https://forms.gle/vrFAisMjeMWEa9TKA), y el [acceso a Educaplay](https://corrientesplay.ar/educaplay/), separados de las descargas PDF. Los cuadernillos abarcan nivel inicial, de 1.º a 6.º grado y nivel superior.
 
 ## Desarrollo local
 
