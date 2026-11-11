@@ -15,15 +15,15 @@ Branch: GeronimoSerial/call-center. Delivery: single PR to main. Runner: vitest 
 - T0a recon permissions/roles — S1,S7 — delegated haiku — done
 - T0b recon stale-parte query in the map — S2,S3 — delegated haiku — done
 - T0c recon schema/migration/route-test conventions — S4,S6 — delegated haiku — done
-- T1a table + migration 0043 + drizzle schema — S4,S6 — delegated haiku — pending
-- T1b stale-schools list function (`lib/call-center/escuelas-pendientes.ts`, reuses `listarPartesVigentes`) + tests — S2 — delegated haiku — pending
-- T2a llamadas data helpers (`lib/call-center/llamadas.ts`: insert, history by CUE, last contact per CUE) + tests — S3,S4 — delegated haiku — pending
-- T2b `GET /api/call-center/escuelas` (list + contactada flag) + tests — S1,S2,S3,S5,S7 — delegated haiku — pending
-- T2c `POST /api/call-center/llamadas` + `GET /api/call-center/llamadas?cue=` + tests — S3,S4,S7 — delegated haiku — pending
-- T3a capability `callcenter.access` (capabilities, guards, route manifest, tests) — S1,S7 — HIGH RISK item 2 (permissions): own commit + independent verifier — delegated haiku — pending
-- T3b list page `/call-center` — S2,S3,S5 — delegated haiku — pending
-- T3c call form + history component — S3,S4 — delegated haiku — pending
-- T4 verification (tsc, vitest per directory, eslint), one haiku each — pending
+- T1a table + migration 0043 + drizzle schema — S4,S6 — delegated haiku — done (41d2dc83)
+- T1b stale-schools list function (`lib/call-center/escuelas-pendientes.ts`, reuses `listarPartesVigentes`) + tests — S2 — delegated haiku — done (fb2949d6)
+- T2a llamadas data helpers (`lib/call-center/llamadas.ts`: insert, history by CUE, last contact per CUE) + tests — S3,S4 — delegated haiku — done (306a91cb)
+- T2b `GET /api/call-center/escuelas` (list + contactada flag) + tests — S1,S2,S3,S5,S7 — delegated haiku — done (1d34ae75)
+- T2c `POST /api/call-center/llamadas` + `GET /api/call-center/llamadas?cue=` + tests — S3,S4,S7 — delegated haiku — done (1d34ae75)
+- T3a capability `callcenter.access` (capabilities, guards, route manifest, tests) — S1,S7 — HIGH RISK item 2 (permissions): own commit + independent verifier — delegated haiku — done (b56813e7), independent verifier: no blockers
+- T3b list page `/call-center` — S2,S3,S5 — delegated haiku — done (5830ca2b)
+- T3c call form + history component — S3,S4 — delegated haiku — done (faf2db21)
+- T4 verification (tsc, vitest per directory, eslint), one haiku each — done: tsc 0, eslint 0, 44/44 new tests, 203/204 in lib/access+lib/db+app/(hub) (1 known pre-existing manifest failure on unrelated routes)
 
 ## Batches
 - B0 recon (read-only, parallel): T0a, T0b, T0c. Each writes findings to the scratchpad, 40 lines max.
