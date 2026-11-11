@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, lte, max, min, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db'
+import { getHazardDb } from '@/lib/db/hazard-source'
 import {
   hazardClimatology,
   hazardForecast,
@@ -58,7 +59,8 @@ async function handleGET(request: Request) {
   // Keep every valid horizon from the newest eligible run for each cell,
   // variable and provider. In particular, don't limit forecast steps: consumers
   // sum the returned array to calculate accumulated precipitation.
-  const latestForecastRuns = db
+  const hazardDb = getHazardDb()
+  const latestForecastRuns = hazardDb
     .select({
       provider: hazardForecast.provider,
       variable: hazardForecast.variable,
@@ -70,7 +72,7 @@ async function handleGET(request: Request) {
     .groupBy(hazardForecast.provider, hazardForecast.variable, hazardForecast.geometryRef)
     .as('latest_forecast_runs')
 
-  const forecastRows = await db
+  const forecastRows = await hazardDb
     .select({
       geometryRef: hazardForecast.geometryRef,
       provider: hazardForecast.provider,

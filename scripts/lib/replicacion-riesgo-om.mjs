@@ -46,6 +46,12 @@ const TABLAS = [
   },
 ]
 
+// Con HAZARD_SOURCE_DATABASE_URL, staging/dev leen `hazard_forecast` directo de
+// producción (lib/db/hazard-source.ts): no se copia esa tabla de 24 GB.
+export function tablasReplicadas(entorno = process.env) {
+  return TABLAS.filter(t => !(t.nombre === 'hazard_forecast' && entorno.HAZARD_SOURCE_DATABASE_URL))
+}
+
 export function validarDestinosRiesgoOm(origen, destino) {
   validarDestinosRadar(origen, destino)
 }
@@ -66,10 +72,11 @@ export async function replicarRiesgoOm(origen, destino, { ahora = new Date(), lo
   try {
     await destino.query('BEGIN')
     transaccionDestino = true
-    await destino.query(`LOCK TABLE ${TABLAS.map(t => `public.${t.nombre}`).join(', ')} IN SHARE ROW EXCLUSIVE MODE`)
+    const tablas = tablasReplicadas()
+    await destino.query(`LOCK TABLE ${tablas.map(t => `public.${t.nombre}`).join(', ')} IN SHARE ROW EXCLUSIVE MODE`)
     /** @type {Record<string, {copiadas: number}>} */
     const resultado = {}
-    for (const { nombre, clave, marca, particion, ventanaDias, filtro, loteMaximo } of TABLAS) {
+    for (const { nombre, clave, marca, particion, ventanaDias, filtro, loteMaximo } of tablas) {
       const expresion = expresionParticion(particion)
       const { rows: marcas } = await destino.query(
         `SELECT ${expresion} AS particion, max(${marca}) AS marca FROM public.${nombre} WHERE ${filtro} GROUP BY 1`)
