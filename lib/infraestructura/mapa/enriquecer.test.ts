@@ -143,6 +143,17 @@ describe('enriquecerEscuela', () => {
     }
   })
 
+  it('alumnosSinClases de un parcial cuenta sólo el padrón de las secciones suspendidas', () => {
+    const extra = { niveles: [], alumnos: 176, asistencia: null, situacionesHistoricas: 0, solucionadasRecientes: 0 }
+    const conSuspendidas = { ...parte({ servicio: 'parcial' }), alumnosEnServicioSuspendido: 59 }
+    expect(enriquecerEscuela(escuela({ parte: conSuspendidas }), extra, ahora))
+      .toMatchObject({ clases: 'parcial', alumnosSinClases: 59 })
+    expect(enriquecerEscuela(escuela({ parte: parte({ servicio: 'normal' }) }), extra, ahora))
+      .toMatchObject({ clases: 'normal', alumnosSinClases: 0 })
+    expect(enriquecerEscuela(escuela({ parte: parte({ estadoEstablecimiento: 'sin_clases' }) }), extra, ahora))
+      .toMatchObject({ clases: 'sin', alumnosSinClases: 176 })
+  })
+
   it('deriva clases normales cuando el parte no tiene situaciones abiertas', () => {
     const original = escuela({ parte: parte({ estadoEstablecimiento: 'evacuado', abiertas: 0 }) })
 

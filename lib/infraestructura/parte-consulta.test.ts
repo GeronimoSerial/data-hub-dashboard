@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
+import { eq } from 'drizzle-orm'
 import { getDb, getRawClient } from '@/lib/db'
 import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
@@ -314,6 +315,44 @@ describe('armarFichaParte', () => {
 
     // Nunca resuelve nombres: cada sección sólo trae ids de alumno crudos.
     expect(completa.secciones[0].alumnos.every((id) => typeof id === 'number')).toBe(true)
+  })
+
+  it('alumnosUnicos no cuenta dos veces un alumno alcanzado por dos afectaciones del mismo parte', async () => {
+    const db = getDb()
+    const ahora = new Date().toISOString()
+    const parte = (await obtenerParteActual(CUE, 1))!.parte!
+    const solapadaId = crypto.randomUUID()
+    await db.insert(infraAfectacion).values({
+      id: solapadaId,
+      parteId: parte.id,
+      motivo: 'Solapada',
+      categoria: 'alumnos',
+      severidad: 'Baja',
+      descripcion: null,
+      justificacionCritica: null,
+      justificacionCriticaDetalle: null,
+      rigeDesde: ahora,
+      creadaEn: ahora,
+      retiradaEn: null,
+    })
+    await db.insert(infraAfectacionSeccion).values({ afectacionId: solapadaId, geSectionId: 10 })
+    await db.insert(infraAfectacionAlumno).values([
+      { afectacionId: solapadaId, gePersonId: 0 },
+      { afectacionId: solapadaId, gePersonId: 1 },
+    ])
+
+    try {
+      const ficha = await armarFichaParte(CUE, 1)
+      const solapada = ficha!.afectaciones.find((a) => a.motivo === 'Solapada')!
+      expect(solapada.totales.alumnos).toBe(2)
+      // Inundación (sección 10 completa: 0..4) + Anegamiento (100, 101) = 7
+      // distintos; la suma de totales daría 9 porque 0 y 1 cuentan dos veces.
+      expect(ficha!.alumnosUnicos).toBe(7)
+    } finally {
+      await db.delete(infraAfectacionAlumno).where(eq(infraAfectacionAlumno.afectacionId, solapadaId))
+      await db.delete(infraAfectacionSeccion).where(eq(infraAfectacionSeccion.afectacionId, solapadaId))
+      await db.delete(infraAfectacion).where(eq(infraAfectacion.id, solapadaId))
+    }
   })
 
   it('ultimaActualizacion refleja actualizadaEn del parte', async () => {

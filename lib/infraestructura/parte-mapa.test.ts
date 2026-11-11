@@ -174,6 +174,37 @@ describe('listarPartesVigentes', () => {
     expect(partes[0].servicioInformado).toBe(true)
   })
 
+  it('cuenta alumnos únicos de las secciones suspendidas en alumnosEnServicioSuspendido', async () => {
+    const cue = 'MAPA-SUSP-ALUM'
+    const client = crearEjecutorSql(getRawClient())
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+      args: [cue, 'Escuela susp', 'Paraná', 'Paraná', -31.7, -60.5],
+    })
+    for (const [seccion, turno] of [[9201, 'MAÑANA'], [9202, 'MAÑANA'], [9203, 'TARDE']] as const) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+        args: [seccion, cue, '1', 'A', 'PRIMARIA', turno],
+      })
+    }
+    // 92010001 cursa en dos secciones suspendidas: debe contar una vez.
+    for (const [seccion, persona] of [[9201, 92010001], [9202, 92010001], [9202, 92020001], [9203, 92030001]] as const) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
+        args: [seccion, persona],
+      })
+    }
+    const parteId = await crearParte(cue)
+    await crearAfectacion({ parteId, secciones: [9201] })
+    await crearServicioAlcance({ parteId, tipo: 'seccion', referenciaId: '9201', estado: 'suspendido' })
+    await crearServicioAlcance({ parteId, tipo: 'seccion', referenciaId: '9202', estado: 'suspendido' })
+
+    const { partes } = await listarPartesVigentes({ cueAnexo: cue })
+    expect(partes).toHaveLength(1)
+    expect(partes[0].servicio).toBe('parcial')
+    expect(partes[0].alumnosEnServicioSuspendido).toBe(2)
+  })
+
   it('reporta servicio parcial con situaciones de alumnos sin establecimiento, igual que la ficha', async () => {
     const parteId = await crearParte('CUE-10')
     await crearAfectacion({ parteId, categoria: 'alumnos', motivo: 'Corte de ruta', secciones: [1001] })
