@@ -4,7 +4,7 @@ on:
     inputs:
       operacion:
         type: choice
-        options: [inspeccionar, crear, almacenamiento, configurar, desplegar, estado, clonar-prod]
+        options: [inspeccionar, crear, almacenamiento, configurar, desplegar, estado, clonar-prod, diagnosticar-db]
         default: inspeccionar
         required: true
 permissions:
@@ -94,8 +94,19 @@ jobs:
           print('hub_dev restaurada desde prod; dev redeployado (aplica migraciones al arrancar)')
           PY
           rm -f prod.dump prod.url admin.url copy.url copy.raw restore.err dev.uuid
+      - name: Diagnosticar base de dev (solo lectura)
+        if: inputs.operacion == 'diagnosticar-db'
+        env:
+          DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+        run: |
+          set -uo pipefail
+          sudo apt-get install -y --no-install-recommends postgresql-client > /dev/null
+          u="$DEV_DATABASE_URL"; case "$u" in *sslmode=*) ;; *) u="$u$( [[ "$u" == *\?* ]] && echo '&' || echo '?')sslmode=require";; esac
+          psql "$u" -X -At -c "select 'recovery='||pg_is_in_recovery(), 'readonly='||current_setting('transaction_read_only'), 'default_ro='||current_setting('default_transaction_read_only'), 'size='||pg_size_pretty(pg_database_size(current_database())), 'start='||pg_postmaster_start_time(), 'version='||version()"
+          psql "$u" -X -At -c "select 'tables='||count(*) from information_schema.tables where table_schema not in ('pg_catalog','information_schema')"
+          psql "$u" -X -At -c "select 'user_table='||coalesce(to_regclass('public.\"user\"')::text,'missing')"
       - name: Operar dev en Coolify
-        if: inputs.operacion != 'clonar-prod'
+        if: inputs.operacion != 'clonar-prod' && inputs.operacion != 'diagnosticar-db'
         env:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
