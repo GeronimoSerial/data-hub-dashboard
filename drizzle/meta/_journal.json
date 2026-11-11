@@ -379,6 +379,13 @@
       "when": 1794322286834,
       "tag": "0053_booklet_assignment_source_binding",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794433394384,
+      "tag": "0054_call_center_llamadas",
+      "breakpoints": true
     }
   ]
 }

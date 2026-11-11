@@ -35,6 +35,7 @@ export const ROUTE_MANIFEST: Record<string, Capability | readonly Capability[]> 
   'app/(hub)/admin/episodios-derivados/page.tsx': 'staff',
   'app/(hub)/admin/episodios-derivados/[id]/page.tsx': 'staff',
   'app/(hub)/admin/verificaciones/page.tsx': 'staff',
+  'app/(hub)/call-center/page.tsx': 'callcenter.access',
 
   // --- Pages (otras) ---
   'app/(landing)/materiales/page.tsx': 'public',
@@ -86,6 +87,10 @@ export const ROUTE_MANIFEST: Record<string, Capability | readonly Capability[]> 
   // --- API: materiales ---
   'app/api/materiales/[id]/descargar/route.ts': 'public',
   'app/api/materiales/[id]/video/route.ts': 'public',
+
+  // --- API: call center ---
+  'app/api/call-center/escuelas/route.ts': 'callcenter.access',
+  'app/api/call-center/llamadas/route.ts': 'callcenter.access',
 
   // --- API: problematicas (parte) ---
   'app/api/problematicas/acceso/route.ts': 'public',
