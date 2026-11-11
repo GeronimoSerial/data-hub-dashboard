@@ -92,6 +92,12 @@ describe('GET /api/call-center/escuelas', () => {
     expect(res.status).toBe(401)
   })
 
+  it('permite a un administrador de Gestión (admin_ge)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ ...admin(), id: 'ge-1', role: 'admin_ge' as never })
+    const res = await consultar()
+    expect(res.status).toBe(200)
+  })
+
   it('rechaza a un operador de establecimiento con 403', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(operadorEstablecimiento())
     const res = await consultar()
