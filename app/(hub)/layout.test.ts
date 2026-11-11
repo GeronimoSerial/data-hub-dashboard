@@ -85,3 +85,16 @@ describe('protected hub layout', () => {
     expect(mocks.loadCatalogFor).not.toHaveBeenCalled()
   })
 })
+
+describe('protected hub layout for confined roles', () => {
+  it('bounces a director de nivel from any hub path to its own area', async () => {
+    mocks.headers.mockResolvedValue(new Headers({ 'x-hub-request-url': '/explorar' }))
+    mocks.getSessionUser.mockResolvedValue({
+      id: 'director', role: 'director_nivel', banned: false, nivelJurIds: [3], accesoRecursos: 'todos', recursoIds: [],
+    })
+    mocks.policyAllowed.mockResolvedValue(false)
+    mocks.resolveEntry.mockResolvedValue('/mapas/infraestructura')
+    await expect(HubLayout({ children: null })).rejects.toThrow('REDIRECT:/mapas/infraestructura')
+    expect(mocks.loadCatalogFor).not.toHaveBeenCalled()
+  })
+})

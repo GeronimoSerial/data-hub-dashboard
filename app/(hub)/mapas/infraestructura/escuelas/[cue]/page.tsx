@@ -1,9 +1,9 @@
 import { notFound, redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
-import { puedeAbrir } from '@/lib/acl'
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
 import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
+import { puedeLeerMapaInfraestructura } from '@/lib/infraestructura/acceso-lectura'
 import { ensureSeeded } from '@/lib/db/seed'
 import { hazardContextEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { obtenerEscuelaFichaEnriquecida } from '@/lib/infraestructura/parte-mapa'
@@ -38,7 +38,7 @@ export default async function EscuelaFichaRoute({
 
   const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
   const alcance = alcanceMapa(user)
-  if (!found || !puedeAbrir(user, found.access) || alcance.tipo === 'ninguno') {
+  if (!puedeLeerMapaInfraestructura(user, found?.access ?? null)) {
     redirect('/forbidden')
   }
 

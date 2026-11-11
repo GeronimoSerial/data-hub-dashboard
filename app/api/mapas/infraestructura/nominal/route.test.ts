@@ -110,6 +110,25 @@ async function contarLogsDe(userId: string): Promise<number> {
 }
 
 describe('GET /api/mapas/infraestructura/nominal', () => {
+  it('un administrador GE sin grant recibe alumnos y un único acceso auditado sin caché', async () => {
+    const userId = 'admin-ge-sin-grant'
+    vi.mocked(getSessionUser).mockResolvedValue({
+      id: userId, role: 'admin_ge', banned: false, nivelJurIds: [],
+      accesoRecursos: 'todos', recursoIds: [],
+    })
+    const { GET } = await import('./route')
+    const res = await GET(req())
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+    const body = await res.json()
+    expect(body.cantidad).toBe(2)
+    expect(body.secciones[0].alumnos).toEqual(expect.arrayContaining([
+      { nombre: 'Facundo', apellido: 'Quiroga' },
+      { nombre: 'Manuela', apellido: 'Rosas' },
+    ]))
+    expect(await contarLogsDe(userId)).toBe(1)
+  })
+
   it('entrega sólo los alumnos seleccionados y audita la cantidad parcial', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'admin-partial', role: 'admin', banned: false, nivelJurIds: [],
@@ -201,12 +220,7 @@ describe('GET /api/mapas/infraestructura/nominal', () => {
       })
     })
 
-    it('un director de nivel con grant ve la afectación de su dirección y registra el acceso', async () => {
-      await otorgarPermisoNominal({
-        userId: 'director-en-alcance',
-        otorgadoPor: 'admin-x',
-        venceEn: new Date(Date.now() + 60_000),
-      })
+    it('un director de nivel sin grant ve los alumnos de su dirección y registra el acceso', async () => {
       vi.mocked(getSessionUser).mockResolvedValue({
         id: 'director-en-alcance',
         role: 'director_nivel',
@@ -218,20 +232,22 @@ describe('GET /api/mapas/infraestructura/nominal', () => {
       const { GET } = await import('./route')
       const res = await GET(req())
       expect(res.status).toBe(200)
+      expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+      const body = await res.json()
+      expect(body.cantidad).toBe(2)
+      expect(body.secciones[0].alumnos).toEqual(expect.arrayContaining([
+        { nombre: 'Facundo', apellido: 'Quiroga' },
+        { nombre: 'Manuela', apellido: 'Rosas' },
+      ]))
       expect(await contarLogsDe('director-en-alcance')).toBe(1)
     })
 
-    it('un director de nivel con grant no ve una afectación de otra dirección, y no deja log', async () => {
-      await otorgarPermisoNominal({
-        userId: 'director-fuera-alcance',
-        otorgadoPor: 'admin-x',
-        venceEn: new Date(Date.now() + 60_000),
-      })
+    it.each([{ nivelJurIds: [NIVEL_FUERA_DE_ALCANCE] }, { nivelJurIds: [] }])('un director sin grant con niveles $nivelJurIds no ve alumnos fuera de alcance ni deja log', async ({ nivelJurIds }) => {
       vi.mocked(getSessionUser).mockResolvedValue({
         id: 'director-fuera-alcance',
         role: 'director_nivel',
         banned: false,
-        nivelJurIds: [NIVEL_FUERA_DE_ALCANCE],
+        nivelJurIds,
         accesoRecursos: 'todos',
         recursoIds: [],
       })

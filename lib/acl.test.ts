@@ -5,6 +5,7 @@ import {
   isStaff,
   marcarAcceso,
   puedeAbrir,
+  puedeVerEnSeccion,
   type RecursoAccess,
   type SessionUser,
 } from './acl'
@@ -31,8 +32,28 @@ describe('puedeAbrir', () => {
     expect(puedeAbrir(null, pub)).toBe(false)
   })
 
-  it('allows consulta when audience is empty', () => {
-    expect(puedeAbrir(consulta(), pub)).toBe(true)
+  it('denies consulta when audience is empty (no audience means staff only)', () => {
+    expect(puedeAbrir(consulta(), pub)).toBe(false)
+  })
+
+  it('denies director_nivel and operador_establecimiento when audience is empty', () => {
+    for (const role of ['director_nivel', 'operador_establecimiento'] as const) {
+      expect(puedeAbrir(consulta({ role, nivelJurIds: [1] }), pub)).toBe(false)
+    }
+  })
+
+  it('allows staff when audience is empty', () => {
+    expect(puedeAbrir(consulta({ role: 'admin' }), pub)).toBe(true)
+    expect(puedeAbrir(consulta({ role: 'editor' }), pub)).toBe(true)
+  })
+
+  it('allows consulta+seleccionados when the recurso is assigned, even without audience', () => {
+    expect(
+      puedeAbrir(
+        consulta({ accesoRecursos: 'seleccionados', recursoIds: ['r1'] }),
+        pub,
+      ),
+    ).toBe(true)
   })
 
   it('allows consulta when nivel intersects', () => {
@@ -119,10 +140,10 @@ describe('puedeAbrir', () => {
     ).toBe(false)
   })
 
-  it('consulta+todos behaves exactly as before regardless of recursoIds', () => {
+  it('consulta+todos without audience is denied regardless of recursoIds', () => {
     expect(
       puedeAbrir(consulta({ accesoRecursos: 'todos', recursoIds: [] }), pub),
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it('admin and editor with seleccionados and empty recursoIds are still allowed', () => {
@@ -184,7 +205,7 @@ describe('accesoDe', () => {
   })
 
   it('signed-in consulta with permission is abrir', () => {
-    expect(accesoDe(consulta(), pub)).toBe('abrir')
+    expect(accesoDe(consulta({ nivelJurIds: [1] }), { ...pub, audienciaNivelJurIds: [1] })).toBe('abrir')
   })
 
   it('signed-in consulta without permission is restringido', () => {
@@ -204,7 +225,7 @@ describe('accesoDe', () => {
 })
 
 describe('marcarAcceso', () => {
-  const abierto = { id: 'r1', estado: 'publicado' as const }
+  const abierto = { id: 'r1', estado: 'publicado' as const, audienciaNivelJurIds: [], audienciaUserIds: ['u1'] }
   const borrador = { id: 'r2', estado: 'borrador' as const }
   const restringido = {
     id: 'r3',
@@ -262,5 +283,34 @@ describe('marcarAcceso', () => {
       { ...borrador, acceso: 'abrir' },
       { ...restringido, acceso: 'abrir' },
     ])
+  })
+})
+
+describe('allow-list exemptions (S8)', () => {
+  const consultaUser: SessionUser = { id: 'u9', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
+  const sinAudiencia: RecursoAccess = { id: 'infra', estado: 'publicado', audienciaNivelJurIds: [], audienciaUserIds: [] }
+
+  it('keeps the infra map open to signed-in users when it has no audience', () => {
+    expect(puedeAbrir(consultaUser, { ...sinAudiencia, ruta: '/mapas/infraestructura' })).toBe(true)
+    expect(accesoDe(consultaUser, { ...sinAudiencia, ruta: '/mapas/infraestructura' })).toBe('abrir')
+  })
+
+  it('does not extend the exemption to other routes', () => {
+    expect(puedeAbrir(consultaUser, { ...sinAudiencia, ruta: '/mapas/natalidad' })).toBe(false)
+  })
+})
+
+describe('confined roles never see hub resources (S1)', () => {
+  const enAudiencia: RecursoAccess = { id: 'r1', estado: 'publicado', audienciaNivelJurIds: [3], audienciaUserIds: [] }
+  const recurso = { ...enAudiencia, formato: 'reporte' as const, ruta: null }
+
+  it.each(['director_nivel', 'operador_establecimiento'] as const)('denies %s even when its nivel is in the audience', (role) => {
+    const user: SessionUser = { id: 'd1', role, banned: false, nivelJurIds: [3], accesoRecursos: 'todos', recursoIds: [], cueAnexo: '1800000-00' }
+    expect(puedeVerEnSeccion(user, recurso)).toBe(false)
+  })
+
+  it('keeps consulta in the audience allowed', () => {
+    const user: SessionUser = { id: 'c1', role: 'consulta', banned: false, nivelJurIds: [3], accesoRecursos: 'todos', recursoIds: [] }
+    expect(puedeVerEnSeccion(user, recurso)).toBe(true)
   })
 })

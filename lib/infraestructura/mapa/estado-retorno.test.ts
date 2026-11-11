@@ -82,6 +82,7 @@ describe('estado-retorno', () => {
         apoyo: ['virtual' as never, 'brinda'],
         sinActualizar: true,
         solucionadasRecientes: true,
+        conComedor: true,
       }
 
       const params = serializarContextoMapaEnQuery({
@@ -114,6 +115,7 @@ describe('estado-retorno', () => {
         apoyo: ['brinda', 'no'],
         sinActualizar: true,
         solucionadasRecientes: true,
+        conComedor: true,
       })
     })
 

@@ -4,6 +4,7 @@ import * as React from 'react'
 import { cleanup, render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InfraestructuraMapClient } from './map-client'
+import { MOTOR_VERSION, REGLAS_V04_VERSION } from '@/lib/infraestructura/riesgo/motor/config'
 import type { EscuelasMapaPadronResultado } from '@/lib/infraestructura/parte-mapa'
 
 const PADRON_PRUEBA: EscuelasMapaPadronResultado = {
@@ -122,6 +123,23 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent?.replace(/\d+$/, '').trim())
     expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Capas', 'Estadísticas', 'Metodología', 'Exportar'])
+  })
+
+  it('monta la metodología operativa en la pestaña y conserva el mapa', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    try {
+      render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+      const mapa = screen.getByTestId('mock-mapa')
+      await userEvent.click(screen.getByRole('tab', { name: 'Metodología' }))
+      const metodologia = screen.getByTestId('pestana-metodologia')
+      expect(metodologia).toHaveTextContent(MOTOR_VERSION)
+      expect(metodologia).toHaveTextContent(REGLAS_V04_VERSION)
+      expect(within(metodologia).getByLabelText('Horizonte', { selector: '#r-horizonte' })).toHaveValue('72')
+      expect(screen.getByTestId('mock-mapa')).toBe(mapa)
+      expect(mapa).toHaveAttribute('data-visible', 'false')
+    } finally {
+      vi.restoreAllMocks()
+    }
   })
 
   it('sin el flag del radar no muestra la pestaña Radar', () => {

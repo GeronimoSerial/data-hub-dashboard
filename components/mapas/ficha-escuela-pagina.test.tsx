@@ -289,3 +289,41 @@ describe('FichaEscuelaPagina', () => {
   })
 
 })
+
+describe('FichaEscuelaPagina — comedor y posible centro de evacuados', () => {
+  afterEach(cleanup)
+
+  const renderPagina = (overrides: Parameters<typeof crearEscuelaFicha>[0]) => render(
+    <FichaEscuelaPagina escuela={crearEscuelaFicha(overrides)} mostrarEnlaceNominal={false} searchParams={{}} />,
+  )
+
+  it.each([
+    ['desayuno_almuerzo', 'Desayuno y almuerzo'],
+    ['solo_desayuno', 'Solo desayuno'],
+    ['solo_almuerzo', 'Solo almuerzo'],
+    ['sin_servicio', 'Sin servicio registrado'],
+  ] as const)('muestra el comedor %s', (comedor, valor) => {
+    renderPagina({ comedor })
+    expect(screen.getByText('Comedor').nextElementSibling).toHaveTextContent(valor)
+  })
+
+  it('sin dato de comedor no muestra la fila', () => {
+    renderPagina({})
+    expect(screen.queryByText('Comedor')).not.toBeInTheDocument()
+  })
+
+  it('marca la escuela apta como posible centro de evacuados', () => {
+    renderPagina({ posibleCentroEvacuados: true })
+    expect(screen.getByText('Posible centro de evacuados').nextElementSibling).toHaveTextContent('Sí')
+  })
+
+  it('aclara cuando es apta sin antecedentes de riesgo', () => {
+    renderPagina({ posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true })
+    expect(screen.getByText('Posible centro de evacuados').nextElementSibling).toHaveTextContent('Sí (sin antecedentes de riesgo)')
+  })
+
+  it('no muestra la fila si la escuela no es apta', () => {
+    renderPagina({ posibleCentroEvacuados: false })
+    expect(screen.queryByText('Posible centro de evacuados')).not.toBeInTheDocument()
+  })
+})

@@ -102,6 +102,24 @@ describe('GET /api/mapas/infraestructura/totales', () => {
     expect(res.headers.get('Cache-Control')).toBe('private, no-cache')
   })
 
+  it('un director de nivel obtiene los totales sin depender de la audiencia del recurso', async () => {
+    const db = getDb()
+    await db.delete(recursoAudienciaNivelesJur)
+    vi.mocked(getSessionUser).mockResolvedValue({
+      id: 'director-1',
+      role: 'director_nivel',
+      banned: false,
+      nivelJurIds: [3],
+      accesoRecursos: 'todos' as const,
+      recursoIds: [],
+      hubPolicy: { enabledSections: [], landing: false },
+    })
+    const res = await GET(req())
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(Array.isArray(body.departamentos)).toBe(true)
+  })
+
   it('no filtra nada nominal en el payload', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'u4',

@@ -1,5 +1,5 @@
 import { getDb } from '@/lib/db'
-import { infraAislamientoOsm, infraSusceptibilidadEstatica, infraAccesoOsmGeometria, infraExposicionRutaInundacion, infraExposicionRioDem } from '@/lib/db/schema'
+import { infraAislamientoOsm, infraSusceptibilidadEstatica, infraAccesoOsmGeometria, infraExposicionRutaInundacion, infraExposicionRioDem, infraRutaEvacuacionOsm } from '@/lib/db/schema'
 import { guardarVersion, publicarVersion, leerVersion, versionesPublicadas } from './repositorio'
 import { validarFilasGeo, proyectarFilasGeo } from './geo-static-contratos.mjs'
 import type { Datos, EntradaVersion } from './codec'
@@ -9,6 +9,7 @@ const tablas = {
   geometria: infraAccesoOsmGeometria, 'exposicion-ruta': infraExposicionRutaInundacion,
   'inundacion-v2': infraSusceptibilidadEstatica, 'exposicion-ruta-v2': infraExposicionRutaInundacion,
   'exposicion-rio-dem': infraExposicionRioDem,
+  'ruta-evacuacion': infraRutaEvacuacionOsm,
 }
 export type TipoGeo = keyof typeof tablas
 export function esTipoGeo(tipo: string): tipo is TipoGeo { return Object.hasOwn(tablas, tipo) }

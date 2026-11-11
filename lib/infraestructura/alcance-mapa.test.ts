@@ -10,6 +10,11 @@ describe('alcanceMapa', () => {
     }
   })
 
+  it('admin_ge ve todos los niveles, sin ser staff', () => {
+    expect(alcanceMapa({ ...base, role: 'admin_ge' })).toEqual({ tipo: 'todo' })
+    expect(alcanceMapa({ ...base, role: 'admin_ge', nivelJurIds: [4] })).toEqual({ tipo: 'todo' })
+  })
+
   it('director_nivel ve sólo sus niveles jurisdiccionales', () => {
     expect(alcanceMapa({ ...base, role: 'director_nivel', nivelJurIds: [3, 7] })).toEqual({
       tipo: 'niveles',

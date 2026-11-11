@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -62,11 +63,13 @@ function renderFicha(opciones: {
   onVerAlumnosAlcanzados?: (id: string) => void
   onVerHistorialCompleto?: () => void
   urlFichaCompleta?: string
+  centroEvacuados?: ReactNode
 } = {}) {
   return render(
     <FichaEscuelaPanel
       escuela={opciones.escuela ?? escuela}
       acceso={<p>Acceso de prueba</p>}
+      centroEvacuados={opciones.centroEvacuados}
       mostrarEnlaceNominal={opciones.mostrarEnlaceNominal ?? false}
       onCerrar={opciones.onCerrar ?? vi.fn()}
       onVerAlumnosAlcanzados={opciones.onVerAlumnosAlcanzados ?? vi.fn()}
@@ -574,5 +577,60 @@ describe('FichaEscuelaPanel', () => {
     )
     await waitFor(() => expect(screen.getAllByText('Cargando…')).toHaveLength(2))
     expect(screen.queryByText('Dos aulas sin acceso')).not.toBeInTheDocument()
+  })
+})
+
+describe('FichaEscuelaPanel — comedor y posible centro de evacuados', () => {
+  beforeEach(() => { instalarFetch() })
+  afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+
+  it.each([
+    ['desayuno_almuerzo', 'Comedor: desayuno y almuerzo'],
+    ['solo_desayuno', 'Comedor: solo desayuno'],
+    ['solo_almuerzo', 'Comedor: solo almuerzo'],
+    ['sin_servicio', 'Comedor: sin servicio registrado'],
+  ] as const)('muestra %s como "%s"', (comedor, texto) => {
+    renderFicha({ escuela: { ...escuela, comedor } })
+    expect(screen.getByText(texto)).toBeInTheDocument()
+  })
+
+  it('sin dato de comedor en la escuela no inventa ninguna línea de comedor', () => {
+    renderFicha()
+    expect(screen.queryByText(/^Comedor:/)).not.toBeInTheDocument()
+  })
+
+  it('una escuela apta sin antecedentes aclara que no hay datos de riesgo', () => {
+    renderFicha({ escuela: { ...escuela, posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true } })
+    expect(screen.getByText('Posible centro de evacuados (sin antecedentes de riesgo)')).toBeInTheDocument()
+  })
+
+  it('una escuela apta muestra la insignia "Posible centro de evacuados"; una no apta no', () => {
+    const { unmount } = renderFicha({ escuela: { ...escuela, posibleCentroEvacuados: true } })
+    expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
+    unmount()
+    renderFicha({ escuela: { ...escuela, posibleCentroEvacuados: false } })
+    expect(screen.queryByText('Posible centro de evacuados')).not.toBeInTheDocument()
+  })
+
+  it('la insignia es distinta del estado reportado "Usado como centro de evacuados"', () => {
+    renderFicha({ escuela: { ...escuela, clases: 'centro', clasesInformadas: true, posibleCentroEvacuados: true } })
+    expect(screen.getAllByText('Usado como centro de evacuados').length).toBeGreaterThan(0)
+    expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
+  })
+})
+
+describe('FichaEscuelaPanel — botón del camino al centro de evacuados', () => {
+  beforeEach(() => { instalarFetch() })
+  afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+
+  it('en la vista previa (la que se abre al tocar la escuela) el botón es visible y no está en el pliegue Acceso', () => {
+    renderFicha({ urlFichaCompleta: '/mapas/infraestructura/escuelas/1800123-00', centroEvacuados: <button>Ver camino al centro de evacuados más cercano</button> })
+    expect(screen.getByRole('button', { name: 'Ver camino al centro de evacuados más cercano' })).toBeInTheDocument()
+    expect(screen.queryByText('Acceso de prueba')).not.toBeInTheDocument()
+  })
+
+  it('en la ficha completa también aparece', () => {
+    renderFicha({ centroEvacuados: <button>Ver camino al centro de evacuados más cercano</button> })
+    expect(screen.getByRole('button', { name: 'Ver camino al centro de evacuados más cercano' })).toBeInTheDocument()
   })
 })

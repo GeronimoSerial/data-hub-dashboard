@@ -18,6 +18,7 @@ import { getDb, getRawClient } from '@/lib/db'
 import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from './ge-db'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
 import { obtenerPeriodoVigente } from './parte-consulta'
+import { cargarMarcasMapa, marcasDeEscuela } from './evacuacion/marcas-mapa'
 import { listarSeccionesDeCues } from './secciones-cue'
 import { cuesDeInstitutoVigentes, totalesMatriculaInstitutos } from './alcance'
 import { membresiaMatricula } from './alcance/matricula'
@@ -936,6 +937,8 @@ export async function listarEscuelasMapaEnriquecidas(
   // (sus secciones GE no describen al instituto). GE queda como estaba.
   const totalesInstitutos = await totalesMatriculaInstitutos(client)
 
+  const marcas = await cargarMarcasMapa()
+
   const partes = resultado.escuelas.flatMap((escuela) => escuela.parte ? [escuela.parte] : [])
   const asistenciaPorParte = new Map<string, AsistenciaPedagogica | null>()
   if (partes.length > 0) {
@@ -966,6 +969,7 @@ export async function listarEscuelasMapaEnriquecidas(
           solucionadasRecientes: solucionadasRecientesPorCue.get(escuela.cueAnexo) ?? 0,
         }, ahoraMs),
         ...(instituto ? { carreras: instituto.carreras } : {}),
+        ...marcasDeEscuela(escuela.cueAnexo, marcas),
       }
     }),
   }
@@ -1125,6 +1129,7 @@ export async function obtenerEscuelaFichaEnriquecida(
       ...enriquecida,
       ubicacionDisponible,
       ...(instituto ? { carreras: instituto.carreras } : {}),
+      ...marcasDeEscuela(cueAnexo, await cargarMarcasMapa(cueAnexo)),
     },
   }
 }

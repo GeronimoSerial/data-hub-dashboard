@@ -9,6 +9,8 @@ import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
 import type { ShellUser } from '@/lib/session'
 import { canUseLanding, effectiveSections, sectionForPath } from '@/lib/hub-sections'
+import { confinedAreaCapability, roleIsHubConfined } from '@/lib/access/hub-confinement'
+import { shellNavAllowed, shellUserFor } from '@/lib/access/shell-nav'
 import { decideScrollAction, isAdminWorkspacePath, isBleedViewerPath, isMapViewerPath, isRestoreSettled, scrollRestorationKey } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu'
@@ -17,11 +19,6 @@ import { MarcaBanda, MarcaCompacta, MarcaHorizontal, MarcaHorizontalInversa } fr
 const NAV = [
   { href: '/', label: 'Inicio' },
   { href: '/explorar', label: 'Explorar' },
-  { href: '/reportes', label: 'Reportes' },
-  { href: '/mapas', label: 'Mapas' },
-  { href: '/tableros', label: 'Tableros' },
-  { href: '/mapas/infraestructura', label: 'ENOS 2026' },
-  { href: '/situacion', label: 'Centro de Situación' },
 ]
 
 const SectionAccessContext = React.createContext<(path: string) => boolean>(() => true)
@@ -277,11 +274,17 @@ export function AppShell({
   const role = (sessionUser as { role?: Role } | null)?.role
   const policy = (sessionUser as ShellUser | null)?.hubPolicy ?? initialUser?.hubPolicy ?? {}
   const sections = effectiveSections(policy)
+  // Confined roles see only their own area in the chrome: no Inicio, Explorar, search or logo link.
+  const confined = roleIsHubConfined(role ?? initialUser?.role)
   const canAccessPath = (path: string) => {
+    if (confined) return confinedAreaCapability(path) !== null
     const section = sectionForPath(path)
     return section === 'landing' ? canUseLanding(policy) : section ? sections.has(section) : true
   }
-  const visibleNav = NAV.filter((item) => canAccessPath(item.href) && (item.href !== '/situacion' || situacionEnabled))
+  // Map pages carry no primary navigation; elsewhere only what the role's capabilities allow.
+  const navRole = role ?? initialUser?.role
+  const navUser = navRole ? shellUserFor(navRole, policy) : null
+  const visibleNav = isMapViewerPath(pathname) ? [] : NAV.filter((item) => shellNavAllowed(navUser, item.href))
   const compactoMapa = isMapViewerPath(pathname) || isAdminWorkspacePath(pathname)
   const mapViewer = isBleedViewerPath(pathname) || isAdminWorkspacePath(pathname)
   const resourceViewer = pathname.startsWith('/recursos/')
@@ -355,7 +358,7 @@ export function AppShell({
             </nav>
 
             <div className="app-actions">
-              {canAccessPath('/explorar') ? <Link href="/explorar" className="ui-button ui-button--ghost ui-button--icon" aria-label="Buscar recursos">
+              {shellNavAllowed(navUser, '/explorar') ? <Link href="/explorar" className="ui-button ui-button--ghost ui-button--icon" aria-label="Buscar recursos">
                 <Search size={19} />
               </Link> : null}
               <Button
@@ -398,7 +401,7 @@ export function AppShell({
                   {visibleNav.map((item) => (
                     <MenuItem key={item.href} onClick={() => router.push(item.href)}>{item.label}</MenuItem>
                   ))}
-                  {canAccessPath('/explorar') ? <MenuItem onClick={() => router.push('/explorar')}>Buscar</MenuItem> : null}
+                  {shellNavAllowed(navUser, '/explorar') ? <MenuItem onClick={() => router.push('/explorar')}>Buscar</MenuItem> : null}
                 </MenuContent>
               </Menu>
 
@@ -436,7 +439,7 @@ export function AppShell({
                     Provincia de Corrientes
                   </span>
                   <span className="app-footer__links">
-                    {canAccessPath('/explorar') ? <Link href="/explorar">Explorar recursos</Link> : null}
+                    {shellNavAllowed(navUser, '/explorar') ? <Link href="/explorar">Explorar recursos</Link> : null}
                     {canAccessPath('/mapas/infraestructura') ? <Link href="/mapas/infraestructura">ENOS 2026</Link> : null}
                   </span>
                 </footer>

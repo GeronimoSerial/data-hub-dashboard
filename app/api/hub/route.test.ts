@@ -70,15 +70,13 @@ describe('GET /api/hub', () => {
     expect(await res.json()).toEqual({ error: 'No autenticado' })
   })
 
-  it('consulta+todos: el recurso restringido a otro nivel queda restringido, no se oculta', async () => {
+  it('consulta+todos: el recurso restringido a otro nivel se quita del catálogo', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(consulta())
     const res = await GET(new Request('http://localhost/api'))
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]
-    expect(recursos.some((r) => r.id === 'hub-route-restringido')).toBe(true)
-    expect(
-      recursos.find((r) => r.id === 'hub-route-restringido')?.acceso,
-    ).toBe('restringido')
+    expect(recursos.some((r) => r.id === 'hub-route-restringido')).toBe(false)
+    expect(recursos.every((r) => r.acceso === 'abrir')).toBe(true)
   })
 
   it('consulta+todos: abrir cuando su nivel coincide', async () => {
@@ -93,7 +91,7 @@ describe('GET /api/hub', () => {
     ).toBe('abrir')
   })
 
-  it('consulta+seleccionados: el listado abre, el resto queda restringido', async () => {
+  it('consulta+seleccionados: solo el listado, abierto', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(
       consulta({
         accesoRecursos: 'seleccionados',
@@ -104,15 +102,8 @@ describe('GET /api/hub', () => {
     const res = await GET(new Request('http://localhost/api'))
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]
-    expect(recursos.length).toBeGreaterThan(1)
-    expect(
-      recursos.find((r) => r.id === 'hub-route-restringido')?.acceso,
-    ).toBe('abrir')
-    expect(
-      recursos.filter((r) => r.id !== 'hub-route-restringido').every(
-        (r) => r.acceso === 'restringido',
-      ),
-    ).toBe(true)
+    expect(recursos.map((r) => r.id)).toEqual(['hub-route-restringido'])
+    expect(recursos[0]?.acceso).toBe('abrir')
   })
 
   it('staff (audiencia restringida incluida): siempre abrir', async () => {

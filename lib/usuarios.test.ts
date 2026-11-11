@@ -135,6 +135,10 @@ describe('parseCreateUserBody', () => {
     expect(parseCreateUserBody({ ...base, role: 'operador_establecimiento' })?.role).toBe('operador_establecimiento')
   })
 
+  it('accepts the admin_ge role', () => {
+    expect(parseCreateUserBody({ ...base, role: 'admin_ge' })?.role).toBe('admin_ge')
+  })
+
   it('defaults accesoRecursos to todos when omitted', () => {
     expect(parseCreateUserBody(base)?.accesoRecursos).toBe('todos')
   })

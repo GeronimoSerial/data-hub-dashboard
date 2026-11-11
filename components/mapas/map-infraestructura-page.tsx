@@ -68,6 +68,10 @@ import { PanelPlanificacion } from '@/components/mapas/panel-planificacion'
 import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
 import { useDraftCounts } from '@/components/infraestructura/borradores/use-draft-counts'
 import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
+import { BloqueCentroEvacuados } from '@/components/mapas/bloque-centro-evacuados'
+import { CapaCentroEvacuados } from '@/components/mapas/capa-centro-evacuados'
+import { construirCaminoCentro } from '@/lib/infraestructura/evacuacion/mapa'
+import { useCentroEvacuados } from '@/lib/infraestructura/use-centro-evacuados'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
@@ -81,7 +85,6 @@ import {
 } from '@/components/mapas/layer-control'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import { CAPA_ESTACIONES_RIO_ID, CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
-import { CAPA_EVENTOS_REPORTADOS_ID, CapaEventosReportados, type ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
 import { CapaLluviaObservada, ID_CAPA_LLUVIA_HIT, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import { TarjetaCruceAgua } from '@/components/mapas/tarjeta-cruce-agua'
 import {
@@ -663,9 +666,6 @@ export default function MapInfraestructuraPage(props: {
   }, [capasVisibles])
   const [horasLluvia, setHorasLluvia] = useState<HorasLluvia>(72)
   const [metaLluvia, setMetaLluvia] = useState<MetaLluviaObservada | null>(null)
-  const [, setResumenEventos] = useState<ResumenEventosReportados | null>(null)
-  const [eventoSeleccionado, setEventoSeleccionado] = useState<string | null>(null)
-  const [eventoResaltado] = useState<string | null>(null)
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
@@ -1317,6 +1317,30 @@ export default function MapInfraestructuraPage(props: {
     loading: exposicionLoading,
   } = useExposicionRuta(cueRuta, contextoTerritorial && cueRuta !== null)
 
+  // Camino al centro de evacuados más cercano: se pide recién cuando la persona
+  // aprieta el botón de la ficha, y se oculta solo al cambiar de escuela.
+  const [centroCaminoCue, setCentroCaminoCue] = useState<string | null>(null)
+  const centroCaminoVisible = cueRuta !== null && centroCaminoCue === cueRuta
+  const {
+    data: centroEvacuados,
+    loading: centroEvacuadosLoading,
+    error: centroEvacuadosError,
+  } = useCentroEvacuados(cueRuta, centroCaminoVisible)
+  const caminoCentro = useMemo(() => {
+    if (!centroCaminoVisible || centroEvacuados === null || centroEvacuados.cueAnexo !== cueRuta) return null
+    const origen = cueRuta !== null ? escuelasPorCue.get(cueRuta) : null
+    return construirCaminoCentro(
+      centroEvacuados,
+      origen && origen.lat !== null && origen.lon !== null ? { lat: origen.lat, lon: origen.lon } : null,
+    )
+  }, [centroCaminoVisible, centroEvacuados, cueRuta, escuelasPorCue])
+  useEffect(() => {
+    if (caminoCentro === null) return
+    const bbox = bboxRuta(caminoCentro.linea)
+    if (bbox === null) return
+    mapRef.current?.getMap()?.fitBounds(bbox, { padding: paddingEncuadre(), duration: 700 })
+  }, [caminoCentro])
+
   const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
   const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
   // La huella del edificio toma el mismo color que el pin de la escuela elegida.
@@ -1431,10 +1455,10 @@ export default function MapInfraestructuraPage(props: {
 
     setCruceInfoClic(null)
 
-    // Station and media symbols open their own popup: a cluster underneath must not open a second one.
+    // Station symbols open their own popup: a cluster underneath must not open a second one.
     const mapaGl = mapRef.current?.getMap()
-    const capasConPopupPropio = [CAPA_ESTACIONES_RIO_ID, CAPA_EVENTOS_REPORTADOS_ID].filter((id) => mapaGl?.getLayer?.(id))
-    if (capasConPopupPropio.length > 0 && (mapaGl?.queryRenderedFeatures?.(event.point, { layers: capasConPopupPropio }).length ?? 0) > 0) return
+    const estacionesConPopupPropio = mapaGl?.getLayer?.(CAPA_ESTACIONES_RIO_ID) ? [CAPA_ESTACIONES_RIO_ID] : []
+    if (estacionesConPopupPropio.length > 0 && (mapaGl?.queryRenderedFeatures?.(event.point, { layers: estacionesConPopupPropio }).length ?? 0) > 0) return
 
     const puntoRiesgoHoy = features.find((item) => item.layer?.id === CAPA_RIESGO_HOY_ID)
     const cueRiesgoHoy = puntoRiesgoHoy?.properties?.cueAnexo
@@ -1845,6 +1869,8 @@ export default function MapInfraestructuraPage(props: {
             />
           )}
 
+          <CapaCentroEvacuados camino={caminoCentro} oscuro={mode === 'dark'} />
+
           {(
             <Source
               id="infra-partes-src"
@@ -2176,23 +2202,15 @@ export default function MapInfraestructuraPage(props: {
               below the school layers; river stations on top of everything (school
               clusters must not cover them). DOM popups sit above all GL layers. */}
           <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} beforeId={CAPA_DEPARTAMENTOS_RELLENO_ID} sinPopup={modoRadar} />
-          <CapaEventosReportados
-            visible={capasVisibles.eventosReportados}
-            onResumen={setResumenEventos}
-            beforeId={CAPA_PARTES_ID}
-            seleccionadoId={eventoSeleccionado}
-            resaltadoId={eventoResaltado}
-            onSeleccion={setEventoSeleccionado}
-          />
           <CapaEstacionesRio visible={capasVisibles.estacionesRio} capasEncima={CAPAS_SOBRE_ESTACIONES} />
         </MapGL>}
       </div>
 
       {/* En radar no va la leyenda de situación actual: el radar trae la suya (lluvia, viento...). */}
       {radarActivo ? null : props.pestana === 'planificacion' ? (
-        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'actual' ? (
-        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : null}
 
       <AlcanceNominalModal
@@ -2316,7 +2334,17 @@ export default function MapInfraestructuraPage(props: {
                     ? `${ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })]} (${escuelaSeleccionada.situacionesHistoricas})`
                     : ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })],
                 }))}
+                centroEvacuados={(
+                  <BloqueCentroEvacuados
+                    visible={centroCaminoVisible}
+                    onAlternar={() => setCentroCaminoCue(centroCaminoVisible ? null : escuelaSeleccionada.cueAnexo)}
+                    respuesta={centroEvacuados?.cueAnexo === escuelaSeleccionada.cueAnexo ? centroEvacuados : null}
+                    cargando={centroEvacuadosLoading}
+                    error={Boolean(centroEvacuadosError)}
+                  />
+                )}
                 acceso={(
+                  <>
                   <BloqueAcceso
                     geometria={geometria}
                     exposicion={exposicion}
@@ -2325,6 +2353,7 @@ export default function MapInfraestructuraPage(props: {
                     cargando={geometriaLoading || exposicionLoading}
                     error={Boolean(geometriaError)}
                   />
+                  </>
                 )}
                 mostrarEnlaceNominal={props.mostrarEnlaceNominal}
                 onVerAlumnosAlcanzados={setNominalAfectacionId}

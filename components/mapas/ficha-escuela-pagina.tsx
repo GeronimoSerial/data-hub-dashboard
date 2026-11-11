@@ -18,6 +18,8 @@ import { ObservacionReporte } from './observacion-reporte'
 import { contar } from '@/lib/infraestructura/parte/instituto-ui'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
+import { valorComedor } from '@/lib/infraestructura/comedores/estado'
+import { ETIQUETA_POSIBLE_CENTRO } from '@/lib/infraestructura/evacuacion/mapa'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
 import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
@@ -545,6 +547,18 @@ export function FichaEscuelaPagina({
                 <dt>Asistencia</dt>
                 <dd>{valorApoyoMapa(clasesActuales, escuela.apoyo) ?? 'No corresponde'}</dd>
               </div>
+              {escuela.comedor !== undefined && (
+                <div>
+                  <dt>Comedor</dt>
+                  <dd>{valorComedor(escuela.comedor)}</dd>
+                </div>
+              )}
+              {escuela.posibleCentroEvacuados === true && (
+                <div>
+                  <dt>{ETIQUETA_POSIBLE_CENTRO}</dt>
+                  <dd>{escuela.posibleCentroSinAntecedentes === true ? 'Sí (sin antecedentes de riesgo)' : 'Sí'}</dd>
+                </div>
+              )}
             </dl>
 
           </section>

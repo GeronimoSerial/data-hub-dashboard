@@ -85,6 +85,7 @@ vi.mock('@/components/mapas/ficha-escuela-panel', () => ({
   FichaEscuelaPanel: (props: {
     escuela: { cueAnexo: string }
     acceso: ReactNode
+    centroEvacuados?: ReactNode
     onCerrar: () => void
     onVerAlumnosAlcanzados: (id: string) => void
     onVerHistorialCompleto: () => void
@@ -117,6 +118,7 @@ vi.mock('@/components/mapas/ficha-escuela-panel', () => ({
           Quitar selección
         </button>
       )}
+      {props.centroEvacuados}
       {props.acceso}
     </section>
   ),
@@ -273,6 +275,13 @@ vi.mock('@/lib/infraestructura/use-totales-mapa', () => ({
 // territorial está apagado. Se registra el flag recibido
 // para poder afirmarlo (mismo patrón que `llamadasRadar`).
 const llamadasTerritorio = vi.hoisted(() => ({ habilitados: [] as boolean[] }))
+const llamadasCentro = vi.hoisted(() => ({ llamadas: [] as Array<[string | null, boolean]> }))
+vi.mock('@/lib/infraestructura/use-centro-evacuados', () => ({
+  useCentroEvacuados: (cueAnexo: string | null, habilitado: boolean) => {
+    llamadasCentro.llamadas.push([cueAnexo, habilitado])
+    return { data: null, loading: habilitado, error: null }
+  },
+}))
 const llamadasGeometria = vi.hoisted(() => ({
   cues: [] as (string | null)[],
   habilitados: [] as boolean[],
@@ -871,6 +880,7 @@ beforeEach(() => {
   estadoRadarMeteo.conResumen = false
   llamadasTerritorio.habilitados.length = 0
   llamadasGeometria.cues.length = 0
+  llamadasCentro.llamadas.length = 0
   llamadasGeometria.habilitados.length = 0
   CUES_DESAGRUPADOS_MOCK.cues.length = 0
   CUES_DESAGRUPADOS_MOCK.cues.push(CUE, CUE_SIN_AFECTACION)
@@ -936,6 +946,20 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     },
     15000,
   )
+
+  it('el camino al centro de evacuados (botón fuera del pliegue Acceso) sólo se pide al apretar el botón de la ficha y se oculta al volver a apretarlo', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+    await userEvent.click(screen.getByTestId('mock-click-parte'))
+    const ficha = within(await screen.findByTestId('mock-ficha-escuela'))
+
+    expect(llamadasCentro.llamadas.every(([, habilitado]) => !habilitado)).toBe(true)
+    await userEvent.click(ficha.getByRole('button', { name: 'Ver camino al centro de evacuados más cercano' }))
+    expect(llamadasCentro.llamadas.at(-1)).toEqual([CUE, true])
+    expect(ficha.getByText('Buscando el centro de evacuados más cercano…')).toBeInTheDocument()
+
+    await userEvent.click(ficha.getByRole('button', { name: 'Ocultar camino al centro de evacuados' }))
+    expect(llamadasCentro.llamadas.at(-1)).toEqual([CUE, false])
+  })
 
   it('abre la ficha al hacer click en un parte del mapa', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })

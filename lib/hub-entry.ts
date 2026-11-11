@@ -1,4 +1,5 @@
 import type { SessionUser } from '@/lib/acl'
+import { confinedHome, confinedPathAllowed, hubConfined } from '@/lib/access/hub-confinement'
 import {
   HUB_DESTINATIONS,
   canUseLanding,
@@ -44,6 +45,7 @@ export function safeInternalReturnTo(value: unknown): { pathname: string; search
 
 export function pathAllowedByHubPolicy(path: string, user: SessionUser): boolean {
   if (user.banned) return false
+  if (hubConfined(user)) return confinedPathAllowed(user, path)
   const section = sectionForPath(path)
   if (section === 'landing') return canUseLanding(user.hubPolicy ?? {})
   if (section) return effectiveSections(user.hubPolicy ?? {}).has(section)
@@ -64,18 +66,15 @@ export async function resolveHubEntry({
   const callback = safeInternalReturnTo(callbackUrl)
   if (callback && await isAllowed(callback.pathname)) return callback.href
 
-  // GE's existing operator workflow remains the first default after SSO.
-  const geDestination = user.role === 'operador_establecimiento' && user.cueAnexo
-    ? '/problematicas/parte/nuevo'
-    : null
-  const preferred = geDestination ?? user.hubDestination
+  // Confined roles land in their own area first; the GE operator workflow is one of them.
+  const preferred = confinedHome(user) ?? user.hubDestination
   if (preferred) {
     const destination = safeDestination({
       policy: user.hubPolicy ?? {},
       destination: preferred,
       allowedByExistingAcl: (path) => path !== currentPath && pathAllowedByHubPolicy(path, user),
     })
-    if (destination && await allowedByExistingAcl(destination.path)) return destination.path
+    if (destination && await isAllowed(destination.path)) return destination.path
   }
 
   if (canUseLanding(user.hubPolicy ?? {}) && await isAllowed('/')) return '/'

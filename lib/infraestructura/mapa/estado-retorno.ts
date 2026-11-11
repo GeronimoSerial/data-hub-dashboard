@@ -76,6 +76,7 @@ const PARAMETROS_PERMITIDOS = new Set([
   'q',
   'sinActualizar',
   'solucionadasRecientes',
+  'conComedor',
   'horizonte',
   'variable',
   'vista',
@@ -264,6 +265,9 @@ export function serializarContextoMapaEnQuery(input: {
   if (filtros.solucionadasRecientes) {
     params.set('solucionadasRecientes', '1')
   }
+  if (filtros.conComedor) {
+    params.set('conComedor', '1')
+  }
 
   if (input.horizonte && input.horizonte !== 72) {
     params.set('horizonte', String(input.horizonte))
@@ -374,6 +378,12 @@ export function parsearContextoMapaDeQuery(
   const solucionadasRaw = params.get('solucionadasRecientes')
   if (solucionadasRaw === '1' || solucionadasRaw === 'true') {
     filtrosParciales.solucionadasRecientes = true
+    tieneFiltrosEnUrl = true
+  }
+
+  const comedorRaw = params.get('conComedor')
+  if (comedorRaw === '1' || comedorRaw === 'true') {
+    filtrosParciales.conComedor = true
     tieneFiltrosEnUrl = true
   }
 
@@ -499,6 +509,7 @@ function validarFiltros(raw: unknown): FiltrosMapa {
       : [],
     sinActualizar: Boolean(obj.sinActualizar),
     solucionadasRecientes: Boolean(obj.solucionadasRecientes),
+    conComedor: Boolean(obj.conComedor),
   }
 }
 

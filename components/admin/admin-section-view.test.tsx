@@ -146,6 +146,7 @@ describe('AdminSectionView: direcciones (nivel jurisdiccional)', () => {
       'Consulta',
       'Director de nivel',
       'Operador del establecimiento',
+      'Administrador GE',
     ])
   })
 

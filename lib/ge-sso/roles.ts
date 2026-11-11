@@ -14,7 +14,7 @@ export type RolGe = (typeof ROLES_GE)[number]
 
 /** Rol GE -> rol de la app (ver ROLES en lib/auth-permissions.ts). */
 export const ROL_HUB_POR_GE: Record<RolGe, string> = {
-  administrador: 'admin',
+  administrador: 'admin_ge',
   director_nivel: 'director_nivel',
   operador_establecimiento: 'operador_establecimiento',
 }
@@ -27,7 +27,7 @@ export function rolGeDesdeHub(rolHub: string | null | undefined): RolGe | null {
  *  toma de la sesión (T7). */
 export function destinoPostLogin(rolHub: string | null | undefined): string {
   if (rolHub === 'operador_establecimiento') return '/problematicas/parte/nuevo'
-  if (rolHub === 'admin' || rolHub === 'director_nivel') return '/mapas/infraestructura'
+  if (rolHub === 'admin' || rolHub === 'admin_ge' || rolHub === 'director_nivel') return '/mapas/infraestructura'
   return '/'
 }
 

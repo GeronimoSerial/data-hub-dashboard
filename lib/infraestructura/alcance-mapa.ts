@@ -17,6 +17,7 @@ export function alcanceMapa(user: UsuarioAlcance): AlcanceMapa {
     case 'admin':
     case 'editor':
     case 'consulta':
+    case 'admin_ge':
       return { tipo: 'todo' }
     case 'director_nivel':
       return user.nivelJurIds.length > 0

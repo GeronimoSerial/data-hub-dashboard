@@ -1,0 +1,29 @@
+{
+  "escuelas": 265,
+  "alumnos": 1376,
+  "conCoordenadas": 265,
+  "conImportePositivo": 262,
+  "conRegistrosPof": 0,
+  "centros": 64,
+  "zonasOcupadas": 62,
+  "historiaPorAnio": {
+    "2023": 224,
+    "2024": 234,
+    "2025": 244,
+    "2026": 265
+  },
+  "aislados": 0,
+  "aisladosNota": "calculado en zonas.ts",
+  "referencias": 1166,
+  "referenciasPrimaria": 888,
+  "referenciasSecundaria": 339,
+  "clavesOferta": 1167,
+  "referenciasSinOferta": 4,
+  "ofertaSinReferencia": 5,
+  "sinImporte": [
+    "1800027-00",
+    "1800521-00",
+    "1801048-00"
+  ],
+  "camposDescartados": []
+}

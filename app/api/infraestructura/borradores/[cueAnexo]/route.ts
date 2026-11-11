@@ -7,6 +7,10 @@ import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { getReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags'
 import { ruta } from '@/lib/http/ruta'
+import { getRawClient } from '@/lib/db'
+import { crearEjecutorSql } from '@/lib/infraestructura/ge-db'
+import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
+import { verificarCueEnAlcance } from '@/lib/infraestructura/parte-mapa'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,7 +54,13 @@ async function handleGET(request: Request, context: Context) {
   if (cursor === null) return jsonNoStore({ error: 'Cursor inválido' }, 400)
 
   const ahora = new Date()
-  const includeNominal = await puedeVerNominal(acceso.user, ahora)
+  let includeNominal = await puedeVerNominal(acceso.user, ahora)
+  if (includeNominal && acceso.user.role === 'director_nivel') {
+    // Preserve the redacted draft view outside the director's jurisdiction.
+    includeNominal = await verificarCueEnAlcance(
+      crearEjecutorSql(getRawClient()), cue.value, alcanceMapa(acceso.user),
+    ) === 'ok'
+  }
   const result = await listDraftsForMap({
     cue: cue.value,
     cursor,

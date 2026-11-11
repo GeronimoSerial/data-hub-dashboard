@@ -10,6 +10,7 @@ import { situacionEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { resolveServerHubEntry, serverHubPathAllowedByExistingAcl, serverHubPathAllowedByPolicy } from '@/lib/hub-entry-server'
 import { safeInternalReturnTo } from '@/lib/hub-entry'
 import { sectionForPath } from '@/lib/hub-sections'
+import { hubConfined } from '@/lib/access/hub-confinement'
 
 export default async function HubLayout({
   children,
@@ -25,6 +26,12 @@ export default async function HubLayout({
     redirect(`/login?callbackUrl=${encodeURIComponent(callback)}`)
   }
   if (sessionUser.banned) redirect('/forbidden')
+
+  // Confined roles (director de nivel, operador) never enter the hub: any path outside their area goes to their home.
+  if (hubConfined(sessionUser) && !await serverHubPathAllowedByPolicy(sessionUser, requestedPath)) {
+    const destination = await resolveServerHubEntry(sessionUser, { currentPath: requestedPath })
+    redirect(destination ?? '/forbidden')
+  }
 
   // Unknown paths retain their existing page-specific guards (admin, uploads,
   // and future pages); registered hub sections are denied before catalog load.

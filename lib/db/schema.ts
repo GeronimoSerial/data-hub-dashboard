@@ -1778,6 +1778,27 @@ export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
   importadoEn: text('importado_en').notNull(),
 }, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
 
+export type CandidatoRutaEvacuacion = {
+  destinoCue: string
+  destinoNombre: string
+  // Distancia por camino (OSM) desde la escuela de origen hasta el destino.
+  distanciaM: number
+  ruta: RutaGeoJson
+}
+
+// Rutas OSM por camino desde cada escuela hacia sus K centros de evacuados
+// candidatos más cercanos (elegibles por exposición estática al momento de la
+// corrida offline), ordenadas por distancia. El job diario `centros-evacuados`
+// elige el primero que hoy sigue apto. Contexto derivado de OpenStreetMap.
+export const infraRutaEvacuacionOsm = pgTable('infra_ruta_evacuacion_osm', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  candidatos: jsonb('candidatos').$type<CandidatoRutaEvacuacion[]>().notNull(),
+  fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
+
 export type CeldaExposicionRuta = {
   lon: number
   lat: number
@@ -1956,3 +1977,32 @@ export const matriculaAlumno = pgTable('matricula_alumno', {
   uniqueIndex('matricula_alumno_carrera_dni_uidx').on(t.carreraId, t.dniHash),
   index('matricula_alumno_busqueda_idx').on(t.carreraId, t.nombreBusqueda.op('text_pattern_ops')),
 ])
+
+// Servicio de comedor por establecimiento (planilla MEC "Servicios de Comidas").
+// Sólo se guarda si la escuela brinda desayuno y/o almuerzo: la ausencia de fila
+// significa "sin servicio registrado", nunca "sin servicio". Se reemplaza completa
+// en cada importación (scripts/importar-comedores.mjs).
+export const infraComedorEscuela = pgTable('infra_comedor_escuela', {
+  cueAnexo: text('cue_anexo').primaryKey(),
+  desayuno: boolean('desayuno').notNull(),
+  almuerzo: boolean('almuerzo').notNull(),
+  proveedor: text('proveedor'),
+  fuente: text('fuente').notNull(),
+  importadoEn: text('importado_en').notNull(),
+})
+
+// "Posible centro de evacuados" por escuela, recalculado a diario por el job
+// `centros-evacuados` (lib/infraestructura/evacuacion). Una fila por escuela con
+// coordenadas: `apto` + motivo si no lo es, y la apta más cercana como destino
+// (la ruta por camino sale de infra_ruta_evacuacion_osm). Sugerencia calculada,
+// distinta del estado reportado `centro_evacuados` de los partes.
+export const infraCentroEvacuados = pgTable('infra_centro_evacuados', {
+  cueAnexo: text('cue_anexo').primaryKey(),
+  apto: boolean('apto').notNull(),
+  motivo: text('motivo'),
+  destinoCue: text('destino_cue'),
+  destinoNombre: text('destino_nombre'),
+  distanciaRectaM: real('distancia_recta_m'),
+  distanciaRutaM: real('distancia_ruta_m'),
+  calculadoEn: text('calculado_en').notNull(),
+})
