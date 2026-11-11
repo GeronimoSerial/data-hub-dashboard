@@ -315,7 +315,7 @@ function TarjetaLluvia({
 
       {celda.parcial && (
         <p className="tarjeta-lluvia__aviso">
-          Faltan pasadas del satélite en esta ventana ({Math.round(celda.cobertura)} % cubierto): la lluvia real puede ser mayor.
+          Faltan pasadas del satélite en esta ventana ({Math.round(celda.cobertura * 100)} % cubierto): la lluvia real puede ser mayor.
         </p>
       )}
 
