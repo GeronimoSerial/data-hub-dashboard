@@ -138,3 +138,28 @@ describe('booklet inventory', () => {
     expect(state.movements[0]).toMatchObject({ quantity: 25, kind: 'initial', actorUserId: planner.id })
   })
 })
+
+describe('admin write authority', () => {
+  const admin: SessionUser = { id: 'admin-1', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
+  beforeEach(() => {
+    configure()
+    state.accounts.set(admin.id, { emailVerified: true, banned: false })
+  })
+
+  it('sets quota and stock without planning membership, leaving the admin as the actor', async () => {
+    const view = await setQuota(admin, { campaignId: 'campaign-1', cabeceraCueAnexo: '180123456', productId: 'product-1', quantity: 40 }, repository)
+    expect(view).toMatchObject({ assigned: 40, globalStock: 100, quotaAvailable: 40 })
+
+    await addStock(admin, { campaignId: 'campaign-1', productId: 'product-1', quantity: 25, movement: 'replenishment', idempotencyKey: 'admin-stock-1' }, repository)
+    expect(state.stock.get('campaign-1:product-1')).toBe(125)
+  })
+
+  it('denies a banned admin and a non-admin without planning membership', async () => {
+    state.accounts.set('admin-banned', { emailVerified: true, banned: true })
+    await expect(setQuota({ ...admin, id: 'admin-banned' }, { campaignId: 'campaign-1', cabeceraCueAnexo: '180123456', productId: 'product-1', quantity: 1 }, repository))
+      .rejects.toMatchObject({ code: 'forbidden' })
+    state.accounts.set('outsider', { emailVerified: true, banned: false })
+    await expect(addStock({ ...admin, id: 'outsider', role: 'consulta' }, { campaignId: 'campaign-1', productId: 'product-1', quantity: 1, movement: 'replenishment', idempotencyKey: 'x' }, repository))
+      .rejects.toMatchObject({ code: 'forbidden' })
+  })
+})

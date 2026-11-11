@@ -2,7 +2,7 @@ import { and, eq, gt, isNotNull } from 'drizzle-orm'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import { bookletCampaign, bookletProduct, bookletProductMapping, bookletQuota, bookletSchoolAssignment, bookletStock } from '@/lib/db/schema'
-import { getBookletRequestPage, hasBookletCapability } from './permissions'
+import { getBookletRequestPage, hasBookletCapability, isBookletAdmin } from './permissions'
 import type { BookletAssignmentView, BookletAssignmentsPage, BookletBalanceView, BookletCapability, BookletOverview, BookletRequestsPage } from './types'
 
 const DEFAULT_PAGE_SIZE = 25
@@ -24,6 +24,7 @@ export type BookletAssignmentsQueryOptions = {
   pageSize?: number
   repository?: BookletAssignmentsQueryRepository
   authorize?: (actor: SessionUser | null, capability: BookletCapability) => Promise<boolean>
+  isAdmin?: (actor: SessionUser | null) => Promise<boolean>
 }
 
 const databaseRepository: BookletAssignmentsQueryRepository = {
@@ -65,7 +66,10 @@ export async function getBookletAssignmentsPage(
 ): Promise<BookletAssignmentsPage | null> {
   if (!actor || actor.banned) return null
   const authorize = options.authorize ?? hasBookletCapability
-  if (!await authorize(actor, capability)) return null
+  // Admins read every school in planning scope, whatever tab they requested.
+  const admin = await (options.isAdmin ?? isBookletAdmin)(actor)
+  if (!admin && !await authorize(actor, capability)) return null
+  const scopeCapability = admin ? 'planning' : capability
 
   const pageSize = Number.isInteger(options.pageSize) && options.pageSize! > 0
     ? Math.min(options.pageSize!, MAX_PAGE_SIZE)
@@ -76,7 +80,7 @@ export async function getBookletAssignmentsPage(
   const repository = options.repository ?? databaseRepository
   const rows = await repository.listAssignments({
     userId: actor.id,
-    capability,
+    capability: scopeCapability,
     cursor,
     limit: pageSize + 1,
   })
@@ -107,6 +111,7 @@ export type BookletOverviewQueryOptions = {
   campaignId?: string
   repository?: BookletOverviewQueryRepository
   authorize?: (actor: SessionUser | null, capability: BookletCapability) => Promise<boolean>
+  isAdmin?: (actor: SessionUser | null) => Promise<boolean>
   loadRequests?: (actor: SessionUser | null, query: BookletOverviewRequestQuery) => Promise<BookletRequestsPage>
 }
 
@@ -178,7 +183,10 @@ export async function getBookletOverviewPage(
 ): Promise<BookletOverview | null> {
   if (!actor || actor.banned) return null
   const authorize = options.authorize ?? hasBookletCapability
-  if (!await authorize(actor, capability)) return null
+  // Admins read balances for every school in planning scope; the requested tab is kept in the response.
+  const admin = await (options.isAdmin ?? isBookletAdmin)(actor)
+  if (!admin && !await authorize(actor, capability)) return null
+  const scopeCapability = admin ? 'planning' : capability
 
   const loadRequests = options.loadRequests ?? getBookletRequestPage
   const requestPage = await loadRequests(actor, {
@@ -193,7 +201,7 @@ export async function getBookletOverviewPage(
   const balances = selectedCampaignId
     ? await repository.listBalances({
         userId: actor.id,
-        capability,
+        capability: scopeCapability,
         campaignId: selectedCampaignId,
       })
     : []
