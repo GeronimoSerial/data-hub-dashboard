@@ -13,13 +13,19 @@ describe('materials landing', () => {
     expect(link).not.toHaveAttribute('download')
   })
 
+  it('links to Educaplay in virtual classrooms', async () => {
+    render(await MaterialesPage())
+    expect(screen.getByRole('link', { name: /Acceder a Educaplay/ })).toHaveAttribute('href', 'https://corrientesplay.ar/educaplay/')
+    expect(screen.getByRole('link', { name: /Descargar Cuadernillo Nivel Superior/ })).toHaveAttribute('href', '/api/materiales/cuadernillo-nivel-superior/descargar')
+  })
+
   it('keeps the manual download and offers each educational level', async () => {
     render(await MaterialesPage())
     expect(screen.getByRole('link', { name: /Descargar Manual Nº 1/ })).toHaveAttribute('href', '/api/materiales/manual-1/descargar')
     for (const level of ['nivel inicial', '1.er grado', '2.º grado', '3.er grado', '4.º grado', '5.º grado', '6.º grado']) {
       expect(screen.getByRole('link', { name: new RegExp(`Descargar Cuadernillo para estudiantes (?:de |del )${level.replaceAll('.', '\\.')}, PDF`) })).toHaveAttribute('download')
     }
-    expect(screen.getAllByRole('link', { name: /^Descargar / })).toHaveLength(8)
+    expect(screen.getAllByRole('link', { name: /^Descargar / })).toHaveLength(9)
     expect(screen.getByLabelText('Sistema ENOS · Manual para directivos y supervisores')).toHaveAttribute('src', '/api/materiales/video-manual-directivos/video')
   })
 })
