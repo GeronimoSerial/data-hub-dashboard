@@ -181,6 +181,7 @@ export async function hasBookletCapability(
   repository: BookletPermissionRepository = databaseRepository,
 ): Promise<boolean> {
   if (!actor || actor.banned) return false
+  if (await isBookletAdmin(actor, repository)) return true
   try {
     const account = await repository.getAccountStatus(actor.id)
     if (!account || !account.emailVerified || account.banned) return false
@@ -200,8 +201,27 @@ export async function canAccessSchool(
   if (!/^\d{9}$/.test(cueAnexo)) return false
   if (!await hasBookletCapability(actor, capability, repository)) return false
   if (capability === 'planning') return true
+  if (await isBookletAdmin(actor, repository)) return true
   try {
     return await repository.hasSchoolAssignment(actor!.id, cueAnexo, capability)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Global admin authority: a verified, unbanned account with role admin. It bypasses
+ * module membership and school assignment checks only; callers keep their other
+ * guards (identity from the session, eligibility, stock, idempotency, locks).
+ */
+export async function isBookletAdmin(
+  actor: SessionUser | null,
+  repository: Pick<BookletPermissionRepository, 'getAccountStatus'> = databaseRepository,
+): Promise<boolean> {
+  if (!actor || actor.banned || actor.role !== 'admin') return false
+  try {
+    const account = await repository.getAccountStatus(actor.id)
+    return Boolean(account && account.emailVerified && !account.banned)
   } catch {
     return false
   }
@@ -261,7 +281,8 @@ export async function getBookletRequestPage(
   const capabilityChecks = await Promise.all((['planning', 'cabecera', 'supervisor'] as const).map(async (capability) =>
     await hasBookletCapability(actor, capability, repository) ? capability : null))
   const capabilities = capabilityChecks.filter((value): value is BookletCapability => value !== null)
-  if (capabilities.length === 0) throw new BookletRequestReadError('forbidden', 403)
+  const adminViewer = await isBookletAdmin(actor, repository)
+  if (capabilities.length === 0 && !adminViewer) throw new BookletRequestReadError('forbidden', 403)
 
   let campaignOptions: BookletCampaignOption[]
   try { campaignOptions = await repository.listActiveCampaigns() } catch { throw new BookletRequestReadError('request_read_failed', 503) }
@@ -277,7 +298,7 @@ export async function getBookletRequestPage(
     return { campaignId: null, campaignOptions: [], requests: [], hasMore: false, nextCursor: null }
   }
 
-  const planning = capabilities.includes('planning')
+  const planning = capabilities.includes('planning') || adminViewer
   const [cabeceraCues, supervisorCues] = await Promise.all([
     capabilities.includes('cabecera') ? repository.listAssignedCues(actor!.id, 'cabecera') : Promise.resolve([]),
     capabilities.includes('supervisor') ? repository.listAssignedCues(actor!.id, 'supervisor') : Promise.resolve([]),
@@ -298,12 +319,10 @@ export async function getBookletRequestPage(
     for (const candidate of candidates) {
       scanned += 1
       scanCursor = { createdAt: candidate.createdAt, requestId: candidate.requestId }
-      let allowed = false
+      let allowed = adminViewer
       for (const capability of capabilities) {
-        if (await canAccessRequest(actor, candidate.requestId, capability, repository)) {
-          allowed = true
-          break
-        }
+        if (allowed) break
+        if (await canAccessRequest(actor, candidate.requestId, capability, repository)) allowed = true
       }
       if (allowed) visible.push(candidate)
       if (visible.length > pageSize) {

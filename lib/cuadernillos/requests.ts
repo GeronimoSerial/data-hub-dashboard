@@ -8,7 +8,7 @@ import {
 import type { SessionUser } from '@/lib/acl'
 import { getSchoolEligibility } from './eligibility'
 import { BookletServiceError, type CampaignPolicy, type IdempotencyRecord } from './inventory'
-import { canAccessSchool, hasBookletCapability, type BookletPermissionRepository } from './permissions'
+import { canAccessSchool, hasBookletCapability, isBookletAdmin, type BookletPermissionRepository } from './permissions'
 import { getEnrollmentRecommendations } from './enrollment'
 import type { CreateRequestInput, EnrollmentRecommendation, Eligibility, QuantityLine, RequestView } from './types'
 
@@ -116,7 +116,7 @@ export async function createRequest(
     if (!recipient || recipient.cabeceraCue.trim() === '') throw new BookletServiceError('forbidden', 403)
     if (!await canAccessSchool(actor, recipient.cabeceraCue, 'cabecera', tx)) throw new BookletServiceError('forbidden', 403)
     const head = await tx.getAssignment(recipient.cabeceraCue)
-    if (!head || head.relationship !== 'cabecera' || head.cabeceraUserId !== actor.id) throw new BookletServiceError('forbidden', 403)
+    if (!head || head.relationship !== 'cabecera' || (head.cabeceraUserId !== actor.id && !await isBookletAdmin(actor, tx))) throw new BookletServiceError('forbidden', 403)
 
     for (const line of input.lines) {
       if (!await tx.productExists(line.productId)) throw new BookletServiceError('product_not_found', 404)

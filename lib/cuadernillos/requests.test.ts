@@ -113,3 +113,19 @@ describe('createRequest', () => {
     expect(state.requests.size).toBe(0)
   })
 })
+
+describe('admin write authority', () => {
+  const admin: SessionUser = { id: 'admin-1', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
+
+  it('creates a request as cabecera without membership or a head assignment for the admin', async () => {
+    state.accounts.set(admin.id, { emailVerified: true, banned: false })
+    const result = await createRequest(admin, validInput(), repository, eligibility)
+    expect(result.status).toBe('pending')
+  })
+
+  it('denies a non-admin account without cabecera membership', async () => {
+    state.accounts.set('outsider', { emailVerified: true, banned: false })
+    await expect(createRequest({ ...admin, id: 'outsider', role: 'consulta' }, validInput(), repository, eligibility))
+      .rejects.toMatchObject({ code: 'forbidden', status: 403 })
+  })
+})

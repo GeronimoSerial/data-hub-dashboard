@@ -10,6 +10,7 @@ import { getSchoolEligibility, lockCurrentEligibilitySources } from './eligibili
 import { crearEjecutorSql, ensureGeSchema, type GeSchemaReady } from '@/lib/infraestructura/ge-db'
 import { listarPartesVigentes } from '@/lib/infraestructura/parte-mapa'
 import { BookletServiceError, type CampaignPolicy, type IdempotencyRecord } from './inventory'
+import { isBookletAdmin } from './permissions'
 import type { ApprovalInput, ApprovalResult, Eligibility, QuantityLine, RejectInput, RequestView } from './types'
 
 export type ApprovalRequestRecord = {
@@ -251,13 +252,16 @@ const positiveLines = (lines: QuantityLine[]) => Array.isArray(lines) && lines.l
   && lines.every((line) => Number.isSafeInteger(line.quantity) && line.quantity > 0 && line.productId.trim() !== '')
   && new Set(lines.map((line) => line.productId)).size === lines.length
 
-async function authorize(actor: SessionUser, request: ApprovalRequestRecord, repo: ApprovalRepository): Promise<void> {
+/** Returns whether the actor acts as a global admin, which skips supervisor membership and assignment. */
+async function authorize(actor: SessionUser, request: ApprovalRequestRecord, repo: ApprovalRepository): Promise<boolean> {
   const account = await repo.getAccountStatus(actor.id)
-  if (!account?.emailVerified || account.banned || actor.banned
-    || !await repo.hasActiveMembership(actor.id, 'supervisor')
+  if (!account?.emailVerified || account.banned || actor.banned) throw new BookletServiceError('forbidden', 403)
+  if (await isBookletAdmin(actor, repo)) return true
+  if (!await repo.hasActiveMembership(actor.id, 'supervisor')
     || !await repo.isAssignedSupervisor(actor.id, request.cabeceraCueAnexo)) {
     throw new BookletServiceError('forbidden', 403)
   }
+  return false
 }
 
 function assertCampaign(campaign: CampaignPolicy | null): void {
@@ -290,12 +294,12 @@ export async function approveRequest(actor: SessionUser, input: ApprovalInput, r
     const request = await tx.getRequest(input.requestId)
     if (!request) throw new BookletServiceError('request_not_found', 404)
     await tx.lockChain(request.rootRequestId)
-    await authorize(actor, request, tx)
+    const admin = await authorize(actor, request, tx)
     const replayed = await replay<ApprovalResult>(tx, actor.id, 'request.approve', input.idempotencyKey, input)
     if (replayed) return replayed
     assertCampaign(await tx.getCampaign(request.campaignId))
     assertPending(request)
-    if (!await tx.approvalAuthorityReady(request.recipientCueAnexo, request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
+    if (!admin && !await tx.approvalAuthorityReady(request.recipientCueAnexo, request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
     const eligibility = await tx.getCurrentEligibility(request.recipientCueAnexo, geSchema)
     if (!eligibility.eligible || eligibility.severity !== 'Crítica') throw new BookletServiceError('authority_changed', 409)
 
@@ -341,12 +345,12 @@ export async function rejectRequest(actor: SessionUser, input: RejectInput, repo
     const request = await tx.getRequest(input.requestId)
     if (!request) throw new BookletServiceError('request_not_found', 404)
     await tx.lockChain(request.rootRequestId)
-    await authorize(actor, request, tx)
+    const admin = await authorize(actor, request, tx)
     const replayed = await replay<RequestView>(tx, actor.id, 'request.reject', input.idempotencyKey, input)
     if (replayed) return replayed
     assertCampaign(await tx.getCampaign(request.campaignId))
     assertPending(request)
-    if (!await tx.approvalAuthorityReady(request.recipientCueAnexo, request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
+    if (!admin && !await tx.approvalAuthorityReady(request.recipientCueAnexo, request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
     const rejectedAt = new Date()
     await tx.saveRejection(request.requestId, actor.id, rejectedAt, input.reason.trim())
     const response: RequestView = {

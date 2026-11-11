@@ -169,3 +169,61 @@ describe('getBookletOverviewPage', () => {
     expect(result?.nextCursor).toBeNull()
   })
 })
+
+describe('booklet admin read-only fallback', () => {
+  const admin: SessionUser = { id: 'admin-1', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
+  const page = { campaignId: 'campaign-1', campaignOptions: [], requests: [], hasMore: false, nextCursor: null }
+
+  it('reads all assignments for a verified admin without a membership, in planning scope', async () => {
+    const listAssignments = vi.fn(async () => [assignment(0), assignment(1)])
+    const result = await getBookletAssignmentsPage(admin, 'cabecera', {
+      repository: { listAssignments },
+      authorize: async () => false,
+      isAdmin: async () => true,
+    })
+
+    expect(result?.items).toHaveLength(2)
+    expect(listAssignments).toHaveBeenCalledWith(expect.objectContaining({ userId: admin.id, capability: 'planning' }))
+  })
+
+  it('keeps assignments closed when the actor is neither a member nor an admin viewer', async () => {
+    const listAssignments = vi.fn(async () => [assignment(1)])
+    const result = await getBookletAssignmentsPage(actor, 'cabecera', {
+      repository: { listAssignments },
+      authorize: async () => false,
+      isAdmin: async () => false,
+    })
+
+    expect(result).toBeNull()
+    expect(listAssignments).not.toHaveBeenCalled()
+  })
+
+  it('returns all balances in planning scope for an admin viewer while keeping the requested tab', async () => {
+    const listBalances = vi.fn(async () => [])
+    const result = await getBookletOverviewPage(admin, 'supervisor', {
+      authorize: async () => false,
+      isAdmin: async () => true,
+      loadRequests: async () => page,
+      repository: {
+        listActiveCampaigns: async () => [{ id: 'campaign-1', name: 'Campaign one', distributionEnabled: true, overassignmentAllowed: false }],
+        listBalances,
+      },
+    })
+
+    expect(result).toMatchObject({ capability: 'supervisor', campaignId: 'campaign-1' })
+    expect(listBalances).toHaveBeenCalledWith({ userId: admin.id, capability: 'planning', campaignId: 'campaign-1' })
+  })
+
+  it('keeps the overview closed for a non-member, non-admin actor', async () => {
+    const listBalances = vi.fn(async () => [])
+    const result = await getBookletOverviewPage(actor, 'planning', {
+      authorize: async () => false,
+      isAdmin: async () => false,
+      loadRequests: async () => page,
+      repository: { listActiveCampaigns: async () => [], listBalances },
+    })
+
+    expect(result).toBeNull()
+    expect(listBalances).not.toHaveBeenCalled()
+  })
+})
