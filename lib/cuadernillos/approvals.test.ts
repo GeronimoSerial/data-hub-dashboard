@@ -229,13 +229,19 @@ describe('admin write authority', () => {
     expect(state.signatures).toHaveLength(0)
   })
 
-  it('denies banned or unverified admins and non-admin accounts without membership', async () => {
-    state.accounts.set('admin-banned', { emailVerified: true, banned: true })
+  it('approves for an unverified admin account, signed by the session admin', async () => {
     state.accounts.set('admin-unverified', { emailVerified: false, banned: false })
+    const unverified: SessionUser = { ...admin, id: 'admin-unverified' }
+    const approved = await approveRequest(unverified, approval({ idempotencyKey: 'unverified-approve' }), repository)
+    expect(approved.status).toBe('approved')
+    expect(state.signatures).toEqual([expect.objectContaining({ requestId: 'request-1', actorId: 'admin-unverified' })])
+  })
+
+  it('denies banned admins and unverified non-admin accounts without membership', async () => {
+    state.accounts.set('admin-banned', { emailVerified: true, banned: true })
     state.accounts.set('outsider', { emailVerified: true, banned: false })
     const outsider: SessionUser = { ...admin, id: 'outsider', role: 'consulta' }
     await expect(approveRequest({ ...admin, id: 'admin-banned' }, approval(), repository)).rejects.toMatchObject({ code: 'forbidden', status: 403 })
-    await expect(rejectRequest({ ...admin, id: 'admin-unverified' }, { requestId: 'request-1', idempotencyKey: 'x', reason: 'r' }, repository)).rejects.toMatchObject({ code: 'forbidden', status: 403 })
     await expect(approveRequest(outsider, approval(), repository)).rejects.toMatchObject({ code: 'forbidden', status: 403 })
     expect(state.signatures).toHaveLength(0)
   })
