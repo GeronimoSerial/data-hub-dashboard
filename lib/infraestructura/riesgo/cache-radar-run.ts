@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, like, lte, max, notLike, or, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { getHazardDb } from '@/lib/db/hazard-source'
 import {
   hazardClimatology,
   hazardEnsembleProb,
@@ -90,11 +91,12 @@ export async function fingerprintReferenciasRadar(cutoff: string): Promise<strin
     return createHash('sha256').update(JSON.stringify({ perfiles })).digest('hex')
   }
 
+  const hazardDb = getHazardDb()
   const references = sql`unnest(ARRAY[${sql.join(geometryRefs.map(ref => sql`${ref}`), sql`, `)}]::text[])
     AS radar_references(geometry_ref)`
   const geometryRef = sql<string>`radar_references.geometry_ref`
   // LIMIT uses the per-cell run index instead of sorting the forecast history.
-  const latestForecast = db
+  const latestForecast = hazardDb
     .select({ corridaEn: hazardForecast.corridaEn })
     .from(hazardForecast)
     .where(and(
@@ -105,13 +107,13 @@ export async function fingerprintReferenciasRadar(cutoff: string): Promise<strin
     .orderBy(desc(hazardForecast.corridaEn))
     .limit(1)
     .as('latest_forecast')
-  const forecastRuns = await db
+  const forecastRuns = await hazardDb
     .select({ geometryRef, corridaEn: latestForecast.corridaEn })
     .from(references)
     .innerJoinLateral(latestForecast, sql`true`)
     .orderBy(geometryRef)
   const forecastIdentity = forecastRuns.length === 0 ? [] : (await Promise.all(
-    [24, 72, 240].map((horizonte) => db
+    [24, 72, 240].map((horizonte) => hazardDb
       .selectDistinctOn([hazardForecast.geometryRef], {
         id: hazardForecast.id,
         geometryRef: hazardForecast.geometryRef,

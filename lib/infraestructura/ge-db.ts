@@ -19,6 +19,13 @@ export interface EjecutorSql {
   execute(query: string | { sql: string; args?: unknown[] }): Promise<{ rows: Record<string, unknown>[] }>
 }
 
+// Shared lock identity for booklet approvals and source-table statement triggers.
+// The values are intentionally stable across the migration and runtime bootstrap.
+export const BOOKLET_ELIGIBILITY_LOCK_CLASS = 1129660740
+export const BOOKLET_ELIGIBILITY_LOCK_OBJECT = 1162625351
+const geSchemaReadyBrand: unique symbol = Symbol('ge-schema-ready')
+export type GeSchemaReady = { readonly [geSchemaReadyBrand]: true }
+
 interface EjecutorDriverLike {
   query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }>
 }
@@ -237,9 +244,47 @@ export function openGeDb(): Client {
   return createClient({ url: `file:${getGeSqlitePath()}` })
 }
 
-export async function ensureGeSchema(client: EjecutorSql): Promise<void> {
+export async function ensureGeSchema(client: EjecutorSql): Promise<GeSchemaReady> {
   for (const stmt of GE_DDL) {
     await client.execute(stmt)
+  }
+  await ensureEligibilitySourceGuard(client)
+  return Object.freeze({ [geSchemaReadyBrand]: true })
+}
+
+async function ensureEligibilitySourceGuard(client: EjecutorSql): Promise<void> {
+  await client.execute(`
+    CREATE OR REPLACE FUNCTION public.booklet_eligibility_source_write_guard()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      PERFORM pg_advisory_xact_lock(${BOOKLET_ELIGIBILITY_LOCK_CLASS}, ${BOOKLET_ELIGIBILITY_LOCK_OBJECT});
+      RETURN NULL;
+    END;
+    $$
+  `)
+  for (const table of ['ge_corte', 'ge_seccion', 'ge_alumno_seccion', 'ge_localizacion']) {
+    await client.execute(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger
+          WHERE tgrelid = 'ge.${table}'::regclass
+            AND tgname = 'booklet_eligibility_source_guard'
+            AND NOT tgisinternal
+        ) THEN
+          BEGIN
+            CREATE TRIGGER booklet_eligibility_source_guard
+            BEFORE INSERT OR UPDATE OR DELETE ON ge.${table}
+            FOR EACH STATEMENT EXECUTE FUNCTION public.booklet_eligibility_source_write_guard();
+          EXCEPTION WHEN duplicate_object THEN
+            NULL;
+          END;
+        END IF;
+      END;
+      $$
+    `)
   }
 }
 
