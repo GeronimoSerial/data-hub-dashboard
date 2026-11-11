@@ -64,6 +64,13 @@ describe('POST /api/call-center/llamadas', () => {
     expect(res.status).toBe(401)
   })
 
+  it('permite registrar a un administrador de Gestión (admin_ge)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(sesion('admin_ge' as Role))
+    const { POST } = await import('./route')
+    const res = await POST(postReq(entradaValida()))
+    expect(res.status).toBe(201)
+  })
+
   it('rechaza a operador_establecimiento con 403', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(sesion('operador_establecimiento' as Role))
     const { POST } = await import('./route')
