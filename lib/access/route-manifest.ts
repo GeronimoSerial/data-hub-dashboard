@@ -34,6 +34,7 @@ export const ROUTE_MANIFEST: Record<string, Capability | readonly Capability[]> 
   'app/(hub)/admin/episodios-derivados/page.tsx': 'staff',
   'app/(hub)/admin/episodios-derivados/[id]/page.tsx': 'staff',
   'app/(hub)/admin/verificaciones/page.tsx': 'staff',
+  'app/(hub)/call-center/page.tsx': 'callcenter.access',
 
   // --- Pages (otras) ---
   'app/(landing)/materiales/page.tsx': 'public',
