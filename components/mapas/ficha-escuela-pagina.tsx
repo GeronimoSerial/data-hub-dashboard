@@ -32,6 +32,7 @@ import { useDraftCounts } from '@/components/infraestructura/borradores/use-draf
 import { GaleriaEvidencia } from '@/components/infraestructura/fotos/galeria-evidencia'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
+import { LlamadasFicha, type LlamadaFicha } from '@/components/call-center/llamadas-ficha'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
@@ -56,6 +57,8 @@ export interface FichaEscuelaPaginaProps {
   escuela: EscuelaFichaEnriquecida
   mostrarEnlaceNominal: boolean
   hazardContextEnabled?: boolean
+  /** Solo se pasa si el usuario tiene callcenter.access; undefined oculta la sección. */
+  llamadasCallCenter?: LlamadaFicha[]
   searchParams?: Record<string, string | string[] | undefined>
 }
 
@@ -66,6 +69,7 @@ export function FichaEscuelaPagina({
   escuela,
   mostrarEnlaceNominal,
   hazardContextEnabled = false,
+  llamadasCallCenter,
   searchParams = {},
 }: FichaEscuelaPaginaProps) {
   const { estado, historial } = useFichaParte(escuela.cueAnexo)
@@ -609,6 +613,8 @@ export function FichaEscuelaPagina({
               </div>
             )}
           </section>
+
+          {llamadasCallCenter && <LlamadasFicha llamadas={llamadasCallCenter} />}
         </div>
 
         <aside id="territorio" className={styles.column} aria-label="Territorio y clima">
