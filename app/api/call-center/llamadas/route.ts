@@ -1,5 +1,6 @@
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
-import { getSessionUser, staffGuard } from '@/lib/session'
+import { callCenterGuard } from '@/lib/call-center/acceso'
+import { getSessionUser } from '@/lib/session'
 import { ruta } from '@/lib/http/ruta'
 import { listarLlamadasPorCue, registrarLlamada, validarEntradaLlamada } from '@/lib/call-center/llamadas'
 import { normalizeCue } from '@/lib/infraestructura/cue'
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 async function handlePOST(request: Request) {
   const user = await getSessionUser()
-  const denied = staffGuard(user)
+  const denied = callCenterGuard(user)
   if (denied) return Response.json({ error: denied.error }, { status: denied.status })
 
   let body: unknown
@@ -31,7 +32,7 @@ async function handlePOST(request: Request) {
 }
 
 async function handleGET(request: Request) {
-  const denied = staffGuard(await getSessionUser())
+  const denied = callCenterGuard(await getSessionUser())
   if (denied) return Response.json({ error: denied.error }, { status: denied.status })
 
   const cue = normalizeCue(new URL(request.url).searchParams.get('cue') ?? '')

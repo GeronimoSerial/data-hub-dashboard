@@ -49,9 +49,9 @@ describe('capabilitiesFor', () => {
     expect([...caps].some((cap) => cap.startsWith('hub.'))).toBe(false)
   })
 
-  it('admin_ge solo tiene authenticated, mapa de infraestructura y cargar', () => {
+  it('admin_ge solo tiene authenticated, mapa de infraestructura, cargar y call center', () => {
     const caps = capabilitiesFor(user({ role: 'admin_ge' }))
-    expect(sorted(caps)).toEqual(['authenticated', 'infra.cargar', 'infra.map.read'].sort())
+    expect(sorted(caps)).toEqual(['authenticated', 'callcenter.access', 'infra.cargar', 'infra.map.read'].sort())
   })
 
   it('admin_ge queda confinado y no tiene capacidades hub, staff ni parte', () => {
@@ -139,8 +139,12 @@ describe('capabilitiesFor', () => {
     expect(capabilitiesFor(user({ role: 'director_nivel', nivelJurIds: [3] })).has('callcenter.access')).toBe(false)
   })
 
-  it('callcenter.access: admin_ge no la recibe', () => {
-    expect(capabilitiesFor(user({ role: 'admin_ge' })).has('callcenter.access')).toBe(false)
+  it('callcenter.access: admin_ge (administrador de Gestion) la recibe', () => {
+    expect(capabilitiesFor(user({ role: 'admin_ge' })).has('callcenter.access')).toBe(true)
+  })
+
+  it('callcenter.access: admin_ge baneado no la recibe', () => {
+    expect(capabilitiesFor(user({ role: 'admin_ge', banned: true })).has('callcenter.access')).toBe(false)
   })
 
   it('callcenter.access: consulta no la recibe aunque tenga todas las secciones', () => {
