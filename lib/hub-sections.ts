@@ -56,6 +56,16 @@ export function effectiveSections(policy: SectionPolicy): ReadonlySet<HubSection
   return new Set(policy.enabledSections ?? LEGACY_SECTION_POLICY.enabledSections)
 }
 
+/**
+ * Sections the user may enter. An admin without an explicit list also holds
+ * the opt-in sections; any explicit list (including []) is honored as stored.
+ */
+export function sectionsForUser(user: { role: string; hubPolicy?: SectionPolicy | null }): ReadonlySet<HubSection> {
+  const policy = user.hubPolicy ?? {}
+  if (user.role === 'admin' && policy.enabledSections === undefined) return new Set(HUB_SECTIONS)
+  return effectiveSections(policy)
+}
+
 export function canUseLanding(policy: SectionPolicy): boolean {
   return policy.landing ?? LEGACY_SECTION_POLICY.landing
 }
