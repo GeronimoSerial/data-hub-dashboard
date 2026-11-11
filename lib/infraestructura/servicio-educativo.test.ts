@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calcularEstadoServicioGeneral } from './servicio-educativo'
+import { calcularEstadoServicioGeneral, seccionesEfectivamenteSuspendidas } from './servicio-educativo'
 import type { SeccionEstablecimiento, ServicioAlcance } from './trayectoria-tipos'
 
 const BASE_FILA = {
@@ -100,5 +100,59 @@ describe('calcularEstadoServicioGeneral', () => {
       },
     ]
     expect(calcularEstadoServicioGeneral(alcance, secciones2A2B)).toBe('parcial')
+  })
+})
+
+describe('seccionesEfectivamenteSuspendidas', () => {
+  const turnos: SeccionEstablecimiento[] = [
+    { geSectionId: 1, turno: 'Mañana' },
+    { geSectionId: 2, turno: 'Mañana' },
+    { geSectionId: 3, turno: 'Tarde' },
+  ]
+  const fila = (extra: Partial<ServicioAlcance>): ServicioAlcance => ({ ...BASE_FILA, ...extra } as ServicioAlcance)
+
+  it('devuelve sólo las secciones con fila de sección suspendida', () => {
+    const alcance = [fila({ tipo: 'seccion', referenciaId: '2', estado: 'suspendido' })]
+    expect(seccionesEfectivamenteSuspendidas(alcance, turnos).map((s) => s.geSectionId)).toEqual([2])
+  })
+
+  it('una fila de turno suspende las secciones de ese turno', () => {
+    const alcance = [fila({ tipo: 'turno', referenciaId: 'Mañana', estado: 'suspendido' })]
+    expect(seccionesEfectivamenteSuspendidas(alcance, turnos).map((s) => s.geSectionId)).toEqual([1, 2])
+  })
+
+  it('una fila de establecimiento suspendida alcanza a todas las secciones', () => {
+    const alcance = [fila({ tipo: 'establecimiento', referenciaId: null, estado: 'suspendido' })]
+    expect(seccionesEfectivamenteSuspendidas(alcance, turnos)).toEqual(turnos)
+  })
+
+  it('una fila de sección normal anula un turno suspendido para esa sección', () => {
+    const alcance = [
+      fila({ tipo: 'turno', referenciaId: 'Mañana', estado: 'suspendido' }),
+      fila({ id: 'x2', tipo: 'seccion', referenciaId: '1', estado: 'normal' }),
+    ]
+    expect(seccionesEfectivamenteSuspendidas(alcance, turnos).map((s) => s.geSectionId)).toEqual([2])
+  })
+
+  it('sin filas de alcance no hay secciones suspendidas', () => {
+    expect(seccionesEfectivamenteSuspendidas([], turnos)).toEqual([])
+  })
+
+  it('su cantidad coincide con calcularEstadoServicioGeneral en cada caso', () => {
+    const casos: ServicioAlcance[][] = [
+      [],
+      [fila({ tipo: 'seccion', referenciaId: '2', estado: 'suspendido' })],
+      [fila({ tipo: 'turno', referenciaId: 'Mañana', estado: 'suspendido' })],
+      [fila({ tipo: 'establecimiento', referenciaId: null, estado: 'suspendido' })],
+      [
+        fila({ tipo: 'turno', referenciaId: 'Mañana', estado: 'suspendido' }),
+        fila({ id: 'x2', tipo: 'seccion', referenciaId: '1', estado: 'normal' }),
+      ],
+    ]
+    for (const alcance of casos) {
+      const suspendidas = seccionesEfectivamenteSuspendidas(alcance, turnos).length
+      const esperado = suspendidas === 0 ? 'normal' : suspendidas === turnos.length ? 'suspendido' : 'parcial'
+      expect(calcularEstadoServicioGeneral(alcance, turnos)).toBe(esperado)
+    }
   })
 })
