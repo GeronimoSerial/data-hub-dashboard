@@ -58,7 +58,7 @@ describe('booklet permissions', () => {
     accountStore.memberships.add('unverified:planning')
 
     await expect(hasBookletCapability(actor('banned'), 'planning', repository)).resolves.toBe(false)
-    await expect(hasBookletCapability(actor('unverified'), 'planning', repository)).resolves.toBe(false)
+    await expect(hasBookletCapability(actor('unverified', false, 'consulta'), 'planning', repository)).resolves.toBe(false)
   })
 
   it('keeps persisted membership after relogin but requires the exact school assignment', async () => {
@@ -195,7 +195,7 @@ describe('booklet admin read-only viewer', () => {
 
     await expect(isBookletAdmin(actor('admin-1'), repository)).resolves.toBe(true)
     await expect(isBookletAdmin(actor('admin-banned'), repository)).resolves.toBe(false)
-    await expect(isBookletAdmin(actor('admin-unverified'), repository)).resolves.toBe(false)
+    await expect(isBookletAdmin(actor('admin-unverified'), repository)).resolves.toBe(true)
     await expect(isBookletAdmin(actor('admin-1', true), repository)).resolves.toBe(false)
     await expect(isBookletAdmin(actor('admin-1', false, 'consulta'), repository)).resolves.toBe(false)
     await expect(isBookletAdmin(null, repository)).resolves.toBe(false)
@@ -220,16 +220,30 @@ describe('booklet admin read-only viewer', () => {
     expect(result.requests.map((request) => request.requestId)).toEqual(['request-own-head', 'request-other-head'])
   })
 
-  it('denies banned and unverified admins even though their role is admin', async () => {
+  it('denies banned admins even though their role is admin', async () => {
     accountStore.accounts.set('admin-banned', { emailVerified: true, banned: true })
-    accountStore.accounts.set('admin-unverified', { emailVerified: false, banned: false })
     const listRequestCandidates = vi.fn(async () => [candidate('request-1', '2026-11-09T01:00:00.000Z')])
 
     await expect(getBookletRequestPage(actor('admin-banned'), {}, readRepository({ listRequestCandidates })))
       .rejects.toMatchObject({ code: 'forbidden', status: 403 })
-    await expect(getBookletRequestPage(actor('admin-unverified'), {}, readRepository({ listRequestCandidates })))
-      .rejects.toMatchObject({ code: 'forbidden', status: 403 })
     expect(listRequestCandidates).not.toHaveBeenCalled()
+  })
+
+  it('lets an unverified admin account read, plan and grant school authority', async () => {
+    accountStore.accounts.set('admin-unverified', { emailVerified: false, banned: false })
+    const listRequestCandidates = vi.fn(async () => [candidate('request-1', '2026-11-09T01:00:00.000Z')])
+
+    await expect(hasBookletCapability(actor('admin-unverified'), 'planning', repository)).resolves.toBe(true)
+    await expect(canAccessSchool(actor('admin-unverified'), '180123456', 'cabecera', repository)).resolves.toBe(true)
+    const page = await getBookletRequestPage(actor('admin-unverified'), {}, readRepository({ listRequestCandidates }))
+    expect(page.requests.map((request) => request.requestId)).toEqual(['request-1'])
+  })
+
+  it('keeps an unverified non-admin account denied even with a membership', async () => {
+    accountStore.accounts.set('unverified-consulta', { emailVerified: false, banned: false })
+    accountStore.memberships.add('unverified-consulta:planning')
+
+    await expect(hasBookletCapability(actor('unverified-consulta', false, 'consulta'), 'planning', repository)).resolves.toBe(false)
   })
 
   it('keeps a non-admin account without membership denied from request reads', async () => {
