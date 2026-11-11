@@ -2,6 +2,8 @@
 
 import * as React from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
+import { ArrowUpRight } from 'lucide-react'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { pestanaDeMapa, resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
 import { filtrarEscuelas } from '@/lib/infraestructura/mapa/filtrar'
@@ -36,6 +38,7 @@ if (typeof window !== 'undefined') {
 
 export function InfraestructuraMapClient(props: {
   mostrarEnlaceNominal: boolean
+  mostrarCallCenter?: boolean
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
@@ -290,15 +293,18 @@ export function InfraestructuraMapClient(props: {
               >
                 Estadísticas
               </TabsTab>
-              <TabsTab value="metodologia" className={styles.tabTrigger}>
-                Metodología
-              </TabsTab>
               <TabsTab value="exportar" className={styles.tabTrigger}>
                 Exportar
               </TabsTab>
             </TabsList>
           </div>
         </Tabs>
+        {props.mostrarCallCenter && (
+          <Link href="/call-center" className={styles.callCenterLink}>
+            Call center
+            <ArrowUpRight size={14} aria-hidden="true" />
+          </Link>
+        )}
         <FiltrosChips
           escuelas={padron?.escuelas ?? []}
           filtros={filtros}
