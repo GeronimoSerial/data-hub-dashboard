@@ -37,11 +37,6 @@ export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChan
           label="Estaciones de Prefectura (altura de ríos)"
         />
         <Switch
-          checked={capasVisibles.eventosReportados}
-          onCheckedChange={(visible) => cambiarCapa('eventosReportados', visible)}
-          label="Lo que informan los medios (últimos días)"
-        />
-        <Switch
           checked={capasVisibles.lluviaObservada}
           onCheckedChange={(visible) => cambiarCapa('lluviaObservada', visible)}
           label="Lluvia observada (satélite IMERG)"

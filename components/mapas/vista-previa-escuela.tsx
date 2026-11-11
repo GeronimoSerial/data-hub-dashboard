@@ -13,6 +13,8 @@ import { presentarJustificacionCritica } from '@/lib/infraestructura/justificaci
 import { detalleNivelOInstituto, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
+import { valorComedor } from '@/lib/infraestructura/comedores/estado'
+import { ETIQUETA_POSIBLE_CENTRO, ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES } from '@/lib/infraestructura/evacuacion/mapa'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
@@ -277,6 +279,18 @@ export function VistaPreviaEscuela({
                 <span className={styles.atenuado} data-testid="chip-vigente">Vigente</span>
               ) : null}
             </dd>
+          </div>
+        )}
+        {escuela.comedor !== undefined && (
+          <div data-testid="preview-comedor">
+            <dt>Comedor</dt>
+            <dd>{valorComedor(escuela.comedor)}</dd>
+          </div>
+        )}
+        {escuela.posibleCentroEvacuados === true && (
+          <div data-testid="preview-posible-centro">
+            <dt>Evacuación</dt>
+            <dd>{escuela.posibleCentroSinAntecedentes === true ? ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES : ETIQUETA_POSIBLE_CENTRO}</dd>
           </div>
         )}
         {aislamiento !== null && (

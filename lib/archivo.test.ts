@@ -15,6 +15,9 @@ const pub: RecursoAccess = {
   audienciaUserIds: [],
 }
 
+// Allow-list (S2): consulta opens a recurso only when explicitly in its audience.
+const permitido: RecursoAccess = { ...pub, audienciaUserIds: ['u1'] }
+
 const consulta = (over: Partial<SessionUser> = {}): SessionUser => ({
   id: 'u1',
   role: 'consulta',
@@ -30,8 +33,12 @@ describe('archivoGate', () => {
     expect(archivoGate(null, pub, true)).toBe(401)
   })
 
-  it('returns 200 for logged-in consulta when audience is empty', () => {
-    expect(archivoGate(consulta(), pub, true)).toBe(200)
+  it('returns 200 for logged-in consulta in the audience', () => {
+    expect(archivoGate(consulta(), permitido, true)).toBe(200)
+  })
+
+  it('returns 403 for consulta when the audience is empty (staff only)', () => {
+    expect(archivoGate(consulta(), pub, true)).toBe(403)
   })
 
   it('returns 403 when consulta cannot open', () => {
@@ -42,7 +49,7 @@ describe('archivoGate', () => {
 
   it('returns 404 when the recurso is missing or has no blob', () => {
     expect(archivoGate(consulta(), null, true)).toBe(404)
-    expect(archivoGate(consulta(), pub, false)).toBe(404)
+    expect(archivoGate(consulta(), permitido, false)).toBe(404)
   })
 })
 

@@ -14,6 +14,7 @@ import {
   publicOrigin,
 } from '@/lib/gate-static'
 import { getSessionUser } from '@/lib/session'
+import { hubConfined } from '@/lib/access/hub-confinement'
 import { ruta } from '@/lib/http/ruta'
 import { getDb } from '@/lib/db'
 import { recursos } from '@/lib/db/schema'
@@ -53,6 +54,7 @@ async function handleGET(request: Request, ctx: Ctx) {
     )
     return NextResponse.redirect(login)
   }
+  if (hubConfined(user)) return absoluteRedirect(request, '/forbidden')
   const found = await loadRecursoAccessByRuta(ruta)
   if (!found) {
     return new NextResponse(null, { status: 404 })

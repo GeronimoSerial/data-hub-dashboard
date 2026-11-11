@@ -234,3 +234,34 @@ describe('VistaPreviaEscuela', () => {
     )
   })
 })
+
+describe('VistaPreviaEscuela — comedor y posible centro de evacuados', () => {
+  afterEach(cleanup)
+  const props = { urlFichaCompleta: '/x', onCerrarVistaPrevia: vi.fn(), onQuitarSeleccion: vi.fn() }
+
+  it.each([
+    ['desayuno_almuerzo', 'Desayuno y almuerzo'],
+    ['solo_desayuno', 'Solo desayuno'],
+    ['solo_almuerzo', 'Solo almuerzo'],
+    ['sin_servicio', 'Sin servicio registrado'],
+  ] as const)('muestra el comedor %s en la vista previa', (comedor, texto) => {
+    render(<VistaPreviaEscuela escuela={crearEscuelaBase({ comedor })} {...props} />)
+    expect(screen.getByText('Comedor').nextElementSibling).toHaveTextContent(texto)
+  })
+
+  it('sin dato de comedor no agrega la fila', () => {
+    render(<VistaPreviaEscuela escuela={crearEscuelaBase()} {...props} />)
+    expect(screen.queryByText('Comedor')).not.toBeInTheDocument()
+  })
+
+  it('marca la escuela apta, con su variante sin antecedentes, y no marca la no apta', () => {
+    const { unmount } = render(<VistaPreviaEscuela escuela={crearEscuelaBase({ posibleCentroEvacuados: true })} {...props} />)
+    expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
+    unmount()
+    const otra = render(<VistaPreviaEscuela escuela={crearEscuelaBase({ posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true })} {...props} />)
+    expect(screen.getByText('Posible centro de evacuados (sin antecedentes de riesgo)')).toBeInTheDocument()
+    otra.unmount()
+    render(<VistaPreviaEscuela escuela={crearEscuelaBase({ posibleCentroEvacuados: false })} {...props} />)
+    expect(screen.queryByText(/Posible centro de evacuados/)).not.toBeInTheDocument()
+  })
+})

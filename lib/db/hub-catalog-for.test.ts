@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { filterCatalogForSections } from './hub-catalog-for'
+import { describe, expect, it, vi } from 'vitest'
+import { buildCatalogResponse, filterCatalogForAccess, filterCatalogForSections } from './hub-catalog-for'
 import type { SessionUser } from '@/lib/acl'
 import type { HubSection } from '@/lib/hub-sections'
-import type { loadHubCatalog } from './hub'
+import { loadHubCatalog } from '@/lib/db/hub'
 import type { Recurso } from '@/lib/model'
+
+vi.mock('@/lib/db/hub', () => ({ loadHubCatalog: vi.fn() }))
 
 const recursos: Recurso[] = [
   { id: 'infra', formato: 'mapa', ruta: '/mapas/infraestructura', nivelId: 'n-infra', tipoId: 't-map', categoriaId: 'c-infra', tagIds: ['tag-infra'], estado: 'borrador', titulo: 'Infra', descripcion: '', area: '', actualizado: '' },
@@ -52,5 +54,75 @@ describe('filterCatalogForSections', () => {
 
   it('preserves all known sections for legacy unset policy', () => {
     expect(filterCatalogForSections(catalog, staff()).recursos).toHaveLength(3)
+  })
+})
+
+const acceso: Recurso[] = [
+  { id: 'sin-audiencia', formato: 'reporte', nivelId: 'n-sin', tipoId: 't-report', categoriaId: 'c-sin', tagIds: ['tag-sin'], estado: 'publicado', titulo: 'Sin', descripcion: '', area: '', actualizado: '' },
+  { id: 'otro-nivel', formato: 'reporte', nivelId: 'n-otro', tipoId: 't-report', categoriaId: 'c-otro', tagIds: ['tag-otro'], estado: 'publicado', audienciaNivelJurIds: [9], titulo: 'Otro', descripcion: '', area: '', actualizado: '' },
+  { id: 'mi-nivel', formato: 'reporte', nivelId: 'n-mi', tipoId: 't-report', categoriaId: 'c-mi', tagIds: ['tag-mi'], estado: 'publicado', audienciaNivelJurIds: [2], titulo: 'Mi', descripcion: '', area: '', actualizado: '' },
+  { id: 'infra', formato: 'mapa', ruta: '/mapas/infraestructura', nivelId: 'n-infra', tipoId: 't-map', categoriaId: 'c-infra', tagIds: ['tag-infra'], estado: 'publicado', titulo: 'Infra', descripcion: '', area: '', actualizado: '' },
+]
+
+const catalogoAcceso: Awaited<ReturnType<typeof loadHubCatalog>> = {
+  recursos: acceso,
+  niveles: ['n-sin', 'n-otro', 'n-mi', 'n-infra'].map((id) => ({ id, nombre: id, orden: 0 })),
+  tipos: ['t-report', 't-map'].map((id) => ({ id, nombre: id, aplicaA: [] })),
+  categorias: ['c-sin', 'c-otro', 'c-mi', 'c-infra'].map((id) => ({ id, nombre: id, color: 'brand' as const })),
+  tags: ['tag-sin', 'tag-otro', 'tag-mi', 'tag-infra'].map((id) => ({ id, nombre: id })),
+}
+
+function usuario(role: SessionUser['role'], over: Partial<SessionUser> = {}): SessionUser {
+  return { id: 'u-1', role, banned: false, nivelJurIds: [2], accesoRecursos: 'todos', recursoIds: [], ...over }
+}
+
+const ids = (items: { id: string }[]) => items.map(({ id }) => id)
+
+describe('filterCatalogForAccess', () => {
+  it('quita de la consulta los recursos sin audiencia o con audiencia que no incluye al usuario', () => {
+    const result = filterCatalogForAccess(catalogoAcceso, usuario('consulta'))
+    expect(ids(result.recursos)).toEqual(['mi-nivel', 'infra'])
+  })
+
+  it('conserva el mapa de infraestructura sin audiencia para la consulta', () => {
+    const result = filterCatalogForAccess(catalogoAcceso, usuario('consulta', { nivelJurIds: [] }))
+    expect(ids(result.recursos)).toEqual(['infra'])
+  })
+
+  it('poda niveles, tipos, categorías y tags a los que quedan referenciados', () => {
+    const result = filterCatalogForAccess(catalogoAcceso, usuario('consulta'))
+    expect(ids(result.niveles)).toEqual(['n-mi', 'n-infra'])
+    expect(ids(result.tipos)).toEqual(['t-report', 't-map'])
+    expect(ids(result.categorias)).toEqual(['c-mi', 'c-infra'])
+    expect(ids(result.tags)).toEqual(['tag-mi', 'tag-infra'])
+  })
+
+  it('muestra solo los asignados cuando el acceso es por lista', () => {
+    const result = filterCatalogForAccess(catalogoAcceso, usuario('consulta', { accesoRecursos: 'seleccionados', recursoIds: ['sin-audiencia'] }))
+    expect(ids(result.recursos)).toEqual(['sin-audiencia'])
+  })
+
+  it('no quita nada al staff', () => {
+    expect(ids(filterCatalogForAccess(catalogoAcceso, usuario('admin')).recursos)).toEqual(['sin-audiencia', 'otro-nivel', 'mi-nivel', 'infra'])
+    expect(ids(filterCatalogForAccess(catalogoAcceso, usuario('editor')).recursos)).toEqual(['sin-audiencia', 'otro-nivel', 'mi-nivel', 'infra'])
+  })
+
+  it('no quita nada sin sesión', () => {
+    expect(ids(filterCatalogForAccess(catalogoAcceso, null).recursos)).toHaveLength(4)
+  })
+})
+
+describe('buildCatalogResponse with access', () => {
+  it('entrega a la consulta solo lo que puede abrir, todo marcado abrir', async () => {
+    vi.mocked(loadHubCatalog).mockResolvedValue(catalogoAcceso)
+    const response = await buildCatalogResponse(usuario('consulta'), { publishedOnly: true })
+    expect(response.recursos.map(({ id, acceso }) => [id, acceso])).toEqual([['mi-nivel', 'abrir'], ['infra', 'abrir']])
+  })
+
+  it('mantiene todo el catálogo para el staff', async () => {
+    vi.mocked(loadHubCatalog).mockResolvedValue(catalogoAcceso)
+    const response = await buildCatalogResponse(usuario('admin'), { publishedOnly: false })
+    expect(response.recursos).toHaveLength(4)
+    expect(response.recursos.every(({ acceso }) => acceso === 'abrir')).toBe(true)
   })
 })

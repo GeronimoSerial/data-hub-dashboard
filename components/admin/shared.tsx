@@ -50,17 +50,18 @@ export const SECTION_LABELS: Record<HubSection, string> = {
 export const DESTINATION_LABELS: Record<string, string> = {
   '/': 'Inicio', '/explorar': 'Exploración', '/reportes': 'Reportes',
   '/mapas': 'Mapas', '/tableros': 'Tableros', '/mapas/infraestructura': 'ENOS 2026',
-  '/situacion': 'Situación', '/mapas/matricula': 'Mapa de matrícula', '/mapas/natalidad': 'Mapa de natalidad',
+  '/situacion': 'Situación', '/mapas/matricula': 'Mapa de matrícula', '/mapas/natalidad': 'Mapa de natalidad', '/mapas/reorganizacion': 'Reorganización escolar',
   '/tablero': 'Tablero', '/mapa_interactivo': 'Mapa interactivo', '/mapa_sobreedad': 'Mapa de sobreedad',
   '/mapa_notas': 'Mapa de notas', '/problematicas/parte/nuevo': 'Nuevo parte de infraestructura',
 }
 
-export const ROLES: Role[] = ['admin', 'editor', 'consulta', 'director_nivel', 'operador_establecimiento']
+export const ROLES: Role[] = ['admin', 'editor', 'consulta', 'director_nivel', 'operador_establecimiento', 'admin_ge']
 
 export function rolLabel(role: Role) {
   if (role === 'admin') return 'Administrador'
   if (role === 'editor') return 'Editor'
   if (role === 'director_nivel') return 'Director de nivel'
+  if (role === 'admin_ge') return 'Administrador GE'
   if (role === 'operador_establecimiento') return 'Operador del establecimiento'
   return 'Consulta'
 }

@@ -162,7 +162,7 @@ describe('resource explanations', () => {
         accesoRecursos: 'todos',
         recursoIds: [],
       },
-      publicAccess,
+      { ...publicAccess, audienciaUserIds: ['u1'] },
     )
     const first = await generateExplanation(anonymous, provider)
     const second = await generateExplanation(authorized, provider)

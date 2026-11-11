@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { BASEMAPS, type BasemapId } from '@/lib/map-types'
 import { CAPAS_VISIBLES_DEFAULT, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
 import { PanelCapas } from './panel-capas'
+import { LeyendaMapa } from './leyenda-mapa'
 
 describe('PanelCapas · Situación actual', () => {
   it('muestra el grupo "Situación actual" con la capa de estaciones del río activa', () => {
@@ -142,19 +143,12 @@ describe('PanelCapas', () => {
   })
 })
 
-describe('PanelCapas · eventos reportados', () => {
-  it('muestra el interruptor de eventos reportados activo dentro de Situación actual', () => {
-    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} />)
+describe('Lo que informan los medios', () => {
+  it('no aparece ni en el panel de capas ni en la leyenda del mapa', () => {
+    const { container: panel } = render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} />)
+    const { container: leyenda } = render(<LeyendaMapa pestana="actual" estacionesRio lluviaObservada={{ hasta: null, horas: 24, parciales: 0, vencida: false }} />)
 
-    const grupo = screen.getByRole('group', { name: 'Situación actual' })
-    expect(within(grupo).getByRole('switch', { name: 'Lo que informan los medios (últimos días)' }).getAttribute('aria-checked')).toBe('true')
-  })
-
-  it('apaga la capa de eventos reportados al desactivar su interruptor', async () => {
-    const cambios = vi.fn<(visibles: CapasVisibles) => void>()
-    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} />)
-
-    await userEvent.click(screen.getByRole('switch', { name: 'Lo que informan los medios (últimos días)' }))
-    expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, eventosReportados: false })
+    expect(within(panel).queryByText(/Lo que informan los medios/)).toBeNull()
+    expect(within(leyenda).queryByText(/Lo que informan los medios/)).toBeNull()
   })
 })

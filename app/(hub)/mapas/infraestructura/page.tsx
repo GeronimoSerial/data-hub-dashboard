@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
-import { puedeAbrir } from '@/lib/acl'
-import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
 import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
+import { puedeLeerMapaInfraestructura } from '@/lib/infraestructura/acceso-lectura'
 import { ensureSeeded } from '@/lib/db/seed'
 import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 
@@ -16,7 +15,7 @@ export default async function InfraestructuraMapRoute() {
   if (!user) redirect('/login?callbackUrl=/mapas/infraestructura')
   const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
   // operador_establecimiento (y director sin niveles) no ve el mapa aunque el recurso esté abierto.
-  if (!found || !puedeAbrir(user, found.access) || alcanceMapa(user).tipo === 'ninguno') {
+  if (!puedeLeerMapaInfraestructura(user, found?.access ?? null)) {
     redirect('/forbidden')
   }
   return null

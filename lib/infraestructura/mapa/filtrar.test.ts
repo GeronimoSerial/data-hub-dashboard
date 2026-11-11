@@ -35,6 +35,22 @@ function esc(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquec
   }
 }
 
+describe('filtrarEscuelas — conComedor', () => {
+  it('deja sólo las escuelas con desayuno y/o almuerzo; sin servicio registrado o sin dato queda afuera', () => {
+    const lista = [
+      esc({ cueAnexo: 'A', comedor: 'desayuno_almuerzo' }), esc({ cueAnexo: 'B', comedor: 'solo_desayuno' }),
+      esc({ cueAnexo: 'C', comedor: 'solo_almuerzo' }), esc({ cueAnexo: 'D', comedor: 'sin_servicio' }), esc({ cueAnexo: 'E' }),
+    ]
+    expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, conComedor: true }).map((e) => e.cueAnexo)).toEqual(['A', 'B', 'C'])
+    expect(filtrarEscuelas(lista, FILTROS_MAPA_VACIOS)).toHaveLength(5)
+  })
+
+  it('se combina con Y con otros filtros', () => {
+    const lista = [esc({ cueAnexo: 'A', comedor: 'solo_desayuno', gravedad: 3 }), esc({ cueAnexo: 'B', comedor: 'solo_desayuno', gravedad: 1 })]
+    expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, conComedor: true, gravedades: [3] }).map((e) => e.cueAnexo)).toEqual(['A'])
+  })
+})
+
 describe('filtrarEscuelas', () => {
   it('las opciones de un mismo chip se combinan con O y los chips entre sí con Y', () => {
     const lista = [esc({ departamento: 'Goya', gravedad: 3 }), esc({ departamento: 'Esquina', gravedad: 1 }), esc({ departamento: 'Goya', gravedad: 1 })]

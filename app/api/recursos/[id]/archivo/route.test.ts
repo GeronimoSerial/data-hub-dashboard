@@ -26,7 +26,7 @@ describe('archivo endpoint (mocked DB and storage)', () => {
     vi.clearAllMocks()
     row = { id: 'html', formato: 'reporte', ruta: null, estado: 'publicado', storageKey: 'html/uuid', mime: 'text/html', nombreOriginal: 'Informe ñ.html' }
     user = { id: 'reader', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [], hubPolicy: { enabledSections: ['reports'], landing: false } }
-    audience = []
+    audience = [{ userId: 'reader', nivelJurisdiccionalId: null }]
     mocks.getSessionUser.mockImplementation(async () => user)
     mocks.getDb.mockReturnValue({
       select: (fields?: unknown) => ({ from: () => ({ where: async () => fields && !('storageKey' in (fields as object)) ? audience : [row] }) }),

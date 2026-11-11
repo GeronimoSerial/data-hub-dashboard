@@ -4,6 +4,7 @@
 // diseño (sin evidencia probabilística, el cálculo usa el río de v0.3 y el
 // resultado v0.4 queda `no_estimable` con motivo) y deja el motivo en
 // `degradacion` para los metadatos del run.
+import { EDAD_MAX_SERIE_INA_V04_DIAS } from '../motor/config'
 import type { EvidenciaRioProbabilistica } from '../motor/tipos'
 import type { PuertoAltimetriaV04, AltimetriaPorCue } from '../motor-v04/altimetria-adaptador'
 import type { ResultadoEscuelaV04 } from '../motor-v04/contratos'
@@ -15,7 +16,7 @@ import type { InsumosTerrenoV04, PuertoTerrenoV04 } from '../motor-v04/terreno-a
 
 // Una estación cuya última fila (serie INA con la lectura de Prefectura ya
 // fusionada) es más vieja que esto no alimenta el río v0.4 en esta corrida.
-export const EDAD_MAX_SERIE_INA_V04_DIAS = 3
+export { EDAD_MAX_SERIE_INA_V04_DIAS } from '../motor/config'
 
 export type MotivoDegradacionV04 =
   | 'padron_no_disponible'

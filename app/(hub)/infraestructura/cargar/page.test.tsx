@@ -39,7 +39,7 @@ describe('CargarParteEscuelaPage', () => {
   })
 
   it('explica que se necesita la contraseña compartida', async () => {
-    getSessionUser.mockResolvedValue({ role: 'user', banned: false })
+    getSessionUser.mockResolvedValue({ role: 'consulta', banned: false })
 
     render(await CargarParteEscuelaPage({ searchParams: Promise.resolve({ cue: '1801605-04' }) }))
 

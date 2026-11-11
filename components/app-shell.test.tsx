@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { AppShell } from './app-shell'
+import { shellNavAllowed, shellUserFor } from '@/lib/access/shell-nav'
+import type { HubSection } from '@/lib/hub-sections'
 
 const { push, route } = vi.hoisted(() => ({ push: vi.fn(), route: { pathname: '/' } }))
 vi.mock('next/navigation', () => ({
@@ -88,17 +90,17 @@ describe('AppShell', () => {
     expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Buscar recursos' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /ENOS 2026/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /ENOS 2026/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Menú de cuenta' }))
     expect(screen.getByRole('menuitem', { name: 'Cerrar sesión' })).toBeInTheDocument()
   })
 
-  it('shows multiple enabled sections without exposing disabled navigation', () => {
+  it('does not render section links (Mapas, Tableros) in the shell navigation', () => {
     render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta', hubPolicy: { enabledSections: ['maps', 'dashboards'], landing: false } }}>Contenido</AppShell>)
     expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Mapas' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Tableros' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Mapas' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Tableros' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'ENOS 2026' })).not.toBeInTheDocument()
   })
 
@@ -117,5 +119,87 @@ describe('AppShell', () => {
     expect(screen.getByRole('menuitem', { name: 'Administración' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Centro de Situación' })).not.toBeInTheDocument()
+  })
+})
+
+describe('AppShell for confined roles', () => {
+  it('hides the hub navigation and the logo link for a director de nivel', () => {
+    render(<AppShell initialUser={{ name: 'Director', role: 'director_nivel' }}>Contenido</AppShell>)
+    expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Explorar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Buscar recursos' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Hub de Datos, inicio' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the hub navigation for a consulta user', () => {
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
+    expect(screen.getByRole('link', { name: 'Inicio' })).toBeInTheDocument()
+  })
+})
+
+describe('AppShell primary navigation', () => {
+  const navLinks = () => within(screen.getByRole('navigation', { name: 'Navegación principal' }))
+    .queryAllByRole('link')
+    .map((link) => link.textContent)
+
+  it('muestra solo Inicio y Explorar al admin en /', () => {
+    render(<AppShell initialUser={{ name: 'Admin', role: 'admin' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual(['Inicio', 'Explorar'])
+  })
+
+  it('no muestra items de navegación en /mapas/infraestructura para admin', () => {
+    route.pathname = '/mapas/infraestructura'
+    render(<AppShell initialUser={{ name: 'Admin', role: 'admin' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual([])
+  })
+
+  it('no muestra items de navegación en mapas para consulta', () => {
+    route.pathname = '/mapas/infraestructura'
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual([])
+  })
+
+  it('no muestra items de hub a un director de nivel en /mapas/infraestructura', () => {
+    route.pathname = '/mapas/infraestructura'
+    render(<AppShell initialUser={{ name: 'Director', role: 'director_nivel' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual([])
+  })
+
+  it('no muestra Inicio ni Explorar a un operador de establecimiento', () => {
+    render(<AppShell initialUser={{ name: 'Operador', role: 'operador_establecimiento' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual([])
+  })
+
+  it('muestra solo Explorar a una consulta sin landing', () => {
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta', hubPolicy: { enabledSections: ['explore'], landing: false } }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual(['Explorar'])
+  })
+
+  it('muestra solo Inicio a una consulta sin explore', () => {
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta', hubPolicy: { enabledSections: ['maps'], landing: true } }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual(['Inicio'])
+  })
+
+  it('muestra Inicio y Explorar a una consulta legacy', () => {
+    render(<AppShell initialUser={{ name: 'Consulta', role: 'consulta' }}>Contenido</AppShell>)
+    expect(navLinks()).toEqual(['Inicio', 'Explorar'])
+  })
+})
+
+describe('AppShell search entries follow shellNavAllowed', () => {
+  it.each([
+    ['anonymous', null, undefined],
+    ['admin', { name: 'Admin', role: 'admin' as const }, undefined],
+    ['consulta with explore', { name: 'Consulta', role: 'consulta' as const }, undefined],
+    ['consulta without explore', { name: 'Consulta', role: 'consulta' as const }, { enabledSections: ['maps'] as HubSection[], landing: false }],
+    ['director de nivel', { name: 'Director', role: 'director_nivel' as const }, undefined],
+  ])('%s: search button matches the navbar capability', (_label, user, hubPolicy) => {
+    const initialUser = user === null ? null : { ...user, hubPolicy }
+    render(<AppShell initialUser={initialUser}>Contenido</AppShell>)
+    const expected = shellNavAllowed(
+      user === null ? null : shellUserFor(user.role, hubPolicy),
+      '/explorar',
+    )
+    expect(Boolean(screen.queryByRole('link', { name: 'Buscar recursos' }))).toBe(expected)
   })
 })

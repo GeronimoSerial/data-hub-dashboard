@@ -55,11 +55,18 @@ describe('puedeVerNominal', () => {
     ).toBe(false)
   })
 
-  it('un director de nivel sin grant no ve nominal: el alcance por dirección no reemplaza al grant', async () => {
+  it.each(['admin_ge', 'director_nivel'] as const)('un %s sin grant tiene acceso nominal por su rol', async (role) => {
     const { puedeVerNominal } = await import('./permiso-nominal')
-    const id = idUnico('director')
+    const id = idUnico(role)
     expect(
-      await puedeVerNominal(user({ id, role: 'director_nivel', nivelJurIds: [1] }), new Date()),
+      await puedeVerNominal(user({ id, role, nivelJurIds: [1] }), new Date()),
+    ).toBe(true)
+  })
+
+  it.each(['admin_ge', 'director_nivel'] as const)('un %s baneado no tiene acceso nominal', async (role) => {
+    const { puedeVerNominal } = await import('./permiso-nominal')
+    expect(
+      await puedeVerNominal(user({ id: idUnico(role), role, banned: true }), new Date()),
     ).toBe(false)
   })
 
