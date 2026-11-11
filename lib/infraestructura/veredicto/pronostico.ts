@@ -4,6 +4,7 @@ import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 // rango UTC del día y usa sólo la corrida más reciente por clave de geometría.
 import { and, desc, eq, gte, inArray, lt } from 'drizzle-orm'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
+import { getHazardDb } from '@/lib/db/hazard-source'
 import { hazardClimatology, hazardEnsembleProb, hazardForecast, smnAlerta } from '@/lib/db/schema'
 import { obtenerPuntosRio, puntoRioPorId } from '@/lib/infraestructura/riesgo/puntos-rio'
 import { departamentoDeCelda, departamentoDeCoordenada } from './celda-departamento'
@@ -106,7 +107,7 @@ export async function leerCaudalDia(db: Db, fecha: string): Promise<CaudalDia[]>
   // día calendario UTC (no por el rango ART, que tomaría el valor de D+1).
   const desde = `${fecha}T00:00:00`
   const hasta = `${sumarDias(fecha, 1)}T00:00:00`
-  const filas = await db
+  const filas = await getHazardDb()
     .select()
     .from(hazardForecast)
     .where(
@@ -225,7 +226,7 @@ function acumularMaximo(
 export async function leerLluviaPronosticadaDia(db: Db, fecha: string): Promise<LluviaPronosticadaDia[]> {
   await cargarReferencias()
   const { desde, hasta } = rangoUtcDeDiaArt(fecha)
-  const filas = await db
+  const filas = await getHazardDb()
     .select()
     .from(hazardForecast)
     .where(
