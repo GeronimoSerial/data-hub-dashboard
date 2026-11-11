@@ -83,7 +83,7 @@ describe('ListaEscuelas', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Contactadas' }))
     expect(screen.getByText('Escuela Contactada')).toBeInTheDocument()
     expect(screen.queryByText('Escuela Pendiente')).not.toBeInTheDocument()
-    expect(screen.getByText(/Contactada por Ana Operadora/)).toBeInTheDocument()
+    expect(screen.getByText(/llamó Ana Operadora/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Todas' }))
     expect(screen.getByText('Escuela Pendiente')).toBeInTheDocument()
