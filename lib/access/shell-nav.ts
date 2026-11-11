@@ -6,6 +6,7 @@ import { can, type Capability } from './capabilities'
 const SHELL_NAV_CAPABILITY: Readonly<Record<string, Capability>> = {
   '/': 'hub.landing',
   '/explorar': 'hub.explore',
+  '/cuadernillos': 'hub.section.cuadernillos',
 }
 
 /** Client-safe user for the shell, which only knows the role and the hub policy. */
