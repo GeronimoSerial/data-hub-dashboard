@@ -163,6 +163,14 @@ describe('admin remainder authority', () => {
     await expect(getRequestChain(admin, root.requestId, repository)).resolves.toMatchObject({ rootRequestId: root.requestId })
   })
 
+  it('lets an unverified admin account create a remainder and read the chain', async () => {
+    state.accounts.set('admin-unverified', { emailVerified: false, banned: false })
+    const unverified: SessionUser = { ...admin, id: 'admin-unverified' }
+    const created = await createRemainderRequest(unverified, { rootRequestId: root.requestId, lines: [{ productId: 'product-1', quantity: 40 }], idempotencyKey: 'unverified-rem-1' }, repository)
+    expect(created.status).toBe('pending')
+    await expect(getRequestChain(unverified, root.requestId, repository)).resolves.toMatchObject({ rootRequestId: root.requestId })
+  })
+
   it('keeps remainder creation and chain reads closed to a non-admin without membership', async () => {
     state.accounts.set('outsider', { emailVerified: true, banned: false })
     const outsider: SessionUser = { ...admin, id: 'outsider', role: 'consulta' }
