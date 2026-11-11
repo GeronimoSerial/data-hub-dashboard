@@ -414,6 +414,7 @@ exports[`GET /api/mapas/infraestructura/parte > answers 200 with a null parte fo
 {
   "body": {
     "afectaciones": [],
+    "alumnosUnicos": 0,
     "datosPadron": null,
     "ok": true,
     "parte": null,
@@ -439,6 +440,7 @@ exports[`GET /api/mapas/infraestructura/parte > answers 200 with the parte card 
 {
   "body": {
     "afectaciones": [],
+    "alumnosUnicos": 0,
     "datosPadron": {
       "matriculaTotal": 1,
       "niveles": [

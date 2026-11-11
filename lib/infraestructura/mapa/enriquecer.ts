@@ -50,6 +50,12 @@ export function esSinActualizar(parte: ParteMapa | undefined, ahoraMs: number): 
   return ahoraMs - Date.parse(parte.actualizadaEn) > umbralMs
 }
 
+function alumnosSinClases(clases: EstadoClases, matricula: number, parte: ParteMapa | undefined): number {
+  if (clases === 'sin' || clases === 'evacuado' || clases === 'centro') return matricula
+  if (clases === 'parcial') return parte?.alumnosEnServicioSuspendido ?? 0
+  return 0
+}
+
 function situacionesDe(parte: ParteMapa): Array<AfectacionMapa & { estadoEstablecimiento: EstadoEstablecimiento }> {
   return parte.afectaciones.map((afectacion) => ({
     ...afectacion,
@@ -103,7 +109,7 @@ export function enriquecerEscuela(
     apoyo: derivarApoyo(clases, extra.asistencia),
     sinActualizar: esSinActualizar(parte, ahoraMs),
     ultimaNovedad: parte?.actualizadaEn ?? null,
-    alumnosSinClases: clases === 'sin' || clases === 'evacuado' || clases === 'centro' ? extra.alumnos : 0,
+    alumnosSinClases: alumnosSinClases(clases, extra.alumnos, parte),
     situacionesHistoricas: extra.situacionesHistoricas,
     solucionadasRecientes: extra.solucionadasRecientes,
     ...(extra.carreras !== undefined ? { carreras: extra.carreras } : {}),
