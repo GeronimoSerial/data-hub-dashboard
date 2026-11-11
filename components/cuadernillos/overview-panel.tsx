@@ -76,8 +76,10 @@ export function OverviewPanel({
   capability,
   assignments,
   onRequestCreated,
+  readOnly = false,
 }: {
   capability: BookletCapability
+  readOnly?: boolean
   assignments: BookletAssignmentsPage | null
   onRequestCreated: () => void
 }) {
@@ -124,7 +126,7 @@ export function OverviewPanel({
   }, [loadOverview])
 
   useEffect(() => {
-    if (capability !== 'cabecera' || !selectedRecipient || !selectedCampaign) return
+    if (capability !== 'cabecera' || readOnly || !selectedRecipient || !selectedCampaign) return
     const controller = new AbortController()
     const key = `${selectedCampaign}:${selectedRecipient}`
     const query = new URLSearchParams({ cueAnexo: selectedRecipient, campaignId: selectedCampaign })
@@ -149,7 +151,7 @@ export function OverviewPanel({
         if (!controller.signal.aborted) setRecommendationIssue({ key, error: reason instanceof Error ? reason.message : 'No se pudieron calcular las recomendaciones.' })
       })
     return () => controller.abort()
-  }, [capability, selectedRecipient, selectedCampaign])
+  }, [capability, readOnly, selectedRecipient, selectedCampaign])
 
   const products = useMemo(() => [...new Map((overview?.balances ?? []).map((row) => [row.productId, row])).values()], [overview])
   const heads = useMemo(() => [...new Map((overview?.balances ?? []).flatMap((row) => row.cabeceraCueAnexo && row.cabeceraName
@@ -277,7 +279,7 @@ export function OverviewPanel({
               ))}</tbody>
             </table>
           </div>
-          {writeEnabled && products.length ? (
+          {!readOnly && writeEnabled && products.length ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 18rem), 1fr))', gap: '1.25rem', marginTop: '1.5rem' }}>
               <form onSubmit={(event) => void updateStock(event)} style={{ display: 'grid', alignContent: 'start', gap: '.75rem', borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>
                 <h4 style={{ margin: 0, color: 'var(--ink)' }}>Registrar stock global</h4>
@@ -298,7 +300,7 @@ export function OverviewPanel({
         </>
       ) : null}
 
-      {overview?.campaignId && capability === 'cabecera' ? (
+      {overview?.campaignId && capability === 'cabecera' && !readOnly ? (
         <>
           <p style={{ maxWidth: '52rem', color: 'var(--ink-soft)' }}>La matrícula y la elegibilidad se verifican en el servidor al consultar o enviar. Cantidades recomendadas son una referencia, no un máximo.</p>
           <label style={{ display: 'grid', gap: '.35rem', maxWidth: '32rem' }}>

@@ -41,7 +41,7 @@ function isBookletAssignmentView(value: unknown): value is BookletAssignmentView
     && (typeof row.supervisorName === 'string' || row.supervisorName === null)
 }
 
-export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletCapability[] }) {
+export function CuadernillosWorkspace({ capabilities, readOnlyCapabilities = [] }: { capabilities: BookletCapability[]; readOnlyCapabilities?: BookletCapability[] }) {
   const [activeCapability, setActiveCapability] = useState<BookletCapability | null>(capabilities[0] ?? null)
   const [pageState, setPageState] = useState<{ capability: BookletCapability; page: BookletAssignmentsPage } | null>(null)
   const [loading, setLoading] = useState(capabilities.length > 0)
@@ -49,6 +49,7 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
   const [error, setError] = useState<string | null>(null)
   const [requestRefreshKey, setRequestRefreshKey] = useState(0)
   const page = pageState?.capability === activeCapability ? pageState.page : null
+  const readOnly = activeCapability !== null && readOnlyCapabilities.includes(activeCapability)
 
   useEffect(() => {
     if (!activeCapability || !capabilities.includes(activeCapability)) {
@@ -127,11 +128,17 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
             </nav>
           ) : null}
 
+          {readOnly ? (
+            <p role="status" style={{ borderLeft: '4px solid var(--marker)', background: 'var(--fill)', padding: '1rem 1.25rem', color: 'var(--ink-soft)', marginBottom: '2rem' }}>
+              Vista de solo lectura (administrador)
+            </p>
+          ) : null}
+
           {activeCapability === 'planning' ? <PlanningView page={page} loading={loading} error={error} onLoadMore={loadMore} loadingMore={loadingMore} /> : null}
           {activeCapability === 'cabecera' ? <CabeceraView page={page} loading={loading} error={error} onLoadMore={loadMore} loadingMore={loadingMore} /> : null}
           {activeCapability === 'supervisor' ? <SupervisorView page={page} loading={loading} error={error} onLoadMore={loadMore} loadingMore={loadingMore} /> : null}
-          {activeCapability ? <OverviewPanel key={activeCapability} capability={activeCapability} assignments={page} onRequestCreated={() => setRequestRefreshKey((key) => key + 1)} /> : null}
-          <RequestList refreshKey={requestRefreshKey} capability={activeCapability ?? undefined} />
+          {activeCapability ? <OverviewPanel key={activeCapability} capability={activeCapability} assignments={page} readOnly={readOnly} onRequestCreated={() => setRequestRefreshKey((key) => key + 1)} /> : null}
+          <RequestList refreshKey={requestRefreshKey} capability={activeCapability ?? undefined} readOnly={readOnly} />
         </>
       )}
     </div>
