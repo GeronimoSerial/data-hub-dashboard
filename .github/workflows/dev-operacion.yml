@@ -19,7 +19,7 @@ jobs:
       - name: Dependencias para copiar adjuntos al bucket de dev
         if: inputs.operacion == 'configurar'
         run: npm install --prefix /tmp/dev-ops --no-audit --no-fund @aws-sdk/client-s3 pg > /dev/null
-      - name: Clonar datos de prod en una base propia de dev
+      - name: Clonar datos de prod sobre hub_dev
         if: inputs.operacion == 'clonar-prod'
         env:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
@@ -57,7 +57,7 @@ jobs:
           def con_ssl(u,modo):
             q=urllib.parse.parse_qs(urllib.parse.urlparse(u).query)
             return u if 'sslmode' in q else u+('&' if '?' in u else '?')+'sslmode='+modo
-          copia=urllib.parse.urlunparse(d._replace(path='/hub_dev_prodcopy'))
+          copia=dev_url
           admin=urllib.parse.urlunparse(d._replace(path='/postgres'))
           pathlib.Path('prod.url').write_text(con_ssl(prod_url,'require'))
           pathlib.Path('admin.url').write_text(con_ssl(admin,'require'))
@@ -70,7 +70,16 @@ jobs:
           pg_dump --format=custom --no-owner --no-acl --file=prod.dump "$(cat prod.url)"
           pg_restore --list prod.dump > /dev/null
           echo "Dump verificado: $(stat -c %s prod.dump) bytes"
-          psql "$(cat admin.url)" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS hub_dev_prodcopy WITH (FORCE)" -c "CREATE DATABASE hub_dev_prodcopy"
+          # Pisa hub_dev: vaciar todos los schemas de usuario para que no queden
+          # tablas ni registro de migraciones de dev mezclados con los de prod.
+          psql "$(cat copy.url)" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$ DECLARE s text; BEGIN
+            FOR s IN SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg\_%' AND nspname <> 'information_schema' LOOP
+              EXECUTE format('DROP SCHEMA %I CASCADE', s);
+            END LOOP;
+            CREATE SCHEMA public;
+          END $$;
+          SQL
           pg_restore --no-owner --no-acl --dbname="$(cat copy.url)" prod.dump 2> restore.err || true
           echo "Errores de restore: $(grep -c 'error:' restore.err || true)"; grep 'error:' restore.err | head -10 || true
           # Sin sesiones ni tokens de prod en dev.
@@ -78,15 +87,13 @@ jobs:
           psql "$(cat copy.url)" -Atc "SELECT 'user rows: '||count(*) FROM \"user\""
           python3 - <<'PY'
           import os,json,urllib.request,pathlib
-          req=lambda path,method,data: urllib.request.urlopen(urllib.request.Request('https://coolify.sistemas.mec.gob.ar/api/v1'+path,method=method,
-            headers={'Authorization':'Bearer '+os.environ['COOLIFY_TOKEN'],'Content-Type':'application/json'},data=json.dumps(data).encode()),timeout=45)
           uuid=pathlib.Path('dev.uuid').read_text()
-          req('/applications/'+uuid+'/envs/bulk','PATCH',{'data':[{'key':'DATABASE_URL','value':pathlib.Path('copy.raw').read_text(),
-            'is_runtime':True,'is_buildtime':False,'is_preview':False,'is_literal':True}]})
-          req('/deploy','POST',{'uuid':uuid,'force':True})
-          print('Dev apunta a hub_dev_prodcopy; hub_dev queda intacta. Volver: operacion=configurar')
+          urllib.request.urlopen(urllib.request.Request('https://coolify.sistemas.mec.gob.ar/api/v1/deploy',method='POST',
+            headers={'Authorization':'Bearer '+os.environ['COOLIFY_TOKEN'],'Content-Type':'application/json'},
+            data=json.dumps({'uuid':uuid,'force':True}).encode()),timeout=45)
+          print('hub_dev restaurada desde prod; dev redeployado (aplica migraciones al arrancar)')
           PY
-          rm -f prod.dump prod.url admin.url copy.url copy.raw restore.err
+          rm -f prod.dump prod.url admin.url copy.url copy.raw restore.err dev.uuid
       - name: Operar dev en Coolify
         if: inputs.operacion != 'clonar-prod'
         env:
