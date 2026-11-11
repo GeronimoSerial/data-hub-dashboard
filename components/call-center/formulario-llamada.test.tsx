@@ -51,10 +51,19 @@ beforeEach(() => {
 })
 
 describe('FormularioLlamada', () => {
-  it('prefills the caller name and lets the operator edit it', () => {
+  it('prefills the caller name and locks it', () => {
     renderFormulario()
     const caller = screen.getByLabelText('Nombre de quien llama') as HTMLInputElement
     expect(caller.value).toBe('Ana Operadora')
+    expect(caller).toBeDisabled()
+  })
+
+  it('lets the operator type the name when the session has none', () => {
+    render(
+      <FormularioLlamada cueAnexo={CUE} nombreEscuela="Escuela Normal" callerNombreInicial="" onGuardada={vi.fn()} />,
+    )
+    const caller = screen.getByLabelText('Nombre de quien llama') as HTMLInputElement
+    expect(caller).toBeEnabled()
     fireEvent.change(caller, { target: { value: 'Luis' } })
     expect(caller.value).toBe('Luis')
   })
