@@ -409,3 +409,35 @@
     scroll-behavior: auto;
   }
 }
+
+/* Link to the call center, same type scale as the tabs but a plain navigation link */
+.headerBar .callCenterLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  flex-shrink: 0;
+  min-height: 2.125rem;
+  padding: 0.3125rem 0.75rem;
+  border: 1px solid var(--hb-chip-border);
+  border-radius: 0.375rem;
+  background: var(--hb-chip-bg);
+  color: var(--hb-chip-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.headerBar .callCenterLink:hover {
+  background: var(--hb-chip-hover-bg);
+  border-color: var(--hb-chip-hover-border);
+}
+
+.headerBar .callCenterLink:focus-visible {
+  outline: 2px solid var(--hb-focus-ring);
+  outline-offset: 1px;
+}
