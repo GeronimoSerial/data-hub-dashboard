@@ -84,6 +84,7 @@ async function handleGET(request: Request) {
       periodo: ficha.periodo,
       parte: ficha.parte,
       servicio: ficha.servicio,
+      alumnosUnicos: ficha.alumnosUnicos,
       // Deliberadamente sin `secciones` (ids de alumno): sólo id, motivo,
       // categoría, severidad, justificación crítica, descripción, vigencia,
       // causalidad y totales agregados.

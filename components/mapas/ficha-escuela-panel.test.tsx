@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { FichaEscuelaPanel } from './ficha-escuela-panel'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
@@ -46,12 +46,12 @@ const movimientos: MovimientoHistorial[] = [
   { id: 'mov-3', tipo: 'confirmacion', rol: 'director', creadaEn: '2026-09-03T12:00:00.000Z', rigeDesde: '2026-09-03T12:00:00.000Z', titulo: 'Situación confirmada', cambios: ['Sigue igual: "Inaccesibilidad"'], severidad: 'Alta' },
 ]
 
-function instalarFetch({ error = false, situaciones = afectaciones, recientes, estadoEstablecimiento = 'habitual', informarServicio = true }: { error?: boolean; situaciones?: AfectacionFicha[]; recientes?: SolucionadaFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' | 'evacuado'; informarServicio?: boolean } = {}) {
+function instalarFetch({ error = false, situaciones = afectaciones, recientes, estadoEstablecimiento = 'habitual', informarServicio = true, alumnosUnicos }: { error?: boolean; situaciones?: AfectacionFicha[]; recientes?: SolucionadaFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' | 'evacuado'; informarServicio?: boolean; alumnosUnicos?: number } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: !error,
     json: async () => url.includes('/api/infraestructura/adjuntos')
       ? { movements: [] }
-      : url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones, servicio: { estadoGeneral: informarServicio ? 'suspendido' : 'normal', alcanceVigente: informarServicio ? [{ id: 's1', parteId: 'p1', tipo: 'establecimiento', referenciaId: null, estado: 'suspendido', rigeDesde: '2026-10-01T10:00:00Z', creadaEn: '2026-10-01T10:00:00Z', retiradaEn: null }] : [] }, ...(recientes === undefined ? {} : { recientes }) },
+      : url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones, servicio: { estadoGeneral: informarServicio ? 'suspendido' : 'normal', alcanceVigente: informarServicio ? [{ id: 's1', parteId: 'p1', tipo: 'establecimiento', referenciaId: null, estado: 'suspendido', rigeDesde: '2026-10-01T10:00:00Z', creadaEn: '2026-10-01T10:00:00Z', retiradaEn: null }] : [] }, ...(recientes === undefined ? {} : { recientes }), ...(alumnosUnicos === undefined ? {} : { alumnosUnicos }) },
   })))
 }
 
@@ -253,6 +253,29 @@ describe('FichaEscuelaPanel', () => {
     const justificacion = await screen.findByTestId('preview-justificacion-critica')
     expect(justificacion).toHaveTextContent('Justificación de gravedad: Otro · Cableado expuesto')
     expect(screen.getByTestId('vista-previa-escuela')).toBeInTheDocument()
+  })
+
+  it('usa los alumnos únicos del servidor como alumnos afectados en la vista previa', async () => {
+    instalarFetch({ alumnosUnicos: 45, situaciones: [
+      { ...afectaciones[0], id: 'afectacion-1', totales: { secciones: 1, alumnos: 30 } },
+      { ...afectaciones[0], id: 'afectacion-2', motivo: 'Filtración', totales: { secciones: 1, alumnos: 30 } },
+    ] })
+    renderFicha({ escuela: { ...escuela, alumnosSinClases: 0 }, urlFichaCompleta: '/escuelas/180000123-00' })
+
+    const impacto = await screen.findByTestId('preview-bloque-impacto')
+    expect(within(impacto).getByText('45')).toBeInTheDocument()
+    expect(within(impacto).queryByText('60')).not.toBeInTheDocument()
+  })
+
+  it('cae a la suma de totales en la vista previa cuando el servidor no envía alumnos únicos', async () => {
+    instalarFetch({ situaciones: [
+      { ...afectaciones[0], id: 'afectacion-1', totales: { secciones: 1, alumnos: 30 } },
+      { ...afectaciones[0], id: 'afectacion-2', motivo: 'Filtración', totales: { secciones: 1, alumnos: 30 } },
+    ] })
+    renderFicha({ escuela: { ...escuela, alumnosSinClases: 0 }, urlFichaCompleta: '/escuelas/180000123-00' })
+
+    const impacto = await screen.findByTestId('preview-bloque-impacto')
+    expect(within(impacto).getByText('60')).toBeInTheDocument()
   })
 
   it('muestra las situaciones solucionadas recientes con gravedad y fecha absoluta', async () => {
