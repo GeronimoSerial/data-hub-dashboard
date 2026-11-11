@@ -55,6 +55,8 @@ export interface RespuestaParteMapa {
   parte: ParteFicha | null
   servicio?: { estadoGeneral: EstadoServicioGeneral; alcanceVigente: ServicioAlcance[] }
   afectaciones?: AfectacionFicha[]
+  // Alumnos distintos de la escuela (sin ids; el servidor deduplica).
+  alumnosUnicos?: number
   secciones?: SeccionEstablecimiento[]
   datosPadron?: DatosPadronEscuela | null
   recientes?: SolucionadaFicha[]

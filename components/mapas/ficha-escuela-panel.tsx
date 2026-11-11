@@ -225,7 +225,7 @@ export function FichaEscuelaPanel({
                   creadaEn: a.creadaEn,
                 })),
                 seccionesAlcanzadas: afectaciones.reduce((acc, a) => acc + (a.totales.secciones ?? 0), 0),
-                alumnosDelHecho: afectaciones.reduce((acc, a) => acc + (a.totales.alumnos ?? 0), 0),
+                alumnosDelHecho: datos.alumnosUnicos ?? afectaciones.reduce((acc, a) => acc + (a.totales.alumnos ?? 0), 0),
                 alumnosAlcanzados: escuela.alumnos,
                 rigeDesde: datos.parte.actualizadaEn,
                 actualizadaEn: datos.parte.actualizadaEn,
