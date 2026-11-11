@@ -181,6 +181,7 @@ export async function hasBookletCapability(
   repository: BookletPermissionRepository = databaseRepository,
 ): Promise<boolean> {
   if (!actor || actor.banned) return false
+  if (await isBookletAdmin(actor, repository)) return true
   try {
     const account = await repository.getAccountStatus(actor.id)
     if (!account || !account.emailVerified || account.banned) return false
@@ -200,6 +201,7 @@ export async function canAccessSchool(
   if (!/^\d{9}$/.test(cueAnexo)) return false
   if (!await hasBookletCapability(actor, capability, repository)) return false
   if (capability === 'planning') return true
+  if (await isBookletAdmin(actor, repository)) return true
   try {
     return await repository.hasSchoolAssignment(actor!.id, cueAnexo, capability)
   } catch {
@@ -208,13 +210,13 @@ export async function canAccessSchool(
 }
 
 /**
- * Read-only visibility for global admins. It never grants a membership or school
- * assignment, so write services keep using hasBookletCapability and canAccessSchool.
- * Only read paths may call this helper.
+ * Global admin authority: a verified, unbanned account with role admin. It bypasses
+ * module membership and school assignment checks only; callers keep their other
+ * guards (identity from the session, eligibility, stock, idempotency, locks).
  */
-export async function isBookletAdminViewer(
+export async function isBookletAdmin(
   actor: SessionUser | null,
-  repository: BookletPermissionRepository = databaseRepository,
+  repository: Pick<BookletPermissionRepository, 'getAccountStatus'> = databaseRepository,
 ): Promise<boolean> {
   if (!actor || actor.banned || actor.role !== 'admin') return false
   try {
@@ -279,7 +281,7 @@ export async function getBookletRequestPage(
   const capabilityChecks = await Promise.all((['planning', 'cabecera', 'supervisor'] as const).map(async (capability) =>
     await hasBookletCapability(actor, capability, repository) ? capability : null))
   const capabilities = capabilityChecks.filter((value): value is BookletCapability => value !== null)
-  const adminViewer = await isBookletAdminViewer(actor, repository)
+  const adminViewer = await isBookletAdmin(actor, repository)
   if (capabilities.length === 0 && !adminViewer) throw new BookletRequestReadError('forbidden', 403)
 
   let campaignOptions: BookletCampaignOption[]

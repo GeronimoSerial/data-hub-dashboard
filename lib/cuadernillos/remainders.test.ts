@@ -148,3 +148,26 @@ describe('request remainder chains', () => {
     await expect(createRemainderRequest(cabecera, { rootRequestId: root.requestId, lines: [{ productId: 'product-1', quantity: 1 }], idempotencyKey: 'rem-covered' }, repository)).rejects.toMatchObject({ code: 'remainder_exceeded' })
   })
 })
+
+describe('admin remainder authority', () => {
+  const admin: SessionUser = { id: 'admin-1', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
+  beforeEach(() => {
+    state.accounts.set(admin.id, { emailVerified: true, banned: false })
+    state.assignedCues.clear()
+  })
+
+  it('creates a remainder and reads the chain for an admin without cabecera membership or assignment', async () => {
+    const created = await createRemainderRequest(admin, { rootRequestId: root.requestId, lines: [{ productId: 'product-1', quantity: 40 }], idempotencyKey: 'admin-rem-1' }, repository)
+    expect(created.status).toBe('pending')
+    expect([...state.requests.values()].some((row) => row.createdByUserId === admin.id && row.parentRequestId === root.requestId)).toBe(true)
+    await expect(getRequestChain(admin, root.requestId, repository)).resolves.toMatchObject({ rootRequestId: root.requestId })
+  })
+
+  it('keeps remainder creation and chain reads closed to a non-admin without membership', async () => {
+    state.accounts.set('outsider', { emailVerified: true, banned: false })
+    const outsider: SessionUser = { ...admin, id: 'outsider', role: 'consulta' }
+    await expect(createRemainderRequest(outsider, { rootRequestId: root.requestId, lines: [{ productId: 'product-1', quantity: 40 }], idempotencyKey: 'out-1' }, repository))
+      .rejects.toMatchObject({ code: 'forbidden', status: 403 })
+    await expect(getRequestChain(outsider, root.requestId, repository)).rejects.toMatchObject({ code: 'request_not_found', status: 404 })
+  })
+})

@@ -105,7 +105,7 @@ function RequestLines({ lines }: { lines: BookletRequestLineView[] }) {
   )
 }
 
-export function RequestList({ refreshKey = 0, capability, readOnly = false }: { refreshKey?: number; capability?: BookletCapability; readOnly?: boolean }) {
+export function RequestList({ refreshKey = 0, capability }: { refreshKey?: number; capability?: BookletCapability }) {
   const [page, setPage] = useState<BookletRequestsPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -297,7 +297,7 @@ export function RequestList({ refreshKey = 0, capability, readOnly = false }: { 
                   </p>
                 </div>
               ) : null}
-              {capability === 'supervisor' && request.status === 'pending' && !readOnly ? (
+              {capability === 'supervisor' && request.status === 'pending' ? (
                 <div style={{ display: 'grid', gap: '.75rem', marginTop: '1rem', borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>
                   <h5 style={{ margin: 0 }}>Revisión individual</h5>
                   <p style={{ margin: 0, color: 'var(--ink-soft)' }}>La aprobación descuenta stock y cupo inmediatamente, no puede anularse y no confirma una entrega física. No se puede cambiar después.</p>
@@ -314,7 +314,7 @@ export function RequestList({ refreshKey = 0, capability, readOnly = false }: { 
                   <button type="button" disabled={Boolean(actionBusy) || !(rejectReasons[request.requestId]?.trim())} onClick={() => void submitDecision(request, 'reject')} className="ui-button ui-button--secondary">{actionBusy === `${request.requestId}:reject` ? 'Procesando…' : 'Rechazar solicitud'}</button>
                 </div>
               ) : null}
-              {capability === 'cabecera' && !readOnly && request.rootRequestId === request.requestId && request.status === 'approved' && request.remaining.length ? (
+              {capability === 'cabecera' && request.rootRequestId === request.requestId && request.status === 'approved' && request.remaining.length ? (
                 <div style={{ display: 'grid', gap: '.75rem', marginTop: '1rem', borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>
                   <h5 style={{ margin: 0 }}>Proponer una solicitud de remanente</h5>
                   <p style={{ margin: 0, color: 'var(--ink-soft)' }}>La diferencia no aprobada de esta solicitud es indicativa; no es un saldo disponible. Consultá la cadena para descontar remanentes ya reservados. El servidor vuelve a validar antes de crear una solicitud pendiente; esto no aprueba ni completa el faltante.</p>
