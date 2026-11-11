@@ -18,6 +18,7 @@ import {
 } from '@/lib/db/schema'
 import { asegurarGeAdjuntada } from './impacto'
 import { proyectarImpactoAlumnos, type ImpactoAlumnos } from './prioridad-alumnos'
+import { contarAlumnosUnicos } from './alumnos-unicos'
 import { esJustificacionCritica } from './justificacion-critica'
 import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
 import { severidadDelMovimiento } from './severidad-movimiento'
@@ -390,6 +391,8 @@ export interface FichaParte {
   } | null
   servicio: { estadoGeneral: EstadoServicioGeneral; alcanceVigente: ServicioAlcance[] }
   afectaciones: AfectacionFicha[]
+  // Alumnos distintos entre las afectaciones vigentes (no la suma de totales).
+  alumnosUnicos: number
   secciones: SeccionEstablecimiento[]
   // Sólo institutos superiores: carreras del corte vigente con su total de alumnos.
   carreras?: CarreraMatricula[]
@@ -476,6 +479,7 @@ export async function armarFichaParte(
       parte: fichaParteResumen(actual, snapshot),
       servicio: instituto.servicio,
       afectaciones: instituto.afectaciones,
+      alumnosUnicos: contarAlumnosUnicos(instituto.afectaciones),
       secciones: actual.secciones,
       carreras: instituto.carreras,
       ultimaActualizacion: actual.parte?.actualizadaEn ?? null,
@@ -510,6 +514,7 @@ export async function armarFichaParte(
     parte: fichaParteResumen(actual, snapshot),
     servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
     afectaciones,
+    alumnosUnicos: contarAlumnosUnicos(afectaciones),
     secciones: actual.secciones,
     ultimaActualizacion: actual.parte?.actualizadaEn ?? null,
   }

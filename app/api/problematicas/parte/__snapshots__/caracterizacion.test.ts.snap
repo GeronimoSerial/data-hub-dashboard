@@ -235,6 +235,7 @@ exports[`parte characterization > freezes the parte, history and map responses a
           },
         },
       ],
+      "alumnosUnicos": 5,
       "datosPadron": {
         "matriculaTotal": 5,
         "niveles": [
