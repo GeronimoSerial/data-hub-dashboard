@@ -1,0 +1,1 @@
+DROP INDEX "booklet_product_level_grade_uidx";

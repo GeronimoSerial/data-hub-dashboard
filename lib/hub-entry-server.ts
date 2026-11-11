@@ -7,7 +7,7 @@ import { loadRecursoAccess, loadRecursoAccessByRuta } from '@/lib/db/recurso-acc
 import type { Formato } from '@/lib/model'
 import { pathAllowedByHubPolicy, resolveHubEntry } from '@/lib/hub-entry'
 import { hubConfined } from '@/lib/access/hub-confinement'
-import { effectiveSections, type HubSection } from '@/lib/hub-sections'
+import { sectionsForUser, type HubSection } from '@/lib/hub-sections'
 import { legacyRecursoRedirect } from '@/lib/nav'
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
@@ -86,7 +86,7 @@ export async function requireServerHubPageAccess(path: string, requiredSection?:
   if (!user) redirect(`/login?callbackUrl=${encodeURIComponent(path)}`)
   if (user.banned) redirect('/forbidden')
   const sectionAllowed = requiredSection && !hubConfined(user)
-    ? effectiveSections(user.hubPolicy ?? {}).has(requiredSection)
+    ? sectionsForUser(user).has(requiredSection)
     : await serverHubPathAllowedByPolicy(user, path)
   if (!sectionAllowed
     || !(await serverHubPathAllowedByExistingAcl(user, path))) {

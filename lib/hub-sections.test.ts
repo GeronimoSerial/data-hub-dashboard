@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { puedeVerEnSeccion, type SessionUser } from './acl'
-import { effectiveSections, HUB_DESTINATIONS, normalizeSectionPolicy, resourceInSections, safeDestination, sectionForPath, type SectionPolicy } from './hub-sections'
+import { effectiveSections, HUB_DESTINATIONS, HUB_SECTIONS, LEGACY_SECTION_POLICY, normalizeSectionPolicy, resourceInSections, safeDestination, sectionForPath, type SectionPolicy } from './hub-sections'
 
 const user: SessionUser = { id: 'u', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
 const resource = { id: 'r', estado: 'publicado' as const, audienciaNivelJurIds: [], audienciaUserIds: [], formato: 'mapa' as const }
@@ -23,6 +23,32 @@ describe('hub section registry', () => {
     expect(sectionForPath('/mapa_sobreedad')).toBe('maps')
     expect(sectionForPath('/mapas/infraestructura/escuelas/123')).toBe('infrastructure')
     expect(sectionForPath('/login')).toBeNull()
+  })
+
+  it('classifies booklet routes behind their own explicit hub section', () => {
+    expect(HUB_SECTIONS).toContain('cuadernillos')
+    expect(sectionForPath('/cuadernillos')).toBe('cuadernillos')
+    expect(sectionForPath('/cuadernillos/solicitudes/abc')).toBe('cuadernillos')
+    expect(sectionForPath('/cuadernillos?vista=supervision')).toBe('cuadernillos')
+    expect(sectionForPath('/cuadernillos-extra')).toBeNull()
+    expect(safeDestination({
+      policy: { enabledSections: ['cuadernillos'], landing: false },
+      destination: '/cuadernillos',
+      allowedByExistingAcl: () => true,
+    })?.path).toBe('/cuadernillos')
+    expect(safeDestination({
+      policy: { enabledSections: ['maps'], landing: false },
+      destination: '/cuadernillos',
+      allowedByExistingAcl: () => true,
+    })).toBeNull()
+  })
+
+  it('does not grant the new section through legacy defaults while preserving prior sections', () => {
+    expect(LEGACY_SECTION_POLICY.enabledSections).toEqual([
+      'explore', 'reports', 'maps', 'dashboards', 'infrastructure', 'situation',
+    ])
+    expect(LEGACY_SECTION_POLICY.enabledSections).not.toContain('cuadernillos')
+    expect(effectiveSections({}).has('cuadernillos')).toBe(false)
   })
 
   it('uses specific route membership over broad format, and existing ACL still wins', () => {

@@ -3,7 +3,7 @@ import { confinedHome, confinedPathAllowed, hubConfined } from '@/lib/access/hub
 import {
   HUB_DESTINATIONS,
   canUseLanding,
-  effectiveSections,
+  sectionsForUser,
   safeDestination,
   safePathname,
   sectionForPath,
@@ -48,7 +48,7 @@ export function pathAllowedByHubPolicy(path: string, user: SessionUser): boolean
   if (hubConfined(user)) return confinedPathAllowed(user, path)
   const section = sectionForPath(path)
   if (section === 'landing') return canUseLanding(user.hubPolicy ?? {})
-  if (section) return effectiveSections(user.hubPolicy ?? {}).has(section)
+  if (section) return sectionsForUser(user).has(section)
   return path === '/problematicas/parte/nuevo' && user.role === 'operador_establecimiento'
 }
 

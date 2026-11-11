@@ -1,0 +1,180 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SessionUser } from '@/lib/acl'
+import {
+  canAccessRequest,
+  canAccessSchool,
+  hasBookletCapability,
+  getBookletRequestPage,
+  type BookletRequestReadRepository,
+  type BookletRequestReadCandidate,
+  type BookletRequestPermissionRepository,
+  type BookletPermissionRepository,
+} from './permissions'
+
+type Account = { emailVerified: boolean; banned: boolean }
+
+const accountStore = {
+  accounts: new Map<string, Account>(),
+  memberships: new Set<string>(),
+  assignments: new Set<string>(),
+}
+
+const repository: BookletPermissionRepository = {
+  getAccountStatus: async (userId) => accountStore.accounts.get(userId) ?? null,
+  hasActiveMembership: async (userId, capability) => accountStore.memberships.has(`${userId}:${capability}`),
+  hasSchoolAssignment: async (userId, cueAnexo, capability) => accountStore.assignments.has(`${userId}:${cueAnexo}:${capability}`),
+}
+
+const actor = (id: string, banned = false, role: SessionUser['role'] = 'admin'): SessionUser => ({
+  id,
+  role,
+  banned,
+  nivelJurIds: [],
+  accesoRecursos: 'todos',
+  recursoIds: [],
+})
+
+beforeEach(() => {
+  accountStore.accounts.clear()
+  accountStore.memberships.clear()
+  accountStore.assignments.clear()
+})
+
+describe('booklet permissions', () => {
+  it('denies an account without active membership even when its global role is admin', async () => {
+    accountStore.accounts.set('user-1', { emailVerified: true, banned: false })
+
+    await expect(hasBookletCapability(actor('user-1'), 'planning', repository)).resolves.toBe(false)
+  })
+
+  it('denies banned and unverified accounts despite stored membership', async () => {
+    accountStore.accounts.set('banned', { emailVerified: true, banned: true })
+    accountStore.accounts.set('unverified', { emailVerified: false, banned: false })
+    accountStore.memberships.add('banned:planning')
+    accountStore.memberships.add('unverified:planning')
+
+    await expect(hasBookletCapability(actor('banned'), 'planning', repository)).resolves.toBe(false)
+    await expect(hasBookletCapability(actor('unverified'), 'planning', repository)).resolves.toBe(false)
+  })
+
+  it('keeps persisted membership after relogin but requires the exact school assignment', async () => {
+    accountStore.accounts.set('cabecera-user', { emailVerified: true, banned: false })
+    accountStore.memberships.add('cabecera-user:cabecera')
+    accountStore.assignments.add('cabecera-user:180123456:cabecera')
+
+    await expect(hasBookletCapability(actor('cabecera-user', true), 'cabecera', repository)).resolves.toBe(false)
+    await expect(hasBookletCapability(actor('cabecera-user', false, 'consulta'), 'cabecera', repository)).resolves.toBe(true)
+    await expect(canAccessSchool(actor('cabecera-user', false, 'consulta'), '180123456', 'cabecera', repository)).resolves.toBe(true)
+    await expect(canAccessSchool(actor('cabecera-user'), '180123457', 'cabecera', repository)).resolves.toBe(false)
+  })
+
+  it('denies a supervisor with a membership but no matching responsibility', async () => {
+    accountStore.accounts.set('supervisor-user', { emailVerified: true, banned: false })
+    accountStore.memberships.add('supervisor-user:supervisor')
+    accountStore.assignments.add('another-user:180123456:supervisor')
+
+    await expect(canAccessSchool(actor('supervisor-user'), '180123456', 'supervisor', repository)).resolves.toBe(false)
+  })
+
+  it('uses request scope from an internal reader before checking the assigned account', async () => {
+    accountStore.accounts.set('cabecera-user', { emailVerified: true, banned: false })
+    accountStore.memberships.add('cabecera-user:cabecera')
+    accountStore.assignments.add('cabecera-user:180123456:cabecera')
+    const requestRepository: BookletRequestPermissionRepository = {
+      ...repository,
+      getRequestSchoolScope: async (requestId) => requestId === 'request-1'
+        ? { recipientCueAnexo: '180123457', cabeceraCueAnexo: '180123456' }
+        : null,
+    }
+
+    await expect(canAccessRequest(actor('cabecera-user'), 'request-1', 'cabecera', requestRepository)).resolves.toBe(true)
+    await expect(canAccessRequest(actor('cabecera-user'), 'missing-request', 'cabecera', requestRepository)).resolves.toBe(false)
+  })
+})
+
+const activeCampaign = { id: 'campaign-1', name: 'Campaign one', distributionEnabled: true, overassignmentAllowed: false }
+const candidate = (requestId: string, createdAt: string, recipientCueAnexo = '180123457'): BookletRequestReadCandidate => ({
+  requestId, rootRequestId: requestId, recipientCueAnexo, recipientName: 'Recipient', cabeceraCueAnexo: '180123456', cabeceraName: 'Head',
+  status: 'pending', submittedAt: createdAt, approvedAt: null, approvalIdentity: null, requested: [], approved: [], remaining: [], createdAt,
+})
+
+const readRepository = (overrides: Partial<BookletRequestReadRepository> = {}): BookletRequestReadRepository => {
+  const rows = [candidate('request-3', '2026-11-09T03:00:00.000Z'), candidate('request-2', '2026-11-09T02:00:00.000Z'), candidate('request-1', '2026-11-09T01:00:00.000Z')]
+  return {
+    getAccountStatus: async (id) => accountStore.accounts.get(id) ?? null,
+    hasActiveMembership: async (id, capability) => accountStore.memberships.has(`${id}:${capability}`),
+    hasSchoolAssignment: async (id, cue, capability) => accountStore.assignments.has(`${id}:${cue}:${capability}`),
+    getRequestSchoolScope: async (id) => id.startsWith('request-') ? { recipientCueAnexo: '180123457', cabeceraCueAnexo: '180123456' } : null,
+    listActiveCampaigns: async () => [activeCampaign],
+    listAssignedCues: async () => ['180123457'],
+    listRequestCandidates: async ({ after, limit }) => {
+      const ordered = rows.filter((row) => !after || row.createdAt < after.createdAt || (row.createdAt === after.createdAt && row.requestId < after.requestId))
+      return ordered.slice(0, limit)
+    },
+    ...overrides,
+  }
+}
+
+describe('scoped booklet request pages', () => {
+  beforeEach(() => {
+    accountStore.accounts.clear(); accountStore.memberships.clear(); accountStore.assignments.clear()
+  })
+
+  it('requires a verified account with an active module membership before reading campaigns', async () => {
+    accountStore.accounts.set('banned-user', { emailVerified: true, banned: true })
+    const repo = readRepository({ listActiveCampaigns: async () => { throw new Error('must not read') } })
+    await expect(getBookletRequestPage(actor('banned-user'), {}, repo)).rejects.toMatchObject({ code: 'forbidden', status: 403 })
+  })
+
+  it('returns active campaign options without request rows when selection is ambiguous', async () => {
+    accountStore.accounts.set('planner', { emailVerified: true, banned: false })
+    accountStore.memberships.add('planner:planning')
+    const listRequestCandidates = vi.fn(async () => [])
+    const result = await getBookletRequestPage(actor('planner'), {}, readRepository({
+      listActiveCampaigns: async () => [activeCampaign, { ...activeCampaign, id: 'campaign-2', name: 'Campaign two' }],
+      listRequestCandidates,
+    }))
+    expect(result).toMatchObject({ campaignId: null, requests: [], hasMore: false, nextCursor: null })
+    expect(result.campaignOptions).toHaveLength(2)
+    expect(listRequestCandidates).not.toHaveBeenCalled()
+  })
+
+  it('enforces the current supervisor assignment per candidate row', async () => {
+    accountStore.accounts.set('supervisor-user', { emailVerified: true, banned: false })
+    accountStore.memberships.add('supervisor-user:supervisor')
+    const assigned = candidate('request-in-scope', '2026-11-09T02:00:00.000Z', '180123457')
+    const outsider = candidate('request-out-of-scope', '2026-11-09T01:00:00.000Z', '180123458')
+    const repo = readRepository({
+      listAssignedCues: async () => ['180123457'],
+      listRequestCandidates: async () => [assigned, outsider],
+      getRequestSchoolScope: async (id) => id === assigned.requestId
+        ? { recipientCueAnexo: '180123457', cabeceraCueAnexo: '180123456' }
+        : { recipientCueAnexo: '180123458', cabeceraCueAnexo: '180123456' },
+      hasSchoolAssignment: async (_id, cue, capability) => capability === 'supervisor' && cue === '180123457',
+    })
+    const result = await getBookletRequestPage(actor('supervisor-user'), {}, repo)
+    expect(result.requests.map((request) => request.requestId)).toEqual(['request-in-scope'])
+    expect(JSON.stringify(result)).not.toContain('request-out-of-scope')
+  })
+
+  it('paginates by stable created-at and ID cursors without repeating rows', async () => {
+    accountStore.accounts.set('planner', { emailVerified: true, banned: false })
+    accountStore.memberships.add('planner:planning')
+    const repo = readRepository()
+    const first = await getBookletRequestPage(actor('planner'), { limit: 2 }, repo)
+    expect(first.requests.map((request) => request.requestId)).toEqual(['request-3', 'request-2'])
+    expect(first.hasMore).toBe(true)
+    expect(first.nextCursor).toEqual(expect.any(String))
+    const second = await getBookletRequestPage(actor('planner'), { limit: 2, cursor: first.nextCursor! }, repo)
+    expect(second.requests.map((request) => request.requestId)).toEqual(['request-1'])
+    expect(second.hasMore).toBe(false)
+    expect(second.requests).not.toEqual(expect.arrayContaining(first.requests))
+  })
+
+  it('returns 404 for a requested campaign that is not active', async () => {
+    accountStore.accounts.set('planner', { emailVerified: true, banned: false })
+    accountStore.memberships.add('planner:planning')
+    await expect(getBookletRequestPage(actor('planner'), { campaignId: 'inactive' }, readRepository()))
+      .rejects.toMatchObject({ code: 'campaign_not_found', status: 404 })
+  })
+})
