@@ -210,7 +210,8 @@ export async function canAccessSchool(
 }
 
 /**
- * Global admin authority: a verified, unbanned account with role admin. It bypasses
+ * Global admin authority: an unbanned account with role admin, regardless of email
+ * verification. It bypasses
  * module membership and school assignment checks only; callers keep their other
  * guards (identity from the session, eligibility, stock, idempotency, locks).
  */
@@ -221,7 +222,7 @@ export async function isBookletAdmin(
   if (!actor || actor.banned || actor.role !== 'admin') return false
   try {
     const account = await repository.getAccountStatus(actor.id)
-    return Boolean(account && account.emailVerified && !account.banned)
+    return Boolean(account && !account.banned)
   } catch {
     return false
   }
