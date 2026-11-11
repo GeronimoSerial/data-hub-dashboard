@@ -31,10 +31,19 @@ describe('CallCenterPage', () => {
     await expect(CallCenterPage()).rejects.toThrow('REDIRECT:/login?callbackUrl=/call-center')
   })
 
-  it('redirige a forbidden si el usuario no es staff', async () => {
+  it('redirige a forbidden si el usuario no tiene acceso al call center', async () => {
     getSessionUser.mockResolvedValue({ role: 'consulta', banned: false })
 
     await expect(CallCenterPage()).rejects.toThrow('REDIRECT:/forbidden')
+  })
+
+  it('permite a un administrador de Gestión (admin_ge)', async () => {
+    getSessionUser.mockResolvedValue({ role: 'admin_ge', banned: false })
+    getShellUser.mockResolvedValue({ name: 'Ana GE', role: 'admin_ge' })
+
+    render(await CallCenterPage())
+
+    expect(screen.getByRole('heading', { name: 'Call center' })).toBeInTheDocument()
   })
 
   it('renderiza el título y la lista para un admin', async () => {
