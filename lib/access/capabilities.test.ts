@@ -115,6 +115,46 @@ describe('capabilitiesFor', () => {
     expect(caps.has('infra.map.read')).toBe(false)
     expect(caps.has('hub.section.infrastructure')).toBe(false)
   })
+
+  it('callcenter.access: admin y editor la reciben', () => {
+    expect(capabilitiesFor(user({ role: 'admin' })).has('callcenter.access')).toBe(true)
+    expect(capabilitiesFor(user({ role: 'editor' })).has('callcenter.access')).toBe(true)
+  })
+
+  it('callcenter.access: sin sesion no la recibe', () => {
+    expect(capabilitiesFor(null).has('callcenter.access')).toBe(false)
+  })
+
+  it('callcenter.access: admin baneado no la recibe', () => {
+    expect(capabilitiesFor(user({ role: 'admin', banned: true })).has('callcenter.access')).toBe(false)
+  })
+
+  it('callcenter.access: operador_establecimiento no la recibe', () => {
+    expect(
+      capabilitiesFor(user({ role: 'operador_establecimiento', cueAnexo: '1-2' })).has('callcenter.access'),
+    ).toBe(false)
+  })
+
+  it('callcenter.access: director_nivel no la recibe', () => {
+    expect(capabilitiesFor(user({ role: 'director_nivel', nivelJurIds: [3] })).has('callcenter.access')).toBe(false)
+  })
+
+  it('callcenter.access: admin_ge no la recibe', () => {
+    expect(capabilitiesFor(user({ role: 'admin_ge' })).has('callcenter.access')).toBe(false)
+  })
+
+  it('callcenter.access: consulta no la recibe aunque tenga todas las secciones', () => {
+    const caps = capabilitiesFor(
+      user({
+        role: 'consulta',
+        hubPolicy: {
+          enabledSections: ['explore', 'reports', 'maps', 'dashboards', 'infrastructure', 'situation'],
+          landing: true,
+        },
+      }),
+    )
+    expect(caps.has('callcenter.access')).toBe(false)
+  })
 })
 
 describe('can', () => {
