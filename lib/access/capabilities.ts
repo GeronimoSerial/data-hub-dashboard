@@ -27,6 +27,7 @@ export const ALL_CAPABILITIES = [
   'infra.map.read',
   'infra.cargar',
   'parte.access',
+  'callcenter.access',
 ] as const
 
 export type Capability = (typeof ALL_CAPABILITIES)[number]
