@@ -424,3 +424,55 @@ describe('ejecutarSyncPronosticoCaudal — marca fallido ante una excepción con
     expect(fila?.leaseExpiraEn).toBeNull()
   })
 })
+
+describe('ejecutarSyncPronosticoCaudal — retención de hazard_forecast', () => {
+  it('purga las corridas de más de 14 días al completar el sync', async () => {
+    const db = getDb()
+    await db.insert(hazardForecast).values({
+      id: 'corrida-vencida-retencion',
+      provider: 'open-meteo-ecmwf',
+      variable: 'precipitacion',
+      geometryRef: CELDAS[0],
+      corridaEn: '2026-08-01T00:00:00.000Z',
+      validoEn: '2026-08-01T00:00:00.000Z',
+      horizonteHoras: 0,
+      valor: 0,
+      unidad: 'mm',
+      pasoHoras: 1,
+      rawRef: null,
+      ingeridoEn: '2026-08-01T00:00:00.000Z',
+    })
+
+    const resultado = await ejecutarSyncPronosticoCaudal({
+      ahora: new Date('2026-12-01T01:00:00.000Z'),
+      ecmwfProvider: ecmwfFake(),
+      floodProvider: floodFake(),
+    })
+
+    expect(resultado.ok).toBe(true)
+    const vencidas = await db
+      .select({ id: hazardForecast.id })
+      .from(hazardForecast)
+      .where(eq(hazardForecast.id, 'corrida-vencida-retencion'))
+    expect(vencidas).toEqual([])
+  })
+
+  it('un fallo de la purga no falla ni revierte el sync', async () => {
+    const purgar = vi.fn(async () => {
+      throw new Error('disco lleno')
+    })
+    const avisos = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const resultado = await ejecutarSyncPronosticoCaudal({
+      ahora: new Date('2026-12-02T01:00:00.000Z'),
+      ecmwfProvider: ecmwfFake(),
+      floodProvider: floodFake(),
+      purgarPronostico: purgar,
+    })
+
+    expect(purgar).toHaveBeenCalledTimes(1)
+    expect(resultado.ok).toBe(true)
+    expect(avisos).toHaveBeenCalled()
+    avisos.mockRestore()
+  })
+})
