@@ -122,10 +122,43 @@ export function planificarMantenimiento(
 }
 
 /**
- * Borra un corte (membresías, secciones y la fila de ge_corte) en una sola
- * transacción dedicada. Devuelve false sin borrar nada si, al momento de
- * borrar, el corte ya no existe, no está en uno de `estadosPermitidos` o
- * quedó referenciado por un parte. Nunca borra un corte vigente.
+ * Verifica, dentro de la transacción que la llama, que el corte sigue
+ * existiendo en un estado permitido y sin partes. Toma el lock de fila
+ * (FOR UPDATE), así que una activación concurrente espera a que termine el
+ * tramo.
+ */
+async function corteBorrable(tx: EjecutorSql, corteId: number, permitidos: EstadoCorte[]): Promise<boolean> {
+  const corte = await tx.execute({
+    sql: 'SELECT estado FROM ge.ge_corte WHERE id = ? FOR UPDATE',
+    args: [corteId],
+  })
+  const estado = corte.rows[0]?.estado as EstadoCorte | undefined
+  if (!estado || !permitidos.includes(estado)) return false
+
+  if (await existeTablaPartes(tx)) {
+    const partes = await tx.execute({
+      sql: 'SELECT COUNT(*) AS n FROM public.infra_parte WHERE corte_id = ?',
+      args: [corteId],
+    })
+    if (Number(partes.rows[0]?.n ?? 0) > 0) return false
+  }
+  return true
+}
+
+/**
+ * Borra un corte (membresías, secciones y la fila de ge_corte) sin sostener el
+ * lock de las tablas de elegibilidad durante todo el borrado: cada tramo de
+ * membresías corre en su propia transacción corta (el COMMIT libera el lock
+ * del trigger entre tramos) y el cierre (secciones + corte) en otra. Cada
+ * transacción repite las verificaciones de estado y partes.
+ *
+ * Devuelve false sin borrar lo que falte si, al momento de borrar, el corte ya
+ * no existe, no está en uno de `estadosPermitidos` o quedó referenciado por un
+ * parte. Nunca borra un corte vigente.
+ *
+ * Reanudable: si el proceso muere entre tramos el corte queda con menos
+ * membresías y la fila sigue presente; una llamada posterior termina el
+ * borrado sin errores.
  */
 export async function eliminarCorte(
   destino: EjecutorSql | EjecutorSqlRaw,
@@ -133,37 +166,40 @@ export async function eliminarCorte(
   estadosPermitidos: readonly EstadoCorte[],
 ): Promise<boolean> {
   const permitidos: EstadoCorte[] = estadosPermitidos.filter((e) => e !== 'vigente')
-  return ejecutarEnTransaccionDedicada(destino, async (tx) => {
-    const corte = await tx.execute({
-      sql: 'SELECT estado FROM ge.ge_corte WHERE id = ? FOR UPDATE',
-      args: [corteId],
-    })
-    const estado = corte.rows[0]?.estado as EstadoCorte | undefined
-    if (!estado || !permitidos.includes(estado)) return false
 
-    if (await existeTablaPartes(tx)) {
-      const partes = await tx.execute({
-        sql: 'SELECT COUNT(*) AS n FROM public.infra_parte WHERE corte_id = ?',
-        args: [corteId],
-      })
-      if (Number(partes.rows[0]?.n ?? 0) > 0) return false
-    }
-
-    // Por tramos: cada sentencia queda lejos del statement_timeout del pool
-    // (30 s por defecto) aunque el corte tenga cientos de miles de filas.
-    for (;;) {
-      const borradas = await tx.execute({
+  // Por tramos: cada sentencia queda lejos del statement_timeout del pool
+  // (30 s por defecto) aunque el corte tenga cientos de miles de filas.
+  for (;;) {
+    const borradas = await ejecutarEnTransaccionDedicada(destino, async (tx) => {
+      if (!(await corteBorrable(tx, corteId, permitidos))) return null
+      const res = await tx.execute({
         sql: `DELETE FROM ge.ge_alumno_seccion WHERE ctid IN (
                 SELECT ctid FROM ge.ge_alumno_seccion WHERE corte_id = ? LIMIT ${TAMANO_BORRADO}
               ) RETURNING 1 AS x`,
         args: [corteId],
       })
-      if (borradas.rows.length < TAMANO_BORRADO) break
-    }
+      return res.rows.length
+    })
+    if (borradas === null) return false
+    if (borradas < TAMANO_BORRADO) break
+  }
+
+  const cierre = await ejecutarEnTransaccionDedicada(destino, async (tx) => {
+    if (!(await corteBorrable(tx, corteId, permitidos))) return 'rechazado' as const
+    const quedan = await tx.execute({
+      sql: 'SELECT 1 AS x FROM ge.ge_alumno_seccion WHERE corte_id = ? LIMIT 1',
+      args: [corteId],
+    })
+    if (quedan.rows.length > 0) return 'pendiente' as const
     await tx.execute({ sql: 'DELETE FROM ge.ge_seccion WHERE corte_id = ?', args: [corteId] })
     await tx.execute({ sql: 'DELETE FROM ge.ge_corte WHERE id = ?', args: [corteId] })
-    return true
+    return 'listo' as const
   })
+  if (cierre === 'rechazado') return false
+  // Llegaron membresías entre tramos (no debería pasar con cortes que ya no
+  // importan): se vuelve a recorrer el borrado por tramos.
+  if (cierre === 'pendiente') return eliminarCorte(destino, corteId, estadosPermitidos)
+  return true
 }
 
 export type ResultadoMantenimiento = PlanMantenimiento & {
