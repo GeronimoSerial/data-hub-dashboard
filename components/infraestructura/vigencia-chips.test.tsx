@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { EleccionVigencia } from '@/lib/infraestructura/vigencia-eleccion'
 import { VigenciaChips } from './vigencia-chips'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 function Controlado({ label = '¿Desde cuándo ocurre?', etiquetaMomento }: { label?: string; etiquetaMomento?: string }) {
   const [v, setV] = useState<EleccionVigencia>({ modo: 'ahora' })
@@ -76,6 +79,16 @@ describe('VigenciaChips', () => {
 
     expect(screen.getByLabelText('Fecha')).toHaveAttribute('lang', 'es-AR')
     expect(screen.getByLabelText('Hora')).toHaveAttribute('lang', 'es-AR')
+  })
+
+  it('limits the date to the supplied situation start without changing the default range', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-10T13:00:00.000Z'))
+    render(<VigenciaChips value={{ modo: 'otro', fecha: '', hora: '' }} onChange={() => {}} label="Solución" minimo="2026-10-26T14:17:33.698Z" />)
+    expect(screen.getByLabelText('Fecha')).toHaveAttribute('min', '2026-10-26')
+    cleanup()
+    render(<VigenciaChips value={{ modo: 'otro', fecha: '', hora: '' }} onChange={() => {}} label="Inicio" />)
+    expect(Date.parse(screen.getByLabelText('Fecha').getAttribute('min')!)).toBeLessThan(Date.parse('2026-10-26'))
   })
 
   it('sets the Argentine Spanish language on the date input for a resolved situation', () => {

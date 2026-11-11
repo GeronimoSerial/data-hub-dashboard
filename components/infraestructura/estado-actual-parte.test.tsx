@@ -146,7 +146,8 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
 
     expect(await screen.findByRole('link', { name: 'Cargar una situación' })).toBeVisible()
     // El servicio y el establecimiento sí existen: se siguen mostrando.
-    expect(screen.getByText('Funcionamiento habitual')).toBeVisible()
+    expect(screen.getByText('Sin afectaciones reportadas')).toBeVisible()
+    expect(screen.getByText('Sin información de clases')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Funcionamiento' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Edificio' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'En seguimiento' })).toBeVisible()
@@ -199,10 +200,11 @@ describe('EstadoActualParte — con situación en seguimiento (spec §6)', () =>
     expect(screen.queryByRole('link', { name: /Informar un cambio/ })).toBeNull()
   })
 
-  it('shows the derived "parcial" service state with the spec §3.4 wording', async () => {
+  it('shows class suspension separately from functioning', async () => {
     render(<EstadoActualParte cue={CUE} />)
 
-    expect(await screen.findByText('Funcionamiento parcialmente interrumpido')).toBeVisible()
+    expect(await screen.findByText('Clases parcialmente suspendidas')).toBeVisible()
+    expect(screen.getByText('Funcionamiento gravemente afectado')).toBeVisible()
   })
 
   it('shows the last update and both available actions', async () => {
@@ -292,5 +294,26 @@ describe('EstadoActualParte — estados de red', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'No hay datos de escuelas disponibles en este momento. Intente nuevamente más tarde.',
     )
+  })
+})
+
+
+describe('Funcionamiento derivado de la severidad', () => {
+  it('separa el funcionamiento de clases no informadas', async () => {
+    vi.stubGlobal('fetch', responderCon({ ...CON_SITUACION, servicio: { estadoGeneral: 'normal', alcanceVigente: [] } }))
+    render(<EstadoActualParte cue={CUE} />)
+    expect(await screen.findByText('Funcionamiento gravemente afectado')).toBeVisible()
+    expect(screen.getByText('Sin información de clases')).toBeVisible()
+    expect(screen.queryByText('Funcionamiento habitual')).not.toBeInTheDocument()
+  })
+})
+
+
+describe('Funcionamiento y clases informadas', () => {
+  it('mantiene clases normales aunque la situación vigente sea crítica', async () => {
+    vi.stubGlobal('fetch', responderCon({ ...CON_SITUACION, afectaciones: [{ ...CON_SITUACION.afectaciones![0], severidad: 'Crítica' }], servicio: { estadoGeneral: 'normal', alcanceVigente: [{ ...CON_SITUACION.servicio!.alcanceVigente[0], tipo: 'establecimiento', referenciaId: null, estado: 'normal' }] } }))
+    render(<EstadoActualParte cue={CUE} />)
+    expect(await screen.findByText('Funcionamiento críticamente afectado')).toBeVisible()
+    expect(screen.getByText('Clases normales')).toBeVisible()
   })
 })

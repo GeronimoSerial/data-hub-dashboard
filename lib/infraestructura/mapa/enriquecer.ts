@@ -98,6 +98,8 @@ export function enriquecerEscuela(
     categoriaPrincipal: principal?.categoria ?? null,
     impactoAlumnos: principal?.impactoAlumnos,
     clases,
+    clasesInformadas: Boolean(parte?.servicioInformado || (tieneSituacionDeEstablecimiento &&
+      ['sin_clases', 'evacuado', 'centro_evacuados'].includes(parte?.estadoEstablecimiento ?? ''))),
     apoyo: derivarApoyo(clases, extra.asistencia),
     sinActualizar: esSinActualizar(parte, ahoraMs),
     ultimaNovedad: parte?.actualizadaEn ?? null,

@@ -184,6 +184,31 @@ async function afectacionVigenteDe(cue: string, motivo = 'Inundación'): Promise
 }
 
 describe('instituto superior: alta por carreras', () => {
+  it('rechaza solucionar antes del inicio también en institutos y no altera el historial', async () => {
+    const db = getDb()
+    const inicio = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const parteId = crypto.randomUUID()
+    await db.insert(infraParte).values({
+      id: parteId, periodoId: 'periodo-enos-2026-2027', cueAnexo: CUE_OTRO_INSTITUTO,
+      estadoEstablecimientoRigeDesde: inicio, corteId: 1, creadaEn: inicio, actualizadaEn: inicio,
+    }).onConflictDoNothing()
+    const [parte] = await db.select().from(infraParte).where(eq(infraParte.cueAnexo, CUE_OTRO_INSTITUTO))
+    const afectacionId = crypto.randomUUID()
+    await db.insert(infraAfectacion).values({
+      id: afectacionId, parteId: parte.id, motivo: 'Inundación', categoria: 'establecimiento',
+      severidad: 'Baja', rigeDesde: inicio, creadaEn: inicio,
+    })
+    const antes = await db.select().from(infraAfectacion).where(eq(infraAfectacion.id, afectacionId))
+    const movimientos = await db.select().from(infraMovimiento).where(eq(infraMovimiento.parteId, parte.id))
+    const response = await POST(postReq(cuerpo(CUE_OTRO_INSTITUTO, {
+      afectacionesSolucionadas: [{ id: afectacionId, solucionadaEn: new Date(Date.parse(inicio) - 1).toISOString() }],
+    })))
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: 'La fecha de solución no puede ser anterior al inicio de la situación' })
+    expect(await db.select().from(infraAfectacion).where(eq(infraAfectacion.id, afectacionId))).toEqual(antes)
+    expect(await db.select().from(infraMovimiento).where(eq(infraMovimiento.parteId, parte.id))).toEqual(movimientos)
+  })
+
   it('crea una afectación con una carrera completa y la persiste en las tablas de matrícula', async () => {
     const res = await POST(
       postReq(cuerpo(CUE_SUP, {
