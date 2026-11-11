@@ -173,6 +173,8 @@ describe('GET /api/mapas/infraestructura/parte', () => {
     expect(body.recientes[0].retiradaEn).toEqual(expect.any(String))
     expect(body.afectaciones).toHaveLength(1)
     expect(body.afectaciones[0].totales).toEqual({ secciones: 1, alumnos: 1 })
+    expect(body.alumnosUnicos).toBe(1)
+    expect(JSON.stringify(body.afectaciones)).not.toMatch(/"alumnos":\[|"secciones":\[/)
     expect(body.afectaciones[0]).toMatchObject({
       severidad: 'Crítica',
       justificacionCritica: 'otro',

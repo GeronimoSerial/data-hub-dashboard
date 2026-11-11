@@ -15,23 +15,13 @@ import type {
   ServicioAlcance,
 } from './trayectoria-tipos'
 
-export function calcularEstadoServicioGeneral(
+// Secciones efectivamente suspendidas, con la precedencia única de alcance:
+// fila 'seccion', si no la 'turno' de su turno, si no 'establecimiento', si no
+// normal. Es la única implementación de esa precedencia.
+export function seccionesEfectivamenteSuspendidas(
   alcanceVigente: ServicioAlcance[],
   secciones: SeccionEstablecimiento[],
-): EstadoServicioGeneral {
-  // Sin roster nominal, una suspensión por turno sigue siendo parcial: el
-  // alcance es operativo y no depende de contar alumnos. Una suspensión de
-  // establecimiento sí aplica a toda la escuela.
-  if (secciones.length === 0) {
-    if (alcanceVigente.some((fila) => fila.tipo === 'establecimiento' && fila.estado === 'suspendido')) {
-      return 'suspendido'
-    }
-    if (alcanceVigente.some((fila) => fila.tipo === 'turno' && fila.estado === 'suspendido')) {
-      return 'parcial'
-    }
-    return 'normal'
-  }
-
+): SeccionEstablecimiento[] {
   // Desempate DETERMINISTA cuando dos filas vigentes compiten por el mismo
   // alcance (misma sección, mismo turno o el establecimiento entero): sin
   // este criterio, "última fila del array gana" dependía del orden en que
@@ -62,21 +52,35 @@ export function calcularEstadoServicioGeneral(
     }
   }
 
-  let normales = 0
-  let suspendidas = 0
-
-  for (const seccion of secciones) {
+  return secciones.filter((seccion) => {
     const efectivo =
       porSeccion.get(seccion.geSectionId)?.estado ??
       porTurno.get(seccion.turno)?.estado ??
       establecimiento?.estado ??
       'normal'
+    return efectivo === 'suspendido'
+  })
+}
 
-    if (efectivo === 'suspendido') suspendidas++
-    else normales++
+export function calcularEstadoServicioGeneral(
+  alcanceVigente: ServicioAlcance[],
+  secciones: SeccionEstablecimiento[],
+): EstadoServicioGeneral {
+  // Sin roster nominal, una suspensión por turno sigue siendo parcial: el
+  // alcance es operativo y no depende de contar alumnos. Una suspensión de
+  // establecimiento sí aplica a toda la escuela.
+  if (secciones.length === 0) {
+    if (alcanceVigente.some((fila) => fila.tipo === 'establecimiento' && fila.estado === 'suspendido')) {
+      return 'suspendido'
+    }
+    if (alcanceVigente.some((fila) => fila.tipo === 'turno' && fila.estado === 'suspendido')) {
+      return 'parcial'
+    }
+    return 'normal'
   }
 
+  const suspendidas = seccionesEfectivamenteSuspendidas(alcanceVigente, secciones).length
   if (suspendidas === 0) return 'normal'
-  if (normales === 0) return 'suspendido'
+  if (suspendidas === secciones.length) return 'suspendido'
   return 'parcial'
 }
