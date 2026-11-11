@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+const randomSecret = (label) => `${label}-${crypto.randomUUID()}-Aa9!`
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const workspace = await import('node:fs/promises').then(({ mkdtemp }) => mkdtemp(path.join(os.tmpdir(), 'cuadernillos-t8-')))
 const project = path.join(workspace, 'project')
@@ -31,9 +32,9 @@ const env = {
   T8_E2E_RUNTIME_ROOT: project,
   T8_E2E_PORT: port,
   T8_E2E_BASE_URL: baseURL,
-  T8_PLANNING_PASSWORD: `Planning-${crypto.randomUUID()}-Aa9!`,
-  T8_CABECERA_PASSWORD: `Cabecera-${crypto.randomUUID()}-Aa9!`,
-  T8_SUPERVISOR_PASSWORD: `Supervisor-${crypto.randomUUID()}-Aa9!`,
+  T8_PLANNING_PASSWORD: randomSecret('Planning'),
+  T8_CABECERA_PASSWORD: randomSecret('Cabecera'),
+  T8_SUPERVISOR_PASSWORD: randomSecret('Supervisor'),
   OBS_BUCKET: '', OBS_REGION: '', OBS_ENDPOINT: '', OBS_ACCESS_KEY_ID: '', OBS_SECRET_ACCESS_KEY: '',
   AWS_ACCESS_KEY_ID: '', AWS_SECRET_ACCESS_KEY: '', GE_SSO_SHARED_SECRET: '', GE_SSO_SHARED_KEY: '',
 }
