@@ -6551,7 +6551,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .metodologia .bar { height: 10px; overflow: hidden; border-radius: 5px; background: var(--fill); }
 .metodologia .bar i { display: block; height: 100%; background: var(--accent); transition: width 0.25s; }
 .metodologia .wf { display: flex; flex-direction: column; gap: 6px; }
-.metodologia .wf .row { display: grid; grid-template-columns: 11rem 1fr 3rem; align-items: center; gap: var(--s-2); font-size: var(--t-small); }
+.metodologia .wf .row { display: grid; grid-template-columns: 11rem minmax(0, 1fr) 4.5rem; align-items: center; gap: var(--s-2); font-size: var(--t-small); }
 .metodologia .wf .pista { position: relative; height: 18px; }
 .metodologia .wf .seg { position: absolute; height: 18px; border-radius: var(--r-xs); transition: all 0.25s; }
 .metodologia dl.gloss dt { margin-top: var(--s-3); font-weight: 600; }
@@ -6559,7 +6559,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 @media (max-width: 960px) {
   .metodologia { grid-template-columns: 1fr; }
   .metodologia .toc { display: none; }
-  .metodologia .wf .row { grid-template-columns: 7.5rem 1fr 2.5rem; }
+  .metodologia .wf .row { grid-template-columns: 7.5rem minmax(0, 1fr) 4.5rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .metodologia .bar i, .metodologia .wf .seg, .metodologia-seccion--destacada { transition: none; animation: none; }
