@@ -1799,6 +1799,20 @@ export const infraRutaEvacuacionOsm = pgTable('infra_ruta_evacuacion_osm', {
   importadoEn: text('importado_en').notNull(),
 }, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
 
+// Registro de cada llamada del call center a un establecimiento con parte
+// vencido. `usuarioId` es el user de la sesión (sin FK, spec S6: aditiva).
+export const callCenterLlamadas = pgTable('call_center_llamadas', {
+  id: text('id').primaryKey(),
+  cueAnexo: text('cue_anexo').notNull(),
+  usuarioId: text('usuario_id').notNull(),
+  callerNombre: text('caller_nombre').notNull(),
+  justificacion: text('justificacion').notNull(),
+  respuestaDirector: text('respuesta_director').notNull(),
+  creadaEn: text('creada_en').notNull(),
+}, (t) => [
+  index('call_center_llamadas_cue_anexo_idx').on(t.cueAnexo),
+])
+
 export type CeldaExposicionRuta = {
   lon: number
   lat: number
