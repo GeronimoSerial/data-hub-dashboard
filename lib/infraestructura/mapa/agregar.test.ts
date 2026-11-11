@@ -50,6 +50,15 @@ describe('resumir', () => {
     })
   })
 
+  it('suma los alumnos sin clases de un parcial y de un sin, sin contar el parcial como escuela sin clases', () => {
+    const resumen = resumir([
+      escuela({ clases: 'parcial', alumnosSinClases: 59 }),
+      escuela({ cueAnexo: '1800002-00', clases: 'sin', alumnosSinClases: 100 }),
+    ])
+    expect(resumen.alumnosSinClases).toBe(159)
+    expect(resumen.sinClases).toBe(2)
+  })
+
   it('devuelve ceros para un padrón vacío', () => {
     expect(resumir([])).toEqual({
       conReporte: 0,
