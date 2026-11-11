@@ -44,7 +44,7 @@ export const CAPABILITY_GUARDS: Record<Capability, readonly string[]> = {
     'accesoParteSesion',
     'bloqueoDeAcceso',
   ],
-  'callcenter.access': ['staffGuard', 'adminPageGate'],
+  'callcenter.access': ['callCenterGuard', 'callCenterPageGate'],
 }
 
 /**
