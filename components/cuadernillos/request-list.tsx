@@ -96,6 +96,12 @@ async function fetchPage(url: string, signal?: AbortSignal): Promise<BookletRequ
   return data
 }
 
+/** ENOS ficha route takes the dashed CUE form (1801234-57) for a 9-digit booklet CUE (180123457). */
+export function fichaEscuelaHref(cueAnexo: string): string | null {
+  if (!/^\d{9}$/.test(cueAnexo)) return null
+  return `/mapas/infraestructura/escuelas/${cueAnexo.slice(0, 7)}-${cueAnexo.slice(7)}`
+}
+
 function RequestLines({ lines }: { lines: BookletRequestLineView[] }) {
   if (!lines.length) return <span>Sin cantidades registradas</span>
   return (
@@ -280,8 +286,11 @@ export function RequestList({ refreshKey = 0, capability, viewAsUserId = null }:
             <article key={request.requestId} style={{ border: '1px solid var(--line)', borderRadius: '.75rem', padding: '1rem', background: 'var(--surface)' }}>
               <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '.5rem' }}>
                 <div>
-                  <h4 style={{ margin: 0, color: 'var(--ink)' }}>{request.recipientName}</h4>
+                  <h4 style={{ margin: 0, color: 'var(--ink)' }}>{request.recipientName || 'Escuela destinataria'}</h4>
                   <p style={{ margin: '.25rem 0 0', color: 'var(--ink-soft)' }}>CUE Anexo {request.recipientCueAnexo}</p>
+                  {fichaEscuelaHref(request.recipientCueAnexo) ? (
+                    <a href={fichaEscuelaHref(request.recipientCueAnexo)!} style={{ display: 'inline-block', marginTop: '.35rem' }}>Ver ficha en ENOS</a>
+                  ) : null}
                 </div>
                 <span>{STATUS_LABELS[request.status]}</span>
               </header>

@@ -36,7 +36,7 @@ export type ApprovalRepository = {
   getRequest(requestId: string, lockForUpdate?: boolean): Promise<ApprovalRequestRecord | null>
   listChain(rootRequestId: string): Promise<ApprovalRequestRecord[]>
   getCurrentEligibility(cueAnexo: string, geSchema?: GeSchemaReady): Promise<Eligibility>
-  approvalAuthorityReady(recipientCueAnexo: string, cabeceraCueAnexo: string): Promise<boolean>
+  approvalAuthorityReady(cabeceraCueAnexo: string): Promise<boolean>
   isAssignedSupervisor(userId: string, cabeceraCueAnexo: string): Promise<boolean>
   productExists(productId: string): Promise<boolean>
   getStock(campaignId: string, productId: string): Promise<number>
@@ -114,9 +114,10 @@ export const createApprovalRepository = (db: Awaited<ReturnType<typeof getDb>>):
       return matches.length === 1 ? matches[0].peorSeveridad : null
     })
   },
-  // Assignment authority is per-row: both records must match an immutable,
-  // confirmed staged revision and current responsible-account memberships.
-  async approvalAuthorityReady(recipientCueAnexo, cabeceraCueAnexo) {
+  // Assignment authority lives on the cabecera row alone: its confirmed staged
+  // revision and its responsible accounts (supervisor, cabecera) must be current.
+  // Recipient schools carry no assignment row and are not part of this check.
+  async approvalAuthorityReady(cabeceraCueAnexo) {
     try {
       // Same rule as the assignment confirmation: responsible accounts may be unverified (GE SSO),
       // so only existence, not-banned and active membership are required.
@@ -170,17 +171,12 @@ export const createApprovalRepository = (db: Awaited<ReturnType<typeof getDb>>):
           || hashAssignmentSourceRow(sourceCandidate.provenance) !== hashAssignmentSourceRow(row.provenance)) return null
         return { ...row, revisionStatus: revision.status }
       }
-      const recipient = await getTrusted(recipientCueAnexo)
-      const head = recipientCueAnexo === cabeceraCueAnexo ? recipient : await getTrusted(cabeceraCueAnexo)
-      const trusted = (row: Awaited<ReturnType<typeof getTrusted>>): row is NonNullable<typeof row> =>
-        row !== null && row.sourceRevisionId !== null && row.sourceRowHash !== null && row.revisionStatus === 'confirmed'
-      return trusted(recipient) && trusted(head)
-        && recipient.cabeceraCue === cabeceraCueAnexo
-        && recipient.sourceRevisionId === head.sourceRevisionId
+      const head = await getTrusted(cabeceraCueAnexo)
+      return head !== null && head.sourceRevisionId !== null && head.sourceRowHash !== null && head.revisionStatus === 'confirmed'
+        && head.cueAnexo === cabeceraCueAnexo
         && head.relationship === 'cabecera'
         && head.cabeceraCue === cabeceraCueAnexo
-        && recipient.cabeceraUserId === head.cabeceraUserId
-        && await hasActiveConfirmedAccount(recipient.supervisorUserId, 'supervisor')
+        && await hasActiveConfirmedAccount(head.supervisorUserId, 'supervisor')
         && await hasActiveConfirmedAccount(head.cabeceraUserId, 'cabecera')
     } catch {
       return false
@@ -302,7 +298,7 @@ export async function approveRequest(actor: SessionUser, input: ApprovalInput, r
     if (replayed) return replayed
     assertCampaign(await tx.getCampaign(request.campaignId))
     assertPending(request)
-    if (!admin && !await tx.approvalAuthorityReady(request.recipientCueAnexo, request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
+    if (!admin && !await tx.approvalAuthorityReady(request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
     const eligibility = await tx.getCurrentEligibility(request.recipientCueAnexo, geSchema)
     if (!eligibility.eligible || eligibility.severity !== 'Crítica') throw new BookletServiceError('authority_changed', 409)
 
@@ -353,7 +349,7 @@ export async function rejectRequest(actor: SessionUser, input: RejectInput, repo
     if (replayed) return replayed
     assertCampaign(await tx.getCampaign(request.campaignId))
     assertPending(request)
-    if (!admin && !await tx.approvalAuthorityReady(request.recipientCueAnexo, request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
+    if (!admin && !await tx.approvalAuthorityReady(request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
     const rejectedAt = new Date()
     await tx.saveRejection(request.requestId, actor.id, rejectedAt, input.reason.trim())
     const response: RequestView = {

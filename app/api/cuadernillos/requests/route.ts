@@ -13,6 +13,7 @@ const noStore = { 'Cache-Control': 'private, no-store' }
 const schema = z.object({
   campaignId: z.string().trim().min(1).max(128),
   recipientCueAnexo: z.string().regex(/^\d{9}$/),
+  cabeceraCueAnexo: z.string().regex(/^\d{9}$/).optional(),
   lines: z.array(z.object({ productId: z.string().trim().min(1).max(128), quantity: z.number().int().positive().safe() }).strict()).min(1).max(100),
   submit: z.boolean(),
   idempotencyKey: z.string().trim().min(1).max(128),
