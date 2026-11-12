@@ -376,6 +376,13 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 - Hecho: `config/regiones/manaos.json` (límites provisionales, pendientes de B0), `pnpm region:cargar <id>`, prueba de contrato de regiones, plantilla `deploy/regiones/`, runbook `docs/ejecucion-enos/OPS1/runbook-nueva-region.md` y prueba e2e local `pnpm test:e2e:region` (CA6 incluida).
 - Ajustes derivados de la prueba con base vacía: `estacionAncla` opcional, `datasetsPendientes`/`cargaDatasets` en el esquema, mapa montado aunque falle la geografía, acceso a Prefectura restringido por región, y arranque abortado con `process.exit(1)` si `REGION` es inválida.
 - Pendiente fuera de B11: B10b (arriba), marca institucional de Corrientes fija en la cabecera del hub, jobs `sync-smn-alertas`, `sync-synop-lluvia` e `importar-exposicion-rio-dem` aún no excluidos por regla (ver `deploy/regiones/scheduler-jobs.md`), y secretos adicionales a los de B11.6.
+- Bloqueantes de puesta en marcha de Manaos (no afectan a Corrientes), a resolver en B10b/B12:
+  - (a) La leyenda de Prefectura ("Estações da Prefeitura", evacuação/alerta) aparece en Manaos; debe seguir `fuentesRio` de la región.
+  - (b) Restos en español en la vista portuguesa: panel "SITUACIÓN ACTUAL", "Ver provincia", "Veredicto diario", "Pantalla completa", "Ninguna escuela...".
+  - (c) El área del mapa se ve sin mapa base en la captura; confirmar si son teselas sin conexión del entorno de prueba o un defecto real.
+  - (d) La marca institucional de la cabecera del hub está fija en Corrientes.
+  - (e) Catálogo sin scope en `lecturas-repo.ts:210`, `MAP_CENTER` de map-matricula, jobs `sync-smn-alertas`/`sync-synop-lluvia`/`importar-exposicion-rio-dem`, y secretos adicionales a B11.6.
+- Evidencia pendiente: el `COPY config` del Dockerfile (`39346b44`) todavía no está probado en una imagen construida. Cuando B9 llegue a dev, bajar la imagen de GHCR y correr dentro de ella un dry run de `scripts/jobs.mjs` (sin escrituras a la base) como evidencia.
 
 ---
 
