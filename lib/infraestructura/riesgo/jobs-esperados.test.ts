@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { JOBS_ESPERADOS, JOBS_ESPERADOS_PRODUCTOR, jobsEsperadosParaRol } from './jobs-esperados'
+import { filasRecibidas, JOBS_ESPERADOS, JOBS_ESPERADOS_PRODUCTOR, jobsEsperadosParaRol } from './jobs-esperados'
 import { JOBS_OPEN_METEO } from './providers/rol-entorno'
 
 const porNombre = new Map(JOBS_ESPERADOS.map((job) => [job.nombre, job]))
@@ -55,5 +55,40 @@ describe('jobsEsperadosParaRol', () => {
 
   it('en rol productor conserva la lista declarada', () => {
     expect(jobsEsperadosParaRol('productor')).toEqual(JOBS_ESPERADOS_PRODUCTOR)
+  })
+})
+
+describe('minimoFilas y contadorFilas (I2)', () => {
+  it('prefectura-alturas cuenta filasPublicadas (recibidas) con mínimo 1', () => {
+    expect(porNombre.get('sync-prefectura-alturas')).toMatchObject({ contadorFilas: 'filasPublicadas', minimoFilas: 1 })
+  })
+
+  it('ensamble y pronóstico de caudal cuentan filas con mínimo 1', () => {
+    expect(porNombre.get('sync-ensemble')).toMatchObject({ contadorFilas: 'filas', minimoFilas: 1 })
+    expect(porNombre.get('sync-pronostico-caudal')).toMatchObject({ contadorFilas: 'filas', minimoFilas: 1 })
+  })
+
+  it('exposición DEM cuenta las filas del archivo recibidas con mínimo 1', () => {
+    expect(porNombre.get('importar-exposicion-rio-dem')).toMatchObject({ contadorFilas: 'filas', minimoFilas: 1 })
+  })
+
+  it('IMERG no tiene mínimo: cero celdas es legítimo', () => {
+    const imerg = porNombre.get('sync-imerg')
+    expect(imerg?.minimoFilas).toBeUndefined()
+    expect(imerg?.contadorFilas).toBeUndefined()
+  })
+
+  it('todo job con mínimo declara el contador de filas que usa', () => {
+    for (const job of JOBS_ESPERADOS) {
+      if (job.minimoFilas !== undefined) expect(job.contadorFilas, job.nombre).toEqual(expect.any(String))
+    }
+  })
+
+  it('filasRecibidas lee el contador declarado y devuelve null si no hay dato', () => {
+    const alturas = porNombre.get('sync-prefectura-alturas')!
+    expect(filasRecibidas(alturas, { filasPublicadas: 7 })).toBe(7)
+    expect(filasRecibidas(alturas, { insertadas: 0 })).toBeNull()
+    expect(filasRecibidas(alturas, null)).toBeNull()
+    expect(filasRecibidas(porNombre.get('sync-imerg')!, { celdasActualizadas: 4 })).toBeNull()
   })
 })
