@@ -132,7 +132,7 @@ describe('CabeceraHome request flow', () => {
 
     expect(screen.getByRole('button', { name: 'Enviar pedido' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Guardar borrador' })).toBeDisabled()
-    expect(screen.getByText(/solo lectura/i)).toBeInTheDocument()
+    expect(screen.queryByText(/solo lectura/i)).not.toBeInTheDocument()
   })
 
   it('requires an admin to choose the cabecera and sends its cue with the request', async () => {
@@ -301,6 +301,17 @@ const realCabeceraRow = {
 }
 
 describe('CabeceraHome loading', () => {
+  it('reads the cabecera assignments with viewAs when an admin views a cabecera account', async () => {
+    const fetchMock = routeFetch()
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<CabeceraHome isAdmin readOnly viewAsUserId="cabecera-user-9" />)
+
+    await waitFor(() => expect(screen.queryByText('Cargando cabeceras…')).not.toBeInTheDocument())
+    expect(screen.queryByText('No se pudieron cargar las cabeceras de esta cuenta.')).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.map(([url]) => url)).toContain('/api/cuadernillos/assignments?capability=cabecera&viewAs=cabecera-user-9')
+  })
+
   it('loads the admin picker from the real cabeceras response shape', async () => {
     vi.stubGlobal('fetch', routeFetch({ ...adminRoutes([realCabeceraRow]) }))
 
