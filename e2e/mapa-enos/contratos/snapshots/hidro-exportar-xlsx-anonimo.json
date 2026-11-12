@@ -1,0 +1,6 @@
+{
+  "cuerpo": {
+    "error": "No autenticado"
+  },
+  "status": 401
+}

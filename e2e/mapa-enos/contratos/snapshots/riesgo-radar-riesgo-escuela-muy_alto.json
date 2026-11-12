@@ -1,0 +1,14 @@
+{
+  "crecidaRio": null,
+  "factores": [],
+  "snapshot": {
+    "calculadoEn": "<fecha>",
+    "cueAnexo": "1800953-00",
+    "horizonteHoras": 72,
+    "id": "<uuid:1>-1800953-00-72",
+    "nivelAmenaza": "muy_alto",
+    "nivelRiesgo": "muy_alto",
+    "scoreRiesgo": 88,
+    "validoHasta": "<fecha>"
+  }
+}
