@@ -167,9 +167,20 @@ export function CuadernillosWorkspace({
           ) : null}
 
           {activeCapability === 'planning' ? <PlanningView page={page} loading={loading} error={error} onLoadMore={loadMore} loadingMore={loadingMore} isAdmin={isAdmin && !viewAs} /> : null}
-          {activeCapability === 'cabecera' ? <CabeceraView page={page} loading={loading} error={error} onLoadMore={loadMore} loadingMore={loadingMore} /> : null}
+          {activeCapability === 'cabecera' ? (
+            <CabeceraView
+              page={page}
+              loading={loading}
+              error={error}
+              onLoadMore={loadMore}
+              loadingMore={loadingMore}
+              isAdmin={isAdmin}
+              readOnly={Boolean(viewAs)}
+              onRequestCreated={() => setRequestRefreshKey((key) => key + 1)}
+            />
+          ) : null}
           {activeCapability === 'supervisor' ? <SupervisorView page={page} loading={loading} error={error} onLoadMore={loadMore} loadingMore={loadingMore} /> : null}
-          {activeCapability ? <OverviewPanel key={activeCapability} capability={activeCapability} assignments={page} onRequestCreated={() => setRequestRefreshKey((key) => key + 1)} viewAsUserId={viewAsUserId} /> : null}
+          {activeCapability ? <OverviewPanel key={activeCapability} capability={activeCapability} viewAsUserId={viewAsUserId} /> : null}
           <RequestList refreshKey={requestRefreshKey} capability={activeCapability ?? undefined} viewAsUserId={viewAsUserId} />
         </>
       )}
