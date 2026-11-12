@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { FormularioLlamada } from '@/components/call-center/formulario-llamada'
 
@@ -24,6 +25,23 @@ const FILTROS: { valor: Filtro; etiqueta: string }[] = [
   { valor: 'contactadas', etiqueta: 'Contactadas' },
   { valor: 'todas', etiqueta: 'Todas' },
 ]
+
+// Below this width the list and the form no longer fit side by side, so the
+// form opens in a modal instead of stacking under a long list.
+const CONSULTA_ANGOSTA = '(max-width: 899px)'
+
+function usePantallaAngosta(): boolean {
+  return useSyncExternalStore(
+    (avisar) => {
+      if (typeof window === 'undefined' || !window.matchMedia) return () => {}
+      const consulta = window.matchMedia(CONSULTA_ANGOSTA)
+      consulta.addEventListener('change', avisar)
+      return () => consulta.removeEventListener('change', avisar)
+    },
+    () => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(CONSULTA_ANGOSTA).matches : false),
+    () => false,
+  )
+}
 
 export type ListaEscuelasProps = { callerNombreInicial: string }
 
@@ -88,6 +106,17 @@ export function ListaEscuelas({ callerNombreInicial }: ListaEscuelasProps) {
   }, [escuelas, busqueda, filtro])
 
   const seleccionada = escuelas.find((escuela) => escuela.cueAnexo === cueSeleccionado) ?? null
+  const angosta = usePantallaAngosta()
+
+  const formulario = seleccionada ? (
+    <FormularioLlamada
+      key={seleccionada.cueAnexo}
+      cueAnexo={seleccionada.cueAnexo}
+      nombreEscuela={seleccionada.nombre}
+      callerNombreInicial={callerNombreInicial}
+      onGuardada={recargar}
+    />
+  ) : null
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s-4)', alignItems: 'flex-start' }}>
@@ -181,28 +210,43 @@ export function ListaEscuelas({ callerNombreInicial }: ListaEscuelasProps) {
         )}
       </section>
 
-      <section
-        className="admin-panel"
-        style={{ flex: '1 1 320px', minWidth: 0, position: 'sticky', top: 'var(--s-4)' }}
-      >
-        {seleccionada ? (
-          <>
-            <h2>{seleccionada.nombre}</h2>
-            <p className="ui-hint">
-              CUE {seleccionada.cueAnexo} · {textoSinActualizar(seleccionada.horasSinActualizar)}
-            </p>
-            <FormularioLlamada
-              key={seleccionada.cueAnexo}
-              cueAnexo={seleccionada.cueAnexo}
-              nombreEscuela={seleccionada.nombre}
-              callerNombreInicial={callerNombreInicial}
-              onGuardada={recargar}
-            />
-          </>
-        ) : (
-          <p className="ui-hint">Elegí una escuela de la lista para registrar la llamada.</p>
-        )}
-      </section>
+      {angosta ? (
+        <Dialog
+          open={seleccionada !== null}
+          onOpenChange={(abierto) => {
+            if (!abierto) setCueSeleccionado(null)
+          }}
+        >
+          <DialogContent className="call-center-dialog">
+            {seleccionada && (
+              <>
+                <DialogTitle render={<h2 />}>{seleccionada.nombre}</DialogTitle>
+                <p className="ui-hint">
+                  CUE {seleccionada.cueAnexo} · {textoSinActualizar(seleccionada.horasSinActualizar)}
+                </p>
+                {formulario}
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <section
+          className="admin-panel"
+          style={{ flex: '1 1 320px', minWidth: 0, position: 'sticky', top: 'var(--s-4)' }}
+        >
+          {seleccionada ? (
+            <>
+              <h2>{seleccionada.nombre}</h2>
+              <p className="ui-hint">
+                CUE {seleccionada.cueAnexo} · {textoSinActualizar(seleccionada.horasSinActualizar)}
+              </p>
+              {formulario}
+            </>
+          ) : (
+            <p className="ui-hint">Elegí una escuela de la lista para registrar la llamada.</p>
+          )}
+        </section>
+      )}
     </div>
   )
 }

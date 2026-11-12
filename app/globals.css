@@ -1663,6 +1663,17 @@ time {
 .ui-dialog-actions { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-5); }
 .ui-alert-dialog-popup { max-width: 28rem; }
 
+/* Call center: the call form opens in a modal on narrow screens. */
+.ui-dialog-popup.call-center-dialog {
+  max-height: calc(100dvh - 1rem);
+  padding: var(--s-4);
+  padding-top: var(--s-5);
+  display: grid;
+  gap: var(--s-2);
+  align-content: start;
+}
+.ui-dialog-popup.call-center-dialog h2 { margin: 0; padding-right: var(--s-6, 2rem); }
+
 /* Admin editors open as a full-height side sheet: the list stays visible
    for context, the title and the save actions stay pinned while the form
    scrolls between them. */
