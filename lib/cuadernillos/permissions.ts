@@ -1,5 +1,7 @@
 import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { crearEjecutorSql } from '@/lib/infraestructura/ge-db'
+import { toDashedCue } from './eligibility'
 import type { SessionUser } from '@/lib/acl'
 import { bookletCampaign, bookletMembership, bookletProduct, bookletRequest, bookletRequestLine, bookletSchoolAssignment, user } from '@/lib/db/schema'
 import type { BookletCampaignOption, BookletCapability, BookletRequestSummary } from './types'
@@ -153,6 +155,20 @@ const databaseReadRepository: BookletRequestReadRepository = {
         .orderBy(bookletRequestLine.requestId, bookletProduct.name, bookletProduct.id),
     ])
     const schoolNames = new Map(schools.map((school) => [school.cueAnexo, school.schoolName]))
+    // Recipients are any Crítica school and usually have no assignment row: name them from the GE padrón.
+    const unnamed = cues.filter((cue) => !schoolNames.get(cue))
+    if (unnamed.length) {
+      try {
+        const dashed = unnamed.map(toDashedCue)
+        const { rows } = await crearEjecutorSql(getDb()).execute({
+          sql: `SELECT cue_anexo AS "cueAnexo", nombre FROM ge.ge_localizacion WHERE cue_anexo IN (${dashed.map(() => '?').join(', ')})`,
+          args: dashed,
+        })
+        for (const row of rows as Array<{ cueAnexo: string; nombre: string }>) schoolNames.set(row.cueAnexo.replace('-', ''), row.nombre)
+      } catch {
+        // GE padrón unavailable: keep empty names rather than failing the list.
+      }
+    }
     const linesByRequest = new Map<string, typeof lines>()
     for (const line of lines) linesByRequest.set(line.requestId, [...(linesByRequest.get(line.requestId) ?? []), line])
     return page.flatMap((row) => {
