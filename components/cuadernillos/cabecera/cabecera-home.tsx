@@ -5,8 +5,9 @@ import type { BookletCampaignOption } from '@/lib/cuadernillos/types'
 import { CabeceraCombobox } from './cabecera-combobox'
 import { CabeceraStyles } from './cabecera-styles'
 import { ChoiceGroup } from './choice-group'
+import { Button } from '@/components/ui/button'
 import {
-  isAssignmentsPage, isCabeceraList, isOverview, readJson, scopedQuery,
+  isAssignmentsPage, isCabeceraList, isOverview, loadJson, scopedQuery,
   type CabeceraChoice, type CriticalSchool, type Overview,
 } from './cabecera-api'
 import { MyRequests } from './my-requests'
@@ -30,14 +31,16 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
   const [selected, setSelected] = useState<CriticalSchool | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [retryKey, setRetryKey] = useState(0)
 
+  // Each load owns its state: it ends in data or in an error (never a silent drop), and a
+  // timeout in loadJson turns a request that never answers into that error.
   useEffect(() => {
     if (!showAdminPicker) return
     let active = true
-    fetch('/api/cuadernillos/cabeceras', { cache: 'no-store' })
-      .then(async (response) => {
-        const data = await readJson(response)
-        if (!response.ok || !isCabeceraList(data)) throw new Error('No se pudieron cargar las cabeceras.')
+    const load = loadJson('/api/cuadernillos/cabeceras', isCabeceraList, 'No se pudieron cargar las cabeceras.')
+    load.promise
+      .then((data) => {
         if (!active) return
         setAdminCabeceras(data.cabeceras.map((row) => ({ cue: row.cue, nombre: row.nombre })))
         setCabeceraError(null)
@@ -45,16 +48,19 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
       .catch((reason: unknown) => {
         if (active) setCabeceraError(reason instanceof Error ? reason.message : 'No se pudieron cargar las cabeceras.')
       })
-    return () => { active = false }
-  }, [showAdminPicker])
+    return () => { active = false; load.cancel() }
+  }, [showAdminPicker, retryKey])
 
   useEffect(() => {
     if (showAdminPicker) return
     let active = true
-    fetch(`/api/cuadernillos/assignments?${scopedQuery({ capability: 'cabecera', viewAs: viewAsUserId })}`, { cache: 'no-store' })
-      .then(async (response) => {
-        const data = await readJson(response)
-        if (!response.ok || !isAssignmentsPage(data)) throw new Error('No se pudieron cargar las cabeceras de esta cuenta.')
+    const load = loadJson(
+      `/api/cuadernillos/assignments?${scopedQuery({ capability: 'cabecera', viewAs: viewAsUserId })}`,
+      isAssignmentsPage,
+      'No se pudieron cargar las cabeceras de esta cuenta.',
+    )
+    load.promise
+      .then((data) => {
         if (!active) return
         setOwnCabeceras(data.items
           .filter((item) => item.relationship === 'cabecera')
@@ -64,15 +70,18 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
       .catch((reason: unknown) => {
         if (active) setCabeceraError(reason instanceof Error ? reason.message : 'No se pudieron cargar las cabeceras de esta cuenta.')
       })
-    return () => { active = false }
-  }, [showAdminPicker, viewAsUserId])
+    return () => { active = false; load.cancel() }
+  }, [showAdminPicker, viewAsUserId, retryKey])
 
   useEffect(() => {
     let active = true
-    fetch(`/api/cuadernillos/overview?${scopedQuery({ capability: 'cabecera', campaignId, viewAs: viewAsUserId })}`, { cache: 'no-store' })
-      .then(async (response) => {
-        const data = await readJson(response)
-        if (!response.ok || !isOverview(data)) throw new Error('No se pudo cargar la campaña.')
+    const load = loadJson(
+      `/api/cuadernillos/overview?${scopedQuery({ capability: 'cabecera', campaignId, viewAs: viewAsUserId })}`,
+      isOverview,
+      'No se pudo cargar la campaña.',
+    )
+    load.promise
+      .then((data) => {
         if (!active) return
         setOverview(data)
         setOverviewError(null)
@@ -82,8 +91,8 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
       .catch((reason: unknown) => {
         if (active) setOverviewError(reason instanceof Error ? reason.message : 'No se pudo cargar la campaña.')
       })
-    return () => { active = false }
-  }, [campaignId, viewAsUserId])
+    return () => { active = false; load.cancel() }
+  }, [campaignId, viewAsUserId, retryKey])
 
   const cabeceraOptions = (showAdminPicker ? adminCabeceras : ownCabeceras) ?? []
   const activeCue = pickedCue && cabeceraOptions.some((option) => option.cue === pickedCue)
@@ -102,6 +111,12 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
   function pickCampaign(id: string) {
     setCampaignId(id)
     setSelected(null)
+  }
+
+  function retryLoads() {
+    setCabeceraError(null)
+    setOverviewError(null)
+    setRetryKey((value) => value + 1)
   }
 
   function saved(message: string) {
@@ -127,7 +142,12 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
           <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Buscá la escuela por CUE. Solo aparecen escuelas en severidad Crítica.</p>
         </header>
 
-        {cabeceraError ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{cabeceraError}</p> : null}
+        {cabeceraError ? (
+          <div className="cab-stack" style={{ gap: '.5rem', justifyItems: 'start' }}>
+            <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{cabeceraError}</p>
+            <Button type="button" variant="secondary" onClick={retryLoads}>Reintentar</Button>
+          </div>
+        ) : null}
         {loadingCabeceras && !cabeceraError ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando cabeceras…</p> : null}
 
         {showAdminPicker && cabeceraOptions.length > 0 ? (
@@ -162,7 +182,12 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
           <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Esta cuenta no tiene una cabecera asignada para pedir cuadernillos.</p>
         ) : null}
 
-        {overviewError ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{overviewError}</p> : null}
+        {overviewError ? (
+          <div className="cab-stack" style={{ gap: '.5rem', justifyItems: 'start' }}>
+            <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{overviewError}</p>
+            <Button type="button" variant="secondary" onClick={retryLoads}>Reintentar</Button>
+          </div>
+        ) : null}
         {campaignOptions.length > 1 ? (
           <div style={{ display: 'grid', gap: '.5rem' }}>
             <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Campaña</span>
