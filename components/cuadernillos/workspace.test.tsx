@@ -122,9 +122,31 @@ describe('CuadernillosWorkspace roles', () => {
     expect(screen.getByRole('tab', { name: 'Planeamiento' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Cabecera' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Supervisión' })).toBeInTheDocument()
-    fireEvent.click(await screen.findByRole('button', { name: 'Configuración' }))
-    expect(await screen.findByRole('heading', { name: 'Configuración' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Configuración' }))
+    expect(await screen.findByRole('region', { name: 'Configuración' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Membresías' })).toBeInTheDocument()
+  })
+
+  it('keeps configuration out of the planning home and reaches it only from its own tab', async () => {
+    vi.stubGlobal('fetch', fetchOverview())
+
+    render(<CuadernillosWorkspace capabilities={['planning']} isAdmin />)
+
+    await screen.findByRole('heading', { name: 'Registrar stock global' })
+    expect(screen.queryByRole('button', { name: 'Inicio' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Configuración' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Configuración' }))
+    expect(await screen.findByRole('region', { name: 'Configuración' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Registrar stock global' })).not.toBeInTheDocument()
+  })
+
+  it('offers an admin without planning or other roles the configuration tab alone', async () => {
+    vi.stubGlobal('fetch', fetchOverview())
+
+    render(<CuadernillosWorkspace capabilities={[]} isAdmin />)
+
+    expect(await screen.findByRole('region', { name: 'Configuración' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   })
 
   it('offers no configuration area to a non-admin planner', async () => {
@@ -133,7 +155,7 @@ describe('CuadernillosWorkspace roles', () => {
     render(<CuadernillosWorkspace capabilities={['planning']} />)
 
     await screen.findByRole('heading', { name: 'Registrar stock global' })
-    expect(screen.queryByRole('button', { name: 'Configuración' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Configuración' })).not.toBeInTheDocument()
   })
 
   it('shows access-denied errors from the role home without rendering data', async () => {
@@ -192,8 +214,8 @@ describe('CuadernillosWorkspace view-as', () => {
     render(<CuadernillosWorkspace capabilities={['planning']} isAdmin viewAs={target} viewAsCandidates={[candidate]} />)
 
     await screen.findByRole('heading', { name: 'Registrar stock global' })
-    expect(screen.queryByRole('button', { name: 'Configuración' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Configuración' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Configuración' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Configuración' })).not.toBeInTheDocument()
   })
 
   it('explains when the requested account cannot be viewed', () => {

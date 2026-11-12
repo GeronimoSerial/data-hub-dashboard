@@ -77,6 +77,20 @@ describe('SupervisorInbox', () => {
     expect(await screen.findByText('No hay pedidos pendientes')).toBeInTheDocument()
   })
 
+  it('shows requested, available and approved quantities as a table with an unknown availability dash', async () => {
+    vi.stubGlobal('fetch', mockApi({ list: listResponse([pending]), overview: overviewResponse([]) }))
+
+    render(<SupervisorInbox isAdmin={false} readOnly={false} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Escuela Anexo/ }))
+    const table = await screen.findByRole('table', { name: 'Cantidades solicitadas' })
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['Producto', 'Solicitado', 'Disponible', 'Aprobar'])
+    expect(within(table).getByRole('row', { name: /Cuadernillo A.*12.*—/ })).toBeInTheDocument()
+    expect(within(table).getByLabelText('Cantidad aprobada · Cuadernillo A')).toHaveValue(12)
+    expect(screen.getByText('La aprobación descuenta stock y cupo y no se puede anular.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Ver ficha/ })).toHaveAttribute('target', '_blank')
+  })
+
   it('posts the approval with the default quantities and then with edited quantities', async () => {
     const fetchMock = mockApi({ list: listResponse([pending]), decide: response({ error: 'authority_unavailable' }, false) })
     vi.stubGlobal('fetch', fetchMock)

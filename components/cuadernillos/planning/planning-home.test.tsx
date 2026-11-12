@@ -49,7 +49,7 @@ describe('PlanningHome', () => {
     const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
 
     expect(await screen.findByRole('row', { name: /Cuadernillo A.*Cabecera.*4/ })).toBeInTheDocument()
     expect(screen.queryByText(/cupo originalmente asignado/i)).not.toBeInTheDocument()
@@ -65,7 +65,7 @@ describe('PlanningHome', () => {
     const fetchMock = routedFetch(overview, requests)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
 
     const stock = await screen.findByRole('region', { name: 'Stock global' })
     expect(stock).toHaveTextContent('Cuadernillo A')
@@ -86,7 +86,7 @@ describe('PlanningHome', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
 
     expect(await screen.findByRole('region', { name: 'Solicitudes' })).toHaveTextContent(/Pendientes\s*2/)
   })
@@ -94,7 +94,7 @@ describe('PlanningHome', () => {
   it('shows a pending count of zero only when the requests read has no pending rows', async () => {
     vi.stubGlobal('fetch', routedFetch(overview, [requestRow('r1', 'rejected')]))
 
-    render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
 
     expect(await screen.findByRole('region', { name: 'Solicitudes' })).toHaveTextContent(/Pendientes\s*0/)
   })
@@ -102,7 +102,7 @@ describe('PlanningHome', () => {
   it('keeps the stock and quota forms for planning', async () => {
     vi.stubGlobal('fetch', routedFetch(overview))
 
-    render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
 
     expect(await screen.findByRole('heading', { name: 'Registrar stock global' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Definir cupo disponible' })).toBeInTheDocument()
@@ -112,7 +112,7 @@ describe('PlanningHome', () => {
     const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
     fireEvent.change(await screen.findByLabelText('Cantidad de stock'), { target: { value: '25' } })
     fireEvent.click(screen.getByRole('button', { name: 'Registrar movimiento' }))
 
@@ -127,7 +127,7 @@ describe('PlanningHome', () => {
     const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
     fireEvent.change(await screen.findByLabelText('Cantidad de cupo disponible'), { target: { value: '0' } })
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cupo' }))
 
@@ -140,7 +140,7 @@ describe('PlanningHome', () => {
     const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
     fireEvent.change(await screen.findByLabelText('Cantidad de stock'), { target: { value: '0' } })
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar movimiento' }).closest('form')!)
 
@@ -152,23 +152,10 @@ describe('PlanningHome', () => {
     const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome isAdmin={false} readOnly viewAsUserId="supervisor-1" />)
+    render(<PlanningHome readOnly viewAsUserId="supervisor-1" />)
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Registrar movimiento' })).toBeDisabled())
     expect(screen.getByRole('button', { name: 'Guardar cupo' })).toBeDisabled()
     expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/overview?capability=planning&viewAs=supervisor-1', expect.anything())
-  })
-
-  it('shows the configuration area only to admins outside read-only mode', async () => {
-    vi.stubGlobal('fetch', routedFetch(overview))
-
-    const { rerender } = render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
-    await screen.findByRole('heading', { name: 'Registrar stock global' })
-    expect(screen.queryByRole('button', { name: 'Configuración' })).not.toBeInTheDocument()
-
-    rerender(<PlanningHome isAdmin readOnly={false} viewAsUserId={null} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Configuración' }))
-    expect(screen.getByText('Área de configuración')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Registrar stock global' })).not.toBeInTheDocument()
   })
 })

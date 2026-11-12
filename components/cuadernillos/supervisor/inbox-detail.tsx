@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { ExternalLink } from 'lucide-react'
 import type { BookletRequestSummary } from '@/lib/cuadernillos/types'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
-import { SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { type ProductAvailability, defaultApprovalQuantities, fichaEscuelaHref, formatCue } from './inbox-model'
@@ -11,15 +11,13 @@ import { type ProductAvailability, defaultApprovalQuantities, fichaEscuelaHref, 
 export type ApprovalLine = { productId: string; quantity: number }
 
 export function InboxDetail({
-  request, availability, readOnly, busy, error, showTitle = true, onApprove, onReject,
+  request, availability, readOnly, busy, error, onApprove, onReject,
 }: {
   request: BookletRequestSummary
   availability: ProductAvailability[]
   readOnly: boolean
   busy: boolean
   error: string | null
-  // The bottom sheet on phones already carries the school name as its title.
-  showTitle?: boolean
   onApprove: (lines: ApprovalLine[]) => void
   onReject: (reason: string) => void
 }) {
@@ -67,43 +65,19 @@ export function InboxDetail({
   return (
     <div style={{ display: 'grid', gap: '1.25rem', alignContent: 'start' }}>
       <header style={{ display: 'grid', gap: '.35rem' }}>
-        {showTitle ? (
-          <SheetTitle style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: '1.35rem', overflowWrap: 'anywhere' }}>
-            {request.recipientName || 'Escuela destinataria'}
-          </SheetTitle>
-        ) : null}
-        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>CUE {formatCue(request.recipientCueAnexo)}</p>
-        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Cabecera: {request.cabeceraName}</p>
+        {/* Plain element styled as a title: the global heading style uppercases school names. */}
+        <p style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 700, textTransform: 'none', overflowWrap: 'anywhere' }}>
+          {request.recipientName || 'Escuela destinataria'}
+        </p>
+        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
+          CUE {formatCue(request.recipientCueAnexo)} · Cabecera {request.cabeceraName}
+        </p>
         {ficha ? (
-          <a href={ficha} target="_blank" rel="noopener noreferrer" style={{ justifySelf: 'start' }}>Ver ficha</a>
+          <a href={ficha} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', justifySelf: 'start' }}>
+            Ver ficha <ExternalLink aria-hidden size={14} />
+          </a>
         ) : null}
       </header>
-
-      <section style={{ display: 'grid', gap: '.75rem' }} aria-label="Cantidades">
-        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Total solicitado: {totalRequested}</p>
-        {request.requested.map((line) => {
-          const known = availability.find((row) => row.productId === line.productId)
-          return (
-            <div key={line.productId} style={{ display: 'grid', gap: '.3rem' }}>
-              <label htmlFor={`approved-${line.productId}`} style={{ fontWeight: 600, color: 'var(--ink)' }}>
-                Cantidad aprobada · {line.productLabel}
-              </label>
-              <input
-                id={`approved-${line.productId}`}
-                type="number" inputMode="numeric" min={0} max={line.quantity} step={1}
-                disabled={blocked}
-                value={values[line.productId] ?? String(defaults[line.productId] ?? line.quantity)}
-                onChange={(event) => setValues((current) => ({ ...current, [line.productId]: event.target.value }))}
-                style={{ maxWidth: '10rem', minWidth: 0, width: '100%', boxSizing: 'border-box', padding: '.5rem .6rem', border: '1px solid var(--line)', borderRadius: '.5rem', background: 'var(--surface)', color: 'var(--ink)' }}
-              />
-              <span style={{ color: 'var(--ink-soft)', fontSize: '.9rem' }}>
-                Solicitado: {line.quantity}
-                {known ? ` · Disponible: ${known.available}` : ' · Disponibilidad no informada'}
-              </span>
-            </div>
-          )
-        })}
-      </section>
 
       {readOnly ? (
         <p style={{ margin: 0, padding: '.75rem 1rem', background: 'var(--fill)', color: 'var(--ink-soft)', borderRadius: '.5rem' }}>
@@ -111,13 +85,44 @@ export function InboxDetail({
         </p>
       ) : null}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
-        <Button type="button" onClick={openApproval} disabled={blocked}>Aprobar</Button>
-        <Button type="button" variant="secondary" onClick={() => setRejectOpen((open) => !open)} disabled={blocked} aria-expanded={rejectOpen}>Rechazar</Button>
+      <div style={{ overflowX: 'auto' }}>
+        <table aria-label="Cantidades solicitadas" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <caption style={{ captionSide: 'top', textAlign: 'left', padding: '0 0 .5rem', color: 'var(--ink-soft)' }}>
+            Total solicitado: {totalRequested}
+          </caption>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--line)' }}>
+              <th scope="col" style={{ textAlign: 'left', padding: '.4rem .3rem', color: 'var(--ink-soft)', fontWeight: 600 }}>Producto</th>
+              <th scope="col" style={{ textAlign: 'right', padding: '.4rem .3rem', color: 'var(--ink-soft)', fontWeight: 600 }}>Solicitado</th>
+              <th scope="col" style={{ textAlign: 'right', padding: '.4rem .3rem', color: 'var(--ink-soft)', fontWeight: 600 }}>Disponible</th>
+              <th scope="col" style={{ textAlign: 'left', padding: '.4rem .3rem', color: 'var(--ink-soft)', fontWeight: 600 }}>Aprobar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {request.requested.map((line) => {
+              const known = availability.find((row) => row.productId === line.productId)
+              return (
+                <tr key={line.productId} style={{ borderBottom: '1px solid var(--line)' }}>
+                  <td style={{ padding: '.6rem .3rem', color: 'var(--ink)', overflowWrap: 'anywhere' }}>{line.productLabel}</td>
+                  <td style={{ padding: '.6rem .3rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{line.quantity}</td>
+                  <td style={{ padding: '.6rem .3rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{known ? known.available : '—'}</td>
+                  <td style={{ padding: '.4rem .3rem' }}>
+                    <input
+                      id={`approved-${line.productId}`}
+                      aria-label={`Cantidad aprobada · ${line.productLabel}`}
+                      type="number" inputMode="numeric" min={0} max={line.quantity} step={1}
+                      disabled={blocked}
+                      value={values[line.productId] ?? String(defaults[line.productId] ?? line.quantity)}
+                      onChange={(event) => setValues((current) => ({ ...current, [line.productId]: event.target.value }))}
+                      style={{ width: '5rem', minWidth: 0, boxSizing: 'border-box', padding: '.45rem .5rem', border: '1px solid var(--line)', borderRadius: '.5rem', background: 'var(--surface)', color: 'var(--ink)' }}
+                    />
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
-      <p style={{ margin: 0, color: 'var(--ink-soft)', fontSize: '.9rem' }}>
-        La aprobación descuenta stock y cupo de inmediato y no puede anularse.
-      </p>
 
       {rejectOpen ? (
         <div style={{ display: 'grid', gap: '.5rem' }}>
@@ -131,6 +136,16 @@ export function InboxDetail({
       ) : null}
 
       {shownError ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{shownError}</p> : null}
+
+      <footer style={{ position: 'sticky', bottom: 0, display: 'grid', gap: '.6rem', paddingTop: '.9rem', background: 'var(--surface)', borderTop: '1px solid var(--line)' }}>
+        <p style={{ margin: 0, color: 'var(--ink-soft)', fontSize: '.9rem' }}>
+          La aprobación descuenta stock y cupo y no se puede anular.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
+          <Button type="button" onClick={openApproval} disabled={blocked}>Aprobar</Button>
+          <Button type="button" variant="secondary" onClick={() => setRejectOpen((open) => !open)} disabled={blocked} aria-expanded={rejectOpen}>Rechazar</Button>
+        </div>
+      </footer>
 
       <ConfirmSheet
         open={confirmOpen}
