@@ -1,5 +1,7 @@
 import type { BookletAssignmentsPage } from '@/lib/cuadernillos/types'
+import { CabecerasAdmin } from './cabeceras-admin'
 import { AssignmentList } from './assignment-list'
+import { MembershipAdmin } from './membership-admin'
 
 export function PlanningView({
   page,
@@ -7,12 +9,14 @@ export function PlanningView({
   error,
   onLoadMore,
   loadingMore,
+  isAdmin = false,
 }: {
   page: BookletAssignmentsPage | null
   loading: boolean
   error: string | null
   onLoadMore: () => void
   loadingMore: boolean
+  isAdmin?: boolean
 }) {
   return (
     <section aria-labelledby="cuadernillos-view-title">
@@ -32,6 +36,8 @@ export function PlanningView({
       </header>
 
       <AssignmentSection page={page} loading={loading} error={error} onLoadMore={onLoadMore} loadingMore={loadingMore} />
+      {isAdmin ? <CabecerasAdmin /> : null}
+      {isAdmin ? <MembershipAdmin /> : null}
     </section>
   )
 }

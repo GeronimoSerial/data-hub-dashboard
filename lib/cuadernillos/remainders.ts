@@ -71,8 +71,7 @@ export async function getRequestChain(
       && (await isBookletAdmin(actor, tx)
         || (account.emailVerified
           && await tx.hasActiveMembership(actor.id, 'cabecera')
-          && await tx.hasSchoolAssignment(actor.id, root.cabeceraCueAnexo, 'cabecera')
-          && await tx.hasSchoolAssignment(actor.id, root.recipientCueAnexo, 'cabecera')))
+          && await tx.hasSchoolAssignment(actor.id, root.cabeceraCueAnexo, 'cabecera')))
     if (!inScope) throw new BookletServiceError('request_not_found', 404)
 
     return summarize(rootRequestId, rows)
@@ -112,7 +111,7 @@ export async function createRemainderRequest(
     }
 
     assertCampaign(await tx.getCampaign(root.campaignId))
-    if (!admin && !await tx.approvalAuthorityReady(root.recipientCueAnexo, root.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
+    if (!admin && !await tx.approvalAuthorityReady(root.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
     const eligibility: Eligibility = await tx.getCurrentEligibility(root.recipientCueAnexo, geSchema)
     if (!eligibility.eligible || eligibility.severity !== 'Crítica') throw new BookletServiceError('ineligible', 409)
 

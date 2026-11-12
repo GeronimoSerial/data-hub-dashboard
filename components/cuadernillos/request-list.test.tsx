@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { RequestList } from './request-list'
+import { RequestList, fichaEscuelaHref } from './request-list'
 
 afterEach(() => {
   cleanup()
@@ -34,6 +34,22 @@ describe('RequestList', () => {
     expect(screen.getByText('Pendiente')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/requests?limit=50', expect.anything())
     expect(screen.queryByRole('button', { name: /aprobar|rechazar|firmar/i })).not.toBeInTheDocument()
+  })
+
+  it('links each recipient to its ENOS school ficha using the dashed CUE form', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({
+      campaignId: 'campaign-1', campaignOptions: [], requests: [summary], hasMore: false, nextCursor: null,
+    })))
+
+    render(<RequestList capability="supervisor" />)
+
+    const link = await screen.findByRole('link', { name: /ver ficha en enos/i })
+    expect(link).toHaveAttribute('href', '/mapas/infraestructura/escuelas/1801234-57')
+  })
+
+  it('formats the ficha href from a 9-digit CUE only', () => {
+    expect(fichaEscuelaHref('180123457')).toBe('/mapas/infraestructura/escuelas/1801234-57')
+    expect(fichaEscuelaHref('18012')).toBeNull()
   })
 
   it('requires an explicit campaign selection when the server reports multiple active campaigns', async () => {
