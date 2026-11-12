@@ -10,8 +10,9 @@ const CAPABILITY_LABELS: Record<ViewAsCandidate['capabilities'][number], string>
 }
 
 export function ViewAsPicker({ candidates, currentUserId }: { candidates: ViewAsCandidate[]; currentUserId: string | null }) {
+  const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const inputId = useId()
+  const id = useId()
   const visible = useMemo(() => {
     const term = query.trim().toLocaleLowerCase('es')
     if (!term) return candidates
@@ -20,42 +21,66 @@ export function ViewAsPicker({ candidates, currentUserId }: { candidates: ViewAs
   }, [candidates, query])
 
   return (
-    <section aria-labelledby={`${inputId}-title`} style={{ marginBottom: '2rem' }}>
-      <h2 id={`${inputId}-title`} style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: '1.15rem' }}>
+    <div style={{ position: 'relative' }} onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false) }}>
+      <button
+        type="button"
+        className="ui-button ui-button--secondary"
+        aria-expanded={open}
+        aria-controls={`${id}-panel`}
+        onClick={() => setOpen((value) => !value)}
+      >
         Ver como
-      </h2>
-      <p style={{ margin: '.35rem 0 .75rem', color: 'var(--ink-soft)', lineHeight: 1.5 }}>
-        Consulta de solo lectura de lo que ve una supervisión o cabecera.
-      </p>
-      <label htmlFor={inputId} style={{ display: 'block', marginBottom: '.4rem', fontWeight: 600 }}>Buscar cuenta</label>
-      <input
-        id={inputId}
-        type="search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        style={{ width: '100%', maxWidth: '28rem', padding: '.5rem .75rem', border: '1px solid var(--line)', borderRadius: '.5rem' }}
-      />
-      {visible.length === 0 ? (
-        <p role="status" style={{ marginTop: '.75rem', color: 'var(--ink-soft)' }}>Ninguna cuenta coincide con la búsqueda.</p>
-      ) : (
-        <ul style={{ listStyle: 'none', margin: '.75rem 0 0', padding: 0, display: 'grid', gap: '.4rem' }}>
-          {visible.map((candidate) => (
-            <li key={candidate.userId}>
-              <Link
-                href={`/cuadernillos?viewAs=${encodeURIComponent(candidate.userId)}`}
-                aria-current={candidate.userId === currentUserId ? 'true' : undefined}
-                style={{ display: 'block', padding: '.6rem .75rem', border: '1px solid var(--line)', borderRadius: '.5rem', color: 'var(--ink)', textDecoration: 'none' }}
-              >
-                <strong>{candidate.name}</strong>{' '}
-                <span style={{ color: 'var(--ink-soft)' }}>{candidate.email}</span>
-                <span style={{ display: 'block', color: 'var(--ink-soft)', fontSize: '.85rem' }}>
-                  {candidate.capabilities.map((capability) => CAPABILITY_LABELS[capability]).join(' · ')}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+      </button>
+      {open ? (
+        <div
+          id={`${id}-panel`}
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 'calc(100% + .5rem)',
+            zIndex: 20,
+            width: 'min(24rem, calc(100vw - 2rem))',
+            display: 'grid',
+            gap: '.6rem',
+            padding: '.85rem',
+            border: '1px solid var(--line)',
+            borderRadius: '.6rem',
+            background: 'var(--white)',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, .12)',
+          }}
+        >
+          <label htmlFor={`${id}-search`} style={{ fontWeight: 600, color: 'var(--ink)' }}>Buscar cuenta</label>
+          <input
+            id={`${id}-search`}
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Nombre o correo"
+            style={{ width: '100%', padding: '.5rem .7rem', border: '1px solid var(--line)', borderRadius: '.5rem', background: 'var(--white)', color: 'var(--ink)' }}
+          />
+          {visible.length === 0 ? (
+            <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Ninguna cuenta coincide con la búsqueda.</p>
+          ) : (
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '.35rem', maxHeight: '18rem', overflowY: 'auto' }}>
+              {visible.map((candidate) => (
+                <li key={candidate.userId}>
+                  <Link
+                    href={`/cuadernillos?viewAs=${encodeURIComponent(candidate.userId)}`}
+                    aria-current={candidate.userId === currentUserId ? 'true' : undefined}
+                    style={{ display: 'block', padding: '.55rem .7rem', border: '1px solid var(--line)', borderRadius: '.5rem', color: 'var(--ink)', textDecoration: 'none' }}
+                  >
+                    <strong>{candidate.name}</strong>{' '}
+                    <span style={{ color: 'var(--ink-soft)', overflowWrap: 'anywhere' }}>{candidate.email}</span>
+                    <span style={{ display: 'block', color: 'var(--ink-soft)', fontSize: '.85rem' }}>
+                      {candidate.capabilities.map((capability) => CAPABILITY_LABELS[capability]).join(' · ')}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </div>
   )
 }

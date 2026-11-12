@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { MembershipUser, MembershipView } from '@/lib/cuadernillos/memberships'
 import type { BookletCapability } from '@/lib/cuadernillos/types'
 
@@ -33,7 +33,7 @@ const errorCopy = (error: unknown) => (error instanceof MembershipRequestError &
 
 const dateCopy = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-export function MembershipAdmin() {
+export function MembershipSection() {
   const [memberships, setMemberships] = useState<MembershipView[] | null>(null)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<MembershipUser[] | null>(null)
@@ -42,14 +42,14 @@ export function MembershipAdmin() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadMemberships = useCallback(async () => {
+  const loadMemberships = async () => {
     try {
       const body = await request<{ memberships: MembershipView[] }>('/api/cuadernillos/memberships')
       setMemberships(body.memberships ?? [])
     } catch (caught) {
       setError(errorCopy(caught))
     }
-  }, [])
+  }
 
   useEffect(() => {
     let active = true
@@ -112,17 +112,15 @@ export function MembershipAdmin() {
   }
 
   return (
-    <section aria-labelledby="membership-admin-title" style={{ marginTop: '2rem' }}>
-      <h3 id="membership-admin-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: '1.15rem' }}>
-        Membresías
-      </h3>
-      {error ? <p role="alert" style={{ color: 'var(--danger-ink)' }}>{error}</p> : null}
+    <section aria-labelledby="membership-section-title" style={{ display: 'grid', gap: '1rem' }}>
+      <h4 id="membership-section-title" style={{ margin: 0, color: 'var(--ink)', fontSize: '1rem' }}>Membresías</h4>
+      {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}
 
-      {memberships === null && !error ? <p role="status" style={{ color: 'var(--ink-soft)' }}>Cargando membresías…</p> : null}
-      {memberships !== null && memberships.length === 0 ? <p style={{ color: 'var(--ink-soft)' }}>Sin asignaciones activas.</p> : null}
+      {memberships === null && !error ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando membresías…</p> : null}
+      {memberships !== null && memberships.length === 0 ? <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Sin asignaciones activas.</p> : null}
       {memberships !== null && memberships.length > 0 ? (
         <div style={{ overflowX: 'auto' }}>
-          <table aria-label="Membresías activas" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table aria-label="Membresías activas" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '32rem' }}>
             <thead>
               <tr>
                 <th scope="col" style={{ textAlign: 'left' }}>Usuario</th>
@@ -149,23 +147,18 @@ export function MembershipAdmin() {
         </div>
       ) : null}
 
-      <div style={{ marginTop: '1.25rem', display: 'grid', gap: '.75rem', maxWidth: '40rem' }}>
+      <div style={{ display: 'grid', gap: '.75rem', maxWidth: '40rem' }}>
         <form role="search" onSubmit={searchUsers} style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'end' }}>
           <label style={{ display: 'grid', gap: '.25rem', flex: '1 1 16rem' }}>
             <span>Buscar usuario por nombre o correo</span>
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Nombre o correo"
-            />
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre o correo" />
           </label>
           <button type="submit" className="ui-button ui-button--secondary" disabled={busy || query.trim() === ''}>Buscar</button>
         </form>
 
         {results !== null ? (
           results.length === 0 ? (
-            <p style={{ color: 'var(--ink-soft)' }}>Sin coincidencias.</p>
+            <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Sin coincidencias.</p>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '.35rem' }}>
               {results.map((candidate) => (

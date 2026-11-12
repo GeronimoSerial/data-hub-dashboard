@@ -1,0 +1,194 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import type { BookletCampaignOption } from '@/lib/cuadernillos/types'
+import { ChoiceGroup } from './choice-group'
+import {
+  isAssignmentsPage, isCabeceraList, isOverview, readJson, scopedQuery,
+  type CabeceraChoice, type CriticalSchool, type Overview,
+} from './cabecera-api'
+import { MyRequests } from './my-requests'
+import { QuantitiesForm } from './quantities-form'
+import { SchoolSearch } from './school-search'
+
+export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
+  isAdmin: boolean
+  readOnly: boolean
+  viewAsUserId?: string | null
+}) {
+  // An admin has no cabecera of their own: they pick the requesting cabecera first.
+  const showAdminPicker = isAdmin && !readOnly
+  const [adminCabeceras, setAdminCabeceras] = useState<CabeceraChoice[] | null>(null)
+  const [ownCabeceras, setOwnCabeceras] = useState<CabeceraChoice[] | null>(null)
+  const [cabeceraError, setCabeceraError] = useState<string | null>(null)
+  const [pickedCue, setPickedCue] = useState<string | null>(null)
+  const [overview, setOverview] = useState<Overview | null>(null)
+  const [overviewError, setOverviewError] = useState<string | null>(null)
+  const [campaignId, setCampaignId] = useState('')
+  const [selected, setSelected] = useState<CriticalSchool | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    if (!showAdminPicker) return
+    let active = true
+    fetch('/api/cuadernillos/cabeceras', { cache: 'no-store' })
+      .then(async (response) => {
+        const data = await readJson(response)
+        if (!response.ok || !isCabeceraList(data)) throw new Error('No se pudieron cargar las cabeceras.')
+        if (!active) return
+        setAdminCabeceras(data.cabeceras.map((row) => ({ cue: row.cue, nombre: row.nombre })))
+        setCabeceraError(null)
+      })
+      .catch((reason: unknown) => {
+        if (active) setCabeceraError(reason instanceof Error ? reason.message : 'No se pudieron cargar las cabeceras.')
+      })
+    return () => { active = false }
+  }, [showAdminPicker])
+
+  useEffect(() => {
+    if (showAdminPicker) return
+    let active = true
+    fetch(`/api/cuadernillos/assignments?${scopedQuery({ capability: 'cabecera', viewAs: viewAsUserId })}`, { cache: 'no-store' })
+      .then(async (response) => {
+        const data = await readJson(response)
+        if (!response.ok || !isAssignmentsPage(data)) throw new Error('No se pudieron cargar las cabeceras de esta cuenta.')
+        if (!active) return
+        setOwnCabeceras(data.items
+          .filter((item) => item.relationship === 'cabecera')
+          .map((item) => ({ cue: item.cueAnexo, nombre: item.schoolName })))
+        setCabeceraError(null)
+      })
+      .catch((reason: unknown) => {
+        if (active) setCabeceraError(reason instanceof Error ? reason.message : 'No se pudieron cargar las cabeceras de esta cuenta.')
+      })
+    return () => { active = false }
+  }, [showAdminPicker, viewAsUserId])
+
+  useEffect(() => {
+    let active = true
+    fetch(`/api/cuadernillos/overview?${scopedQuery({ capability: 'cabecera', campaignId, viewAs: viewAsUserId })}`, { cache: 'no-store' })
+      .then(async (response) => {
+        const data = await readJson(response)
+        if (!response.ok || !isOverview(data)) throw new Error('No se pudo cargar la campaña.')
+        if (!active) return
+        setOverview(data)
+        setOverviewError(null)
+        const activeCampaign = data.campaignId
+        if (activeCampaign) setCampaignId((current) => current || activeCampaign)
+      })
+      .catch((reason: unknown) => {
+        if (active) setOverviewError(reason instanceof Error ? reason.message : 'No se pudo cargar la campaña.')
+      })
+    return () => { active = false }
+  }, [campaignId, viewAsUserId])
+
+  const cabeceraOptions = (showAdminPicker ? adminCabeceras : ownCabeceras) ?? []
+  const activeCue = pickedCue && cabeceraOptions.some((option) => option.cue === pickedCue)
+    ? pickedCue
+    : showAdminPicker ? null : cabeceraOptions[0]?.cue ?? null
+  const campaignOptions: BookletCampaignOption[] = overview?.campaignOptions ?? []
+  const loadingCabeceras = showAdminPicker ? adminCabeceras === null : ownCabeceras === null
+  const noCabecera = !loadingCabeceras && !activeCue && !cabeceraError
+
+  function pickCabecera(cue: string) {
+    setPickedCue(cue)
+    setSelected(null)
+    setNotice(null)
+  }
+
+  function pickCampaign(id: string) {
+    setCampaignId(id)
+    setSelected(null)
+  }
+
+  function saved(message: string) {
+    setNotice(message)
+    setSelected(null)
+    setRefreshKey((value) => value + 1)
+  }
+
+  return (
+    <section aria-labelledby="cabecera-home-title" style={{ display: 'grid', gap: '2rem' }}>
+      {readOnly ? (
+        <p role="note" style={{ margin: 0, padding: '.75rem 1rem', borderRadius: '.75rem', border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink-soft)' }}>
+          Vista de solo lectura: podés revisar la información, pero no enviar ni guardar pedidos.
+        </p>
+      ) : null}
+
+      <div style={{ display: 'grid', gap: '1rem' }}>
+        <header style={{ display: 'grid', gap: '.25rem' }}>
+          <h2 id="cabecera-home-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: 'clamp(1.35rem, 3vw, 1.75rem)', lineHeight: 1.15 }}>
+            Nuevo pedido
+          </h2>
+          <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Buscá la escuela por CUE. Solo aparecen escuelas en severidad Crítica.</p>
+        </header>
+
+        {cabeceraError ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{cabeceraError}</p> : null}
+        {loadingCabeceras && !cabeceraError ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando cabeceras…</p> : null}
+
+        {cabeceraOptions.length > 1 || (showAdminPicker && cabeceraOptions.length > 0) ? (
+          <div style={{ display: 'grid', gap: '.5rem' }}>
+            <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Cabecera que pide</span>
+            <ChoiceGroup
+              label="Cabecera que pide"
+              disabled={readOnly}
+              value={activeCue ?? ''}
+              onPick={pickCabecera}
+              options={cabeceraOptions.map((option) => ({ value: option.cue, label: `${option.nombre} · CUE ${option.cue}` }))}
+            />
+          </div>
+        ) : null}
+        {showAdminPicker && adminCabeceras?.length === 0 ? <p style={{ margin: 0, color: 'var(--ink-soft)' }}>No hay cabeceras cargadas.</p> : null}
+        {noCabecera && showAdminPicker && adminCabeceras?.length ? (
+          <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Elegí la cabecera en cuyo nombre se hace el pedido.</p>
+        ) : null}
+        {noCabecera && !showAdminPicker && ownCabeceras?.length === 0 ? (
+          <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Esta cuenta no tiene una cabecera asignada para pedir cuadernillos.</p>
+        ) : null}
+
+        {overviewError ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{overviewError}</p> : null}
+        {campaignOptions.length > 1 ? (
+          <div style={{ display: 'grid', gap: '.5rem' }}>
+            <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Campaña</span>
+            <ChoiceGroup
+              label="Campaña"
+              disabled={readOnly}
+              value={campaignId}
+              onPick={pickCampaign}
+              options={campaignOptions.map((campaign) => ({ value: campaign.id, label: campaign.name }))}
+            />
+          </div>
+        ) : null}
+
+        {activeCue ? (
+          <>
+            <SchoolSearch selectedCue={selected?.cueAnexo ?? null} onChoose={(school) => { setSelected(school); setNotice(null) }} />
+            {selected && overview && campaignId ? (
+              <div style={{ display: 'grid', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--line)' }}>
+                <p style={{ margin: 0, color: 'var(--ink)' }}>
+                  <strong>{selected.nombre}</strong> · CUE {selected.cueAnexo}
+                </p>
+                <QuantitiesForm
+                  key={`${selected.cueAnexo}:${activeCue}:${campaignId}`}
+                  school={selected}
+                  campaignId={campaignId}
+                  cabeceraCue={activeCue}
+                  balances={overview.balances}
+                  readOnly={readOnly}
+                  onSaved={saved}
+                />
+              </div>
+            ) : null}
+            {!overview && !overviewError ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando campaña…</p> : null}
+            {overview && !campaignId ? <p style={{ margin: 0, color: 'var(--ink-soft)' }}>No hay una campaña activa para pedir cuadernillos.</p> : null}
+          </>
+        ) : null}
+
+        {notice ? <p role="status" style={{ margin: 0, color: 'var(--ink)', fontWeight: 600 }}>{notice}</p> : null}
+      </div>
+
+      <MyRequests refreshKey={refreshKey} readOnly={readOnly} viewAsUserId={viewAsUserId} onRequested={saved} />
+    </section>
+  )
+}
