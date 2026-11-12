@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { pestanaDeMapa, resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
@@ -301,10 +300,12 @@ export function InfraestructuraMapClient(props: {
           </div>
         </Tabs>
         {props.mostrarCallCenter && (
-          <Link href="/call-center" className={styles.callCenterLink}>
+          // Plain anchor on purpose: a soft navigation away from the map and back
+          // left it mounted without the schools until a reload.
+          <a href="/call-center" className={styles.callCenterLink}>
             Call center
             <ArrowUpRight size={14} aria-hidden="true" />
-          </Link>
+          </a>
         )}
         {props.mostrarCuadernillos && (
           <Link href="/cuadernillos" className={styles.callCenterLink}>
