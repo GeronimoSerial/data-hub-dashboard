@@ -39,6 +39,16 @@ describe('POST /api/cuadernillos/requests', () => {
     expect(createRequest).not.toHaveBeenCalled()
   })
 
+  it('forwards the optional cabecera scope and still rejects an invalid one', async () => {
+    const scoped = { ...body, cabeceraCueAnexo: '180123456' }
+    const response = await POST(request(scoped))
+    expect(response.status).toBe(201)
+    expect(createRequest).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-user' }), scoped)
+
+    const invalid = await POST(request({ ...body, cabeceraCueAnexo: '18012' }))
+    expect(invalid.status).toBe(400)
+  })
+
   it('requires an authenticated session before creating a request', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     vi.mocked(hubApiAccessResponse).mockResolvedValue(Response.json({ error: 'Unauthorized' }, { status: 401 }))

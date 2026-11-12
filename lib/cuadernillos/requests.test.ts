@@ -24,6 +24,9 @@ const repository: RequestRepository = {
     if (capability === 'cabecera') return state.assignments.get(cueAnexo)?.cabeceraUserId === userId
     return [...state.assignments.values()].some((assignment) => assignment.cueAnexo === cueAnexo && userId === 'supervisor-1')
   },
+  async listCabeceraCuesForUser(userId) {
+    return [...state.assignments.values()].filter((assignment) => assignment.relationship === 'cabecera' && assignment.cabeceraUserId === userId).map((assignment) => assignment.cueAnexo)
+  },
   async getCampaign(campaignId) { return campaignId === 'campaign-1' ? state.campaign : null },
   async productExists(productId) { return state.products.has(productId) },
   async getQuota(campaignId, productId, cabeceraCue) { return state.quotas.get(`${campaignId}:${productId}:${cabeceraCue}`) ?? 0 },
@@ -65,7 +68,6 @@ beforeEach(() => {
   state.accounts.set('supervisor-1', { emailVerified: true, banned: false })
   state.memberships.add('supervisor-1:supervisor')
   state.assignments.set('180123456', { cueAnexo: '180123456', relationship: 'cabecera', cabeceraCue: '180123456', cabeceraUserId: 'cabecera-user' })
-  state.assignments.set('180123457', { cueAnexo: '180123457', relationship: 'dependiente', cabeceraCue: '180123456', cabeceraUserId: 'cabecera-user' })
 })
 
 describe('createRequest', () => {
@@ -107,20 +109,53 @@ describe('createRequest', () => {
     expect(state.requests.size).toBe(0)
   })
 
-  it('denies requests for a school outside the signed cabecera assignment', async () => {
-    await expect(createRequest(cabecera, validInput({ recipientCueAnexo: '180123458' }), repository, eligibility))
-      .rejects.toMatchObject({ code: 'forbidden' })
+  it('creates a request for any critical school without a recipient assignment, scoped to the signed cabecera', async () => {
+    const result = await createRequest(cabecera, validInput({ recipientCueAnexo: '180123458' }), repository, eligibility)
+
+    expect(result.status).toBe('pending')
+    expect(result.cabeceraCueAnexo).toBe('180123456')
+    expect(state.requests.get(result.requestId)).toMatchObject({ recipientCueAnexo: '180123458', cabeceraCueAnexo: '180123456' })
+  })
+
+  it('rejects a non-critical recipient even when it has no assignment, without writing', async () => {
+    const notCritical = async (): Promise<Eligibility> => ({ eligible: false, severity: 'Alta', evaluatedAt: '2026-11-09T00:00:00.000Z' })
+
+    await expect(createRequest(cabecera, validInput({ recipientCueAnexo: '180123458', submit: false }), repository, notCritical))
+      .rejects.toMatchObject({ code: 'ineligible' })
     expect(state.requests.size).toBe(0)
+  })
+
+  it('denies a cabecera request scoped to another cabecera cue it does not own', async () => {
+    state.assignments.set('180999999', { cueAnexo: '180999999', relationship: 'cabecera', cabeceraCue: '180999999', cabeceraUserId: 'other-cabecera' })
+
+    await expect(createRequest(cabecera, validInput({ cabeceraCueAnexo: '180999999' }), repository, eligibility))
+      .rejects.toMatchObject({ code: 'forbidden', status: 403 })
+    expect(state.requests.size).toBe(0)
+  })
+
+  it('uses the cabecera cue owned by the session actor when the body omits it', async () => {
+    const result = await createRequest(cabecera, validInput(), repository, eligibility)
+
+    expect(result.cabeceraCueAnexo).toBe('180123456')
   })
 })
 
 describe('admin write authority', () => {
   const admin: SessionUser = { id: 'admin-1', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
 
-  it('creates a request as cabecera without membership or a head assignment for the admin', async () => {
+  it('creates a request for any cabecera cue that has a cabecera assignment row', async () => {
     state.accounts.set(admin.id, { emailVerified: true, banned: false })
-    const result = await createRequest(admin, validInput(), repository, eligibility)
+    const result = await createRequest(admin, validInput({ cabeceraCueAnexo: '180123456' }), repository, eligibility)
     expect(result.status).toBe('pending')
+    expect(result.cabeceraCueAnexo).toBe('180123456')
+  })
+
+  it('denies an admin request whose cabecera cue has no cabecera assignment row', async () => {
+    state.accounts.set(admin.id, { emailVerified: true, banned: false })
+    await expect(createRequest(admin, validInput({ cabeceraCueAnexo: '180777777' }), repository, eligibility))
+      .rejects.toMatchObject({ code: 'forbidden' })
+    await expect(createRequest(admin, validInput(), repository, eligibility)).rejects.toMatchObject({ code: 'forbidden' })
+    expect(state.requests.size).toBe(0)
   })
 
   it('denies a non-admin account without cabecera membership', async () => {
