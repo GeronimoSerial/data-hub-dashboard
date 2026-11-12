@@ -7,6 +7,9 @@ export type Overview = { campaignId: string | null; campaignOptions: BookletCamp
 
 export const PAGE_SIZE = 50
 
+/** A load that gets no answer in this time fails visibly instead of spinning forever. */
+export const LOAD_TIMEOUT_MS = 15_000
+
 export const ERROR_LABELS: Record<string, string> = {
   ineligible: 'La escuela ya no está en severidad Crítica. Buscá otra escuela.',
   quota_exceeded: 'La cantidad supera el cupo disponible de la cabecera.',
@@ -26,6 +29,29 @@ export const REMAINDER_ERRORS: Record<string, string> = {
 
 export async function readJson(response: Response): Promise<unknown> {
   return response.json().catch(() => null)
+}
+
+/**
+ * GET for a load effect. Resolves only with a body the guard accepts; any network
+ * error, timeout, non-ok status or unexpected body rejects with `failure`.
+ * `cancel` aborts the request and clears the timeout (call it from effect cleanup).
+ */
+export function loadJson<T>(url: string, isExpected: (value: unknown) => value is T, failure: string) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), LOAD_TIMEOUT_MS)
+  const promise = (async (): Promise<T> => {
+    try {
+      const response = await fetch(url, { cache: 'no-store', signal: controller.signal })
+      const data = await readJson(response)
+      if (!response.ok || !isExpected(data)) throw new Error(failure)
+      return data
+    } catch {
+      throw new Error(failure)
+    } finally {
+      clearTimeout(timer)
+    }
+  })()
+  return { promise, cancel: () => { clearTimeout(timer); controller.abort() } }
 }
 
 export function errorCode(data: unknown): string {
