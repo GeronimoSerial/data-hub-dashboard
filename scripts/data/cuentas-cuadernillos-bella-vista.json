@@ -1,0 +1,170 @@
+{
+ "fuente": "docs/CABECERAS.xls, Hoja1, bloque DEPARTAMENTO BELLA VISTA (fila 2)",
+ "supervisora": "Silvia Zabala",
+ "cabecera": {
+  "cue": "1800673",
+  "nombre": "ESCUELA Nº 16 \"PEDRO FERRE\""
+ },
+ "escuelas": [
+  {
+   "cue": "1800673",
+   "nombre": "ESCUELA Nº 16 \"PEDRO FERRE\""
+  },
+  {
+   "cue": "1801086",
+   "nombre": "ESCUELA Nº 17 \"JOSE FERMIN GONZALEZ\""
+  },
+  {
+   "cue": "1800631",
+   "nombre": "ESCUELA Nº 18 \"CORONEL DANIEL LEANDRO ARTAZA\""
+  },
+  {
+   "cue": "1800008",
+   "nombre": "ESCUELA Nº 19 \"VICTORIA CUEVAS CORREA\""
+  },
+  {
+   "cue": "1800007",
+   "nombre": "ESCUELA Nº 20"
+  },
+  {
+   "cue": "1800748",
+   "nombre": "ESCUELA Nº 21 \"FRANCISCO MARIA MORELLO\""
+  },
+  {
+   "cue": "1801088",
+   "nombre": "ESCUELA Nº 22 \"INDEPENDENCIA\""
+  },
+  {
+   "cue": "1800016",
+   "nombre": "ESCUELA Nº 23"
+  },
+  {
+   "cue": "1800014",
+   "nombre": "ESCUELA Nº 25 \"DON RAFAEL MONTIEL\""
+  },
+  {
+   "cue": "1800855",
+   "nombre": "ESCUELA Nº 26"
+  },
+  {
+   "cue": "1800013",
+   "nombre": "ESCUELA Nº 224 \"MARIA ALEGRE DE BEHR\""
+  },
+  {
+   "cue": "1800611",
+   "nombre": "ESCUELA Nº 344 \"PREFECTURA NAVAL ARGENTINA\""
+  },
+  {
+   "cue": "1800854",
+   "nombre": "ESCUELA Nº 412 SOLDADO SEGUNDINO RIQUELME"
+  },
+  {
+   "cue": "1800006",
+   "nombre": "ESCUELA Nº 436 \"PADRE JORGE KLOSTER\""
+  },
+  {
+   "cue": "1800005",
+   "nombre": "ESCUELA Nº 450 \"OSCAR RUPERTO ALDERETE\""
+  },
+  {
+   "cue": "1800612",
+   "nombre": "ESCUELA Nº 451 \"GRAL JOSE MARIA PAZ\""
+  },
+  {
+   "cue": "1800012",
+   "nombre": "ESCUELA Nº 452 \"PROVINCIA DE CORRIENTES\""
+  },
+  {
+   "cue": "1800814",
+   "nombre": "ESCUELA Nº 529"
+  },
+  {
+   "cue": "1800797",
+   "nombre": "ESCUELA Nº 665 \"PROVINCIA DE CHUBUT\""
+  },
+  {
+   "cue": "1800004",
+   "nombre": "ESCUELA Nº 692"
+  },
+  {
+   "cue": "1800003",
+   "nombre": "ESCUELA Nº 706"
+  },
+  {
+   "cue": "1800744",
+   "nombre": "ESCUELA Nº 707"
+  },
+  {
+   "cue": "1800747",
+   "nombre": "ESCUELA Nº 732"
+  },
+  {
+   "cue": "1800011",
+   "nombre": "ESCUELA Nº 734 \"ABIGAIL PINTOS LOPEZ\""
+  },
+  {
+   "cue": "1800154",
+   "nombre": "ESCUELA Nº 779 \"BOMBEROS VOLUNTARIOS\""
+  },
+  {
+   "cue": "1800002",
+   "nombre": "ESCUELA Nº 790"
+  },
+  {
+   "cue": "1800001",
+   "nombre": "ESCUELA Nº 793 \"NICASIO OJEDA\""
+  },
+  {
+   "cue": "1801091",
+   "nombre": "ESCUELA Nº 814"
+  },
+  {
+   "cue": "1800009",
+   "nombre": "ESCUELA Nº 846"
+  },
+  {
+   "cue": "1801090",
+   "nombre": "ESCUELA PRIMARIA Nº 854 \"DON JUAN BRIEND\""
+  },
+  {
+   "cue": "1801089",
+   "nombre": "ESCUELA Nº 891 \"SANTOS VICTOR GARCIA\""
+  },
+  {
+   "cue": "1800119",
+   "nombre": "ESCUELA Nº 922 \"DON RAUL JOSE CENOZ\""
+  },
+  {
+   "cue": "1800751",
+   "nombre": "ESCUELA JARDIN DE INFANTES Nº 8 \"LIDIA SAND DE MARCHISSIO\""
+  },
+  {
+   "cue": "1800746",
+   "nombre": "ESCUELA JARDIN DE INFANTES Nº 26"
+  },
+  {
+   "cue": "1801594",
+   "nombre": "J.I.N. Nº 32 (SEDE) - ESCUELA Nº 344"
+  },
+  {
+   "cue": "1801726",
+   "nombre": "J.I.N. Nº 55 (SEDE) - ESCUELA Nº 706"
+  },
+  {
+   "cue": "1801749",
+   "nombre": "J.I.N. Nº 67 (SEDE) - ESCUELA Nº 22"
+  },
+  {
+   "cue": "1801876",
+   "nombre": "ESCUELA Nº 984"
+  },
+  {
+   "cue": "1800749",
+   "nombre": "ESCUELA PRIMARIA Nº 26 \"MANUEL BELGRANO\""
+  },
+  {
+   "cue": "1800750",
+   "nombre": "ESCUELA ESPECIAL Nº 22 \"DON PEDRO MERELLO"
+  }
+ ]
+}
