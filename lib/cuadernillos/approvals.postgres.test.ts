@@ -317,7 +317,7 @@ postgresDescribe('isolated PostgreSQL eligibility and inventory proofs', () => {
   })
 
   it('keeps the default action adapter fail-closed pending trusted assignment reconciliation', async () => {
-    await expect(approvalRepository.approvalAuthorityReady('180123456', '180123456')).resolves.toBe(false)
+    await expect(approvalRepository.approvalAuthorityReady('180123456')).resolves.toBe(false)
   })
 
   it('rejects mutation of a confirmed server-staged source revision', async () => {
@@ -336,7 +336,7 @@ postgresDescribe('isolated PostgreSQL eligibility and inventory proofs', () => {
       await expect(pool.query('UPDATE booklet_school_assignment SET source_row_hash = $1 WHERE cue_anexo = $2', ['0'.repeat(64), cueAnexo]))
         .rejects.toThrow(/immutable/i)
       const repository = createApprovalRepository(drizzle(pool))
-      await expect(repository.approvalAuthorityReady(cueAnexo, fixture.headCue)).resolves.toBe(true)
+      await expect(repository.approvalAuthorityReady(fixture.headCue)).resolves.toBe(true)
     } finally {
       await deleteApprovalFixture(fixture)
     }
@@ -353,7 +353,7 @@ postgresDescribe('isolated PostgreSQL eligibility and inventory proofs', () => {
          VALUES ($1, 'Legacy row', 'cabecera', 'PG fixture supervisor', $2, $1, $3, $4::jsonb, $5, now())`,
         [legacyCue, fixture.supervisorId, fixture.cabeceraUserId, JSON.stringify([{ sourceId: 'legacy', location: 'legacy' }]), fixture.plannerId],
       )
-      await expect(createApprovalRepository(drizzle(pool)).approvalAuthorityReady(legacyCue, legacyCue)).resolves.toBe(false)
+      await expect(createApprovalRepository(drizzle(pool)).approvalAuthorityReady(legacyCue)).resolves.toBe(false)
     } finally {
       await pool.query('DELETE FROM booklet_school_assignment WHERE cue_anexo = $1', [legacyCue])
       await deleteApprovalFixture(fixture)
@@ -367,7 +367,7 @@ postgresDescribe('isolated PostgreSQL eligibility and inventory proofs', () => {
         'UPDATE booklet_school_assignment SET cabecera_cue = $1, cabecera_user_id = $2 WHERE cue_anexo = $3',
         [fixture.secondHeadCue, fixture.secondCabeceraUserId, cueAnexo],
       )).rejects.toThrow(/immutable/i)
-      const authority = await createApprovalRepository(drizzle(pool)).approvalAuthorityReady(cueAnexo, fixture.headCue)
+      const authority = await createApprovalRepository(drizzle(pool)).approvalAuthorityReady(fixture.headCue)
       expect(authority).toBe(true)
     } finally {
       await deleteApprovalFixture(fixture)

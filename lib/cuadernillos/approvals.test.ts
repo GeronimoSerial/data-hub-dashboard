@@ -107,7 +107,7 @@ beforeEach(() => {
 
 describe('approveRequest', () => {
   it('keeps production approvals disabled until assignment provenance is trusted', async () => {
-    await expect(approvalRepository.approvalAuthorityReady('180123456', '180123456')).resolves.toBe(false)
+    await expect(approvalRepository.approvalAuthorityReady('180123456')).resolves.toBe(false)
   })
 
   it('does not change balances when transaction-bound authority is unavailable', async () => {
@@ -290,7 +290,7 @@ describe('approval authority for responsible accounts (S3, L4)', () => {
     return { select } as unknown as Parameters<typeof createApprovalRepository>[0]
   }
   const authority = (account: { emailVerified: boolean; banned: boolean } | null, membership: boolean) =>
-    createApprovalRepository(authorityDb(account, membership)).approvalAuthorityReady('180123456', '180123456')
+    createApprovalRepository(authorityDb(account, membership)).approvalAuthorityReady('180123456')
 
   it('counts a member responsible account as authority even when its email is unverified', async () => {
     await expect(authority({ emailVerified: false, banned: false }, true)).resolves.toBe(true)

@@ -143,17 +143,17 @@ describe('scoped booklet request pages', () => {
     expect(listRequestCandidates).not.toHaveBeenCalled()
   })
 
-  it('enforces the current supervisor assignment per candidate row', async () => {
+  it('enforces the current supervisor assignment per candidate row, scoped by the cabecera cue', async () => {
     accountStore.accounts.set('supervisor-user', { emailVerified: true, banned: false })
     accountStore.memberships.add('supervisor-user:supervisor')
-    const assigned = candidate('request-in-scope', '2026-11-09T02:00:00.000Z', '180123457')
-    const outsider = candidate('request-out-of-scope', '2026-11-09T01:00:00.000Z', '180123458')
+    const assigned = { ...candidate('request-in-scope', '2026-11-09T02:00:00.000Z', '180123458'), cabeceraCueAnexo: '180123457' }
+    const outsider = { ...candidate('request-out-of-scope', '2026-11-09T01:00:00.000Z', '180123458'), cabeceraCueAnexo: '180123459' }
     const repo = readRepository({
       listAssignedCues: async () => ['180123457'],
       listRequestCandidates: async () => [assigned, outsider],
       getRequestSchoolScope: async (id) => id === assigned.requestId
-        ? { recipientCueAnexo: '180123457', cabeceraCueAnexo: '180123456' }
-        : { recipientCueAnexo: '180123458', cabeceraCueAnexo: '180123456' },
+        ? { recipientCueAnexo: '180123458', cabeceraCueAnexo: '180123457' }
+        : { recipientCueAnexo: '180123458', cabeceraCueAnexo: '180123459' },
       hasSchoolAssignment: async (_id, cue, capability) => capability === 'supervisor' && cue === '180123457',
     })
     const result = await getBookletRequestPage(actor('supervisor-user', false, 'consulta'), {}, repo)
