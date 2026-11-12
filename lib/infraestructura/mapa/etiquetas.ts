@@ -2,6 +2,7 @@ import { ETIQUETA_ESTABLECIMIENTO, ETIQUETA_SERVICIO } from '@/components/infrae
 import type { EstadoClases, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import { severidadDeGravedad } from './gravedad'
 import { contar } from '@/lib/infraestructura/parte/instituto-ui'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 
@@ -47,8 +48,21 @@ const ETIQUETAS_DEPARTAMENTO: Record<string, string> = {
 
 const CONECTORES_DEPARTAMENTO = new Set(['de', 'del', 'los'])
 
+const ETIQUETAS_DEPARTAMENTO_POR_REGION: Record<string, Record<string, string>> = {
+  corrientes: ETIQUETAS_DEPARTAMENTO,
+}
+
+// A region without its own table gets no labels and uses the generic fallback.
+export function etiquetasDepartamentoDeRegion(regionId: string): Record<string, string> {
+  return Object.hasOwn(ETIQUETAS_DEPARTAMENTO_POR_REGION, regionId) ? ETIQUETAS_DEPARTAMENTO_POR_REGION[regionId] : {}
+}
+
 export function etiquetaDepartamento(valor: string): string {
-  const etiqueta = ETIQUETAS_DEPARTAMENTO[valor]
+  return etiquetaDepartamentoDeRegion(regionPublicaActual().id, valor)
+}
+
+export function etiquetaDepartamentoDeRegion(regionId: string, valor: string): string {
+  const etiqueta = etiquetasDepartamentoDeRegion(regionId)[valor]
   if (etiqueta) return etiqueta
 
   return valor.trim().split(/\s+/u).map((palabra, indice) => {

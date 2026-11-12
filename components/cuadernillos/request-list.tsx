@@ -1,5 +1,6 @@
 'use client'
 
+import { localeRegion } from '@/lib/infraestructura/formato-region'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   BookletCampaignOption,
@@ -292,7 +293,7 @@ export function RequestList({ refreshKey = 0, capability }: { refreshKey?: numbe
                   <p style={{ margin: 0 }}>{request.remaining.length ? 'No aprobado en esta solicitud:' : 'Sin diferencia pendiente en esta solicitud:'}</p>
                   {request.remaining.length ? <RequestLines lines={request.remaining} /> : null}
                   <p style={{ margin: '.35rem 0 0' }}>
-                    {request.approvedAt ? `Aprobada el ${new Date(request.approvedAt).toLocaleString('es-AR')}.` : ''}
+                    {request.approvedAt ? `Aprobada el ${new Date(request.approvedAt).toLocaleString(localeRegion())}.` : ''}
                     {request.approvalIdentity ? ` Cuenta que aprobó: ${request.approvalIdentity}.` : ''}
                   </p>
                 </div>

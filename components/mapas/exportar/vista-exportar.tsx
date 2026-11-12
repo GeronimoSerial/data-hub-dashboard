@@ -13,6 +13,7 @@ import { urlExportacionEscuelas, type FiltrosExportacion } from '@/lib/exportaci
 import { ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
 import { ETIQUETA_HORIZONTE_MOTOR, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import type { GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
+import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
 import { descargarExportacion } from './descarga'
 import { usePrevia } from './use-previa'
 import styles from './exportar.module.css'
@@ -36,13 +37,12 @@ const OPCIONES_ESTADO = TIPOS_EXPORTACION_ESCUELAS.map(tipo => ({ value: tipo, l
 const GRAVEDADES: readonly GravedadMapa[] = [1, 2, 3, 4]
 const OPCIONES_GRAVEDAD = GRAVEDADES.map(gravedad => ({ value: String(gravedad), label: ETIQUETA_GRAVEDAD[gravedad] }))
 const TAMANOS_PAGINA = [25, 50, 100]
-const FECHA = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
 
 function textoCelda(valor: unknown, clave: string): string {
   if (valor === null || valor === undefined || valor === '') return 'Sin dato'
   if (clave === 'ultimaNovedad' && typeof valor === 'string') {
     const fecha = new Date(valor)
-    if (Number.isFinite(fecha.getTime())) return FECHA.format(fecha)
+    if (Number.isFinite(fecha.getTime())) return formatoFechaRegion().format(fecha)
   }
   return String(valor)
 }

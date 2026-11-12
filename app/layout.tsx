@@ -5,6 +5,8 @@ import 'lightgallery/css/lg-thumbnail.css'
 import 'lightgallery/css/lg-zoom.css'
 import './globals.css'
 import { Providers } from './providers'
+import { regionActiva, regionPublica } from '@/lib/infraestructura/region'
+import { RegionProvider } from '@/lib/infraestructura/region/region-provider'
 
 // Manual de Marca §4: Barlow is the system family. Regular and SemiBold for
 // reading and subheads, Bold for pastillas.
@@ -79,7 +81,9 @@ export default function RootLayout({
       className={`${barlow.variable} ${barlowSemiCondensed.variable} ${montserrat.variable} ${inter.variable}`}
     >
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <RegionProvider region={regionPublica(regionActiva())}>{children}</RegionProvider>
+        </Providers>
       </body>
     </html>
   )

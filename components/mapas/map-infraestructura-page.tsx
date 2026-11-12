@@ -180,6 +180,8 @@ import {
 import { COLORES_MAPA_CLARO, coloresMapa } from '@/lib/mapas/colores-mapa'
 import { registrarImagenesSvg } from '@/lib/mapas/insignias-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
+import type { RegionPublica } from '@/lib/infraestructura/region/esquema'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
 ensureMapWorker()
@@ -629,7 +631,14 @@ function extraerEscuelasConCoordenadas(escuelas: EscuelaMapaPadron[]) {
 // listener 'change' además hace que el mapa reaccione en vivo si el usuario
 // cambia el ajuste de reduced-motion del sistema operativo, cosa que el
 // efecto one-shot viejo no hacía.
+// Vista inicial del radar: el centro y zoom de la región, no literales de Corrientes.
+export function vistaRadarDeRegion(region: RegionPublica): { center: [number, number]; zoom: number } {
+  return { center: region.vistaInicial.centro, zoom: region.vistaInicial.zoom }
+}
+
 export default function MapInfraestructuraPage(props: {
+  // Región pública; por defecto la activa en el cliente.
+  region?: RegionPublica
   mostrarEnlaceNominal: boolean
   escuelasMapa: EscuelasMapaPadronResultado | null
   pestana: Exclude<PestanaMapa, 'estadisticas' | 'capas' | 'metodologia' | 'exportar'>
@@ -791,13 +800,14 @@ export default function MapInfraestructuraPage(props: {
           bearing: map.getBearing(),
           pitch: map.getPitch(),
         }
-        map.flyTo({ center: [-58.15, -29.55], zoom: 6.3, duration: 900 })
+        const vista = vistaRadarDeRegion(props.region ?? regionPublicaActual())
+        map.flyTo({ center: vista.center, zoom: vista.zoom, duration: 900 })
       } else if (radarAnterior && vistaPreviaRadar.current) {
         map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
       }
     }
     setCruceInfoClic(null)
-  }, [modoRadar, props.pestana, props.riskRadarEnabled])
+  }, [modoRadar, props.pestana, props.riskRadarEnabled, props.region])
   // "Escuelas en riesgo hoy" outside Radar reuses the same engine snapshot.
   // Planificación › Riesgo hoy colorea el mapa con el motor: no depende de riskRadarEnabled
   // y reemplaza a la capa superpuesta para no dibujar el riesgo dos veces.

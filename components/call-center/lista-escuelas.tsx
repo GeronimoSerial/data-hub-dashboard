@@ -1,5 +1,6 @@
 'use client'
 
+import { localeRegion } from '@/lib/infraestructura/formato-region'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -40,7 +41,7 @@ function textoSinActualizar(horas: number): string {
 function formatearFecha(valor: string): string {
   const fecha = new Date(valor)
   if (Number.isNaN(fecha.getTime())) return valor
-  return fecha.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+  return fecha.toLocaleString(localeRegion(), { dateStyle: 'short', timeStyle: 'short' })
 }
 
 export function ListaEscuelas({ callerNombreInicial }: ListaEscuelasProps) {

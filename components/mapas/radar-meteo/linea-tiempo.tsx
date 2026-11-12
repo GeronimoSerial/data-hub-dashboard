@@ -1,5 +1,6 @@
 'use client'
 
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 import { calcularMarcasEje } from './ejes-tiempo'
 import { fechaRadar } from './escalas'
 
@@ -25,7 +26,7 @@ export function LineaTiempoRadar({
   onPasoChange: (paso: 1 | 3) => void
 }) {
   const current = times[frame]
-  const marcas = calcularMarcasEje(times, 'America/Argentina/Buenos_Aires')
+  const marcas = calcularMarcasEje(times, regionPublicaActual().zonaHoraria)
   const label = current
     ? `${fechaRadar(current, { weekday: 'short', day: 'numeric', month: 'short' }).replaceAll(',', '')} · ${fechaRadar(current, { hour: '2-digit', minute: '2-digit', hour12: false })}`
     : ''
