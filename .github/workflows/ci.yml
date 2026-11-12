@@ -116,9 +116,9 @@ jobs:
     services:
       postgres:
         image: postgres:16-alpine
-        # Ephemeral CI-only service container; the password guards nothing outside this job.
+        # Ephemeral CI-only service container with trust auth (no password). It is reachable only from this job's runner and holds only the throwaway E2E data.
         env:
-          POSTGRES_PASSWORD: mapa-e2e-ci
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: mapa_e2e
         ports:
           - 5432:5432
@@ -128,7 +128,7 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     env:
-      E2E_DATABASE_URL: postgres://postgres:mapa-e2e-ci@127.0.0.1:5432/mapa_e2e
+      E2E_DATABASE_URL: postgres://postgres@127.0.0.1:5432/mapa_e2e
     steps:
       - name: Checkout
         if: needs.changes.outputs.mapa == 'true'
