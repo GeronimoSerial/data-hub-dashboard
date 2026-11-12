@@ -19,7 +19,6 @@ import { MarcaBanda, MarcaCompacta, MarcaHorizontal, MarcaHorizontalInversa } fr
 const NAV = [
   { href: '/', label: 'Inicio' },
   { href: '/explorar', label: 'Explorar' },
-  { href: '/cuadernillos', label: 'Cuadernillos' },
 ]
 
 const SectionAccessContext = React.createContext<(path: string) => boolean>(() => true)

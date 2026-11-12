@@ -29,9 +29,9 @@ export function SupervisorView({
       </header>
 
       <div style={{ borderLeft: '4px solid var(--marker)', background: 'var(--fill)', padding: '1rem 1.25rem', marginBottom: '1.75rem' }}>
-        <strong style={{ color: 'var(--ink)' }}>Decisiones sobre solicitudes todavía no disponibles</strong>
+        <strong style={{ color: 'var(--ink)' }}>Decisiones por solicitud</strong>
         <p style={{ margin: '.35rem 0 0', color: 'var(--ink-soft)', lineHeight: 1.5 }}>
-          La lista de solicitudes está disponible más abajo; no se habilitan decisiones individuales hasta que estén listas la autorización transaccional y la prueba de concurrencia PostgreSQL.
+          Las decisiones se toman solicitud por solicitud: cada pedido pendiente tiene Confirmar aprobación y Rechazar solicitud en la lista Solicitudes, más abajo. La aprobación descuenta stock y cupo de inmediato y no puede anularse.
         </p>
       </div>
 

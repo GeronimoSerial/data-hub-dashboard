@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { BookletRequestReadError } from '@/lib/cuadernillos/permissions'
 import { getBookletOverviewPage } from '@/lib/cuadernillos/queries'
+import { resolveViewAsActor } from '@/lib/cuadernillos/view-as'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
 import { ruta } from '@/lib/http/ruta'
@@ -20,7 +21,7 @@ async function handleGET(request: Request) {
   if (hubDenied) return hubDenied
 
   const params = new URL(request.url).searchParams
-  if ([...params.keys()].some((key) => !['capability', 'campaignId'].includes(key))) {
+  if ([...params.keys()].some((key) => !['capability', 'campaignId', 'viewAs'].includes(key))) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: NO_STORE })
   }
   const getUnique = (key: string) => {
@@ -31,10 +32,13 @@ async function handleGET(request: Request) {
     capability: getUnique('capability'),
     campaignId: getUnique('campaignId'),
   })
-  if (!parsed.success) return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: NO_STORE })
+  const viewAsValues = params.getAll('viewAs')
+  if (!parsed.success || viewAsValues.length > 1) return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: NO_STORE })
 
   try {
-    const page = await getBookletOverviewPage(actor, parsed.data.capability, {
+    const readActor = await resolveViewAsActor(actor, viewAsValues[0])
+    if (readActor.status === 'unavailable') return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403, headers: NO_STORE })
+    const page = await getBookletOverviewPage(readActor.actor, parsed.data.capability, {
       campaignId: parsed.data.campaignId,
     })
     if (!page) return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403, headers: NO_STORE })

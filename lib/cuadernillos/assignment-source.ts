@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import type { SessionUser } from '@/lib/acl'
 import {
@@ -9,6 +9,7 @@ import {
   bookletSchoolAssignment,
   user,
 } from '@/lib/db/schema'
+import { isBookletAdmin } from './permissions'
 import { validateAssignments } from './assignment-import'
 import type { AssignmentConfirmation } from './assignment-import'
 import type { AssignmentAccepted, AssignmentSourceRow, AssignmentValidationResult } from './types'
@@ -84,8 +85,16 @@ export class AssignmentSourceError extends Error {
   }
 }
 
+const loadAccountStatus = (db: Db) => async (userId: string) => {
+  const [account] = await db.select({ emailVerified: user.emailVerified, banned: user.banned })
+    .from(user).where(eq(user.id, userId)).limit(1).for('update')
+  return account ? { emailVerified: account.emailVerified, banned: account.banned === true } : null
+}
+
+/** A global admin (see isBookletAdmin) acts without planning membership or email verification. */
 const ensurePlanningActor = async (actor: SessionUser | null, db: Db): Promise<string> => {
   if (!actor?.id) throw new AssignmentSourceError('unauthorized', 401)
+  if (await isBookletAdmin(actor, { getAccountStatus: loadAccountStatus(db) })) return actor.id
   const [account] = await db.select({ emailVerified: user.emailVerified, banned: user.banned })
     .from(user).where(eq(user.id, actor.id)).limit(1).for('update')
   const [membership] = await db.select({ id: bookletMembership.id }).from(bookletMembership)
@@ -98,8 +107,11 @@ const acceptedHashMap = (preview: AssignmentValidationResult): Record<string, st
   Object.fromEntries(preview.accepted.map((candidate) => [candidate.cueAnexo, hashAssignmentSourceRow(candidate)]))
 
 /**
- * Stages a server-owned source snapshot. Do not call this from an HTTP handler
- * with request-body rows; callers must load the source on the server first.
+ * Stages an immutable revision of an assignment source. The rows must come from
+ * a CSV uploaded by an admin or planning member and parsed server-side
+ * (lib/cuadernillos/assignment-upload.ts); the upload route is the only HTTP
+ * caller. The rows are not trusted as account permissions: confirmation still
+ * requires explicit account choices and responsible-account checks.
  */
 export async function stageAssignmentSourceManifest(
   actor: SessionUser | null,
@@ -139,6 +151,78 @@ const identicalAssignment = (stored: typeof bookletSchoolAssignment.$inferSelect
   && stored.sourceRowHash === confirmation.sourceRowHash
   && JSON.stringify(stored.provenance) === JSON.stringify(candidate.provenance)
 
+export type StagedAssignmentAccepted = {
+  revisionId: string
+  status: string
+  accepted: AssignmentAccepted[]
+}
+
+export type AssignmentSourceRevisionSummary = {
+  revisionId: string
+  sourceId: string
+  status: string
+  createdAt: string
+  counts: { accepted: number; conflicts: number; unresolved: number }
+}
+
+/**
+ * Reads a staged revision's accepted schools by preview hash so the upload
+ * flow can expand the admin's account choices. The revision is verified against
+ * its hashes before its accepted rows are returned.
+ */
+export async function loadStagedAssignmentAccepted(
+  actor: SessionUser | null,
+  previewHash: string,
+  db: Db = getDb(),
+): Promise<StagedAssignmentAccepted> {
+  if (!/^[a-f0-9]{64}$/.test(previewHash)) throw new AssignmentSourceError('invalid_preview_hash', 400)
+  await ensurePlanningActor(actor, db)
+  const [revision] = await db.select().from(bookletAssignmentSourceRevision)
+    .where(eq(bookletAssignmentSourceRevision.previewHash, previewHash)).limit(1)
+  if (!revision) throw new AssignmentSourceError('staged_revision_not_found', 404)
+  const sourceRows = revision.sourceRows as AssignmentSourceRow[]
+  if (!verifyAssignmentSourceRevision(revision.sourceId, revision.sourceHash, revision.previewHash, sourceRows, revision.preview as AssignmentValidationResult)) {
+    throw new AssignmentSourceError('staged_revision_integrity_failure', 409)
+  }
+  return {
+    revisionId: revision.id,
+    status: revision.status,
+    accepted: validateAssignments(sourceRows).accepted,
+  }
+}
+
+/** Lists the most recent source revisions with their preview counts for a planning actor. */
+export async function listAssignmentSourceRevisions(
+  actor: SessionUser | null,
+  db: Db = getDb(),
+  limit = 20,
+): Promise<AssignmentSourceRevisionSummary[]> {
+  await ensurePlanningActor(actor, db)
+  const rows = await db.select({
+    id: bookletAssignmentSourceRevision.id,
+    sourceId: bookletAssignmentSourceRevision.sourceId,
+    status: bookletAssignmentSourceRevision.status,
+    stagedAt: bookletAssignmentSourceRevision.stagedAt,
+    preview: bookletAssignmentSourceRevision.preview,
+  }).from(bookletAssignmentSourceRevision)
+    .orderBy(desc(bookletAssignmentSourceRevision.stagedAt))
+    .limit(limit)
+  return rows.map((row) => {
+    const preview = row.preview as AssignmentValidationResult
+    return {
+      revisionId: row.id,
+      sourceId: row.sourceId,
+      status: row.status,
+      createdAt: new Date(row.stagedAt).toISOString(),
+      counts: {
+        accepted: preview.accepted.length,
+        conflicts: preview.conflicts.length,
+        unresolved: preview.unresolved.length,
+      },
+    }
+  })
+}
+
 export async function confirmStagedAssignmentSource(
   actor: SessionUser | null,
   previewHash: string,
@@ -176,13 +260,16 @@ export async function confirmStagedAssignmentSource(
       cabeceraCapabilities.add('cabecera')
       userIds.set(confirmation.cabeceraUserId, cabeceraCapabilities)
     }
+    // Responsible supervisor/cabecera accounts can come from GE SSO and stay unverified, so
+    // email verification is not required here. The account must exist, must not be banned,
+    // and must hold an active membership for the capability it is responsible for.
     for (const [userId, capabilities] of [...userIds].sort(([left], [right]) => left.localeCompare(right))) {
       for (const capability of [...capabilities].sort()) {
-        const [account] = await tx.select({ emailVerified: user.emailVerified, banned: user.banned }).from(user)
+        const [account] = await tx.select({ banned: user.banned }).from(user)
           .where(eq(user.id, userId)).limit(1).for('update')
         const [membership] = await tx.select({ id: bookletMembership.id }).from(bookletMembership)
           .where(and(eq(bookletMembership.userId, userId), eq(bookletMembership.capability, capability), isNull(bookletMembership.revokedAt))).limit(1).for('update')
-        if (!account || !account.emailVerified || account.banned || !membership) {
+        if (!account || account.banned || !membership) {
           throw new AssignmentSourceError('responsible_account_unavailable', 409)
         }
       }

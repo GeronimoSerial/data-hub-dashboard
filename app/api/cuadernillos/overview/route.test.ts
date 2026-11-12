@@ -1,12 +1,15 @@
+import type { SessionUser } from '@/lib/acl'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Route from './route'
 import { getBookletOverviewPage } from '@/lib/cuadernillos/queries'
 import { BookletRequestReadError } from '@/lib/cuadernillos/permissions'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+import { resolveViewAsActor } from '@/lib/cuadernillos/view-as'
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/lib/hub-entry-server', () => ({ hubApiAccessResponse: vi.fn() }))
+vi.mock('@/lib/cuadernillos/view-as', () => ({ resolveViewAsActor: vi.fn() }))
 vi.mock('@/lib/cuadernillos/queries', () => ({ getBookletOverviewPage: vi.fn() }))
 vi.mock('@/lib/cuadernillos/permissions', () => ({ BookletRequestReadError: class BookletRequestReadError extends Error { code: string; status: number; constructor(code: string, status: number) { super(code); this.code = code; this.status = status } } }))
 
@@ -14,6 +17,7 @@ let GET: typeof Route.GET
 beforeAll(async () => { GET = (await import('./route')).GET })
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(resolveViewAsActor).mockImplementation(async (actor) => ({ status: 'self', actor }))
   vi.mocked(getSessionUser).mockResolvedValue({
     id: 'planner-1', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [],
     hubPolicy: { enabledSections: ['cuadernillos'], landing: false },
@@ -87,5 +91,25 @@ describe('GET /api/cuadernillos/overview', () => {
 
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({ error: 'campaign_not_found' })
+  })
+})
+
+describe('GET /api/cuadernillos/overview view-as', () => {
+  const target: SessionUser = { id: 'target-2', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'seleccionados', recursoIds: [] }
+
+  it('reads the overview as the resolved target account', async () => {
+    vi.mocked(resolveViewAsActor).mockResolvedValue({ status: 'viewing', actor: target, target: { userId: 'target-2', name: 'Supervisora' } })
+
+    const response = await GET(request('capability=cabecera&viewAs=target-2'))
+
+    expect(response.status).toBe(200)
+    expect(getBookletOverviewPage).toHaveBeenCalledWith(target, 'cabecera', expect.anything())
+  })
+
+  it('answers 403 when the requested account cannot be viewed', async () => {
+    vi.mocked(resolveViewAsActor).mockResolvedValue({ status: 'unavailable' })
+
+    expect((await GET(request('capability=cabecera&viewAs=banned-1'))).status).toBe(403)
+    expect(getBookletOverviewPage).not.toHaveBeenCalled()
   })
 })

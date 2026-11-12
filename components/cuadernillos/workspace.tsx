@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import type { BookletAssignmentView, BookletAssignmentsPage, BookletCapability } from '@/lib/cuadernillos/types'
+import type { ViewAsCandidate } from '@/lib/cuadernillos/view-as'
 import { CabeceraView } from './cabecera-view'
 import { PlanningView } from './planning-view'
 import { OverviewPanel } from './overview-panel'
 import { RequestList } from './request-list'
 import { SupervisorView } from './supervisor-view'
+import { ViewAsPicker } from './view-as-picker'
 
 const CAPABILITY_LABELS: Record<BookletCapability, string> = {
   planning: 'Planeamiento',
@@ -41,7 +44,29 @@ function isBookletAssignmentView(value: unknown): value is BookletAssignmentView
     && (typeof row.supervisorName === 'string' || row.supervisorName === null)
 }
 
-export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletCapability[] }) {
+function assignmentsUrl(capability: BookletCapability, viewAsUserId: string | null, cursor?: string) {
+  const query = new URLSearchParams({ capability })
+  if (cursor) query.set('cursor', cursor)
+  if (viewAsUserId) query.set('viewAs', viewAsUserId)
+  return `/api/cuadernillos/assignments?${query.toString()}`
+}
+
+export type ViewAsTarget = { userId: string; name: string }
+
+export function CuadernillosWorkspace({
+  capabilities,
+  isAdmin = false,
+  viewAs = null,
+  viewAsUnavailable = false,
+  viewAsCandidates = [],
+}: {
+  capabilities: BookletCapability[]
+  isAdmin?: boolean
+  viewAs?: ViewAsTarget | null
+  viewAsUnavailable?: boolean
+  viewAsCandidates?: ViewAsCandidate[]
+}) {
+  const viewAsUserId = viewAs?.userId ?? null
   const [activeCapability, setActiveCapability] = useState<BookletCapability | null>(capabilities[0] ?? null)
   const [pageState, setPageState] = useState<{ capability: BookletCapability; page: BookletAssignmentsPage } | null>(null)
   const [loading, setLoading] = useState(capabilities.length > 0)
@@ -56,7 +81,7 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
     }
 
     const controller = new AbortController()
-    readAssignments(`/api/cuadernillos/assignments?capability=${activeCapability}`, controller.signal).then(
+    readAssignments(assignmentsUrl(activeCapability, viewAsUserId), controller.signal).then(
       (nextPage) => setPageState({ capability: activeCapability, page: nextPage }),
       (reason) => {
         if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'No se pudieron cargar las asignaciones.')
@@ -66,7 +91,7 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
     })
 
     return () => controller.abort()
-  }, [activeCapability, capabilities])
+  }, [activeCapability, capabilities, viewAsUserId])
 
   function selectCapability(capability: BookletCapability) {
     setActiveCapability(capability)
@@ -78,9 +103,8 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
     if (!activeCapability || !page?.nextCursor || loading || loadingMore) return
     setLoadingMore(true)
     setError(null)
-    const query = new URLSearchParams({ capability: activeCapability, cursor: page.nextCursor })
     try {
-      const nextPage = await readAssignments(`/api/cuadernillos/assignments?${query.toString()}`)
+      const nextPage = await readAssignments(assignmentsUrl(activeCapability, viewAsUserId, page.nextCursor))
       setPageState((current) => current?.capability === activeCapability
         ? { capability: activeCapability, page: { items: [...current.page.items, ...nextPage.items], nextCursor: nextPage.nextCursor } }
         : current)
@@ -105,6 +129,21 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
         </p>
       </header>
 
+      {viewAs ? (
+        <div role="status" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '.75rem', borderLeft: '4px solid var(--marker)', background: 'var(--fill)', padding: '.85rem 1.25rem', marginBottom: '1.5rem', color: 'var(--ink)' }}>
+          <span>{`Viendo como ${viewAs.name} (${capabilities.map((capability) => CAPABILITY_LABELS[capability]).join(', ') || 'sin responsabilidades'}) — solo lectura`}</span>
+          <Link href="/cuadernillos" className="ui-button ui-button--secondary">Salir</Link>
+        </div>
+      ) : null}
+
+      {viewAsUnavailable ? (
+        <p role="alert" style={{ borderLeft: '4px solid var(--danger-ink)', background: 'var(--fill)', padding: '.85rem 1.25rem', marginBottom: '1.5rem', color: 'var(--danger-ink)' }}>
+          No se puede ver como esta cuenta. Puede estar dada de baja o no existir.
+        </p>
+      ) : null}
+
+      {isAdmin ? <ViewAsPicker candidates={viewAsCandidates} currentUserId={viewAsUserId} /> : null}
+
       {capabilities.length === 0 ? (
         <p role="status" style={{ borderLeft: '4px solid var(--marker)', background: 'var(--fill)', padding: '1rem 1.25rem', color: 'var(--ink-soft)' }}>
           Esta cuenta todavía no tiene una responsabilidad de cuadernillos habilitada.
@@ -127,11 +166,22 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
             </nav>
           ) : null}
 
-          {activeCapability === 'planning' ? <PlanningView page={page} loading={loading} error={error} onLoadMore={loadMore} loadingMore={loadingMore} /> : null}
-          {activeCapability === 'cabecera' ? <CabeceraView page={page} loading={loading} error={error} onLoadMore={loadMore} loadingMore={loadingMore} /> : null}
+          {activeCapability === 'planning' ? <PlanningView page={page} loading={loading} error={error} onLoadMore={loadMore} loadingMore={loadingMore} isAdmin={isAdmin && !viewAs} /> : null}
+          {activeCapability === 'cabecera' ? (
+            <CabeceraView
+              page={page}
+              loading={loading}
+              error={error}
+              onLoadMore={loadMore}
+              loadingMore={loadingMore}
+              isAdmin={isAdmin}
+              readOnly={Boolean(viewAs)}
+              onRequestCreated={() => setRequestRefreshKey((key) => key + 1)}
+            />
+          ) : null}
           {activeCapability === 'supervisor' ? <SupervisorView page={page} loading={loading} error={error} onLoadMore={loadMore} loadingMore={loadingMore} /> : null}
-          {activeCapability ? <OverviewPanel key={activeCapability} capability={activeCapability} assignments={page} onRequestCreated={() => setRequestRefreshKey((key) => key + 1)} /> : null}
-          <RequestList refreshKey={requestRefreshKey} capability={activeCapability ?? undefined} />
+          {activeCapability ? <OverviewPanel key={activeCapability} capability={activeCapability} viewAsUserId={viewAsUserId} /> : null}
+          <RequestList refreshKey={requestRefreshKey} capability={activeCapability ?? undefined} viewAsUserId={viewAsUserId} />
         </>
       )}
     </div>

@@ -93,8 +93,13 @@ describe('request remainder chains', () => {
     await expect(getRequestChain(cabecera, root.requestId, repository)).rejects.toMatchObject({ code: 'request_not_found', status: 404 })
   })
 
-  it('does not reveal a chain when the cabecera lacks the recipient assignment', async () => {
+  it('reveals the chain to the cabecera of the root without any recipient assignment row', async () => {
     state.assignedCues.delete(root.recipientCueAnexo)
+    await expect(getRequestChain(cabecera, root.requestId, repository)).resolves.toMatchObject({ rootRequestId: root.requestId })
+  })
+
+  it('does not reveal a chain to a cabecera that does not own the root cabecera assignment', async () => {
+    state.assignedCues.delete(root.cabeceraCueAnexo)
     await expect(getRequestChain(cabecera, root.requestId, repository)).rejects.toMatchObject({ code: 'request_not_found', status: 404 })
   })
 

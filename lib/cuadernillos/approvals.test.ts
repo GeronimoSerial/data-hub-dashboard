@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { SessionUser } from '@/lib/acl'
-import { approvalRepository, approveRequest, rejectRequest, type ApprovalRepository } from './approvals'
+import { approvalRepository, approveRequest, createApprovalRepository, rejectRequest, type ApprovalRepository } from './approvals'
+import { hashAssignmentSourceContent, hashAssignmentSourceRow, hashAssignmentSourceRevision, hashConfirmedAssignment } from './assignment-source'
+import { validateAssignments } from './assignment-import'
+import { bookletAssignmentSourceRevision, bookletMembership, bookletSchoolAssignment, user } from '@/lib/db/schema'
 
 type StoredRequest = {
   requestId: string; campaignId: string; recipientCueAnexo: string; cabeceraCueAnexo: string; rootRequestId: string
@@ -104,7 +107,7 @@ beforeEach(() => {
 
 describe('approveRequest', () => {
   it('keeps production approvals disabled until assignment provenance is trusted', async () => {
-    await expect(approvalRepository.approvalAuthorityReady('180123456', '180123456')).resolves.toBe(false)
+    await expect(approvalRepository.approvalAuthorityReady('180123456')).resolves.toBe(false)
   })
 
   it('does not change balances when transaction-bound authority is unavailable', async () => {
@@ -244,5 +247,60 @@ describe('admin write authority', () => {
     await expect(approveRequest({ ...admin, id: 'admin-banned' }, approval(), repository)).rejects.toMatchObject({ code: 'forbidden', status: 403 })
     await expect(approveRequest(outsider, approval(), repository)).rejects.toMatchObject({ code: 'forbidden', status: 403 })
     expect(state.signatures).toHaveLength(0)
+  })
+})
+
+describe('approval authority for responsible accounts (S3, L4)', () => {
+  const sourceRows = [{
+    cue: '180123456', schoolName: 'Escuela de prueba', relationship: 'cabecera' as const,
+    supervisorName: 'Supervisión de prueba', cabeceraCue: null, provenance: { sourceId: 'fixture', location: 'Sheet1!A1' },
+  }]
+  const preview = validateAssignments(sourceRows)
+  const candidate = preview.accepted[0]
+  const confirmedFacts = {
+    cueAnexo: candidate.cueAnexo, schoolName: candidate.schoolName, relationship: candidate.relationship,
+    supervisorName: candidate.supervisorName, supervisorUserId: 'sup-1', cabeceraCue: candidate.cabeceraCue, cabeceraUserId: 'cab-1',
+    sourceRevisionId: 'revision-1', sourceRowHash: hashAssignmentSourceRow(candidate), provenance: candidate.provenance,
+    confirmedByUserId: 'planner-1', confirmedAt: new Date('2026-11-10T12:00:00.000Z'),
+  }
+  const assignmentRow = { ...confirmedFacts, confirmedAssignmentHash: hashConfirmedAssignment(confirmedFacts) }
+  const sourceHash = hashAssignmentSourceContent(sourceRows)
+  const previewHash = hashAssignmentSourceRevision('fixture', sourceRows, preview)
+  const revisionRow = { status: 'confirmed', sourceId: 'fixture', sourceHash, previewHash, sourceRows, preview }
+
+  /** Table-dispatch fake for the reads approvalAuthorityReady performs; one account and one membership answer for every responsible user. */
+  const authorityDb = (account: { emailVerified: boolean; banned: boolean } | null, membership: boolean) => {
+    const rowsFor = (table: unknown): unknown[] => {
+      if (table === user) return account ? [account] : []
+      if (table === bookletMembership) return membership ? [{ id: 'membership-1' }] : []
+      if (table === bookletSchoolAssignment) return [assignmentRow]
+      if (table === bookletAssignmentSourceRevision) return [revisionRow]
+      return []
+    }
+    const select = () => {
+      let table: unknown
+      const query = {
+        from(target: unknown) { table = target; return query },
+        where() { return query },
+        limit() { return query },
+        for() { return Promise.resolve(rowsFor(table)) },
+      }
+      return query
+    }
+    return { select } as unknown as Parameters<typeof createApprovalRepository>[0]
+  }
+  const authority = (account: { emailVerified: boolean; banned: boolean } | null, membership: boolean) =>
+    createApprovalRepository(authorityDb(account, membership)).approvalAuthorityReady('180123456')
+
+  it('counts a member responsible account as authority even when its email is unverified', async () => {
+    await expect(authority({ emailVerified: false, banned: false }, true)).resolves.toBe(true)
+  })
+
+  it('still denies a banned responsible account', async () => {
+    await expect(authority({ emailVerified: true, banned: true }, true)).resolves.toBe(false)
+  })
+
+  it('still denies a responsible account without active membership', async () => {
+    await expect(authority({ emailVerified: true, banned: false }, false)).resolves.toBe(false)
   })
 })

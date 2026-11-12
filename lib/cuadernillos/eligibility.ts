@@ -12,10 +12,16 @@ export async function lockCurrentEligibilitySources(executor: EjecutorSql): Prom
   })
 }
 
+/** Booklet tables store 9-digit CUEs; map partes (infra_parte) use the dashed `1234567-89` form. */
+export function toDashedCue(cueAnexo: string): string {
+  return /^\d{9}$/.test(cueAnexo) ? `${cueAnexo.slice(0, 7)}-${cueAnexo.slice(7)}` : cueAnexo
+}
+
 const readCurrentSeverity: CurrentSeverityProjection = async (cueAnexo) => {
   const { listarPartesVigentes } = await import('@/lib/infraestructura/parte-mapa')
-  const { partes } = await listarPartesVigentes({ cueAnexo })
-  const matches = partes.filter((parte) => parte.cueAnexo === cueAnexo)
+  const dashed = toDashedCue(cueAnexo)
+  const { partes } = await listarPartesVigentes({ cueAnexo: dashed })
+  const matches = partes.filter((parte) => parte.cueAnexo === dashed)
   if (matches.length !== 1) return null
   return matches[0].peorSeveridad
 }
@@ -37,4 +43,46 @@ export async function getSchoolEligibility(
   if (severity !== null && !esSeveridad(severity)) severity = null
 
   return { eligible: severity === 'Crítica', severity, evaluatedAt }
+}
+
+/** Nivel jurisdiccional 9: Consejo General de Educación (the booklet school universe). */
+export const CONSEJO_NIVEL_JURISDICCIONAL_ID = 9
+const MAX_CRITICAL_SCHOOL_RESULTS = 20
+
+export type ConsejoSchoolSeverityRow = { cueAnexo: string; nombre: string; departamento: string; peorSeveridad: string }
+export type CriticalConsejoSchool = { cueAnexo: string; nombre: string; departamento: string; severity: 'Crítica' }
+export type ConsejoSeverityReader = () => Promise<ConsejoSchoolSeverityRow[]>
+
+const readConsejoSeverityRows: ConsejoSeverityReader = async () => {
+  const { listarPartesVigentes } = await import('@/lib/infraestructura/parte-mapa')
+  const { partes } = await listarPartesVigentes({ nivelesJurIds: [CONSEJO_NIVEL_JURISDICCIONAL_ID] })
+  return partes.map((parte) => ({
+    cueAnexo: parte.cueAnexo, nombre: parte.nombre, departamento: parte.departamento, peorSeveridad: parte.peorSeveridad,
+  }))
+}
+
+/**
+ * Consejo schools whose current severity is Crítica and whose 9-digit CUE starts with the typed digits.
+ * Severity is decided by getSchoolEligibility, the same rule used to admit a request. A CUE reported more
+ * than once by the map is dropped rather than guessed.
+ */
+export async function searchCriticalConsejoSchools(
+  cuePrefix: string,
+  readRows: ConsejoSeverityReader = readConsejoSeverityRows,
+): Promise<CriticalConsejoSchool[]> {
+  if (!/^\d{1,9}$/.test(cuePrefix)) return []
+  const rows = await readRows()
+  const occurrences = new Map<string, number>()
+  for (const row of rows) occurrences.set(row.cueAnexo, (occurrences.get(row.cueAnexo) ?? 0) + 1)
+
+  const results: CriticalConsejoSchool[] = []
+  for (const row of rows) {
+    const cue = row.cueAnexo.replace('-', '')
+    if (!cue.startsWith(cuePrefix) || occurrences.get(row.cueAnexo) !== 1) continue
+    const eligibility = await getSchoolEligibility(cue, async () => row.peorSeveridad)
+    if (!eligibility.eligible || eligibility.severity !== 'Crítica') continue
+    results.push({ cueAnexo: cue, nombre: row.nombre, departamento: row.departamento, severity: 'Crítica' })
+    if (results.length === MAX_CRITICAL_SCHOOL_RESULTS) break
+  }
+  return results
 }
