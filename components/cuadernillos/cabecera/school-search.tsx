@@ -6,9 +6,11 @@ import { Input } from '@/components/ui/input'
 import { readJson, isSchoolList, type CriticalSchool } from './cabecera-api'
 import { SchoolCard } from './school-card'
 
-export function SchoolSearch({ selectedCue, onChoose }: {
-  selectedCue: string | null
+/** CUE search. Once a school is chosen, only that school stays on screen until "Cambiar escuela". */
+export function SchoolSearch({ selected, onChoose, onClear }: {
+  selected: CriticalSchool | null
   onChoose: (school: CriticalSchool) => void
+  onClear: () => void
 }) {
   const [cueQuery, setCueQuery] = useState('')
   const [results, setResults] = useState<CriticalSchool[] | null>(null)
@@ -34,14 +36,32 @@ export function SchoolSearch({ selectedCue, onChoose }: {
     }
   }
 
+  if (selected) {
+    return (
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        <li>
+          <SchoolCard school={selected} selected onChoose={onChoose} onClear={onClear} />
+        </li>
+      </ul>
+    )
+  }
+
   return (
-    <div style={{ display: 'grid', gap: '.75rem' }}>
-      <form onSubmit={(event) => void search(event)} style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', alignItems: 'flex-end' }}>
-        <label style={{ display: 'grid', gap: '.3rem', color: 'var(--ink)', fontWeight: 600 }}>
+    <div style={{ display: 'grid', gap: '.75rem', minWidth: 0 }}>
+      <form onSubmit={(event) => void search(event)} className="cab-search-row">
+        <label className="cab-cue-field">
           CUE de la escuela
-          <Input inputMode="numeric" value={cueQuery} onChange={(event) => setCueQuery(event.target.value)} maxLength={9} placeholder="Ej. 180123" />
+          <Input
+            className="cab-cue-input"
+            inputMode="numeric"
+            value={cueQuery}
+            onChange={(event) => setCueQuery(event.target.value)}
+            maxLength={9}
+            placeholder="Ej. 180012300"
+            style={{ width: '100%' }}
+          />
         </label>
-        <Button type="submit" variant="secondary" disabled={searching}>
+        <Button type="submit" variant="secondary" disabled={searching} style={{ flex: '0 0 auto' }}>
           {searching ? 'Buscando…' : 'Buscar escuela'}
         </Button>
       </form>
@@ -53,7 +73,7 @@ export function SchoolSearch({ selectedCue, onChoose }: {
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '.5rem' }}>
           {results.map((school) => (
             <li key={school.cueAnexo}>
-              <SchoolCard school={school} selected={selectedCue === school.cueAnexo} onChoose={onChoose} />
+              <SchoolCard school={school} selected={false} onChoose={onChoose} />
             </li>
           ))}
         </ul>

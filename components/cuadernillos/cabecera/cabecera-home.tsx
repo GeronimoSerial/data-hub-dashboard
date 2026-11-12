@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import type { BookletCampaignOption } from '@/lib/cuadernillos/types'
+import { CabeceraCombobox } from './cabecera-combobox'
+import { CabeceraStyles } from './cabecera-styles'
 import { ChoiceGroup } from './choice-group'
 import {
   isAssignmentsPage, isCabeceraList, isOverview, readJson, scopedQuery,
@@ -109,14 +111,15 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
   }
 
   return (
-    <section aria-labelledby="cabecera-home-title" style={{ display: 'grid', gap: '2rem' }}>
+    <section aria-labelledby="cabecera-home-title" className="cab-section" style={{ minWidth: 0 }}>
+      <CabeceraStyles />
       {readOnly ? (
         <p role="note" style={{ margin: 0, padding: '.75rem 1rem', borderRadius: '.75rem', border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink-soft)' }}>
           Vista de solo lectura: podés revisar la información, pero no enviar ni guardar pedidos.
         </p>
       ) : null}
 
-      <div style={{ display: 'grid', gap: '1rem' }}>
+      <div className="cab-stack" style={{ minWidth: 0 }}>
         <header style={{ display: 'grid', gap: '.25rem' }}>
           <h2 id="cabecera-home-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: 'clamp(1.35rem, 3vw, 1.75rem)', lineHeight: 1.15 }}>
             Nuevo pedido
@@ -127,8 +130,20 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
         {cabeceraError ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{cabeceraError}</p> : null}
         {loadingCabeceras && !cabeceraError ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando cabeceras…</p> : null}
 
-        {cabeceraOptions.length > 1 || (showAdminPicker && cabeceraOptions.length > 0) ? (
-          <div style={{ display: 'grid', gap: '.5rem' }}>
+        {showAdminPicker && cabeceraOptions.length > 0 ? (
+          <div className="cab-stack" style={{ gap: '.5rem' }}>
+            <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Cabecera que pide</span>
+            <CabeceraCombobox
+              label="Cabecera que pide"
+              disabled={readOnly}
+              value={activeCue}
+              onPick={pickCabecera}
+              options={cabeceraOptions}
+            />
+          </div>
+        ) : null}
+        {!showAdminPicker && cabeceraOptions.length > 1 ? (
+          <div className="cab-stack" style={{ gap: '.5rem' }}>
             <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Cabecera que pide</span>
             <ChoiceGroup
               label="Cabecera que pide"
@@ -163,12 +178,13 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
 
         {activeCue ? (
           <>
-            <SchoolSearch selectedCue={selected?.cueAnexo ?? null} onChoose={(school) => { setSelected(school); setNotice(null) }} />
+            <SchoolSearch
+              selected={selected}
+              onChoose={(school) => { setSelected(school); setNotice(null) }}
+              onClear={() => setSelected(null)}
+            />
             {selected && overview && campaignId ? (
-              <div style={{ display: 'grid', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--line)' }}>
-                <p style={{ margin: 0, color: 'var(--ink)' }}>
-                  <strong>{selected.nombre}</strong> · CUE {selected.cueAnexo}
-                </p>
+              <div className="cab-stack">
                 <QuantitiesForm
                   key={`${selected.cueAnexo}:${activeCue}:${campaignId}`}
                   school={selected}
