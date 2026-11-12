@@ -214,6 +214,70 @@ export function clasificarPrefectura(params: {
   return { ...base, estado: 'ok', motivo: `Las ${total} estaciones tienen lectura de las últimas ${EDAD_MAXIMA_LECTURA_HORAS} h.` }
 }
 
+// I4 (plausibilidad de lecturas): un sensor que repite el mismo valor N veces seguidas
+// está trabado; un valor fuera del rango histórico de 365 días es atípico. Sin rango
+// (min_m/max_m NULL, todavía no sincronizado) no se avisa atípico: nunca una falsa alarma.
+export const LECTURAS_IDENTICAS_SENSOR_TRABADO = 12
+
+export type ReferenciaRango = { minM: number | null; maxM: number | null }
+
+// Cuenta las lecturas iguales seguidas desde la más reciente (lecturas[0]).
+function repeticionesConsecutivas(lecturas: ReadonlyArray<number | null>): number {
+  const primera = lecturas[0]
+  if (primera === null || primera === undefined) return 0
+  let repeticiones = 0
+  for (const valor of lecturas) {
+    if (valor !== primera) break
+    repeticiones += 1
+  }
+  return repeticiones
+}
+
+export function clasificarPlausibilidad(params: {
+  estaciones: ReadonlyArray<{ estacionId: string; nombre: string }>
+  // Lecturas de lectura_m por estación, la más reciente primero.
+  lecturasRecientes: ReadonlyMap<string, ReadonlyArray<number | null>>
+  referencias: ReadonlyMap<string, ReferenciaRango>
+}): ItemEstadoDato {
+  const avisos: string[] = []
+  let estacionesConRango = 0
+  for (const estacion of params.estaciones) {
+    const lecturas = params.lecturasRecientes.get(estacion.estacionId) ?? []
+    const repeticiones = repeticionesConsecutivas(lecturas)
+    if (repeticiones >= LECTURAS_IDENTICAS_SENSOR_TRABADO) {
+      avisos.push(`Posible sensor trabado en ${estacion.nombre}: ${repeticiones} lecturas idénticas`)
+    }
+    const referencia = params.referencias.get(estacion.estacionId)
+    const ultima = lecturas[0] ?? null
+    if (referencia === undefined || referencia.minM === null || referencia.maxM === null) continue
+    estacionesConRango += 1
+    if (ultima !== null && (ultima < referencia.minM || ultima > referencia.maxM)) {
+      avisos.push(
+        `${estacion.nombre}: valor atípico ${ultima} m, fuera de ${referencia.minM}–${referencia.maxM} m de los últimos 365 días`,
+      )
+    }
+  }
+  const base = {
+    id: 'dato:plausibilidad',
+    grupo: 'hidrometria' as const,
+    nombre: 'Plausibilidad de lecturas',
+    ultimoExitoEn: null,
+    ultimoIntentoEn: null,
+    ultimoError: null,
+    edadMinutos: null,
+    intervaloMinutos: null,
+  }
+  if (avisos.length > 0) return { ...base, estado: 'sin_datos', motivo: avisos.join('. ') + '.' }
+  if (estacionesConRango === 0) {
+    return {
+      ...base,
+      estado: 'ok',
+      motivo: 'Sin lecturas trabadas. Falta el rango de 365 días: todavía no se comparan los valores con el histórico.',
+    }
+  }
+  return { ...base, estado: 'ok', motivo: 'Sin lecturas trabadas ni valores fuera del rango de 365 días.' }
+}
+
 export function clasificarRunVigente(params: { publicadoEn: string | null; ahora: Date }): ItemEstadoDato {
   const edad = minutosDesde(params.publicadoEn, params.ahora)
   const base = {
@@ -253,6 +317,66 @@ export function clasificarImerg(params: { desde: string | null; hasta: string | 
     return { ...base, estado: 'atrasado', motivo: `El dato más nuevo tiene ${formatearDuracion(edad)}. ${cobertura}` }
   }
   return { ...base, estado: 'ok', motivo: cobertura }
+}
+
+// I5 (huecos): un hueco de este tamaño entre dos gránulos consecutivos del día es un aviso.
+export const UMBRAL_HUECO_IMERG_MINUTOS = 180
+// Buenos Aires no tiene horario de verano desde 2009: UTC-3 fijo.
+const DESFASE_BUENOS_AIRES_MS = 3 * 60 * 60_000
+
+/** Medianoche de Buenos Aires del día de `ahora`, expresada en UTC. */
+export function inicioDiaImerg(ahora: Date): Date {
+  const local = new Date(ahora.getTime() - DESFASE_BUENOS_AIRES_MS)
+  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) + DESFASE_BUENOS_AIRES_MS)
+}
+
+function horaBuenosAires(ms: number): string {
+  return new Date(ms - DESFASE_BUENOS_AIRES_MS).toISOString().slice(11, 16)
+}
+
+function formatearHorasHueco(minutos: number): string {
+  const horas = minutos / 60
+  return Number.isInteger(horas) ? `${horas} h` : `${horas.toFixed(1).replace('.', ',')} h`
+}
+
+/**
+ * Huecos entre gránulos IMERG consecutivos del día de `ahora` (Buenos Aires).
+ * Sólo cuentan los huecos entre dos gránulos del día: la latencia de publicación
+ * del último gránulo la evalúa la frescura de IMERG, no esta regla.
+ * Devuelve null con menos de dos gránulos (no hay serie que medir).
+ */
+export function clasificarHuecosImerg(params: { observadosEn: ReadonlyArray<string>; ahora: Date }): ItemEstadoDato | null {
+  const inicio = inicioDiaImerg(params.ahora).getTime()
+  const delDia = [...new Set(params.observadosEn)]
+    .map((iso) => Date.parse(iso))
+    .filter((ms) => !Number.isNaN(ms) && ms >= inicio)
+    .sort((a, b) => a - b)
+  if (delDia.length < 2) return null
+
+  const base = {
+    id: 'dato:imerg-huecos',
+    grupo: 'lluvia' as const,
+    nombre: 'Huecos en la serie IMERG',
+    ultimoExitoEn: null,
+    ultimoIntentoEn: null,
+    ultimoError: null,
+    edadMinutos: null,
+    intervaloMinutos: UMBRAL_HUECO_IMERG_MINUTOS,
+  }
+
+  let cantidad = 0
+  let mayor: { desde: number; hasta: number; minutos: number } | null = null
+  for (let i = 1; i < delDia.length; i++) {
+    const minutos = (delDia[i]! - delDia[i - 1]!) / 60_000
+    if (minutos < UMBRAL_HUECO_IMERG_MINUTOS) continue
+    cantidad++
+    if (mayor === null || minutos > mayor.minutos) mayor = { desde: delDia[i - 1]!, hasta: delDia[i]!, minutos }
+  }
+  if (mayor === null) return { ...base, estado: 'ok', motivo: 'Serie IMERG de hoy sin huecos.' }
+
+  const detalle = `${formatearHorasHueco(mayor.minutos)} sin gránulos entre ${horaBuenosAires(mayor.desde)} y ${horaBuenosAires(mayor.hasta)}.`
+  const motivo = cantidad === 1 ? `Huecos en la serie IMERG de hoy: ${detalle}` : `Huecos en la serie IMERG de hoy: ${cantidad} huecos; el mayor, ${detalle}`
+  return { ...base, estado: 'atrasado', motivo }
 }
 
 export function clasificarClimatologia(cobertura: CoberturaClimatologia): ItemEstadoDato {
@@ -318,21 +442,55 @@ export function clasificarFuente(params: {
   return { ...base, estado: 'ok', motivo: `Vence a las ${formatearDuracion(frescura.limiteMinutos)}.` }
 }
 
+// Vigencia esperada de cada dataset publicado, en días. Geografía de referencia
+// (no cambia salvo reimportación): 730. Registros que se corrigen o crecen por
+// período: 365 o 180. Un id sin entrada no tiene control de vigencia.
+export const VIGENCIA_DATASET_DIAS: Readonly<Record<string, number>> = {
+  departamentos: 730,
+  mascara: 730,
+  localidades: 730,
+  'georef-departamentos': 730,
+  'cabeceras-departamentales': 730,
+  'localidades-urbanas': 730,
+  'tramos-prefectura': 730,
+  'puntos-rio': 730,
+  'gazetteer-osm': 730,
+  'geo-aislamiento': 730,
+  'geo-geometria': 730,
+  'geo-ruta-evacuacion': 730,
+  'geo-susceptibilidad': 730,
+  localizaciones: 365,
+  'estaciones-prefectura': 365,
+  'estaciones-synop': 365,
+  'eventos-inundaciones': 180,
+  'registro-eventos': 180,
+  'evidencias-inundaciones': 180,
+  'localidades-riberenas-dudosas': 180,
+}
+
+const MINUTOS_POR_DIA = 1440
+
 export function clasificarDatasets(
   publicaciones: ReadonlyArray<{ datasetId: string; nombre: string; publicadaEn: string }>,
+  ahora: Date,
 ): ItemEstadoDato[] {
   const base = { grupo: 'geo' as const, ultimoIntentoEn: null, ultimoError: null, edadMinutos: null, intervaloMinutos: null }
   if (publicaciones.length === 0) {
     return [{ ...base, id: 'dataset:ninguno', nombre: 'Datos geográficos y estáticos', estado: 'sin_datos', motivo: 'No hay datasets publicados.', ultimoExitoEn: null }]
   }
-  return publicaciones.map((p) => ({
-    ...base,
-    id: `dataset:${p.datasetId}`,
-    nombre: p.nombre,
-    estado: 'ok' as const,
-    motivo: 'Dato estático publicado; se actualiza por importación.',
-    ultimoExitoEn: p.publicadaEn,
-  }))
+  return publicaciones.map((p) => {
+    const item = { ...base, id: `dataset:${p.datasetId}`, nombre: p.nombre, ultimoExitoEn: p.publicadaEn }
+    const vigenciaDias = Object.hasOwn(VIGENCIA_DATASET_DIAS, p.datasetId) ? VIGENCIA_DATASET_DIAS[p.datasetId] : undefined
+    const edad = minutosDesde(p.publicadaEn, ahora)
+    if (vigenciaDias !== undefined && edad !== null && edad > vigenciaDias * MINUTOS_POR_DIA) {
+      return {
+        ...item,
+        estado: 'atrasado' as const,
+        motivo: `Publicado hace ${Math.floor(edad / MINUTOS_POR_DIA)} días (vigencia esperada: ${vigenciaDias} días).`,
+      }
+    }
+    return { ...item, estado: 'ok' as const, motivo: 'Dato estático publicado; se actualiza por importación.' }
+  })
 }
 
 export function armarEstadoDatos(params: { items: ItemEstadoDato[]; ahora: Date }): EstadoDatos {
