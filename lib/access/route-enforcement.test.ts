@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CAPABILITY_GUARDS, DELEGATED_ENFORCEMENT } from './capability-guards'
-import type { Capability } from './capabilities'
+import type { RouteCapability } from './route-manifest'
 import { ROUTE_MANIFEST } from './route-manifest'
 
 // Declared ⇒ enforced: each non-public route must reference a guard of one of
@@ -37,8 +37,8 @@ function referencesAny(source: string, identifiers: readonly string[]): boolean 
   return identifiers.some((id) => new RegExp(`\\b${id}\\b`).test(source))
 }
 
-function declaredCapabilities(entry: Capability | readonly Capability[]): Capability[] {
-  return Array.isArray(entry) ? [...entry] : [entry as Capability]
+function declaredCapabilities(entry: RouteCapability | readonly RouteCapability[]): RouteCapability[] {
+  return Array.isArray(entry) ? [...entry] : [entry as RouteCapability]
 }
 
 describe('route enforcement (declared ⇒ enforced)', () => {

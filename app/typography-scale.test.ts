@@ -43,6 +43,14 @@ describe('escala tipografica', () => {
     },
   )
 
+  it('preserves the reorganization panel sizes with scoped tokens', () => {
+    const css = readFileSync(join(ROOT, 'app/globals.css'), 'utf8')
+    const panel = css.match(/\.rz-side\s*\{([^}]+)\}/)?.[1] ?? ''
+    expect(panel).toMatch(/--t-rz-title:\s*1\.25rem;/)
+    expect(panel).toMatch(/--t-rz-caption:\s*0\.75rem;/)
+    expect(panel).toMatch(/--t-rz-kpi:\s*1\.5rem;/)
+  })
+
   it('define la escala de tokens en :root', () => {
     const css = readFileSync(join(ROOT, 'app/globals.css'), 'utf8')
     expect(css).toMatch(/--t-micro:\s*0\.875rem;/)

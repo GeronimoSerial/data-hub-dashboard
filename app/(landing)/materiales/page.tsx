@@ -38,7 +38,7 @@ export default async function MaterialesPage() {
             ))}
             <a href="#aula-virtual">
               <span className={styles.number}>03</span>
-              <span>Aula virtual<small>Formulario de solicitud</small></span>
+              <span>Aulas virtuales<small>Solicitud y acceso a Educaplay</small></span>
               <ArrowDown size={20} aria-hidden="true" />
             </a>
           </nav>
@@ -81,12 +81,15 @@ export default async function MaterialesPage() {
           })}
           <section className={styles.collection} id="aula-virtual" aria-labelledby="aula-virtual-titulo">
             <div className={styles.collectionHeading}>
-              <h2 id="aula-virtual-titulo">Solicitud de aula virtual</h2>
-              <p>Formulario para solicitar un aula virtual.</p>
+              <h2 id="aula-virtual-titulo">Aulas virtuales</h2>
+              <p>Solicitá un aula virtual o accedé a Educaplay.</p>
             </div>
             <div className={styles.files}>
               <a className={styles.download} href="https://forms.gle/vrFAisMjeMWEa9TKA">
                 Solicitar aula virtual <ExternalLink size={19} aria-hidden="true" />
+              </a>
+              <a className={styles.download} href="https://corrientesplay.ar/educaplay/">
+                Acceder a Educaplay <ExternalLink size={19} aria-hidden="true" />
               </a>
             </div>
           </section>
