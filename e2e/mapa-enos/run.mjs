@@ -101,6 +101,8 @@ let project = null
 let exitCode = 1
 
 try {
+  // Unit tests of the seed run first: a failure aborts before the workspace, the build, or the database exist.
+  await run(process.execPath, [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--config', 'e2e/mapa-enos/vitest.config.ts'], root, process.env)
   workspace = await mkdtemp(path.join(os.tmpdir(), 'mapa-enos-e2e-'))
   project = path.join(workspace, 'project')
   const data = path.join(workspace, 'data')
