@@ -1,4 +1,5 @@
 import type { BookletAssignmentsPage } from '@/lib/cuadernillos/types'
+import { AssignmentImport } from './assignment-import'
 import { AssignmentList } from './assignment-list'
 import { MembershipAdmin } from './membership-admin'
 
@@ -35,6 +36,7 @@ export function PlanningView({
       </header>
 
       <AssignmentSection page={page} loading={loading} error={error} onLoadMore={onLoadMore} loadingMore={loadingMore} />
+      {isAdmin ? <AssignmentImport /> : null}
       {isAdmin ? <MembershipAdmin /> : null}
     </section>
   )
