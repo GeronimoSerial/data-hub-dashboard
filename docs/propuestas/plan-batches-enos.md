@@ -72,6 +72,7 @@ B1 ─► B2 ─┬─► B3a ─┐                                            
 | B8 | Configuración de región | B4, B0, D2 | — | **Alto** (contratos internos) | No |
 | B9 | Río neutral y jobs por región | B8 | B10 | **Alto** (contratos internos) | No |
 | B10 | Interfaz bilingüe y card del hub | B8 | B9 | Medio (migración aditiva en `user`) | Sí (`idioma` en `user`) |
+| B10b | Barrido de diccionarios es/pt pendiente (cuerpo de la ficha, helpers de etiquetas, radar y estadísticas). **Bloquea la puesta en marcha de Manaos** | B10 | B11 | Bajo | No |
 | B11 | Despliegue de Manaos | B9, B10 | — | **Alto** (entrega) | No |
 | B12 | Datos y proveedores de Manaos | B11 | — | Medio | No |
 | B13 | Bajante y horizonte estacional | B12 | B14 | Medio | Posible |
@@ -370,6 +371,18 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 - CA4: Corrientes no cambia: snapshots de B2 idénticos y suite e2e verde.
 - CA5: el runbook documenta cómo crear una región nueva de punta a punta.
 - CA6: prueba e2e de cambio a portugués (movida desde B10) que verifica textos de pestañas, leyenda y ficha, corrida contra un despliegue local con `REGION=manaos`.
+
+**Estado de implementación (B11):**
+- Hecho: `config/regiones/manaos.json` (límites provisionales, pendientes de B0), `pnpm region:cargar <id>`, prueba de contrato de regiones, plantilla `deploy/regiones/`, runbook `docs/ejecucion-enos/OPS1/runbook-nueva-region.md` y prueba e2e local `pnpm test:e2e:region` (CA6 incluida).
+- Ajustes derivados de la prueba con base vacía: `estacionAncla` opcional, `datasetsPendientes`/`cargaDatasets` en el esquema, mapa montado aunque falle la geografía, acceso a Prefectura restringido por región, y arranque abortado con `process.exit(1)` si `REGION` es inválida.
+- Pendiente fuera de B11: B10b (arriba), marca institucional de Corrientes fija en la cabecera del hub, jobs `sync-smn-alertas`, `sync-synop-lluvia` e `importar-exposicion-rio-dem` aún no excluidos por regla (ver `deploy/regiones/scheduler-jobs.md`), y secretos adicionales a los de B11.6.
+- Bloqueantes de puesta en marcha de Manaos (no afectan a Corrientes), a resolver en B10b/B12:
+  - (a) La leyenda de Prefectura ("Estações da Prefeitura", evacuação/alerta) aparece en Manaos; debe seguir `fuentesRio` de la región.
+  - (b) Restos en español en la vista portuguesa: panel "SITUACIÓN ACTUAL", "Ver provincia", "Veredicto diario", "Pantalla completa", "Ninguna escuela...".
+  - (c) El área del mapa se ve sin mapa base en la captura; resuelto: no es un defecto. Con 8 s de espera, Corrientes y Manaos muestran el mismo mapa base (OpenFreeMap); la captura inicial se tomó antes de que cargaran las teselas. Observación abierta para B12: con la base vacía ambas regiones abren centradas en (0, 0) (Golfo de Guinea), y el encuadre por región solo aplica cuando hay datos.
+  - (d) La marca institucional de la cabecera del hub está fija en Corrientes.
+  - (e) Catálogo sin scope en `lecturas-repo.ts:210`, `MAP_CENTER` de map-matricula, jobs `sync-smn-alertas`/`sync-synop-lluvia`/`importar-exposicion-rio-dem`, y secretos adicionales a B11.6.
+- Evidencia del `COPY config` del Dockerfile (`39346b44`): aceptada sin bajar la imagen. El builder copia todo el repositorio (`COPY . .`), `.dockerignore` no excluye `config/` y el runner hace `COPY --from=builder /app/config ./config`; un `COPY --from` de una ruta inexistente rompe el build, y "Publish GHCR image" terminó bien en `4d6277f0` (B9 en dev). La verificación directa con `docker pull` no fue posible: el token de `gh` no tiene el scope `read:packages`.
 
 ---
 

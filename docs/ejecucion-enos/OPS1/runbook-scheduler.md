@@ -192,6 +192,7 @@ campo `tipo` del código no coincide con el nombre de despacho para varios jobs
 | `RISK_ENGINE_ENABLED` | entorno del CONTENEDOR | apagado | Gobierna **sólo** la UI `/admin/riesgo`. NO afecta si los jobs corren (ver `lib/infraestructura/jobs/flags.ts`). |
 | `EPISODIOS_DERIVADOS_ENABLED` | entorno del CONTENEDOR | apagado | Gobierna **sólo** la UI `/admin/episodios-derivados`. NO afecta si el job corre. |
 | `EARTHDATA_TOKEN` | entorno del CONTENEDOR | sin default | Token de NASA Earthdata para `sync-imerg`. Sin él, el job marca `nasa-imerg` como `no_disponible` en `hazard_source_health` y sale con `0`. Ver "Renovación de la credencial de Earthdata". |
+| `REGION` | entorno del CONTENEDOR | `corrientes` si está vacía o ausente | Región del despliegue. Elige `config/regiones/<REGION>.json` y qué jobs aplican. Ver "Región (`REGION`) y tareas por región". |
 
 Todas estas variables son del entorno del **contenedor de la aplicación**, se
 setean según el mecanismo de despliegue (Coolify), **nunca** se commitean ni se
@@ -406,3 +407,24 @@ Hasta ejecutar manualmente `riesgo-om-operacion.yml` con `configurar`, los
 timers o tareas existentes quedan instalados pero no gastan cupo una vez
 desplegado el código (el rol se infiere de la base). No reinstalar esos timers
 en consumidores después de migrar.
+
+## Región (`REGION`) y tareas por región
+
+- `REGION` elige la región del contenedor: es el id de `config/regiones/<REGION>.json`.
+  Vacía o ausente = `corrientes`. Un id desconocido o un JSON inválido aborta el
+  arranque (`instrumentation.ts`), y cada job de `scripts/jobs.mjs` sale con código `1`.
+- El mismo valor decide qué jobs aplican. `scripts/jobs.mjs` y `JOBS_ESPERADOS`
+  (`obtenerEstadoOperativo().jobsEsperados`) usan la región activa, así que
+  `/admin/operacion` sólo muestra los jobs que aplican.
+- Regla de aplicabilidad: `sync-prefectura-*` requiere `prefectura` en `fuentesRio`;
+  `sync-ina-*` requiere `ina`. Los demás jobs aplican a todas las regiones.
+- **Código de salida `2`:** el job no aplica a la región (`job <id> does not apply to region <id>`,
+  en stderr) o el nombre es desconocido. La comprobación va antes de `ENOS_JOBS_ENABLED`,
+  así que también sale `2` con el interruptor apagado. Una tarea que devuelve `2` es un
+  error de configuración: borrar esa tarea en la región, no reintentar.
+- Códigos de salida completos: `0` ejecutado o no-op; `1` error o `estado: fallido`;
+  `2` invocación inválida o job que no aplica.
+- Tareas por región (Corrientes y Manaos): [deploy/regiones/scheduler-jobs.md](../../../deploy/regiones/scheduler-jobs.md).
+  Manaos no programa `sync-prefectura-alturas`, `sync-prefectura-historico`,
+  `sync-ina-serie-diaria` ni `sync-ina-pronostico`.
+- Alta de una región nueva: [runbook-nueva-region.md](runbook-nueva-region.md).
