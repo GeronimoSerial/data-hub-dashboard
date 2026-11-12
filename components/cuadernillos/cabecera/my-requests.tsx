@@ -13,7 +13,7 @@ function total(lines: BookletRequestLineView[]): number {
 function StatusChip({ request }: { request: BookletRequestSummary }) {
   const tone = request.status === 'rejected' ? 'var(--danger-ink)' : request.status === 'approved' ? 'var(--ink)' : 'var(--ink-soft)'
   return (
-    <span style={{ padding: '.15rem .55rem', borderRadius: '999px', border: `1px solid ${tone}`, color: tone, fontSize: '.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+    <span className="cab-req-chip" style={{ justifySelf: 'end', padding: '.15rem .55rem', borderRadius: '999px', border: `1px solid ${tone}`, color: tone, fontSize: '.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
       {requestLabel(request)}
     </span>
   )
@@ -24,30 +24,48 @@ function RequestRow({ request, readOnly, onRequested }: {
   readOnly: boolean
   onRequested: (message: string) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const detailId = `request-detail-${request.requestId}`
   const ficha = fichaEscuelaHref(request.recipientCueAnexo)
   const canRemainder = !readOnly && request.status === 'approved' && request.rootRequestId === request.requestId && request.remaining.length > 0
   const submittedAt = request.submittedAt ? new Date(request.submittedAt).toLocaleDateString('es-AR') : null
   return (
-    <article style={{ display: 'grid', gap: '.6rem', padding: '.9rem 1rem', border: '1px solid var(--line)', borderRadius: '.75rem', background: 'var(--surface)' }}>
-      <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.5rem' }}>
-        <div style={{ display: 'grid', gap: '.15rem', minWidth: 0 }}>
-          <strong style={{ color: 'var(--ink)', overflowWrap: 'anywhere' }}>{request.recipientName || 'Escuela destinataria'}</strong>
-          <span style={{ color: 'var(--ink-soft)', fontSize: '.85rem' }}>
-            CUE {request.recipientCueAnexo}{submittedAt ? ` · ${submittedAt}` : ''}
-          </span>
-          {ficha ? (
-            <a href={ficha} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem', justifySelf: 'start' }}>Ver ficha</a>
-          ) : null}
+    <article className="cab-req">
+      <div className="cab-req-main">
+        <strong className="cab-req-name">{request.recipientName || 'Escuela destinataria'}</strong>
+        <div className="cab-req-meta">
+          <span>CUE {request.recipientCueAnexo}</span>
+          {submittedAt ? <span>{submittedAt}</span> : null}
+          <span>{total(request.requested)} solicitados</span>
         </div>
         <StatusChip request={request} />
-      </header>
-      <p style={{ margin: 0, color: 'var(--ink-soft)', fontSize: '.875rem' }}>
-        Solicitado {total(request.requested)}
-        {request.status === 'approved' ? ` · Aprobado ${total(request.approved)} · Sin aprobar ${total(request.remaining)}` : ''}
-      </p>
-      <ul style={{ margin: 0, paddingLeft: '1.1rem', color: 'var(--ink)', fontSize: '.9rem' }}>
-        {request.requested.map((line) => <li key={line.productId}>{line.productLabel}: {line.quantity}</li>)}
-      </ul>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="cab-req-button"
+          aria-expanded={open}
+          aria-controls={detailId}
+          onClick={() => setOpen((value) => !value)}
+        >
+          Ver detalle
+        </Button>
+      </div>
+      {open ? (
+        <div id={detailId} className="cab-req-detail">
+          <ul>
+            {request.requested.map((line) => <li key={line.productId}>{line.productLabel}: {line.quantity}</li>)}
+          </ul>
+          {request.status === 'approved' ? (
+            <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
+              Aprobado {total(request.approved)} · Sin aprobar {total(request.remaining)}
+            </p>
+          ) : null}
+          {ficha ? (
+            <a href={ficha} target="_blank" rel="noopener noreferrer" style={{ justifySelf: 'start' }}>Ver ficha</a>
+          ) : null}
+        </div>
+      ) : null}
       {canRemainder ? <RemainderAction request={request} disabled={readOnly} onRequested={onRequested} /> : null}
     </article>
   )
@@ -96,22 +114,22 @@ export function MyRequests({ refreshKey, readOnly, viewAsUserId, onRequested }: 
   }
 
   return (
-    <section aria-labelledby="my-requests-title" style={{ display: 'grid', gap: '.85rem' }}>
+    <section aria-labelledby="my-requests-title" className="cab-stack">
       <h3 id="my-requests-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: '1.15rem' }}>
         Mis pedidos
       </h3>
       {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}
       {!page && !error ? (
         <div aria-hidden style={{ display: 'grid', gap: '.5rem' }}>
-          <div style={{ height: '4.5rem', borderRadius: '.75rem', background: 'var(--line)', opacity: 0.5 }} />
-          <div style={{ height: '4.5rem', borderRadius: '.75rem', background: 'var(--line)', opacity: 0.5 }} />
+          <div style={{ height: '3rem', borderRadius: '.75rem', background: 'var(--line)', opacity: 0.5 }} />
+          <div style={{ height: '3rem', borderRadius: '.75rem', background: 'var(--line)', opacity: 0.5 }} />
         </div>
       ) : null}
       {page && page.requests.length === 0 ? (
         <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Todavía no hay pedidos en esta campaña.</p>
       ) : null}
       {page?.requests.length ? (
-        <div style={{ display: 'grid', gap: '.6rem' }}>
+        <div className="cab-req-list">
           {page.requests.map((request) => (
             <RequestRow key={request.requestId} request={request} readOnly={readOnly} onRequested={onRequested} />
           ))}
