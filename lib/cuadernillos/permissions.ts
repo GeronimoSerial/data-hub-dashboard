@@ -346,3 +346,14 @@ export async function getBookletRequestPage(
   return { campaignId: selectedCampaignId, campaignOptions: [], requests: visible.slice(0, pageSize), hasMore, nextCursor }
 }
 
+
+/** True when the actor can open the booklet workspace in any capability (admins included). */
+export async function hasAnyBookletAccess(
+  actor: SessionUser | null,
+  repository: BookletPermissionRepository = databaseRepository,
+): Promise<boolean> {
+  for (const capability of ['planning', 'cabecera', 'supervisor'] as const) {
+    if (await hasBookletCapability(actor, capability, repository)) return true
+  }
+  return false
+}
