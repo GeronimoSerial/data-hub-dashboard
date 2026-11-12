@@ -1,8 +1,17 @@
+import { createHash } from 'node:crypto'
 import type { Role } from '@/lib/acl'
 import type { HubSection } from '@/lib/hub-sections'
 
 // Cuentas QA fijas (plan de pruebas, seccion 4.2). Solo existen en la base
 // efimera de la corrida: las contrasenas son de prueba y no se usan afuera.
+
+// Contrasena derivada por corrida: MAPA_E2E_QA_SAL (fijada por run.mjs) hace
+// que seed, setup y specs coincidan. Sin sal (vitest, ejecucion manual) usa 'local'.
+function derivarClave(clave: ClaveCuentaQa): string {
+  const sal = process.env.MAPA_E2E_QA_SAL ?? 'local'
+  const digest = createHash('sha256').update(`${sal}:${clave}`).digest('base64url')
+  return `${digest.slice(0, 18)}Aa9!`
+}
 
 // Nivel jurisdiccional con escuelas en el seed (id de niveles_jurisdiccionales,
 // "Direccion de Nivel Secundario").
@@ -43,7 +52,7 @@ function cuenta(
   return {
     clave,
     email: `qa-${clave}@e2e.local`,
-    password: `Qa-${clave}-E2e-Aa9!`,
+    password: derivarClave(clave),
     nivelesJurIds: [],
     hubSecciones: null,
     hubLanding: null,

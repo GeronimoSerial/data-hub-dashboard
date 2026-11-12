@@ -41,7 +41,7 @@ The `e2e-hub` job is non-blocking (`continue-on-error`) until its four known fai
 
 ## QA accounts
 
-Same email and password on every run. Passwords are for the ephemeral database only.
+Same email on every run. Each run derives the passwords from a random salt (`MAPA_E2E_QA_SAL`, set by `run.mjs`), so no password is stored in the repository. Passwords are for the ephemeral database only.
 
 | Account | Role | Scope |
 |---|---|---|
