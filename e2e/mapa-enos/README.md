@@ -29,13 +29,19 @@ MAPA_E2E_KEEP_DIR=/path/to/out pnpm test:e2e:mapa         # keep the HTML report
 
 A run takes a few minutes: build, seed, then tests. Each run has its own port, container, and workspace, so runs can happen in parallel. Set `E2E_DATABASE_URL` to use an existing database (CI).
 
+### CI
+
+The `e2e-mapa` job in `.github/workflows/ci.yml` runs this suite on PRs into `main` against a PostgreSQL 16 service container. The `changes` job filters paths first; when no map, hub, drizzle, or lockfile path changed, the e2e steps are skipped and the job still reports success. Failed runs upload the HTML report and traces as the `mapa-e2e-report` artifact (7 days). Pending for the repository owner: add `e2e-mapa` to branch protection as a required check. This repository does not do that change.
+
+The `e2e-hub` job is non-blocking (`continue-on-error`) until its four known failures, which also fail on `main`, are fixed. `e2e-mapa` is the check meant to become required, pending in the repository settings.
+
 ## Unit tests
 
 `seed/*.test.ts` (today `escuelas.test.ts`: roster counts, unique CUEs, coordinates inside the Georef polygons) run with their own config, `e2e/mapa-enos/vitest.config.ts`, because the root config excludes `e2e/**`. Run them with `pnpm test:e2e:mapa:unit`. `run.mjs` runs them first, before the build, and a failure aborts the run with a non-zero exit code.
 
 ## QA accounts
 
-Same email and password on every run. Passwords are for the ephemeral database only.
+Same email on every run. Each run derives the passwords from a random salt (`MAPA_E2E_QA_SAL`, set by `run.mjs`), so no password is stored in the repository. Passwords are for the ephemeral database only.
 
 | Account | Role | Scope |
 |---|---|---|
