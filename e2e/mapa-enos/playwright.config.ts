@@ -47,6 +47,13 @@ export default defineConfig({
       use: { ...devices['iPhone 13'], browserName: 'chromium', baseURL: mainURL },
     },
     {
+      // Escrituras del parte: corren después de "chromium", así ninguna prueba de lectura ve el estado escrito.
+      name: 'chromium-escritura',
+      testMatch: 'specs-escritura/**/*.spec.ts',
+      dependencies: ['chromium'],
+      use: { ...devices['Desktop Chrome'], baseURL: mainURL },
+    },
+    {
       name: 'chromium-sin-radar',
       testMatch: 'specs-sin-radar/**/*.spec.ts',
       dependencies: ['setup'],

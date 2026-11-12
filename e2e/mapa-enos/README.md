@@ -16,6 +16,7 @@ End-to-end and API contract tests for the infrastructure map. The plan is in `do
 | `contratos/snapshots/` | Versioned JSON snapshots of API responses. |
 | `specs/` | Playwright specs for the `chromium` and `mobile` projects. |
 | `specs-sin-radar/` | Specs for the server started without the radar. |
+| `specs-escritura/` | Specs that write data (parte del operador). Project `chromium-escritura` depends on `chromium`, so they run after every read-only spec. |
 | `fixtures/base.ts` | Extended `test`: map helpers and external-request isolation. |
 
 ## Running
