@@ -5,7 +5,9 @@ const CABECERA_CSS = `
 
 .cab-req-list { display: grid; gap: .5rem; }
 .cab-req { display: grid; gap: .5rem; padding: .6rem .9rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--surface); }
-.cab-req-main { display: grid; grid-template-columns: minmax(0, 2fr) 9rem 6.5rem 7.5rem auto auto; align-items: center; gap: .5rem .9rem; }
+.cab-req-main { display: grid; grid-template-columns: minmax(0, 1fr) 9rem 6.5rem 8rem 9rem auto; align-items: center; gap: .5rem .9rem; }
+.cab-req-cue { white-space: nowrap; }
+.cab-req-date, .cab-req-total { white-space: nowrap; }
 .cab-req-name { color: var(--ink); overflow-wrap: anywhere; }
 .cab-req-meta { display: contents; color: var(--ink-soft); font-size: .85rem; }
 .cab-req-detail { display: grid; gap: .4rem; padding-top: .5rem; border-top: 1px solid var(--line); color: var(--ink); font-size: .9rem; }

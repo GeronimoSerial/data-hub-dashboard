@@ -128,9 +128,17 @@ for (const { width, height } of VIEWPORTS) {
       await login(page, 'admin')
       await dismissUnderDevelopment(page)
       await step('admin open configuration', async () => {
-        await page.getByRole('button', { name: 'Configuración' }).first().click()
+        await page.getByRole('tab', { name: 'Configuración' }).click()
+        await page.getByRole('navigation', { name: 'Secciones de configuración' }).waitFor({ timeout: 10_000 })
       })
-      await shot(page, 'admin-configuration', width)
+      await step('admin configuration cabeceras', async () => {
+        await page.getByRole('navigation', { name: 'Secciones de configuración' }).getByRole('button', { name: 'Cabeceras', exact: true }).click()
+      })
+      await shot(page, 'admin-config-cabeceras', width)
+      await step('admin configuration membresias', async () => {
+        await page.getByRole('navigation', { name: 'Secciones de configuración' }).getByRole('button', { name: 'Membresías', exact: true }).click()
+      })
+      await shot(page, 'admin-config-membresias', width)
       await step('admin open Ver como', async () => {
         await page.getByRole('button', { name: 'Ver como' }).first().click()
         // The view-as popover is the only panel with this search input (the page has a second one).

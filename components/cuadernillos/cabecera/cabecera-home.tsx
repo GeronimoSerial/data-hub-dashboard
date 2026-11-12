@@ -128,12 +128,6 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
   return (
     <section aria-labelledby="cabecera-home-title" className="cab-section" style={{ minWidth: 0 }}>
       <CabeceraStyles />
-      {readOnly ? (
-        <p role="note" style={{ margin: 0, padding: '.75rem 1rem', borderRadius: '.75rem', border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink-soft)' }}>
-          Vista de solo lectura: podés revisar la información, pero no enviar ni guardar pedidos.
-        </p>
-      ) : null}
-
       <div className="cab-stack" style={{ minWidth: 0 }}>
         <header style={{ display: 'grid', gap: '.25rem' }}>
           <h2 id="cabecera-home-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: 'clamp(1.35rem, 3vw, 1.75rem)', lineHeight: 1.15 }}>
