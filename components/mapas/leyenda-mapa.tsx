@@ -49,7 +49,7 @@ const FORMATO_CORTE_LLUVIA = new Intl.DateTimeFormat('es-AR', {
 function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
   const hasta = meta.hasta && !Number.isNaN(Date.parse(meta.hasta)) ? FORMATO_CORTE_LLUVIA.format(new Date(meta.hasta)) : null
   return (
-    <div className="map-leyenda__bloque">
+    <div className="map-leyenda__bloque" data-testid="leyenda-lluvia">
       <b className="map-leyenda__subtitulo">
         <DatoFechado actualizado={hasta ? `Actualizado ${hasta}` : 'Sin fecha de actualización'} vencido={meta.vencida}>
           Lluvia observada {meta.horas} h
@@ -97,7 +97,7 @@ function SituacionActual({ estacionesRio, lluviaObservada, riesgoHoy, abierta }:
       <summary className="map-leyenda__seccion-titulo">Situación actual</summary>
       <div className="map-leyenda__seccion-cuerpo">
         {estacionesRio && (
-          <div className="map-leyenda__bloque">
+          <div className="map-leyenda__bloque" data-testid="leyenda-estaciones">
             <b className="map-leyenda__subtitulo">Estaciones de Prefectura<NotaInfo texto="Una lectura de más de 18 h conserva su último nivel; su antigüedad está en la ficha de la estación." /></b>
             <ul className="map-leyenda__situacion">
               {ESTADOS_ALTURA_RIO.map(({ estado, etiqueta }) => (
@@ -111,7 +111,7 @@ function SituacionActual({ estacionesRio, lluviaObservada, riesgoHoy, abierta }:
         )}
         {lluviaObservada && <LeyendaLluviaObservada meta={lluviaObservada} />}
         {riesgoHoy && (
-          <div className="map-leyenda__bloque">
+          <div className="map-leyenda__bloque" data-testid="leyenda-riesgo-hoy">
             <b className="map-leyenda__subtitulo">Escuelas en riesgo hoy</b>
             <ul className="map-leyenda__fila">
               {(['muy_alto', 'alto', 'moderado'] as const).map((nivel) => (
@@ -222,7 +222,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
   if (props.pestana === 'estadisticas' && !hayCapas) return null
 
   return (
-    <aside className={`map-leyenda map-leyenda--${props.pestana}`} aria-label="Referencias del mapa">
+    <aside className={`map-leyenda map-leyenda--${props.pestana}`} aria-label="Referencias del mapa" data-testid="leyenda-mapa">
       {hayCapas && (
         <SituacionActual
           // Fuera de "Situación actual" manda la escala de la pestaña: estas referencias quedan plegadas.
