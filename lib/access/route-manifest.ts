@@ -1,5 +1,8 @@
 import type { Capability } from './capabilities'
 
+// Links has its own session; this inventory-only label is not granted to hub roles.
+export type RouteCapability = Capability | 'links.admin'
+
 /**
  * Capacidad que exige cada página (page.tsx) y API (route.ts) de app/.
  * Clave: ruta del archivo relativa a la raíz del repo. Un array significa
@@ -11,7 +14,7 @@ import type { Capability } from './capabilities'
  * declarado; T3 las lleva a capacidades exactas.
  * Que la ruta referencie su guarda lo verifica lib/access/route-enforcement.test.ts.
  */
-export const ROUTE_MANIFEST: Record<string, Capability | readonly Capability[]> = {
+export const ROUTE_MANIFEST: Record<string, RouteCapability | readonly RouteCapability[]> = {
   // --- Pages (app/(hub)) ---
   'app/(hub)/page.tsx': 'hub.landing',
   'app/(hub)/explorar/page.tsx': 'hub.explore',
@@ -19,6 +22,7 @@ export const ROUTE_MANIFEST: Record<string, Capability | readonly Capability[]> 
   'app/(hub)/mapas/page.tsx': 'hub.section.maps',
   'app/(hub)/mapas/matricula/page.tsx': 'hub.recursos',
   'app/(hub)/mapas/natalidad/page.tsx': 'hub.recursos',
+  'app/(hub)/mapas/reorganizacion/page.tsx': 'hub.recursos',
   'app/(hub)/mapas/infraestructura/page.tsx': 'infra.map.read',
   'app/(hub)/mapas/infraestructura/escuelas/[cue]/page.tsx': 'infra.map.read',
   'app/(hub)/tableros/page.tsx': 'hub.section.dashboards',
@@ -54,7 +58,17 @@ export const ROUTE_MANIFEST: Record<string, Capability | readonly Capability[]> 
   // Pública a propósito: el enlace con PIN/token es la credencial.
   'app/problematicas/verificaciones/[id]/page.tsx': 'public',
 
+  // Links login is public; the admin page exposes its editor only after esAdmin.
+  'app/(miniapps)/(links)/links/page.tsx': 'public',
+  'app/(miniapps)/(links)/links/admin/page.tsx': 'links.admin',
+  'app/(miniapps)/(links)/links/api/sesion/route.ts': 'public',
+  'app/(miniapps)/(links)/links/api/contenido/route.ts': 'links.admin',
+
   // --- API: auth, gate, hub, recursos ---
+  'app/api/health/route.ts': 'public',
+  'app/api/mapas/reorganizacion/datos/route.ts': 'hub.recursos',
+  'app/api/mapas/reorganizacion/ruta/route.ts': 'hub.recursos',
+  'app/api/mapas/infraestructura/accesos/[cueAnexo]/centro-evacuados/route.ts': 'infra.map.read',
   'app/api/auth/[...all]/route.ts': 'public',
   'app/api/auth/ge-login/route.ts': 'public',
   'app/auth/ge-callback/route.ts': 'public',
