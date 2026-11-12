@@ -488,8 +488,9 @@ export async function obtenerVerificacion(
 
 // `enlaceVencido` se calcula acá, en el servidor, contra la credencial real
 // (tokenExpiraEn). La UI sólo lo lee: no importa verificacion-token.ts (usa
-// node:crypto) desde un componente cliente.
-export type VerificacionListada = VerificacionRow & { enlaceVencido: boolean }
+// node:crypto) desde un componente cliente. `tokenHash` se quita acá porque la
+// lista se serializa al cliente de /admin/verificaciones.
+export type VerificacionListada = Omit<VerificacionRow, 'tokenHash'> & { enlaceVencido: boolean }
 
 export async function listarVerificaciones(
   input?: { periodoId?: string; cueAnexo?: string; estado?: 'pendiente' | 'respondida' | 'cancelada' },
@@ -504,7 +505,7 @@ export async function listarVerificaciones(
   const base = db.select().from(infraVerificacion)
   const conFiltro = condiciones.length > 0 ? base.where(and(...condiciones)) : base
   const filas = await conFiltro.orderBy(desc(infraVerificacion.solicitadaEn))
-  return filas.map((fila) => ({
+  return filas.map(({ tokenHash: _tokenHash, ...fila }) => ({
     ...fila,
     enlaceVencido: tokenExpirado(fila.tokenExpiraEn, ahora),
   }))

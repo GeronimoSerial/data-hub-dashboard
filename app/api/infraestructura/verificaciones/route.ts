@@ -43,7 +43,7 @@ async function handleGET(request: Request) {
   const estado = estadoRaw as (typeof ESTADOS)[number] | undefined
 
   const verificaciones = await listarVerificaciones({ periodoId, cueAnexo, estado })
-  return jsonNoStore({ ok: true, verificaciones: verificaciones.map(sinTokenHash) })
+  return jsonNoStore({ ok: true, verificaciones })
 }
 
 async function handlePOST(request: Request) {
