@@ -68,16 +68,16 @@ describe('CuadernillosWorkspace', () => {
     expect(screen.queryByRole('button', { name: /aprobar/i })).not.toBeInTheDocument()
   })
 
-  it('loads cabecera request recommendations from verified assignments', async () => {
+  it('offers no recipient list for a dependent-only cabecera account and no old request form', async () => {
     vi.stubGlobal('fetch', fetchWithAssignments())
 
     render(<CuadernillosWorkspace capabilities={['cabecera']} />)
 
     await waitFor(() => expect(screen.getByText('Escuela de muestra')).toBeInTheDocument())
     expect(screen.getByRole('heading', { name: 'Cabecera' })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Escuela destinataria'), { target: { value: '180123456' } })
-    expect(await screen.findByText(/Recomendación: 3 · matrícula: 3/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Enviar a revisión' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Escuela destinataria')).not.toBeInTheDocument()
+    expect(screen.getByText('Esta cuenta no tiene una cabecera asignada para solicitar cuadernillos.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Enviar a revisión' })).not.toBeInTheDocument()
   })
 
   it('shows an honest empty state when no assignments are linked', async () => {
@@ -88,16 +88,31 @@ describe('CuadernillosWorkspace', () => {
     expect(await screen.findByText('Todavía no hay escuelas asignadas a esta cuenta.')).toBeInTheDocument()
   })
 
-  it('never offers individual or bulk approval before request reads and approval services exist', async () => {
+  it('points supervisors to per-request decisions and offers no bulk approval', async () => {
     vi.stubGlobal('fetch', fetchWithAssignments())
 
     render(<CuadernillosWorkspace capabilities={['supervisor']} />)
 
     await waitFor(() => expect(screen.getByText('Escuela de muestra')).toBeInTheDocument())
     expect(screen.getByRole('heading', { name: 'Supervisión' })).toBeInTheDocument()
-    expect(screen.getByText(/decisiones sobre solicitudes todavía no disponibles/i)).toBeInTheDocument()
+    expect(screen.queryByText(/todavía no disponibles/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/solicitud por solicitud/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /aprobar|rechazar|firmar/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /aprobar todas/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the cabecera tab to an admin and loads the cabecera picker from the admin list', async () => {
+    const base = fetchWithAssignments()
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => url.startsWith('/api/cuadernillos/cabeceras')
+      ? Promise.resolve(jsonResponse({ cabeceras: [] }))
+      : base(url, init))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<CuadernillosWorkspace capabilities={['planning', 'cabecera', 'supervisor']} isAdmin />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cabecera' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/cabeceras', expect.anything()))
+    expect(await screen.findByText('No hay cabeceras cargadas.')).toBeInTheDocument()
   })
 
   it('allows switching only among capabilities supplied by the server', async () => {
