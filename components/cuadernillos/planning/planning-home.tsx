@@ -3,11 +3,16 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
-import type { BookletBalanceView, BookletCampaignOption, BookletOverview } from '@/lib/cuadernillos/types'
+import type { BookletBalanceView, BookletCampaignOption, BookletOverview, BookletRequestSummary } from '@/lib/cuadernillos/types'
+import { isRequestsPage } from '../supervisor/inbox-guards'
 import { Configuracion } from '../config/configuracion'
 import { PlanningSummary } from './planning-summary'
 
 const LOAD_ERROR = 'No se pudo cargar el catálogo y los saldos.'
+const REQUESTS_LOAD_ERROR = 'No se pudieron cargar las solicitudes para contar pendientes y aprobadas hoy.'
+// Same endpoint and page size as the supervisor inbox; pages are followed so the counts are not capped at one page.
+const REQUEST_PAGE_SIZE = 50
+const MAX_REQUEST_PAGES = 10
 
 const errorMessages: Record<string, string> = {
   campaign_inactive: 'La campaña ya no está activa.',
@@ -84,6 +89,7 @@ export function PlanningHome({
   const [section, setSection] = useState<'inicio' | 'configuracion'>('inicio')
   const [overview, setOverview] = useState<BookletOverview | null>(null)
   const [selectedCampaign, setSelectedCampaign] = useState('')
+  const [requests, setRequests] = useState<BookletRequestSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -95,6 +101,24 @@ export function PlanningHome({
   const [quotaProduct, setQuotaProduct] = useState('')
   const [quotaQuantity, setQuotaQuantity] = useState('')
 
+  const loadRequests = useCallback(async (campaignId: string, signal?: AbortSignal) => {
+    const rows: BookletRequestSummary[] = []
+    let cursor: string | null = null
+    for (let page = 0; page < MAX_REQUEST_PAGES; page += 1) {
+      const query = new URLSearchParams({ campaignId, limit: String(REQUEST_PAGE_SIZE) })
+      if (cursor) query.set('cursor', cursor)
+      if (viewAsUserId) query.set('viewAs', viewAsUserId)
+      const response = await fetch(`/api/cuadernillos/requests?${query}`, { signal, cache: 'no-store' })
+      const data = await readJson(response)
+      if (!response.ok) throw new Error(errorText(data, REQUESTS_LOAD_ERROR))
+      if (!isRequestsPage(data)) throw new Error(REQUESTS_LOAD_ERROR)
+      rows.push(...data.requests)
+      if (!data.hasMore || !data.nextCursor) break
+      cursor = data.nextCursor
+    }
+    return rows
+  }, [viewAsUserId])
+
   const loadOverview = useCallback(async (campaignId?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ capability: 'planning' })
     if (campaignId) query.set('campaignId', campaignId)
@@ -103,12 +127,15 @@ export function PlanningHome({
     const data = await readJson(response)
     if (!response.ok) throw new Error(errorText(data, LOAD_ERROR))
     if (!isOverview(data) || data.capability !== 'planning') throw new Error('La respuesta del resumen no tiene un formato válido.')
+    // The overview carries no request rows; the counts come from the requests endpoint the supervisor inbox uses.
+    const requestRows = data.campaignId ? await loadRequests(data.campaignId, signal) : []
+    setRequests(requestRows)
     setOverview(data)
     setSelectedCampaign(data.campaignId ?? '')
     setStockProduct(data.balances[0]?.productId ?? '')
     setQuotaProduct(data.balances[0]?.productId ?? '')
     setQuotaHead(data.balances.find((balance) => balance.cabeceraCueAnexo)?.cabeceraCueAnexo ?? '')
-  }, [viewAsUserId])
+  }, [viewAsUserId, loadRequests])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -219,7 +246,7 @@ export function PlanningHome({
 
           {overview?.campaignId ? (
             <>
-              <PlanningSummary balances={overview.balances} requests={overview.requests} />
+              <PlanningSummary balances={overview.balances} requests={requests} />
 
               {writeEnabled && products.length ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 18rem), 1fr))', gap: '1.25rem' }}>

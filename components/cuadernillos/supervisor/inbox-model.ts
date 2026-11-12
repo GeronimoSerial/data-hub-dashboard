@@ -35,6 +35,12 @@ export function formatAge(submittedAt: string | null, now: Date = new Date()): s
   return `hace ${days} ${days === 1 ? 'día' : 'días'}`
 }
 
+/** Dashed CUE form used on screen: 180123400 -> 1801234-00. Values that are not 9 digits pass through unchanged. */
+export function formatCue(cueAnexo: string): string {
+  if (!/^\d{9}$/.test(cueAnexo)) return cueAnexo
+  return `${cueAnexo.slice(0, 7)}-${cueAnexo.slice(7)}`
+}
+
 /** ENOS ficha route takes the dashed CUE form (1801234-57) for a 9-digit CUE (180123457). */
 export function fichaEscuelaHref(cueAnexo: string): string | null {
   if (!/^\d{9}$/.test(cueAnexo)) return null

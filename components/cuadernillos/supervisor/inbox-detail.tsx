@@ -6,18 +6,20 @@ import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { type ProductAvailability, defaultApprovalQuantities, fichaEscuelaHref } from './inbox-model'
+import { type ProductAvailability, defaultApprovalQuantities, fichaEscuelaHref, formatCue } from './inbox-model'
 
 export type ApprovalLine = { productId: string; quantity: number }
 
 export function InboxDetail({
-  request, availability, readOnly, busy, error, onApprove, onReject,
+  request, availability, readOnly, busy, error, showTitle = true, onApprove, onReject,
 }: {
   request: BookletRequestSummary
   availability: ProductAvailability[]
   readOnly: boolean
   busy: boolean
   error: string | null
+  // The bottom sheet on phones already carries the school name as its title.
+  showTitle?: boolean
   onApprove: (lines: ApprovalLine[]) => void
   onReject: (reason: string) => void
 }) {
@@ -65,10 +67,12 @@ export function InboxDetail({
   return (
     <div style={{ display: 'grid', gap: '1.25rem', alignContent: 'start' }}>
       <header style={{ display: 'grid', gap: '.35rem' }}>
-        <SheetTitle style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: '1.35rem' }}>
-          {request.recipientName || 'Escuela destinataria'}
-        </SheetTitle>
-        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>CUE Anexo {request.recipientCueAnexo}</p>
+        {showTitle ? (
+          <SheetTitle style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: '1.35rem', overflowWrap: 'anywhere' }}>
+            {request.recipientName || 'Escuela destinataria'}
+          </SheetTitle>
+        ) : null}
+        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>CUE {formatCue(request.recipientCueAnexo)}</p>
         <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Cabecera: {request.cabeceraName}</p>
         {ficha ? (
           <a href={ficha} target="_blank" rel="noopener noreferrer" style={{ justifySelf: 'start' }}>Ver ficha</a>
@@ -90,7 +94,7 @@ export function InboxDetail({
                 disabled={blocked}
                 value={values[line.productId] ?? String(defaults[line.productId] ?? line.quantity)}
                 onChange={(event) => setValues((current) => ({ ...current, [line.productId]: event.target.value }))}
-                style={{ maxWidth: '10rem', padding: '.5rem .6rem', border: '1px solid var(--line)', borderRadius: '.5rem', background: 'var(--surface)', color: 'var(--ink)' }}
+                style={{ maxWidth: '10rem', minWidth: 0, width: '100%', boxSizing: 'border-box', padding: '.5rem .6rem', border: '1px solid var(--line)', borderRadius: '.5rem', background: 'var(--surface)', color: 'var(--ink)' }}
               />
               <span style={{ color: 'var(--ink-soft)', fontSize: '.9rem' }}>
                 Solicitado: {line.quantity}
