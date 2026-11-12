@@ -17,7 +17,7 @@ export function AlertasSeccion(props: {
   const gruposVisibles = grupos.length > 4 && !mostrarTodo ? grupos.slice(0, 4) : grupos
 
   return (
-    <section id="radar-alertas-smn" aria-labelledby="radar-alertas-smn-titulo" className="map-radar-alertas">
+    <section id="radar-alertas-smn" aria-labelledby="radar-alertas-smn-titulo" className="map-radar-alertas" data-testid="radar-alertas-smn">
       <h3 id="radar-alertas-smn-titulo" className="map-sitact__titulo-seccion">Alertas del SMN</h3>
       {cargando ? (
         <p role="status" className="map-sitact__vacio map-sitact__vacio--linea">Cargando alertas…</p>
@@ -34,7 +34,7 @@ export function AlertasSeccion(props: {
               const departamentos = grupo.departamentos.length ? grupo.departamentos.join(', ') : 'Corrientes'
               const color = colorFranja(grupo.nivelSat)
               return (
-                <div className="map-radar-alertas__item" key={grupo.clave}>
+                <div className="map-radar-alertas__item" key={grupo.clave} data-testid="radar-alerta">
                   <button
                     type="button"
                     className="map-sitact__fila"

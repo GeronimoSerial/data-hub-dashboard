@@ -279,7 +279,7 @@ function TarjetaLluvia({
   const [entero, decimal] = celda.acumuladoMm.toFixed(1).split('.')
 
   return (
-    <div className="map-popup tarjeta-lluvia">
+    <div className="map-popup tarjeta-lluvia" data-testid="capa-lluvia-observada">
       <div className="tarjeta-estacion__cabecera">
         <div>
           <h3 className="tarjeta-estacion__titulo">Lluvia observada</h3>
