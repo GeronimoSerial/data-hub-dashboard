@@ -28,6 +28,10 @@ MAPA_E2E_KEEP_DIR=/path/to/out pnpm test:e2e:mapa         # keep the HTML report
 
 A run takes a few minutes: build, seed, then tests. Each run has its own port, container, and workspace, so runs can happen in parallel. Set `E2E_DATABASE_URL` to use an existing database (CI).
 
+## Unit tests
+
+`seed/*.test.ts` (today `escuelas.test.ts`: roster counts, unique CUEs, coordinates inside the Georef polygons) run with their own config, `e2e/mapa-enos/vitest.config.ts`, because the root config excludes `e2e/**`. Run them with `pnpm test:e2e:mapa:unit`. `run.mjs` runs them first, before the build, and a failure aborts the run with a non-zero exit code.
+
 ## QA accounts
 
 Same email and password on every run. Passwords are for the ephemeral database only.
