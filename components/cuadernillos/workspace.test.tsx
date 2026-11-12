@@ -37,6 +37,9 @@ function fetchOverview() {
         requests: [], eligibility: null, hasMore: false, nextCursor: null,
       }))
     }
+    if (url.startsWith('/api/cuadernillos/requests')) {
+      return Promise.resolve(jsonResponse({ campaignId: 'campaign-1', campaignOptions: [activeCampaign], requests: [], hasMore: false, nextCursor: null }))
+    }
     if (url.startsWith('/api/cuadernillos/memberships')) return Promise.resolve(jsonResponse({ memberships: [] }))
     if (url.startsWith('/api/cuadernillos/cabeceras')) return Promise.resolve(jsonResponse({ cabeceras: [] }))
     return Promise.resolve(jsonResponse({ error: 'unexpected' }, 500))
@@ -86,6 +89,16 @@ describe('CuadernillosWorkspace roles', () => {
     expect(screen.getByRole('tab', { name: 'Supervisión' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByRole('tab', { name: 'Cabecera' })).not.toBeInTheDocument()
     expect(screen.getByText(/Bandeja de supervisión/)).toBeInTheDocument()
+  })
+
+  it('lands an admin on the planning home, even when the admin also holds cabecera', async () => {
+    vi.stubGlobal('fetch', fetchOverview())
+
+    render(<CuadernillosWorkspace capabilities={['cabecera', 'planning']} isAdmin />)
+
+    expect(screen.getByRole('tab', { name: 'Planeamiento' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('heading', { name: 'Registrar stock global' })).toBeInTheDocument()
+    expect(screen.queryByText(/Inicio de cabecera/)).not.toBeInTheDocument()
   })
 
   it('switches between the roles the server supplied', async () => {

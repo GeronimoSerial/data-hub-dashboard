@@ -140,4 +140,17 @@ describe('SupervisorInbox', () => {
     await screen.findByText('No hay pedidos pendientes')
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('viewAs=user-2'), expect.anything())
   })
+  it('names each row by its dashed CUE and opens the detail as a bottom sheet on phones', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(max-width: 640px)', media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    })))
+    vi.stubGlobal('fetch', mockApi({ list: listResponse([pending]) }))
+
+    render(<SupervisorInbox isAdmin={false} readOnly={false} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /CUE 1801234-57/ }))
+    expect(await screen.findByRole('dialog')).toHaveClass('bottom-sheet')
+    expect(screen.getByRole('button', { name: 'Aprobar' })).toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
 })

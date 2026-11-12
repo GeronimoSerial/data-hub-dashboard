@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BookletRequestSummary } from '@/lib/cuadernillos/types'
-import { defaultApprovalQuantities, fichaEscuelaHref, formatAge, groupPendingByCabecera } from './inbox-model'
+import { defaultApprovalQuantities, fichaEscuelaHref, formatAge, formatCue, groupPendingByCabecera } from './inbox-model'
 
 function request(overrides: Partial<BookletRequestSummary>): BookletRequestSummary {
   return {
@@ -48,6 +48,11 @@ describe('formatAge', () => {
 })
 
 describe('fichaEscuelaHref', () => {
+  it('shows a 9-digit CUE in dashed form and leaves other values unchanged', () => {
+    expect(formatCue('180123400')).toBe('1801234-00')
+    expect(formatCue('12345')).toBe('12345')
+  })
+
   it('formats the ENOS ficha route from a 9-digit CUE only', () => {
     expect(fichaEscuelaHref('180123457')).toBe('/mapas/infraestructura/escuelas/1801234-57')
     expect(fichaEscuelaHref('18012')).toBeNull()

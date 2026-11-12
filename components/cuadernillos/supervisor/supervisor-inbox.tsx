@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 import type { BookletBalanceView, BookletRequestSummary, BookletRequestsPage } from '@/lib/cuadernillos/types'
+import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { SheetContent, SheetRoot } from '@/components/ui/sheet'
 import { InboxDetail, type ApprovalLine } from './inbox-detail'
-import { availabilityFor, formatAge, groupPendingByCabecera } from './inbox-model'
+import { availabilityFor, formatAge, formatCue, groupPendingByCabecera } from './inbox-model'
 import { isBalances, isRequestsPage } from './inbox-guards'
 
 const PAGE_SIZE = 50
@@ -55,6 +57,22 @@ function pluralPending(count: number) {
   return `${count} pendiente${count === 1 ? '' : 's'}`
 }
 
+const PHONE_QUERY = '(max-width: 640px)'
+
+// Phones get the detail as a bottom sheet; wider screens get the right-side sheet.
+function useIsPhone() {
+  const [phone, setPhone] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const query = window.matchMedia(PHONE_QUERY)
+    const update = () => setPhone(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  return phone
+}
+
 export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: boolean; readOnly: boolean; viewAsUserId?: string | null }) {
   const [page, setPage] = useState<BookletRequestsPage | null>(null)
   const [balances, setBalances] = useState<BookletBalanceView[]>([])
@@ -67,6 +85,7 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
   const [notice, setNotice] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
   const intentKeys = useRef(new Map<string, { body: string; key: string }>())
+  const phone = useIsPhone()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -172,13 +191,13 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
           {group.requests.map((request) => {
             const total = request.requested.reduce((sum, line) => sum + line.quantity, 0)
             return (
-              <button key={request.requestId} type="button" onClick={() => { setActionError(null); setSelectedId(request.requestId) }}
-                style={{ display: 'grid', gap: '.25rem', textAlign: 'left', padding: '.85rem 1rem', border: '1px solid var(--line)', borderRadius: '.6rem', background: 'var(--surface)', color: 'var(--ink)', cursor: 'pointer' }}>
-                <span style={{ fontWeight: 600 }}>{request.recipientName || 'Escuela destinataria'}</span>
-                <span style={{ color: 'var(--ink-soft)', fontSize: '.9rem' }}>
-                  CUE Anexo {request.recipientCueAnexo} · {total} cuadernillos
+              <button key={request.requestId} type="button" className="cdl-row-button" onClick={() => { setActionError(null); setSelectedId(request.requestId) }}>
+                <span style={{ fontWeight: 600, minWidth: 0 }}>{request.recipientName || 'Escuela destinataria'}</span>
+                <span style={{ color: 'var(--ink-soft)', fontSize: '.9rem', minWidth: 0 }}>
+                  CUE {formatCue(request.recipientCueAnexo)} · {total} cuadernillos
                 </span>
-                <span style={{ color: 'var(--ink-soft)', fontSize: '.85rem' }}>{formatAge(request.submittedAt)}</span>
+                <span style={{ color: 'var(--ink-soft)', fontSize: '.85rem', minWidth: 0 }}>{formatAge(request.submittedAt)}</span>
+                <ChevronRight className="cdl-chevron" aria-hidden="true" size={20} />
               </button>
             )
           })}
@@ -201,8 +220,8 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
         </details>
       ) : null}
 
-      <SheetRoot open={selected !== null} onOpenChange={(open) => { if (!open) closePanel() }}>
-        <SheetContent side="right" style={{ width: 'min(100vw, 28rem)', padding: '1.5rem', overflowY: 'auto' }}>
+      {phone ? (
+        <BottomSheet open={selected !== null} titulo={selected?.recipientName || 'Escuela destinataria'} onCerrar={closePanel}>
           {selected ? (
             <InboxDetail
               key={selected.requestId}
@@ -211,12 +230,30 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
               readOnly={readOnly}
               busy={busy}
               error={actionError}
+              showTitle={false}
               onApprove={(lines) => void decide(selected, { kind: 'approve', lines })}
               onReject={(reason) => void decide(selected, { kind: 'reject', reason })}
             />
           ) : null}
-        </SheetContent>
-      </SheetRoot>
+        </BottomSheet>
+      ) : (
+        <SheetRoot open={selected !== null} onOpenChange={(open) => { if (!open) closePanel() }}>
+          <SheetContent side="right" style={{ width: 'min(100vw, 28rem)', maxWidth: '100vw', boxSizing: 'border-box', padding: '1.5rem', overflowY: 'auto' }}>
+            {selected ? (
+              <InboxDetail
+                key={selected.requestId}
+                request={selected}
+                availability={availabilityFor(selected, balances)}
+                readOnly={readOnly}
+                busy={busy}
+                error={actionError}
+                onApprove={(lines) => void decide(selected, { kind: 'approve', lines })}
+                onReject={(reason) => void decide(selected, { kind: 'reject', reason })}
+              />
+            ) : null}
+          </SheetContent>
+        </SheetRoot>
+      )}
     </section>
   )
 }

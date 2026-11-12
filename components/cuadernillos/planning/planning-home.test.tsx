@@ -24,9 +24,29 @@ function response(body: unknown, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: async () => body }
 }
 
+function requestRow(requestId: string, status: string, approvedAt: string | null = null) {
+  return {
+    requestId, rootRequestId: requestId, recipientCueAnexo: '180123457', recipientName: 'Escuela Anexo',
+    cabeceraCueAnexo: '180000000', cabeceraName: 'Cabecera', status, requested: [], approved: [], remaining: [],
+    submittedAt: null, approvedAt, approvalIdentity: null,
+  }
+}
+
+// Routes each planning endpoint by URL, so the overview, the requests read and the writes never share one mock sequence.
+function routedFetch(overviewBody: unknown, requests: unknown[] = []) {
+  return vi.fn().mockImplementation((url: string) => {
+    if (url.startsWith('/api/cuadernillos/overview')) return Promise.resolve(response(overviewBody))
+    if (url.startsWith('/api/cuadernillos/requests')) {
+      return Promise.resolve(response({ campaignId: 'campaign-1', campaignOptions: [campaign], requests, hasMore: false, nextCursor: null }))
+    }
+    if (url.startsWith('/api/cuadernillos/stock') || url.startsWith('/api/cuadernillos/quotas')) return Promise.resolve(response({ ok: true }))
+    return Promise.resolve(response({ error: 'unexpected' }, 500))
+  })
+}
+
 describe('PlanningHome', () => {
   it('renders current global stock and head-specific remaining quota without inventing original quota', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(response(overview))
+    const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
     render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
@@ -38,11 +58,12 @@ describe('PlanningHome', () => {
 
   it('shows summary cards with stock per product and pending and approved counts', async () => {
     const requests = [
-      { requestId: 'r1', status: 'pending', approvedAt: null },
-      { requestId: 'r2', status: 'approved', approvedAt: new Date().toISOString() },
-      { requestId: 'r3', status: 'approved', approvedAt: '2020-01-01T00:00:00.000Z' },
+      requestRow('r1', 'pending'),
+      requestRow('r2', 'approved', new Date().toISOString()),
+      requestRow('r3', 'approved', '2020-01-01T00:00:00.000Z'),
     ]
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ ...overview, requests })))
+    const fetchMock = routedFetch(overview, requests)
+    vi.stubGlobal('fetch', fetchMock)
 
     render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
 
@@ -52,10 +73,34 @@ describe('PlanningHome', () => {
     const counts = screen.getByRole('region', { name: 'Solicitudes' })
     expect(counts).toHaveTextContent(/Pendientes\s*1/)
     expect(counts).toHaveTextContent(/Aprobadas hoy\s*1/)
+    expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/requests?campaignId=campaign-1&limit=50', expect.anything())
+  })
+
+  it('follows request pages so pending counts are not capped at the first page', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.startsWith('/api/cuadernillos/overview')) return Promise.resolve(response(overview))
+      if (url.includes('cursor=next-page')) {
+        return Promise.resolve(response({ campaignId: 'campaign-1', campaignOptions: [campaign], requests: [requestRow('r2', 'pending')], hasMore: false, nextCursor: null }))
+      }
+      return Promise.resolve(response({ campaignId: 'campaign-1', campaignOptions: [campaign], requests: [requestRow('r1', 'pending')], hasMore: true, nextCursor: 'next-page' }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+
+    expect(await screen.findByRole('region', { name: 'Solicitudes' })).toHaveTextContent(/Pendientes\s*2/)
+  })
+
+  it('shows a pending count of zero only when the requests read has no pending rows', async () => {
+    vi.stubGlobal('fetch', routedFetch(overview, [requestRow('r1', 'rejected')]))
+
+    render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+
+    expect(await screen.findByRole('region', { name: 'Solicitudes' })).toHaveTextContent(/Pendientes\s*0/)
   })
 
   it('keeps the stock and quota forms for planning', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(overview)))
+    vi.stubGlobal('fetch', routedFetch(overview))
 
     render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
 
@@ -64,10 +109,7 @@ describe('PlanningHome', () => {
   })
 
   it('posts a stock movement with the prefilled product and the typed quantity', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(response(overview))
-      .mockResolvedValueOnce(response({ ok: true }))
-      .mockResolvedValueOnce(response(overview))
+    const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
     render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
@@ -82,10 +124,7 @@ describe('PlanningHome', () => {
   })
 
   it('posts a cabecera quota with the head, product and quantity', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(response(overview))
-      .mockResolvedValueOnce(response({ ok: true }))
-      .mockResolvedValueOnce(response(overview))
+    const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
     render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
@@ -98,7 +137,7 @@ describe('PlanningHome', () => {
   })
 
   it('rejects a stock quantity that is not a positive integer without calling the API', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(response(overview))
+    const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
     render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
@@ -106,11 +145,11 @@ describe('PlanningHome', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar movimiento' }).closest('form')!)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Ingresá una cantidad entera mayor que cero.')
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/cuadernillos/stock', expect.anything())
   })
 
   it('disables write controls in read-only mode and sends viewAs with the read', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(response(overview))
+    const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
     render(<PlanningHome isAdmin={false} readOnly viewAsUserId="supervisor-1" />)
@@ -121,7 +160,7 @@ describe('PlanningHome', () => {
   })
 
   it('shows the configuration area only to admins outside read-only mode', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(overview)))
+    vi.stubGlobal('fetch', routedFetch(overview))
 
     const { rerender } = render(<PlanningHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
     await screen.findByRole('heading', { name: 'Registrar stock global' })
