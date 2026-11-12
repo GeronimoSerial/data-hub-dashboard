@@ -125,8 +125,10 @@ test.describe.serial('parte del operador: escritura', () => {
     expect(movimientos[0]).toMatchObject({ id: cuerpo.movimientoId, tipo: 'actualizacion', severidad: GRAVEDAD_CAMBIADA })
   })
 
-  test('una cuenta de consulta o un director sin alcance no puede escribir el parte de la escuela', async ({ playwright, baseURL }) => {
-    if (!envioGuardado) throw new Error('Esta prueba reutiliza el envío de la prueba de escritura anterior')
+  test('una cuenta de consulta o un director sin alcance no puede escribir el parte de la escuela', async ({ page, playwright, baseURL }) => {
+    // Captura su propio envío del recorrido (el operador sí puede escribir); afterEach restaura la gravedad sembrada.
+    const { envio } = await actualizarGravedad(page, GRAVEDAD_CAMBIADA)
+    envioGuardado = envio
     const esperadas: Array<{ clave: ClaveCuentaQa; status: number }> = [
       { clave: 'consulta-infra', status: 401 },
       { clave: 'director-sin-alcance', status: 403 },
