@@ -14,6 +14,8 @@ export type GanchoMapaE2E = {
   proyectar(lon: number, lat: number): { x: number; y: number }
   /** Zoom actual del mapa MapLibre. */
   zoom(): number
+  /** Centro y zoom actuales de la cámara del mapa. */
+  centro(): { lon: number; lat: number; zoom: number }
 }
 
 declare global {
@@ -82,5 +84,9 @@ export function instalarGanchoE2E(map: MapaMaplibre): void {
     },
 
     zoom: () => map.getZoom(),
+    centro: () => {
+      const centro = map.getCenter()
+      return { lon: centro.lng, lat: centro.lat, zoom: map.getZoom() }
+    },
   }
 }
