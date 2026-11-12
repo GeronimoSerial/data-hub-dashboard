@@ -14,16 +14,17 @@ const CAPAS_EN_ESTILO: Record<string, string | undefined> = {
   'infra-departamentos-etiqueta': 'visible',
 }
 
+// Cada feature lleva su identidad (estacionId, geometryRef), como en las capas reales.
 const FEATURES_POR_CAPA: Record<string, unknown[]> = {
-  'estaciones-rio-simbolos': [{}, {}, {}, {}],
-  'lluvia-observada-hit': Array.from({ length: 12 }, () => ({})),
+  'estaciones-rio-simbolos': Array.from({ length: 4 }, (_, i) => ({ properties: { estacionId: `est-${i}` } })),
+  'lluvia-observada-hit': Array.from({ length: 12 }, (_, i) => ({ properties: { geometryRef: `celda-${i}` } })),
 }
 
-function mapaFalso() {
+function mapaFalso(features: Record<string, unknown[]> = FEATURES_POR_CAPA) {
   const map = {
     getLayer: vi.fn((id: string) => (id in CAPAS_EN_ESTILO ? { id } : undefined)),
     getLayoutProperty: vi.fn((id: string) => CAPAS_EN_ESTILO[id]),
-    queryRenderedFeatures: vi.fn((_geometria: unknown, opciones: { layers: string[] }) => FEATURES_POR_CAPA[opciones.layers[0]] ?? []),
+    queryRenderedFeatures: vi.fn((_geometria: unknown, opciones: { layers: string[] }) => features[opciones.layers[0]] ?? []),
     project: vi.fn((_lnglat: [number, number]) => ({ x: 120.5, y: 340.25 })),
     getCanvas: vi.fn(() => ({ getBoundingClientRect: () => CAJA_CANVAS })),
   }
@@ -74,6 +75,44 @@ describe('instalarGanchoE2E', () => {
     expect(window.__mapaE2E?.featuresRenderizadas('estacionesRio')).toBe(4)
     expect(window.__mapaE2E?.featuresRenderizadas('lluviaObservada')).toBe(12)
     expect(window.__mapaE2E?.featuresRenderizadas('rutaAcceso')).toBe(0)
+  })
+
+  it('featuresRenderizadas cuenta una feature una vez aunque la teselación repita copias', () => {
+    vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
+    // Cuatro departamentos; el de Goya aparece también como copia recortada en otra tesela
+    // (mismas propiedades, sin feature.id): 5 entradas, 4 features.
+    const departamento = (id: string) => ({ properties: { id, nombre: id, centroide: { lat: -28, lon: -58 } } })
+    const copiaRecortada = departamento('goya')
+    instalarGanchoE2E(mapaFalso({
+      'infra-departamentos-borde': [
+        departamento('capital'), departamento('goya'), departamento('paso'), departamento('santo-tome'), copiaRecortada,
+      ],
+    }) as unknown as MapaMaplibre)
+    expect(window.__mapaE2E?.featuresRenderizadas('limitesDepartamentos')).toBe(4)
+  })
+
+  it('featuresRenderizadas usa feature.id cuando el source lo asigna', () => {
+    vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
+    instalarGanchoE2E(mapaFalso({
+      'infra-departamentos-borde': [
+        { id: 7, properties: { nombre: 'Capital' } },
+        { id: 7, properties: { nombre: 'Capital' } },
+        { id: 8, properties: { nombre: 'Goya' } },
+      ],
+    }) as unknown as MapaMaplibre)
+    expect(window.__mapaE2E?.featuresRenderizadas('limitesDepartamentos')).toBe(2)
+  })
+
+  it('featuresRenderizadas no colapsa features distintas sin identidad estable', () => {
+    vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
+    instalarGanchoE2E(mapaFalso({
+      'infra-departamentos-borde': [
+        { properties: { nombre: 'Capital' } },
+        { properties: { nombre: 'Goya' } },
+        { properties: { nombre: 'Goya' } },
+      ],
+    }) as unknown as MapaMaplibre)
+    expect(window.__mapaE2E?.featuresRenderizadas('limitesDepartamentos')).toBe(2)
   })
 
   it('featuresRenderizadas falla ante una clave desconocida', () => {
