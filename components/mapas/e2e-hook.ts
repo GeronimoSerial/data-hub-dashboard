@@ -1,4 +1,4 @@
-import type { Map as MapaMaplibre } from 'maplibre-gl'
+import type { MapGeoJSONFeature, Map as MapaMaplibre } from 'maplibre-gl'
 import type { CapasVisibles } from '@/lib/infraestructura/mapa/capas'
 
 // Gancho de prueba E2E (plan 4.5). Solo se instala cuando el build corre con
@@ -34,6 +34,20 @@ const CAPAS_MAPLIBRE: Record<keyof CapasVisibles, readonly string[]> = {
   escuelasEnRiesgo: ['infra-riesgo-hoy'],
 }
 
+// Propiedades que identifican una feature de forma estable. Las teselas recortan un
+// mismo elemento en copias con las mismas propiedades, así que la clave sale de ellas.
+const CAMPOS_IDENTIDAD = ['id', 'estacionId', 'geometryRef', 'cue', 'cueAnexo'] as const
+
+function claveFeature(feature: MapGeoJSONFeature): string {
+  if (feature.id !== undefined && feature.id !== null) return `id:${String(feature.id)}`
+  const propiedades: Record<string, unknown> = feature.properties ?? {}
+  for (const campo of CAMPOS_IDENTIDAD) {
+    const valor = propiedades[campo]
+    if (valor !== undefined && valor !== null && valor !== '') return `${campo}:${String(valor)}`
+  }
+  return `propiedades:${JSON.stringify(propiedades)}`
+}
+
 function capaVisible(map: MapaMaplibre, id: string): boolean {
   return Boolean(map.getLayer(id)) && map.getLayoutProperty(id, 'visibility') !== 'none'
 }
@@ -50,9 +64,13 @@ export function instalarGanchoE2E(map: MapaMaplibre): void {
     featuresRenderizadas: (capa) => {
       const ids = CAPAS_MAPLIBRE[capa as keyof CapasVisibles]
       if (!ids) throw new Error(`Capa desconocida para el gancho E2E: ${capa}`)
-      return ids
-        .filter((id) => map.getLayer(id))
-        .reduce((total, id) => total + map.queryRenderedFeatures(undefined, { layers: [id] }).length, 0)
+      // Cuenta features únicas: queryRenderedFeatures repite las que cruzan un borde de tesela.
+      const claves = new Set<string>()
+      for (const id of ids) {
+        if (!map.getLayer(id)) continue
+        for (const feature of map.queryRenderedFeatures(undefined, { layers: [id] })) claves.add(claveFeature(feature))
+      }
+      return claves.size
     },
 
     proyectar: (lon, lat) => {
