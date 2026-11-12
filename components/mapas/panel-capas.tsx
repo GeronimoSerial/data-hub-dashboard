@@ -28,7 +28,7 @@ export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChan
   }
 
   return (
-    <section className="map-sitact" aria-label="Capas">
+    <section className="map-sitact" aria-label="Capas" data-testid="panel-capas">
       <section className="map-capas__grupo" role="group" aria-labelledby="map-capas-situacion-titulo">
         <h3 id="map-capas-situacion-titulo" className="map-sitact__titulo-seccion">Situación actual</h3>
         <Switch

@@ -27,6 +27,7 @@ function mapaFalso(features: Record<string, unknown[]> = FEATURES_POR_CAPA) {
     queryRenderedFeatures: vi.fn((_geometria: unknown, opciones: { layers: string[] }) => features[opciones.layers[0]] ?? []),
     project: vi.fn((_lnglat: [number, number]) => ({ x: 120.5, y: 340.25 })),
     getCanvas: vi.fn(() => ({ getBoundingClientRect: () => CAJA_CANVAS })),
+    getZoom: vi.fn(() => 6.3),
   }
   return map
 }
@@ -54,13 +55,20 @@ describe('instalarGanchoE2E', () => {
     expect(window.__mapaE2E).toBeUndefined()
   })
 
-  it('instala un objeto con las tres funciones cuando NEXT_PUBLIC_E2E es "true"', () => {
+  it('instala un objeto con las cuatro funciones cuando NEXT_PUBLIC_E2E es "true"', () => {
     vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
     instalarGanchoE2E(mapaFalso() as unknown as MapaMaplibre)
     expect(window.__mapaE2E).toBeDefined()
     expect(typeof window.__mapaE2E?.capasVisibles).toBe('function')
     expect(typeof window.__mapaE2E?.featuresRenderizadas).toBe('function')
     expect(typeof window.__mapaE2E?.proyectar).toBe('function')
+    expect(typeof window.__mapaE2E?.zoom).toBe('function')
+  })
+
+  it('zoom devuelve el zoom actual del mapa', () => {
+    vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
+    instalarGanchoE2E(mapaFalso() as unknown as MapaMaplibre)
+    expect(window.__mapaE2E?.zoom()).toBe(6.3)
   })
 
   it('capasVisibles lista solo las claves con capa montada y no oculta', () => {
