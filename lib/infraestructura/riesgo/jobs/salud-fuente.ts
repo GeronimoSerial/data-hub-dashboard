@@ -27,10 +27,24 @@ export async function actualizarSaludFuente(
     ultimoErrorSaneado: string | null
     ahoraIso: string
     reintentarSiBloqueado?: boolean
+    // Filas recibidas de la fuente en esta corrida (no las insertadas: una
+    // corrida con todas las lecturas duplicadas recibió filas). Si se omite,
+    // no se aplica la regla de `ok` con 0 filas.
+    filasRecibidas?: number
+    // Sólo cuando 0 filas es lo esperado porque no había nada nuevo que pedir.
+    yaSincronizado?: boolean
   },
 ): Promise<void> {
+  // Un `ok` sin filas recibidas no es un éxito: la fuente respondió vacía.
+  const sinFilasInesperadas =
+    params.estado === 'ok' && params.filasRecibidas === 0 && !params.yaSincronizado
+  const estado: EstadoSaludFuente = sinFilasInesperadas ? 'degradado' : params.estado
+  const ultimoErrorSaneado = sinFilasInesperadas
+    ? 'no rows received from source'
+    : params.ultimoErrorSaneado
+
   const guardar = () => {
-    const hayExito = params.estado === 'ok'
+    const hayExito = estado === 'ok'
     return db
       .insert(hazardSourceHealth)
       .values({
@@ -38,8 +52,8 @@ export async function actualizarSaludFuente(
         // Un insert degradado/no disponible no conoce un éxito previo: null.
         ultimoExitoEn: hayExito ? params.ahoraIso : null,
         ultimoIntentoEn: params.ahoraIso,
-        estado: params.estado,
-        ultimoErrorSaneado: params.ultimoErrorSaneado,
+        estado,
+        ultimoErrorSaneado,
         ttlMinutos: params.ttlMinutos,
         licencia: params.licencia,
         actualizadaEn: params.ahoraIso,
@@ -47,9 +61,9 @@ export async function actualizarSaludFuente(
       .onConflictDoUpdate({
         target: hazardSourceHealth.provider,
         set: {
-          estado: params.estado,
+          estado,
           ultimoIntentoEn: params.ahoraIso,
-          ultimoErrorSaneado: params.ultimoErrorSaneado,
+          ultimoErrorSaneado,
           ttlMinutos: params.ttlMinutos,
           licencia: params.licencia,
           actualizadaEn: params.ahoraIso,
