@@ -137,10 +137,10 @@ export function VistaPreviaEscuela({
     >
       <div className={styles.header}>
         <div className={styles.titleGroup}>
-          <h2 ref={tituloRef} tabIndex={-1} className={styles.title}>
+          <h2 ref={tituloRef} tabIndex={-1} className={styles.title} data-testid="preview-nombre">
             {escuela.nombre}
           </h2>
-          <p className={styles.meta}>
+          <p className={styles.meta} data-testid="preview-cue">
             CUE {escuela.cueAnexo}
             {ubicacionTexto ? ` · ${ubicacionTexto}` : ''}
             {detalleNivelOInstituto(escuela) ? ` · ${detalleNivelOInstituto(escuela)}` : ''}

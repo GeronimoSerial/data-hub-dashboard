@@ -39,7 +39,7 @@ export function EscuelasEnRiesgo(props: EscuelasEnRiesgoProps): JSX.Element {
   const listaVisible = verTodas ? lista : lista.slice(0, ESCUELAS_VISIBLES)
 
   return (
-    <section aria-labelledby="map-radar-riesgo-titulo" className="map-radar-riesgo">
+    <section aria-labelledby="map-radar-riesgo-titulo" className="map-radar-riesgo" data-testid="escuelas-en-riesgo">
       <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Riesgo calculado (probabilístico)</h3>
       {cargando ? (
         <p role="status" className="map-sitact__vacio map-radar-riesgo__reserva">Calculando riesgo…</p>
@@ -49,7 +49,7 @@ export function EscuelasEnRiesgo(props: EscuelasEnRiesgoProps): JSX.Element {
         <>
           <div className="map-sitact__kpis" aria-label="Resumen de riesgo">
             <div className="map-sitact__kpi map-sitact__kpi--resaltado">
-              <strong>{FORMATO_NUMERO.format(resumen.escuelas)}</strong>
+              <strong data-testid="escuelas-en-riesgo-total">{FORMATO_NUMERO.format(resumen.escuelas)}</strong>
               <span>Escuelas en riesgo</span>
             </div>
             <div className="map-sitact__kpi">
@@ -58,7 +58,7 @@ export function EscuelasEnRiesgo(props: EscuelasEnRiesgoProps): JSX.Element {
             </div>
           </div>
           {resumen.escuelas > 0 && (
-            <p className="map-radar-riesgo__desglose">
+            <p className="map-radar-riesgo__desglose" data-testid="escuelas-en-riesgo-desglose">
               {NIVELES_RESUMEN.filter((nivel) => resumen.porNivel[nivel] > 0).map((nivel) => `${FORMATO_NUMERO.format(resumen.porNivel[nivel])} ${ETIQUETA_NIVEL_RIESGO[nivel].toLowerCase()}`).join(' · ')}
             </p>
           )}
@@ -77,6 +77,7 @@ export function EscuelasEnRiesgo(props: EscuelasEnRiesgoProps): JSX.Element {
                     key={escuela.cueAnexo}
                     type="button"
                     className="map-sitact__fila"
+                    data-testid={`escuela-en-riesgo-${escuela.cueAnexo}`}
                     onClick={() => onSeleccionar(escuela.cueAnexo)}
                     aria-label={`${escuela.nombre}, ${departamento}`}
                   >

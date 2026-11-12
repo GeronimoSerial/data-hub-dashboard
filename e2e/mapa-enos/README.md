@@ -16,6 +16,7 @@ End-to-end and API contract tests for the infrastructure map. The plan is in `do
 | `contratos/snapshots/` | Versioned JSON snapshots of API responses. |
 | `specs/` | Playwright specs for the `chromium` and `mobile` projects. |
 | `specs-sin-radar/` | Specs for the server started without the radar. |
+| `specs-escritura/` | Specs that write data (parte del operador). Project `chromium-escritura` depends on `chromium`, so they run after every read-only spec. |
 | `fixtures/base.ts` | Extended `test`: map helpers and external-request isolation. |
 
 ## Running
@@ -27,6 +28,10 @@ MAPA_E2E_KEEP_DIR=/path/to/out pnpm test:e2e:mapa         # keep the HTML report
 ```
 
 A run takes a few minutes: build, seed, then tests. Each run has its own port, container, and workspace, so runs can happen in parallel. Set `E2E_DATABASE_URL` to use an existing database (CI).
+
+## Unit tests
+
+`seed/*.test.ts` (today `escuelas.test.ts`: roster counts, unique CUEs, coordinates inside the Georef polygons) run with their own config, `e2e/mapa-enos/vitest.config.ts`, because the root config excludes `e2e/**`. Run them with `pnpm test:e2e:mapa:unit`. `run.mjs` runs them first, before the build, and a failure aborts the run with a non-zero exit code.
 
 ## QA accounts
 
@@ -70,3 +75,11 @@ This sets `MAPA_E2E_ACTUALIZAR_SNAPSHOTS=1`. The specs write the files in the wo
 4. Tests are independent. Tests that write data restore it or use their own records.
 5. Each test is checked by mutation when written: break the feature or change the seed, confirm the test fails, then restore.
 6. No `waitForTimeout`. Wait for a response, a visible element, or a map event.
+
+## Known gaps and follow-ups
+
+- Selecting a school by clicking the map canvas does not open the preview in the tests. Specs select schools through the filters search box. Exposing `queryRenderedFeatures` in the e2e hook would allow canvas-click tests.
+- Department polygon popups are not covered: the hook gives no access to the polygon click.
+- The Radar tab 24 h forecast sums rain by local calendar day on the client, so it depends on the time of day. The radar spec uses the default 72 h horizon, which covers all seeded rain.
+- The Estadisticas tab has no totals row. The specs assert the sum of the per-department rows.
+- Every map count excludes the two seeded schools without coordinates (30 of 32).

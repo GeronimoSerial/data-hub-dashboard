@@ -27,6 +27,8 @@ function mapaFalso(features: Record<string, unknown[]> = FEATURES_POR_CAPA) {
     queryRenderedFeatures: vi.fn((_geometria: unknown, opciones: { layers: string[] }) => features[opciones.layers[0]] ?? []),
     project: vi.fn((_lnglat: [number, number]) => ({ x: 120.5, y: 340.25 })),
     getCanvas: vi.fn(() => ({ getBoundingClientRect: () => CAJA_CANVAS })),
+    getCenter: vi.fn(() => ({ lng: -58.840373, lat: -27.46457 })),
+    getZoom: vi.fn(() => 6.3),
   }
   return map
 }
@@ -54,13 +56,37 @@ describe('instalarGanchoE2E', () => {
     expect(window.__mapaE2E).toBeUndefined()
   })
 
-  it('instala un objeto con las tres funciones cuando NEXT_PUBLIC_E2E es "true"', () => {
+  it('instala un objeto con las cuatro funciones cuando NEXT_PUBLIC_E2E es "true"', () => {
     vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
     instalarGanchoE2E(mapaFalso() as unknown as MapaMaplibre)
     expect(window.__mapaE2E).toBeDefined()
     expect(typeof window.__mapaE2E?.capasVisibles).toBe('function')
     expect(typeof window.__mapaE2E?.featuresRenderizadas).toBe('function')
     expect(typeof window.__mapaE2E?.proyectar).toBe('function')
+    expect(typeof window.__mapaE2E?.zoom).toBe('function')
+  })
+
+  it('capaPresente indica si la capa existe y su fuente cargó', () => {
+    vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
+    const map = {
+      getLayer: vi.fn((id: string) => (id === 'infra-mascara-provincia' ? { id, source: 'infra-mascara-src' } : undefined)),
+      isSourceLoaded: vi.fn((id: string) => id === 'infra-mascara-src'),
+    }
+    instalarGanchoE2E(map as unknown as MapaMaplibre)
+    expect(window.__mapaE2E?.capaPresente('infra-mascara-provincia')).toBe(true)
+    expect(window.__mapaE2E?.capaPresente('capa-inexistente')).toBe(false)
+  })
+
+  it('zoom devuelve el zoom actual del mapa', () => {
+    vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
+    instalarGanchoE2E(mapaFalso() as unknown as MapaMaplibre)
+    expect(window.__mapaE2E?.zoom()).toBe(6.3)
+  })
+
+  it('centro devuelve la longitud, latitud y zoom de la cámara', () => {
+    vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
+    instalarGanchoE2E(mapaFalso() as unknown as MapaMaplibre)
+    expect(window.__mapaE2E?.centro()).toEqual({ lon: -58.840373, lat: -27.46457, zoom: 6.3 })
   })
 
   it('capasVisibles lista solo las claves con capa montada y no oculta', () => {
