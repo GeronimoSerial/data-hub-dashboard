@@ -4,6 +4,7 @@
 // Prefectura (motor/escenarios-subida.ts). Módulo puro, sin DB ni reloj.
 // Ver docs/motor-v0.4/auditoria-v03.md (F3).
 import { CATALOGO_A5 } from '@/lib/infraestructura/hidrometria/ina/catalogo-a5'
+import { regionActiva } from '@/lib/infraestructura/region'
 import type { HorizontePeligro } from '../motor/puertos'
 import {
   combinarEscenarios,
@@ -30,14 +31,19 @@ export function subidaP90Analogos(serie: SerieDiaria, asOfFecha: string): Record
   return salida
 }
 
-// Paraná aguas abajo de Corrientes: la estación inmediata aguas arriba en el
-// orden del catálogo (Itá Ibaté … Esquina). Aguas arriba de Corrientes la
-// confluencia con el Paraguay y el embalse rompen el supuesto de propagación.
-export const ESTACION_AGUAS_ARRIBA_ONDA: ReadonlyMap<string, string> = (() => {
+// Paraná aguas abajo del ancla de la región (Corrientes): la estación inmediata
+// aguas arriba en el orden del catálogo (Itá Ibaté … Esquina). Aguas arriba del
+// ancla la confluencia con el Paraguay y el embalse rompen el supuesto de
+// propagación. Ancla ausente del catálogo del Paraná: sin onda.
+export function aguasArribaOndaDeAncla(estacionAncla: string | undefined): ReadonlyMap<string, string> {
+  if (!estacionAncla) return new Map()
   const parana = CATALOGO_A5.filter((e) => e.rio === 'parana').map((e) => e.estacionId)
-  const desde = parana.indexOf('pna-corrientes')
+  const desde = parana.indexOf(estacionAncla)
+  if (desde === -1) return new Map()
   return new Map(parana.slice(desde + 1).map((id, k) => [id, parana[desde + k]]))
-})()
+}
+
+export const ESTACION_AGUAS_ARRIBA_ONDA: ReadonlyMap<string, string> = aguasArribaOndaDeAncla(regionActiva().estacionAncla)
 
 /**
  * Escenario por estación del catálogo con lecturas de Prefectura o serie A5.
@@ -47,14 +53,16 @@ export function construirEscenariosSubida(params: {
   asOf: string
   series: ReadonlyMap<string, readonly FilaDiaria[]>
   lecturas: ReadonlyMap<string, readonly LecturaPrefectura[]>
+  estacionAncla?: string
 }): Map<string, EscenarioSubidaEstacion> {
   const asOfFecha = fechaLocal(params.asOf)
+  const onda = aguasArribaOndaDeAncla(params.estacionAncla ?? regionActiva().estacionAncla)
   const salida = new Map<string, EscenarioSubidaEstacion>()
   for (const e of CATALOGO_A5) {
     const filas = params.series.get(e.estacionId) ?? []
     const lecturas = params.lecturas.get(e.estacionId) ?? []
     if (filas.length === 0 && lecturas.length === 0) continue
-    const arriba = ESTACION_AGUAS_ARRIBA_ONDA.get(e.estacionId)
+    const arriba = onda.get(e.estacionId)
     salida.set(
       e.estacionId,
       combinarEscenarios({

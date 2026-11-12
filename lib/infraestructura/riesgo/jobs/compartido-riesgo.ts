@@ -10,7 +10,9 @@ import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import type { infraRiskFactor, infraRiskSnapshot } from '@/lib/db/schema'
 import { crearAdapterAislamiento } from '../motor/adaptadores/aislamiento'
 import { crearAdapterExposicion } from '../motor/adaptadores/exposicion'
-import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
+import { regionActiva } from '@/lib/infraestructura/region'
+import { crearAdapterRioPrefectura, type DependenciasAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
+import { crearRegistroProveedoresRio } from '../motor/proveedores-rio'
 import { crearAdapterHistorial } from '../motor/adaptadores/historial'
 import { cargarClimatologiaPorPeriodoDesdeDb, crearAdapterLluvia } from '../motor/adaptadores/lluvia'
 import { crearAdapterPeligro } from '../motor/adaptadores/peligro'
@@ -74,6 +76,17 @@ export type OpcionesPuertosReales = {
   escenariosSubida?: ReadonlyMap<string, EscenarioSubidaEstacion>
 }
 
+// Proveedores de nivel de río implementados. Acá (y no en motor/) porque el
+// motor no puede nombrar Prefectura (CA1). Otros proveedores se suman aquí en B12.
+export const PROVEEDORES_RIO = crearRegistroProveedoresRio<DependenciasAdapterRioPrefectura>([
+  { id: 'prefectura', crearPuerto: (deps) => crearAdapterRioPrefectura(deps) },
+])
+
+// Puerto de río de la región activa (fuentesRio). Único punto que lo arma.
+export function construirPuertoRioRegion(deps: DependenciasAdapterRioPrefectura) {
+  return PROVEEDORES_RIO.construirPuerto(regionActiva().fuentesRio, deps)
+}
+
 export function construirPuertosReales(opciones: OpcionesPuertosReales = {}): PuertosMotor {
   const v04 = opciones.reglas === 'v0.4'
   return {
@@ -84,7 +97,7 @@ export function construirPuertosReales(opciones: OpcionesPuertosReales = {}): Pu
     susceptibilidad: crearAdapterSusceptibilidad(v04 ? { conProfundidadFluvial: true } : {}),
     historial: crearAdapterHistorial(v04 ? { informarFuente: true } : {}),
     exposicion: crearAdapterExposicion(),
-    rioPrefectura: crearAdapterRioPrefectura(v04 ? { reglas: 'v0.4', escenarios: opciones.escenariosSubida } : {}),
+    rioPrefectura: construirPuertoRioRegion(v04 ? { reglas: 'v0.4', escenarios: opciones.escenariosSubida } : {}),
   }
 }
 

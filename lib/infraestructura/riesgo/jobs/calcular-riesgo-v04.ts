@@ -26,7 +26,7 @@ import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import type { PuertosMotor } from '../motor/puertos'
-import { calcularFilasEscuela, construirPuertosReales, crearPuertosConCache, insertarEnChunks } from './compartido-riesgo'
+import { calcularFilasEscuela, construirPuertoRioRegion, construirPuertosReales, crearPuertosConCache, insertarEnChunks } from './compartido-riesgo'
 import { adquirirLease, inicioDeBloqueUtc, publicarResultado, renovarLease } from '../job-run'
 import { CONFIG_V04, HORIZONTES_V04, MOTOR_V04_VERSION, hashCanonico } from '../motor-v04/config'
 import { esquemaMetadatosRunV04, type ResultadoEscuelaV04 } from '../motor-v04/contratos'
@@ -36,7 +36,6 @@ import { construirResultadoPendienteV04, resumirCoberturaV04 } from '../motor-v0
 import { crearAdapterTerrenoV04, type PuertoTerrenoV04 } from '../motor-v04/terreno-adaptador'
 import { prepararRioV04 } from '../motor-v04/preparacion-rio-v04'
 import { rioProbabilisticoDe } from './insumos-operativo-v04'
-import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
 
 const TIPO_JOB = 'calcular-riesgo-v04-candidato'
 const VERSION_JOB = 'v1'
@@ -158,7 +157,7 @@ export async function calcularRiesgoCandidatoV04(params?: {
     // Reglas v0.4 (T10): el candidato corrige los defectos auditados de v0.3.
     const puertos = crearPuertosConCache(params?.puertos ?? {
       ...construirPuertosReales({ reglas: 'v0.4', escenariosSubida: escenarios }),
-      rioPrefectura: crearAdapterRioPrefectura({ reglas: 'v0.4', escenarios, referencias, maximosEscala }),
+      rioPrefectura: construirPuertoRioRegion({ reglas: 'v0.4', escenarios, referencias, maximosEscala }),
     })
     const sinUbicacion = new Set(padron.filter((e) => e.motivoUbicacion !== null).map((e) => e.cueAnexo))
     for (let inicio = 0; inicio < resultados.length; inicio += TAMANO_CHUNK_INSERCION) {

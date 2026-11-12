@@ -17,6 +17,7 @@ import type { HorizontePeligro } from './puertos'
 import { BANDA_EXPOSICION_V04_M, MARGEN_ERROR_DEM_V04_M, UMBRAL_ALCANZABLE_V04 } from './config'
 import type { EvidenciaSecoS2 } from './evidencia-seco-s2'
 import { CATALOGO_A5 } from '@/lib/infraestructura/hidrometria/ina/catalogo-a5'
+import { regionActiva } from '@/lib/infraestructura/region'
 
 const HORIZONTES: readonly HorizontePeligro[] = [24, 72, 240]
 const redondear2 = (x: number) => Math.round(x * 100) / 100
@@ -75,9 +76,11 @@ export const OFFSETS_CALIBRADOS_V04: Readonly<Record<string, OffsetCalibrado>> =
   'pna-bompland': o('pna-bompland', null, 'no_usar', 0, null),
 }
 
-/** Offset calibrado utilizable (veredicto usar / usar con reservas) o null. */
-export function offsetUtilizable(estacionId: string): (OffsetCalibrado & { aM: number }) | null {
-  const c = OFFSETS_CALIBRADOS_V04[estacionId]
+const OFFSETS_POR_REGION: ReadonlyMap<string, Readonly<Record<string, OffsetCalibrado>>> = new Map([['corrientes', OFFSETS_CALIBRADOS_V04]])
+
+/** Offset calibrado utilizable (veredicto usar / usar con reservas) o null; sólo regiones con calibración. */
+export function offsetUtilizable(estacionId: string, regionId: string = regionActiva().id): (OffsetCalibrado & { aM: number }) | null {
+  const c = OFFSETS_POR_REGION.get(regionId)?.[estacionId]
   return c && c.aM !== null && (c.veredicto === 'usar' || c.veredicto === 'usar_con_reservas') ? (c as OffsetCalibrado & { aM: number }) : null
 }
 
