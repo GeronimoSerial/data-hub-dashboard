@@ -8,6 +8,8 @@
 // `nombre` para la mayoría de los jobs (ver TIPO_JOB en cada job). `tipo: null`
 // marca un job que no escribe `infra_job_run` (no es verificable por esa vía).
 
+import type { RegionConfig } from '../region/esquema'
+import { regionActiva } from '../region/activa'
 import { JOBS_OPEN_METEO, rolEntorno, type RolEntorno } from './providers/rol-entorno'
 
 export const TOLERANCIA_ATRASO_JOB = 2
@@ -148,5 +150,29 @@ export function jobsEsperadosParaRol(rol: RolEntorno): readonly JobEsperado[] {
   )
 }
 
+// Aplicabilidad por región (B9.5). Un job sin regla aplica a todas las regiones.
+// La regla depende de `fuentesRio` de la región, no de su id: sync-prefectura-*
+// requiere 'prefectura' y sync-ina-* requiere 'ina'. Se deriva del nombre del job
+// y no de un campo por job para no alterar la forma de los objetos de la lista.
+// scripts/jobs.mjs replica esta misma regla (ver aplicaJobARegionDespacho).
+const FUENTE_REQUERIDA_POR_PREFIJO: readonly { prefijo: string; fuente: string }[] = [
+  { prefijo: 'sync-prefectura-', fuente: 'prefectura' },
+  { prefijo: 'sync-ina-', fuente: 'ina' },
+]
+
+export function aplicaJobARegion(nombre: string, region: Pick<RegionConfig, 'fuentesRio'>): boolean {
+  const regla = FUENTE_REQUERIDA_POR_PREFIJO.find(({ prefijo }) => nombre.startsWith(prefijo))
+  return regla === undefined || region.fuentesRio.includes(regla.fuente)
+}
+
+// Lista esperada para una región y un rol. Sólo filtra: no cambia los objetos.
+export function jobsEsperadosParaRegion(
+  region: RegionConfig,
+  rol: RolEntorno = rolEntorno(),
+): readonly JobEsperado[] {
+  return jobsEsperadosParaRol(rol).filter((job) => aplicaJobARegion(job.nombre, region))
+}
+
 // Rol leído al cargar el módulo: el entorno del proceso no cambia en ejecución.
-export const JOBS_ESPERADOS: readonly JobEsperado[] = jobsEsperadosParaRol(rolEntorno())
+// Región leída al cargar el módulo: REGION (o corrientes) no cambia en ejecución.
+export const JOBS_ESPERADOS: readonly JobEsperado[] = jobsEsperadosParaRegion(regionActiva(), rolEntorno())
