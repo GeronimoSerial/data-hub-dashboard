@@ -19,6 +19,26 @@ export type JobEsperado = {
   // false = no programado en producción todavía (pendiente P-5): se reporta
   // como `no_programado`, no como alarma.
   habilitado: boolean
+  // Clave de `contadores` (de la última corrida completada) con las filas
+  // RECIBIDAS por el job, antes de deduplicar o insertar. Sin clave, el job no
+  // tiene mínimo.
+  contadorFilas?: string
+  // Mínimo de filas recibidas para que una corrida completada no sea
+  // `sin_datos` (I2). Sin mínimo (IMERG, alarmas, conteos de celdas) cero es
+  // un estado legítimo. Un job sin contadores registrados (corridas anteriores)
+  // se trata como ok: ver clasificarJob.
+  minimoFilas?: number
+}
+
+// Filas recibidas de una corrida según el contador declarado del job. Devuelve
+// null si el job no declara contador o la corrida no lo registró.
+export function filasRecibidas(
+  job: JobEsperado,
+  contadores: Record<string, number> | null | undefined,
+): number | null {
+  if (job.contadorFilas === undefined || contadores == null) return null
+  const valor = contadores[job.contadorFilas]
+  return typeof valor === 'number' ? valor : null
 }
 
 export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
@@ -63,8 +83,10 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
     tipo: 'sync-hazard-pronostico-caudal',
     intervaloMinutos: 360,
     habilitado: true,
+    contadorFilas: 'filas',
+    minimoFilas: 1,
   },
-  { nombre: 'sync-ensemble', tipo: 'sync-hazard-ensemble', intervaloMinutos: 360, habilitado: true },
+  { nombre: 'sync-ensemble', tipo: 'sync-hazard-ensemble', intervaloMinutos: 360, habilitado: true, contadorFilas: 'filas', minimoFilas: 1 },
   { nombre: 'situacion-corte', tipo: 'situacion-corte-v1', intervaloMinutos: 60, habilitado: true },
   { nombre: 'episodios-derivados', tipo: 'episodios-derivados-v0', intervaloMinutos: 60, habilitado: false },
   { nombre: 'sync-seasonal', tipo: 'sync-hazard-seasonal', intervaloMinutos: 1440, habilitado: false },
@@ -74,6 +96,8 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
     tipo: 'sync-prefectura-alturas',
     intervaloMinutos: 60,
     habilitado: true,
+    contadorFilas: 'filasPublicadas',
+    minimoFilas: 1,
   },
   // Scheduled at this deploy (docs/DEPLOY.md, runbook-scheduler.md):
   // veredicto `45 0,6,12,18 * * *` and `30 3 * * *`; synop `23 * * * *`;
@@ -92,6 +116,8 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
     tipo: 'importar-exposicion-rio-dem',
     intervaloMinutos: 1440,
     habilitado: true,
+    contadorFilas: 'filas',
+    minimoFilas: 1,
   },
   // Motor v0.4 (T2): importación manual del CSV de altimetría; no programada.
   {

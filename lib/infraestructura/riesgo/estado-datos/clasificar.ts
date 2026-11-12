@@ -5,9 +5,11 @@
 import { EDAD_MAXIMA_LECTURA_HORAS } from '@/lib/infraestructura/hidrometria/estado-altura'
 import type { CoberturaClimatologia, EstadoJobRun } from '../salud'
 import { EDAD_MAXIMA_DATO_IMERG_MINUTOS, evaluarFrescuraFuente } from '../salud'
-import { TOLERANCIA_ATRASO_JOB, type JobEsperado } from '../jobs-esperados'
+import { filasRecibidas, TOLERANCIA_ATRASO_JOB, type JobEsperado } from '../jobs-esperados'
 
-export type EstadoDato = 'ok' | 'atrasado' | 'fallido' | 'sin_datos' | 'deshabilitado'
+// `pausado`: job programado que no corre por ENOS_JOBS_ENABLED=false (problema).
+// `deshabilitado`: job que no se programa por diseño (neutral, no cuenta).
+export type EstadoDato = 'ok' | 'atrasado' | 'fallido' | 'sin_datos' | 'pausado' | 'deshabilitado'
 export type GrupoDato = 'riesgo' | 'hidrometria' | 'lluvia' | 'climatologias' | 'geo'
 
 export type ItemEstadoDato = {
@@ -38,13 +40,14 @@ const LARGO_MAXIMO_ERROR = 160
 const PRIORIDAD: Record<EstadoDato, number> = {
   fallido: 0,
   sin_datos: 1,
-  atrasado: 2,
-  ok: 3,
-  deshabilitado: 4,
+  pausado: 2,
+  atrasado: 3,
+  ok: 4,
+  deshabilitado: 5,
 }
 
 export function esProblema(estado: EstadoDato): boolean {
-  return estado === 'fallido' || estado === 'sin_datos' || estado === 'atrasado'
+  return estado === 'fallido' || estado === 'sin_datos' || estado === 'pausado' || estado === 'atrasado'
 }
 
 const NOMBRE_JOB: Record<string, { nombre: string; grupo: GrupoDato }> = {
@@ -124,11 +127,17 @@ export function clasificarJob(params: {
     edadMinutos: minutosDesde(ultimoExitoEn, ahora),
     intervaloMinutos: job.intervaloMinutos,
   }
-  if (!params.enosJobsEnabled) {
-    return { ...base, estado: 'deshabilitado', motivo: 'Jobs batch en pausa operativa.' }
-  }
+  // Un job no programado es neutral con o sin pausa; sólo un job programado
+  // que no corre por la pausa operativa cuenta como problema.
   if (!job.habilitado) {
     return { ...base, estado: 'deshabilitado', motivo: 'No programado en producción.' }
+  }
+  if (!params.enosJobsEnabled) {
+    return {
+      ...base,
+      estado: 'pausado',
+      motivo: 'Jobs batch detenidos por pausa operativa (ENOS_JOBS_ENABLED=false).',
+    }
   }
   if (ultima === undefined) {
     return { ...base, estado: 'sin_datos', motivo: 'Nunca corrió.' }
@@ -146,6 +155,17 @@ export function clasificarJob(params: {
   }
   if (ultimoExitoEn === null) {
     return { ...base, estado: 'sin_datos', motivo: 'Nunca completó una corrida.' }
+  }
+  // I2: una corrida completada que recibió menos filas que el mínimo del job no
+  // es `ok`. Sin contador o sin mínimo (IMERG) no se evalúa: un dato desconocido
+  // nunca degrada a sin_datos.
+  const recibidas = filasRecibidas(job, ultima.contadoresUltimaCompletada)
+  if (job.minimoFilas !== undefined && recibidas !== null && recibidas < job.minimoFilas) {
+    return {
+      ...base,
+      estado: 'sin_datos',
+      motivo: `Última corrida completada con ${recibidas} filas; se esperan al menos ${job.minimoFilas}.`,
+    }
   }
   const limite = job.intervaloMinutos * TOLERANCIA_ATRASO_JOB
   if (base.edadMinutos !== null && base.edadMinutos > limite) {
