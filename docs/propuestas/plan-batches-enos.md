@@ -610,6 +610,10 @@ Amplía B10b. Bloquea la salida en vivo.
 - CA1: con `REGION=manaos`, la prueba e2e de cambio a portugués recorre pestañas, leyenda, ficha, radar, estadísticas y Centro de Situación sin textos en español.
 - CA2: Corrientes sin cambios (snapshots idénticos, e2e en verde).
 
+**Estado de implementación (M1):**
+- Hecho: diccionarios `es`/`pt` por grupo en `lib/i18n/diccionarios/grupos/` (ficha, etiquetas, radar, estadísticas y exportar, controles, paneles del mapa, Centro de Situación y panel de operación); los helpers de `lib` que devuelven texto aceptan un diccionario opcional con el español por defecto, así que exportaciones y API no cambian; prueba que falla si queda un literal visible en español en los componentes del mapa (`components/mapas/textos-en-diccionario.test.ts`); `/situacion` y `/admin/operacion` quedan dentro de `IdiomaProvider`; prueba e2e `e2e/region-manaos/specs/portugues.spec.ts` (proyecto `manaos-pt`).
+- Fuera de M1 (abierto): cabecera y menú del hub en español (M2.2 y barrido del shell); formularios de carga de partes (`actualizar/*`, `reporte-inicial-*`); `metodologia/`, natalidad, matrícula y reorganización (otros mapas); textos libres que genera el servidor (descripciones de movimientos, `ultimoError`); la pestaña Radar con base vacía falla en `origin/dev` y en esta rama (se diagnostica en M2); las letras de la rosa de los vientos en portugués están por confirmar.
+
 ### M2 — Región sin supuestos de Corrientes
 
 | Subtarea | Acción |
