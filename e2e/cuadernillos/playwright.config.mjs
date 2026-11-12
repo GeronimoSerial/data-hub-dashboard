@@ -4,13 +4,13 @@ const baseURL = process.env.T8_E2E_BASE_URL ?? 'http://127.0.0.1:3118'
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'cuadernillos.spec.ts',
+  testMatch: ['cuadernillos.spec.ts', 'screens.spec.ts'],
   fullyParallel: false,
   workers: 1,
   retries: 0,
   reporter: [['list']],
   outputDir: '.results/artifacts',
-  use: { baseURL, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+  use: { baseURL, trace: 'off', screenshot: 'off', actionTimeout: 8_000, navigationTimeout: 20_000 },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'chrome' } }],
   webServer: {
     command: 'node serve.mjs',

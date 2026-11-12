@@ -70,6 +70,30 @@ beforeEach(() => {
   state.assignments.set('180123456', { cueAnexo: '180123456', relationship: 'cabecera', cabeceraCue: '180123456', cabeceraUserId: 'cabecera-user' })
 })
 
+type NamedEligibility = Eligibility & { nombre?: string | null }
+const namedEligibility = (nombre: string | null) => async (_cue: string): Promise<NamedEligibility> => ({ eligible: true, severity: 'Crítica', evaluatedAt: '2026-11-09T00:00:00.000Z', nombre })
+
+describe('createRequest recipient name', () => {
+  it('stores the school name resolved from the map projection, not an empty placeholder', async () => {
+    const result = await createRequest(cabecera, validInput({ recipientCueAnexo: '180123458' }), repository, namedEligibility('ESCUELA DOCE'))
+
+    expect(result.recipientName).toBe('ESCUELA DOCE')
+    expect(state.requests.get(result.requestId)).toMatchObject({ recipientName: 'ESCUELA DOCE' })
+  })
+
+  it('ignores a recipient name sent by the client', async () => {
+    const result = await createRequest(cabecera, validInput({ recipientName: 'NOMBRE FALSO' }), repository, namedEligibility('ESCUELA DOCE'))
+
+    expect(result.recipientName).toBe('ESCUELA DOCE')
+  })
+
+  it('keeps an empty name when the projection cannot resolve the school', async () => {
+    const result = await createRequest(cabecera, validInput(), repository, namedEligibility(null))
+
+    expect(result.recipientName).toBe('')
+  })
+})
+
 describe('createRequest', () => {
   it('rejects submission when current severity is not critical without writing', async () => {
     const notCritical = async (): Promise<Eligibility> => ({ eligible: false, severity: 'Alta', evaluatedAt: '2026-11-09T00:00:00.000Z' })
