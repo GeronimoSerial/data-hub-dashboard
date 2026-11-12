@@ -67,11 +67,11 @@ test('(4) school API returns zero schools with status 200', async ({ browser, ba
 test('(5) Situation Center shows an honest no-data state, not a healthy one', async ({ browser, baseURL }) => {
   await conPagina(browser, baseURL!, cookies, async (page) => {
     await page.goto('/situacion')
-    await expect(page.getByRole('heading', { name: 'Centro de Situación', level: 1 })).toBeVisible({ timeout: 60_000 })
-    await expect(page.getByText('Estado de los datos', { exact: true })).toBeVisible()
-    // Jobs never ran in an empty database: the panel reports "Sin datos" with the motivo from clasificar.ts.
-    await expect(page.getByText('Sin datos', { exact: true }).first()).toBeVisible()
-    await expect(page.getByText('Nunca corrió.').first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Centro de Situação', level: 1 })).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByText('Estado dos dados', { exact: true })).toBeVisible()
+    // Jobs never ran in an empty database: the panel reports "Sem dados" with the motivo from clasificar.ts.
+    await expect(page.getByText('Sem dados', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('Nunca rodou.').first()).toBeVisible()
     // The "chain verified" line is shown only when the probe is ok (situacion-client.tsx). It must be absent here.
     await expect(page.getByTestId('situacion-cadena-verificada')).toHaveCount(0)
     await captura(page, 'manaos-situacion')
