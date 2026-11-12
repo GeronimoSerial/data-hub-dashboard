@@ -22,6 +22,8 @@ import {
   infraSituacionCorte,
 } from '@/lib/db/schema'
 import { obtenerPeriodoVigente } from '@/lib/infraestructura/parte-consulta'
+import { clasificarFuente, esProblema } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
+import { evaluarFrescuraFuente, obtenerDatoMasRecienteImerg } from '@/lib/infraestructura/riesgo/salud'
 import {
   generarBriefing,
   type CoberturaBriefing,
@@ -38,7 +40,11 @@ export interface FuenteSaludSituacion {
   provider: string
   estado: string
   frescuraMinutos: number | null
+  // Fuera de TTL (dato vencido por tiempo).
   vencida: boolean
+  // Problema según el panel de estado de datos (clasificarFuente): incluye
+  // degradado/error dentro del TTL. Ausente en cortes legados: ver esProblemaFuente.
+  problema?: boolean
 }
 
 export interface ResultadoGenerarCorte {
@@ -52,6 +58,43 @@ export interface ResultadoGenerarCorte {
 }
 
 const HORIZONTE_ALTO_HORAS = 24
+
+type FilaSalud = typeof hazardSourceHealth.$inferSelect
+
+// Mismo criterio que el panel "Estado de los datos": cada fuente se clasifica
+// con clasificarFuente y cuenta como problema lo que el panel marca como tal.
+export function fuentesSaludDesdeFilas(params: {
+  filas: FilaSalud[]
+  datoMasRecienteImerg: string | null
+  ahora: Date
+}): FuenteSaludSituacion[] {
+  return params.filas.map((fila) => {
+    const item = clasificarFuente({ ...fila, datoMasRecienteImerg: params.datoMasRecienteImerg, ahora: params.ahora })
+    const frescura = evaluarFrescuraFuente({
+      provider: fila.provider,
+      ultimoExitoEn: fila.ultimoExitoEn,
+      ttlMinutos: fila.ttlMinutos,
+      datoMasRecienteEn: params.datoMasRecienteImerg,
+      ahora: params.ahora,
+    })
+    return {
+      provider: fila.provider,
+      estado: fila.estado,
+      frescuraMinutos: item.edadMinutos,
+      vencida: frescura.vencida,
+      problema: esProblema(item.estado),
+    }
+  })
+}
+
+// Cortes legados no traen `problema`: entonces vale el criterio anterior (vencida).
+export function esProblemaFuente(fuente: FuenteSaludSituacion): boolean {
+  return fuente.problema ?? fuente.vencida
+}
+
+export function normalizarFuentesSalud(fuentes: FuenteSaludSituacion[]): FuenteSaludSituacion[] {
+  return fuentes.map((fuente) => ({ ...fuente, problema: esProblemaFuente(fuente) }))
+}
 
 export async function generarCorte(opts: {
   ahora: Date
@@ -118,18 +161,15 @@ export async function generarCorte(opts: {
     escuelasAfectacionConfirmadaVigente = Number(fila?.conteo ?? 0)
   }
 
-  // 4. Salud de fuentes congelada: la frescura se calcula contra `ahora` una
-  // sola vez y queda grabada, no se recalcula al leer el corte.
+  // 4. Salud de fuentes congelada: se clasifica contra `ahora` una sola vez
+  // con el mismo criterio del panel y queda grabada, no se recalcula al leer.
   const filasSalud = await db.select().from(hazardSourceHealth)
-  const fuentesSalud: FuenteSaludSituacion[] = filasSalud.map((f) => {
-    const frescuraMinutos =
-      f.ultimoExitoEn === null
-        ? null
-        : Math.round((opts.ahora.getTime() - new Date(f.ultimoExitoEn).getTime()) / 60000)
-    const vencida = frescuraMinutos !== null && frescuraMinutos > f.ttlMinutos
-    return { provider: f.provider, estado: f.estado, frescuraMinutos, vencida }
+  const fuentesSalud = fuentesSaludDesdeFilas({
+    filas: filasSalud,
+    datoMasRecienteImerg: await obtenerDatoMasRecienteImerg(),
+    ahora: opts.ahora,
   })
-  const fuentesVencidas = fuentesSalud.filter((f) => f.vencida).length
+  const fuentesVencidas = fuentesSalud.filter(esProblemaFuente).length
 
   // 5. Episodios abiertos ahora.
   const [abiertosRow] = await db
@@ -210,6 +250,10 @@ export interface CortePersistido {
   episodiosCerradosDesdeAnterior: number
 }
 
+function normalizarCortePersistido(fila: CortePersistido): CortePersistido {
+  return { ...fila, fuentesSalud: normalizarFuentesSalud(fila.fuentesSalud) }
+}
+
 /** El corte más reciente persistido, o null si el job todavía no corrió nunca. */
 export async function obtenerUltimoCorte(): Promise<CortePersistido | null> {
   const db = getDb()
@@ -218,7 +262,7 @@ export async function obtenerUltimoCorte(): Promise<CortePersistido | null> {
     .from(infraSituacionCorte)
     .orderBy(desc(infraSituacionCorte.generadoEn))
     .limit(1)
-  return fila ?? null
+  return fila ? normalizarCortePersistido(fila) : null
 }
 
 /**
@@ -248,7 +292,7 @@ export async function obtenerCorteAnterior(
     .where(lt(infraSituacionCorte.generadoEn, generadoEn))
     .orderBy(desc(infraSituacionCorte.generadoEn))
     .limit(1)
-  return fila ?? null
+  return fila ? normalizarCortePersistido(fila) : null
 }
 
 /**
@@ -266,7 +310,7 @@ export async function obtenerCorteAnterior(
 // forma en JSON: acá se normaliza a CoberturaBriefing | null, descartando
 // cualquier fila legada que no tenga las tres claves esperadas en vez de
 // pasarle un shape parcial al briefing.
-function normalizarCobertura(
+export function normalizarCobertura(
   cobertura: Record<string, number> | null,
 ): CoberturaBriefing | null {
   if (cobertura === null) return null
