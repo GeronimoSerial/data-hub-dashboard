@@ -193,4 +193,35 @@ describe('syncPrefecturaAlturas', () => {
       warn.mockRestore()
     }
   })
+
+  it('registra ok pasando las filas recibidas de la fuente, también cuando no se inserta ninguna nueva', async () => {
+    const fetchImpl = vi.fn(async () => htmlOk(fixture))
+    await syncPrefecturaAlturas({ ahora: AHORA, fetchImpl, esperar: sinEsperar })
+    vi.mocked(actualizarSaludFuente).mockClear()
+
+    const resultado = await syncPrefecturaAlturas({
+      ahora: new Date('2026-10-13T15:00:00.000Z'),
+      fetchImpl,
+      esperar: sinEsperar,
+    })
+
+    // Precondición del caso: todas las lecturas ya estaban, no se insertó nada.
+    expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
+    const contadores = resultado.estado === 'completo' ? resultado.contadores : undefined
+    expect(contadores?.insertadas).toBe(0)
+    expect(contadores?.duplicadas).toBe(estacionesEsperadas)
+
+    expect(actualizarSaludFuente).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        estado: 'ok',
+        filasRecibidas: filasFixture.length,
+      }),
+    )
+    const salud = await db
+      .select()
+      .from(hazardSourceHealth)
+      .where(eq(hazardSourceHealth.provider, 'prefectura-alturas'))
+    expect(salud[0]?.estado).toBe('ok')
+  })
 })

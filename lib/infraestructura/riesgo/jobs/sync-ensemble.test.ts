@@ -554,3 +554,53 @@ describe('ejecutarSyncEnsemble — cobertura parcial y reanudación', () => {
     expect(esperar.mock.calls.map(([ms]) => ms)).toEqual([12_750, 12_750])
   })
 })
+
+describe('ejecutarSyncEnsemble — salud según filas recibidas', () => {
+  it('sin puntos recibidos del proveedor la salud queda degradada', async () => {
+    await ejecutarSyncEnsemble({
+      ahora: new Date('2026-12-03T13:00:00.000Z'),
+      obtenerProbabilidades: ensembleFake({ puntosPorCelda: 0 }),
+    })
+
+    const [salud] = await getDb()
+      .select()
+      .from(hazardSourceHealth)
+      .where(eq(hazardSourceHealth.provider, 'open-meteo-ensemble'))
+    expect(salud?.estado).toBe('degradado')
+  })
+
+  it('ya sincronizado (todas las celdas persistidas en el bloque, nada pedido) queda ok', async () => {
+    const corridaEn = '2026-12-04T12:00:00.000Z'
+    await getDb()
+      .insert(hazardEnsembleProb)
+      .values(
+        CELDAS.map((geometryRef) => ({
+          id: randomUUID(),
+          geometryRef,
+          variable: 'precipitacion_24h',
+          corridaEn,
+          validoEn: '2026-12-05T12:00:00.000Z',
+          horizonteHoras: 24,
+          miembrosTotal: 51,
+          miembrosValidos: 51,
+          probabilidadP95: 0.3,
+          probabilidadP99: 0.1,
+          dispersion: 1.5,
+          version: 'ensemble-v0.1',
+          ingeridoEn: corridaEn,
+        })),
+      )
+
+    const resultado = await ejecutarSyncEnsemble({
+      ahora: new Date('2026-12-04T12:30:00.000Z'),
+      obtenerProbabilidades: ensembleFake(),
+    })
+
+    expect(resultado).toMatchObject({ ok: true, resultado: { celdasConsultadas: 0 } })
+    const [salud] = await getDb()
+      .select()
+      .from(hazardSourceHealth)
+      .where(eq(hazardSourceHealth.provider, 'open-meteo-ensemble'))
+    expect(salud?.estado).toBe('ok')
+  })
+})
