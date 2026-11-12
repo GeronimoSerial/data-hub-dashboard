@@ -1,5 +1,7 @@
 import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { crearEjecutorSql } from '@/lib/infraestructura/ge-db'
+import { toDashedCue } from './eligibility'
 import type { SessionUser } from '@/lib/acl'
 import { bookletCampaign, bookletMembership, bookletProduct, bookletRequest, bookletRequestLine, bookletSchoolAssignment, user } from '@/lib/db/schema'
 import type { BookletCampaignOption, BookletCapability, BookletRequestSummary } from './types'
@@ -122,7 +124,7 @@ const databaseReadRepository: BookletRequestReadRepository = {
     if (!scope.planning) {
       const scopes = []
       if (scope.cabeceraCues.length) scopes.push(inArray(bookletRequest.cabeceraCueAnexo, scope.cabeceraCues))
-      if (scope.supervisorCues.length) scopes.push(inArray(bookletRequest.recipientCueAnexo, scope.supervisorCues))
+      if (scope.supervisorCues.length) scopes.push(inArray(bookletRequest.cabeceraCueAnexo, scope.supervisorCues))
       if (scopes.length === 0) return []
       predicates.push(or(...scopes)!)
     }
@@ -153,6 +155,20 @@ const databaseReadRepository: BookletRequestReadRepository = {
         .orderBy(bookletRequestLine.requestId, bookletProduct.name, bookletProduct.id),
     ])
     const schoolNames = new Map(schools.map((school) => [school.cueAnexo, school.schoolName]))
+    // Recipients are any Crítica school and usually have no assignment row: name them from the GE padrón.
+    const unnamed = cues.filter((cue) => !schoolNames.get(cue))
+    if (unnamed.length) {
+      try {
+        const dashed = unnamed.map(toDashedCue)
+        const { rows } = await crearEjecutorSql(getDb()).execute({
+          sql: `SELECT cue_anexo AS "cueAnexo", nombre FROM ge.ge_localizacion WHERE cue_anexo IN (${dashed.map(() => '?').join(', ')})`,
+          args: dashed,
+        })
+        for (const row of rows as Array<{ cueAnexo: string; nombre: string }>) schoolNames.set(row.cueAnexo.replace('-', ''), row.nombre)
+      } catch {
+        // GE padrón unavailable: keep empty names rather than failing the list.
+      }
+    }
     const linesByRequest = new Map<string, typeof lines>()
     for (const line of lines) linesByRequest.set(line.requestId, [...(linesByRequest.get(line.requestId) ?? []), line])
     return page.flatMap((row) => {
@@ -181,6 +197,7 @@ export async function hasBookletCapability(
   repository: BookletPermissionRepository = databaseRepository,
 ): Promise<boolean> {
   if (!actor || actor.banned) return false
+  if (await isBookletAdmin(actor, repository)) return true
   try {
     const account = await repository.getAccountStatus(actor.id)
     if (!account || !account.emailVerified || account.banned) return false
@@ -200,8 +217,28 @@ export async function canAccessSchool(
   if (!/^\d{9}$/.test(cueAnexo)) return false
   if (!await hasBookletCapability(actor, capability, repository)) return false
   if (capability === 'planning') return true
+  if (await isBookletAdmin(actor, repository)) return true
   try {
     return await repository.hasSchoolAssignment(actor!.id, cueAnexo, capability)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Global admin authority: an unbanned account with role admin, regardless of email
+ * verification. It bypasses
+ * module membership and school assignment checks only; callers keep their other
+ * guards (identity from the session, eligibility, stock, idempotency, locks).
+ */
+export async function isBookletAdmin(
+  actor: SessionUser | null,
+  repository: Pick<BookletPermissionRepository, 'getAccountStatus'> = databaseRepository,
+): Promise<boolean> {
+  if (!actor || actor.banned || actor.role !== 'admin') return false
+  try {
+    const account = await repository.getAccountStatus(actor.id)
+    return Boolean(account && !account.banned)
   } catch {
     return false
   }
@@ -223,8 +260,8 @@ export async function canAccessRequest(
     const scope = await repository.getRequestSchoolScope(requestId)
     if (!scope) return false
     if (capability === 'planning') return hasBookletCapability(actor, capability, repository)
-    const cueAnexo = capability === 'cabecera' ? scope.cabeceraCueAnexo : scope.recipientCueAnexo
-    return canAccessSchool(actor, cueAnexo, capability, repository)
+    // Both the requesting cabecera and its supervisor are bound to the cabecera's assignment row.
+    return canAccessSchool(actor, scope.cabeceraCueAnexo, capability, repository)
   } catch {
     return false
   }
@@ -261,7 +298,8 @@ export async function getBookletRequestPage(
   const capabilityChecks = await Promise.all((['planning', 'cabecera', 'supervisor'] as const).map(async (capability) =>
     await hasBookletCapability(actor, capability, repository) ? capability : null))
   const capabilities = capabilityChecks.filter((value): value is BookletCapability => value !== null)
-  if (capabilities.length === 0) throw new BookletRequestReadError('forbidden', 403)
+  const adminViewer = await isBookletAdmin(actor, repository)
+  if (capabilities.length === 0 && !adminViewer) throw new BookletRequestReadError('forbidden', 403)
 
   let campaignOptions: BookletCampaignOption[]
   try { campaignOptions = await repository.listActiveCampaigns() } catch { throw new BookletRequestReadError('request_read_failed', 503) }
@@ -277,7 +315,7 @@ export async function getBookletRequestPage(
     return { campaignId: null, campaignOptions: [], requests: [], hasMore: false, nextCursor: null }
   }
 
-  const planning = capabilities.includes('planning')
+  const planning = capabilities.includes('planning') || adminViewer
   const [cabeceraCues, supervisorCues] = await Promise.all([
     capabilities.includes('cabecera') ? repository.listAssignedCues(actor!.id, 'cabecera') : Promise.resolve([]),
     capabilities.includes('supervisor') ? repository.listAssignedCues(actor!.id, 'supervisor') : Promise.resolve([]),
@@ -298,12 +336,10 @@ export async function getBookletRequestPage(
     for (const candidate of candidates) {
       scanned += 1
       scanCursor = { createdAt: candidate.createdAt, requestId: candidate.requestId }
-      let allowed = false
+      let allowed = adminViewer
       for (const capability of capabilities) {
-        if (await canAccessRequest(actor, candidate.requestId, capability, repository)) {
-          allowed = true
-          break
-        }
+        if (allowed) break
+        if (await canAccessRequest(actor, candidate.requestId, capability, repository)) allowed = true
       }
       if (allowed) visible.push(candidate)
       if (visible.length > pageSize) {
@@ -326,3 +362,14 @@ export async function getBookletRequestPage(
   return { campaignId: selectedCampaignId, campaignOptions: [], requests: visible.slice(0, pageSize), hasMore, nextCursor }
 }
 
+
+/** True when the actor can open the booklet workspace in any capability (admins included). */
+export async function hasAnyBookletAccess(
+  actor: SessionUser | null,
+  repository: BookletPermissionRepository = databaseRepository,
+): Promise<boolean> {
+  for (const capability of ['planning', 'cabecera', 'supervisor'] as const) {
+    if (await hasBookletCapability(actor, capability, repository)) return true
+  }
+  return false
+}

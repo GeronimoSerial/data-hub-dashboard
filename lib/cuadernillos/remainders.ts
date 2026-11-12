@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { SessionUser } from '@/lib/acl'
 import { BookletServiceError, type CampaignPolicy, type IdempotencyRecord } from './inventory'
 import { approvalRepository, type ApprovalRequestRecord, type ApprovalRepository } from './approvals'
+import { isBookletAdmin } from './permissions'
 import type { Eligibility, QuantityLine, RemainderInput, RequestChainView, RequestView } from './types'
 
 export type RemainderRepository = Omit<Pick<ApprovalRepository,
@@ -66,10 +67,11 @@ export async function getRequestChain(
     }
 
     const account = actor ? await tx.getAccountStatus(actor.id) : null
-    const inScope = actor && !actor.banned && account?.emailVerified && !account.banned
-      && await tx.hasActiveMembership(actor.id, 'cabecera')
-      && await tx.hasSchoolAssignment(actor.id, root.cabeceraCueAnexo, 'cabecera')
-      && await tx.hasSchoolAssignment(actor.id, root.recipientCueAnexo, 'cabecera')
+    const inScope = actor && !actor.banned && account && !account.banned
+      && (await isBookletAdmin(actor, tx)
+        || (account.emailVerified
+          && await tx.hasActiveMembership(actor.id, 'cabecera')
+          && await tx.hasSchoolAssignment(actor.id, root.cabeceraCueAnexo, 'cabecera')))
     if (!inScope) throw new BookletServiceError('request_not_found', 404)
 
     return summarize(rootRequestId, rows)
@@ -93,9 +95,11 @@ export async function createRemainderRequest(
     const root = chain.find((row) => row.requestId === input.rootRequestId)
     if (!root || root.status !== 'approved') throw new BookletServiceError('request_not_remainder_eligible', 409)
     const account = await tx.getAccountStatus(actor.id)
-    if (!account?.emailVerified || account.banned || actor.banned
-      || !await tx.hasActiveMembership(actor.id, 'cabecera')
-      || !await tx.hasSchoolAssignment(actor.id, root.cabeceraCueAnexo, 'cabecera')) {
+    const admin = await isBookletAdmin(actor, tx)
+    if (!account || account.banned || actor.banned
+      || (!admin && (!account.emailVerified
+        || !await tx.hasActiveMembership(actor.id, 'cabecera')
+        || !await tx.hasSchoolAssignment(actor.id, root.cabeceraCueAnexo, 'cabecera')))) {
       throw new BookletServiceError('forbidden', 403)
     }
     await tx.lockIdempotency(actor.id, 'request.remainder', input.idempotencyKey)
@@ -107,7 +111,7 @@ export async function createRemainderRequest(
     }
 
     assertCampaign(await tx.getCampaign(root.campaignId))
-    if (!await tx.approvalAuthorityReady(root.recipientCueAnexo, root.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
+    if (!admin && !await tx.approvalAuthorityReady(root.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
     const eligibility: Eligibility = await tx.getCurrentEligibility(root.recipientCueAnexo, geSchema)
     if (!eligibility.eligible || eligibility.severity !== 'Crítica') throw new BookletServiceError('ineligible', 409)
 

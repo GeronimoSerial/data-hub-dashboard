@@ -117,6 +117,11 @@ exports[`hub and gate > GET /api/hub/admin as admin returns the full catalog 1`]
         "id": "demografia",
         "nombre": "Demografía",
       },
+      {
+        "color": "informative",
+        "id": "planificacion-territorial",
+        "nombre": "Planificación territorial",
+      },
     ],
     "niveles": [
       {
@@ -364,6 +369,26 @@ exports[`hub and gate > GET /api/hub/admin as admin returns the full catalog 1`]
         ],
         "tipoId": "georref",
         "titulo": "Mapa de natalidad",
+      },
+      {
+        "acceso": "abrir",
+        "actualizado": "2026-10-29",
+        "area": "Dirección de Planeamiento",
+        "audienciaNivelJurIds": [],
+        "audienciaUserIds": [],
+        "categoriaId": "planificacion-territorial",
+        "descripcion": "Establecimientos primarios de hasta 10 alumnos, zonas de agrupamiento, tendencia de matrícula y potencial económico bruto para planificar la reorganización de la oferta.",
+        "estado": "publicado",
+        "formato": "mapa",
+        "id": "recurso-reorganizacion",
+        "nivelId": "transversal",
+        "ruta": "/mapas/reorganizacion",
+        "tagIds": [
+          "territorial",
+          "planificacion",
+        ],
+        "tipoId": "georref",
+        "titulo": "Reorganización escolar",
       },
     ],
     "tags": [

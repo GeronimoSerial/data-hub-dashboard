@@ -6,10 +6,11 @@ import { hashAssignmentSourceRow, hashConfirmedAssignment, verifyAssignmentSourc
 import type { AssignmentSourceRow, AssignmentValidationResult } from './types'
 import type { SessionUser } from '@/lib/acl'
 import type { BookletCapability } from './types'
-import { getSchoolEligibility, lockCurrentEligibilitySources } from './eligibility'
+import { getSchoolEligibility, lockCurrentEligibilitySources, toDashedCue } from './eligibility'
 import { crearEjecutorSql, ensureGeSchema, type GeSchemaReady } from '@/lib/infraestructura/ge-db'
 import { listarPartesVigentes } from '@/lib/infraestructura/parte-mapa'
 import { BookletServiceError, type CampaignPolicy, type IdempotencyRecord } from './inventory'
+import { isBookletAdmin } from './permissions'
 import type { ApprovalInput, ApprovalResult, Eligibility, QuantityLine, RejectInput, RequestView } from './types'
 
 export type ApprovalRequestRecord = {
@@ -35,7 +36,7 @@ export type ApprovalRepository = {
   getRequest(requestId: string, lockForUpdate?: boolean): Promise<ApprovalRequestRecord | null>
   listChain(rootRequestId: string): Promise<ApprovalRequestRecord[]>
   getCurrentEligibility(cueAnexo: string, geSchema?: GeSchemaReady): Promise<Eligibility>
-  approvalAuthorityReady(recipientCueAnexo: string, cabeceraCueAnexo: string): Promise<boolean>
+  approvalAuthorityReady(cabeceraCueAnexo: string): Promise<boolean>
   isAssignedSupervisor(userId: string, cabeceraCueAnexo: string): Promise<boolean>
   productExists(productId: string): Promise<boolean>
   getStock(campaignId: string, productId: string): Promise<number>
@@ -104,23 +105,27 @@ export const createApprovalRepository = (db: Awaited<ReturnType<typeof getDb>>):
   async getCurrentEligibility(cueAnexo, geSchema) {
     if (!geSchema) return { eligible: false, severity: null, evaluatedAt: new Date().toISOString() }
     return getSchoolEligibility(cueAnexo, async (cue) => {
-      const { partes } = await listarPartesVigentes({ cueAnexo: cue }, {
+      const dashed = toDashedCue(cue)
+      const { partes } = await listarPartesVigentes({ cueAnexo: dashed }, {
         db,
         client: crearEjecutorSql(db),
         geSchema,
       })
-      const matches = partes.filter((parte) => parte.cueAnexo === cue)
+      const matches = partes.filter((parte) => parte.cueAnexo === dashed)
       return matches.length === 1 ? matches[0].peorSeveridad : null
     })
   },
-  // Assignment authority is per-row: both records must match an immutable,
-  // confirmed staged revision and current responsible-account memberships.
-  async approvalAuthorityReady(recipientCueAnexo, cabeceraCueAnexo) {
+  // Assignment authority lives on the cabecera row alone: its confirmed staged
+  // revision and its responsible accounts (supervisor, cabecera) must be current.
+  // Recipient schools carry no assignment row and are not part of this check.
+  async approvalAuthorityReady(cabeceraCueAnexo) {
     try {
+      // Same rule as the assignment confirmation: responsible accounts may be unverified (GE SSO),
+      // so only existence, not-banned and active membership are required.
       const hasActiveConfirmedAccount = async (userId: string, capability: 'supervisor' | 'cabecera') => {
-        const [account] = await db.select({ emailVerified: user.emailVerified, banned: user.banned })
+        const [account] = await db.select({ banned: user.banned })
           .from(user).where(eq(user.id, userId)).limit(1).for('update')
-        if (!account?.emailVerified || account.banned) return false
+        if (!account || account.banned) return false
         const [membership] = await db.select({ id: bookletMembership.id }).from(bookletMembership)
           .where(and(eq(bookletMembership.userId, userId), eq(bookletMembership.capability, capability), sql`${bookletMembership.revokedAt} IS NULL`)).limit(1).for('update')
         return membership !== undefined
@@ -167,17 +172,12 @@ export const createApprovalRepository = (db: Awaited<ReturnType<typeof getDb>>):
           || hashAssignmentSourceRow(sourceCandidate.provenance) !== hashAssignmentSourceRow(row.provenance)) return null
         return { ...row, revisionStatus: revision.status }
       }
-      const recipient = await getTrusted(recipientCueAnexo)
-      const head = recipientCueAnexo === cabeceraCueAnexo ? recipient : await getTrusted(cabeceraCueAnexo)
-      const trusted = (row: Awaited<ReturnType<typeof getTrusted>>): row is NonNullable<typeof row> =>
-        row !== null && row.sourceRevisionId !== null && row.sourceRowHash !== null && row.revisionStatus === 'confirmed'
-      return trusted(recipient) && trusted(head)
-        && recipient.cabeceraCue === cabeceraCueAnexo
-        && recipient.sourceRevisionId === head.sourceRevisionId
+      const head = await getTrusted(cabeceraCueAnexo)
+      return head !== null && head.sourceRevisionId !== null && head.sourceRowHash !== null && head.revisionStatus === 'confirmed'
+        && head.cueAnexo === cabeceraCueAnexo
         && head.relationship === 'cabecera'
         && head.cabeceraCue === cabeceraCueAnexo
-        && recipient.cabeceraUserId === head.cabeceraUserId
-        && await hasActiveConfirmedAccount(recipient.supervisorUserId, 'supervisor')
+        && await hasActiveConfirmedAccount(head.supervisorUserId, 'supervisor')
         && await hasActiveConfirmedAccount(head.cabeceraUserId, 'cabecera')
     } catch {
       return false
@@ -251,13 +251,17 @@ const positiveLines = (lines: QuantityLine[]) => Array.isArray(lines) && lines.l
   && lines.every((line) => Number.isSafeInteger(line.quantity) && line.quantity > 0 && line.productId.trim() !== '')
   && new Set(lines.map((line) => line.productId)).size === lines.length
 
-async function authorize(actor: SessionUser, request: ApprovalRequestRecord, repo: ApprovalRepository): Promise<void> {
+/** Returns whether the actor acts as a global admin, which skips supervisor membership and assignment. */
+async function authorize(actor: SessionUser, request: ApprovalRequestRecord, repo: ApprovalRepository): Promise<boolean> {
   const account = await repo.getAccountStatus(actor.id)
-  if (!account?.emailVerified || account.banned || actor.banned
-    || !await repo.hasActiveMembership(actor.id, 'supervisor')
+  if (!account || account.banned || actor.banned) throw new BookletServiceError('forbidden', 403)
+  if (await isBookletAdmin(actor, repo)) return true
+  if (!account.emailVerified) throw new BookletServiceError('forbidden', 403)
+  if (!await repo.hasActiveMembership(actor.id, 'supervisor')
     || !await repo.isAssignedSupervisor(actor.id, request.cabeceraCueAnexo)) {
     throw new BookletServiceError('forbidden', 403)
   }
+  return false
 }
 
 function assertCampaign(campaign: CampaignPolicy | null): void {
@@ -290,12 +294,12 @@ export async function approveRequest(actor: SessionUser, input: ApprovalInput, r
     const request = await tx.getRequest(input.requestId)
     if (!request) throw new BookletServiceError('request_not_found', 404)
     await tx.lockChain(request.rootRequestId)
-    await authorize(actor, request, tx)
+    const admin = await authorize(actor, request, tx)
     const replayed = await replay<ApprovalResult>(tx, actor.id, 'request.approve', input.idempotencyKey, input)
     if (replayed) return replayed
     assertCampaign(await tx.getCampaign(request.campaignId))
     assertPending(request)
-    if (!await tx.approvalAuthorityReady(request.recipientCueAnexo, request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
+    if (!admin && !await tx.approvalAuthorityReady(request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
     const eligibility = await tx.getCurrentEligibility(request.recipientCueAnexo, geSchema)
     if (!eligibility.eligible || eligibility.severity !== 'Crítica') throw new BookletServiceError('authority_changed', 409)
 
@@ -341,12 +345,12 @@ export async function rejectRequest(actor: SessionUser, input: RejectInput, repo
     const request = await tx.getRequest(input.requestId)
     if (!request) throw new BookletServiceError('request_not_found', 404)
     await tx.lockChain(request.rootRequestId)
-    await authorize(actor, request, tx)
+    const admin = await authorize(actor, request, tx)
     const replayed = await replay<RequestView>(tx, actor.id, 'request.reject', input.idempotencyKey, input)
     if (replayed) return replayed
     assertCampaign(await tx.getCampaign(request.campaignId))
     assertPending(request)
-    if (!await tx.approvalAuthorityReady(request.recipientCueAnexo, request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
+    if (!admin && !await tx.approvalAuthorityReady(request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
     const rejectedAt = new Date()
     await tx.saveRejection(request.requestId, actor.id, rejectedAt, input.reason.trim())
     const response: RequestView = {

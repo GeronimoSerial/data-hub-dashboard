@@ -6,11 +6,14 @@ import {
   bookletRequestLine, bookletSchoolAssignment, user,
 } from '@/lib/db/schema'
 import type { SessionUser } from '@/lib/acl'
-import { getSchoolEligibility } from './eligibility'
+import { getSchoolEligibilityWithName } from './eligibility'
 import { BookletServiceError, type CampaignPolicy, type IdempotencyRecord } from './inventory'
-import { canAccessSchool, hasBookletCapability, type BookletPermissionRepository } from './permissions'
+import { hasBookletCapability, isBookletAdmin, type BookletPermissionRepository } from './permissions'
 import { getEnrollmentRecommendations } from './enrollment'
-import type { CreateRequestInput, EnrollmentRecommendation, Eligibility, QuantityLine, RequestView } from './types'
+import type { CreateRequestInput as BaseCreateRequestInput, EnrollmentRecommendation, Eligibility, QuantityLine, RequestView } from './types'
+
+/** The cabecera cue is a scope selector validated against the session actor; identity never comes from the body. */
+export type CreateRequestInput = BaseCreateRequestInput & { cabeceraCueAnexo?: string }
 
 export type RequestAssignment = {
   cueAnexo: string
@@ -26,6 +29,7 @@ export type RequestRepository = BookletPermissionRepository & {
   productExists(productId: string): Promise<boolean>
   getQuota(campaignId: string, productId: string, cabeceraCue: string): Promise<number>
   getAssignment(cueAnexo: string): Promise<RequestAssignment | null>
+  listCabeceraCuesForUser(userId: string): Promise<string[]>
   getRequestByIdempotency(actorId: string, key: string): Promise<IdempotencyRecord | null>
   saveRequest(request: RequestView & { createdByUserId: string }, lines: QuantityLine[], idempotency: { key: string; record: IdempotencyRecord }): Promise<void>
   getEnrollmentRecommendations(cueAnexo: string, campaignId: string): Promise<EnrollmentRecommendation[]>
@@ -66,6 +70,11 @@ const makeDatabaseRepository = (db: Awaited<ReturnType<typeof getDb>>): RequestR
       .from(bookletSchoolAssignment).where(eq(bookletSchoolAssignment.cueAnexo, cueAnexo)).limit(1)
     return row && (row.relationship === 'cabecera' || row.relationship === 'dependiente') ? { ...row, relationship: row.relationship } : null
   },
+  async listCabeceraCuesForUser(userId) {
+    const rows = await db.select({ cueAnexo: bookletSchoolAssignment.cueAnexo }).from(bookletSchoolAssignment)
+      .where(and(eq(bookletSchoolAssignment.relationship, 'cabecera'), eq(bookletSchoolAssignment.cabeceraUserId, userId)))
+    return rows.map((row) => row.cueAnexo)
+  },
   async getRequestByIdempotency(actorId, key) {
     const [row] = await db.select({ payloadHash: bookletIdempotency.payloadHash, response: bookletIdempotency.responsePayload }).from(bookletIdempotency)
       .where(and(eq(bookletIdempotency.actorUserId, actorId), eq(bookletIdempotency.operation, 'request.create'), eq(bookletIdempotency.idempotencyKey, key))).limit(1)
@@ -91,7 +100,7 @@ export async function createRequest(
   actor: SessionUser,
   input: CreateRequestInput,
   repository: RequestRepository = databaseRepository,
-  eligibilityProvider: (cue: string) => Promise<Eligibility> = getSchoolEligibility,
+  eligibilityProvider: (cue: string) => Promise<Eligibility & { nombre?: string | null }> = getSchoolEligibilityWithName,
 ): Promise<RequestView> {
   if (!validCue(input.recipientCueAnexo)) throw new BookletServiceError('invalid_assignment', 400)
   if (!Array.isArray(input.lines) || input.lines.length === 0) throw new BookletServiceError('invalid_quantity', 400)
@@ -112,26 +121,31 @@ export async function createRequest(
       return prior.response as RequestView
     }
 
-    const recipient = await tx.getAssignment(input.recipientCueAnexo)
-    if (!recipient || recipient.cabeceraCue.trim() === '') throw new BookletServiceError('forbidden', 403)
-    if (!await canAccessSchool(actor, recipient.cabeceraCue, 'cabecera', tx)) throw new BookletServiceError('forbidden', 403)
-    const head = await tx.getAssignment(recipient.cabeceraCue)
-    if (!head || head.relationship !== 'cabecera' || head.cabeceraUserId !== actor.id) throw new BookletServiceError('forbidden', 403)
+    // The requesting cabecera is the signed actor's own cabecera row; admins choose any cabecera row.
+    const admin = await isBookletAdmin(actor, tx)
+    const owned = admin ? [] : await tx.listCabeceraCuesForUser(actor.id)
+    const cabeceraCue = input.cabeceraCueAnexo ?? (owned.length === 1 ? owned[0] : null)
+    if (!cabeceraCue || (!admin && !owned.includes(cabeceraCue))) throw new BookletServiceError('forbidden', 403)
+    const head = await tx.getAssignment(cabeceraCue)
+    if (!head || head.relationship !== 'cabecera' || head.cueAnexo !== cabeceraCue
+      || (!admin && head.cabeceraUserId !== actor.id)) throw new BookletServiceError('forbidden', 403)
 
     for (const line of input.lines) {
       if (!await tx.productExists(line.productId)) throw new BookletServiceError('product_not_found', 404)
-      if (line.quantity > await tx.getQuota(input.campaignId, line.productId, recipient.cabeceraCue)) throw new BookletServiceError('quota_exceeded', 409)
+      if (line.quantity > await tx.getQuota(input.campaignId, line.productId, cabeceraCue)) throw new BookletServiceError('quota_exceeded', 409)
     }
 
-    const eligibility = input.submit ? await eligibilityProvider(input.recipientCueAnexo) : null
-    if (input.submit && (!eligibility?.eligible || eligibility.severity !== 'Crítica')) throw new BookletServiceError('ineligible', 409)
+    // Any school whose current severity is Crítica may be requested; it need not be assigned to the cabecera.
+    const eligibility = await eligibilityProvider(input.recipientCueAnexo)
+    if (!eligibility.eligible || eligibility.severity !== 'Crítica') throw new BookletServiceError('ineligible', 409)
     const status = input.submit ? 'pending' : 'draft'
     const recommendations = await tx.getEnrollmentRecommendations(input.recipientCueAnexo, input.campaignId)
+    // The name comes from the same map row as eligibility, never from the request body.
     const response: RequestView = {
       requestId: randomUUID(), campaignId: input.campaignId, recipientCueAnexo: input.recipientCueAnexo,
-      recipientName: recipient.schoolName ?? '', cabeceraCueAnexo: recipient.cabeceraCue, status,
+      recipientName: eligibility.nombre?.trim() ?? '', cabeceraCueAnexo: cabeceraCue, status,
       lines: input.lines.map((line) => ({ ...line })), recommendations,
-      submittedAt: input.submit ? (eligibility?.evaluatedAt ?? new Date().toISOString()) : null,
+      submittedAt: input.submit ? eligibility.evaluatedAt : null,
     }
     await tx.saveRequest({ ...response, createdByUserId: actor.id }, input.lines, { key: input.idempotencyKey, record: { payloadHash, response } })
     return response

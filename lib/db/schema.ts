@@ -1799,6 +1799,20 @@ export const infraRutaEvacuacionOsm = pgTable('infra_ruta_evacuacion_osm', {
   importadoEn: text('importado_en').notNull(),
 }, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
 
+// Registro de cada llamada del call center a un establecimiento con parte
+// vencido. `usuarioId` es el user de la sesión (sin FK, spec S6: aditiva).
+export const callCenterLlamadas = pgTable('call_center_llamadas', {
+  id: text('id').primaryKey(),
+  cueAnexo: text('cue_anexo').notNull(),
+  usuarioId: text('usuario_id').notNull(),
+  callerNombre: text('caller_nombre').notNull(),
+  justificacion: text('justificacion').notNull(),
+  respuestaDirector: text('respuesta_director').notNull(),
+  creadaEn: text('creada_en').notNull(),
+}, (t) => [
+  index('call_center_llamadas_cue_anexo_idx').on(t.cueAnexo),
+])
+
 export type CeldaExposicionRuta = {
   lon: number
   lat: number
@@ -2100,7 +2114,8 @@ export const bookletQuota = pgTable('booklet_quota', {
 export const bookletRequest = pgTable('booklet_request', {
   id: text('id').primaryKey(),
   campaignId: text('campaign_id').notNull().references(() => bookletCampaign.id, { onDelete: 'restrict' }),
-  recipientCueAnexo: text('recipient_cue_anexo').notNull().references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
+  // Recipients are any Crítica Consejo school; only the requesting cabecera has an assignment row.
+  recipientCueAnexo: text('recipient_cue_anexo').notNull(),
   cabeceraCueAnexo: text('cabecera_cue_anexo').notNull().references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
   parentRequestId: text('parent_request_id'),
   rootRequestId: text('root_request_id'),
@@ -2145,6 +2160,20 @@ export const bookletIdempotency = pgTable('booklet_idempotency', {
 }, (t) => [
   primaryKey({ columns: [t.actorUserId, t.operation, t.idempotencyKey] }),
   check('booklet_idempotency_key_check', sql`length(trim(${t.idempotencyKey})) > 0`),
+])
+
+// Cabeceras identified from supervisor planillas. Seeded by migration; the
+// supervisor name is a planilla assertion, never an account identity.
+export const bookletCabecera = pgTable('booklet_cabecera', {
+  cueAnexo: text('cue_anexo').primaryKey(),
+  nombre: text('nombre').notNull(),
+  departamento: text('departamento').notNull(),
+  supervisorName: text('supervisor_name').notNull(),
+  evidencia: text('evidencia').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check('booklet_cabecera_cue_check', sql`${t.cueAnexo} ~ '^[0-9]{9}$'`),
 ])
 
 // Only explicitly confirmed assignments belong here; names from source files
