@@ -1,15 +1,12 @@
-import type { SessionUser } from '@/lib/acl'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Route from './route'
 import { createRequest } from '@/lib/cuadernillos/requests'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
 import { getBookletRequestPage } from '@/lib/cuadernillos/permissions'
-import { resolveViewAsActor } from '@/lib/cuadernillos/view-as'
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/lib/hub-entry-server', () => ({ hubApiAccessResponse: vi.fn() }))
-vi.mock('@/lib/cuadernillos/view-as', () => ({ resolveViewAsActor: vi.fn() }))
 vi.mock('@/lib/cuadernillos/requests', () => ({ createRequest: vi.fn() }))
 vi.mock('@/lib/cuadernillos/permissions', () => ({ getBookletRequestPage: vi.fn() }))
 
@@ -18,7 +15,6 @@ let GET: typeof Route.GET
 beforeAll(async () => { const route = await import('./route'); POST = route.POST; GET = route.GET })
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(resolveViewAsActor).mockImplementation(async (actor) => ({ status: 'self', actor }))
   vi.mocked(getSessionUser).mockResolvedValue({ id: 'session-user', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] })
   vi.mocked(hubApiAccessResponse).mockResolvedValue(null)
   vi.mocked(createRequest).mockResolvedValue({
@@ -92,34 +88,11 @@ describe('GET /api/cuadernillos/requests', () => {
   })
 })
 
-describe('view-as on /api/cuadernillos/requests', () => {
-  const target: SessionUser = { id: 'target-2', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'seleccionados', recursoIds: [] }
-
-  it('reads the request list as the resolved target account', async () => {
-    vi.mocked(resolveViewAsActor).mockResolvedValue({ status: 'viewing', actor: target, target: { userId: 'target-2', name: 'Supervisora' } })
-
+describe('removed view-as parameter on /api/cuadernillos/requests', () => {
+  it('rejects viewAs on reads and never reads another account', async () => {
     const response = await GET(new Request('http://localhost/api/cuadernillos/requests?viewAs=target-2'))
 
-    expect(response.status).toBe(200)
-    expect(getBookletRequestPage).toHaveBeenCalledWith(target, expect.objectContaining({ limit: undefined }))
-  })
-
-  it('answers 403 for an account that cannot be viewed', async () => {
-    vi.mocked(resolveViewAsActor).mockResolvedValue({ status: 'unavailable' })
-
-    expect((await GET(new Request('http://localhost/api/cuadernillos/requests?viewAs=banned-1'))).status).toBe(403)
+    expect(response.status).toBe(400)
     expect(getBookletRequestPage).not.toHaveBeenCalled()
-  })
-
-  it('never applies viewAs to a request creation', async () => {
-    vi.mocked(resolveViewAsActor).mockResolvedValue({ status: 'viewing', actor: target, target: { userId: 'target-2', name: 'Supervisora' } })
-
-    const response = await POST(new Request('http://localhost/api/cuadernillos/requests?viewAs=target-2', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-    }))
-
-    expect(response.status).toBe(201)
-    expect(resolveViewAsActor).not.toHaveBeenCalled()
-    expect(createRequest).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-user' }), body)
   })
 })

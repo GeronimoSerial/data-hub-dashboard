@@ -1,4 +1,3 @@
-import type { SessionUser } from '@/lib/acl'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Route from './route'
 import { getSessionUser } from '@/lib/session'
@@ -7,13 +6,11 @@ import { hubApiAccessResponse } from '@/lib/hub-entry-server'
 import { hasBookletCapability } from '@/lib/cuadernillos/permissions'
 import { confirmAndPersistAssignments, validateAssignments } from '@/lib/cuadernillos/assignment-import'
 import type { BookletAssignmentsPage } from '@/lib/cuadernillos/types'
-import { resolveViewAsActor } from '@/lib/cuadernillos/view-as'
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/lib/hub-entry-server', () => ({ hubApiAccessResponse: vi.fn() }))
 vi.mock('@/lib/cuadernillos/queries', () => ({ getBookletAssignmentsPage: vi.fn() }))
 vi.mock('@/lib/cuadernillos/permissions', () => ({ hasBookletCapability: vi.fn() }))
-vi.mock('@/lib/cuadernillos/view-as', () => ({ resolveViewAsActor: vi.fn() }))
 vi.mock('@/lib/cuadernillos/assignment-import', () => ({ confirmAndPersistAssignments: vi.fn(), validateAssignments: vi.fn() }))
 
 let GET: typeof Route.GET
@@ -22,7 +19,6 @@ beforeAll(async () => { const route = await import('./route'); GET = route.GET; 
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(resolveViewAsActor).mockImplementation(async (actor) => ({ status: 'self', actor }))
   vi.mocked(getSessionUser).mockResolvedValue({
     id: 'supervisor-1', role: 'consulta', banned: false,
     nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [],
@@ -204,45 +200,11 @@ describe('POST /api/cuadernillos/assignments', () => {
   })
 })
 
-describe('GET /api/cuadernillos/assignments view-as', () => {
-  const target: SessionUser = { id: 'target-2', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'seleccionados', recursoIds: [] }
-
-  it('reads assignments as the resolved target account', async () => {
-    vi.mocked(resolveViewAsActor).mockResolvedValue({ status: 'viewing', actor: target, target: { userId: 'target-2', name: 'Supervisora' } })
-
+describe('removed view-as parameter on /api/cuadernillos/assignments', () => {
+  it('rejects viewAs on reads and never reads another account', async () => {
     const response = await GET(request('capability=supervisor&viewAs=target-2'))
 
-    expect(response.status).toBe(200)
-    expect(resolveViewAsActor).toHaveBeenCalledWith(expect.objectContaining({ id: 'supervisor-1' }), 'target-2')
-    expect(getBookletAssignmentsPage).toHaveBeenCalledWith(target, 'supervisor', expect.anything())
-  })
-
-  it('answers 403 when the requested account cannot be viewed', async () => {
-    vi.mocked(resolveViewAsActor).mockResolvedValue({ status: 'unavailable' })
-
-    const response = await GET(request('capability=supervisor&viewAs=banned-1'))
-
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(400)
     expect(getBookletAssignmentsPage).not.toHaveBeenCalled()
-  })
-
-  it('reads with the real actor when the resolver ignores viewAs for a non-admin', async () => {
-    const response = await GET(request('capability=supervisor&viewAs=target-2'))
-
-    expect(response.status).toBe(200)
-    expect(getBookletAssignmentsPage).toHaveBeenCalledWith(expect.objectContaining({ id: 'supervisor-1' }), 'supervisor', expect.anything())
-  })
-})
-
-describe('POST /api/cuadernillos/assignments ignores viewAs', () => {
-  it('validates and confirms with the session actor, never the viewed account', async () => {
-    const response = await POST(new Request('http://localhost/api/cuadernillos/assignments?viewAs=target-2', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ mode: 'preview', rows: assignmentRows }),
-    }))
-
-    expect(response.status).toBe(200)
-    expect(resolveViewAsActor).not.toHaveBeenCalled()
-    expect(hasBookletCapability).toHaveBeenCalledWith(expect.objectContaining({ id: 'supervisor-1' }), 'planning')
   })
 })

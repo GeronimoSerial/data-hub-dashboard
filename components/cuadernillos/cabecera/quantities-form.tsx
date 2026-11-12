@@ -6,12 +6,11 @@ import { Input } from '@/components/ui/input'
 import type { BookletBalanceView, EnrollmentRecommendation } from '@/lib/cuadernillos/types'
 import { ERROR_LABELS, errorCode, isRecommendationList, readJson, scopedQuery, type CriticalSchool } from './cabecera-api'
 
-export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, readOnly, onSaved }: {
+export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, onSaved }: {
   school: CriticalSchool
   campaignId: string
   cabeceraCue: string
   balances: BookletBalanceView[]
-  readOnly: boolean
   onSaved: (message: string) => void
 }) {
   const [recommendations, setRecommendations] = useState<EnrollmentRecommendation[] | null>(null)
@@ -75,7 +74,7 @@ export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, read
   }
 
   const busy = submitting !== null
-  const canWrite = !readOnly && !busy && applicableProducts.length > 0 && Boolean(campaignId)
+  const canWrite = !busy && applicableProducts.length > 0 && Boolean(campaignId)
 
   if (loadError) return <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{loadError}</p>
   if (!recommendations) return <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Calculando recomendación…</p>
@@ -122,7 +121,7 @@ export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, read
                     <Input
                       aria-label={`Cantidad · ${balance.productLabel}`}
                       className="cab-qty-input"
-                      type="number" min="1" step="1" inputMode="numeric" disabled={readOnly}
+                      type="number" min="1" step="1" inputMode="numeric"
                       max={balance.quotaAvailable ?? undefined}
                       value={quantities[row.productId] ?? '0'}
                       onChange={(event) => setQuantities((current) => ({ ...current, [row.productId]: event.target.value }))}

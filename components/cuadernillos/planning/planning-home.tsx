@@ -74,14 +74,7 @@ function actionEnabled(campaign: BookletCampaignOption | undefined) {
   return Boolean(campaign?.distributionEnabled && campaign.overassignmentAllowed === false)
 }
 
-export function PlanningHome({
-  readOnly,
-  viewAsUserId,
-}: {
-  readOnly: boolean
-  viewAsUserId: string | null
-}) {
-  // Read-only while viewing as another account: every write control is disabled.
+export function PlanningHome() {
   const [overview, setOverview] = useState<BookletOverview | null>(null)
   const [selectedCampaign, setSelectedCampaign] = useState('')
   const [requests, setRequests] = useState<BookletRequestSummary[]>([])
@@ -102,7 +95,6 @@ export function PlanningHome({
     for (let page = 0; page < MAX_REQUEST_PAGES; page += 1) {
       const query = new URLSearchParams({ campaignId, limit: String(REQUEST_PAGE_SIZE) })
       if (cursor) query.set('cursor', cursor)
-      if (viewAsUserId) query.set('viewAs', viewAsUserId)
       const response = await fetch(`/api/cuadernillos/requests?${query}`, { signal, cache: 'no-store' })
       const data = await readJson(response)
       if (!response.ok) throw new Error(errorText(data, REQUESTS_LOAD_ERROR))
@@ -112,12 +104,11 @@ export function PlanningHome({
       cursor = data.nextCursor
     }
     return rows
-  }, [viewAsUserId])
+  }, [])
 
   const loadOverview = useCallback(async (campaignId?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ capability: 'planning' })
     if (campaignId) query.set('campaignId', campaignId)
-    if (viewAsUserId) query.set('viewAs', viewAsUserId)
     const response = await fetch(`/api/cuadernillos/overview?${query}`, { signal, cache: 'no-store' })
     const data = await readJson(response)
     if (!response.ok) throw new Error(errorText(data, LOAD_ERROR))
@@ -130,7 +121,7 @@ export function PlanningHome({
     setStockProduct(data.balances[0]?.productId ?? '')
     setQuotaProduct(data.balances[0]?.productId ?? '')
     setQuotaHead(data.balances.find((balance) => balance.cabeceraCueAnexo)?.cabeceraCueAnexo ?? '')
-  }, [viewAsUserId, loadRequests])
+  }, [loadRequests])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -171,7 +162,7 @@ export function PlanningHome({
 
   async function updateStock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!selectedCampaign || !stockProduct || !writeEnabled || readOnly) return
+    if (!selectedCampaign || !stockProduct || !writeEnabled ) return
     const quantity = Number(stockQuantity)
     if (!Number.isSafeInteger(quantity) || quantity <= 0) { setError('Ingresá una cantidad entera mayor que cero.'); return }
     setSaving(true); setError(null); setNotice(null)
@@ -189,7 +180,7 @@ export function PlanningHome({
 
   async function updateQuota(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!selectedCampaign || !quotaHead || !quotaProduct || !writeEnabled || readOnly) return
+    if (!selectedCampaign || !quotaHead || !quotaProduct || !writeEnabled ) return
     const quantity = Number(quotaQuantity)
     if (!Number.isSafeInteger(quantity) || quantity < 0) { setError('Ingresá un cupo entero igual o mayor que cero.'); return }
     setSaving(true); setError(null); setNotice(null)
@@ -256,7 +247,7 @@ export function PlanningHome({
                       <label htmlFor="stock-quantity">Cantidad</label>
                       <Input id="stock-quantity" aria-label="Cantidad de stock" type="number" min="1" step="1" value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} />
                     </div>
-                    <button type="submit" disabled={saving || readOnly} className="ui-button ui-button--primary">{saving ? 'Guardando…' : 'Registrar movimiento'}</button>
+                    <button type="submit" disabled={saving} className="ui-button ui-button--primary">{saving ? 'Guardando…' : 'Registrar movimiento'}</button>
                   </form>
 
                   <form onSubmit={(event) => void updateQuota(event)} style={formStyle}>
@@ -279,7 +270,7 @@ export function PlanningHome({
                       <label htmlFor="quota-quantity">Cantidad disponible</label>
                       <Input id="quota-quantity" aria-label="Cantidad de cupo disponible" type="number" min="0" step="1" value={quotaQuantity} onChange={(event) => setQuotaQuantity(event.target.value)} />
                     </div>
-                    <button type="submit" disabled={saving || readOnly || !heads.length} className="ui-button ui-button--secondary">{saving ? 'Guardando…' : 'Guardar cupo'}</button>
+                    <button type="submit" disabled={saving || !heads.length} className="ui-button ui-button--secondary">{saving ? 'Guardando…' : 'Guardar cupo'}</button>
                   </form>
                 </div>
               ) : null}

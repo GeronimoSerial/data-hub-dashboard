@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { CuadernillosWorkspace } from './workspace'
 
 vi.mock('./cabecera/cabecera-home', () => ({
@@ -46,8 +46,6 @@ function fetchOverview() {
   })
 }
 
-const target = { userId: 'supervisor-1', name: 'Supervisora Demo' }
-const candidate = { userId: 'supervisor-1', name: 'Supervisora Demo', email: 'sup@example.test', capabilities: ['supervisor' as const] }
 
 describe('CuadernillosWorkspace roles', () => {
   it('renders a no-capability state without attempting data reads', () => {
@@ -91,16 +89,6 @@ describe('CuadernillosWorkspace roles', () => {
     expect(screen.getByText(/Bandeja de supervisión/)).toBeInTheDocument()
   })
 
-  it('lands an admin on the planning home, even when the admin also holds cabecera', async () => {
-    vi.stubGlobal('fetch', fetchOverview())
-
-    render(<CuadernillosWorkspace capabilities={['cabecera', 'planning']} isAdmin />)
-
-    expect(screen.getByRole('tab', { name: 'Planeamiento' })).toHaveAttribute('aria-selected', 'true')
-    expect(await screen.findByRole('heading', { name: 'Registrar stock global' })).toBeInTheDocument()
-    expect(screen.queryByText(/Inicio de cabecera/)).not.toBeInTheDocument()
-  })
-
   it('switches between the roles the server supplied', async () => {
     const fetchMock = fetchOverview()
     vi.stubGlobal('fetch', fetchMock)
@@ -113,116 +101,11 @@ describe('CuadernillosWorkspace roles', () => {
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/cuadernillos/overview'), expect.anything())
   })
 
-  it('shows every role and the configuration area to an admin', async () => {
-    vi.stubGlobal('fetch', fetchOverview())
-
-    render(<CuadernillosWorkspace capabilities={['planning', 'cabecera', 'supervisor']} isAdmin />)
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Planeamiento' }))
-    expect(screen.getByRole('tab', { name: 'Planeamiento' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Cabecera' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Supervisión' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Configuración' }))
-    expect(await screen.findByRole('region', { name: 'Configuración' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Membresías' })).toBeInTheDocument()
-  })
-
-  it('keeps configuration out of the planning home and reaches it only from its own tab', async () => {
-    vi.stubGlobal('fetch', fetchOverview())
-
-    render(<CuadernillosWorkspace capabilities={['planning']} isAdmin />)
-
-    await screen.findByRole('heading', { name: 'Registrar stock global' })
-    expect(screen.queryByRole('button', { name: 'Inicio' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Configuración' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Configuración' }))
-    expect(await screen.findByRole('region', { name: 'Configuración' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Registrar stock global' })).not.toBeInTheDocument()
-  })
-
-  it('offers an admin without planning or other roles the configuration tab alone', async () => {
-    vi.stubGlobal('fetch', fetchOverview())
-
-    render(<CuadernillosWorkspace capabilities={[]} isAdmin />)
-
-    expect(await screen.findByRole('region', { name: 'Configuración' })).toBeInTheDocument()
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
-  })
-
-  it('offers no configuration area to a non-admin planner', async () => {
-    vi.stubGlobal('fetch', fetchOverview())
-
-    render(<CuadernillosWorkspace capabilities={['planning']} />)
-
-    await screen.findByRole('heading', { name: 'Registrar stock global' })
-    expect(screen.queryByRole('tab', { name: 'Configuración' })).not.toBeInTheDocument()
-  })
-
   it('shows access-denied errors from the role home without rendering data', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ error: 'forbidden' }, 403)))
 
     render(<CuadernillosWorkspace capabilities={['planning']} />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('La cuenta no tiene autorización para esta operación.')
-  })
-})
-
-describe('CuadernillosWorkspace view-as', () => {
-  it('shows the view-as selector only to admins and never a native select', () => {
-    vi.stubGlobal('fetch', fetchOverview())
-
-    const { container, rerender } = render(<CuadernillosWorkspace capabilities={['planning']} isAdmin viewAsCandidates={[candidate]} />)
-    fireEvent.click(screen.getByRole('button', { name: /Ver como/ }))
-    expect(screen.getByRole('searchbox', { name: 'Buscar cuenta' })).toBeInTheDocument()
-    expect(container.querySelector('select')).toBeNull()
-
-    rerender(<CuadernillosWorkspace capabilities={['planning']} viewAsCandidates={[candidate]} />)
-    expect(screen.queryByRole('button', { name: /Ver como/ })).not.toBeInTheDocument()
-  })
-
-  it('shows a read-only banner with an exit link while viewing another account', async () => {
-    vi.stubGlobal('fetch', fetchOverview())
-
-    render(<CuadernillosWorkspace capabilities={['planning']} viewAs={target} />)
-
-    expect(screen.getByText('Viendo como Supervisora Demo (Planeamiento) — solo lectura').closest('[role="status"]')).not.toBeNull()
-    expect(screen.getByRole('link', { name: 'Salir' })).toHaveAttribute('href', '/cuadernillos')
-  })
-
-  it('passes the viewed account and read-only flag to the role home', async () => {
-    vi.stubGlobal('fetch', fetchOverview())
-
-    render(<CuadernillosWorkspace capabilities={['cabecera']} viewAs={target} isAdmin />)
-
-    expect(await screen.findByText('Inicio de cabecera (readOnly=true, viewAs=supervisor-1, admin=true)')).toBeInTheDocument()
-  })
-
-  it('disables planning write controls while viewing as another account', async () => {
-    const fetchMock = fetchOverview()
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<CuadernillosWorkspace capabilities={['planning']} viewAs={target} />)
-
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Registrar movimiento' })).toBeDisabled())
-    expect(screen.getByRole('button', { name: 'Guardar cupo' })).toBeDisabled()
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/cuadernillos/overview?capability=planning&viewAs=supervisor-1'), expect.anything())
-  })
-
-  it('hides configuration while viewing as another account, even for an admin', async () => {
-    vi.stubGlobal('fetch', fetchOverview())
-
-    render(<CuadernillosWorkspace capabilities={['planning']} isAdmin viewAs={target} viewAsCandidates={[candidate]} />)
-
-    await screen.findByRole('heading', { name: 'Registrar stock global' })
-    expect(screen.queryByRole('tab', { name: 'Configuración' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Configuración' })).not.toBeInTheDocument()
-  })
-
-  it('explains when the requested account cannot be viewed', () => {
-    vi.stubGlobal('fetch', fetchOverview())
-
-    render(<CuadernillosWorkspace capabilities={['planning']} isAdmin viewAsUnavailable viewAsCandidates={[candidate]} />)
-
-    expect(screen.getByRole('alert')).toHaveTextContent('No se puede ver como esta cuenta.')
   })
 })

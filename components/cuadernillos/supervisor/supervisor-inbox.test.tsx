@@ -55,7 +55,7 @@ describe('SupervisorInbox', () => {
   it('groups pending requests by cabecera with counts and keeps decided ones in a collapsed history', async () => {
     vi.stubGlobal('fetch', mockApi({ list: listResponse([pending, otherCabecera, decided]) }))
 
-    render(<SupervisorInbox isAdmin={false} readOnly={false} />)
+    render(<SupervisorInbox />)
 
     const groupA = await screen.findByRole('group', { name: /Escuela Cabecera/ })
     expect(within(groupA).getByText('1 pendiente')).toBeInTheDocument()
@@ -72,7 +72,7 @@ describe('SupervisorInbox', () => {
   it('shows the empty state when nothing is pending', async () => {
     vi.stubGlobal('fetch', mockApi({ list: listResponse([decided]) }))
 
-    render(<SupervisorInbox isAdmin={false} readOnly={false} />)
+    render(<SupervisorInbox />)
 
     expect(await screen.findByText('No hay pedidos pendientes')).toBeInTheDocument()
   })
@@ -80,7 +80,7 @@ describe('SupervisorInbox', () => {
   it('shows requested, available and approved quantities as a table with an unknown availability dash', async () => {
     vi.stubGlobal('fetch', mockApi({ list: listResponse([pending]), overview: overviewResponse([]) }))
 
-    render(<SupervisorInbox isAdmin={false} readOnly={false} />)
+    render(<SupervisorInbox />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Escuela Anexo/ }))
     const table = await screen.findByRole('table', { name: 'Cantidades solicitadas' })
@@ -95,7 +95,7 @@ describe('SupervisorInbox', () => {
     const fetchMock = mockApi({ list: listResponse([pending]), decide: response({ error: 'authority_unavailable' }, false) })
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<SupervisorInbox isAdmin={false} readOnly={false} />)
+    render(<SupervisorInbox />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Escuela Anexo/ }))
     const quantity = await screen.findByLabelText('Cantidad aprobada · Cuadernillo A')
@@ -117,7 +117,7 @@ describe('SupervisorInbox', () => {
     const fetchMock = mockApi({ list: listResponse([pending]), decide: response({ error: 'authority_unavailable' }, false) })
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<SupervisorInbox isAdmin={false} readOnly={false} />)
+    render(<SupervisorInbox />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Escuela Anexo/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Rechazar' }))
@@ -134,33 +134,13 @@ describe('SupervisorInbox', () => {
     expect(body).toEqual({ reason: 'Solicitud duplicada', idempotencyKey: expect.any(String) })
   })
 
-  it('disables every decision in read-only mode', async () => {
-    vi.stubGlobal('fetch', mockApi({ list: listResponse([pending]) }))
-
-    render(<SupervisorInbox isAdmin readOnly viewAsUserId="user-2" />)
-
-    fireEvent.click(await screen.findByRole('button', { name: /Escuela Anexo/ }))
-    expect(await screen.findByText(/Solo lectura/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Aprobar' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Rechazar' })).toBeDisabled()
-  })
-
-  it('sends the view-as account to the requests endpoint', async () => {
-    const fetchMock = mockApi({ list: listResponse([]) })
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<SupervisorInbox isAdmin readOnly viewAsUserId="user-2" />)
-
-    await screen.findByText('No hay pedidos pendientes')
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('viewAs=user-2'), expect.anything())
-  })
   it('names each row by its dashed CUE and opens the detail as a bottom sheet on phones', async () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
       matches: query === '(max-width: 640px)', media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(),
     })))
     vi.stubGlobal('fetch', mockApi({ list: listResponse([pending]) }))
 
-    render(<SupervisorInbox isAdmin={false} readOnly={false} />)
+    render(<SupervisorInbox />)
 
     fireEvent.click(await screen.findByRole('button', { name: /CUE 1801234-57/ }))
     expect(await screen.findByRole('dialog')).toHaveClass('bottom-sheet')
