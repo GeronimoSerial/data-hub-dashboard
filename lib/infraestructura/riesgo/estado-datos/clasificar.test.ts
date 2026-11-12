@@ -11,6 +11,7 @@ import {
   clasificarPlausibilidad,
   clasificarPrefectura,
   clasificarRunVigente,
+  clasificarSondaCadena,
   esProblema,
   type ItemEstadoDato,
 } from './clasificar'
@@ -537,5 +538,93 @@ describe('clasificarDatasets: vigencia esperada por dataset (I11)', () => {
 
     expect(item?.id).toBe('dataset:ninguno')
     expect(item?.estado).toBe('sin_datos')
+  })
+})
+
+describe('clasificarSondaCadena (sonda:cadena)', () => {
+  const CONTADORES_OK = {
+    escuelasVerificadas: 12,
+    escuelasFallidas: 0,
+    estacionesVerificadas: 5,
+    estacionesFallidas: 0,
+    discrepancias: 0,
+    prefecturaConsultada: 1,
+  }
+  const SONDA = 'sonda-cadena-datos'
+
+  it('ok: última corrida completada sin fallas hace menos de 3 h', () => {
+    const item = clasificarSondaCadena({
+      ultima: corrida({
+        tipo: SONDA,
+        ultimaCompletadaEn: '2026-10-17T20:30:00.000Z',
+        contadoresUltimaCompletada: CONTADORES_OK,
+      }),
+      ahora: AHORA,
+    })
+    expect(item.id).toBe('sonda:cadena')
+    expect(item.estado).toBe('ok')
+    expect(item.motivo).toBe('Cadena de datos verificada a las 17:30.')
+    expect(item.edadMinutos).toBe(90)
+  })
+
+  it('fallido: la última corrida falló y muestra el error saneado', () => {
+    const item = clasificarSondaCadena({
+      ultima: corrida({
+        tipo: SONDA,
+        estado: 'fallido',
+        errorSaneado: 'Escuela testigo sin corrida vigente: 1800643-00',
+        ultimaCompletadaEn: '2026-10-17T20:30:00.000Z',
+        contadoresUltimaCompletada: CONTADORES_OK,
+      }),
+      ahora: AHORA,
+    })
+    expect(item.estado).toBe('fallido')
+    expect(item.motivo).toBe('La cadena de datos falló: Escuela testigo sin corrida vigente: 1800643-00')
+    expect(item.ultimoError).toBe('Escuela testigo sin corrida vigente: 1800643-00')
+    expect(item.motivo.length).toBeLessThanOrEqual(250)
+  })
+
+  it('fallido: completada con una sola discrepancia usa el resumen de contadores', () => {
+    const item = clasificarSondaCadena({
+      ultima: corrida({
+        tipo: SONDA,
+        ultimaCompletadaEn: '2026-10-17T21:30:00.000Z',
+        contadoresUltimaCompletada: { ...CONTADORES_OK, discrepancias: 1 },
+      }),
+      ahora: AHORA,
+    })
+    expect(item.estado).toBe('fallido')
+    expect(item.motivo).toBe(
+      'La cadena de datos falló: escuelas fallidas: 0, estaciones fallidas: 0, discrepancias: 1',
+    )
+  })
+
+  it('sin_datos: la sonda nunca corrió', () => {
+    const item = clasificarSondaCadena({ ultima: undefined, ahora: AHORA })
+    expect(item.estado).toBe('sin_datos')
+    expect(item.motivo).toBe('La sonda de la cadena de datos nunca corrió.')
+    expect(item.ultimoExitoEn).toBeNull()
+  })
+
+  it('sin_datos: completada sin contadores no se informa como ok', () => {
+    const item = clasificarSondaCadena({
+      ultima: corrida({ tipo: SONDA, ultimaCompletadaEn: '2026-10-17T21:30:00.000Z', contadoresUltimaCompletada: null }),
+      ahora: AHORA,
+    })
+    expect(item.estado).toBe('sin_datos')
+    expect(item.motivo).toBe('La última corrida de la cadena de datos no registró contadores.')
+  })
+
+  it('atrasado: la última verificación correcta tiene más de 3 h', () => {
+    const item = clasificarSondaCadena({
+      ultima: corrida({
+        tipo: SONDA,
+        ultimaCompletadaEn: '2026-10-17T18:30:00.000Z',
+        contadoresUltimaCompletada: CONTADORES_OK,
+      }),
+      ahora: AHORA,
+    })
+    expect(item.estado).toBe('atrasado')
+    expect(item.motivo).toBe('Última verificación de la cadena de datos a las 15:30 (hace 3 h).')
   })
 })

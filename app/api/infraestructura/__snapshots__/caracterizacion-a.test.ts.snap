@@ -1630,6 +1630,16 @@ exports[`GET /api/infraestructura/operacion/salud > returns the operational stat
       },
       {
         "errorSaneado": null,
+        "estado": "sin_corridas",
+        "habilitado": true,
+        "intervaloMinutos": 60,
+        "nombre": "sonda-cadena-datos",
+        "tipo": "sonda-cadena-datos",
+        "ultimaCompletadaEn": null,
+        "ultimaCorridaEn": null,
+      },
+      {
+        "errorSaneado": null,
         "estado": "no_programado",
         "habilitado": false,
         "intervaloMinutos": 60,
