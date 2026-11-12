@@ -40,7 +40,8 @@ export default defineConfig({
     },
     {
       name: 'mobile',
-      testMatch: 'specs/**/*.mobile.spec.ts',
+      // controles-movil.spec.ts corre aquí su bloque móvil; el de escritorio se omite por proyecto.
+      testMatch: ['specs/**/*.mobile.spec.ts', 'specs/controles-movil.spec.ts'],
       dependencies: ['setup'],
       // iPhone 13 defaults to WebKit; run it on the bundled Chromium instead.
       use: { ...devices['iPhone 13'], browserName: 'chromium', baseURL: mainURL },
