@@ -17,26 +17,48 @@ export function toDashedCue(cueAnexo: string): string {
   return /^\d{9}$/.test(cueAnexo) ? `${cueAnexo.slice(0, 7)}-${cueAnexo.slice(7)}` : cueAnexo
 }
 
-const readCurrentSeverity: CurrentSeverityProjection = async (cueAnexo) => {
+export type CurrentParte = { peorSeveridad: string; nombre: string }
+export type CurrentParteProjection = (cueAnexo: string) => Promise<CurrentParte | null>
+
+const readCurrentParte: CurrentParteProjection = async (cueAnexo) => {
   const { listarPartesVigentes } = await import('@/lib/infraestructura/parte-mapa')
   const dashed = toDashedCue(cueAnexo)
   const { partes } = await listarPartesVigentes({ cueAnexo: dashed })
   const matches = partes.filter((parte) => parte.cueAnexo === dashed)
   if (matches.length !== 1) return null
-  return matches[0].peorSeveridad
+  return { peorSeveridad: matches[0].peorSeveridad, nombre: matches[0].nombre }
 }
+
+const readCurrentSeverity: CurrentSeverityProjection = async (cueAnexo) => (await readCurrentParte(cueAnexo))?.peorSeveridad ?? null
 
 /** Uses the live map projection so derived student priority is not reimplemented. */
 export async function getSchoolEligibility(
   cueAnexo: string,
   readSeverity: CurrentSeverityProjection = readCurrentSeverity,
 ): Promise<Eligibility> {
+  const { eligible, severity, evaluatedAt } = await decideEligibility(cueAnexo, () => readSeverity(cueAnexo))
+  return { eligible, severity, evaluatedAt }
+}
+
+export type SchoolEligibilityWithName = Eligibility & { nombre: string | null }
+
+/** Same rule as getSchoolEligibility, plus the school name, both taken from one map row. */
+export async function getSchoolEligibilityWithName(
+  cueAnexo: string,
+  readParte: CurrentParteProjection = readCurrentParte,
+): Promise<SchoolEligibilityWithName> {
+  const parte = /^\d{9}$/.test(cueAnexo) ? await readParte(cueAnexo).catch(() => null) : null
+  const eligibility = await decideEligibility(cueAnexo, async () => parte?.peorSeveridad ?? null)
+  return { ...eligibility, nombre: parte?.nombre ?? null }
+}
+
+async function decideEligibility(cueAnexo: string, readSeverity: () => Promise<string | null>): Promise<Eligibility> {
   const evaluatedAt = new Date().toISOString()
   if (!/^\d{9}$/.test(cueAnexo)) return { eligible: false, severity: null, evaluatedAt }
 
   let severity: string | null
   try {
-    severity = await readSeverity(cueAnexo)
+    severity = await readSeverity()
   } catch {
     severity = null
   }

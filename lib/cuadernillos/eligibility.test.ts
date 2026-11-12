@@ -1,7 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { getSchoolEligibility, searchCriticalConsejoSchools, type ConsejoSchoolSeverityRow } from './eligibility'
+import { getSchoolEligibility, getSchoolEligibilityWithName, searchCriticalConsejoSchools, type ConsejoSchoolSeverityRow } from './eligibility'
 
 const projection = async (_cueAnexo: string, severity: string | null): Promise<string | null> => severity
+
+describe('getSchoolEligibilityWithName', () => {
+  it('reads severity and school name from one map row, using the dashed CUE', async () => {
+    const seen: string[] = []
+    const result = await getSchoolEligibilityWithName('180123456', async (cue) => {
+      seen.push(cue)
+      return { peorSeveridad: 'Crítica', nombre: 'ESCUELA DOCE' }
+    })
+
+    expect(seen).toEqual(['180123456'])
+    expect(result).toMatchObject({ eligible: true, severity: 'Crítica', nombre: 'ESCUELA DOCE' })
+  })
+
+  it('fails closed without a name when the row is unavailable or the read throws', async () => {
+    await expect(getSchoolEligibilityWithName('180123456', async () => null)).resolves.toMatchObject({ eligible: false, severity: null, nombre: null })
+    await expect(getSchoolEligibilityWithName('180123456', async () => { throw new Error('down') })).resolves.toMatchObject({ eligible: false, severity: null, nombre: null })
+  })
+})
 
 describe('getSchoolEligibility', () => {
   it('allows only the effective critical severity', async () => {

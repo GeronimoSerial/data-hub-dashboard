@@ -6,7 +6,7 @@ import {
   bookletRequestLine, bookletSchoolAssignment, user,
 } from '@/lib/db/schema'
 import type { SessionUser } from '@/lib/acl'
-import { getSchoolEligibility } from './eligibility'
+import { getSchoolEligibilityWithName } from './eligibility'
 import { BookletServiceError, type CampaignPolicy, type IdempotencyRecord } from './inventory'
 import { hasBookletCapability, isBookletAdmin, type BookletPermissionRepository } from './permissions'
 import { getEnrollmentRecommendations } from './enrollment'
@@ -100,7 +100,7 @@ export async function createRequest(
   actor: SessionUser,
   input: CreateRequestInput,
   repository: RequestRepository = databaseRepository,
-  eligibilityProvider: (cue: string) => Promise<Eligibility> = getSchoolEligibility,
+  eligibilityProvider: (cue: string) => Promise<Eligibility & { nombre?: string | null }> = getSchoolEligibilityWithName,
 ): Promise<RequestView> {
   if (!validCue(input.recipientCueAnexo)) throw new BookletServiceError('invalid_assignment', 400)
   if (!Array.isArray(input.lines) || input.lines.length === 0) throw new BookletServiceError('invalid_quantity', 400)
@@ -140,9 +140,10 @@ export async function createRequest(
     if (!eligibility.eligible || eligibility.severity !== 'Crítica') throw new BookletServiceError('ineligible', 409)
     const status = input.submit ? 'pending' : 'draft'
     const recommendations = await tx.getEnrollmentRecommendations(input.recipientCueAnexo, input.campaignId)
+    // The name comes from the same map row as eligibility, never from the request body.
     const response: RequestView = {
       requestId: randomUUID(), campaignId: input.campaignId, recipientCueAnexo: input.recipientCueAnexo,
-      recipientName: '', cabeceraCueAnexo: cabeceraCue, status,
+      recipientName: eligibility.nombre?.trim() ?? '', cabeceraCueAnexo: cabeceraCue, status,
       lines: input.lines.map((line) => ({ ...line })), recommendations,
       submittedAt: input.submit ? eligibility.evaluatedAt : null,
     }
