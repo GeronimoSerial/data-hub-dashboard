@@ -179,7 +179,10 @@ export interface PuertoExposicion {
 // expuesta a ese río. `null` = sin tramo aprobado, escuela no expuesta, sin
 // lectura vigente (> 24 h antes de `asOf`) o lectura inconsistente: nunca se
 // imputa "normal" en esos casos.
-export type EstadoRioPrefectura = 'normal' | 'alerta' | 'evacuacion'
+// Estado neutral del nivel de un río. 'bajante' no lo produce ningún adapter
+// todavía: se acepta en tipos y tablas como no-op (sin piso ni puntaje extra)
+// hasta que B13 lo use.
+export type EstadoNivelRio = 'normal' | 'alerta' | 'evacuacion' | 'bajante'
 
 export interface EvidenciaRioPrefectura {
   cueAnexo: string
@@ -191,7 +194,7 @@ export interface EvidenciaRioPrefectura {
   // Variación respecto de la lectura anterior publicada (m); > 0 = crece.
   variacionM: number | null
   medidaEn: string
-  estado: EstadoRioPrefectura
+  estado: EstadoNivelRio
   // Criterio que hizo a la escuela "expuesta" (trazabilidad del factor). Los
   // criterios basados en DEM empiezan con 'dem_estimado' (exposición estimada).
   criterioExposicion: string
@@ -214,7 +217,7 @@ export interface EvidenciaRioNoDisponible {
   motivo: string
 }
 
-export interface PuertoRioPrefectura {
+export interface PuertoNivelRio {
   obtenerEvidencia(params: {
     cueAnexo: string
     asOf: string
@@ -232,5 +235,5 @@ export interface PuertosMotor {
   historial: PuertoHistorial
   exposicion: PuertoExposicion
   // Opcional: los fakes/backtests sin hidrometría no lo inyectan.
-  rioPrefectura?: PuertoRioPrefectura
+  rioPrefectura?: PuertoNivelRio
 }
