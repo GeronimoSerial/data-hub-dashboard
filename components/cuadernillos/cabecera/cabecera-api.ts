@@ -1,4 +1,3 @@
-import type { CabeceraView } from '@/lib/cuadernillos/cabeceras'
 import type { BookletAssignmentsPage, BookletBalanceView, BookletCampaignOption, BookletRequestSummary, BookletRequestsPage, EnrollmentRecommendation } from '@/lib/cuadernillos/types'
 
 export type CriticalSchool = { cueAnexo: string; nombre: string; departamento: string; severity: string }
@@ -84,11 +83,6 @@ export function isRecommendationList(value: unknown): value is { recommendations
   return Boolean(value && typeof value === 'object' && Array.isArray((value as { recommendations?: unknown }).recommendations))
 }
 
-export function isCabeceraList(value: unknown): value is { cabeceras: CabeceraView[] } {
-  if (!value || typeof value !== 'object' || !Array.isArray((value as { cabeceras?: unknown }).cabeceras)) return false
-  return (value as { cabeceras: unknown[] }).cabeceras.every((row) => row !== null && typeof row === 'object'
-    && typeof (row as CabeceraView).cue === 'string' && typeof (row as CabeceraView).nombre === 'string')
-}
 
 export function isAssignmentsPage(value: unknown): value is BookletAssignmentsPage {
   return Boolean(value && typeof value === 'object' && Array.isArray((value as { items?: unknown }).items))
