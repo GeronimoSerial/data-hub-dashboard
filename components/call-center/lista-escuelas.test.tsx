@@ -138,4 +138,22 @@ describe('ListaEscuelas', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Todas' }))
     expect(screen.queryByText(/tel[eé]fono|\+?\d{3}[\s-]?\d{4}[\s-]?\d{4}/i)).not.toBeInTheDocument()
   })
+
+  it('en pantallas angostas el formulario se abre en un modal', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(max-width: 899px)',
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }))
+    mockFetch()
+    await renderLista()
+
+    expect(screen.queryByTestId('formulario')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Escuela Pendiente/ }))
+
+    const modal = await screen.findByRole('dialog')
+    expect(within(modal).getByTestId('formulario')).toHaveTextContent('Formulario 3200001')
+    expect(screen.queryByText('Elegí una escuela de la lista para registrar la llamada.')).not.toBeInTheDocument()
+  })
 })
