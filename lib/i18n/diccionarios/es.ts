@@ -1,4 +1,22 @@
 import type { Semaforo } from '@/lib/sobreoferta'
+import { libTextos2Es } from './grupos/libTextos2.es'
+import { residuosEs } from './grupos/residuos.es'
+import { fichaPanelEs } from './grupos/fichaPanel.es'
+import { fichaPaginaEs } from './grupos/fichaPagina.es'
+import { radarRestoEs } from './grupos/radarResto.es'
+import { libTextosEs } from './grupos/libTextos.es'
+import { controlesCapasEs } from './grupos/controlesCapas.es'
+import { controlesFiltrosEs } from './grupos/controlesFiltros.es'
+import { fichaPanoramaEs } from './grupos/fichaPanorama.es'
+import { fichaTerritorioEs } from './grupos/fichaTerritorio.es'
+import { fichaHistorialEs } from './grupos/fichaHistorial.es'
+import { fichaCuerpoEs } from './grupos/fichaCuerpo.es'
+import { etiquetasEs } from './grupos/etiquetas.es'
+import { radarEs } from './grupos/radar.es'
+import { estadisticasEs } from './grupos/estadisticas.es'
+import { controlesEs } from './grupos/controles.es'
+import { panelesMapaEs } from './grupos/panelesMapa.es'
+import { situacionEs } from './grupos/situacion.es'
 
 // Spanish (Corrientes) dictionary. The values are user-facing text and must
 // stay byte-for-byte as shipped: change them only with an explicit product request.
@@ -260,4 +278,22 @@ export const es = {
       quitarSeleccion: 'Quitar selección',
     },
   },
+  fichaCuerpo: fichaCuerpoEs,
+  etiquetas: etiquetasEs,
+  radar: radarEs,
+  estadisticas: estadisticasEs,
+  controles: controlesEs,
+  panelesMapa: panelesMapaEs,
+  situacion: situacionEs,
+  fichaPanorama: fichaPanoramaEs,
+  fichaTerritorio: fichaTerritorioEs,
+  fichaHistorial: fichaHistorialEs,
+  controlesCapas: controlesCapasEs,
+  controlesFiltros: controlesFiltrosEs,
+  radarResto: radarRestoEs,
+  libTextos: libTextosEs,
+  fichaPanel: fichaPanelEs,
+  fichaPagina: fichaPaginaEs,
+  libTextos2: libTextos2Es,
+  residuos: residuosEs,
 } as const

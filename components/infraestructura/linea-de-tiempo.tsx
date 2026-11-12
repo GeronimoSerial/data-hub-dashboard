@@ -2,6 +2,7 @@
 
 import { useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { severidadDelMovimiento } from '@/lib/infraestructura/severidad-movimiento'
 import { formatearMomentoHistorial } from './historial-formato'
@@ -29,6 +30,8 @@ function detalleYaIncluido(titulo: string, detalle: string): boolean {
 // Presenta lo más reciente primero, con la fecha local en cada movimiento.
 export function LineaDeTiempo({ movimientos, limite }: { movimientos: MovimientoHistorial[]; limite?: number }): JSX.Element {
   const [expandida, setExpandida] = useState(false)
+  const idioma = useIdioma()
+  const t = useTextos().fichaHistorial
   const ordenados = [...movimientos]
     .map((movimiento) => ({
       ...movimiento,
@@ -52,7 +55,7 @@ export function LineaDeTiempo({ movimientos, limite }: { movimientos: Movimiento
                 style={{ background: movimiento.severidad ? colorSeveridad(movimiento.severidad) : 'var(--line)' }}
               />
               <time dateTime={movimiento.creadaEn} className="linea-de-tiempo__hora">
-                {formatearMomentoHistorial(movimiento.creadaEn)}
+                {formatearMomentoHistorial(movimiento.creadaEn, undefined, idioma)}
               </time>
               <div className="linea-de-tiempo__cambios">
                 <p className="linea-de-tiempo__titulo">{movimiento.titulo}</p>
@@ -68,7 +71,7 @@ export function LineaDeTiempo({ movimientos, limite }: { movimientos: Movimiento
       </ol>
       {ocultos > 0 ? (
         <Button type="button" variant="secondary" className="linea-de-tiempo__mas" onClick={() => setExpandida(true)}>
-          {`Ver movimientos anteriores (${ocultos})`}
+          {t.linea.verAnteriores(ocultos)}
         </Button>
       ) : null}
     </div>

@@ -3,18 +3,15 @@ import { SEVERIDADES, type Severidad } from './validacion'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import type { SeccionEstablecimiento, ServicioAlcance } from './trayectoria-tipos'
 import type { EstadoClases } from './mapa/tipos'
-
-const ETIQUETAS_FUNCIONAMIENTO: Record<Severidad, string> = {
-  Baja: 'Funcionamiento con afectación leve',
-  Media: 'Funcionamiento afectado',
-  Alta: 'Funcionamiento gravemente afectado',
-  Crítica: 'Funcionamiento críticamente afectado',
-}
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 export function etiquetaFuncionamiento(
   situaciones: readonly { severidad: Severidad; impactoAlumnos?: ImpactoAlumnos }[],
+  t: Diccionario = es,
 ): string {
-  if (situaciones.length === 0) return 'Sin afectaciones reportadas'
+  const textos = t.libTextos.funcionamiento
+  if (situaciones.length === 0) return textos.sinAfectaciones
   let mayor: Severidad | null = null
   for (const situacion of situaciones) {
     const severidad = prioridadEfectiva(situacion)
@@ -22,7 +19,7 @@ export function etiquetaFuncionamiento(
       mayor = severidad
     }
   }
-  return mayor === null ? 'Sin datos para calcular el funcionamiento' : ETIQUETAS_FUNCIONAMIENTO[mayor]
+  return mayor === null ? textos.sinDatos : textos.severidad[mayor]
 }
 
 export function tieneServicioInformado(
@@ -49,14 +46,7 @@ export function tieneServicioInformado(
   return estados.some((estado) => estado === 'suspendido') || estados.every((estado) => estado !== undefined)
 }
 
-const ETIQUETAS_CLASES: Record<EstadoClases, string> = {
-  normal: 'Clases normales',
-  parcial: 'Clases parcialmente suspendidas',
-  sin: 'Clases suspendidas',
-  evacuado: 'Evacuado',
-  centro: 'Usado como centro de evacuados',
-}
-
-export function etiquetaClases(estado: EstadoClases, informadas: boolean): string {
-  return informadas ? ETIQUETAS_CLASES[estado] : 'Sin información de clases'
+export function etiquetaClases(estado: EstadoClases, informadas: boolean, t: Diccionario = es): string {
+  const textos = t.libTextos.funcionamiento
+  return informadas ? textos.clases[estado] : textos.sinInformacionClases
 }

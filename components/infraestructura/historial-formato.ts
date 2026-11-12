@@ -1,4 +1,5 @@
 import { formatoFechaRegion } from '@/lib/infraestructura/formato-region'
+import { textos, type Idioma } from '@/lib/i18n'
 // Formato de fechas del historial (spec §15). Funciones puras, sin React:
 // la pantalla es de sólo lectura y todo lo que hace con los timestamps es
 // mostrarlos, así que conviene poder probarlas sin montar nada.
@@ -21,6 +22,17 @@ const MESES_LARGOS = [
 // La provincia entera trabaja en un solo huso; fijarlo evita que el
 // historial se lea con la hora del dispositivo cuando alguien lo abre desde
 // otro huso (mismo criterio que estado-actual-textos.ts).
+// Español usa las tablas de arriba (salida fija). Portugués toma el nombre del
+// mes de ICU con el locale pt-BR: la tabla de meses no puede vivir en el
+// diccionario porque varias abreviaturas coinciden con el español.
+function nombreMes(idioma: Idioma, mes: number, largo: boolean): string {
+  if (idioma === 'es') return (largo ? MESES_LARGOS : MESES_CORTOS)[mes] ?? ''
+  const fecha = new Date(Date.UTC(2026, mes, 15, 12))
+  return new Intl.DateTimeFormat('pt-BR', { month: largo ? 'long' : 'short', timeZone: 'UTC' })
+    .format(fecha)
+    .replace('.', '')
+}
+
 function partesFormato(): Intl.DateTimeFormat {
   return formatoFechaRegion('en-US', {
     month: '2-digit',
@@ -58,42 +70,43 @@ function partesEnZona(fecha: Date): PartesFecha {
  * Devuelve cadena vacía si el timestamp no es interpretable, para que la
  * pantalla nunca muestre "Invalid Date" a un director.
  */
-export function formatearCargaCorta(iso: string): string {
+export function formatearCargaCorta(iso: string, idioma: Idioma = 'es'): string {
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return ''
   const { dia, mes, hora, minuto } = partesEnZona(fecha)
-  return `${dia} ${MESES_CORTOS[mes]} · ${hora}:${minuto}`
+  return `${dia} ${nombreMes(idioma, mes, false)} · ${hora}:${minuto}`
 }
 
 /** Fecha y hora de un movimiento: "Hoy, 00:49" o "1 de octubre, 10:45". */
-export function formatearMomentoHistorial(iso: string, ahora: Date = new Date()): string {
+export function formatearMomentoHistorial(iso: string, ahora: Date = new Date(), idioma: Idioma = 'es'): string {
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return ''
   const { dia, mes, hora, minuto } = partesEnZona(fecha)
-  if (fechaClave().format(fecha) === fechaClave().format(ahora)) return `Hoy, ${hora}:${minuto}`
-  return `${dia} de ${MESES_LARGOS[mes]}, ${hora}:${minuto}`
+  const t = textos(idioma).fichaHistorial.formato
+  if (fechaClave().format(fecha) === fechaClave().format(ahora)) return `${t.hoy}, ${hora}:${minuto}`
+  return t.momento(dia, nombreMes(idioma, mes, true), hora, minuto)
 }
 
 /**
  * Vigencia en lenguaje llano: "Rige desde el 18 de septiembre a las 10:30"
  * (spec §13, misma redacción que el eco de VigenciaField).
  */
-export function formatearRigeDesde(iso: string): string {
+export function formatearRigeDesde(iso: string, idioma: Idioma = 'es'): string {
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return ''
   const { dia, mes, hora, minuto } = partesEnZona(fecha)
-  return `Rige desde el ${dia} de ${MESES_LARGOS[mes]} a las ${hora}:${minuto}`
+  return textos(idioma).fichaHistorial.formato.rigeDesde(dia, nombreMes(idioma, mes, true), hora, minuto)
 }
 
 /** Fecha para referencias breves a una situación: "5 de octubre". */
-export function formatearFechaHistorial(valor: string): string {
+export function formatearFechaHistorial(valor: string, idioma: Idioma = 'es'): string {
   const local = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(valor)
   const fecha = local
     ? new Date(Date.UTC(Number(local[3]), Number(local[2]) - 1, Number(local[1]), 12))
     : new Date(valor)
   if (Number.isNaN(fecha.getTime())) return valor
   const { dia, mes } = partesEnZona(fecha)
-  return `${dia} de ${MESES_LARGOS[mes]}`
+  return textos(idioma).fichaHistorial.formato.fecha(dia, nombreMes(idioma, mes, true))
 }
 
 /**

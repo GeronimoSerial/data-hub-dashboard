@@ -4,6 +4,11 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { distanciaAUmbral, variacionEnVentana, type PuntoNivel, type Variacion } from '@/lib/infraestructura/hidrometria/ultima-lectura'
 import { trazoSparkline } from '@/lib/mapas/sparkline'
 import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import { fichaCuerpoEs } from '@/lib/i18n/diccionarios/grupos/fichaCuerpo.es'
+
+type TextosRio = ReturnType<typeof useTextos>['fichaCuerpo']['estacionRio']
+type TextosHace = TextosRio['hace']
 
 export type EstadoNivelRio = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 
@@ -22,12 +27,12 @@ const MS_POR_HORA = 3_600_000
 const ANCHO = 260
 const ALTO = 56
 
-const ETIQUETA_RIO = { parana: 'Río Paraná', uruguay: 'Río Uruguay' } as const
-const ETIQUETA_ESTADO: Record<EstadoNivelRio, string> = {
-  evacuacion: 'Evacuación',
-  alerta: 'Alerta',
-  normal: 'Normal',
-  sin_dato: 'Sin dato',
+// "Alerta" and "Normal" read the same in Portuguese, so they stay literal.
+function etiquetaEstado(t: TextosRio, estado: EstadoNivelRio): string {
+  if (estado === 'evacuacion') return t.evacuacion
+  if (estado === 'alerta') return 'Alerta'
+  if (estado === 'normal') return 'Normal'
+  return t.sinDato
 }
 
 const OPCIONES_FECHA: Intl.DateTimeFormatOptions = {
@@ -41,12 +46,12 @@ const OPCIONES_FECHA: Intl.DateTimeFormatOptions = {
 const metros = (v: number, signo = false) => `${signo && v > 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} m`
 
 /** "hace 26 h", "hace 3 días", "hace menos de 1 h". */
-export function haceCuanto(medidaEn: string, ahora: Date): string {
+export function haceCuanto(medidaEn: string, ahora: Date, textos: TextosHace = fichaCuerpoEs.estacionRio.hace): string {
   const horas = Math.floor((ahora.getTime() - Date.parse(medidaEn)) / MS_POR_HORA)
   if (Number.isNaN(horas)) return ''
-  if (horas < 1) return 'hace menos de 1 h'
-  if (horas < 48) return `hace ${horas} h`
-  return `hace ${Math.floor(horas / 24)} días`
+  if (horas < 1) return textos.menosDeUnaHora
+  if (horas < 48) return textos.horas(horas)
+  return textos.dias(Math.floor(horas / 24))
 }
 
 /** State of the current value from the numbers alone (staleness ignored). */
@@ -54,15 +59,16 @@ export function nivelActual(
   lecturaM: number | null,
   alertaM: number | null,
   evacuacionM: number | null,
+  textos: Pick<TextosRio, 'sobreEvacuacion' | 'sobreAlerta'> = fichaCuerpoEs.estacionRio,
 ): { estado: EstadoNivelRio; nota: string | null } {
   if (lecturaM === null) return { estado: 'sin_dato', nota: null }
-  if (evacuacionM !== null && lecturaM >= evacuacionM) return { estado: 'evacuacion', nota: `▲ ${metros(lecturaM - evacuacionM)} sobre evacuación` }
-  if (alertaM !== null && lecturaM >= alertaM) return { estado: 'alerta', nota: `▲ ${metros(lecturaM - alertaM)} sobre alerta` }
+  if (evacuacionM !== null && lecturaM >= evacuacionM) return { estado: 'evacuacion', nota: textos.sobreEvacuacion(metros(lecturaM - evacuacionM)) }
+  if (alertaM !== null && lecturaM >= alertaM) return { estado: 'alerta', nota: textos.sobreAlerta(metros(lecturaM - alertaM)) }
   return { estado: 'normal', nota: null }
 }
 
-function cifra(v: number | null) {
-  if (v === null) return <span aria-label="Sin dato">—</span>
+function cifra(v: number | null, sinDato: string) {
+  if (v === null) return <span aria-label={sinDato}>—</span>
   return (
     <>
       {v.toFixed(2).replace('.', ',')}
@@ -71,19 +77,21 @@ function cifra(v: number | null) {
   )
 }
 
-function textoVariacion(v: Variacion | null): string {
-  if (!v) return 'Sin dato'
+function textoVariacion(v: Variacion | null, sinDato: string): string {
+  if (!v) return sinDato
   const pct = v.porcentaje === null ? '' : ` (${v.porcentaje > 0 ? '+' : ''}${v.porcentaje.toFixed(1).replace('.', ',')} %)`
   return `${metros(v.deltaM, true)}${pct}`
 }
 
 /** Threshold label at the right end of its dashed line, e.g. "Alerta 7,90". */
-const etiquetaUmbral = (valor: number, tipo: 'alerta' | 'evacuacion') =>
-  `${tipo === 'alerta' ? 'Alerta' : 'Evac.'} ${valor.toFixed(2).replace('.', ',')}`
+const etiquetaUmbral = (t: TextosRio, valor: number, tipo: 'alerta' | 'evacuacion') => {
+  const numero = valor.toFixed(2).replace('.', ',')
+  return tipo === 'alerta' ? t.umbralAlerta(numero) : t.umbralEvacuacion(numero)
+}
 
-function textoDistancia(d: number | null): string {
-  if (d === null) return 'Sin umbral'
-  return d > 0 ? `Faltan ${metros(d)}` : `Superada por ${metros(-d)}`
+function textoDistancia(t: TextosRio, d: number | null): string {
+  if (d === null) return t.sinUmbral
+  return d > 0 ? t.faltan(metros(d)) : t.superada(metros(-d))
 }
 
 type EstadoSerie = { tipo: 'cargando' } | { tipo: 'error' } | { tipo: 'lista'; puntos: PuntoNivel[] } | { tipo: 'respaldo'; puntos: PuntoNivel[] }
@@ -154,6 +162,7 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
   const raiz = useRef<HTMLDivElement>(null)
   const idTitulo = useId()
   const { lectura } = estacion
+  const t = useTextos().fichaCuerpo.estacionRio
   const serie = useSerie(estacion.estacionId, lectura?.medidaEn ?? null)
 
   useEffect(() => {
@@ -169,7 +178,7 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
   const umbrales = [lectura?.alertaM ?? null, lectura?.evacuacionM ?? null]
   const trazo = trazoSparkline(puntos, { ancho: ANCHO, alto: ALTO, margen: 4, umbrales })
   const ahora = new Date()
-  const nivel = nivelActual(lectura?.lecturaM ?? null, lectura?.alertaM ?? null, lectura?.evacuacionM ?? null)
+  const nivel = nivelActual(lectura?.lecturaM ?? null, lectura?.alertaM ?? null, lectura?.evacuacionM ?? null, t)
 
   return (
     <div
@@ -185,47 +194,47 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
       <div className="tarjeta-estacion__cabecera">
         <div>
           <h3 id={idTitulo} className="tarjeta-estacion__titulo">{estacion.nombre}</h3>
-          <p className="tarjeta-estacion__sub">{ETIQUETA_RIO[estacion.rio]} · Prefectura Naval Argentina</p>
+          <p className="tarjeta-estacion__sub">{t.rio[estacion.rio]} · Prefectura Naval Argentina</p>
         </div>
-        <span className="tarjeta-estacion__estado">{ETIQUETA_ESTADO[estacion.estado]}</span>
+        <span className="tarjeta-estacion__estado">{etiquetaEstado(t, estacion.estado)}</span>
       </div>
 
       <dl className="tarjeta-estacion__cifras">
         <div className={`tarjeta-estacion__cifra tarjeta-estacion__cifra--actual-${nivel.estado}`}>
-          <dt>Actual</dt>
-          <dd>{cifra(lectura?.lecturaM ?? null)}</dd>
+          <dt>{t.actual}</dt>
+          <dd>{cifra(lectura?.lecturaM ?? null, t.sinDato)}</dd>
           {nivel.nota && <dd className="tarjeta-estacion__exceso">{nivel.nota}</dd>}
         </div>
         <div className="tarjeta-estacion__cifra tarjeta-estacion__cifra--alerta">
           <dt>Alerta</dt>
-          <dd>{cifra(lectura?.alertaM ?? null)}</dd>
+          <dd>{cifra(lectura?.alertaM ?? null, t.sinDato)}</dd>
         </div>
         <div className="tarjeta-estacion__cifra tarjeta-estacion__cifra--evacuacion">
-          <dt>Evacuación</dt>
-          <dd>{cifra(lectura?.evacuacionM ?? null)}</dd>
+          <dt>{t.evacuacionDt}</dt>
+          <dd>{cifra(lectura?.evacuacionM ?? null, t.sinDato)}</dd>
         </div>
       </dl>
 
       {lectura ? (
         <p className="tarjeta-estacion__hora">
-          <time dateTime={lectura.medidaEn} className={estacion.vencida ? 'tarjeta-estacion__aviso' : undefined} title={estacion.vencida ? 'Lectura de más de 18 h' : undefined}>
-            {haceCuanto(lectura.medidaEn, ahora)}
+          <time dateTime={lectura.medidaEn} className={estacion.vencida ? 'tarjeta-estacion__aviso' : undefined} title={estacion.vencida ? t.lecturaVencida : undefined}>
+            {haceCuanto(lectura.medidaEn, ahora, t.hace)}
           </time>
           {' · '}
           {formatoFechaRegion(OPCIONES_FECHA).format(new Date(lectura.medidaEn))}
-          {lectura.inconsistente && <span> · Marcada como inconsistente por la fuente</span>}
+          {lectura.inconsistente && <span> · {t.inconsistente}</span>}
         </p>
       ) : (
-        <p className="tarjeta-estacion__hora">Sin lecturas publicadas.</p>
+        <p className="tarjeta-estacion__hora">{t.sinLecturas}</p>
       )}
 
       <figure className="tarjeta-estacion__grafico">
-        {serie.tipo === 'cargando' && <p className="tarjeta-estacion__sub">Cargando la serie…</p>}
-        {serie.tipo === 'error' && <p className="tarjeta-estacion__sub">No se pudo cargar la serie.</p>}
-        {serie.tipo === 'respaldo' && <p className="tarjeta-estacion__sub">No se pudo actualizar la serie; se muestran los últimos datos disponibles.</p>}
-        {(serie.tipo === 'lista' || serie.tipo === 'respaldo') && !trazo && <p className="tarjeta-estacion__sub">Pocas lecturas para graficar.</p>}
+        {serie.tipo === 'cargando' && <p className="tarjeta-estacion__sub">{t.cargandoSerie}</p>}
+        {serie.tipo === 'error' && <p className="tarjeta-estacion__sub">{t.errorSerie}</p>}
+        {serie.tipo === 'respaldo' && <p className="tarjeta-estacion__sub">{t.respaldoSerie}</p>}
+        {(serie.tipo === 'lista' || serie.tipo === 'respaldo') && !trazo && <p className="tarjeta-estacion__sub">{t.pocasLecturas}</p>}
         {trazo && (
-          <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} width="100%" height={ALTO} role="img" aria-label={`Altura del río en los últimos ${DIAS_SERIE} días`}>
+          <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} width="100%" height={ALTO} role="img" aria-label={t.alturaRio(DIAS_SERIE)}>
             {trazo.lineas.map((linea) => {
               const tipo = linea.valor === lectura?.evacuacionM ? 'evacuacion' : 'alerta'
               // Two close thresholds: the alert label goes under its line so both read.
@@ -235,7 +244,7 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
                 <g key={linea.valor}>
                   <line className={`tarjeta-estacion__umbral--${tipo}`} x1={0} x2={ANCHO} y1={linea.y} y2={linea.y} />
                   <text className={`tarjeta-estacion__umbral-texto tarjeta-estacion__umbral-texto--${tipo}`} x={ANCHO} y={yTexto} textAnchor="end">
-                    {etiquetaUmbral(linea.valor, tipo)}
+                    {etiquetaUmbral(t, linea.valor, tipo)}
                   </text>
                 </g>
               )
@@ -245,15 +254,15 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
           </svg>
         )}
         <figcaption className="tarjeta-estacion__sub">
-          Últimos {DIAS_SERIE} días
+          {t.ultimosDias(DIAS_SERIE)}
         </figcaption>
       </figure>
 
       <dl className="tarjeta-estacion__datos">
-        <div><dt>Variación 24 h</dt><dd>{textoVariacion(variacionEnVentana(puntos, 24))}</dd></div>
-        <div><dt>Variación 72 h</dt><dd>{textoVariacion(variacionEnVentana(puntos, 72))}</dd></div>
-        <div><dt>Hasta alerta</dt><dd>{textoDistancia(distanciaAUmbral(lectura?.lecturaM ?? null, lectura?.alertaM ?? null))}</dd></div>
-        <div><dt>Hasta evacuación</dt><dd>{textoDistancia(distanciaAUmbral(lectura?.lecturaM ?? null, lectura?.evacuacionM ?? null))}</dd></div>
+        <div><dt>{t.variacion24}</dt><dd>{textoVariacion(variacionEnVentana(puntos, 24), t.sinDato)}</dd></div>
+        <div><dt>{t.variacion72}</dt><dd>{textoVariacion(variacionEnVentana(puntos, 72), t.sinDato)}</dd></div>
+        <div><dt>{t.hastaAlerta}</dt><dd>{textoDistancia(t, distanciaAUmbral(lectura?.lecturaM ?? null, lectura?.alertaM ?? null))}</dd></div>
+        <div><dt>{t.hastaEvacuacion}</dt><dd>{textoDistancia(t, distanciaAUmbral(lectura?.lecturaM ?? null, lectura?.evacuacionM ?? null))}</dd></div>
       </dl>
     </div>
   )

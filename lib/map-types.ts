@@ -1,5 +1,6 @@
 import type { FeatureCollection, Geometry } from 'geojson'
 import { regionPublicaActual } from './infraestructura/region/publica'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 export type Trend = 'up' | 'down' | 'flat' | 'partial'
 
@@ -176,4 +177,9 @@ export function mapCenterRegion(): [number, number] {
 /** Zoom inicial de la región activa; se lee al llamar, no al importar el módulo. */
 export function mapZoomRegion(): number {
   return regionPublicaActual().mapaZoom
+}
+
+// Nombre visible de un fondo en el idioma de `t`; BASEMAPS[id].label queda en español.
+export function etiquetaBasemap(t: Diccionario, id: BasemapId): string {
+  return id in t.etiquetas.basemapas ? t.etiquetas.basemapas[id as keyof typeof t.etiquetas.basemapas] : BASEMAPS[id].label
 }

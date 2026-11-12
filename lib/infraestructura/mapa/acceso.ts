@@ -1,9 +1,11 @@
 import type { CruceAccesoOsm, RutaGeoJson, SuperficiesAcceso, ViaPrincipalAcceso } from '@/lib/db/schema'
 import type { ClaseRutaInundacion, ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
-import { ETIQUETAS_CRUCE } from '@/lib/mapas/accesos-capas'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
-export type EtiquetaRiesgoAcceso = 'Alto' | 'Medio' | 'Bajo' | 'Sin riesgo' | 'Sin dato' | 'Sin ruta'
+// string: la etiqueta sale del diccionario, así que depende del idioma.
+export type EtiquetaRiesgoAcceso = string
 
 export interface LineasAcceso {
   via: string | null
@@ -13,13 +15,9 @@ export interface LineasAcceso {
   riesgo: EtiquetaRiesgoAcceso | null
 }
 
-const ETIQUETA_CLASE_RUTA: Record<ClaseRutaInundacion, EtiquetaRiesgoAcceso> = {
-  alto: 'Alto',
-  medio: 'Medio',
-  bajo: 'Bajo',
-  sin_riesgo: 'Sin riesgo',
-  sin_dato: 'Sin dato',
-  sin_ruta: 'Sin ruta',
+// `alto` se escribe igual en español y portugués: no va al diccionario.
+function etiquetasClaseRuta(t: Diccionario): Record<ClaseRutaInundacion, string> {
+  return { alto: 'Alto', ...t.libTextos.accesos.claseRuta }
 }
 
 const RADIO_TIERRA_KM = 6371.0088
@@ -61,15 +59,18 @@ export function superficieVia(via: ViaPrincipalAcceso | null | undefined): Super
 }
 
 /** "pavimentado", "de ripio" or "de tierra", to follow "camino" or "km". */
-export function etiquetaSuperficie(superficie: SuperficieVia): string {
-  return superficie === 'pavimentado' ? 'pavimentado' : `de ${superficie}`
+export function etiquetaSuperficie(superficie: SuperficieVia, t: Diccionario = es): string {
+  return superficie === 'pavimentado' ? 'pavimentado' : t.libTextos.accesos.superficie[superficie]
 }
 
 // Stretches under 100 m are snapping noise, not a surface worth naming.
 const TRAMO_MINIMO_M = 100
 
 /** "8 km pavimentado · 3 km de ripio", longest surface first; null without data. */
-export function desgloseSuperficies(superficies: SuperficiesAcceso | null | undefined): string | null {
+export function desgloseSuperficies(
+  superficies: SuperficiesAcceso | null | undefined,
+  t: Diccionario = es,
+): string | null {
   if (!superficies) return null
   const tramos = (['pavimentado', 'ripio', 'tierra'] as const)
     .map((superficie) => ({ superficie, metros: superficies[superficie] }))
@@ -77,19 +78,21 @@ export function desgloseSuperficies(superficies: SuperficiesAcceso | null | unde
     .sort((a, b) => b.metros - a.metros)
   if (tramos.length === 0) return null
   return tramos
-    .map((tramo) => `${etiquetaKm(tramo.metros / 1000)} ${etiquetaSuperficie(tramo.superficie)}`)
+    .map((tramo) => `${etiquetaKm(tramo.metros / 1000)} ${etiquetaSuperficie(tramo.superficie, t)}`)
     .join(' · ')
 }
 
-function etiquetaViaPrincipal(geometria: GeometriaAccesoRespuesta): string | null {
+function etiquetaViaPrincipal(geometria: GeometriaAccesoRespuesta, t: Diccionario): string | null {
   const via = geometria.viaPrincipal
   if (!via || !geometria.ruta) return null
 
   const nombre = typeof via.nombre === 'string' && via.nombre.trim() !== ''
     ? via.nombre
-    : via.tipo === 'residential' ? 'Calle urbana' : 'Camino rural'
+    : via.tipo === 'residential' ? t.libTextos.accesos.via.calleUrbana : t.libTextos.accesos.via.caminoRural
   const tipoSuperficie = superficieVia(via)
-  const superficie = tipoSuperficie === 'pavimentado' ? 'pavimentada' : `de ${tipoSuperficie}`
+  const superficie = tipoSuperficie === 'pavimentado'
+    ? 'pavimentada' // igual en español y portugués: no va al diccionario
+    : etiquetaSuperficie(tipoSuperficie ?? 'tierra', t)
   const destino = geometria.destino ? ` → ${geometria.destino.nombre}` : ''
   const distanciaInformada = typeof geometria.distanciaKm === 'number'
     && Number.isFinite(geometria.distanciaKm)
@@ -115,44 +118,46 @@ function resumirCruces(geometria: GeometriaAccesoRespuesta) {
   return geometria.resumen ?? { puente: 0, vado: 0, sinEvidencia: 0 }
 }
 
-function detalleCruces(resumen: ReturnType<typeof resumirCruces>): string | null {
+function detalleCruces(resumen: ReturnType<typeof resumirCruces>, t: Diccionario): string | null {
+  const detalle = t.libTextos.accesos.cruces.detalle
   const etiquetas = [
-    resumen.puente > 0 ? `${resumen.puente} con ${ETIQUETAS_CRUCE.puente.toLocaleLowerCase('es-AR')}` : null,
-    resumen.vado > 0 ? `${resumen.vado} ${ETIQUETAS_CRUCE.vado.toLocaleLowerCase('es-AR')}` : null,
-    resumen.sinEvidencia > 0 ? `${resumen.sinEvidencia} ${ETIQUETAS_CRUCE.sin_evidencia.toLocaleLowerCase('es-AR')}` : null,
+    resumen.puente > 0 ? detalle.puente(resumen.puente) : null,
+    resumen.vado > 0 ? detalle.vado(resumen.vado) : null,
+    resumen.sinEvidencia > 0 ? detalle.sinEvidencia(resumen.sinEvidencia) : null,
   ].filter((etiqueta): etiqueta is string => etiqueta !== null)
   return etiquetas.length > 0 ? etiquetas.join(' · ') : null
 }
 
-function nivelRiesgo(exposicion: ExposicionRutaRespuesta | null): LineasAcceso['riesgo'] {
+function nivelRiesgo(exposicion: ExposicionRutaRespuesta | null, t: Diccionario): LineasAcceso['riesgo'] {
   if (exposicion === null) return null
   const clase = exposicion.claseRuta ?? null
-  return clase === null ? 'Sin dato' : ETIQUETA_CLASE_RUTA[clase]
+  return clase === null ? t.libTextos.accesos.claseRuta.sin_dato : etiquetasClaseRuta(t)[clase]
 }
 
 export function lineasAcceso(
   geometria: GeometriaAccesoRespuesta | null,
   exposicion: ExposicionRutaRespuesta | null,
+  t: Diccionario = es,
 ): LineasAcceso | null {
   if (!geometria?.disponible || !geometria.ruta) return null
 
   const distancia = typeof geometria.distanciaKm === 'number' && Number.isFinite(geometria.distanciaKm)
     ? geometria.distanciaKm
     : distanciaKm(geometria.ruta)
-  const viaPrincipal = etiquetaViaPrincipal(geometria)
+  const viaPrincipal = etiquetaViaPrincipal(geometria, t)
   const resumenCruces = resumirCruces(geometria)
   const cantidadCruces = resumenCruces.puente + resumenCruces.vado + resumenCruces.sinEvidencia
   const cruces = cantidadCruces === 0
-    ? 'Sin cruces de agua'
-    : `${cantidadCruces} ${cantidadCruces === 1 ? 'cruce' : 'cruces'} de agua en el camino`
+    ? t.libTextos.accesos.cruces.sinCruces
+    : t.libTextos.accesos.cruces.cantidad(cantidadCruces)
 
   return {
     via: viaPrincipal ?? (distancia === null || !Number.isFinite(distancia)
       ? null
-      : `Camino de acceso · ${etiquetaKm(distancia)}`),
+      : t.libTextos.accesos.via.caminoAcceso(etiquetaKm(distancia))),
     cruces,
-    crucesDetalle: detalleCruces(resumenCruces),
+    crucesDetalle: detalleCruces(resumenCruces, t),
     crucesConRiesgo: resumenCruces.vado + resumenCruces.sinEvidencia > 0,
-    riesgo: nivelRiesgo(exposicion),
+    riesgo: nivelRiesgo(exposicion, t),
   }
 }

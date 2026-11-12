@@ -29,6 +29,7 @@ import type { AlertaRadar } from '@/lib/infraestructura/radar-meteo/alertas-agru
 import type { ResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
 import { beforeIdSiExiste, CAPAS_RADAR } from './capas'
 import type { EscuelaMapa } from '@/lib/infraestructura/parte-mapa'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 const variablesSolicitadas = [
   'precipitation',
@@ -263,6 +264,7 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
   /** Clic en el marcador de una escuela: abre su vista previa (con pronóstico) en la página. */
   onSeleccionarEscuela?: (cueAnexo: string) => void
 }) {
+  const t = useTextos()
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState<1 | 2 | 4>(1)
@@ -625,8 +627,8 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
           <button
             type="button"
             className="radar-escuela-marker"
-            aria-label={`Pronóstico de ${escuela.nombre}, CUE ${escuela.cueAnexo}`}
-            title={`${escuela.nombre} · abrir pronóstico`}
+            aria-label={t.radarResto.escuela.aria(escuela.nombre, escuela.cueAnexo)}
+            title={t.radarResto.escuela.titulo(escuela.nombre)}
             onClick={(event) => {
               event.stopPropagation()
               setPoint(null)
@@ -705,9 +707,9 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
       )}
 
       {(loading || error) && <div className="radar-meteo-estado">
-        {loading && <div className="radar-meteo-loading" role="status">Cargando pronóstico…</div>}
+        {loading && <div className="radar-meteo-loading" role="status">{t.radarResto.pronostico.cargando}</div>}
         {loading && <div className="radar-meteo-skeleton" aria-hidden="true" />}
-        {error && <button type="button" className="radar-meteo-retry" onClick={() => setRetry((value) => value + 1)}>Reintentar pronóstico</button>}
+        {error && <button type="button" className="radar-meteo-retry" onClick={() => setRetry((value) => value + 1)}>{t.radarResto.pronostico.reintentar}</button>}
       </div>}
 
       {debug && (
