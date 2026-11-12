@@ -140,6 +140,8 @@ try {
     BETTER_AUTH_SECRET: `mapa-e2e-local-only-${crypto.randomUUID()}-${crypto.randomUUID()}`,
     MAPA_E2E_PORT: port,
     MAPA_E2E_SIN_RADAR_PORT: sinRadarPort,
+    // Set only by `pnpm test:e2e:mapa:snapshots`: specs rewrite contratos/snapshots in the workspace copy.
+    ...(process.env.MAPA_E2E_ACTUALIZAR_SNAPSHOTS ? { MAPA_E2E_ACTUALIZAR_SNAPSHOTS: process.env.MAPA_E2E_ACTUALIZAR_SNAPSHOTS } : {}),
     // Feature flags for the map (see lib/infraestructura/riesgo/flags.ts).
     RISK_RADAR_ENABLED: 'true',
     HAZARD_CONTEXT_ENABLED: 'true',
@@ -180,6 +182,18 @@ try {
   if (keepDir && project) {
     await cp(path.join(project, 'e2e/mapa-enos'), keepDir, { recursive: true, force: true, filter: (source) => !source.includes(`${path.sep}node_modules`) })
       .catch((error) => console.error(`keep results failed: ${error.message}`))
+  }
+  // Explicit snapshot update: copy the rewritten snapshots back into the repository before the workspace is deleted.
+  if (process.env.MAPA_E2E_ACTUALIZAR_SNAPSHOTS === '1' && project) {
+    const origen = path.join(project, 'e2e/mapa-enos/contratos/snapshots')
+    const destino = path.join(root, 'e2e/mapa-enos/contratos/snapshots')
+    await mkdir(destino, { recursive: true })
+    await cp(origen, destino, { recursive: true, force: true })
+      .then(() => console.log(`MAPA E2E snapshots copied to ${destino}`))
+      .catch((error) => {
+        if (error.code === 'ENOENT') console.log('MAPA E2E: no snapshots were written; nothing copied')
+        else console.error(`copy snapshots failed: ${error.message}`)
+      })
   }
   if (state.container) docker(['rm', '-f', state.container], { stdio: 'ignore' })
   if (workspace) await rm(workspace, { recursive: true, force: true })
