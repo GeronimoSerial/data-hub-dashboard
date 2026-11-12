@@ -123,7 +123,7 @@ export const pt: Diccionario = {
 
   // Map tabs and modes (the tab bar above the map).
   modos: {
-    ariaBarra: 'Modos e visualizações de ENOS Corrientes',
+    ariaBarra: (nombre) => `Modos e visualizações de ENOS ${nombre}`,
     cargandoMapa: 'Carregando mapa…',
     situacionActual: 'Situação atual',
     situacionActualAria: (cantidad) =>

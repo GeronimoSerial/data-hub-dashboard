@@ -72,6 +72,7 @@ B1 ─► B2 ─┬─► B3a ─┐                                            
 | B8 | Configuración de región | B4, B0, D2 | — | **Alto** (contratos internos) | No |
 | B9 | Río neutral y jobs por región | B8 | B10 | **Alto** (contratos internos) | No |
 | B10 | Interfaz bilingüe y card del hub | B8 | B9 | Medio (migración aditiva en `user`) | Sí (`idioma` en `user`) |
+| B10b | Barrido de diccionarios es/pt pendiente (cuerpo de la ficha, helpers de etiquetas, radar y estadísticas). **Bloquea la puesta en marcha de Manaos** | B10 | B11 | Bajo | No |
 | B11 | Despliegue de Manaos | B9, B10 | — | **Alto** (entrega) | No |
 | B12 | Datos y proveedores de Manaos | B11 | — | Medio | No |
 | B13 | Bajante y horizonte estacional | B12 | B14 | Medio | Posible |
@@ -370,6 +371,11 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 - CA4: Corrientes no cambia: snapshots de B2 idénticos y suite e2e verde.
 - CA5: el runbook documenta cómo crear una región nueva de punta a punta.
 - CA6: prueba e2e de cambio a portugués (movida desde B10) que verifica textos de pestañas, leyenda y ficha, corrida contra un despliegue local con `REGION=manaos`.
+
+**Estado de implementación (B11):**
+- Hecho: `config/regiones/manaos.json` (límites provisionales, pendientes de B0), `pnpm region:cargar <id>`, prueba de contrato de regiones, plantilla `deploy/regiones/`, runbook `docs/ejecucion-enos/OPS1/runbook-nueva-region.md` y prueba e2e local `pnpm test:e2e:region` (CA6 incluida).
+- Ajustes derivados de la prueba con base vacía: `estacionAncla` opcional, `datasetsPendientes`/`cargaDatasets` en el esquema, mapa montado aunque falle la geografía, acceso a Prefectura restringido por región, y arranque abortado con `process.exit(1)` si `REGION` es inválida.
+- Pendiente fuera de B11: B10b (arriba), marca institucional de Corrientes fija en la cabecera del hub, jobs `sync-smn-alertas`, `sync-synop-lluvia` e `importar-exposicion-rio-dem` aún no excluidos por regla (ver `deploy/regiones/scheduler-jobs.md`), y secretos adicionales a los de B11.6.
 
 ---
 

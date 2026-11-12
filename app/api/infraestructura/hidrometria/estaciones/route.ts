@@ -4,7 +4,7 @@ import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { estadoAltura } from '@/lib/infraestructura/hidrometria/estado-altura'
 import { estadoUltimaLectura } from '@/lib/infraestructura/hidrometria/ultima-lectura'
 import { ultimaLecturaEstacion } from '@/lib/infraestructura/hidrometria/lecturas-repo'
-import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import { obtenerEstacionesPrefecturaDeRegion } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { ruta } from '@/lib/http/ruta'
@@ -23,7 +23,7 @@ async function handleGET() {
 
   const db = getDb()
   const estaciones = await Promise.all(
-    obtenerEstacionesPrefectura().filter((e) => e.coordenadas !== null).map(async (estacion) => {
+    obtenerEstacionesPrefecturaDeRegion().filter((e) => e.coordenadas !== null).map(async (estacion) => {
       const fila = await ultimaLecturaEstacion(db, estacion.estacionId)
       const lectura = fila
         ? {

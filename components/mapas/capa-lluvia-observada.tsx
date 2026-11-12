@@ -5,6 +5,7 @@ import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { formatearFechaLocal } from '@/components/mapas/capa-estaciones-rio'
 import { LogoNasa } from '@/components/mapas/logo-nasa'
 import { haceCuanto } from '@/components/mapas/tarjeta-estacion-rio'
+import type { RegionPublica } from '@/lib/infraestructura/region/esquema'
 import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
 export type HorasLluvia = 24 | 72
@@ -50,7 +51,6 @@ export const CLASES_LLUVIA: ReadonlyArray<{ desde: number; color: string; etique
 const PASO_CELDA = 0.1
 const MEDIO_PASO = PASO_CELDA / 2
 const ALFA_BASE = 0.75 * 255
-const REGIONES_INTERES = regionPublicaActual().regionesInteresLluvia
 const ANCHO_TRANSICION = 0.4
 
 // Exported so other map handlers can read the cell under a click (e.g. the water crossing card).
@@ -58,9 +58,9 @@ export const ID_CAPA_LLUVIA_HIT = 'lluvia-observada-hit'
 const ID_HIT = ID_CAPA_LLUVIA_HIT
 
 /** 1 dentro de las regiones de interés; cae linealmente a 0 a 0,4° fuera de ellas. */
-function factorRegion(lon: number, lat: number): number {
+function factorRegion(lon: number, lat: number, regiones: RegionPublica['regionesInteresLluvia']): number {
   let mejor = 0
-  for (const region of REGIONES_INTERES) {
+  for (const region of regiones) {
     const dx = Math.max(region.lon[0] - lon, 0, lon - region.lon[1])
     const dy = Math.max(region.lat[0] - lat, 0, lat - region.lat[1])
     const distancia = Math.hypot(dx, dy)
@@ -92,6 +92,7 @@ function centroDe(geometryRef: string): [number, number] | null {
  * Las esquinas son los bordes exteriores de las celdas extremas.
  */
 export function pintarGrillaLluvia(celdas: ReadonlyArray<{ geometryRef: string; acumuladoMm: number }>): GrillaLluvia {
+  const regionesInteres = regionPublicaActual().regionesInteresLluvia
   const centros = celdas.flatMap((celda) => {
     const centro = centroDe(celda.geometryRef)
     return centro ? [{ lon: centro[0], lat: centro[1], mm: celda.acumuladoMm }] : []
@@ -111,7 +112,7 @@ export function pintarGrillaLluvia(celdas: ReadonlyArray<{ geometryRef: string; 
     if (!clase) continue
     const columna = Math.round((celda.lon - lonMin) / PASO_CELDA)
     const fila = Math.round((latMax - celda.lat) / PASO_CELDA)
-    const alfa = Math.round(ALFA_BASE * factorRegion(celda.lon, celda.lat))
+    const alfa = Math.round(ALFA_BASE * factorRegion(celda.lon, celda.lat, regionesInteres))
     const indice = (fila * ancho + columna) * 4
     const [r, g, b] = colorRgb(clase.color)
     datos[indice] = r

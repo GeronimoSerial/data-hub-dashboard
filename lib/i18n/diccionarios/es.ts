@@ -125,7 +125,7 @@ export const es = {
 
   // Map tabs and modes (the tab bar above the map).
   modos: {
-    ariaBarra: 'Modos y vistas de ENOS Corrientes',
+    ariaBarra: (nombre: string) => `Modos y vistas de ENOS ${nombre}`,
     cargandoMapa: 'Cargando mapa…',
     situacionActual: 'Situación actual',
     situacionActualAria: (cantidad: number) =>

@@ -11,7 +11,10 @@ import {
   infraDatasetPublicacion,
   infraRiskRun,
 } from '@/lib/db/schema'
-import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import {
+  obtenerEstacionesPrefecturaDeRegion,
+  regionTienePrefectura,
+} from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { obtenerReferencias, type FilaReferencia } from '@/lib/infraestructura/hidrometria/referencia-repo'
 import { JOBS_ESPERADOS } from '../jobs-esperados'
 import { PROVIDER_OBSERVADO, VARIABLE_OBSERVADA } from '../peligro/observado'
@@ -70,6 +73,10 @@ export async function obtenerEstadoDatos(): Promise<EstadoDatos> {
   const granulosDeHoy = await consultarGranulosImergDelDia(db, ahora)
   const huecosImerg = clasificarHuecosImerg({ observadosEn: granulosDeHoy, ahora })
 
+  const estacionesPrefectura = obtenerEstacionesPrefecturaDeRegion().map((e) => ({
+    estacionId: e.estacionId,
+    nombre: e.nombrePna,
+  }))
   const sonda = clasificarSondaCadena({ ultima: ultimaPorTipo.get('sonda-cadena-datos'), ahora })
   const items = [
     // Los jobs sin `tipo` no escriben infra_job_run: no hay forma de verificarlos acá.
@@ -82,16 +89,25 @@ export async function obtenerEstadoDatos(): Promise<EstadoDatos> {
       }),
     ),
     clasificarRunVigente({ publicadoEn: runVigente[0]?.publicadoEn ?? null, ahora }),
-    clasificarPrefectura({
-      estaciones: obtenerEstacionesPrefectura().map((e) => ({ estacionId: e.estacionId, nombre: e.nombrePna })),
-      ultimaPorEstacion,
-      ahora,
-    }),
-    clasificarPlausibilidad({
-      estaciones: obtenerEstacionesPrefectura().map((e) => ({ estacionId: e.estacionId, nombre: e.nombrePna })),
-      lecturasRecientes: lecturasRecientesPorEstacion(recientes),
-      referencias: rangosDeReferencia(referencias),
-    }),
+    // Región sin fuente Prefectura: no hay lecturas de río que clasificar, así que no se emiten estos items.
+    ...(regionTienePrefectura()
+      ? [
+          clasificarPrefectura({
+            estaciones: estacionesPrefectura,
+            ultimaPorEstacion,
+            ahora,
+          }),
+        ]
+      : []),
+    ...(regionTienePrefectura()
+      ? [
+          clasificarPlausibilidad({
+            estaciones: estacionesPrefectura,
+            lecturasRecientes: lecturasRecientesPorEstacion(recientes),
+            referencias: rangosDeReferencia(referencias),
+          }),
+        ]
+      : []),
     // Sólo verificada o fallida: nunca corrió, atrasada o pausada ya las informa el item
     // `job:sonda-cadena-datos`; repetirlas acá contaría el mismo problema dos veces.
     ...(['ok', 'fallido'].includes(sonda.estado) ? [sonda] : []),
