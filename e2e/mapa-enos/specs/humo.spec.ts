@@ -38,11 +38,10 @@ test('humo: el mapa dibuja sin salir del origen y expone el gancho E2E', async (
     .poll(async () => coloresDistintos(page, await canvas.screenshot()), { timeout: 30_000 })
     .toBeGreaterThan(1)
 
-  // Prueba real de dibujo: la capa de límites tiene que renderizar los departamentos del seed.
-  // El API sirve 4 features (verificado en la corrida). queryRenderedFeatures devuelve 5 entradas de
-  // forma estable (6 muestras en 4 s): el sobrante se atribuye a una copia recortada por tile de un
-  // departamento que cruza un borde de tile del source geojson. Esa causa no está verificada; el valor
-  // 5 sí lo está. Una capa oculta da 0 y un seed incompleto da otro número.
+  // Prueba real de dibujo: la capa de límites tiene que renderizar los 4 departamentos del seed.
+  // El gancho cuenta features únicas: queryRenderedFeatures devuelve copias recortadas por tesela de
+  // los departamentos que cruzan un borde de tesela, con las mismas propiedades; sin deduplicar daría 5.
+  // Una capa oculta da 0 y un seed incompleto da otro número.
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -50,7 +49,7 @@ test('humo: el mapa dibuja sin salir del origen y expone el gancho E2E', async (
           .__mapaE2E.featuresRenderizadas('limitesDepartamentos'),
       ),
     )
-    .toBe(5)
+    .toBe(4)
 
   // CA2: fuera del origen solo hubo peticiones del mapa, atendidas en local.
   expect(externasBloqueadas).toEqual([])

@@ -30,6 +30,23 @@ try {
   console.log('[seed] datasets del mapa')
   const { publicarDatasetsMapa } = await import('./datasets.ts')
   await publicarDatasetsMapa()
+
+  console.log('[seed] escuelas del mapa')
+  const { sembrarEscuelas } = await import('./escuelas.ts')
+  await sembrarEscuelas()
+
+  // Later steps depend on the school roster. Each module exports one async function; they run in this order.
+  for (const [file, exportName, label] of [
+    ['partes.ts', 'sembrarPartes', 'partes'],
+    ['hidro.ts', 'sembrarHidro', 'hidrometria'],
+    ['riesgo.ts', 'sembrarRiesgo', 'riesgo'],
+    ['radar.ts', 'sembrarRadar', 'radar y aislamiento'],
+  ]) {
+    if (!existsSync(path.join(root, 'e2e/mapa-enos/seed', file))) continue
+    console.log(`[seed] ${label}`)
+    const modulo = await import(`./${file}`)
+    await modulo[exportName]()
+  }
 } finally {
   const client = getRawClient()
   if (typeof client.close === 'function') await client.close()
