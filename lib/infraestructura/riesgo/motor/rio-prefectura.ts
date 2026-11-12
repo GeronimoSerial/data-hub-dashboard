@@ -1,4 +1,17 @@
-import type { EstadoRioPrefectura, EvidenciaRioPrefectura } from './puertos'
+import type { EstadoNivelRio } from './puertos'
+
+// Estados que produce la fuente Prefectura (umbrales oficiales de la estación).
+export type EstadoRioPrefectura = 'normal' | 'alerta' | 'evacuacion'
+
+// Traducción Prefectura -> neutral. Sólo la usa el adapter; el motor nunca
+// ve estos nombres.
+export const TRADUCCION_ESTADO_PREFECTURA: Record<EstadoRioPrefectura, EstadoNivelRio> = {
+  normal: 'normal',
+  alerta: 'alerta',
+  evacuacion: 'evacuacion',
+}
+
+export { valorAmenazaRio } from './nivel-rio'
 
 // Módulo puro: sin base de datos ni reloj. Todas las fechas llegan por parámetro.
 
@@ -17,10 +30,6 @@ export const MARGEN_RP100_MAX_M = 1
 export const DISTANCIA_ESTACION_MAX_KM = 1.5
 
 const MS_POR_HORA = 60 * 60 * 1000
-const AMENAZA_MAX_NORMAL = 33
-const AMENAZA_ALERTA = 66
-const AMENAZA_BONUS_CRECIENTE = 10
-const AMENAZA_EVACUACION = 100
 
 export function estadoDeLectura(
   lecturaM: number,
@@ -102,18 +111,6 @@ export function evaluarExposicionRio(d: DatosExposicionRio): string | null {
     return `estacion_a_${d.distanciaEstacionKm.toFixed(1)}km(fallback)`
   }
   return null
-}
-
-export function valorAmenazaRio(
-  ev: Pick<EvidenciaRioPrefectura, 'estado' | 'lecturaM' | 'alertaM' | 'variacionM'>,
-): number {
-  if (ev.estado === 'evacuacion') return AMENAZA_EVACUACION
-  if (ev.estado === 'alerta') {
-    return AMENAZA_ALERTA + (ev.variacionM !== null && ev.variacionM > 0 ? AMENAZA_BONUS_CRECIENTE : 0)
-  }
-  if (ev.alertaM === null || ev.alertaM <= 0) return 0
-  const proporcional = Math.min(AMENAZA_MAX_NORMAL, (ev.lecturaM / ev.alertaM) * AMENAZA_MAX_NORMAL)
-  return Math.round(proporcional * 10) / 10
 }
 
 // Un estado oficial de alerta o evacuación sobre el río propio de la escuela, con exposición

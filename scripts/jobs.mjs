@@ -7,7 +7,7 @@
  * se invoca con `docker exec <contenedor> node scripts/jobs.mjs <nombre>`.
  * Ver docs/ejecucion-enos/OPS1/runbook-scheduler.md.
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -68,6 +68,41 @@ export class JobDesconocidoError extends Error {
     super(`Job desconocido: "${nombre}". Jobs válidos: ${NOMBRES_VALIDOS.join(', ')}`)
     this.name = 'JobDesconocidoError'
   }
+}
+
+// Un job que no aplica a la región activa (B9.5): sale con código 2, el mismo
+// que un job desconocido (error de invocación, no de ejecución).
+export class JobNoAplicaError extends Error {
+  constructor(nombre, regionId) {
+    super(`job ${nombre} does not apply to region ${regionId}`)
+    this.name = 'JobNoAplicaError'
+  }
+}
+
+const DIRECTORIO_REGIONES = join(root, 'config', 'regiones')
+
+// Lee config/regiones/<REGION>.json (por defecto corrientes), igual que el
+// registro TS de lib/infraestructura/region. ENOS_REGION_CONFIG_DIR permite
+// apuntar a otro directorio (pruebas). Valida sólo lo que usa la aplicabilidad.
+export function regionDespacho(env = process.env) {
+  const id = env.REGION?.trim() || 'corrientes'
+  if (!/^[a-z0-9-]+$/.test(id)) throw new Error(`REGION inválida: "${id}"`)
+  const directorio = env.ENOS_REGION_CONFIG_DIR?.trim() || DIRECTORIO_REGIONES
+  const archivo = join(directorio, `${id}.json`)
+  if (!existsSync(archivo)) throw new Error(`REGION desconocida: "${id}" (no existe ${archivo})`)
+  const region = JSON.parse(readFileSync(archivo, 'utf8'))
+  if (region?.id !== id || !Array.isArray(region.fuentesRio)) {
+    throw new Error(`Región inválida en ${id}.json: se requieren "id" y "fuentesRio"`)
+  }
+  return region
+}
+
+// Réplica de aplicaJobARegion (lib/infraestructura/riesgo/jobs-esperados.ts):
+// la regla vive allí; scripts/jobs.mjs no puede importar TS. Un test compara ambas.
+export function aplicaJobARegionDespacho(nombre, region) {
+  if (nombre.startsWith('sync-prefectura-')) return region.fuentesRio.includes('prefectura')
+  if (nombre.startsWith('sync-ina-')) return region.fuentesRio.includes('ina')
+  return true
 }
 
 // El motivo de gating es siempre el mismo, gatee lo que gatee: se imprime un
@@ -516,6 +551,11 @@ export async function correrJob(nombre, opts) {
     throw new JobDesconocidoError(nombre)
   }
 
+  const region = regionDespacho()
+  if (!aplicaJobARegionDespacho(nombre, region)) {
+    throw new JobNoAplicaError(nombre, region.id)
+  }
+
   if (!(await jobsActivos())) {
     return flagDeshabilitado(nombre)
   }
@@ -672,7 +712,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(JSON.stringify(resultado))
     process.exit(codigoSalida(nombre, resultado))
   } catch (error) {
-    if (error instanceof JobDesconocidoError) {
+    if (error instanceof JobDesconocidoError || error instanceof JobNoAplicaError) {
       console.error(error.message)
       process.exit(2)
     }
