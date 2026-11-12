@@ -14,6 +14,55 @@ function zoomActual(page: Page): Promise<number> {
   return page.evaluate(() => (window as unknown as VentanaE2E).__mapaE2E.zoom())
 }
 
+type ElementoFueraDelViewport = {
+  tag: string
+  id: string
+  clase: string
+  rect: { left: number; right: number; top: number; width: number }
+}
+
+// Recorre los elementos visibles y devuelve los que se salen del viewport sin estar dentro de un
+// contenedor con scroll horizontal propio (overflow-x auto/scroll) ni dentro del canvas de MapLibre.
+// scrollWidth del documento no basta: un hijo dentro de un ancestro overflow:hidden queda recortado
+// y el documento no lo ve, aunque sí desborde.
+function elementosFueraDelViewport(page: Page): Promise<ElementoFueraDelViewport[]> {
+  return page.evaluate(() => {
+    const ancho = window.innerWidth
+    const dentroDeScroller = (el: Element) => {
+      if (el.closest('.maplibregl-map, .maplibregl-canvas-container')) return true
+      for (let padre = el.parentElement; padre && padre !== document.body; padre = padre.parentElement) {
+        const overflowX = getComputedStyle(padre).overflowX
+        if (overflowX === 'auto' || overflowX === 'scroll') return true
+      }
+      return false
+    }
+    const fuera: ElementoFueraDelViewport[] = []
+    for (const el of Array.from(document.body.querySelectorAll('*'))) {
+      if (el.getClientRects().length === 0) continue
+      const r = el.getBoundingClientRect()
+      if (r.right <= ancho + 1 && r.left >= -1) continue
+      if (dentroDeScroller(el)) continue
+      fuera.push({
+        tag: el.tagName.toLowerCase(),
+        id: el.getAttribute('data-testid') ?? el.id,
+        clase: (el.getAttribute('class') ?? '').slice(0, 120),
+        rect: { left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), width: Math.round(r.width) },
+      })
+    }
+    return fuera
+  })
+}
+
+async function expectSinDesbordeHorizontal(page: Page, zona: string) {
+  const medidas = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    innerWidth: window.innerWidth,
+  }))
+  expect(medidas.scrollWidth, `${zona}: scrollWidth del documento supera innerWidth`).toBeLessThanOrEqual(medidas.innerWidth)
+  const fuera = await elementosFueraDelViewport(page)
+  expect(fuera, `${zona}: elementos fuera del viewport sin scroller propio: ${JSON.stringify(fuera)}`).toEqual([])
+}
+
 // Este archivo corre en los dos proyectos: escritorio (chromium) y móvil (iPhone 13).
 // Cada bloque se omite en el proyecto que no le corresponde.
 test.describe('controles del mapa en escritorio', () => {
@@ -114,15 +163,33 @@ test.describe('vista móvil (iPhone 13)', () => {
     await esperarMapaListo(page)
   })
 
+  test('la barra de pestañas es un scroller horizontal intencional', async ({ page }) => {
+    await page.goto('/mapas/infraestructura#actual')
+    await esperarMapaListo(page)
+
+    // La barra desborda 390px a propósito: .ui-tabs-list tiene overflow-x auto (map-header.module.css),
+    // así que su contenido queda dentro de ese scroller y el escáner de desborde lo excluye.
+    const tablist = page.getByRole('tablist', { name: 'Modos y vistas de ENOS 2026' })
+    const estado = await tablist.evaluate((el) => ({
+      overflowX: getComputedStyle(el).overflowX,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }))
+    expect(['auto', 'scroll'], `overflow-x del tablist: ${estado.overflowX}`).toContain(estado.overflowX)
+    expect(estado.scrollWidth, 'el tablist tiene contenido que se desplaza').toBeGreaterThan(estado.clientWidth)
+
+    const caja = await tablist.boundingBox()
+    expect(caja, 'tablist tiene caja').not.toBeNull()
+    expect(caja!.x + caja!.width).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth))
+  })
+
   test('sin desborde horizontal en el mapa y en el panel de capas', async ({ page }) => {
     await page.goto('/mapas/infraestructura#actual')
     await esperarMapaListo(page)
-    const sinDesborde = () =>
-      page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+    await expectSinDesbordeHorizontal(page, 'mapa')
 
-    expect(await sinDesborde()).toBe(true)
     await page.getByTestId('tab-capas').click()
     await expect(page.getByTestId('panel-capas')).toBeVisible()
-    expect(await sinDesborde()).toBe(true)
+    await expectSinDesbordeHorizontal(page, 'panel de capas')
   })
 })
