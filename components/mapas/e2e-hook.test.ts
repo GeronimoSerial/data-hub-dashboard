@@ -27,6 +27,7 @@ function mapaFalso(features: Record<string, unknown[]> = FEATURES_POR_CAPA) {
     queryRenderedFeatures: vi.fn((_geometria: unknown, opciones: { layers: string[] }) => features[opciones.layers[0]] ?? []),
     project: vi.fn((_lnglat: [number, number]) => ({ x: 120.5, y: 340.25 })),
     getCanvas: vi.fn(() => ({ getBoundingClientRect: () => CAJA_CANVAS })),
+    getCenter: vi.fn(() => ({ lng: -58.840373, lat: -27.46457 })),
     getZoom: vi.fn(() => 6.3),
   }
   return map
@@ -69,6 +70,12 @@ describe('instalarGanchoE2E', () => {
     vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
     instalarGanchoE2E(mapaFalso() as unknown as MapaMaplibre)
     expect(window.__mapaE2E?.zoom()).toBe(6.3)
+  })
+
+  it('centro devuelve la longitud, latitud y zoom de la cámara', () => {
+    vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
+    instalarGanchoE2E(mapaFalso() as unknown as MapaMaplibre)
+    expect(window.__mapaE2E?.centro()).toEqual({ lon: -58.840373, lat: -27.46457, zoom: 6.3 })
   })
 
   it('capasVisibles lista solo las claves con capa montada y no oculta', () => {
