@@ -60,6 +60,7 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
     vi.mocked(getSessionUser).mockResolvedValue(user)
     const { request, context } = responder('cualquiera', {
       canal: 'telefono',
+      observacion: "Observación de prueba",
       resultado: 'sin_afectacion',
     })
     const res = await POST(request, context)
@@ -72,6 +73,7 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     const { request, context } = responder(creada.verificacion.id, {
       canal: 'telefono',
+      observacion: "Observación de prueba",
       resultado: 'sin_afectacion',
     })
     const res = await POST(request, context)
@@ -86,11 +88,52 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
     expect('tokenHash' in data.verificacion).toBe(false)
   })
 
+  it('rechaza sin observación con 400 y un error que la nombra, sin escribir', async () => {
+    const creada = await crearPendiente('CUE-ASISTIDA-SIN-OBSERVACION')
+    vi.mocked(getSessionUser).mockResolvedValue(editor())
+    const { request, context } = responder(creada.verificacion.id, {
+      canal: 'telefono',
+      resultado: 'sin_afectacion',
+    })
+    const res = await POST(request, context)
+    expect(res.status).toBe(400)
+    const data = await res.json()
+    expect(data.error).toMatch(/observación/i)
+  })
+
+  it('rechaza una observación en blanco con 400', async () => {
+    const creada = await crearPendiente('CUE-ASISTIDA-OBSERVACION-BLANCA')
+    vi.mocked(getSessionUser).mockResolvedValue(editor())
+    const { request, context } = responder(creada.verificacion.id, {
+      canal: 'telefono',
+      resultado: 'sin_afectacion',
+      observacion: '   ',
+    })
+    const res = await POST(request, context)
+    expect(res.status).toBe(400)
+  })
+
+  it('guarda la observación cuando viene con texto', async () => {
+    const creada = await crearPendiente('CUE-ASISTIDA-CON-OBSERVACION')
+    vi.mocked(getSessionUser).mockResolvedValue(editor())
+    const { request, context } = responder(creada.verificacion.id, {
+      canal: 'telefono',
+      resultado: 'sin_afectacion',
+      observacion: 'Llamó la directora a las 10',
+    })
+    const res = await POST(request, context)
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.verificacion.observacion).toBe('Llamó la directora a las 10')
+    expect(data.verificacion.respondidaPor).toBeNull()
+  })
+
   it('rechaza con_afectacion con 400 desde el parseo de Zod sin lanzar excepción', async () => {
     const creada = await crearPendiente('CUE-ASISTIDA-AFECTACION')
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     const { request, context } = responder(creada.verificacion.id, {
       canal: 'telefono',
+      observacion: "Observación de prueba",
       resultado: 'con_afectacion',
     })
     const res = await POST(request, context)
@@ -105,6 +148,7 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     const { request, context } = responder(creada.verificacion.id, {
       canal: 'telefono',
+      observacion: "Observación de prueba",
       resultado: 'sin_afectacion',
       movimientoId: 'movimiento-que-no-deberia-usarse',
     })
@@ -120,6 +164,7 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     const primera = responder(creada.verificacion.id, {
       canal: 'whatsapp',
+      observacion: "Observación de prueba",
       resultado: 'no_disponible',
     })
     const res1 = await POST(primera.request, primera.context)
@@ -127,6 +172,7 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
 
     const segunda = responder(creada.verificacion.id, {
       canal: 'whatsapp',
+      observacion: "Observación de prueba",
       resultado: 'no_disponible',
     })
     const res2 = await POST(segunda.request, segunda.context)
@@ -141,6 +187,7 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     const primera = responder(creada.verificacion.id, {
       canal: 'presencial',
+      observacion: "Observación de prueba",
       resultado: 'sin_afectacion',
     })
     const res1 = await POST(primera.request, primera.context)
@@ -148,6 +195,7 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
 
     const segunda = responder(creada.verificacion.id, {
       canal: 'presencial',
+      observacion: "Observación de prueba",
       resultado: 'no_disponible',
     })
     const res2 = await POST(segunda.request, segunda.context)

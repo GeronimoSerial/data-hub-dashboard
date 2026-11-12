@@ -691,6 +691,8 @@ export const infraVerificacion = pgTable(
     respondidaEn: text('respondida_en'),
     respondidaCanal: text('respondida_canal'), // 'enlace' | 'telefono' | 'whatsapp' | 'presencial' | 'otro'
     respondidaPorUserId: text('respondida_por_user_id'),
+    respondidaPor: text('respondida_por'),
+    observacion: text('observacion'),
     movimientoId: text('movimiento_id').references(() => infraMovimiento.id),
     canceladaEn: text('cancelada_en'),
     canceladaPorUserId: text('cancelada_por_user_id'),
@@ -1208,6 +1210,8 @@ export const hidroReferencia = pgTable(
     medianaM: doublePrecision('mediana_m').notNull(),
     p10M: doublePrecision('p10_m').notNull(),
     p90M: doublePrecision('p90_m').notNull(),
+    minM: doublePrecision('min_m'),
+    maxM: doublePrecision('max_m'),
     desde: text('desde').notNull(),
     hasta: text('hasta').notNull(),
     fuente: text('fuente').notNull().default('prefectura-historico'),
@@ -1521,7 +1525,7 @@ export const infraSituacionCorte = pgTable(
     // Salud de fuentes congelada en el instante del corte (frescura ya
     // calculada, no recalculada al leer).
     fuentesSalud: jsonb('fuentes_salud')
-      .$type<Array<{ provider: string; estado: string; frescuraMinutos: number | null; vencida: boolean }>>()
+      .$type<Array<{ provider: string; estado: string; frescuraMinutos: number | null; vencida: boolean; problema?: boolean }>>()
       .notNull(),
     episodiosAbiertos: integer('episodios_abiertos').notNull().default(0),
     // Episodios que pasaron a cerrado entre el corte anterior y este.

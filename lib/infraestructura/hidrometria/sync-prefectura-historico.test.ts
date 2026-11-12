@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs'
+import { eq } from 'drizzle-orm'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, migrarDb } from '@/lib/db'
 import { hazardSourceHealth, hidroReferencia, infraJobRun } from '@/lib/db/schema'
 import { obtenerEstacionesPrefectura } from './estaciones-prefectura'
+import { parsearHistoricoPrefectura } from './historico-parser'
 import { syncPrefecturaHistorico } from './sync-prefectura-historico'
 
 // seed: false; migrations are applied explicitly in beforeAll.
@@ -79,6 +81,56 @@ describe('syncPrefecturaHistorico', () => {
     })
   })
 
+  it('guarda min_m y max_m del histórico de 365 días por estación', async () => {
+    const fetchImpl = vi.fn(async () => htmlOk(fixture))
+
+    await syncPrefecturaHistorico({
+      ahora: AHORA,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      esperar: sinEsperar,
+      minLecturas: MIN_PRUEBA,
+    })
+
+    const valores = parsearHistoricoPrefectura(fixture).map((l) => l.lecturaM)
+    const filas = await db.select().from(hidroReferencia)
+    expect(filas).toHaveLength(estacionesCorrientes.length)
+    for (const fila of filas) {
+      expect(fila.minM).toBe(Math.min(...valores))
+      expect(fila.maxM).toBe(Math.max(...valores))
+      expect(fila.minM as number).toBeLessThanOrEqual(fila.p10M)
+      expect(fila.maxM as number).toBeGreaterThanOrEqual(fila.p90M)
+    }
+  })
+
+  it('una fila previa con min_m y max_m viejos se actualiza con el histórico nuevo', async () => {
+    const estacionId = estacionesCorrientes[0]!.estacionId
+    await db.insert(hidroReferencia).values({
+      estacionId,
+      ventanaDias: 365,
+      n: 1,
+      medianaM: 1,
+      p10M: 0.5,
+      p90M: 1.5,
+      minM: 0,
+      maxM: 1,
+      desde: '2025-10-13T00:00:00.000Z',
+      hasta: '2026-10-12T00:00:00.000Z',
+      fuente: 'prefectura-historico',
+      calculadoEn: '2026-10-01T00:00:00.000Z',
+    })
+
+    await syncPrefecturaHistorico({
+      ahora: AHORA,
+      fetchImpl: vi.fn(async () => htmlOk(fixture)) as unknown as typeof fetch,
+      esperar: sinEsperar,
+      minLecturas: MIN_PRUEBA,
+    })
+
+    const valores = parsearHistoricoPrefectura(fixture).map((l) => l.lecturaM)
+    const [fila] = await db.select().from(hidroReferencia).where(eq(hidroReferencia.estacionId, estacionId))
+    expect(fila).toMatchObject({ minM: Math.min(...valores), maxM: Math.max(...valores) })
+  })
+
   it('con menos lecturas que el mínimo no guarda nada y conserva la fila previa', async () => {
     const previa = {
       estacionId: estacionesCorrientes[0]!.estacionId,
@@ -103,7 +155,8 @@ describe('syncPrefecturaHistorico', () => {
 
     expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
     const filas = await db.select().from(hidroReferencia)
-    expect(filas).toEqual([previa])
+    // minM/maxM son columnas nuevas (migración 0056): la fila previa no los tiene, quedan NULL.
+    expect(filas).toEqual([{ ...previa, minM: null, maxM: null }])
     const [job] = await db.select().from(infraJobRun)
     expect(job?.contadores).toMatchObject({
       estacionesInsuficientes: estacionesCorrientes.length,

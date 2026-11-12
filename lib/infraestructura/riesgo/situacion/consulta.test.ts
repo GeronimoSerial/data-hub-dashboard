@@ -13,6 +13,7 @@ import {
 import { PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
 import type { getDb as GetDb } from '@/lib/db'
 import type {
+  CortePersistido,
   generarCorte as GenerarCorte,
 } from './corte'
 import type {
@@ -333,3 +334,59 @@ describe('obtenerCambiosDesde', () => {
     expect(cambios.porVigencia.find((c) => c.tipo === 'riesgo')).toEqual(cambioRiesgo)
   })
 })
+
+describe('sinRun y cobertura del Centro de Situación', () => {
+  it('sin run vigente marca sinRun=true y no devuelve prioridades', async () => {
+    const estado = await obtenerEstadoSituacion()
+    expect(estado.sinRun).toBe(true)
+    expect(estado.prioridades).toEqual([])
+  })
+
+  it('con run vigente marca sinRun=false aunque no haya escuelas en riesgo alto', async () => {
+    await insertarRunVigente(db)
+    const estado = await obtenerEstadoSituacion()
+    expect(estado.sinRun).toBe(false)
+    expect(estado.prioridades).toEqual([])
+  })
+
+  it('la respuesta serializada expone corte.cobertura con sus conteos', async () => {
+    const { serializarEstadoSituacion } = await import('./consulta')
+    const corte = corteDePrueba({ cobertura: { procesadas: 10, conEvidencia: 2, sinEvidencia: 8 } })
+    const respuesta = serializarEstadoSituacion({
+      corte,
+      briefing: [],
+      atraso: { texto: 'al día' as const, atrasado: false, desactivadoPorConfig: false },
+      prioridades: [],
+      sinRun: false,
+    })
+    expect(respuesta.corte?.cobertura).toEqual({ procesadas: 10, conEvidencia: 2, sinEvidencia: 8 })
+    expect(respuesta.sinRun).toBe(false)
+  })
+
+  it('una cobertura legada o ausente se serializa como null, nunca como número inventado', async () => {
+    const { serializarEstadoSituacion } = await import('./consulta')
+    const base = { briefing: [], atraso: { texto: 'al día' as const, atrasado: false, desactivadoPorConfig: false }, prioridades: [], sinRun: true }
+    const legada = serializarEstadoSituacion({ ...base, corte: corteDePrueba({ cobertura: { foo: 1 } }) })
+    const ausente = serializarEstadoSituacion({ ...base, corte: corteDePrueba({ cobertura: null }) })
+    expect(legada.corte?.cobertura).toBeNull()
+    expect(ausente.corte?.cobertura).toBeNull()
+    expect(serializarEstadoSituacion({ ...base, corte: null }).corte).toBeNull()
+  })
+})
+
+function corteDePrueba(
+  overrides: Partial<CortePersistido>,
+): CortePersistido {
+  return {
+    id: 'corte-prueba',
+    generadoEn: '2026-09-27T12:00:00.000Z',
+    riskRunId: null,
+    cobertura: null,
+    conteosPorNivelRiesgo: {},
+    kpis: { escuelasAfectacionConfirmadaVigente: 0, escuelasRiesgoAlto24h: 0, fuentesVencidas: 0 },
+    fuentesSalud: [],
+    episodiosAbiertos: 0,
+    episodiosCerradosDesdeAnterior: 0,
+    ...overrides,
+  }
+}

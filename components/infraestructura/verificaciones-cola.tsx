@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import type { VerificacionRow } from '@/lib/infraestructura/verificaciones'
+import type { VerificacionListada } from '@/lib/infraestructura/verificaciones'
 
 // Cola de verificaciones del protocolo ENOS (batch E1). El monitoreo es
 // continuo, no episódico (se descartó el episodio administrado a mano):
@@ -13,11 +13,14 @@ import type { VerificacionRow } from '@/lib/infraestructura/verificaciones'
 //
 // `tokenHash` no forma parte de lo que la UI necesita ni debe mostrar: se
 // omite del tipo para que sea imposible renderizarlo por accidente.
-export type VerificacionVisible = Omit<VerificacionRow, 'tokenHash'>
+// `enlaceVencido` lo calcula el servidor (listarVerificaciones) contra la
+// credencial real; la UI no la recalcula.
+export type VerificacionVisible = Omit<VerificacionListada, 'tokenHash'>
 
 export type EstadoVisible =
   | 'pendiente'
   | 'pendiente_vencida'
+  | 'enlace_vencido'
   | 'respondida_sin_afectacion'
   | 'respondida_con_afectacion'
   | 'respondida_no_disponible'
@@ -25,7 +28,8 @@ export type EstadoVisible =
 
 // "Vencida" es una derivación de lectura (vencimientoEn vs. ahora), nunca un
 // estado persistido: el modelo sólo guarda 'pendiente' | 'respondida' |
-// 'cancelada'. Mismo criterio que el dominio.
+// 'cancelada'. Mismo criterio que el dominio. "Enlace vencido" gana sobre
+// "Vencida": una pendiente cuyo enlace ya no sirve se lee como tal.
 export function estadoVisible(
   v: VerificacionVisible,
   ahora: Date = new Date(),
@@ -36,6 +40,7 @@ export function estadoVisible(
     if (v.resultado === 'no_disponible') return 'respondida_no_disponible'
     return 'respondida_sin_afectacion'
   }
+  if (v.enlaceVencido) return 'enlace_vencido'
   if (v.vencimientoEn && new Date(v.vencimientoEn).getTime() < ahora.getTime()) {
     return 'pendiente_vencida'
   }
@@ -46,6 +51,7 @@ export function estadoVisible(
 const ETIQUETA: Record<EstadoVisible, string> = {
   pendiente: 'Pendiente',
   pendiente_vencida: 'Vencida',
+  enlace_vencido: 'Enlace vencido',
   respondida_sin_afectacion: 'Sin afectación',
   respondida_con_afectacion: 'Con afectación',
   respondida_no_disponible: 'No disponible',
@@ -53,7 +59,11 @@ const ETIQUETA: Record<EstadoVisible, string> = {
 }
 
 function colorEstado(estado: EstadoVisible): string {
-  if (estado === 'pendiente_vencida' || estado === 'respondida_con_afectacion') {
+  if (
+    estado === 'pendiente_vencida' ||
+    estado === 'enlace_vencido' ||
+    estado === 'respondida_con_afectacion'
+  ) {
     return 'var(--danger)'
   }
   if (estado === 'cancelada') return 'var(--ink-faint)'
@@ -281,7 +291,12 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
           <tbody>
             {verificaciones.map((v) => {
               const estado = estadoVisible(v)
-              const pendiente = estado === 'pendiente' || estado === 'pendiente_vencida'
+              // Un enlace vencido no cierra la solicitud: sigue pendiente y
+              // admite cancelar o responder de forma asistida.
+              const pendiente =
+                estado === 'pendiente' ||
+                estado === 'pendiente_vencida' ||
+                estado === 'enlace_vencido'
               return (
                 <tr key={v.id}>
                   <td style={celda}>{v.cueAnexo}</td>
@@ -376,6 +391,7 @@ function RespuestaAsistidaForm({
 }) {
   const [canal, setCanal] = useState('telefono')
   const [resultado, setResultado] = useState('sin_afectacion')
+  const [observacion, setObservacion] = useState('')
   const [enviando, setEnviando] = useState(false)
 
   async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
@@ -388,7 +404,7 @@ function RespuestaAsistidaForm({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ canal, resultado }),
+          body: JSON.stringify({ canal, resultado, observacion }),
         },
       )
       const cuerpo = await respuesta.json().catch(() => null)
@@ -445,6 +461,18 @@ function RespuestaAsistidaForm({
           <option value="sin_afectacion">Sin afectación</option>
           <option value="no_disponible">No disponible</option>
         </select>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: '1 1 14rem' }}>
+        <label htmlFor={`observacion-${verificacionId}`}>Observación</label>
+        <input
+          id={`observacion-${verificacionId}`}
+          type="text"
+          value={observacion}
+          onChange={(evento) => setObservacion(evento.target.value)}
+          disabled={enviando}
+          required
+        />
       </div>
 
       <button type="submit" style={boton} disabled={enviando}>

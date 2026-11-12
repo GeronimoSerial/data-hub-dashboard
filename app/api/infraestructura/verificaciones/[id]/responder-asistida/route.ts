@@ -13,9 +13,16 @@ import { ruta } from '@/lib/http/ruta'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const OBSERVACION_OBLIGATORIA = 'La observación es obligatoria'
+
 const responderAsistidaInputSchema = z.object({
   canal: z.enum(['telefono', 'whatsapp', 'presencial', 'otro']),
   resultado: z.enum(['sin_afectacion', 'no_disponible']),
+  // Obligatoria en la respuesta asistida: ausente, vacía o sólo espacios -> 400.
+  observacion: z
+    .string({ error: OBSERVACION_OBLIGATORIA })
+    .trim()
+    .min(1, { error: OBSERVACION_OBLIGATORIA }),
 })
 
 // Los motivos del dominio son claves estables; acá se traducen a frases.
@@ -65,6 +72,7 @@ async function handlePOST(
     actorUserId: user!.id,
     canal: parsed.data.canal,
     resultado: parsed.data.resultado,
+    observacion: parsed.data.observacion,
   })
 
   if (!resultado.ok) {
