@@ -40,6 +40,7 @@ import {
 } from '../job-run'
 import { actualizarSaludFuente, resumirErrores } from './salud-fuente'
 import { insertarPorChunks } from './chunks'
+import { purgarPronosticoAntiguo } from '../retencion-pronostico'
 
 // Ambigüedad resuelta: el contrato `HazardProvider` de tipos-hazard.ts sólo
 // declara `obtenerPronostico`; el método con diagnóstico por celda lo agrega
@@ -261,6 +262,8 @@ export async function ejecutarSyncPronosticoCaudal(params?: {
   // Seam de test: permite inyectar un `renovarLease` fake sin mockear todo el
   // módulo job-run (que además aporta adquirirLease/publicarResultado).
   renovarLease?: typeof renovarLeaseReal
+  // Seam de test: reemplaza la purga de retención (ver retencion-pronostico.ts).
+  purgarPronostico?: typeof purgarPronosticoAntiguo
 }): Promise<ResultadoEjecucionSyncPronosticoCaudal> {
   await cargarReferencias()
   const db = getDb()
@@ -309,6 +312,19 @@ export async function ejecutarSyncPronosticoCaudal(params?: {
   }
 }
 
+async function purgarRetencionSeguro(
+  db: Db,
+  ahora: Date,
+  purgar: typeof purgarPronosticoAntiguo,
+): Promise<void> {
+  try {
+    await purgar(db, { ahora })
+  } catch (error) {
+    const mensaje = error instanceof Error ? error.message : String(error)
+    console.warn(`[sync-hazard-pronostico-caudal] purga de retención falló: ${mensaje}`)
+  }
+}
+
 async function ejecutarCuerpoDelJob(ctx: {
   db: Db
   ahora: Date
@@ -319,6 +335,7 @@ async function ejecutarCuerpoDelJob(ctx: {
     ecmwfProvider?: ProveedorConDiagnostico
     floodProvider?: ProveedorConDiagnostico
     renovarLease?: typeof renovarLeaseReal
+    purgarPronostico?: typeof purgarPronosticoAntiguo
   }
   inicioBloque: Date
 }): Promise<ResultadoEjecucionSyncPronosticoCaudal> {
@@ -464,6 +481,10 @@ async function ejecutarCuerpoDelJob(ctx: {
     })
     return { ok: false, motivo: 'cobertura_parcial', resultado, puntosSinDato }
   }
+
+  // Retención (14 días de corridas): corre sólo tras una corrida completa y
+  // nunca falla el sync; un error de purga se avisa y el job queda completado.
+  await purgarRetencionSeguro(db, ahora, params?.purgarPronostico ?? purgarPronosticoAntiguo)
 
   await publicarResultado({
     jobRunId: lease.jobRunId,

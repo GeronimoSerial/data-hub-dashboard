@@ -4,6 +4,7 @@ import { hubApiAccessResponse } from '@/lib/hub-entry-server'
 import { validateAssignments } from '@/lib/cuadernillos/assignment-import'
 import { hasBookletCapability } from '@/lib/cuadernillos/permissions'
 import { getBookletAssignmentsPage } from '@/lib/cuadernillos/queries'
+import { resolveViewAsActor } from '@/lib/cuadernillos/view-as'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -50,21 +51,26 @@ async function handleGET(request: Request) {
   if (hubDenied) return privateResponse(hubDenied)
 
   const searchParams = new URL(request.url).searchParams
-  if ([...searchParams.keys()].some((key) => !['capability', 'cursor'].includes(key))) {
+  if ([...searchParams.keys()].some((key) => !['capability', 'cursor', 'viewAs'].includes(key))) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: NO_STORE })
   }
   const capabilityValues = searchParams.getAll('capability')
   const cursorValues = searchParams.getAll('cursor')
+  const viewAsValues = searchParams.getAll('viewAs')
   const parsed = querySchema.safeParse({
     capability: capabilityValues.length === 1 ? capabilityValues[0] : undefined,
     cursor: cursorValues.length === 0 ? undefined : cursorValues.length === 1 ? cursorValues[0] : null,
   })
-  if (!parsed.success) {
+  if (!parsed.success || viewAsValues.length > 1) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: NO_STORE })
   }
 
   try {
-    const page = await getBookletAssignmentsPage(actor, parsed.data.capability, {
+    const readActor = await resolveViewAsActor(actor, viewAsValues[0])
+    if (readActor.status === 'unavailable') {
+      return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403, headers: NO_STORE })
+    }
+    const page = await getBookletAssignmentsPage(readActor.actor, parsed.data.capability, {
       cursor: parsed.data.cursor ?? null,
     })
     if (!page) {

@@ -36,7 +36,7 @@ beforeEach(() => {
   })
 })
 
-function request(query = 'cueAnexo=180123456&campaignId=campaign-1') {
+function request(query = 'cueAnexo=180123457&cabeceraCueAnexo=180123456&campaignId=campaign-1') {
   return new Request(`http://localhost/api/cuadernillos/recommendations?${query}`)
 }
 
@@ -86,8 +86,9 @@ describe('GET /api/cuadernillos/recommendations', () => {
     for (const query of [
       'cueAnexo=18012345&campaignId=campaign-1',
       'cueAnexo=180123456',
-      'cueAnexo=180123456&campaignId=',
-      'cueAnexo=180123456&cueAnexo=180123457&campaignId=campaign-1',
+      'cueAnexo=180123457&campaignId=campaign-1',
+      'cueAnexo=180123457&cabeceraCueAnexo=180123456&campaignId=',
+      'cueAnexo=180123457&cueAnexo=180123458&cabeceraCueAnexo=180123456&campaignId=campaign-1',
     ]) {
       const response = await GET(request(query))
       expect(response.status).toBe(400)
@@ -111,8 +112,19 @@ describe('GET /api/cuadernillos/recommendations', () => {
     })
     expect(mocks.order).toEqual(['permission', 'recommendations'])
     expect(canAccessSchool).toHaveBeenCalledWith(expect.objectContaining({ id: 'cabecera-1' }), '180123456', 'cabecera')
-    expect(getEnrollmentRecommendations).toHaveBeenCalledWith('180123456', 'campaign-1')
+    expect(getEnrollmentRecommendations).toHaveBeenCalledWith('180123457', 'campaign-1')
     expect(JSON.stringify(body)).not.toMatch(/studentId|nombreAlumno|apellidoAlumno|dni|email|phone/i)
+  })
+
+  it('authorizes the requesting cabecera cue, not the recipient school, which needs no assignment', async () => {
+    vi.mocked(canAccessSchool).mockImplementation(async (_actor, cue) => cue === '180123456')
+
+    const response = await GET(request('cueAnexo=180999999&cabeceraCueAnexo=180123456&campaignId=campaign-1'))
+
+    expect(response.status).toBe(200)
+    expect(canAccessSchool).toHaveBeenCalledTimes(1)
+    expect(canAccessSchool).toHaveBeenCalledWith(expect.objectContaining({ id: 'cabecera-1' }), '180123456', 'cabecera')
+    expect(getEnrollmentRecommendations).toHaveBeenCalledWith('180999999', 'campaign-1')
   })
 
   it('does not expose reader failures and marks the response private', async () => {

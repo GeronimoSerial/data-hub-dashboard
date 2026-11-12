@@ -125,12 +125,28 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Capas', 'Estadísticas', 'Metodología', 'Exportar'])
   })
 
-  it('monta la metodología operativa en la pestaña y conserva el mapa', async () => {
+  it('muestra el acceso al call center solo si se habilita', () => {
+    const { unmount } = render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    expect(screen.queryByRole('link', { name: 'Call center' })).not.toBeInTheDocument()
+    unmount()
+    render(<InfraestructuraMapClient mostrarEnlaceNominal mostrarCallCenter />)
+    expect(screen.getByRole('link', { name: 'Call center' })).toHaveAttribute('href', '/call-center')
+  })
+
+  it('shows the booklet access in the header only when allowed', () => {
+    const { unmount } = render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    expect(screen.queryByRole('link', { name: 'Cuadernillos' })).not.toBeInTheDocument()
+    unmount()
+    render(<InfraestructuraMapClient mostrarEnlaceNominal mostrarCuadernillos />)
+    expect(screen.getByRole('link', { name: 'Cuadernillos' })).toHaveAttribute('href', '/cuadernillos')
+  })
+
+  it('sigue montando la metodología operativa si se llega por el hash y conserva el mapa', async () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     try {
+      window.location.hash = '#metodologia'
       render(<InfraestructuraMapClient mostrarEnlaceNominal />)
       const mapa = screen.getByTestId('mock-mapa')
-      await userEvent.click(screen.getByRole('tab', { name: 'Metodología' }))
       const metodologia = screen.getByTestId('pestana-metodologia')
       expect(metodologia).toHaveTextContent(MOTOR_VERSION)
       expect(metodologia).toHaveTextContent(REGLAS_V04_VERSION)
@@ -461,7 +477,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
       Object.defineProperty(tablist, 'clientWidth', { value: 180, configurable: true })
       Object.defineProperty(tablist, 'scrollLeft', { value: 0, configurable: true })
 
-      const tabMetodologia = screen.getByRole('tab', { name: 'Metodología' })
+      const tabMetodologia = screen.getByRole('tab', { name: 'Exportar' })
       Object.defineProperty(tabMetodologia, 'offsetLeft', { value: 320, configurable: true })
       Object.defineProperty(tabMetodologia, 'offsetWidth', { value: 110, configurable: true })
 

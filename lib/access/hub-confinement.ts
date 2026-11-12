@@ -22,6 +22,7 @@ const CONFINED_AREAS: ReadonlyArray<{ pattern: RegExp; capability: Capability }>
   { pattern: /^\/mapas\/infraestructura(\/|$)/, capability: 'infra.map.read' },
   { pattern: /^\/infraestructura\/cargar(\/|$)/, capability: 'infra.cargar' },
   { pattern: /^\/problematicas\/parte\/nuevo$/, capability: 'parte.access' },
+  { pattern: /^\/call-center(\/|$)/, capability: 'callcenter.access' },
 ]
 
 export function confinedAreaCapability(path: string): Capability | null {

@@ -8,6 +8,8 @@ import { useFullscreenTarget } from '@/components/ui/use-fullscreen-element'
 
 export interface InfraestructuraLayoutShellProps {
   mostrarEnlaceNominal: boolean
+  mostrarCallCenter?: boolean
+  mostrarCuadernillos?: boolean
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
@@ -21,6 +23,8 @@ export function esRutaRaizMapa(pathname: string | null): boolean {
 
 export function InfraestructuraLayoutShell({
   mostrarEnlaceNominal,
+  mostrarCallCenter = false,
+  mostrarCuadernillos = false,
   hazardContextEnabled = false,
   riskRadarEnabled = false,
   seasonalEnabled = false,
@@ -56,6 +60,8 @@ export function InfraestructuraLayoutShell({
           >
             <InfraestructuraMapClient
               mostrarEnlaceNominal={mostrarEnlaceNominal}
+              mostrarCallCenter={mostrarCallCenter}
+              mostrarCuadernillos={mostrarCuadernillos}
               hazardContextEnabled={hazardContextEnabled}
               riskRadarEnabled={riskRadarEnabled}
               seasonalEnabled={seasonalEnabled}
