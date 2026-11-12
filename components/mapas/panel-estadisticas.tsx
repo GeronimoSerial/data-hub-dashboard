@@ -88,7 +88,7 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
       ) : (
         <>
           <div className="ui-table-wrap map-est__tabla-wrap">
-            <table className="ui-table map-est__tabla">
+            <table className="ui-table map-est__tabla" data-testid="map-est-tabla">
               <thead>
                 <tr>
                   <th scope="col">{ETIQUETAS_AGRUPACION[por]}</th>
