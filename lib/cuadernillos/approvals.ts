@@ -6,7 +6,7 @@ import { hashAssignmentSourceRow, hashConfirmedAssignment, verifyAssignmentSourc
 import type { AssignmentSourceRow, AssignmentValidationResult } from './types'
 import type { SessionUser } from '@/lib/acl'
 import type { BookletCapability } from './types'
-import { getSchoolEligibility, lockCurrentEligibilitySources } from './eligibility'
+import { getSchoolEligibility, lockCurrentEligibilitySources, toDashedCue } from './eligibility'
 import { crearEjecutorSql, ensureGeSchema, type GeSchemaReady } from '@/lib/infraestructura/ge-db'
 import { listarPartesVigentes } from '@/lib/infraestructura/parte-mapa'
 import { BookletServiceError, type CampaignPolicy, type IdempotencyRecord } from './inventory'
@@ -105,12 +105,13 @@ export const createApprovalRepository = (db: Awaited<ReturnType<typeof getDb>>):
   async getCurrentEligibility(cueAnexo, geSchema) {
     if (!geSchema) return { eligible: false, severity: null, evaluatedAt: new Date().toISOString() }
     return getSchoolEligibility(cueAnexo, async (cue) => {
-      const { partes } = await listarPartesVigentes({ cueAnexo: cue }, {
+      const dashed = toDashedCue(cue)
+      const { partes } = await listarPartesVigentes({ cueAnexo: dashed }, {
         db,
         client: crearEjecutorSql(db),
         geSchema,
       })
-      const matches = partes.filter((parte) => parte.cueAnexo === cue)
+      const matches = partes.filter((parte) => parte.cueAnexo === dashed)
       return matches.length === 1 ? matches[0].peorSeveridad : null
     })
   },

@@ -54,3 +54,11 @@ describe('searchCriticalConsejoSchools', () => {
     ])
   })
 })
+
+describe('toDashedCue', () => {
+  it('converts booklet 9-digit CUEs to the dashed form used by map partes', async () => {
+    const { toDashedCue } = await import('./eligibility')
+    expect(toDashedCue('180119000')).toBe('1801190-00')
+    expect(toDashedCue('1801190-00')).toBe('1801190-00')
+  })
+})
