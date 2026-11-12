@@ -30,6 +30,7 @@ import { SegmentedGroup, SegmentedItem } from '@/components/ui/toggle-group'
 import { BASEMAPS } from '@/lib/map-types'
 import { ensureMapWorker } from '@/lib/map-worker'
 import { fmt, fmtPct } from '@/lib/mapas/estadisticas-natalidad'
+// Corrientes-only view: natalidad/reorganizacion are not region-aware
 import {
   DEPARTAMENTOS_URL,
   LIMITES_CORRIENTES,

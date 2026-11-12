@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 import { formatearLluviaMm, formatearLluviaNumero, formatearVientoKmh } from '@/lib/infraestructura/radar-meteo/formato'
 
 type PronosticoEscuela = {
@@ -57,7 +58,7 @@ export function PronosticoEscuelaBloque({ cueAnexo }: { cueAnexo: string }) {
                   <i
                     key={hora.hora}
                     style={{ height: `${Math.max(1, (lluvia / escalaLluvia48h) * 32)}px` }}
-                    title={`${new Date(hora.hora).toLocaleString('es-AR')}: ${formatearLluviaMm(hora.lluviaMm.valor)}`}
+                    title={`${new Date(hora.hora).toLocaleString(regionPublicaActual().locale)}: ${formatearLluviaMm(hora.lluviaMm.valor)}`}
                   />
                 )
               })}
@@ -68,7 +69,7 @@ export function PronosticoEscuelaBloque({ cueAnexo }: { cueAnexo: string }) {
           <div className="pronostico-escuela__dias">
             {pronostico.dias.map((dia) => (
               <span key={dia.fecha}>
-                {new Date(`${dia.fecha}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'short' })}
+                {new Date(`${dia.fecha}T12:00:00-03:00`).toLocaleDateString(regionPublicaActual().locale, { weekday: 'short' })}
                 <b>{formatearLluviaNumero(dia.lluviaMm)}</b>
               </span>
             ))}

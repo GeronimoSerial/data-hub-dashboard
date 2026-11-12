@@ -1,3 +1,4 @@
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 import { parsearContextoMapaDeQuery } from '@/lib/infraestructura/mapa/estado-retorno'
 import { ETIQUETA_APOYO, ETIQUETA_ESTADO_CLASES, ETIQUETA_GRAVEDAD, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
@@ -12,7 +13,6 @@ import {
 import type { FiltroLibro } from './libro-institucional'
 
 export const HORIZONTE_POR_DEFECTO: HorizonteMotor = 72
-const ZONA_HORARIA = 'America/Argentina/Buenos_Aires'
 
 export type FormatoExportacion = 'xlsx' | 'json'
 
@@ -121,7 +121,7 @@ export function etiquetasFiltros(
 
 /** Slug del título de los estados más la fecha en hora de Buenos Aires. */
 export function nombreArchivoExportacion(estados: readonly TipoExportacionEscuelas[], fecha: Date): string {
-  const dia = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_HORARIA, year: 'numeric', month: '2-digit', day: '2-digit' })
+  const dia = new Intl.DateTimeFormat('en-CA', { timeZone: regionPublicaActual().zonaHoraria, year: 'numeric', month: '2-digit', day: '2-digit' })
     .format(fecha)
   const slug = tituloExportacion(estados)
     .normalize('NFD')

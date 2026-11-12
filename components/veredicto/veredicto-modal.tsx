@@ -1,5 +1,6 @@
 'use client'
 
+import { zonaHorariaRegion } from '@/lib/infraestructura/formato-region'
 import * as React from 'react'
 import { Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState, type JSX } from 'react'
@@ -37,7 +38,7 @@ function diaSemana(fecha: string): string {
 // The label comes from the stored `tipoDia` (computed in Argentina time by the
 // job), not from the browser clock.
 function fechaHoyArgentina(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+  return new Date().toLocaleDateString('en-CA', { timeZone: zonaHorariaRegion() })
 }
 
 function diaSemanaCorto(fecha: string): string {

@@ -1,3 +1,5 @@
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
+
 export type NivelMotor = 'bajo' | 'moderado' | 'alto' | 'muy_alto'
 
 export type FactorMotor = {
@@ -53,6 +55,8 @@ const ETIQUETA_TIPO: Record<string, string> = {
   acceso: 'Acceso',
 }
 
+type TablasRegion = { estaciones: Record<string, string>; rios: Record<string, string> }
+
 const NOMBRE_ESTACION: Record<string, string> = {
   ituzaingo: 'Ituzaingó',
   corrientes: 'Corrientes',
@@ -71,6 +75,15 @@ const NOMBRE_RIO: Record<string, string> = {
   paraguay: 'Paraguay',
 }
 
+const TABLAS_POR_REGION: Record<string, TablasRegion> = {
+  corrientes: { estaciones: NOMBRE_ESTACION, rios: NOMBRE_RIO },
+}
+
+// A region without its own tables gets no river or station names and uses the generic fallback.
+function tablasDeRegion(regionId: string): TablasRegion {
+  return Object.hasOwn(TABLAS_POR_REGION, regionId) ? TABLAS_POR_REGION[regionId] : { estaciones: {}, rios: {} }
+}
+
 const COLORES_PELIGRO = ['verde', 'amarillo', 'naranja', 'rojo']
 
 const REGEX_RIO =
@@ -80,6 +93,15 @@ const REGEX_PELIGRO = /Peligro estimado (\w+) a (\d+)h/i
 type EvidenciaFactor = { contribucion: number; texto: string | null }
 
 export function explicarSnapshot(snapshot: SnapshotMotor | null, factores: FactorMotor[]): ExplicacionSnapshot {
+  return explicarSnapshotDeRegion(regionPublicaActual().id, snapshot, factores)
+}
+
+export function explicarSnapshotDeRegion(
+  regionId: string,
+  snapshot: SnapshotMotor | null,
+  factores: FactorMotor[],
+): ExplicacionSnapshot {
+  const tablas = tablasDeRegion(regionId)
   const detalleTecnico = [...factores]
     .sort((a, b) => (b.contribucion ?? 0) - (a.contribucion ?? 0))
     .map((factor) => ({ titulo: tituloTecnico(factor), texto: factor.explicacion ?? '—' }))
@@ -96,7 +118,7 @@ export function explicarSnapshot(snapshot: SnapshotMotor | null, factores: Facto
   }
 
   const nivel = snapshot.nivelRiesgo
-  const situacionActual = evidenciaActual(factores)
+  const situacionActual = evidenciaActual(factores, tablas)
   const conclusion =
     nivel === 'bajo' && situacionActual.length === 0
       ? SIN_SENALES
@@ -112,17 +134,17 @@ export function explicarSnapshot(snapshot: SnapshotMotor | null, factores: Facto
   }
 }
 
-function evidenciaActual(factores: FactorMotor[]): string[] {
+function evidenciaActual(factores: FactorMotor[], tablas: TablasRegion): string[] {
   return factores
     .filter((f) => (f.contribucion ?? 0) > 0 && f.tipo === 'amenaza')
     .filter((f) => !(f.explicacion ?? '').startsWith('No implementado'))
-    .map((f): EvidenciaFactor => ({ contribucion: f.contribucion ?? 0, texto: textoEvidencia(f) }))
+    .map((f): EvidenciaFactor => ({ contribucion: f.contribucion ?? 0, texto: textoEvidencia(f, tablas) }))
     .sort((a, b) => b.contribucion - a.contribucion)
     .flatMap((e) => (e.texto === null ? [] : [e.texto]))
 }
 
-function textoEvidencia(factor: FactorMotor): string | null {
-  if (esRio(factor)) return textoRio(factor)
+function textoEvidencia(factor: FactorMotor, tablas: TablasRegion): string | null {
+  if (esRio(factor)) return textoRio(factor, tablas)
   if (factor.variable === 'superacion_terreno' && factor.valor !== null) return textoRioV04(factor)
   if (factor.fuente === 'lluvia-observada') return textoLluvia(factor)
   if (factor.fuente === 'peligro-celda') return textoPeligro(factor)
@@ -138,7 +160,7 @@ function esRioExpuesto(factor: FactorMotor): boolean {
   return esRio(factor) && (factor.explicacion ?? '').includes('escuela expuesta')
 }
 
-function textoRio(factor: FactorMotor): string {
+function textoRio(factor: FactorMotor, tablas: TablasRegion): string {
   const valor = factor.valor ?? 0
   const fallback = `Altura del río: ${numero(valor, 2)} m.`
   const partes = REGEX_RIO.exec(factor.explicacion ?? '')
@@ -155,7 +177,7 @@ function textoRio(factor: FactorMotor): string {
         : `Normal (alerta ${numero(Number(alerta), 2)} m)`
   const clausulaTendencia = TENDENCIA[tendencia.toLowerCase()] ?? ''
 
-  return `Río ${nombreRio(rio)} en ${nombreEstacion(estacion)} — Altura del río: ${numero(valor, 2)} m${clausulaTendencia} · ${textoEstado}.`
+  return `Río ${nombreRio(rio, tablas.rios)} en ${nombreEstacion(estacion, tablas.estaciones)} — Altura del río: ${numero(valor, 2)} m${clausulaTendencia} · ${textoEstado}.`
 }
 
 // Factor río del motor v0.4: probabilidad de superación del terreno.
@@ -195,14 +217,14 @@ function tituloTecnico(factor: FactorMotor): string {
   return `${tipo} · ${factor.variable.replace(/_/g, ' ')}`
 }
 
-function nombreEstacion(slug: string): string {
+function nombreEstacion(slug: string, nombres: Record<string, string>): string {
   const clave = slug.replace(/^pna-/, '').replace(/-/g, ' ').toLowerCase()
-  return NOMBRE_ESTACION[clave] ?? capitalizar(clave)
+  return nombres[clave] ?? capitalizar(clave)
 }
 
-function nombreRio(nombre: string): string {
+function nombreRio(nombre: string, nombres: Record<string, string>): string {
   const clave = nombre.toLowerCase()
-  return NOMBRE_RIO[clave] ?? capitalizar(clave)
+  return nombres[clave] ?? capitalizar(clave)
 }
 
 function capitalizar(texto: string): string {

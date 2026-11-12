@@ -4,6 +4,7 @@
 // al abrirlo, la lista de jobs y fuentes agrupada por área con los problemas
 // primero. Cerrado cuando todo está al día; abierto y resaltado si algo falla.
 // El estado siempre es ícono + texto (el color sólo refuerza).
+import { formatoFechaRegion, localeRegion } from '@/lib/infraestructura/formato-region'
 import { useState, type CSSProperties, type JSX } from 'react'
 import { CircleCheck, CircleDashed, CircleMinus, CirclePause, CircleX, Clock, TriangleAlert } from 'lucide-react'
 import { DatoFechado } from '@/components/ui/dato-fechado'
@@ -28,18 +29,19 @@ const NOMBRE_GRUPO: Record<GrupoDato, string> = {
 
 const ORDEN_ESTADO: EstadoDato[] = ['fallido', 'sin_datos', 'pausado', 'atrasado', 'ok', 'deshabilitado']
 
-const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
-  timeZone: 'America/Argentina/Buenos_Aires',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
+function formatoFecha(): Intl.DateTimeFormat {
+  return formatoFechaRegion(localeRegion(), {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+}
 
 function fechaAbsoluta(iso: string): string {
-  const p = Object.fromEntries(FORMATO_FECHA.formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
+  const p = Object.fromEntries(formatoFecha().formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
   return `${p.day}/${p.month}/${p.year}, ${p.hour}:${p.minute}`
 }
 

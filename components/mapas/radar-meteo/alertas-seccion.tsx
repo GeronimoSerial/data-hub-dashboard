@@ -2,6 +2,7 @@
 
 import { useState, type JSX } from 'react'
 import { formatearVentanaAlerta, type GrupoAlertaRadar } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
 export function AlertasSeccion(props: {
   grupos: GrupoAlertaRadar[]
@@ -31,7 +32,7 @@ export function AlertasSeccion(props: {
             {gruposVisibles.map((grupo) => {
               const seleccionada = grupo.clave === claveSeleccionada
               const evento = `${grupo.proxima ? 'Próxima · ' : ''}${grupo.evento} · ${grupo.severidad}`
-              const departamentos = grupo.departamentos.length ? grupo.departamentos.join(', ') : 'Corrientes'
+              const departamentos = grupo.departamentos.length ? grupo.departamentos.join(', ') : regionPublicaActual().nombre
               const color = colorFranja(grupo.nivelSat)
               return (
                 <div className="map-radar-alertas__item" key={grupo.clave} data-testid="radar-alerta">

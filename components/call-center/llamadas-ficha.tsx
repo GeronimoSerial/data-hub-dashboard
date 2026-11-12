@@ -1,3 +1,4 @@
+import { localeRegion } from '@/lib/infraestructura/formato-region'
 import Link from 'next/link'
 
 export type LlamadaFicha = {
@@ -13,7 +14,7 @@ const MAXIMO_VISIBLES = 5
 function formatearFecha(valor: string): string {
   const fecha = new Date(valor)
   if (Number.isNaN(fecha.getTime())) return valor
-  return fecha.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+  return fecha.toLocaleString(localeRegion(), { dateStyle: 'short', timeStyle: 'short' })
 }
 
 export function LlamadasFicha({ llamadas }: { llamadas: LlamadaFicha[] }) {

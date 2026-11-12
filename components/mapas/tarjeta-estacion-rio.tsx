@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { distanciaAUmbral, variacionEnVentana, type PuntoNivel, type Variacion } from '@/lib/infraestructura/hidrometria/ultima-lectura'
 import { trazoSparkline } from '@/lib/mapas/sparkline'
+import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
 
 export type EstadoNivelRio = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 
@@ -29,14 +30,13 @@ const ETIQUETA_ESTADO: Record<EstadoNivelRio, string> = {
   sin_dato: 'Sin dato',
 }
 
-const FECHA = new Intl.DateTimeFormat('es-AR', {
+const OPCIONES_FECHA: Intl.DateTimeFormatOptions = {
   day: 'numeric',
   month: 'short',
   hour: '2-digit',
   minute: '2-digit',
   hour12: false,
-  timeZone: 'America/Argentina/Buenos_Aires',
-})
+}
 
 const metros = (v: number, signo = false) => `${signo && v > 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} m`
 
@@ -212,7 +212,7 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
             {haceCuanto(lectura.medidaEn, ahora)}
           </time>
           {' · '}
-          {FECHA.format(new Date(lectura.medidaEn))}
+          {formatoFechaRegion(OPCIONES_FECHA).format(new Date(lectura.medidaEn))}
           {lectura.inconsistente && <span> · Marcada como inconsistente por la fuente</span>}
         </p>
       ) : (

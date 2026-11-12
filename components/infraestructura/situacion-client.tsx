@@ -10,6 +10,7 @@
 // La escala de riesgo escolar mantiene los niveles definidos para el mapa:
 // el color es SIEMPRE un refuerzo de un texto, nunca la única señal; "Sin
 // dato" nunca se pinta de verde; el copy no usa "alerta" ni "SMN".
+import { formatoFechaRegion, localeRegion } from '@/lib/infraestructura/formato-region'
 import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { EstadoDatos } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
 import { PanelEstadoDatos } from './estado-datos/panel-estado-datos'
@@ -114,15 +115,16 @@ function etiquetaNivelRiesgo(nivel: string | null): string {
 // Built from formatToParts with an explicit 24 h cycle: `toLocaleString` output
 // depends on the runtime's ICU data (Node renders "09:05 a. m.", browsers
 // "09:05"), which broke hydration of the server-rendered page (React #418).
-const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
-  timeZone: 'America/Argentina/Buenos_Aires',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
+function formatoFecha(): Intl.DateTimeFormat {
+  return formatoFechaRegion(localeRegion(), {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+}
 
 // Sólo cuando la sonda de la cadena está ok; el texto sale del mismo item del panel.
 export function textoCadenaVerificada(estadoDatos: EstadoDatos | null): string | null {
@@ -134,7 +136,7 @@ export function textoCadenaVerificada(estadoDatos: EstadoDatos | null): string |
 export function formatearFecha(iso: string): string {
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return iso
-  const p = Object.fromEntries(FORMATO_FECHA.formatToParts(fecha).map((parte) => [parte.type, parte.value]))
+  const p = Object.fromEntries(formatoFecha().formatToParts(fecha).map((parte) => [parte.type, parte.value]))
   return `${p.day}/${p.month}/${p.year}, ${p.hour}:${p.minute}`
 }
 

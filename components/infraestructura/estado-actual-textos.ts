@@ -1,3 +1,4 @@
+import { formatoFechaRegion, localeRegion } from '@/lib/infraestructura/formato-region'
 import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Textos y formatos de la pantalla "estado actual" del director (spec §6 y
 // §17). Puro: sin React, sin fetch, sin base — así los tres componentes de
@@ -134,22 +135,13 @@ export const ETIQUETA_ESTABLECIMIENTO: Record<EstadoEstablecimiento, string> = {
   sin_clases: 'Sin clases',
 }
 
-// La provincia entera trabaja en un solo huso; fijarlo evita que el parte se
-// lea con la hora del dispositivo cuando alguien lo abre desde otro lado.
-const ZONA_HORARIA = 'America/Argentina/Buenos_Aires'
+function formatoFecha(): Intl.DateTimeFormat {
+  return formatoFechaRegion(localeRegion(), { day: 'numeric', month: 'long' })
+}
 
-const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
-  day: 'numeric',
-  month: 'long',
-  timeZone: ZONA_HORARIA,
-})
-
-const FORMATO_HORA = new Intl.DateTimeFormat('es-AR', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZone: ZONA_HORARIA,
-})
+function formatoHora(): Intl.DateTimeFormat {
+  return formatoFechaRegion(localeRegion(), { hour: '2-digit', minute: '2-digit', hour12: false })
+}
 
 /**
  * "18 de septiembre, 10:30" — el formato de los ejemplos de spec §6 y §15.
@@ -160,7 +152,7 @@ export function formatearMomento(iso: string | null | undefined): string | null 
   if (!iso) return null
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return iso
-  return `${FORMATO_FECHA.format(fecha)}, ${FORMATO_HORA.format(fecha)}`
+  return `${formatoFecha().format(fecha)}, ${formatoHora().format(fecha)}`
 }
 
 /**

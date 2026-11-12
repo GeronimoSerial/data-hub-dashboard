@@ -1,5 +1,6 @@
 'use client'
 
+import { localeRegion } from '@/lib/infraestructura/formato-region'
 import { useEffect, useState, type JSX } from 'react'
 import { CloudRain, Sun } from 'lucide-react'
 import { cantidadLluvia } from '@/lib/infraestructura/riesgo/resumen-escuela'
@@ -26,7 +27,7 @@ function capitalizar(texto: string): string {
 function etiquetaDia(fecha: string, indice: number): string {
   if (indice === 0) return 'Hoy'
   if (indice === 1) return 'Mañana'
-  const dia = new Date(`${fecha}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'long' })
+  const dia = new Date(`${fecha}T12:00:00-03:00`).toLocaleDateString(localeRegion(), { weekday: 'long' })
   return capitalizar(dia)
 }
 
