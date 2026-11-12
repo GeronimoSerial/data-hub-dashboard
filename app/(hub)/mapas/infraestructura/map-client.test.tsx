@@ -119,10 +119,10 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(screen.getByRole('button', { name: 'Más filtros, 2 activos' })).toBeInTheDocument()
   })
 
-  it('muestra una sola fila con Situación actual, Radar, Planificación, Capas, Estadísticas, Metodología y Exportar', () => {
+  it('muestra una sola fila con Situación actual, Radar, Planificación, Capas, Estadísticas y Exportar, sin la pestaña Metodología', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent?.replace(/\d+$/, '').trim())
-    expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Capas', 'Estadísticas', 'Metodología', 'Exportar'])
+    expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Capas', 'Estadísticas', 'Exportar'])
   })
 
   it('muestra el acceso al call center solo si se habilita', () => {
