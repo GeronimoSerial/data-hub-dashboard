@@ -382,7 +382,7 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
   - (c) El área del mapa se ve sin mapa base en la captura; resuelto: no es un defecto. Con 8 s de espera, Corrientes y Manaos muestran el mismo mapa base (OpenFreeMap); la captura inicial se tomó antes de que cargaran las teselas. Observación abierta para B12: con la base vacía ambas regiones abren centradas en (0, 0) (Golfo de Guinea), y el encuadre por región solo aplica cuando hay datos.
   - (d) La marca institucional de la cabecera del hub está fija en Corrientes.
   - (e) Catálogo sin scope en `lecturas-repo.ts:210`, `MAP_CENTER` de map-matricula, jobs `sync-smn-alertas`/`sync-synop-lluvia`/`importar-exposicion-rio-dem`, y secretos adicionales a B11.6.
-- Evidencia pendiente: el `COPY config` del Dockerfile (`39346b44`) todavía no está probado en una imagen construida. Cuando B9 llegue a dev, bajar la imagen de GHCR y correr dentro de ella `ls /app/config/regiones` y `scripts/jobs.mjs` con un nombre de job desconocido (imprime la lista de jobs, sin escrituras a la base) como evidencia.
+- Evidencia del `COPY config` del Dockerfile (`39346b44`): aceptada sin bajar la imagen. El builder copia todo el repositorio (`COPY . .`), `.dockerignore` no excluye `config/` y el runner hace `COPY --from=builder /app/config ./config`; un `COPY --from` de una ruta inexistente rompe el build, y "Publish GHCR image" terminó bien en `4d6277f0` (B9 en dev). La verificación directa con `docker pull` no fue posible: el token de `gh` no tiene el scope `read:packages`.
 
 ---
 
