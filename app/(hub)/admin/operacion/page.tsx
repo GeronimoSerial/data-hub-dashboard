@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
 import { adminPageGate } from '@/lib/acl'
-import { evaluarFrescuraFuente, obtenerDatoMasRecienteImerg, obtenerEstadoOperativo, type FrescuraFuente } from '@/lib/infraestructura/riesgo/salud'
+import { obtenerDatoMasRecienteImerg, obtenerEstadoOperativo } from '@/lib/infraestructura/riesgo/salud'
+import { clasificarFuente, esProblema, type ItemEstadoDato } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
+import { PROVIDER_OBSERVADO } from '@/lib/infraestructura/riesgo/peligro/observado'
 import {
   estadoAtrasoJob,
   proximaCorridaEsperada,
@@ -21,13 +23,13 @@ import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
 // llamado directamente en el cuerpo de un componente, aun siendo un Server
 // Component async — mismo patrón que ya usa `obtenerEstadoOperativo()`
 // (calcula `generadoEn` puertas adentro, no en el JSX).
-// IMERG mide la edad del gránulo más reciente (no la de la última corrida del
-// job); el resto de las fuentes, la última corrida exitosa contra su TTL.
-function calcularFrescura(
-  fuente: { provider: string; ultimoExitoEn: string | null; ttlMinutos: number },
+// Mismo criterio que el panel "Estado de los datos" y el KPI del Centro de
+// Situación (clasificarFuente): la tabla y el KPI no pueden discrepar.
+function clasificarFuenteOperacion(
+  fuente: { provider: string; estado: string; ultimoExitoEn: string | null; ultimoIntentoEn: string | null; ultimoErrorSaneado: string | null; ttlMinutos: number },
   datoMasRecienteImerg: string | null,
-): FrescuraFuente {
-  return evaluarFrescuraFuente({ ...fuente, datoMasRecienteEn: datoMasRecienteImerg, ahora: new Date() })
+): ItemEstadoDato {
+  return clasificarFuente({ ...fuente, datoMasRecienteImerg, ahora: new Date() })
 }
 
 export default async function OperacionSalud() {
@@ -143,8 +145,11 @@ export default async function OperacionSalud() {
             </thead>
             <tbody>
               {fuentes.map((fuente) => {
-                const { frescuraMinutos: frescura, limiteMinutos, vencida, base } = calcularFrescura(fuente, datoMasRecienteImerg)
-                const resaltado = fuente.estado !== 'ok' || vencida
+                const item = clasificarFuenteOperacion(fuente, datoMasRecienteImerg)
+                const resaltado = esProblema(item.estado)
+                const frescura = item.edadMinutos
+                const limiteMinutos = item.intervaloMinutos
+                const base = fuente.provider === PROVIDER_OBSERVADO ? 'dato' : 'ultimo_exito'
                 const estilo = resaltado ? 'is-danger' : undefined
                 return (
                   <tr key={fuente.provider}>
@@ -154,7 +159,7 @@ export default async function OperacionSalud() {
                     <td className={estilo}>{frescura === null ? '—' : `${frescura} min`}{base === 'dato' ? ' (edad del dato)' : ''}</td>
                     <td className={estilo}>{base === 'dato' ? `${limiteMinutos} (dato)` : fuente.ttlMinutos}</td>
                     <td className={estilo}>{fuente.licencia}</td>
-                    <td className={estilo}>{vencida ? 'vencida' : '—'}</td>
+                    <td className={estilo}>{resaltado ? item.motivo : '—'}</td>
                   </tr>
                 )
               })}

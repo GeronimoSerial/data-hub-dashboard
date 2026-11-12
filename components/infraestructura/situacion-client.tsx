@@ -25,6 +25,13 @@ export interface FuenteSaludCliente {
   estado: string
   frescuraMinutos: number | null
   vencida: boolean
+  problema?: boolean
+}
+
+export interface CoberturaSituacionCliente {
+  procesadas: number
+  conEvidencia: number
+  sinEvidencia: number
 }
 
 export interface CorteSituacionCliente {
@@ -35,6 +42,8 @@ export interface CorteSituacionCliente {
   fuentesSalud: FuenteSaludCliente[]
   episodiosAbiertos: number
   episodiosCerradosDesdeAnterior: number
+  // null: el corte no tiene cobertura legible (nunca se muestra una cifra inventada).
+  cobertura: CoberturaSituacionCliente | null
 }
 
 export interface AtrasoSituacionCliente {
@@ -64,6 +73,8 @@ export interface EstadoSituacionCliente {
   briefing: string[]
   atraso: AtrasoSituacionCliente
   prioridades: PrioridadCliente[]
+  // true: no hay corrida de riesgo vigente (las prioridades no se pudieron calcular).
+  sinRun: boolean
   // null: no se pudo leer el estado de los datos (el panel lo avisa).
   estadoDatos: EstadoDatos | null
 }
@@ -124,6 +135,7 @@ function kpiTile(props: {
   titulo: string
   valor: number
   tono: 'neutro' | 'alerta_texto'
+  nota?: string
 }): JSX.Element {
   return (
     <div
@@ -133,13 +145,23 @@ function kpiTile(props: {
     >
       <span className="situacion-kpi__titulo">{props.titulo}</span>
       <span className="situacion-kpi__valor">{props.valor}</span>
+      {props.nota !== undefined && <span className="situacion-kpi__nota">{props.nota}</span>}
     </div>
   )
 }
 
 const ENLACE_RADAR = '/mapas/infraestructura#radar'
 
-function PanelPrioridades(props: { prioridades: PrioridadCliente[] }): JSX.Element {
+function textoCobertura(cobertura: CoberturaSituacionCliente | null): string | undefined {
+  if (cobertura === null || cobertura.procesadas <= 0) return undefined
+  const porcentaje = Math.round((cobertura.conEvidencia / cobertura.procesadas) * 100)
+  return `Cobertura ${porcentaje}%`
+}
+
+function PanelPrioridades(props: { prioridades: PrioridadCliente[]; sinRun: boolean }): JSX.Element {
+  if (props.sinRun) {
+    return <p role="status">Sin cálculo de riesgo disponible</p>
+  }
   if (props.prioridades.length === 0) {
     return <p role="status">Sin escuelas en riesgo alto o muy alto en este momento.</p>
   }
@@ -280,6 +302,7 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
             titulo: 'Escuelas con riesgo alto o muy alto (24 h)',
             valor: estado.corte.kpis.escuelasRiesgoAlto24h,
             tono: estado.corte.kpis.escuelasRiesgoAlto24h > 0 ? 'alerta_texto' : 'neutro',
+            nota: textoCobertura(estado.corte.cobertura),
           })}
           {kpiTile({
             titulo: 'Fuentes vencidas',
@@ -331,7 +354,7 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
 
       <section aria-label="Prioridades">
         <h2>Prioridades (riesgo alto o muy alto)</h2>
-        <PanelPrioridades prioridades={estado.prioridades} />
+        <PanelPrioridades prioridades={estado.prioridades} sinRun={estado.sinRun} />
       </section>
     </div>
   )
