@@ -2114,7 +2114,8 @@ export const bookletQuota = pgTable('booklet_quota', {
 export const bookletRequest = pgTable('booklet_request', {
   id: text('id').primaryKey(),
   campaignId: text('campaign_id').notNull().references(() => bookletCampaign.id, { onDelete: 'restrict' }),
-  recipientCueAnexo: text('recipient_cue_anexo').notNull().references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
+  // Recipients are any Crítica Consejo school; only the requesting cabecera has an assignment row.
+  recipientCueAnexo: text('recipient_cue_anexo').notNull(),
   cabeceraCueAnexo: text('cabecera_cue_anexo').notNull().references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
   parentRequestId: text('parent_request_id'),
   rootRequestId: text('root_request_id'),
