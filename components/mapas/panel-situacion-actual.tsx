@@ -115,7 +115,7 @@ export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: Pan
     })
 
   return (
-    <section className="map-sitact" aria-label="Situación actual">
+    <section className="map-sitact" aria-label="Situación actual" data-testid="panel-situacion-actual">
       <div className="map-sitact__kpis" aria-label="Resumen de escuelas">
         <div className="map-sitact__kpi map-sitact__kpi--resaltado">
           <span>Escuelas sin clases</span>
