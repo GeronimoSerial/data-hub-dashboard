@@ -273,6 +273,7 @@ async function actualizarSalud(
   db: Db,
   erroresPorCelda: Record<string, string>,
   ahoraIso: string,
+  filas: { recibidas: number; yaSincronizado: boolean },
 ): Promise<void> {
   // Upsert único: mismo motivo de reintento que persistirPuntos.
   await actualizarSaludFuente(db, {
@@ -281,6 +282,8 @@ async function actualizarSalud(
     licencia: LICENCIA,
     ...resumirErrores(erroresPorCelda, LARGO_MAX_ERROR),
     ahoraIso,
+    filasRecibidas: filas.recibidas,
+    yaSincronizado: filas.yaSincronizado,
   })
 }
 
@@ -393,6 +396,7 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
   const erroresPorCelda: Record<string, string> = {}
   let celdasConsultadas = 0
   let filasInsertadas = 0
+  let filasRecibidas = 0
   let llamadasRealizadas = 0
   let leasePerdido = false
 
@@ -432,6 +436,7 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
     }
 
     Object.assign(erroresPorCelda, diagnostico.erroresPorCelda)
+    filasRecibidas += diagnostico.puntos.length
     filasInsertadas += await persistirPuntos(db, diagnostico.puntos, ahoraIso)
     celdasConsultadas += tanda.length
     // El puerto siempre expone el conteo real de llamadas (ver
@@ -469,7 +474,12 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
     return { ok: false, motivo: 'lease_perdido_durante_ejecucion', resultado }
   }
 
-  await actualizarSalud(db, erroresPorCelda, ahoraIso)
+  // Sin celdas pendientes (todas ya persistidas en este bloque) no hay nada
+  // que pedir: 0 filas es "ya sincronizado", no una fuente vacía.
+  await actualizarSalud(db, erroresPorCelda, ahoraIso, {
+    recibidas: filasRecibidas,
+    yaSincronizado: celdas.length === 0 && filasGeo.length > 0,
+  })
 
   const celdasSinDato = Object.values(erroresPorCelda).filter((error) => error !== ERROR_SIN_CLIMATOLOGIA).length
   if (celdasSinDato > 0) {

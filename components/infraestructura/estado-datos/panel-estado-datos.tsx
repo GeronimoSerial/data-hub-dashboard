@@ -5,13 +5,14 @@
 // primero. Cerrado cuando todo está al día; abierto y resaltado si algo falla.
 // El estado siempre es ícono + texto (el color sólo refuerza).
 import { useState, type CSSProperties, type JSX } from 'react'
-import { CircleCheck, CircleDashed, CircleMinus, CircleX, Clock, TriangleAlert } from 'lucide-react'
+import { CircleCheck, CircleDashed, CircleMinus, CirclePause, CircleX, Clock, TriangleAlert } from 'lucide-react'
 import { DatoFechado } from '@/components/ui/dato-fechado'
 import type { EstadoDato, EstadoDatos, GrupoDato, ItemEstadoDato } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
 
 const ESTADO_VISUAL: Record<EstadoDato, { texto: string; clase: string; Icono: typeof CircleCheck }> = {
   fallido: { texto: 'Falló', clase: 'badge--danger', Icono: CircleX },
   sin_datos: { texto: 'Sin datos', clase: 'badge--danger', Icono: CircleDashed },
+  pausado: { texto: 'Pausado', clase: 'badge--danger', Icono: CirclePause },
   atrasado: { texto: 'Desactualizado', clase: 'badge--warning', Icono: Clock },
   ok: { texto: 'Al día', clase: 'badge--success', Icono: CircleCheck },
   deshabilitado: { texto: 'No programado', clase: 'badge--neutral', Icono: CircleMinus },
@@ -25,7 +26,7 @@ const NOMBRE_GRUPO: Record<GrupoDato, string> = {
   geo: 'Geográficos y estáticos',
 }
 
-const ORDEN_ESTADO: EstadoDato[] = ['fallido', 'sin_datos', 'atrasado', 'ok', 'deshabilitado']
+const ORDEN_ESTADO: EstadoDato[] = ['fallido', 'sin_datos', 'pausado', 'atrasado', 'ok', 'deshabilitado']
 
 const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
   timeZone: 'America/Argentina/Buenos_Aires',

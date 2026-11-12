@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const port = process.env.MAPA_E2E_PORT ?? '3201'
 const sinRadar = process.env.MAPA_E2E_SIN_RADAR === '1'
+const pausa = process.env.MAPA_E2E_PAUSA === '1'
 
 const env = {
   ...process.env,
@@ -13,6 +14,9 @@ const env = {
   BETTER_AUTH_URL: `http://127.0.0.1:${port}`,
 }
 if (sinRadar) delete env.RISK_RADAR_ENABLED
+// Pausa operativa (I8): solo el servidor de pausa arranca con los jobs apagados; los demás quedan encendidos.
+if (pausa) env.ENOS_JOBS_ENABLED = 'false'
+else delete env.ENOS_JOBS_ENABLED
 
 const next = path.join(projectRoot, 'node_modules/next/dist/bin/next')
 const child = spawn(process.execPath, [next, 'start', '-p', port], {

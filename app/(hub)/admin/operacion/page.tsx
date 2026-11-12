@@ -8,6 +8,7 @@ import {
   TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB,
 } from '@/lib/infraestructura/riesgo/cadencias'
 import { getDb } from '@/lib/db'
+import { filasRecibidas, JOBS_ESPERADOS } from '@/lib/infraestructura/riesgo/jobs-esperados'
 import { hazardSourceHealth } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { apiKeyDesdeEntorno, obtenerResumenCupo } from '@/lib/infraestructura/riesgo/providers/cupo-om'
@@ -71,6 +72,7 @@ export default async function OperacionSalud() {
                 <th>tipo</th>
                 <th>estado</th>
                 <th>intento</th>
+                <th>Filas</th>
                 <th>actualizadaEn</th>
                 <th>errorSaneado</th>
                 <th>última corrida</th>
@@ -96,14 +98,19 @@ export default async function OperacionSalud() {
                 const proxima = nombreJob
                   ? proximaCorridaEsperada({ nombre: nombreJob, ultimaCorridaExitosaEn })
                   : null
+                // I2: filas recibidas de la última corrida completada; bajo el mínimo del job, sin datos.
+                const esperado = JOBS_ESPERADOS.find((j) => j.tipo === job.tipo)
+                const filas = esperado ? filasRecibidas(esperado, job.contadoresUltimaCompletada) : null
+                const sinDatos = esperado?.minimoFilas !== undefined && filas !== null && filas < esperado.minimoFilas
                 const resaltado =
-                  !desactivadoPorConfig && (job.leaseVencido || job.estado === 'fallido' || atrasado)
+                  !desactivadoPorConfig && (job.leaseVencido || job.estado === 'fallido' || atrasado || sinDatos)
                 const estilo = resaltado ? 'is-danger' : undefined
                 return (
                   <tr key={job.tipo}>
                     <td className={estilo}>{job.tipo}</td>
                     <td className={estilo}>{job.estado}</td>
                     <td className={estilo}>{job.intento}</td>
+                    <td className={estilo}>{filas ?? '—'}</td>
                     <td className={estilo}>{job.actualizadaEn}</td>
                     <td className={estilo}>{job.errorSaneado ?? '—'}</td>
                     <td className={estilo}>{nombreJob ? (job.ultimaCompletadaEn ?? '—') : '—'}</td>

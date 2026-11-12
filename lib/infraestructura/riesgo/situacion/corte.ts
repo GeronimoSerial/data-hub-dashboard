@@ -221,6 +221,22 @@ export async function obtenerUltimoCorte(): Promise<CortePersistido | null> {
   return fila ?? null
 }
 
+/**
+ * Fecha de publicación de la corrida de riesgo detrás de un corte, o `null` si
+ * el corte no tiene corrida o la corrida no tiene fecha. Es la fuente de la
+ * frescura del encabezado: la hora del corte no dice nada del dato que muestra.
+ */
+export async function obtenerPublicadoEnRun(riskRunId: string | null): Promise<string | null> {
+  if (riskRunId === null) return null
+  const db = getDb()
+  const [fila] = await db
+    .select({ publicadoEn: infraRiskRun.publicadoEn })
+    .from(infraRiskRun)
+    .where(eq(infraRiskRun.id, riskRunId))
+    .limit(1)
+  return fila?.publicadoEn ?? null
+}
+
 /** El corte inmediatamente anterior a `generadoEn` (estrictamente previo). */
 export async function obtenerCorteAnterior(
   generadoEn: string,
