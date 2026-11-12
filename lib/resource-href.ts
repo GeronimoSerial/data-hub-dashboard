@@ -1,4 +1,6 @@
 import { isAllowedRuta } from '@/lib/recurso-write'
+import { RECURSO_ENOS_MANAOS_ID } from '@/lib/infraestructura/rutas-hub'
+import { esRutaExterna } from '@/lib/ruta-externa'
 
 export function resourceCardTarget(recurso: {
   id: string
@@ -7,7 +9,10 @@ export function resourceCardTarget(recurso: {
 }): string | null {
   if (recurso.storageKey) return `/recursos/${encodeURIComponent(recurso.id)}`
   const ruta = recurso.ruta?.trim()
-  if (!ruta || !isAllowedRuta(ruta)) return null
+  if (!ruta) return null
+  // Allowlist por id: sólo la card del despliegue de Manaos admite URL externa.
+  if (recurso.id === RECURSO_ENOS_MANAOS_ID && esRutaExterna(ruta)) return ruta
+  if (!isAllowedRuta(ruta)) return null
   return ruta
 }
 

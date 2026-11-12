@@ -15,6 +15,7 @@ import { formatearMomentoHistorial } from '@/components/infraestructura/historia
 import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
 import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { ObservacionReporte } from './observacion-reporte'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { contar } from '@/lib/infraestructura/parte/instituto-ui'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
@@ -319,14 +320,15 @@ export function FichaEscuelaPagina({
       </button>
     ) : null
 
+  const t = useTextos().ficha
   const pestanas = [
-    { id: 'panorama', etiqueta: 'Panorama' },
+    { id: 'panorama', etiqueta: t.pestanas.panorama },
     {
       id: 'situaciones',
-      etiqueta: estado.fase === 'listo' ? `Situaciones (${afectaciones.length})` : 'Situaciones',
+      etiqueta: estado.fase === 'listo' ? t.pestanas.situacionesConteo(afectaciones.length) : t.pestanas.situaciones,
     },
-    { id: 'territorio', etiqueta: 'Territorio y clima' },
-    { id: 'historial', etiqueta: 'Historial' },
+    { id: 'territorio', etiqueta: t.pestanas.territorio },
+    { id: 'historial', etiqueta: t.pestanas.historial },
   ]
 
   return (
@@ -335,12 +337,12 @@ export function FichaEscuelaPagina({
       aria-label={`Ficha completa de ${escuela.nombre}`}
       style={{ '--ficha-cabecera-h': `${altoCabecera}px` } as CSSProperties}
     >
-      <nav className={styles.topBar} aria-label="Navegación superior">
+      <nav className={styles.topBar} aria-label={t.navegacionSuperior}>
         <Link href={urlRetornoMapa} className={styles.backLink} data-testid="volver-al-mapa">
           <ArrowLeft size={14} aria-hidden="true" />
-          <span>{vieneDelMapa ? 'Volver al mapa' : 'Ir al mapa'}</span>
+          <span>{vieneDelMapa ? t.volverAlMapa : t.irAlMapa}</span>
         </Link>
-        <span className={styles.topBarLabel}>Detalle del establecimiento</span>
+        <span className={styles.topBarLabel}>{t.detalleEstablecimiento}</span>
       </nav>
 
       <div ref={cabeceraRef} className={styles.cabecera}>
@@ -365,7 +367,7 @@ export function FichaEscuelaPagina({
             {sinUbicacion && (
               <div className={styles.sinUbicacionBanner} data-testid="ficha-sin-ubicacion">
                 <MapPinOff size={14} aria-hidden="true" />
-                <span>Ubicación no disponible en el mapa</span>
+                <span>{t.sinUbicacion}</span>
               </div>
             )}
           </div>
@@ -374,12 +376,12 @@ export function FichaEscuelaPagina({
             className={styles.primaryAction}
             data-testid="accion-actualizar-parte"
           >
-            {tieneSituacionActiva ? 'Actualizar el parte' : 'Cargar una situación'}
+            {tieneSituacionActiva ? t.actualizarParte : t.cargarSituacion}
             <ArrowUpRight size={14} aria-hidden="true" className={styles.primaryActionIcono} />
           </Link>
         </header>
 
-        <nav className={styles.tabs} aria-label="Secciones de la ficha">
+        <nav className={styles.tabs} aria-label={t.seccionesFicha}>
           {pestanas.map((pestana) => (
             <a
               key={pestana.id}
@@ -404,14 +406,14 @@ export function FichaEscuelaPagina({
             />
           )}
 
-          <section id="situaciones" className={styles.situaciones} aria-label="Situaciones">
+          <section id="situaciones" className={styles.situaciones} aria-label={t.situacionesSeccion}>
             {estado.fase === 'cargando' ? (
               <p role="status" className={styles.emptyState}>
-                Cargando situaciones del parte…
+                {t.cargandoSituaciones}
               </p>
             ) : estado.fase === 'error' ? (
               <p role="alert" className={styles.emptyState}>
-                No se pudo cargar la información operativa de la escuela.
+                {t.errorSituaciones}
               </p>
             ) : incidente ? (
               <article className={styles.incidente} data-testid="ficha-incidente">
@@ -432,7 +434,7 @@ export function FichaEscuelaPagina({
                 {incidente.impactoAlumnos && <p><ImpactoAlumnosResumen impacto={incidente.impactoAlumnos} /></p>}
                 {justificacionIncidente && (
                   <p className={styles.incidenteTexto}>
-                    <strong>Justificación de gravedad:</strong> {justificacionIncidente.etiqueta}
+                    <strong>{t.justificacionGravedad}</strong> {justificacionIncidente.etiqueta}
                     {justificacionIncidente.detalle && ` · ${justificacionIncidente.detalle}`}
                   </p>
                 )}
@@ -497,7 +499,7 @@ export function FichaEscuelaPagina({
                       </p>
                       {justificacion && (
                         <p className={styles.itemSecundarioTexto}>
-                          <strong>Justificación de gravedad:</strong> {justificacion.etiqueta}
+                          <strong>{t.justificacionGravedad}</strong> {justificacion.etiqueta}
                           {justificacion.detalle && ` · ${justificacion.detalle}`}
                         </p>
                       )}

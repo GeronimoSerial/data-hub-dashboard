@@ -348,7 +348,7 @@ exports[`hub and gate > GET /api/hub/admin as admin returns the full catalog 1`]
           "alertas",
         ],
         "tipoId": "georref",
-        "titulo": "ENOS 2026",
+        "titulo": "ENOS Corrientes",
       },
       {
         "acceso": "abrir",

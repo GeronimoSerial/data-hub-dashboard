@@ -27,7 +27,7 @@ import {
   tipos,
   user,
 } from './schema'
-import { RECURSO_INFRAESTRUCTURA_ID, upsertRecursoInfraestructura } from '@/lib/infraestructura/recurso-seed'
+import { RECURSO_INFRAESTRUCTURA_ID, upsertRecursoInfraestructura, upsertRecursoManaos } from '@/lib/infraestructura/recurso-seed'
 import { upsertRecursoNatalidad } from '@/lib/mapas/recurso-seed-natalidad'
 import { upsertRecursoReorganizacion } from '@/lib/mapas/recurso-seed-reorganizacion'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
@@ -181,6 +181,7 @@ async function seedHub() {
   // Fuera del if: corre siempre, también sobre una base ya poblada, y nunca
   // toca la audiencia configurada del recurso (ver recurso-seed.ts).
   await upsertRecursoInfraestructura()
+  await upsertRecursoManaos()
   // Una base reconstruida sólo para infraestructura conserva ese alcance.
   // El catálogo completo de instalaciones nuevas y bases existentes sigue
   // recibiendo natalidad; no se agregan otros módulos a un catálogo exclusivo.

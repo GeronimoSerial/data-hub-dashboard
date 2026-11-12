@@ -440,7 +440,7 @@ export function AppShell({
                   </span>
                   <span className="app-footer__links">
                     {shellNavAllowed(navUser, '/explorar') ? <Link href="/explorar">Explorar recursos</Link> : null}
-                    {canAccessPath('/mapas/infraestructura') ? <Link href="/mapas/infraestructura">ENOS 2026</Link> : null}
+                    {canAccessPath('/mapas/infraestructura') ? <Link href="/mapas/infraestructura">ENOS Corrientes</Link> : null}
                   </span>
                 </footer>
               </>

@@ -12,6 +12,10 @@ import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa
 import { IconoMapaLeyenda, svgMarcadorEstacion, type EstadoEstacion } from '@/lib/mapas/insignias-mapa'
 import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
 import { GLIFO_BADGE_ESTADO, SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, svgBadgeEstado } from '@/lib/mapas/iconos-mapa'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import type { Diccionario } from '@/lib/i18n'
+
+type TextosLeyenda = Diccionario['leyenda']
 
 type PropsLeyendaMapa =
   | { pestana: 'actual' }
@@ -22,20 +26,20 @@ type PropsLeyendaMapa =
 // Mismo SVG que rasteriza el mapa, a tamaño de leyenda (16 px, escala 1).
 const svgEstadoLeyenda = (icono: keyof typeof GLIFO_BADGE_ESTADO) => svgBadgeEstado(GLIFO_BADGE_ESTADO[icono], false, 16, 1)
 
-const ESTADOS_LEYENDA = [
+const estadosLeyenda = (t: TextosLeyenda) => [
   { svg: svgEstadoLeyenda('sin'), etiqueta: ETIQUETA_ESTADO_CLASES.sin },
   { svg: svgEstadoLeyenda('parcial'), etiqueta: ETIQUETA_ESTADO_CLASES.parcial },
   { svg: svgEstadoLeyenda('evacuado'), etiqueta: ETIQUETA_ESTADO_CLASES.evacuado },
   { svg: svgEstadoLeyenda('centro'), etiqueta: ETIQUETA_ESTADO_CLASES.centro },
-  { svg: svgEstadoLeyenda('reloj'), etiqueta: 'Sin actualizar' },
-  { svg: SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, etiqueta: 'Solucionada recientemente' },
+  { svg: svgEstadoLeyenda('reloj'), etiqueta: t.sinActualizar },
+  { svg: SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, etiqueta: t.solucionadaRecientemente },
 ] as const
 
-const ESTADOS_ALTURA_RIO: ReadonlyArray<{ estado: EstadoEstacion; etiqueta: string }> = [
-  { estado: 'evacuacion', etiqueta: 'Evacuación' },
-  { estado: 'alerta', etiqueta: 'Alerta' },
-  { estado: 'normal', etiqueta: 'Normal' },
-  { estado: 'sin_dato', etiqueta: 'Sin dato' },
+const ESTADOS_ALTURA_RIO: ReadonlyArray<{ estado: EstadoEstacion; clave: keyof TextosLeyenda['alturaRio'] }> = [
+  { estado: 'evacuacion', clave: 'evacuacion' },
+  { estado: 'alerta', clave: 'alerta' },
+  { estado: 'normal', clave: 'normal' },
+  { estado: 'sin_dato', clave: 'sinDato' },
 ]
 
 const OPCIONES_CORTE_LLUVIA: Intl.DateTimeFormatOptions = {
@@ -46,17 +50,15 @@ const OPCIONES_CORTE_LLUVIA: Intl.DateTimeFormatOptions = {
   minute: '2-digit',
 }
 
-function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
+function LeyendaLluviaObservada({ meta, t }: { meta: MetaLluviaObservada; t: TextosLeyenda }) {
   const hasta = meta.hasta && !Number.isNaN(Date.parse(meta.hasta)) ? formatoFechaRegion(OPCIONES_CORTE_LLUVIA).format(new Date(meta.hasta)) : null
   return (
     <div className="map-leyenda__bloque" data-testid="leyenda-lluvia">
       <b className="map-leyenda__subtitulo">
-        <DatoFechado actualizado={hasta ? `Actualizado ${hasta}` : 'Sin fecha de actualización'} vencido={meta.vencida}>
-          Lluvia observada {meta.horas} h
+        <DatoFechado actualizado={hasta ? t.lluviaActualizada(hasta) : t.lluviaSinFecha} vencido={meta.vencida}>
+          {t.lluviaObservada(meta.horas)}
         </DatoFechado>
-        <NotaInfo
-          texto={`Estimación satelital (NASA IMERG), no medición en tierra.${meta.parciales > 0 ? ` ${meta.parciales} celdas con ventana incompleta.` : ''} Hacé clic en el mapa para ver el valor.`}
-        />
+        <NotaInfo texto={t.lluviaNota(meta.parciales)} />
       </b>
       <ul className="map-leyenda__escala">
         {CLASES_LLUVIA.map((clase) => (
@@ -86,33 +88,34 @@ function usePantallaEstrecha(): boolean {
   )
 }
 
-function SituacionActual({ estacionesRio, lluviaObservada, riesgoHoy, abierta }: {
+function SituacionActual({ estacionesRio, lluviaObservada, riesgoHoy, abierta, t }: {
   abierta: boolean
   riesgoHoy: boolean
   estacionesRio: boolean
   lluviaObservada: MetaLluviaObservada | null
+  t: TextosLeyenda
 }) {
   return (
     <details className="map-leyenda__seccion" open={abierta}>
-      <summary className="map-leyenda__seccion-titulo">Situación actual</summary>
+      <summary className="map-leyenda__seccion-titulo">{t.situacionActual}</summary>
       <div className="map-leyenda__seccion-cuerpo">
         {estacionesRio && (
           <div className="map-leyenda__bloque" data-testid="leyenda-estaciones">
-            <b className="map-leyenda__subtitulo">Estaciones de Prefectura<NotaInfo texto="Una lectura de más de 18 h conserva su último nivel; su antigüedad está en la ficha de la estación." /></b>
+            <b className="map-leyenda__subtitulo">{t.estacionesPrefectura}<NotaInfo texto={t.estacionesNota} /></b>
             <ul className="map-leyenda__situacion">
-              {ESTADOS_ALTURA_RIO.map(({ estado, etiqueta }) => (
+              {ESTADOS_ALTURA_RIO.map(({ estado, clave }) => (
                 <li className="map-leyenda__elemento" key={estado}>
                   <IconoMapaLeyenda svg={svgMarcadorEstacion(estado, 0.6)} />
-                  <span>{etiqueta}</span>
+                  <span>{t.alturaRio[clave]}</span>
                 </li>
               ))}
             </ul>
           </div>
         )}
-        {lluviaObservada && <LeyendaLluviaObservada meta={lluviaObservada} />}
+        {lluviaObservada && <LeyendaLluviaObservada meta={lluviaObservada} t={t} />}
         {riesgoHoy && (
           <div className="map-leyenda__bloque" data-testid="leyenda-riesgo-hoy">
-            <b className="map-leyenda__subtitulo">Escuelas en riesgo hoy</b>
+            <b className="map-leyenda__subtitulo">{t.riesgoHoy}</b>
             <ul className="map-leyenda__fila">
               {(['muy_alto', 'alto', 'moderado'] as const).map((nivel) => (
                 <li className="map-leyenda__elemento" key={nivel}>
@@ -128,10 +131,10 @@ function SituacionActual({ estacionesRio, lluviaObservada, riesgoHoy, abierta }:
   )
 }
 
-function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
+function ReferenciasRiesgo({ props, t }: { props: PropsLeyendaMapa; t: TextosLeyenda }) {
   // Riesgo hoy de Planificación comparte la escala del motor con el Radar.
   if (props.pestana === 'planificacion' && props.vista === 'riesgo') {
-    return <ReferenciasRiesgo props={{ pestana: 'radar', horizonte: props.horizonte ?? 24 }} />
+    return <ReferenciasRiesgo props={{ pestana: 'radar', horizonte: props.horizonte ?? 24 }} t={t} />
   }
   if (props.pestana === 'radar') {
     const niveles = [
@@ -143,8 +146,8 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
     return (
       <>
         <b className="map-leyenda__titulo">
-          Riesgo actual (hoy) · {ETIQUETA_HORIZONTE_MOTOR[props.horizonte]}
-          <NotaInfo texto="Las demás escuelas se ven como puntos grises tenues al acercar el mapa (zoom 9 o más); con un clic se abre su ficha." />
+          {t.riesgoActual(ETIQUETA_HORIZONTE_MOTOR[props.horizonte])}
+          <NotaInfo texto={t.riesgoActualNota} />
         </b>
         <ul className="map-leyenda__fila">
           {niveles.map(([nivel, etiqueta]) => (
@@ -187,8 +190,8 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
   if (props.pestana === 'actual') {
     return (
       <>
-        <p>El color indica la gravedad del establecimiento o la prioridad calculada de inaccesibilidad de alumnos, según la situación principal.</p>
-        <p>La prioridad de alumnos combina el porcentaje de la matrícula afectada y la cantidad de alumnos. Sin matrícula o selección vigente, no se asigna un nivel.</p>
+        <p>{t.gravedadActual}</p>
+        <p>{t.prioridadAlumnos}</p>
         <ul className="map-leyenda__fila map-leyenda__gravedades">
           {[...SEVERIDADES].reverse().map((severidad) => (
             <li className="map-leyenda__elemento" key={severidad}>
@@ -202,7 +205,7 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
           ))}
           <li className="map-leyenda__elemento" key="sin-situaciones">
             <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--neutra" />
-            <span>Sin situaciones</span>
+            <span>{t.sinSituaciones}</span>
           </li>
         </ul>
       </>
@@ -214,6 +217,7 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
 
 export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; lluviaObservada?: MetaLluviaObservada | null; riesgoHoy?: boolean }) {
   const estrecha = usePantallaEstrecha()
+  const t = useTextos().leyenda
   const estacionesRio = Boolean(props.estacionesRio)
   const lluviaObservada = props.lluviaObservada ?? null
   const riesgoHoy = Boolean(props.riesgoHoy)
@@ -222,7 +226,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
   if (props.pestana === 'estadisticas' && !hayCapas) return null
 
   return (
-    <aside className={`map-leyenda map-leyenda--${props.pestana}`} aria-label="Referencias del mapa" data-testid="leyenda-mapa">
+    <aside className={`map-leyenda map-leyenda--${props.pestana}`} aria-label={t.ariaReferencias} data-testid="leyenda-mapa">
       {hayCapas && (
         <SituacionActual
           // Fuera de "Situación actual" manda la escala de la pestaña: estas referencias quedan plegadas.
@@ -230,22 +234,23 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
           estacionesRio={estacionesRio}
           lluviaObservada={lluviaObservada}
           riesgoHoy={riesgoHoy}
+          t={t}
         />
       )}
       {props.pestana !== 'estadisticas' && (
         <details className="map-leyenda__seccion" open={!estrecha || props.pestana === 'radar' || props.pestana === 'planificacion'}>
-          <summary className="map-leyenda__seccion-titulo">{props.pestana === 'actual' ? 'Gravedad / prioridad' : 'Riesgo / gravedad'}</summary>
+          <summary className="map-leyenda__seccion-titulo">{props.pestana === 'actual' ? t.gravedadPrioridad : t.riesgoGravedad}</summary>
           <div className="map-leyenda__seccion-cuerpo">
-            <ReferenciasRiesgo props={props} />
+            <ReferenciasRiesgo props={props} t={t} />
           </div>
         </details>
       )}
       {props.pestana === 'actual' && (
         <details className="map-leyenda__seccion">
-          <summary className="map-leyenda__seccion-titulo">Símbolos</summary>
+          <summary className="map-leyenda__seccion-titulo">{t.simbolos}</summary>
           <div className="map-leyenda__seccion-cuerpo">
             <ul className="map-leyenda__simbolos">
-              {ESTADOS_LEYENDA.map(({ svg, etiqueta }) => (
+              {estadosLeyenda(t).map(({ svg, etiqueta }) => (
                 <li className="map-leyenda__elemento" key={etiqueta}>
                   <IconoMapaLeyenda svg={svg} />
                   <span>{etiqueta}</span>

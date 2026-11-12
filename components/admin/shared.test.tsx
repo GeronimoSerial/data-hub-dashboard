@@ -13,7 +13,7 @@ describe('admin hub labels', () => {
       cuadernillos: 'Cuadernillos',
     })
     expect(DESTINATION_LABELS['/cuadernillos']).toBe('Cuadernillos')
-    expect(DESTINATION_LABELS['/mapas/infraestructura']).toBe('ENOS 2026')
+    expect(DESTINATION_LABELS['/mapas/infraestructura']).toBe('ENOS Corrientes')
     expect(DESTINATION_LABELS['/problematicas/parte/nuevo']).toBe('Nuevo parte de infraestructura')
   })
 })
