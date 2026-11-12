@@ -244,28 +244,86 @@ export function openGeDb(): Client {
   return createClient({ url: `file:${getGeSqlitePath()}` })
 }
 
+// Lock de bootstrap: serializa entre procesos y servidores el DDL de GE
+// (schema, tablas, función guard y triggers). Sin él, dos arranques concurrentes
+// sobre una base fresca chocan en CREATE SCHEMA/TABLE, y CREATE OR REPLACE
+// FUNCTION sobre la misma función falla con "tuple concurrently updated".
+const GE_BOOTSTRAP_LOCK_CLASS = 1196445508
+const GE_BOOTSTRAP_LOCK_OBJECT = 1196445509
+
+// Cuerpo de la función guard, tal cual lo guarda Postgres en pg_proc.prosrc
+// (el texto entre los $$). Es la única fuente: se usa tanto para el CREATE como
+// para comparar contra prosrc. No modificar sin una migración de la función.
+const CUERPO_GUARD_ELIGIBILITY = [
+  '',
+  '    BEGIN',
+  `      PERFORM pg_advisory_xact_lock(${BOOKLET_ELIGIBILITY_LOCK_CLASS}, ${BOOKLET_ELIGIBILITY_LOCK_OBJECT});`,
+  '      RETURN NULL;',
+  '    END;',
+  '    ',
+].join('\n')
+
+const CREATE_GUARD_ELIGIBILITY = `CREATE OR REPLACE FUNCTION public.booklet_eligibility_source_write_guard()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$${CUERPO_GUARD_ELIGIBILITY}$$`
+
+const SQL_PROSRC_GUARD_ELIGIBILITY = `SELECT p.prosrc FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'booklet_eligibility_source_write_guard'`
+
+// Bootstrap memoizado por identidad de cliente crudo (pool, PGlite o tx de
+// drizzle). Una entrada fallida se borra para que el siguiente llamado reintente.
+const bootstrapPorCliente = new WeakMap<object, Promise<void>>()
+
+function claveDeCliente(client: EjecutorSql): object {
+  return (rawDeEjecutor(client) ?? client) as object
+}
+
 export async function ensureGeSchema(client: EjecutorSql): Promise<GeSchemaReady> {
-  for (const stmt of GE_DDL) {
-    await client.execute(stmt)
+  const clave = claveDeCliente(client)
+  let listo = bootstrapPorCliente.get(clave)
+  if (!listo) {
+    const nuevo = bootstrapGeSchema(client)
+    bootstrapPorCliente.set(clave, nuevo)
+    nuevo.catch(() => {
+      if (bootstrapPorCliente.get(clave) === nuevo) bootstrapPorCliente.delete(clave)
+    })
+    listo = nuevo
   }
-  await ensureEligibilitySourceGuard(client)
+  await listo
   return Object.freeze({ [geSchemaReadyBrand]: true })
 }
 
-async function ensureEligibilitySourceGuard(client: EjecutorSql): Promise<void> {
-  await client.execute(`
-    CREATE OR REPLACE FUNCTION public.booklet_eligibility_source_write_guard()
-    RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-    BEGIN
-      PERFORM pg_advisory_xact_lock(${BOOKLET_ELIGIBILITY_LOCK_CLASS}, ${BOOKLET_ELIGIBILITY_LOCK_OBJECT});
-      RETURN NULL;
-    END;
-    $$
-  `)
+// Test-only: olvida el bootstrap memoizado de este cliente para forzar una
+// nueva pasada contra la base.
+export function __resetGuardCacheForTests(client: EjecutorSql): void {
+  bootstrapPorCliente.delete(claveDeCliente(client))
+}
+
+// Corre todo el DDL dentro de una transacción dedicada que primero toma el lock
+// de bootstrap. Con PGlite (una sola conexión) ejecutarEnTransaccion usa BEGIN
+// directo sobre la misma sesión; con pg.Pool reserva una conexión propia.
+async function bootstrapGeSchema(client: EjecutorSql): Promise<void> {
+  await ejecutarEnTransaccionDedicada(client, async (tx) => {
+    await tx.execute(
+      `SELECT pg_advisory_xact_lock(${GE_BOOTSTRAP_LOCK_CLASS}, ${GE_BOOTSTRAP_LOCK_OBJECT})`,
+    )
+    for (const stmt of GE_DDL) {
+      await tx.execute(stmt)
+    }
+    await ensureEligibilitySourceGuard(tx)
+  })
+}
+
+async function ensureEligibilitySourceGuard(tx: EjecutorSql): Promise<void> {
+  const existente = await tx.execute(SQL_PROSRC_GUARD_ELIGIBILITY)
+  const prosrc = existente.rows.length > 0 ? (existente.rows[0].prosrc as string) : undefined
+  if (prosrc !== CUERPO_GUARD_ELIGIBILITY) {
+    await tx.execute(CREATE_GUARD_ELIGIBILITY)
+  }
   for (const table of ['ge_corte', 'ge_seccion', 'ge_alumno_seccion', 'ge_localizacion']) {
-    await client.execute(`
+    await tx.execute(`
       DO $$
       BEGIN
         IF NOT EXISTS (
