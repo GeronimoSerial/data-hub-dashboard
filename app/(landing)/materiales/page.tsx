@@ -84,7 +84,7 @@ export default async function MaterialesPage() {
               <h2 id="aula-virtual-titulo">Aulas virtuales</h2>
               <p>Solicitá un aula virtual o accedé a Educaplay.</p>
             </div>
-            <div className={styles.files}>
+            <div className={`${styles.files} ${styles.classroomActions}`}>
               <a className={styles.download} href="https://forms.gle/vrFAisMjeMWEa9TKA">
                 Solicitar aula virtual <ExternalLink size={19} aria-hidden="true" />
               </a>
