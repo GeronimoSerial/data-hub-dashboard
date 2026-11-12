@@ -173,6 +173,43 @@ describe('SituacionClient', () => {
   })
 })
 
+describe('encabezado: frescura según la corrida de riesgo detrás del corte (I1)', () => {
+  it('con la corrida desactualizada muestra "Desactualizado"', () => {
+    render(
+      <SituacionClient
+        estadoInicial={{
+          ...ESTADO_CON_CORTE,
+          atraso: { texto: 'atrasado', atrasado: true, desactivadoPorConfig: false },
+        }}
+      />,
+    )
+    expect(document.querySelector('.situacion-page__generado')?.textContent).toBe(
+      'Corte generado el 27/09/2026, 09:00 — Desactualizado',
+    )
+  })
+
+  it('sin fecha verificable de la corrida muestra "No verificable" y nunca se lee como al día', () => {
+    render(
+      <SituacionClient
+        estadoInicial={{
+          ...ESTADO_CON_CORTE,
+          atraso: { texto: 'no verificable', atrasado: false, desactivadoPorConfig: false },
+        }}
+      />,
+    )
+    const texto = document.querySelector('.situacion-page__generado')?.textContent ?? ''
+    expect(texto).toBe('Corte generado el 27/09/2026, 09:00 — No verificable')
+    expect(texto).not.toMatch(/Desactualizado/)
+  })
+
+  it('con la corrida al día no muestra ningún estado de frescura (control sano)', () => {
+    render(<SituacionClient estadoInicial={ESTADO_CON_CORTE} />)
+    expect(document.querySelector('.situacion-page__generado')?.textContent).toBe(
+      'Corte generado el 27/09/2026, 09:00',
+    )
+  })
+})
+
 describe('formatearFecha — igual en servidor y navegador (sin error de hidratación)', () => {
   it('formatea un instante fijo en hora de Buenos Aires, 24 h, sin depender del ICU del runtime', () => {
     expect(formatearFecha('2026-10-14T12:05:00.000Z')).toBe('14/10/2026, 09:05')

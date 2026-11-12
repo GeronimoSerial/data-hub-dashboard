@@ -244,9 +244,11 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
             Corte generado el {formatearFecha(estado.corte.generadoEn)}
             {estado.atraso.desactivadoPorConfig
               ? ' — jobs batch en pausa operativa'
-              : estado.atraso.atrasado
-                ? ' — Desactualizado'
-                : ''}
+              : estado.atraso.texto === 'no verificable'
+                ? ' — No verificable'
+                : estado.atraso.atrasado
+                  ? ' — Desactualizado'
+                  : ''}
           </p>
         )}
         {/* Región aria-live polite: anuncia el refresco sin mover el foco del
