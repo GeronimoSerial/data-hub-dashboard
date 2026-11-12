@@ -48,14 +48,14 @@ async function startDatabase(state) {
   if (process.env.E2E_DATABASE_URL) return process.env.E2E_DATABASE_URL
 
   const name = `mapa-enos-e2e-${crypto.randomUUID().slice(0, 8)}`
-  const password = `pg-${crypto.randomUUID()}`
+  const pgSecret = `pg-${crypto.randomUUID()}`
   const database = 'mapa_e2e'
   // Recorded before `docker run` so cleanup also covers a partially started container.
   state.container = name
 
   const run = docker(
     ['run', '-d', '--rm', '--name', name, '-e', 'POSTGRES_PASSWORD', '-e', `POSTGRES_DB=${database}`, '-p', '127.0.0.1::5432', 'postgres:16-alpine'],
-    { env: { ...process.env, POSTGRES_PASSWORD: password }, stdio: ['ignore', 'pipe', 'inherit'] },
+    { env: { ...process.env, POSTGRES_PASSWORD: pgSecret }, stdio: ['ignore', 'pipe', 'inherit'] },
   )
   if (run.status !== 0) throw new Error(`docker run failed with ${run.status}`)
 
@@ -67,7 +67,7 @@ async function startDatabase(state) {
   const deadline = Date.now() + 90_000
   while (Date.now() < deadline) {
     const ready = docker(['exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres', '-d', database], { stdio: 'ignore' })
-    if (ready.status === 0) return `postgres://postgres:${password}@127.0.0.1:${hostPort}/${database}`
+    if (ready.status === 0) return `postgres://postgres:${pgSecret}@127.0.0.1:${hostPort}/${database}`
     await new Promise((resolve) => setTimeout(resolve, 1000))
   }
   throw new Error(`PostgreSQL in ${name} was not ready after 90 s`)
@@ -142,6 +142,8 @@ try {
     BETTER_AUTH_SECRET: `mapa-e2e-local-only-${crypto.randomUUID()}-${crypto.randomUUID()}`,
     MAPA_E2E_PORT: port,
     MAPA_E2E_SIN_RADAR_PORT: sinRadarPort,
+    // Salt for the QA account passwords (cuentas-qa.ts). Seed, setup and specs all read it from this env.
+    MAPA_E2E_QA_SAL: crypto.randomUUID(),
     // Set only by `pnpm test:e2e:mapa:snapshots`: specs rewrite contratos/snapshots in the workspace copy.
     ...(process.env.MAPA_E2E_ACTUALIZAR_SNAPSHOTS ? { MAPA_E2E_ACTUALIZAR_SNAPSHOTS: process.env.MAPA_E2E_ACTUALIZAR_SNAPSHOTS } : {}),
     // Feature flags for the map (see lib/infraestructura/riesgo/flags.ts).
