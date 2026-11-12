@@ -19,15 +19,14 @@ function StatusChip({ request }: { request: BookletRequestSummary }) {
   )
 }
 
-function RequestRow({ request, readOnly, onRequested }: {
+function RequestRow({ request, onRequested }: {
   request: BookletRequestSummary
-  readOnly: boolean
   onRequested: (message: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const detailId = `request-detail-${request.requestId}`
   const ficha = fichaEscuelaHref(request.recipientCueAnexo)
-  const canRemainder = !readOnly && request.status === 'approved' && request.rootRequestId === request.requestId && request.remaining.length > 0
+  const canRemainder = request.status === 'approved' && request.rootRequestId === request.requestId && request.remaining.length > 0
   const submittedAt = request.submittedAt ? new Date(request.submittedAt).toLocaleDateString('es-AR') : null
   return (
     <article className="cab-req">
@@ -66,15 +65,13 @@ function RequestRow({ request, readOnly, onRequested }: {
           ) : null}
         </div>
       ) : null}
-      {canRemainder ? <RemainderAction request={request} disabled={readOnly} onRequested={onRequested} /> : null}
+      {canRemainder ? <RemainderAction request={request} onRequested={onRequested} /> : null}
     </article>
   )
 }
 
-export function MyRequests({ refreshKey, readOnly, viewAsUserId, onRequested }: {
+export function MyRequests({ refreshKey, onRequested }: {
   refreshKey: number
-  readOnly: boolean
-  viewAsUserId: string | null
   onRequested: (message: string) => void
 }) {
   const [page, setPage] = useState<BookletRequestsPage | null>(null)
@@ -83,7 +80,7 @@ export function MyRequests({ refreshKey, readOnly, viewAsUserId, onRequested }: 
 
   useEffect(() => {
     let active = true
-    fetch(`/api/cuadernillos/requests?${scopedQuery({ limit: String(PAGE_SIZE), viewAs: viewAsUserId })}`, { cache: 'no-store' })
+    fetch(`/api/cuadernillos/requests?${scopedQuery({ limit: String(PAGE_SIZE) })}`, { cache: 'no-store' })
       .then(async (response) => {
         const data = await readJson(response)
         if (!response.ok || !isRequestsPage(data)) throw new Error('No se pudieron cargar tus pedidos.')
@@ -95,13 +92,13 @@ export function MyRequests({ refreshKey, readOnly, viewAsUserId, onRequested }: 
         if (active) setError(reason instanceof Error ? reason.message : 'No se pudieron cargar tus pedidos.')
       })
     return () => { active = false }
-  }, [refreshKey, viewAsUserId])
+  }, [refreshKey])
 
   async function loadMore() {
     if (!page?.nextCursor || !page.campaignId || loadingMore) return
     setLoadingMore(true)
     try {
-      const query = scopedQuery({ campaignId: page.campaignId, cursor: page.nextCursor, limit: String(PAGE_SIZE), viewAs: viewAsUserId })
+      const query = scopedQuery({ campaignId: page.campaignId, cursor: page.nextCursor, limit: String(PAGE_SIZE) })
       const response = await fetch(`/api/cuadernillos/requests?${query}`, { cache: 'no-store' })
       const data = await readJson(response)
       if (!response.ok || !isRequestsPage(data)) throw new Error('No se pudieron cargar más pedidos.')
@@ -131,7 +128,7 @@ export function MyRequests({ refreshKey, readOnly, viewAsUserId, onRequested }: 
       {page?.requests.length ? (
         <div className="cab-req-list">
           {page.requests.map((request) => (
-            <RequestRow key={request.requestId} request={request} readOnly={readOnly} onRequested={onRequested} />
+            <RequestRow key={request.requestId} request={request} onRequested={onRequested} />
           ))}
         </div>
       ) : null}

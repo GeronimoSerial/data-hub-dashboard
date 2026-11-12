@@ -2,26 +2,18 @@
 
 import { useEffect, useState } from 'react'
 import type { BookletCampaignOption } from '@/lib/cuadernillos/types'
-import { CabeceraCombobox } from './cabecera-combobox'
 import { CabeceraStyles } from './cabecera-styles'
 import { ChoiceGroup } from './choice-group'
 import { Button } from '@/components/ui/button'
 import {
-  isAssignmentsPage, isCabeceraList, isOverview, loadJson, scopedQuery,
+  isAssignmentsPage, isOverview, loadJson, scopedQuery,
   type CabeceraChoice, type CriticalSchool, type Overview,
 } from './cabecera-api'
 import { MyRequests } from './my-requests'
 import { QuantitiesForm } from './quantities-form'
 import { SchoolSearch } from './school-search'
 
-export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
-  isAdmin: boolean
-  readOnly: boolean
-  viewAsUserId?: string | null
-}) {
-  // An admin has no cabecera of their own: they pick the requesting cabecera first.
-  const showAdminPicker = isAdmin && !readOnly
-  const [adminCabeceras, setAdminCabeceras] = useState<CabeceraChoice[] | null>(null)
+export function CabeceraHome() {
   const [ownCabeceras, setOwnCabeceras] = useState<CabeceraChoice[] | null>(null)
   const [cabeceraError, setCabeceraError] = useState<string | null>(null)
   const [pickedCue, setPickedCue] = useState<string | null>(null)
@@ -36,26 +28,9 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
   // Each load owns its state: it ends in data or in an error (never a silent drop), and a
   // timeout in loadJson turns a request that never answers into that error.
   useEffect(() => {
-    if (!showAdminPicker) return
-    let active = true
-    const load = loadJson('/api/cuadernillos/cabeceras', isCabeceraList, 'No se pudieron cargar las cabeceras.')
-    load.promise
-      .then((data) => {
-        if (!active) return
-        setAdminCabeceras(data.cabeceras.map((row) => ({ cue: row.cue, nombre: row.nombre })))
-        setCabeceraError(null)
-      })
-      .catch((reason: unknown) => {
-        if (active) setCabeceraError(reason instanceof Error ? reason.message : 'No se pudieron cargar las cabeceras.')
-      })
-    return () => { active = false; load.cancel() }
-  }, [showAdminPicker, retryKey])
-
-  useEffect(() => {
-    if (showAdminPicker) return
     let active = true
     const load = loadJson(
-      `/api/cuadernillos/assignments?${scopedQuery({ capability: 'cabecera', viewAs: viewAsUserId })}`,
+      `/api/cuadernillos/assignments?${scopedQuery({ capability: 'cabecera' })}`,
       isAssignmentsPage,
       'No se pudieron cargar las cabeceras de esta cuenta.',
     )
@@ -71,12 +46,12 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
         if (active) setCabeceraError(reason instanceof Error ? reason.message : 'No se pudieron cargar las cabeceras de esta cuenta.')
       })
     return () => { active = false; load.cancel() }
-  }, [showAdminPicker, viewAsUserId, retryKey])
+  }, [retryKey])
 
   useEffect(() => {
     let active = true
     const load = loadJson(
-      `/api/cuadernillos/overview?${scopedQuery({ capability: 'cabecera', campaignId, viewAs: viewAsUserId })}`,
+      `/api/cuadernillos/overview?${scopedQuery({ capability: 'cabecera', campaignId })}`,
       isOverview,
       'No se pudo cargar la campaña.',
     )
@@ -92,14 +67,14 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
         if (active) setOverviewError(reason instanceof Error ? reason.message : 'No se pudo cargar la campaña.')
       })
     return () => { active = false; load.cancel() }
-  }, [campaignId, viewAsUserId, retryKey])
+  }, [campaignId, retryKey])
 
-  const cabeceraOptions = (showAdminPicker ? adminCabeceras : ownCabeceras) ?? []
+  const cabeceraOptions = ownCabeceras ?? []
   const activeCue = pickedCue && cabeceraOptions.some((option) => option.cue === pickedCue)
     ? pickedCue
-    : showAdminPicker ? null : cabeceraOptions[0]?.cue ?? null
+    : cabeceraOptions[0]?.cue ?? null
   const campaignOptions: BookletCampaignOption[] = overview?.campaignOptions ?? []
-  const loadingCabeceras = showAdminPicker ? adminCabeceras === null : ownCabeceras === null
+  const loadingCabeceras = ownCabeceras === null
   const noCabecera = !loadingCabeceras && !activeCue && !cabeceraError
 
   function pickCabecera(cue: string) {
@@ -144,35 +119,18 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
         ) : null}
         {loadingCabeceras && !cabeceraError ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando cabeceras…</p> : null}
 
-        {showAdminPicker && cabeceraOptions.length > 0 ? (
-          <div className="cab-stack" style={{ gap: '.5rem' }}>
-            <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Cabecera que pide</span>
-            <CabeceraCombobox
-              label="Cabecera que pide"
-              disabled={readOnly}
-              value={activeCue}
-              onPick={pickCabecera}
-              options={cabeceraOptions}
-            />
-          </div>
-        ) : null}
-        {!showAdminPicker && cabeceraOptions.length > 1 ? (
+        {cabeceraOptions.length > 1 ? (
           <div className="cab-stack" style={{ gap: '.5rem' }}>
             <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Cabecera que pide</span>
             <ChoiceGroup
               label="Cabecera que pide"
-              disabled={readOnly}
               value={activeCue ?? ''}
               onPick={pickCabecera}
               options={cabeceraOptions.map((option) => ({ value: option.cue, label: `${option.nombre} · CUE ${option.cue}` }))}
             />
           </div>
         ) : null}
-        {showAdminPicker && adminCabeceras?.length === 0 ? <p style={{ margin: 0, color: 'var(--ink-soft)' }}>No hay cabeceras cargadas.</p> : null}
-        {noCabecera && showAdminPicker && adminCabeceras?.length ? (
-          <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Elegí la cabecera en cuyo nombre se hace el pedido.</p>
-        ) : null}
-        {noCabecera && !showAdminPicker && ownCabeceras?.length === 0 ? (
+        {noCabecera && ownCabeceras?.length === 0 ? (
           <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Esta cuenta no tiene una cabecera asignada para pedir cuadernillos.</p>
         ) : null}
 
@@ -187,7 +145,6 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
             <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Campaña</span>
             <ChoiceGroup
               label="Campaña"
-              disabled={readOnly}
               value={campaignId}
               onPick={pickCampaign}
               options={campaignOptions.map((campaign) => ({ value: campaign.id, label: campaign.name }))}
@@ -210,7 +167,6 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
                   campaignId={campaignId}
                   cabeceraCue={activeCue}
                   balances={overview.balances}
-                  readOnly={readOnly}
                   onSaved={saved}
                 />
               </div>
@@ -223,7 +179,7 @@ export function CabeceraHome({ isAdmin, readOnly, viewAsUserId = null }: {
         {notice ? <p role="status" style={{ margin: 0, color: 'var(--ink)', fontWeight: 600 }}>{notice}</p> : null}
       </div>
 
-      <MyRequests refreshKey={refreshKey} readOnly={readOnly} viewAsUserId={viewAsUserId} onRequested={saved} />
+      <MyRequests refreshKey={refreshKey} onRequested={saved} />
     </section>
   )
 }
