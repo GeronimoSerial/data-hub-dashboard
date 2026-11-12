@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import { cp, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
+import { cp, mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,6 +21,7 @@ const env = {
   NEXT_TELEMETRY_DISABLED: '1',
   DATA_DIR: data,
   DATABASE_URL: '',
+  NOMINAL_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
   BETTER_AUTH_URL: baseURL,
   BETTER_AUTH_SECRET: `t7b-local-only-${crypto.randomUUID()}-${crypto.randomUUID()}`,
   PROBLEMATICAS_ACCESO_PASSWORD: `t7b-local-only-${crypto.randomUUID()}`,
@@ -67,6 +69,17 @@ try {
     },
   })
   await symlink(path.join(root, 'node_modules'), path.join(project, 'node_modules'), 'dir')
+  // Test-only: PGlite allows one connection per data dir, so the copy's prerender must not run workers in parallel.
+  await rename(path.join(project, 'next.config.mjs'), path.join(project, 'next.config.base.mjs'))
+  await writeFile(
+    path.join(project, 'next.config.mjs'),
+    [
+      "import base from './next.config.base.mjs'",
+      '// Test-only: PGlite allows one connection per data dir, so prerender workers must not run in parallel.',
+      'export default { ...base, experimental: { ...base.experimental, cpus: 1 } }',
+      '',
+    ].join('\n'),
+  )
 
   console.log(`T7b isolated runtime: ${project}; database/data: ${data}; browser base: ${baseURL}`)
   run(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'build', '--webpack'], project)
