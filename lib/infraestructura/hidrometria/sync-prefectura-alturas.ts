@@ -79,6 +79,7 @@ async function registrarSaludPrefectura(
   estado: 'ok' | 'degradado' | 'no_disponible',
   ultimoErrorSaneado: string | null,
   ahora: Date,
+  filasRecibidas?: number,
 ) {
   try {
     await actualizarSaludFuente(getDb(), {
@@ -88,6 +89,7 @@ async function registrarSaludPrefectura(
       estado,
       ultimoErrorSaneado,
       ahoraIso: ahora.toISOString(),
+      filasRecibidas,
     })
   } catch {
     console.warn('[sync-prefectura-alturas] no se pudo registrar la salud de la fuente')
@@ -144,7 +146,9 @@ export async function syncPrefecturaAlturas(
       contadores,
       ahora,
     })
-    await registrarSaludPrefectura('ok', null, ahora)
+    // Filas recibidas de la página, no las insertadas: un re-sync con todas
+    // las lecturas ya guardadas sigue siendo ok.
+    await registrarSaludPrefectura('ok', null, ahora, filas.length)
     return { ejecutado: true, estado: 'completo', contadores }
   } catch (error) {
     const mensaje = mensajeSaneado(error)
