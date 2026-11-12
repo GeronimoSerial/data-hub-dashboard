@@ -122,7 +122,7 @@ const databaseReadRepository: BookletRequestReadRepository = {
     if (!scope.planning) {
       const scopes = []
       if (scope.cabeceraCues.length) scopes.push(inArray(bookletRequest.cabeceraCueAnexo, scope.cabeceraCues))
-      if (scope.supervisorCues.length) scopes.push(inArray(bookletRequest.recipientCueAnexo, scope.supervisorCues))
+      if (scope.supervisorCues.length) scopes.push(inArray(bookletRequest.cabeceraCueAnexo, scope.supervisorCues))
       if (scopes.length === 0) return []
       predicates.push(or(...scopes)!)
     }
@@ -244,8 +244,8 @@ export async function canAccessRequest(
     const scope = await repository.getRequestSchoolScope(requestId)
     if (!scope) return false
     if (capability === 'planning') return hasBookletCapability(actor, capability, repository)
-    const cueAnexo = capability === 'cabecera' ? scope.cabeceraCueAnexo : scope.recipientCueAnexo
-    return canAccessSchool(actor, cueAnexo, capability, repository)
+    // Both the requesting cabecera and its supervisor are bound to the cabecera's assignment row.
+    return canAccessSchool(actor, scope.cabeceraCueAnexo, capability, repository)
   } catch {
     return false
   }
@@ -346,3 +346,14 @@ export async function getBookletRequestPage(
   return { campaignId: selectedCampaignId, campaignOptions: [], requests: visible.slice(0, pageSize), hasMore, nextCursor }
 }
 
+
+/** True when the actor can open the booklet workspace in any capability (admins included). */
+export async function hasAnyBookletAccess(
+  actor: SessionUser | null,
+  repository: BookletPermissionRepository = databaseRepository,
+): Promise<boolean> {
+  for (const capability of ['planning', 'cabecera', 'supervisor'] as const) {
+    if (await hasBookletCapability(actor, capability, repository)) return true
+  }
+  return false
+}

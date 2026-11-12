@@ -133,6 +133,14 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(screen.getByRole('link', { name: 'Call center' })).toHaveAttribute('href', '/call-center')
   })
 
+  it('shows the booklet access in the header only when allowed', () => {
+    const { unmount } = render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    expect(screen.queryByRole('link', { name: 'Cuadernillos' })).not.toBeInTheDocument()
+    unmount()
+    render(<InfraestructuraMapClient mostrarEnlaceNominal mostrarCuadernillos />)
+    expect(screen.getByRole('link', { name: 'Cuadernillos' })).toHaveAttribute('href', '/cuadernillos')
+  })
+
   it('sigue montando la metodología operativa si se llega por el hash y conserva el mapa', async () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     try {

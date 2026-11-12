@@ -1,3 +1,4 @@
+import { hasAnyBookletAccess } from '@/lib/cuadernillos/permissions'
 import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
@@ -34,6 +35,7 @@ export default async function InfraestructuraMapLayout({
     <InfraestructuraLayoutShell
       mostrarEnlaceNominal={mostrarEnlaceNominal}
       mostrarCallCenter={can(user, 'callcenter.access')}
+      mostrarCuadernillos={await hasAnyBookletAccess(user)}
       hazardContextEnabled={hazardContextEnabled()}
       riskRadarEnabled={riskRadarEnabled()}
       seasonalEnabled={seasonalEnabled()}
