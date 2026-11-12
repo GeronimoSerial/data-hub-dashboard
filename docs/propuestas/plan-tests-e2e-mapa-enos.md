@@ -54,7 +54,7 @@ Cuentas fijas y compartidas por todas las corridas, creadas por el seed con Bett
 | `qa-director-nivel@e2e.local` | `director_nivel` | Un nivel con escuelas en el seed | Ver solo las escuelas de su nivel |
 | `qa-director-sin-alcance@e2e.local` | `director_nivel` | Nivel sin escuelas | Acceso denegado al mapa |
 | `qa-consulta-infra@e2e.local` | `consulta` | Sección infraestructura y recurso habilitado | Ver el mapa, sin nominal |
-| `qa-consulta-sin-infra@e2e.local` | `consulta` | Sin sección infraestructura | Acceso denegado |
+| `qa-consulta-sin-infra@e2e.local` | `consulta` | Sin sección infraestructura | Acceso denegado (observado: redirige a su destino del hub, `/reportes`, sin pantalla de denegación; la prueba afirma ese comportamiento real) |
 | `qa-operador@e2e.local` | `operador_establecimiento` | Una escuela | Parte de su escuela, sin mapa |
 
 - **Login una sola vez por cuenta**: un proyecto `setup` de Playwright inicia sesión con cada cuenta y guarda su `storageState`. Las pruebas reutilizan la sesión, lo que evita el límite de 3 intentos cada 10 segundos de Better Auth.

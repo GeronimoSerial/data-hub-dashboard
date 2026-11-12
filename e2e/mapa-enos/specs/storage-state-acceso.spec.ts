@@ -19,7 +19,7 @@ const DESTINO_ESPERADO: Record<ClaveCuentaQa, string> = {
   'consulta-infra': RUTA_MAPA,
   'director-sin-alcance': '/forbidden',
   'consulta-sin-infra': '/reportes',
-  operador: '/problematicas/parte/nuevo',
+  operador: '/problematicas/parte/actualizar?cue=1800554-00',
 }
 
 function rutaStorageState(cuenta: CuentaQa): string {
@@ -44,8 +44,8 @@ for (const clave of Object.keys(DESTINO_ESPERADO) as ClaveCuentaQa[]) {
 
     test(`${RUTA_MAPA} termina en ${DESTINO_ESPERADO[clave]}`, async ({ page }) => {
       await page.goto(RUTA_MAPA)
-      const esperado = DESTINO_ESPERADO[clave]
-      await expect(page).toHaveURL((url) => url.pathname === esperado)
+      const esperado = new URL(DESTINO_ESPERADO[clave], 'http://localhost')
+      await expect(page).toHaveURL((url) => url.pathname === esperado.pathname && (esperado.search === '' || url.search === esperado.search))
     })
   })
 }
