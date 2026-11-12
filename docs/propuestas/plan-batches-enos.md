@@ -463,6 +463,197 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 
 ---
 
+## Salida a producción (agregado 12/11/2026)
+
+Pedido del dueño del producto (12/11/2026): "sale la pestaña metodología, pero parece que aun no esta terminado. Necesitamos crear las tareas en coolify, ademas arreglar esa fuga de seguridad, y lo que falta para manaos y salir en vivo debe estar todo tambien. Asi que extiende el plan con lo necesario, y vamos a ir hasta staging ahora".
+
+Dos frentes. **Corrientes:** B1–B11 llegan a staging y después a prod. **Manaos:** todo lo que falta para salir en vivo, desde la validación de datos hasta la operación.
+
+### Mapa de dependencias
+
+```
+Dev:         P1, P4, M1, M2 ─► P2 (staging) ─► P3 (Coolify) ─► P5 (prod)
+             P6 (Metodología, sin fecha)
+
+Manaos:      M0 (decisiones y datos, dueño) ─┬─► M1 (interfaz pt) ─┐
+                                              ├─► M2 (región limpia) ─┼─► B12 ─► M3 (infraestructura) ─► M4 (salida en vivo)
+                                              └───────────────────────┘          B13–B16 después de M4
+```
+
+| Batch | Nombre | Depende de | Responsable | Riesgo |
+|---|---|---|---|---|
+| P1 | Correcciones previas a staging | B11 | Agente | Alto (seguridad) |
+| P2 | Promoción a staging de B1–B11 y de todo lo de este plan que ya esté en dev | P1, P4, M1, M2 en dev | Agente; el dueño aprueba los cambios visibles | Alto (entrega, migraciones) |
+| P3 | Tareas programadas en Coolify | P2 | Dueño, o agente con acceso autorizado | Medio (entrega) |
+| P4 | Pendientes del repositorio | — | Agente y dueño | Bajo |
+| P5 | Promoción a prod | P2, P3; aprobación explícita | Agente | Alto (entrega, migraciones) |
+| P6 | Terminar la pestaña Metodología | Definición del dueño | Agente | Bajo |
+| M0 | Decisiones y datos de Manaos (B0) | — | Dueño | — |
+| M1 | Interfaz en portugués completa (B10b ampliado) | B10 | Agente | Bajo |
+| M2 | Región sin supuestos de Corrientes | B11 | Agente | Medio |
+| M3 | Infraestructura de Manaos | M0, M1, M2, B12 | Dueño y agente | Alto (entrega, secretos) |
+| M4 | Salida en vivo de Manaos | M3 | Dueño | Alto |
+
+---
+
+### P1 — Correcciones previas a staging
+
+| Subtarea | Acción | Estado |
+|---|---|---|
+| P1.1 | Ocultar la pestaña Metodología: no está terminada. Se quita el botón de la barra; el panel sigue disponible por `#metodologia`, como en prod | Hecho en `chore/enos-pre-staging` |
+| P1.2 | `listarVerificaciones` deja de devolver `tokenHash`. La página `/admin/verificaciones` lo serializaba al navegador. Staging y prod tienen la misma fuga | Hecho, con prueba en rojo previa y verificación independiente |
+
+**CA:**
+- CA1: la barra del mapa muestra Situación actual, Radar, Planificación, Capas, Estadísticas y Exportar; `#metodologia` sigue abriendo el panel.
+- CA2: ninguna fila de `listarVerificaciones` tiene la clave `tokenHash`. La prueba falla si se revierte el cambio.
+- CA3: suite e2e del mapa y pruebas de verificaciones en verde.
+
+### P2 — Promoción a staging
+
+**Orden (decisión del dueño, 12/11/2026):** "igual el promote a staging es recien cuando esté el plan extendido terminado en dev". P2 empieza cuando P1, P4 (partes del agente), M1 y M2 estén en dev. Lo que depende del dueño o de datos externos (P3, P6, M0, B12, M3, M4) no bloquea P2.
+
+Rama `promote/enos-b1-b11-staging`, cortada de `origin/staging`, con `git cherry-pick -x` de los commits de los PR #260, #264, #265, #267, #274 y #281 a #286 (57 commits), más P1.2. El PR #280 (sincronización main → dev) no se incluye.
+
+**Decisiones de la promoción:**
+- **`ee38606f` no se incluye.** Agregaba la prueba e2e del botón de Metodología, que staging no tiene. Por la misma razón, P1.1 no hace falta en staging.
+- **Pestañas del mapa:** se conservan los `data-testid` nuevos y no se agrega el botón de Metodología.
+- **`components/cuadernillos/request-list.tsx`:** staging ya lo había eliminado, y se mantiene eliminado.
+- **`sync-pronostico-caudal.test.ts`:** se conservan los dos bloques de pruebas.
+- **Archivos tocados por ENOS:** iguales a los de dev, salvo esos tres puntos.
+- **Migraciones:** `0057` y `0058` se aplican después de la `0056` de staging, porque los `when` son crecientes.
+- **Jobs:** el único job nuevo es `sonda-cadena-datos`. No se renombra ninguno.
+
+| Subtarea | Acción |
+|---|---|
+| P2.1 | tsc, lint, `vitest --changed origin/staging` y suite e2e del mapa completa sobre la rama |
+| P2.2 | PR a `staging` con merge commit; "Publish GHCR image" en verde; `https://staging.analisis.sistemas.mec.gob.ar/api/health` responde `{"ok":true}` |
+| P2.3 | Confirmar en la base de staging que `0057` y `0058` se aplicaron (`drizzle.__drizzle_migrations`). El health en verde no lo prueba |
+| P2.4 | Revisar staging con una sesión: card "ENOS Corrientes", barra sin Metodología, Centro de Situación y cola de verificaciones |
+
+**Cambios visibles que llegan a staging (aprobados o a confirmar):**
+- **Centro de Situación** (aprobado): frescura, volumen, plausibilidad, cobertura y fila de la sonda.
+- **Renombre** a "ENOS Corrientes" en la card, la navegación, las etiquetas de admin y el `aria-label` de las pestañas (aprobado).
+- **Cola de verificaciones** (B6, a confirmar):
+  - muestra "Enlace vencido";
+  - la respuesta asistida exige una observación y sin ella devuelve 400.
+
+**Efecto esperado:** hasta que exista la tarea de P3, el Centro de Situación de staging muestra la sonda como "Nunca corrió".
+
+### P3 — Tareas programadas en Coolify
+
+Se crean por cada entorno que corre jobs (staging y prod). Los comandos y cron salen de `deploy/regiones/scheduler-jobs.md` y del runbook `docs/ejecucion-enos/OPS1/runbook-scheduler.md`.
+
+| Tarea | Comando | Cron | Condición |
+|---|---|---|---|
+| Sonda de la cadena de datos | `node scripts/jobs.mjs sonda-cadena-datos` | `41 * * * *` | — |
+| Veredicto diario | `node scripts/jobs.mjs veredicto-diario` | `45 0,6,12,18 * * *` | `AI_VEREDICTO_ENABLED=true` |
+| Cierre del veredicto | `node scripts/jobs.mjs veredicto-cierre` | `30 3 * * *` | — |
+
+**CA:**
+- CA1: en el panel de operación, `sonda-cadena-datos` corrió y salió bien en la hora siguiente.
+- CA2: el encabezado del Centro de Situación muestra "Cadena de datos verificada a las HH:MM".
+- CA3: la zona horaria del cron de Coolify está confirmada y anotada en el runbook.
+- CA4: las escuelas testigo (1800643-00, 1801605-04, 1801131-00) y las estaciones (pna-corrientes, pna-paso-de-los-libres) existen con datos en el entorno; si no, se ajustan con `SONDA_ESCUELAS_TESTIGO` y `SONDA_ESTACIONES_TESTIGO`.
+
+**Acceso:** el agente no tiene credenciales de Coolify. El dueño crea las tareas, o autoriza explícitamente el destino, la operación y la credencial a usar.
+
+### P4 — Pendientes del repositorio
+
+| Subtarea | Acción | Responsable |
+|---|---|---|
+| P4.1 | Actualizar el snapshot del catálogo de `/api/hub/admin` (`app/api/caracterizacion.test.ts`, falta `planificacion-territorial`) | Agente |
+| P4.2 | Revisar las 4 pruebas de hub-access que ya fallaban en `main` (`hub-access.spec.ts:171`, `:255`, `reportes-offline.spec.ts:351`): regresión real o prueba desactualizada | Agente |
+| P4.3 | Marcar `e2e-mapa` como check requerido en la protección de las ramas | Dueño |
+| P4.4 | Marcar los incidentes de GitGuardian 39981436, 39981437 y 39992761 como credencial de prueba | Dueño |
+| P4.5 | `obtenerVerificacion` también devuelve `tokenHash`; hoy no llega al cliente, pero conviene una proyección sin ese campo | Agente |
+| P4.6 | Alinear dev con staging en archivos que staging ya eliminó (por ejemplo `components/cuadernillos/request-list.tsx`) | Agente |
+
+### P5 — Promoción a prod
+
+Igual que P2, desde `origin/prod`. Requiere la aprobación explícita del dueño y P3 hecho en prod.
+
+**Diferencia con staging:** prod no tiene la migración `0054`. Hay que verificar el orden del journal de prod antes de promover.
+
+P1.2 puede adelantarse a prod como hotfix aislado, porque la fuga existe hoy en prod.
+
+### P6 — Terminar la pestaña Metodología
+
+La pestaña queda oculta hasta que se termine. Antes de reintroducir el botón, el dueño define qué le falta: contenido, secciones y fuentes. Al reintroducirla, se actualizan juntas la prueba unitaria de las pestañas y la prueba e2e de `pestanas.spec.ts`.
+
+---
+
+### M0 — Decisiones y datos de Manaos (dueño)
+
+Es el B0 de este plan más las decisiones de operación. Sin M0 no se instancia nada.
+
+| Subtarea | Decisión o entregable |
+|---|---|
+| M0.1 | B0.1–B0.7 completos: padrón INEP con coordenadas, estaciones ANA, niveles del puerto (SGB), licencia FABDEM, estaciones virtuales, contacto SEDUC-AM y SEMED, alertas INMET |
+| M0.2 | Jurisdicción del alojamiento de datos (LGPD) y proveedor: el mismo Coolify u otro |
+| M0.3 | Dominio público de Manaos (define `ENOS_MANAOS_URL` para la card del hub de Corrientes) |
+| M0.4 | Límites definitivos del área piloto (reemplazan los provisionales de `config/regiones/manaos.json`) |
+| M0.5 | Marca institucional de la cabecera de Manaos: logo, nombre y organismo |
+| M0.6 | Usuarios iniciales y quién administra el despliegue |
+
+### M1 — Interfaz en portugués completa
+
+Amplía B10b. Bloquea la salida en vivo.
+
+| Subtarea | Acción |
+|---|---|
+| M1.1 | Barrido de diccionarios pendiente de B10: cuerpo de las secciones de la ficha, `ETIQUETA_ESTADO_CLASES`, `ETIQUETA_NIVEL_RIESGO`, `TITULO_LEYENDA_VISTA`, etiquetas de `BASEMAPS`, accesos del control de capas, radar y estadísticas |
+| M1.2 | Restos en español vistos en Manaos: panel "SITUACIÓN ACTUAL", "Ver provincia", "Veredicto diario", "Pantalla completa", "Ninguna escuela..." |
+| M1.3 | Centro de Situación y panel de operación en portugués |
+| M1.4 | Prueba que recorre los componentes del mapa y falla si queda un texto visible fuera de los diccionarios (B10 CA3) |
+
+**CA:**
+- CA1: con `REGION=manaos`, la prueba e2e de cambio a portugués recorre pestañas, leyenda, ficha, radar, estadísticas y Centro de Situación sin textos en español.
+- CA2: Corrientes sin cambios (snapshots idénticos, e2e en verde).
+
+### M2 — Región sin supuestos de Corrientes
+
+| Subtarea | Acción |
+|---|---|
+| M2.1 | La leyenda de Prefectura sigue `fuentesRio` de la región: no aparece en Manaos |
+| M2.2 | Marca de la cabecera del hub por región (M0.5) |
+| M2.3 | Vista inicial con la base vacía: centrar en los límites de la región, no en (0, 0) |
+| M2.4 | Catálogo con scope por región en `lecturas-repo.ts:210` y `MAP_CENTER` de map-matricula |
+| M2.5 | Regla de aplicabilidad para `sync-smn-alertas`, `sync-synop-lluvia` e `importar-exposicion-rio-dem` (hoy no se excluyen por región) |
+| M2.6 | Comportamiento de `sonda-cadena-datos` sin Prefectura |
+
+**CA:**
+- CA1: con `REGION=manaos` y la base vacía, el mapa abre en el área de Manaos y no muestra elementos de Corrientes.
+- CA2: un job que no aplica a Manaos sale con código 2.
+- CA3: Corrientes sin cambios.
+
+### B12–B16
+
+Sin cambios: datos y proveedores de Manaos (B12), bajante (B13), acceso fluvial (B14), calibración (B15) y alertas (B16). **B12 es requisito de M3:** sin padrón ni niveles de río, Manaos sale vacío. B13–B16 pueden seguir después de la salida en vivo.
+
+### M3 — Infraestructura de Manaos
+
+Sigue `docs/ejecucion-enos/OPS1/runbook-nueva-region.md` y `deploy/regiones/`.
+
+| Subtarea | Acción | Responsable |
+|---|---|---|
+| M3.1 | Aplicación de Coolify con la misma imagen y `REGION=manaos`, base Postgres propia y dominio de M0.3 | Dueño, o agente con acceso autorizado |
+| M3.2 | Secretos: los de B11.6 (`DATABASE_URL`, `OPEN_METEO_API_KEY`, `EARTHDATA_TOKEN`, `OPENROUTER_API_KEY`, `RIESGO_DATOS_ROL`) más `NOMINAL_ENCRYPTION_KEY`, `ADMIN_PASSWORD`, `MATRICULA_DNI_SECRET`, `DATASET_SALT_E7B`, `AI_API_KEY`, `OBS_*` y `GE_SSO_API_KEY`. Valores nuevos, nunca copiados de Corrientes | Dueño |
+| M3.3 | Carga de datos: `pnpm region:cargar manaos` con los datasets de B12 | Agente |
+| M3.4 | Tareas programadas de la tabla "Manaos" de `deploy/regiones/scheduler-jobs.md`, más las de los proveedores de B12. Las marcadas "revisar" o "no programar" esperan a M2.5 | Dueño, o agente con acceso autorizado |
+| M3.5 | Monitoreo y backup de la base, igual que Corrientes | Dueño |
+| M3.6 | `ENOS_MANAOS_URL` en Corrientes, solo cuando Manaos esté en vivo: hace visible la card "ENOS Manaos" en el hub | Dueño |
+
+### M4 — Salida en vivo de Manaos
+
+**Criterios de salida:**
+- Suite e2e de Manaos (B12 CA3) y de Corrientes en verde en CI.
+- El Centro de Situación de Manaos muestra datos reales y frescos, con la sonda en verde durante 48 h.
+- Interfaz sin textos en español (M1 CA1).
+- Secretos propios, backup probado y runbook revisado.
+- Aprobación explícita del dueño.
+
+---
+
 ## Criterios comunes a todos los batches
 
 - Pruebas y documentación en el mismo batch que el comportamiento.

@@ -21,7 +21,7 @@ const CASOS_HASH = [
   { hash: '#radar', tab: 'tab-radar', panel: 'panel-radar', mapa: true },
   { hash: '#planificacion', tab: 'tab-planificacion', panel: 'panel-planificacion', mapa: true },
   { hash: '#estadisticas', tab: 'tab-estadisticas', panel: 'pestana-estadisticas', mapa: false },
-  { hash: '#metodologia', tab: 'tab-metodologia', panel: 'pestana-metodologia', mapa: false },
+  { hash: '#metodologia', tab: null, panel: 'pestana-metodologia', mapa: false },
   { hash: '#exportar', tab: 'tab-exportar', panel: 'pestana-exportar', mapa: false },
 ] as const
 

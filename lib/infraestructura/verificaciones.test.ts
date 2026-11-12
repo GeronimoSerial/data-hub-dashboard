@@ -731,6 +731,16 @@ describe('listarVerificaciones', () => {
     expect(porId.get(vencida.verificacion.id)?.enlaceVencido).toBe(true)
     expect(porId.get(vigente.verificacion.id)?.enlaceVencido).toBe(false)
   })
+
+  it('no devuelve tokenHash: la lista llega serializada al cliente de /admin/verificaciones', async () => {
+    const cue = cueUnico()
+    const creada = await verificacionPendiente(cue)
+
+    const [listada] = await listarVerificaciones({ cueAnexo: cue })
+    expect(listada.id).toBe(creada.verificacion.id)
+    expect(Object.keys(listada)).not.toContain('tokenHash')
+    expect(JSON.stringify(listada)).not.toContain(creada.verificacion.tokenHash)
+  })
 })
 
 describe('auditoría de quién respondió (B6.6)', () => {

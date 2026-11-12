@@ -305,9 +305,6 @@ export function InfraestructuraMapClient(props: {
               >
                 {t.modos.estadisticas}
               </TabsTab>
-              <TabsTab value="metodologia" className={styles.tabTrigger} data-testid="tab-metodologia">
-                Metodología
-              </TabsTab>
               <TabsTab value="exportar" className={styles.tabTrigger} data-testid="tab-exportar">
                 {t.modos.exportar}
               </TabsTab>
