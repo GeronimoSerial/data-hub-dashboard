@@ -39,24 +39,21 @@ export function PlanningSummary({ balances, requests }: { balances: BookletBalan
 
       <section aria-labelledby="quota-summary-title">
         <h3 id="quota-summary-title" style={sectionTitle}>Cupos por cabecera</h3>
-        <div style={{ overflowX: 'auto', marginTop: '.75rem' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <caption style={{ textAlign: 'left', padding: '0 0 .5rem', color: 'var(--ink-soft)', fontSize: '.9rem' }}>
-              Cupo disponible restante, no el total asignado.
-            </caption>
+        <div style={{ overflowX: 'auto', marginTop: '.75rem', maxWidth: '100%' }}>
+          <table className="cdl-stack-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr>
                 <th scope="col" style={cell}>Producto</th>
                 <th scope="col" style={cell}>Cabecera</th>
-                <th scope="col" style={cell}>Cupo</th>
+                <th scope="col" style={cell}>Cupo disponible</th>
               </tr>
             </thead>
             <tbody>
               {balances.map((row) => (
                 <tr key={`${row.productId}:${row.cabeceraCueAnexo ?? 'no-head'}`}>
-                  <th scope="row" style={cell}>{row.productLabel}</th>
-                  <td style={cell}>{row.cabeceraName ? `${row.cabeceraName} · ${row.cabeceraCueAnexo}` : 'Sin cabeceras confirmadas'}</td>
-                  <td style={cell}>{row.quotaAvailable ?? 'No disponible'}</td>
+                  <th scope="row" data-label="Producto" style={cell}>{row.productLabel}</th>
+                  <td data-label="Cabecera" style={cell}>{row.cabeceraName ? `${row.cabeceraName} · ${row.cabeceraCueAnexo}` : 'Sin cabeceras confirmadas'}</td>
+                  <td data-label="Cupo disponible" style={cell}>{row.quotaAvailable ?? 'No disponible'}</td>
                 </tr>
               ))}
             </tbody>

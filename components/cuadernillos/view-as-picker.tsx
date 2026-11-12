@@ -21,7 +21,7 @@ export function ViewAsPicker({ candidates, currentUserId }: { candidates: ViewAs
   }, [candidates, query])
 
   return (
-    <div style={{ position: 'relative' }} onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false) }}>
+    <div style={{ position: 'relative', maxWidth: '100%', marginLeft: 'auto' }} onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false) }}>
       <button
         type="button"
         className="ui-button ui-button--secondary"
@@ -39,7 +39,10 @@ export function ViewAsPicker({ candidates, currentUserId }: { candidates: ViewAs
             right: 0,
             top: 'calc(100% + .5rem)',
             zIndex: 20,
-            width: 'min(24rem, calc(100vw - 2rem))',
+            // Constrained to the viewport so the popover never widens the page on phones.
+            width: 'min(22rem, calc(100vw - 2rem))',
+            maxWidth: 'calc(100vw - 2rem)',
+            boxSizing: 'border-box',
             display: 'grid',
             gap: '.6rem',
             padding: '.85rem',

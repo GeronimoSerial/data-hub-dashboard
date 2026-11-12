@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { CabeceraHome } from './cabecera/cabecera-home'
 import { SupervisorInbox } from './supervisor/supervisor-inbox'
 import { PlanningHome } from './planning/planning-home'
+import { ResponsiveStyles } from './planning/responsive-styles'
 import { ViewAsPicker } from './view-as-picker'
 
 const CAPABILITY_LABELS: Record<BookletCapability, string> = {
@@ -18,6 +19,8 @@ const CAPABILITY_LABELS: Record<BookletCapability, string> = {
 
 // Most specific role first: the default role is the first one the account holds.
 const DEFAULT_ORDER: BookletCapability[] = ['cabecera', 'supervisor', 'planning']
+// Admins land on the planning home, where configuration is reachable.
+const ADMIN_DEFAULT_ORDER: BookletCapability[] = ['planning', 'cabecera', 'supervisor']
 // Display order of the role switch.
 const DISPLAY_ORDER: BookletCapability[] = ['planning', 'cabecera', 'supervisor']
 
@@ -38,15 +41,17 @@ export function CuadernillosWorkspace({
 }) {
   const viewAsUserId = viewAs?.userId ?? null
   const roles = DISPLAY_ORDER.filter((capability) => capabilities.includes(capability))
-  const defaultRole = DEFAULT_ORDER.find((capability) => capabilities.includes(capability)) ?? null
+  const defaultOrder = isAdmin ? ADMIN_DEFAULT_ORDER : DEFAULT_ORDER
+  const defaultRole = defaultOrder.find((capability) => capabilities.includes(capability)) ?? null
   const [chosenRole, setChosenRole] = useState<BookletCapability | null>(null)
   const activeRole = chosenRole && roles.includes(chosenRole) ? chosenRole : defaultRole
   const readOnly = Boolean(viewAs)
 
   return (
-    <div style={{ maxWidth: '72rem', margin: '0 auto', padding: 'clamp(1.25rem, 4vw, 3rem)', color: 'var(--ink)', display: 'grid', gap: '1.5rem' }}>
+    <div className="cdl-page" style={{ maxWidth: '72rem', width: '100%', boxSizing: 'border-box', margin: '0 auto', padding: 'clamp(1.25rem, 4vw, 3rem)', color: 'var(--ink)', display: 'grid', gap: '1.5rem' }}>
+      <ResponsiveStyles />
       <header style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-        <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 5vw, 2.6rem)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.02em' }}>
+        <h1 style={{ margin: 0, minWidth: 0, fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 5vw, 2.6rem)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.02em' }}>
           Cuadernillos
         </h1>
         {isAdmin ? <ViewAsPicker candidates={viewAsCandidates} currentUserId={viewAsUserId} /> : null}
