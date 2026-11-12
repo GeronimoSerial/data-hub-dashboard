@@ -293,7 +293,7 @@ export function InfraestructuraMapClient(props: {
               >
                 Estadísticas
               </TabsTab>
-              <TabsTab value="metodologia" className={styles.tabTrigger}>
+              <TabsTab value="metodologia" className={styles.tabTrigger} data-testid="tab-metodologia">
                 Metodología
               </TabsTab>
               <TabsTab value="exportar" className={styles.tabTrigger} data-testid="tab-exportar">
