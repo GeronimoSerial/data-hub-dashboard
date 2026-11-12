@@ -1,6 +1,7 @@
 import type { Role, SessionUser } from '@/lib/acl'
 import { safePathname } from '@/lib/hub-sections'
 import { can, type Capability } from './capabilities'
+import { RUTA_MAPA_INFRAESTRUCTURA } from '@/lib/infraestructura/rutas-hub'
 
 /**
  * Confined users never enter the hub: they reach only their own area.
@@ -41,6 +42,6 @@ export function confinedPathAllowed(user: SessionUser, path: string): boolean {
 export function confinedHome(user: SessionUser | null): string | null {
   if (!user || user.banned || !hubConfined(user)) return null
   if (user.role === 'operador_establecimiento' && user.cueAnexo && can(user, 'parte.access')) return '/problematicas/parte/nuevo'
-  if (can(user, 'infra.map.read')) return '/mapas/infraestructura'
+  if (can(user, 'infra.map.read')) return RUTA_MAPA_INFRAESTRUCTURA
   return null
 }

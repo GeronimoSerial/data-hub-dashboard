@@ -3,6 +3,7 @@ import { can } from '@/lib/access/capabilities'
 import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
 import { getSessionUser } from '@/lib/session'
 import { effectiveSections, type HubSection } from '@/lib/hub-sections'
+import { RUTA_MAPA_INFRAESTRUCTURA } from '@/lib/infraestructura/rutas-hub'
 
 export type AccesoLectura =
   | { ok: true; user: SessionUser }
@@ -14,7 +15,7 @@ export function puedeAbrirMapaInfraestructura(
   user: SessionUser | null,
   recurso: RecursoAccess,
 ): boolean {
-  return puedeAbrir(user, { ...recurso, ruta: '/mapas/infraestructura' })
+  return puedeAbrir(user, { ...recurso, ruta: RUTA_MAPA_INFRAESTRUCTURA })
 }
 
 /**
@@ -38,7 +39,7 @@ export async function verificarAccesoLectura(
   const user = await getSessionUser()
   if (!user) return { ok: false, status: 401 }
 
-  const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
+  const found = await loadRecursoAccessByRuta(RUTA_MAPA_INFRAESTRUCTURA)
   if (!puedeLeerMapaInfraestructura(user, found?.access ?? null)) return { ok: false, status: 403 }
 
   return { ok: true, user }

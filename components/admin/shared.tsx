@@ -50,7 +50,7 @@ export const SECTION_LABELS: Record<HubSection, string> = {
 
 export const DESTINATION_LABELS: Record<string, string> = {
   '/': 'Inicio', '/explorar': 'Exploración', '/reportes': 'Reportes',
-  '/mapas': 'Mapas', '/tableros': 'Tableros', '/mapas/infraestructura': 'ENOS 2026',
+  '/mapas': 'Mapas', '/tableros': 'Tableros', '/mapas/infraestructura': 'ENOS Corrientes',
   '/situacion': 'Situación', '/cuadernillos': 'Cuadernillos', '/mapas/matricula': 'Mapa de matrícula', '/mapas/natalidad': 'Mapa de natalidad', '/mapas/reorganizacion': 'Reorganización escolar',
   '/tablero': 'Tablero', '/mapa_interactivo': 'Mapa interactivo', '/mapa_sobreedad': 'Mapa de sobreedad',
   '/mapa_notas': 'Mapa de notas', '/problematicas/parte/nuevo': 'Nuevo parte de infraestructura',

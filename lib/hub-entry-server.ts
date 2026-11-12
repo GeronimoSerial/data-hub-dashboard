@@ -11,6 +11,7 @@ import { sectionsForUser, type HubSection } from '@/lib/hub-sections'
 import { legacyRecursoRedirect } from '@/lib/nav'
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
+import { RUTA_MAPA_INFRAESTRUCTURA } from '@/lib/infraestructura/rutas-hub'
 
 async function resourceEntryAllowed(user: SessionUser, id: string) {
   const [row] = await getDb().select({ id: recursos.id, formato: recursos.formato, ruta: recursos.ruta })
@@ -54,10 +55,10 @@ export async function serverHubPathAllowedByExistingAcl(user: SessionUser, path:
   const resourcePath = canonicalPath.match(/^\/recursos\/([^/]+)$/)
   if (resourcePath) return resourceEntryAllowed(user, decodeURIComponent(resourcePath[1]))
 
-  const infrastructurePath = path === '/mapas/infraestructura' || path.startsWith('/mapas/infraestructura/')
+  const infrastructurePath = path === RUTA_MAPA_INFRAESTRUCTURA || path.startsWith(`${RUTA_MAPA_INFRAESTRUCTURA}/`)
   if (infrastructurePath) {
     // Same decision as the infra map pages and APIs; exempt from the allow-list (S8).
-    const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
+    const found = await loadRecursoAccessByRuta(RUTA_MAPA_INFRAESTRUCTURA)
     return Boolean(found && puedeLeerMapaInfraestructura(user, found.access))
   }
   const resourceRoute = ['/mapas/matricula', '/mapas/natalidad', '/mapas/reorganizacion'].find((route) => path === route)

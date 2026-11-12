@@ -1,4 +1,6 @@
 import type { Recurso } from '@/lib/model'
+import { RECURSO_ENOS_MANAOS_ID, RUTA_MAPA_INFRAESTRUCTURA } from '@/lib/infraestructura/rutas-hub'
+import { esRutaExterna } from '@/lib/ruta-externa'
 
 export const HUB_SECTIONS = [
   'explore',
@@ -95,7 +97,7 @@ export function sectionForPath(path: string): HubSection | 'landing' | null {
   if (pathname === '/') return 'landing'
   if (pathname === '/explorar') return 'explore'
   if (pathname === '/reportes') return 'reports'
-  if (pathname === '/mapas/infraestructura' || pathname.startsWith('/mapas/infraestructura/')) return 'infrastructure'
+  if (pathname === RUTA_MAPA_INFRAESTRUCTURA || pathname.startsWith(`${RUTA_MAPA_INFRAESTRUCTURA}/`)) return 'infrastructure'
   if (pathname === '/infraestructura/cargar' || pathname.startsWith('/infraestructura/cargar/')) return 'infrastructure'
   if (pathname === '/situacion') return 'situation'
   if (pathname === '/cuadernillos' || pathname.startsWith('/cuadernillos/')) return 'cuadernillos'
@@ -106,7 +108,9 @@ export function sectionForPath(path: string): HubSection | 'landing' | null {
 }
 
 /** Return all content sections a resource belongs to, based on trusted data. */
-export function sectionsForResource(resource: { formato: Recurso['formato']; ruta?: string | null }): ReadonlySet<HubSection> {
+export function sectionsForResource(resource: { id?: string; formato: Recurso['formato']; ruta?: string | null }): ReadonlySet<HubSection> {
+  // The external Manaos card is an infrastructure link; its URL is not an app route.
+  if (resource.id === RECURSO_ENOS_MANAOS_ID && esRutaExterna(resource.ruta ?? '')) return new Set(['infrastructure'])
   // A specific trusted route overrides broad storage format (e.g. a mapa
   // resource routed to infrastructure must not also require the maps grant).
   if (resource.ruta) {
@@ -123,7 +127,7 @@ export function sectionsForResource(resource: { formato: Recurso['formato']; rut
 }
 
 export function resourceInSections(
-  resource: { formato: Recurso['formato']; ruta?: string | null },
+  resource: { id?: string; formato: Recurso['formato']; ruta?: string | null },
   enabled: ReadonlySet<HubSection>,
 ): boolean {
   const membership = sectionsForResource(resource)

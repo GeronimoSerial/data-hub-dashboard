@@ -26,6 +26,7 @@ import { etiquetaKm, etiquetaSuperficie, type SuperficieVia } from '@/lib/infrae
 import type { NivelAislamientoMapa } from '@/lib/infraestructura/territorio-mapa'
 import styles from './vista-previa-escuela.module.css'
 import { ObservacionReporte } from './observacion-reporte'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export interface VistaPreviaEscuelaProps {
   escuela: EscuelaMapaEnriquecida & {
@@ -76,6 +77,7 @@ export function VistaPreviaEscuela({
   distanciaLocalidad = null,
 }: VistaPreviaEscuelaProps) {
   const tituloRef = useRef<HTMLHeadingElement>(null)
+  const t = useTextos().ficha
   const sinUbicacion =
     escuela.ubicacionDisponible === false ||
     escuela.lat === null ||
@@ -150,7 +152,7 @@ export function VistaPreviaEscuela({
         <button
           type="button"
           className={styles.closeIconBtn}
-          aria-label="Cerrar vista previa"
+          aria-label={t.vistaPrevia.cerrar}
           data-testid="cerrar-preview"
           onClick={onCerrarVistaPrevia}
         >
@@ -161,7 +163,7 @@ export function VistaPreviaEscuela({
       {sinUbicacion && (
         <p className={styles.sinUbicacion} data-testid="badge-sin-ubicacion">
           <MapPinOff size={14} aria-hidden="true" />
-          <span>Ubicación no disponible en el mapa</span>
+          <span>{t.sinUbicacion}</span>
         </p>
       )}
 
@@ -175,26 +177,26 @@ export function VistaPreviaEscuela({
             />
             <div className={styles.situacionCuerpo}>
               <p className={styles.gravedad}>
-                {principal?.categoria === 'alumnos' || escuela.categoriaPrincipal === 'alumnos' ? 'Prioridad' : 'Gravedad'} {severidad}
+                {principal?.categoria === 'alumnos' || escuela.categoriaPrincipal === 'alumnos' ? t.vistaPrevia.prioridad : t.vistaPrevia.gravedad} {severidad}
               </p>
               {cargandoParte && !principal ? (
-                <p className={styles.situacionMeta} role="status">Cargando situación…</p>
+                <p className={styles.situacionMeta} role="status">{t.vistaPrevia.cargandoSituacion}</p>
               ) : (
                 <>
               <p className={styles.motivo}>
-                {principal ? principal.motivo : (categoriaLabel ?? 'Situación activa')}
+                {principal ? principal.motivo : (categoriaLabel ?? t.vistaPrevia.situacionActiva)}
               </p>
               {principal?.categoria === 'alumnos' && <p><ImpactoAlumnosResumen impacto={principal.impactoAlumnos} /></p>}
               <p className={styles.situacionMeta}>
                 {afectaciones.length > 0
-                  ? `${afectaciones.length} ${afectaciones.length === 1 ? 'situación abierta' : 'situaciones abiertas'}`
-                  : 'Situación reportada'}
+                  ? t.vistaPrevia.situacionesAbiertas(afectaciones.length)
+                  : t.vistaPrevia.situacionReportada}
                 {categoriaLabel ? ` · ${categoriaLabel}` : ''}
-                {principal ? ` · desde ${desde(principal.rigeDesde)}` : ''}
+                {principal ? ` · ${t.vistaPrevia.desde(desde(principal.rigeDesde))}` : ''}
               </p>
               {justificacionPrincipal && (
                 <p className={styles.situacionMeta} data-testid="preview-justificacion-critica">
-                  <strong>Justificación de gravedad:</strong> {justificacionPrincipal.etiqueta}
+                  <strong>{t.justificacionGravedad}</strong> {justificacionPrincipal.etiqueta}
                   {justificacionPrincipal.detalle && ` · ${justificacionPrincipal.detalle}`}
                 </p>
               )}
@@ -207,11 +209,11 @@ export function VistaPreviaEscuela({
           <p><strong>{principal.motivo}</strong> · <ImpactoAlumnosResumen impacto={principal.impactoAlumnos} /></p>
         ) : escuela.parte ? (
           <p className={styles.sinReporte} data-testid="preview-sin-situaciones">
-            Sin situaciones abiertas reportadas
+            {t.vistaPrevia.sinSituacionesAbiertas}
           </p>
         ) : (
           <p className={styles.sinReporte} data-testid="preview-sin-reporte">
-            Sin reporte activo (la ausencia de reporte no confirma normalidad)
+            {t.vistaPrevia.sinReporte}
           </p>
         )}
       </div>
@@ -220,15 +222,15 @@ export function VistaPreviaEscuela({
         <div className={styles.impacto} data-testid="preview-bloque-impacto">
           <p className={styles.impactoCifra}>
             <strong>{FORMATO_NUMERO.format(alumnosAfectados)}</strong>
-            <span>{alumnosAfectados === 1 ? 'alumno afectado' : 'alumnos afectados'}</span>
+            <span>{t.vistaPrevia.alumnosAfectados(alumnosAfectados)}</span>
           </p>
           <p className={styles.impactoContexto}>
-            {porcentajeAfectados}% de {FORMATO_NUMERO.format(escuela.alumnos)} {escuela.alumnos === 1 ? 'alumno' : 'alumnos'} de la escuela
+            {t.vistaPrevia.contextoImpacto(porcentajeAfectados, FORMATO_NUMERO.format(escuela.alumnos), escuela.alumnos === 1)}
           </p>
           <div
             className={styles.proporcion}
             role="img"
-            aria-label={`${porcentajeAfectados}% de la matrícula afectada`}
+            aria-label={t.vistaPrevia.proporcionAfectada(porcentajeAfectados)}
           >
             <span style={{ width: `${porcentajeAfectados}%` }} />
           </div>
@@ -236,67 +238,67 @@ export function VistaPreviaEscuela({
       )}
 
       <dl className={styles.datos} data-testid="preview-bloque-clases">
-        <div><dt>Funcionamiento</dt><dd>{etiquetaFuncionamiento(afectaciones)}</dd></div>
+        <div><dt>{t.vistaPrevia.funcionamiento}</dt><dd>{etiquetaFuncionamiento(afectaciones)}</dd></div>
         {seccionesAfectadas > 0 && (
           <div>
-            <dt>Secciones afectadas</dt>
+            <dt>{t.vistaPrevia.seccionesAfectadas}</dt>
             <dd>{FORMATO_NUMERO.format(seccionesAfectadas)}</dd>
           </div>
         )}
         <div>
-          <dt>Clases</dt>
+          <dt>{t.vistaPrevia.clases}</dt>
           <dd className={escuela.clases === 'normal' ? undefined : escuela.clases === 'parcial' ? styles.aviso : styles.alerta}>
             {etiquetaClases(escuela.clases, escuela.clasesInformadas === true)}
             {escuela.alumnosSinClases > 0 && (
               <span className={styles.atenuado}>
-                {FORMATO_NUMERO.format(escuela.alumnosSinClases)} sin clases
+                {t.vistaPrevia.sinClases(FORMATO_NUMERO.format(escuela.alumnosSinClases))}
               </span>
             )}
           </dd>
         </div>
         {etiquetaApoyo && (
           <div>
-            <dt>Asistencia</dt>
+            <dt>{t.vistaPrevia.asistencia}</dt>
             <dd>{etiquetaApoyo}</dd>
           </div>
         )}
         {escuela.parte && (
           <div>
-            <dt>Edificio</dt>
+            <dt>{t.vistaPrevia.edificio}</dt>
             <dd>{ETIQUETA_ESTABLECIMIENTO[escuela.parte.estadoEstablecimiento]}</dd>
           </div>
         )}
         {(escuela.sinActualizar || escuela.parte || escuela.ultimaNovedad || fechaActualizacion) && (
           <div>
-            <dt>Último parte</dt>
+            <dt>{t.vistaPrevia.ultimoParte}</dt>
             <dd>
               {fechaActualizacion}
               {escuela.sinActualizar ? (
                 <span className={styles.aviso} data-testid="chip-sin-actualizar">
                   <Clock size={12} aria-hidden="true" />
-                  Sin actualizar (&gt;72 h)
+                  {t.vistaPrevia.sinActualizar}
                 </span>
               ) : (escuela.parte || escuela.ultimaNovedad) ? (
-                <span className={styles.atenuado} data-testid="chip-vigente">Vigente</span>
+                <span className={styles.atenuado} data-testid="chip-vigente">{t.vistaPrevia.vigente}</span>
               ) : null}
             </dd>
           </div>
         )}
         {escuela.comedor !== undefined && (
           <div data-testid="preview-comedor">
-            <dt>Comedor</dt>
+            <dt>{t.vistaPrevia.comedor}</dt>
             <dd>{valorComedor(escuela.comedor)}</dd>
           </div>
         )}
         {escuela.posibleCentroEvacuados === true && (
           <div data-testid="preview-posible-centro">
-            <dt>Evacuación</dt>
+            <dt>{t.vistaPrevia.evacuacion}</dt>
             <dd>{escuela.posibleCentroSinAntecedentes === true ? ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES : ETIQUETA_POSIBLE_CENTRO}</dd>
           </div>
         )}
         {aislamiento !== null && (
           <div data-testid="preview-aislamiento">
-            <dt>Aislamiento</dt>
+            <dt>{t.vistaPrevia.aislamiento}</dt>
             <dd
               className={aislamiento === 3 ? styles.alerta : aislamiento === 2 ? styles.aviso : undefined}
               title={DESCRIPCIONES_AISLAMIENTO[aislamiento].detalle}
@@ -307,9 +309,9 @@ export function VistaPreviaEscuela({
         )}
         {distanciaLocalidad && (
           <div data-testid="preview-distancia-localidad">
-            <dt>Hasta la localidad</dt>
+            <dt>{t.vistaPrevia.hastaLocalidad}</dt>
             <dd>
-              {etiquetaKm(distanciaLocalidad.km)} por camino
+              {etiquetaKm(distanciaLocalidad.km)} {t.vistaPrevia.porCamino}
               {!distanciaLocalidad.desglose && distanciaLocalidad.superficie ? ` ${etiquetaSuperficie(distanciaLocalidad.superficie)}` : ''}
               {distanciaLocalidad.nombre && <span className={styles.atenuado}>{distanciaLocalidad.nombre}</span>}
               {distanciaLocalidad.desglose && <span className={styles.desglose}>{distanciaLocalidad.desglose}</span>}
@@ -317,16 +319,17 @@ export function VistaPreviaEscuela({
           </div>
         )}
         <div data-testid="preview-bloque-riesgo">
-          <dt>Antecedentes</dt>
+          <dt>{t.vistaPrevia.antecedentes}</dt>
           <dd>
             {escuela.situacionesHistoricas === 0
-              ? 'Sin situaciones históricas'
-              : `${FORMATO_NUMERO.format(escuela.situacionesHistoricas)} ${
-                  escuela.situacionesHistoricas === 1 ? 'situación histórica' : 'situaciones históricas'
-                }`}
+              ? t.vistaPrevia.sinHistoricas
+              : t.vistaPrevia.situacionesHistoricas(
+                  FORMATO_NUMERO.format(escuela.situacionesHistoricas),
+                  escuela.situacionesHistoricas === 1,
+                )}
             {escuela.solucionadasRecientes > 0 && (
               <span className={styles.atenuado}>
-                {FORMATO_NUMERO.format(escuela.solucionadasRecientes)} solucionada(s) en 15 días
+                {t.vistaPrevia.solucionadas(FORMATO_NUMERO.format(escuela.solucionadasRecientes))}
               </span>
             )}
           </dd>
@@ -342,7 +345,7 @@ export function VistaPreviaEscuela({
           className={styles.primaryCta}
           data-testid="abrir-ficha-completa"
         >
-          Abrir ficha completa
+          {t.vistaPrevia.abrirFichaCompleta}
         </Link>
         <button
           type="button"
@@ -350,7 +353,7 @@ export function VistaPreviaEscuela({
           data-testid="preview-quitar-seleccion"
           onClick={onQuitarSeleccion}
         >
-          Quitar selección
+          {t.vistaPrevia.quitarSeleccion}
         </button>
       </div>
     </section>
