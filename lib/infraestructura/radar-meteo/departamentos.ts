@@ -1,4 +1,5 @@
 import { referencia, versionReferencia } from '@/lib/infraestructura/datasets/memoria'
+import { regionActiva } from '@/lib/infraestructura/region'
 import { GRID_VERSION } from './grilla'
 
 export function obtenerVersionGeografia(): string { return versionReferencia('departamentos') }
@@ -66,15 +67,21 @@ export function listarDepartamentos(): Departamento[] {
 export function obtenerDepartamento(nombre: string): Departamento | undefined {
   return cargarDepartamentos().find((d) => d.nombre.toLocaleLowerCase('es') === nombre.toLocaleLowerCase('es'))
 }
-// Padrón coordinates sometimes fall outside the province (a wrong longitude
+// Padrón coordinates sometimes fall outside the region (a wrong longitude
 // copied across schools). Points on the shore or just past the simplified
 // boundary are legitimate, so only points farther than the tolerance count as
-// outside Corrientes.
-export const TOLERANCIA_FUERA_DE_CORRIENTES_KM = 5
-export function ubicacionEnCorrientes(lat: number, lon: number, toleranciaKm = TOLERANCIA_FUERA_DE_CORRIENTES_KM): boolean {
+// outside the region.
+// The dataset loaded here is the active region's administrative-unit file
+// (currently Corrientes' georef file; B8.5 selects it by region).
+export const TOLERANCIA_FUERA_DE_CORRIENTES_KM = regionActiva().toleranciaBorde
+export function ubicacionEnRegion(lat: number, lon: number, toleranciaKm = regionActiva().toleranciaBorde): boolean {
   const departamentos = cargarDepartamentos()
   if (departamentos.some((departamento) => dentroDepartamento(lon, lat, departamento))) return true
   return departamentos.some((departamento) => distanciaGeometriaKm(lon, lat, departamento) <= toleranciaKm)
+}
+/** @deprecated Use ubicacionEnRegion. Kept for existing callers. */
+export function ubicacionEnCorrientes(lat: number, lon: number, toleranciaKm = TOLERANCIA_FUERA_DE_CORRIENTES_KM): boolean {
+  return ubicacionEnRegion(lat, lon, toleranciaKm)
 }
 export function departamentoQueContienePunto(lat: number, lon: number): Departamento | null {
   return cargarDepartamentos().find((departamento) => dentroDepartamento(lon, lat, departamento)) ?? null

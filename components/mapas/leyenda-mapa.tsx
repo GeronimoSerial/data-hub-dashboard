@@ -10,6 +10,7 @@ import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import { IconoMapaLeyenda, svgMarcadorEstacion, type EstadoEstacion } from '@/lib/mapas/insignias-mapa'
+import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
 import { GLIFO_BADGE_ESTADO, SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, svgBadgeEstado } from '@/lib/mapas/iconos-mapa'
 
 type PropsLeyendaMapa =
@@ -37,17 +38,16 @@ const ESTADOS_ALTURA_RIO: ReadonlyArray<{ estado: EstadoEstacion; etiqueta: stri
   { estado: 'sin_dato', etiqueta: 'Sin dato' },
 ]
 
-const FORMATO_CORTE_LLUVIA = new Intl.DateTimeFormat('es-AR', {
+const OPCIONES_CORTE_LLUVIA: Intl.DateTimeFormatOptions = {
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
-  timeZone: 'America/Argentina/Buenos_Aires',
-})
+}
 
 function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
-  const hasta = meta.hasta && !Number.isNaN(Date.parse(meta.hasta)) ? FORMATO_CORTE_LLUVIA.format(new Date(meta.hasta)) : null
+  const hasta = meta.hasta && !Number.isNaN(Date.parse(meta.hasta)) ? formatoFechaRegion(OPCIONES_CORTE_LLUVIA).format(new Date(meta.hasta)) : null
   return (
     <div className="map-leyenda__bloque" data-testid="leyenda-lluvia">
       <b className="map-leyenda__subtitulo">

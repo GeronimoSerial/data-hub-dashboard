@@ -1,5 +1,6 @@
 'use client'
 
+import { localeRegion } from '@/lib/infraestructura/formato-region'
 import { useEffect, useState, type FormEvent } from 'react'
 import type { MembershipUser, MembershipView } from '@/lib/cuadernillos/memberships'
 import type { BookletCapability } from '@/lib/cuadernillos/types'
@@ -74,7 +75,7 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
 
 const errorCopy = (error: unknown) => (error instanceof MembershipRequestError && ERROR_COPY[error.message]) || GENERIC_ERROR
 
-const dateCopy = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+const dateCopy = (iso: string) => new Date(iso).toLocaleDateString(localeRegion(), { day: '2-digit', month: '2-digit', year: 'numeric' })
 
 export function MembershipSection() {
   const [memberships, setMemberships] = useState<MembershipView[] | null>(null)

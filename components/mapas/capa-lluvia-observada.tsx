@@ -5,6 +5,7 @@ import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { formatearFechaLocal } from '@/components/mapas/capa-estaciones-rio'
 import { LogoNasa } from '@/components/mapas/logo-nasa'
 import { haceCuanto } from '@/components/mapas/tarjeta-estacion-rio'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
 export type HorasLluvia = 24 | 72
 
@@ -49,10 +50,7 @@ export const CLASES_LLUVIA: ReadonlyArray<{ desde: number; color: string; etique
 const PASO_CELDA = 0.1
 const MEDIO_PASO = PASO_CELDA / 2
 const ALFA_BASE = 0.75 * 255
-const REGIONES_INTERES: ReadonlyArray<{ lon: [number, number]; lat: [number, number] }> = [
-  { lon: [-59.8, -55.6], lat: [-30.8, -27.2] },
-  { lon: [-56.1, -53.6], lat: [-28.2, -25.4] },
-]
+const REGIONES_INTERES = regionPublicaActual().regionesInteresLluvia
 const ANCHO_TRANSICION = 0.4
 
 // Exported so other map handlers can read the cell under a click (e.g. the water crossing card).

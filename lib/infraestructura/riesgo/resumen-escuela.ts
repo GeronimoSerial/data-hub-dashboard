@@ -1,4 +1,5 @@
 import { textoAlturaRio } from '@/lib/infraestructura/presentacion/textos-dato'
+import { formatoFechaRegion } from '@/lib/infraestructura/formato-region'
 
 export type Nivel = 'bajo' | 'moderado' | 'alto' | 'muy_alto' | 'sin_dato'
 
@@ -40,24 +41,20 @@ export type ResumenEscuela = {
   puntos: PuntoResumen[]
 }
 
-const ZONA_HORARIA = 'America/Argentina/Buenos_Aires'
-
-const formatoFecha = new Intl.DateTimeFormat('en-GB', {
-  timeZone: ZONA_HORARIA,
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
-
 function formatoNumero(valor: number, decimales: number): string {
   return valor.toFixed(decimales).replace('.', ',')
 }
 
 export function fechaCorta(iso: string): string {
+  const formato = formatoFechaRegion('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
   const partes = Object.fromEntries(
-    formatoFecha.formatToParts(new Date(iso)).map((p) => [p.type, p.value]),
+    formato.formatToParts(new Date(iso)).map((p) => [p.type, p.value]),
   )
   return `${partes.day}/${partes.month} ${partes.hour}:${partes.minute}`
 }

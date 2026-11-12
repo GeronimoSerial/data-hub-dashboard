@@ -1,3 +1,4 @@
+import { formatoFechaRegion } from '@/lib/infraestructura/formato-region'
 // Formato de fechas del historial (spec §15). Funciones puras, sin React:
 // la pantalla es de sólo lectura y todo lo que hace con los timestamps es
 // mostrarlos, así que conviene poder probarlas sin montar nada.
@@ -20,22 +21,19 @@ const MESES_LARGOS = [
 // La provincia entera trabaja en un solo huso; fijarlo evita que el
 // historial se lea con la hora del dispositivo cuando alguien lo abre desde
 // otro huso (mismo criterio que estado-actual-textos.ts).
-const ZONA_HORARIA = 'America/Argentina/Buenos_Aires'
+function partesFormato(): Intl.DateTimeFormat {
+  return formatoFechaRegion('en-US', {
+    month: '2-digit',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+}
 
-const PARTES_FORMATO = new Intl.DateTimeFormat('en-US', {
-  timeZone: ZONA_HORARIA,
-  month: '2-digit',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
-const FECHA_CLAVE = new Intl.DateTimeFormat('en-CA', {
-  timeZone: ZONA_HORARIA,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-})
+function fechaClave(): Intl.DateTimeFormat {
+  return formatoFechaRegion('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' })
+}
 
 interface PartesFecha {
   dia: number
@@ -45,7 +43,7 @@ interface PartesFecha {
 }
 
 function partesEnZona(fecha: Date): PartesFecha {
-  const partes = PARTES_FORMATO.formatToParts(fecha)
+  const partes = partesFormato().formatToParts(fecha)
   const valor = (tipo: string) => partes.find((parte) => parte.type === tipo)?.value ?? '00'
   return {
     dia: Number(valor('day')),
@@ -72,7 +70,7 @@ export function formatearMomentoHistorial(iso: string, ahora: Date = new Date())
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return ''
   const { dia, mes, hora, minuto } = partesEnZona(fecha)
-  if (FECHA_CLAVE.format(fecha) === FECHA_CLAVE.format(ahora)) return `Hoy, ${hora}:${minuto}`
+  if (fechaClave().format(fecha) === fechaClave().format(ahora)) return `Hoy, ${hora}:${minuto}`
   return `${dia} de ${MESES_LARGOS[mes]}, ${hora}:${minuto}`
 }
 

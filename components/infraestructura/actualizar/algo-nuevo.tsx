@@ -1,5 +1,6 @@
 'use client'
 
+import { localeRegion, zonaHorariaRegion } from '@/lib/infraestructura/formato-region'
 import { useEffect, useState, type JSX } from 'react'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type AfectacionBorrador } from '@/components/infraestructura/afectacion-campos'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
@@ -46,8 +47,8 @@ type DecisionDuplicado = 'distintos' | 'actualizar' | 'solucionada'
 function fechaCorta(fecha: string): string {
   const fechaValida = new Date(fecha)
   if (!Number.isFinite(fechaValida.getTime())) return fecha
-  return new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+  return new Intl.DateTimeFormat(localeRegion(), {
+    timeZone: zonaHorariaRegion(),
     day: 'numeric',
     month: 'long',
   }).format(fechaValida)
@@ -57,23 +58,23 @@ function fechaCausaLegible(fecha: string): string {
   const fechaValida = new Date(fecha)
   if (!Number.isFinite(fechaValida.getTime())) return fecha
   const fechaLocal = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone: zonaHorariaRegion(),
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(fechaValida)
   const hoy = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone: zonaHorariaRegion(),
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date())
   const ayerDate = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const ayer = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone: zonaHorariaRegion(),
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(ayerDate)
-  const dia = fechaLocal === hoy ? 'hoy' : fechaLocal === ayer ? 'ayer' : new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'long',
+  const dia = fechaLocal === hoy ? 'hoy' : fechaLocal === ayer ? 'ayer' : new Intl.DateTimeFormat(localeRegion(), {
+    timeZone: zonaHorariaRegion(), day: 'numeric', month: 'long',
   }).format(fechaValida).toLocaleLowerCase('es-AR')
-  const hora = new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+  const hora = new Intl.DateTimeFormat(localeRegion(), {
+    timeZone: zonaHorariaRegion(),
     hourCycle: 'h23',
     hour: '2-digit',
     minute: '2-digit',

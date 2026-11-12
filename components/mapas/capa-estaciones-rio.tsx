@@ -5,6 +5,7 @@ import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { ESTILO_PASTILLA_ESTACION, idMarcadorEstacion, idPastillaEstacion, registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
 import { PALETA_ESTADO_ALTURA } from '@/lib/mapas/paleta-tonal'
 import { TarjetaEstacionRio } from './tarjeta-estacion-rio'
+import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
 
 type EstadoAltura = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 type Tendencia = 'crece' | 'baja' | 'estable' | 'sin_dato'
@@ -64,14 +65,13 @@ export function etiquetaEstadoAltura(estado: EstadoAltura): string {
   return ETIQUETA_ESTADO[estado]
 }
 
-const FORMATO_FECHA_LOCAL = new Intl.DateTimeFormat('es-AR', {
+const OPCIONES_FECHA_LOCAL: Intl.DateTimeFormatOptions = {
   day: '2-digit',
   month: '2-digit',
   hour: '2-digit',
   minute: '2-digit',
   hour12: false,
-  timeZone: 'America/Argentina/Buenos_Aires',
-})
+}
 
 /**
  * Formats ISO-8601 timestamps as local Buenos Aires time ("13/10 14:00").
@@ -81,7 +81,7 @@ export function formatearFechaLocal(valor: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(valor)) return valor
   const fecha = new Date(valor)
   if (Number.isNaN(fecha.getTime())) return valor
-  const partes = Object.fromEntries(FORMATO_FECHA_LOCAL.formatToParts(fecha).map((p) => [p.type, p.value]))
+  const partes = Object.fromEntries(formatoFechaRegion(OPCIONES_FECHA_LOCAL).formatToParts(fecha).map((p) => [p.type, p.value]))
   return `${partes.day}/${partes.month} ${partes.hour}:${partes.minute}`
 }
 
