@@ -1,0 +1,18 @@
+{
+  "crecidaRio": {
+    "alturaActualM": null,
+    "alturaCriticaM": 17.44,
+    "antecedente": {
+      "distanciaAguaM": 1826,
+      "fecha": "<fecha>",
+      "nivelM": 7.06,
+      "subidaHastaUmbralM": 10.38
+    },
+    "defensaCostera": true,
+    "estacion": "Corrientes",
+    "origen": "estudio_v04",
+    "subidaDesdeActualM": null
+  },
+  "factores": [],
+  "snapshot": null
+}

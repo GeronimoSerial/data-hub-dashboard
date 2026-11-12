@@ -1,14 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EjecutorSqlRaw } from './ge-db'
 import { getRawClient } from '../db'
-import {
-  __resetGuardCacheForTests,
-  activarCorte,
-  attachGe,
-  crearEjecutorSql,
-  ensureGeSchema,
-  getCorteVigente,
-} from './ge-db'
+import { activarCorte, attachGe, crearEjecutorSql, ensureGeSchema, getCorteVigente } from './ge-db'
 
 // DB1/F2: GE ya no es un archivo SQLite aislado por DATA_DIR, sino el schema
 // `ge` de la base PGlite compartida por todo el archivo. Cada test limpia sus
@@ -309,60 +302,38 @@ describe('activarCorte sobre pg.Pool (conexión dedicada)', () => {
   })
 })
 
-// Cuenta las sentencias CREATE OR REPLACE FUNCTION que salen por la conexión
-// PGlite compartida (la tx dedicada también usa su query).
-function espiarCreateOrReplace() {
-  const raw = getRawClient() as unknown as { query: (texto: string, ...resto: unknown[]) => Promise<unknown> }
-  const original = raw.query.bind(raw)
-  const textos: string[] = []
-  const spy = vi.spyOn(raw, 'query').mockImplementation((texto: string, ...resto: unknown[]) => {
-    textos.push(texto)
-    return original(texto, ...resto)
-  })
-  return {
-    creaciones: () => textos.filter((t) => t.includes('CREATE OR REPLACE FUNCTION')).length,
-    restaurar: () => spy.mockRestore(),
-  }
-}
-
-describe('guard de elegibilidad: memoización y restauración del cuerpo', () => {
-  it('crea la función una sola vez con llamadas en paralelo y no la recrea después', async () => {
-    const client = cliente()
-    await client.execute('DROP FUNCTION IF EXISTS public.booklet_eligibility_source_write_guard() CASCADE')
-    __resetGuardCacheForTests(client)
-    const espia = espiarCreateOrReplace()
+describe('ensureGeSchema sobre PGlite (conexión única, sin transacción)', () => {
+  it('ejecuta el DDL en cada llamada sin emitir BEGIN, COMMIT ni locks de transacción', async () => {
+    const raw = getRawClient() as unknown as { query: (texto: string, ...resto: unknown[]) => Promise<unknown> }
+    const original = raw.query.bind(raw)
+    const textos: string[] = []
+    const spy = vi.spyOn(raw, 'query').mockImplementation((texto: string, ...resto: unknown[]) => {
+      textos.push(texto)
+      return original(texto, ...resto)
+    })
     try {
-      await Promise.all(Array.from({ length: 12 }, () => ensureGeSchema(client)))
-      expect(espia.creaciones()).toBe(1)
-
+      const client = cliente()
       await ensureGeSchema(client)
-      __resetGuardCacheForTests(client)
       await ensureGeSchema(client)
-      expect(espia.creaciones()).toBe(1)
     } finally {
-      espia.restaurar()
+      spy.mockRestore()
     }
+
+    expect(textos.filter((t) => /^\s*(BEGIN|COMMIT|ROLLBACK)\b/i.test(t))).toEqual([])
+    expect(textos.some((t) => t.includes('pg_advisory_xact_lock'))).toBe(true)
+    expect(textos.filter((t) => t.includes('CREATE OR REPLACE FUNCTION')).length).toBe(2)
   })
 
-  it('restaura el cuerpo de la función si fue modificado a mano, tras reiniciar la caché', async () => {
+  it('no memoiza: si la función desaparece, la siguiente llamada la vuelve a crear', async () => {
     const client = cliente()
     await ensureGeSchema(client)
-    await client.execute(
-      'CREATE OR REPLACE FUNCTION public.booklet_eligibility_source_write_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END; $$',
-    )
-    __resetGuardCacheForTests(client)
+    await client.execute('DROP FUNCTION IF EXISTS public.booklet_eligibility_source_write_guard() CASCADE')
 
-    const espia = espiarCreateOrReplace()
-    try {
-      await ensureGeSchema(client)
-      expect(espia.creaciones()).toBe(1)
-    } finally {
-      espia.restaurar()
-    }
+    await ensureGeSchema(client)
 
     const res = await client.execute(
-      "SELECT p.prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'booklet_eligibility_source_write_guard'",
+      "SELECT count(*) AS n FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'booklet_eligibility_source_write_guard'",
     )
-    expect(String(res.rows[0].prosrc)).toContain('pg_advisory_xact_lock')
+    expect(Number(res.rows[0].n)).toBe(1)
   })
 })
