@@ -295,3 +295,37 @@ describe('corte legado (sin el campo problema por fuente)', () => {
     expect(screen.getByTestId('situacion-kpi-Fuentes vencidas')).toHaveTextContent('2')
   })
 })
+
+describe('situacion-cadena-verificada: línea de la sonda en el encabezado', () => {
+  const itemSonda = (estado: string, motivo: string) => ({
+    id: 'sonda:cadena', grupo: 'riesgo', nombre: 'Cadena de datos (sonda)', estado, motivo,
+    ultimoExitoEn: '2026-10-17T20:30:00.000Z', ultimoIntentoEn: '2026-10-17T20:30:00.000Z', ultimoError: null,
+    edadMinutos: 90, intervaloMinutos: 60,
+  })
+  const conSonda = (item: ReturnType<typeof itemSonda>): EstadoSituacionCliente => ({
+    ...ESTADO_CON_CORTE,
+    estadoDatos: { items: [item as never], problemas: 0, generadoEn: '2026-10-17T21:00:00.000Z' },
+  })
+
+  it('con la sonda ok muestra la línea sin punto final', () => {
+    render(<SituacionClient estadoInicial={conSonda(itemSonda('ok', 'Cadena de datos verificada a las 17:30.'))} />)
+    expect(screen.getByTestId('situacion-cadena-verificada').textContent).toBe(
+      'Cadena de datos verificada a las 17:30',
+    )
+  })
+
+  it('con la sonda fallida no muestra la línea en el encabezado', () => {
+    render(<SituacionClient estadoInicial={conSonda(itemSonda('fallido', 'La cadena de datos falló: x'))} />)
+    expect(screen.queryByTestId('situacion-cadena-verificada')).not.toBeInTheDocument()
+  })
+
+  it('con la sonda desactualizada no muestra la línea en el encabezado', () => {
+    render(<SituacionClient estadoInicial={conSonda(itemSonda('atrasado', 'Última verificación de la cadena de datos a las 15:30 (hace 3 h).'))} />)
+    expect(screen.queryByTestId('situacion-cadena-verificada')).not.toBeInTheDocument()
+  })
+
+  it('sin estado de datos no muestra la línea', () => {
+    render(<SituacionClient estadoInicial={{ ...ESTADO_CON_CORTE, estadoDatos: null }} />)
+    expect(screen.queryByTestId('situacion-cadena-verificada')).not.toBeInTheDocument()
+  })
+})

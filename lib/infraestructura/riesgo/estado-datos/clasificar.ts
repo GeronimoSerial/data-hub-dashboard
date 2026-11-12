@@ -297,6 +297,71 @@ export function clasificarRunVigente(params: { publicadoEn: string | null; ahora
   return { ...base, estado: 'ok', motivo: `Publicado hace ${formatearDuracion(edad)}; se espera cada 6 h.` }
 }
 
+// Sonda de la cadena de datos (job `sonda-cadena-datos`, cada hora): una
+// verificación correcta más vieja que esto ya no dice que la cadena esté sana.
+export const SONDA_CADENA_VENCIDA_MINUTOS = 180
+
+function resumenContadoresSonda(c: Record<string, number>): string {
+  return `escuelas fallidas: ${c.escuelasFallidas}, estaciones fallidas: ${c.estacionesFallidas}, discrepancias: ${c.discrepancias}`
+}
+
+const CLAVES_CONTADORES_SONDA = ['escuelasFallidas', 'estacionesFallidas', 'discrepancias'] as const
+
+export function clasificarSondaCadena(params: { ultima: EstadoJobRun | undefined; ahora: Date }): ItemEstadoDato {
+  const { ultima, ahora } = params
+  const ultimoExitoEn = ultima?.ultimaCompletadaEn ?? null
+  const base = {
+    id: 'sonda:cadena',
+    grupo: 'riesgo' as const,
+    nombre: 'Cadena de datos (sonda)',
+    ultimoExitoEn,
+    ultimoIntentoEn: ultima?.actualizadaEn ?? null,
+    ultimoError: null,
+    edadMinutos: minutosDesde(ultimoExitoEn, ahora),
+    intervaloMinutos: 60,
+  }
+  if (ultima === undefined) {
+    return { ...base, estado: 'sin_datos', motivo: 'La sonda de la cadena de datos nunca corrió.' }
+  }
+  if (ultima.estado === 'fallido') {
+    const error = sanearError(ultima.errorSaneado)
+    const contadores = ultima.contadoresUltimaCompletada
+    const detalle = error ?? (contadores ? resumenContadoresSonda(contadores) : 'sin detalle guardado')
+    return { ...base, estado: 'fallido', motivo: `La cadena de datos falló: ${detalle}`, ultimoError: error }
+  }
+  if (ultima.leaseVencido) {
+    return { ...base, estado: 'fallido', motivo: 'La cadena de datos quedó interrumpida.' }
+  }
+  if (ultimoExitoEn === null) {
+    return { ...base, estado: 'sin_datos', motivo: 'La sonda de la cadena de datos nunca corrió.' }
+  }
+  const contadores = ultima.contadoresUltimaCompletada
+  if (!contadores || CLAVES_CONTADORES_SONDA.some((clave) => typeof contadores[clave] !== 'number')) {
+    return {
+      ...base,
+      estado: 'sin_datos',
+      motivo: 'La última corrida de la cadena de datos no registró contadores.',
+    }
+  }
+  if (CLAVES_CONTADORES_SONDA.some((clave) => contadores[clave] > 0)) {
+    return {
+      ...base,
+      estado: 'fallido',
+      motivo: `La cadena de datos falló: ${resumenContadoresSonda(contadores)}`,
+    }
+  }
+  const edad = base.edadMinutos ?? 0
+  const hora = horaBuenosAires(Date.parse(ultimoExitoEn))
+  if (edad > SONDA_CADENA_VENCIDA_MINUTOS) {
+    return {
+      ...base,
+      estado: 'atrasado',
+      motivo: `Última verificación de la cadena de datos a las ${hora} (hace ${Math.floor(edad / 60)} h).`,
+    }
+  }
+  return { ...base, estado: 'ok', motivo: `Cadena de datos verificada a las ${hora}.` }
+}
+
 export function clasificarImerg(params: { desde: string | null; hasta: string | null; ahora: Date }): ItemEstadoDato {
   const edad = minutosDesde(params.hasta, params.ahora)
   const base = {
