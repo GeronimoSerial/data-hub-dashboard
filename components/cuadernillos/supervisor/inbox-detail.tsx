@@ -11,11 +11,10 @@ import { type ProductAvailability, defaultApprovalQuantities, fichaEscuelaHref, 
 export type ApprovalLine = { productId: string; quantity: number }
 
 export function InboxDetail({
-  request, availability, readOnly, busy, error, onApprove, onReject,
+  request, availability, busy, error, onApprove, onReject,
 }: {
   request: BookletRequestSummary
   availability: ProductAvailability[]
-  readOnly: boolean
   busy: boolean
   error: string | null
   onApprove: (lines: ApprovalLine[]) => void
@@ -59,7 +58,7 @@ export function InboxDetail({
     if (lines) onApprove(lines)
   }
 
-  const blocked = readOnly || busy
+  const blocked = busy
   const shownError = localError ?? error
 
   return (
@@ -78,12 +77,6 @@ export function InboxDetail({
           </a>
         ) : null}
       </header>
-
-      {readOnly ? (
-        <p style={{ margin: 0, padding: '.75rem 1rem', background: 'var(--fill)', color: 'var(--ink-soft)', borderRadius: '.5rem' }}>
-          Solo lectura: mientras ve la cuenta de otro usuario no se pueden registrar decisiones.
-        </p>
-      ) : null}
 
       <div style={{ overflowX: 'auto' }}>
         <table aria-label="Cantidades solicitadas" style={{ width: '100%', borderCollapse: 'collapse' }}>

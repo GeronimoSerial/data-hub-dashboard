@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { BookletServiceError } from '@/lib/cuadernillos/inventory'
 import { BookletRequestReadError, getBookletRequestPage } from '@/lib/cuadernillos/permissions'
 import { createRequest } from '@/lib/cuadernillos/requests'
-import { resolveViewAsActor } from '@/lib/cuadernillos/view-as'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
 import { ruta } from '@/lib/http/ruta'
@@ -29,14 +28,12 @@ async function handleGET(request: Request) {
   const hubDenied = await hubApiAccessResponse(actor, '/cuadernillos')
   if (hubDenied) return hubDenied
   const params = new URL(request.url).searchParams
-  if ([...params.keys()].some((key) => !['campaignId', 'cursor', 'limit', 'viewAs'].includes(key))) {
+  if ([...params.keys()].some((key) => !['campaignId', 'cursor', 'limit'].includes(key))) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: noStore })
   }
   const campaignIds = params.getAll('campaignId')
   const cursors = params.getAll('cursor')
   const limits = params.getAll('limit')
-  const viewAsValues = params.getAll('viewAs')
-  if (viewAsValues.length > 1) return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: noStore })
   const parsed = getSchema.safeParse({
     campaignId: campaignIds.length === 1 ? campaignIds[0] : campaignIds.length === 0 ? undefined : null,
     cursor: cursors.length === 1 ? cursors[0] : cursors.length === 0 ? undefined : null,
@@ -44,9 +41,7 @@ async function handleGET(request: Request) {
   })
   if (!parsed.success) return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: noStore })
   try {
-    const readActor = await resolveViewAsActor(actor, viewAsValues[0])
-    if (readActor.status === 'unavailable') return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403, headers: noStore })
-    const page = await getBookletRequestPage(readActor.actor, {
+    const page = await getBookletRequestPage(actor, {
       ...parsed.data,
       limit: parsed.data.limit === undefined ? undefined : Number(parsed.data.limit),
     })
