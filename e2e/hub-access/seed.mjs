@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { registerTsResolver } from '../../scripts/lib/register-ts-resolver.mjs'
 
 const root = process.cwd()
@@ -14,6 +16,26 @@ const [{ auth }, { getDb }, { user, account }, { ensureSeeded }] = await Promise
 await ensureSeeded()
 const db = getDb()
 const context = await auth.$context
+
+// The hidrometria endpoint reads the estaciones-prefectura dataset; unpublished, it answers 500.
+// Same publish path as e2e/mapa-enos/seed/hidro.ts (guardarVersion), using the full versioned fixture catalogue.
+const { guardarVersion } = await import('../../lib/infraestructura/datasets/repositorio.ts')
+const catalogoPrefectura = JSON.parse(readFileSync(path.join(root, 'lib/infraestructura/datasets/__fixtures__/estaciones.json'), 'utf8')).prefectura
+await guardarVersion({
+  datasetId: 'estaciones-prefectura',
+  nombre: 'Estaciones hidrométricas',
+  revision: 'e2e-2026-10-13',
+  fuente: 'Prefectura Naval Argentina (catálogo de fixture, e2e)',
+  fechaFuente: '2026-10-13',
+  formato: 'array',
+  clave: 'estacionId',
+  datos: catalogoPrefectura,
+})
+
+// Reference datasets the infrastructure map requests on load (departamentos, mascara, puntos-rio).
+// Same publish path as the mapa-enos seed, so the map's same-origin dataset fetches get real bodies, not 503s.
+const { publicarDatasetsMapa } = await import('../mapa-enos/seed/datasets.ts')
+await publicarDatasetsMapa()
 
 async function createCredentialUser({ id, email, name, role, password }) {
   const created = await context.internalAdapter.createUser({

@@ -743,6 +743,25 @@ describe('listarVerificaciones', () => {
   })
 })
 
+describe('obtenerVerificacion', () => {
+  it('devuelve la fila sin tokenHash y con sus campos de negocio', async () => {
+    const cue = cueUnico()
+    const creada = await verificacionPendiente(cue)
+
+    const fila = await obtenerVerificacion(creada.verificacion.id)
+    expect(fila).not.toBeNull()
+    if (!fila) return
+    expect('tokenHash' in fila).toBe(false)
+    // @ts-expect-error tokenHash no forma parte del tipo que devuelve obtenerVerificacion
+    expect(fila.tokenHash).toBeUndefined()
+    expect(fila.id).toBe(creada.verificacion.id)
+    expect(fila.cueAnexo).toBe(cue)
+    expect(fila.estado).toBe('pendiente')
+    expect(fila.periodoId).toBe(PERIODO_ENOS_2026_2027_ID)
+    expect(fila.tokenExpiraEn).toBe(creada.verificacion.tokenExpiraEn)
+  })
+})
+
 describe('auditoría de quién respondió (B6.6)', () => {
   it('responder por enlace registra respondidaPor "enlace" (no hay e-mail en el flujo)', async () => {
     const { token, verificacion } = await verificacionPendiente()
