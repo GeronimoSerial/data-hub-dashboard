@@ -60,6 +60,7 @@ const NOMBRES_VALIDOS = [
   'sync-ina-serie-diaria',
   'sync-ina-pronostico',
   'limpiar-adjuntos-huerfanos',
+  'sonda-cadena-datos',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -364,6 +365,13 @@ async function correrSyncPrefecturaHistorico() {
   return syncPrefecturaHistorico()
 }
 
+// Sonda de la cadena de datos reales (hourly, Coolify). Devuelve resultado, no lanza.
+async function correrSondaCadenaDatos(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('sonda-cadena-datos')
+  const { correrSondaCadenaDatos: correr } = await import('../lib/infraestructura/sonda/job.ts')
+  return correr(opts)
+}
+
 // Capa estática DEM escuela-río (CSV versionado de geo-static): idempotente.
 async function correrImportarExposicionRioDem() {
   if (!(await jobsActivos())) return flagDeshabilitado('importar-exposicion-rio-dem')
@@ -594,6 +602,8 @@ export async function correrJob(nombre, opts) {
       return correrSyncInaSerieDiaria()
     case 'sync-ina-pronostico':
       return correrSyncInaPronostico()
+    case 'sonda-cadena-datos':
+      return correrSondaCadenaDatos(opts)
     default:
       throw new JobDesconocidoError(nombre)
   }
@@ -627,6 +637,7 @@ export function codigoSalida(nombreJob, resultado) {
   if (nombreJob === 'importar-altimetria-v04' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'sync-ina-serie-diaria' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'sync-ina-pronostico' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'sonda-cadena-datos' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3
