@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { CabeceraHome } from './cabecera-home'
+import { LOAD_TIMEOUT_MS } from './cabecera-api'
 
 afterEach(() => {
   cleanup()
@@ -48,7 +49,7 @@ function adminCabecera(cue: string, nombre: string) {
 }
 
 /** Admin flow: the cabecera list plus an overview and recommendation for whichever cabecera is picked. */
-function adminRoutes(cabeceras: ReturnType<typeof adminCabecera>[]) {
+function adminRoutes(cabeceras: Array<{ cue: string; nombre: string }>) {
   return {
     '/api/cuadernillos/cabeceras': () => json({ cabeceras }),
     '/api/cuadernillos/overview': () => overviewFor(cabeceras[0].cue, cabeceras[0].nombre),
@@ -284,5 +285,73 @@ describe('CabeceraHome request flow', () => {
     expect(await screen.findByRole('table')).toBeInTheDocument()
     expect(screen.getAllByText('—')).toHaveLength(2)
     expect(screen.queryByText(/sin dato/)).not.toBeInTheDocument()
+  })
+})
+
+/** Row exactly as listCabeceras returns it (lib/cuadernillos/cabeceras.ts), including the account objects. */
+const realCabeceraRow = {
+  cue: '180123456',
+  nombre: 'Escuela Cabecera',
+  departamento: 'CAPITAL',
+  supervisorName: 'Supervisora',
+  evidencia: 'hoja',
+  status: 'confirmada',
+  supervisor: { id: 'sup-1', name: 'Supervisora', email: 'sup@example.test' },
+  cabecera: { id: 'cab-1', name: 'Cabecera', email: 'cab@example.test' },
+}
+
+describe('CabeceraHome loading', () => {
+  it('loads the admin picker from the real cabeceras response shape', async () => {
+    vi.stubGlobal('fetch', routeFetch({ ...adminRoutes([realCabeceraRow]) }))
+
+    render(<CabeceraHome isAdmin readOnly={false} viewAsUserId={null} />)
+
+    expect(await screen.findByRole('button', { name: 'Elegí una cabecera' })).toBeInTheDocument()
+    expect(screen.queryByText('Cargando cabeceras…')).not.toBeInTheDocument()
+  })
+
+  it('offers Reintentar after a failed cabeceras load and recovers on retry', async () => {
+    let calls = 0
+    vi.stubGlobal('fetch', routeFetch({
+      ...adminRoutes([realCabeceraRow]),
+      '/api/cuadernillos/cabeceras': () => {
+        calls += 1
+        return calls === 1 ? json({ error: 'cabeceras_failed' }, false) : json({ cabeceras: [realCabeceraRow] })
+      },
+    }))
+
+    render(<CabeceraHome isAdmin readOnly={false} viewAsUserId={null} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudieron cargar las cabeceras.')
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+
+    expect(await screen.findByRole('button', { name: 'Elegí una cabecera' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(calls).toBe(2)
+  })
+
+  it('ends a request that never answers in a visible error instead of loading forever', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
+        if (url.startsWith('/api/cuadernillos/cabeceras')) {
+          return new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+          })
+        }
+        return Promise.resolve(json({}))
+      }))
+
+      render(<CabeceraHome isAdmin readOnly={false} viewAsUserId={null} />)
+      expect(screen.getByRole('status')).toHaveTextContent('Cargando cabeceras…')
+
+      await act(async () => { vi.advanceTimersByTime(LOAD_TIMEOUT_MS) })
+
+      expect(screen.getByText('No se pudieron cargar las cabeceras.')).toBeInTheDocument()
+      expect(screen.queryByText('Cargando cabeceras…')).not.toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: 'Reintentar' }).length).toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

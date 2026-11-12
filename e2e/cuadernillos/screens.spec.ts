@@ -73,7 +73,7 @@ for (const { width, height } of VIEWPORTS) {
       await dismissUnderDevelopment(page)
       await shot(page, 'cabecera-initial', width)
       await step('cabecera search by CUE', async () => {
-        await page.getByPlaceholder('Ej. 180123').fill(fixture.criticalCues[0])
+        await page.getByLabel('CUE de la escuela').fill(fixture.criticalCues[0])
         await page.getByRole('button', { name: 'Buscar escuela' }).click()
         await page.getByRole('button', { name: new RegExp(`Elegir .*CUE ${fixture.criticalCues[0]}`) }).waitFor({ timeout: 10_000 })
       })
@@ -133,7 +133,8 @@ for (const { width, height } of VIEWPORTS) {
       await shot(page, 'admin-configuration', width)
       await step('admin open Ver como', async () => {
         await page.getByRole('button', { name: 'Ver como' }).first().click()
-        await page.getByPlaceholder('Nombre o correo').fill('t8-fixture-cabecera')
+        // The view-as popover is the only panel with this search input (the page has a second one).
+        await page.locator('[id$="-panel"]').getByPlaceholder('Nombre o correo').fill('t8-fixture-cabecera')
       })
       // View-as candidates are links, not buttons.
       await step('admin pick cabecera account', async () => {
