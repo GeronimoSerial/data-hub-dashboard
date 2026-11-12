@@ -48,16 +48,24 @@ export function CabecerasAdmin() {
   const load = useCallback(async () => {
     try {
       const body = await request<{ cabeceras: CabeceraView[] }>('/api/cuadernillos/cabeceras')
-      setCabeceras(body.cabeceras)
-      setSlots(slotsFrom(body.cabeceras))
+      setCabeceras(body.cabeceras ?? [])
+      setSlots(slotsFrom(body.cabeceras ?? []))
     } catch (caught) {
       setError(errorCopy(caught))
     }
   }, [])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    let active = true
+    request<{ cabeceras: CabeceraView[] }>('/api/cuadernillos/cabeceras')
+      .then((body) => {
+        if (!active) return
+        setCabeceras(body.cabeceras ?? [])
+        setSlots(slotsFrom(body.cabeceras ?? []))
+      })
+      .catch((caught: unknown) => { if (active) setError(errorCopy(caught)) })
+    return () => { active = false }
+  }, [])
 
   async function search(event: FormEvent) {
     event.preventDefault()

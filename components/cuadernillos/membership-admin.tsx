@@ -45,15 +45,19 @@ export function MembershipAdmin() {
   const loadMemberships = useCallback(async () => {
     try {
       const body = await request<{ memberships: MembershipView[] }>('/api/cuadernillos/memberships')
-      setMemberships(body.memberships)
+      setMemberships(body.memberships ?? [])
     } catch (caught) {
       setError(errorCopy(caught))
     }
   }, [])
 
   useEffect(() => {
-    void loadMemberships()
-  }, [loadMemberships])
+    let active = true
+    request<{ memberships: MembershipView[] }>('/api/cuadernillos/memberships')
+      .then((body) => { if (active) setMemberships(body.memberships ?? []) })
+      .catch((caught: unknown) => { if (active) setError(errorCopy(caught)) })
+    return () => { active = false }
+  }, [])
 
   async function searchUsers(event: FormEvent) {
     event.preventDefault()
@@ -63,7 +67,7 @@ export function MembershipAdmin() {
     setError(null)
     try {
       const body = await request<{ users: MembershipUser[] }>(`/api/cuadernillos/memberships?q=${encodeURIComponent(term)}`)
-      setResults(body.users)
+      setResults(body.users ?? [])
       setSelected(null)
     } catch (caught) {
       setError(errorCopy(caught))
