@@ -20,6 +20,7 @@ export type NombreJob =
   | 'sync-synop-lluvia'
   | 'sync-prefectura-historico'
   | 'importar-exposicion-rio-dem'
+  | 'sonda-cadena-datos'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
   // Cada 6h para alinearse con las corridas ECMWF 00/06/12/18 UTC.
@@ -100,6 +101,11 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
     minutos: 1440,
     descripcion: 'Importa la exposición estática escuela-río del DEM (geo-static, diario e idempotente)',
   },
+  // Sonda end-to-end: verifica que el dato real recorre toda la cadena.
+  'sonda-cadena-datos': {
+    minutos: 60,
+    descripcion: 'Verifica que el dato real recorre toda la cadena (cada hora)',
+  },
 }
 
 // El `tipo` que cada job persiste en infra_job_run (TIPO_JOB interno) no es el
@@ -128,6 +134,7 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'sync-synop-lluvia': 'sync-synop-lluvia',
   'sync-prefectura-historico': 'sync-prefectura-historico',
   'importar-exposicion-rio-dem': 'importar-exposicion-rio-dem',
+  'sonda-cadena-datos': 'sonda-cadena-datos',
 }
 
 // Un job está atrasado cuando pasaron más de dos cadencias completas desde su

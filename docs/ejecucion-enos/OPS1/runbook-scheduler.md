@@ -71,6 +71,7 @@ ver [docs/motor-v0.4/promocion.md](../../motor-v0.4/promocion.md).
 | situacion-corte | `20 * * * *` | no registrado | `situacion-corte-v1` | cada hora |
 | climatologia-imerg | `20 4 * * *` | 3600 s | `calculo-climatologia-imerg` | diario; cursor resumable por mes, presupuesto `IMERG_CLIMATOLOGIA_DIAS_POR_CORRIDA` (default 1200 días ≈ 45 min). Requiere `EARTHDATA_TOKEN`. Salud: `hazard_source_health` `nasa-imerg-climatologia` (TTL 2 días). |
 | sync-prefectura-alturas | `17 * * * *` | 300 s | `sync-prefectura-alturas` | cada hora; creado 2026-10-13. Requiere `ENOS_JOBS_ENABLED` distinto de `false` en el contenedor. Exit `1` si devuelve `estado: fallido`. |
+| sonda-cadena-datos | `41 * * * *` | no registrado | `sonda-cadena-datos` | **pendiente de crear en Coolify** (la crea el owner; no está habilitada en dev, `ENOS_JOBS_ENABLED=false`). Comando `node scripts/jobs.mjs sonda-cadena-datos`. Cada hora, después de `sync-prefectura-alturas` (`:17`). Corre en producción y en consumidor: el consumidor omite sólo la comparación con Prefectura. Variables opcionales `SONDA_ESCUELAS_TESTIGO` y `SONDA_ESTACIONES_TESTIGO` (listas separadas por coma; sin setear rige el default del código). Exit `1` si devuelve `estado: fallido`. Resultado en `/admin/operacion` (batch OPS1, fila del job). |
 | veredicto-diario | `45 0,6,12,18 * * *` | 600 s | `veredicto-diario-v0` | **pendiente de crear**. Comando `node scripts/jobs.mjs veredicto-diario`. Requiere `AI_VEREDICTO_ENABLED=true` (y `OPENROUTER_API_KEY` para texto IA). |
 | veredicto-cierre | `30 3 * * *` | 300 s | `veredicto-cierre-v0` | **pendiente de crear**. Comando `node scripts/jobs.mjs veredicto-cierre`. Cierra el día ART anterior. |
 
@@ -223,7 +224,7 @@ entorno del contenedor o deshabilitando la tarea en Coolify.
 `scripts/jobs.mjs` sigue el contrato de `scripts/job-diagnostico.mjs`, más un código propio:
 
 - **`0`** — corrió y publicó, **o** no hizo nada porque el job ya estaba `completado`, tenía un lease vigente, o `ENOS_JOBS_ENABLED=false`. Si el motivo fue el flag, revisar el `WARN` (¿pausa deliberada o apagado por error?).
-- **`1`** — excepción no manejada, resultado `fallido` de `sync-prefectura-alturas` (fallo real), o `cobertura_parcial` de `sync-ensemble` (quedaron celdas sin dato por red, cupo o 429; el reintento de `:35` pide sólo las faltantes). Revisar el log del scheduler (Coolify o `journalctl -u enos-ops1@<nombre>.service` en staging).
+- **`1`** — excepción no manejada, resultado `fallido` de `sync-prefectura-alturas` o `sonda-cadena-datos` (fallo real), o `cobertura_parcial` de `sync-ensemble` (quedaron celdas sin dato por red, cupo o 429; el reintento de `:35` pide sólo las faltantes). Revisar el log del scheduler (Coolify o `journalctl -u enos-ops1@<nombre>.service` en staging).
 - **`2`** — nombre de job desconocido. Error de la tarea o unidad (nombre mal escrito), no del job.
 - **`3`** — el job perdió el lease antes de publicar: otro proceso lo recuperó por vencimiento. Tratarlo como problema de **scheduling/solapamiento**. Causa típica: intervalo menor a la duración del lease o del job.
 
