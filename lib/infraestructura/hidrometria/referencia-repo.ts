@@ -13,6 +13,9 @@ export type FilaReferencia = {
   medianaM: number
   p10M: number
   p90M: number
+  // Mínimo y máximo de la ventana (I4). Opcionales: filas anteriores a la migración 0056 no los tienen.
+  minM?: number | null
+  maxM?: number | null
   desde: string
   hasta: string
   fuente: string
@@ -23,7 +26,7 @@ export type FilaReferencia = {
 export async function guardarReferencia(db: Db, fila: FilaReferencia): Promise<void> {
   await db
     .insert(hidroReferencia)
-    .values(fila)
+    .values({ ...fila, minM: fila.minM ?? null, maxM: fila.maxM ?? null })
     .onConflictDoUpdate({
       target: [hidroReferencia.estacionId, hidroReferencia.ventanaDias],
       set: {
@@ -31,6 +34,8 @@ export async function guardarReferencia(db: Db, fila: FilaReferencia): Promise<v
         medianaM: fila.medianaM,
         p10M: fila.p10M,
         p90M: fila.p90M,
+        minM: fila.minM ?? null,
+        maxM: fila.maxM ?? null,
         desde: fila.desde,
         hasta: fila.hasta,
         fuente: fila.fuente,
