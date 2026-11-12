@@ -7,6 +7,7 @@ import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { useFullscreenTarget } from '@/components/ui/use-fullscreen-element'
 import { SelectorIdioma } from '@/components/mapas/selector-idioma'
 import type { Idioma } from '@/lib/i18n/idioma'
+import estilos from './map-header.module.css'
 
 export interface InfraestructuraLayoutShellProps {
   mostrarEnlaceNominal: boolean
@@ -59,7 +60,11 @@ export function InfraestructuraLayoutShell({
           <FullscreenButton targetRef={pantallaCompletaRef} />
         </div>
       )}
-      {mostrarSelectorIdioma && <SelectorIdioma idioma={idioma} idiomas={idiomasRegion} />}
+      {mostrarSelectorIdioma && (
+        <div className={estilos.idiomaBarra}>
+          <SelectorIdioma idioma={idioma} idiomas={idiomasRegion} />
+        </div>
+      )}
       <div className="infraestructura-pantalla-completa__contenido">
         {mapaMontado && (
           <div

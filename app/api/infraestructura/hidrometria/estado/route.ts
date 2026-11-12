@@ -3,7 +3,7 @@ import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { ultimaLecturaEstacion } from '@/lib/infraestructura/hidrometria/lecturas-repo'
-import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import { obtenerEstacionesPrefecturaDeRegion } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { estacionParaLocalidad } from '@/lib/infraestructura/hidrometria/tramos-prefectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
@@ -32,7 +32,7 @@ async function handleGET(request: Request) {
   const tramo = estacionParaLocalidad(parsed.data)
   if (!tramo) return jsonNoStore({ tramo: null, lectura: null })
 
-  const estacion = obtenerEstacionesPrefectura().find(
+  const estacion = obtenerEstacionesPrefecturaDeRegion().find(
     (e) => e.estacionId === tramo.estacionId,
   )
   const fila = await ultimaLecturaEstacion(getDb(), tramo.estacionId)

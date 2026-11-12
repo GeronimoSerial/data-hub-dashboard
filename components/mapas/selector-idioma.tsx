@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useTextos } from '@/lib/i18n/idioma-provider'
 import type { Idioma } from '@/lib/i18n/idioma'
+import styles from '@/app/(hub)/mapas/infraestructura/map-header.module.css'
 
 // Each language is named in its own language, so these are not dictionary entries.
 const NOMBRE_IDIOMA: Record<Idioma, string> = { es: 'Español', pt: 'Português' }
@@ -37,11 +38,17 @@ export function SelectorIdioma({
   }
 
   return (
-    <div role="group" aria-label={textos.selectorIdioma.label} data-testid="selector-idioma">
+    <div
+      role="group"
+      aria-label={textos.selectorIdioma.label}
+      data-testid="selector-idioma"
+      className={styles.idiomaSegmentado}
+    >
       {idiomas.map((opcion) => (
         <button
           key={opcion}
           type="button"
+          className={styles.idiomaBoton}
           aria-pressed={opcion === idioma}
           disabled={guardando}
           onClick={() => elegir(opcion)}
