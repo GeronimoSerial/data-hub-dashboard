@@ -9,6 +9,7 @@ import type { DtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import type { EventoTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { etiquetaNivel, nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
 import { lecturaDelDia } from '@/lib/infraestructura/veredicto/resumen'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { NivelChip } from './nivel-chip'
 import { contarPalabras, pasoEscritura, TextoIA, useEscribiendo } from './texto-ia'
 import { VeredictoAcciones } from './veredicto-acciones'
@@ -82,6 +83,7 @@ function VeredictoDelDia({
   onSeleccionarDepartamento?(departamentoId: string): void
 }): JSX.Element {
   const lectura = lecturaDelDia(delDia)
+  const tr = useTextos().residuos
   const { provincia, titular, lineas, sinNovedad, conIa } = lectura
   const tipoDia = fecha === fechaHoy ? 'hoy' : fecha < fechaHoy ? 'observado' : 'pronostico'
   // The headline and every line type in as one sequence within one time budget.
@@ -93,17 +95,17 @@ function VeredictoDelDia({
 
   return (
     <section
-      aria-label="Veredicto del día"
+      aria-label={tr.veredicto.ariaDia}
       className="veredicto-dia"
       data-escribiendo={conIa && escribiendo ? 'true' : undefined}
     >
       <header className="veredicto-dia__encabezado">
         <h3>{etiquetaDia(tipoDia, fecha)}</h3>
         {provincia ? <NivelChip nivel={provincia.nivel} /> : null}
-        {provincia?.enCalibracion ? <span className="veredicto-calibracion">En calibración</span> : null}
+        {provincia?.enCalibracion ? <span className="veredicto-calibracion">{tr.veredicto.calibracion}</span> : null}
       </header>
 
-      {delDia.length === 0 ? <p className="veredicto-modal__estado">El veredicto de este día todavía no se generó.</p> : null}
+      {delDia.length === 0 ? <p className="veredicto-modal__estado">{tr.veredicto.sinGenerar}</p> : null}
 
       {titular ? (
         <p className="veredicto-dia__titular">
@@ -170,6 +172,7 @@ export function VeredictoModal({
   const [veredictos, setVeredictos] = useState<DtoVeredicto[]>([])
   const [seleccion, setSeleccion] = useState<string | null>(null)
   const [eventosCargados, setEventosCargados] = useState<EventoTerreno[]>([])
+  const tr = useTextos().residuos
   // Every opening starts on the current day.
   const [abiertoAntes, setAbiertoAntes] = useState(open)
   if (open !== abiertoAntes) {
@@ -246,7 +249,7 @@ export function VeredictoModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="veredicto-modal">
         <div className="veredicto-modal__cabecera">
-          <DialogTitle>Veredicto diario</DialogTitle>
+          <DialogTitle>{tr.veredicto.titulo}</DialogTitle>
           {acciones ? <div>{acciones}</div> : null}
         </div>
 

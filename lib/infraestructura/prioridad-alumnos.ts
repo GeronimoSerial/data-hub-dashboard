@@ -1,5 +1,7 @@
 import type { Severidad } from './validacion'
 import type { TurnoContexto } from './contexto'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 export interface ImpactoAlumnos {
   afectados: number
@@ -33,10 +35,13 @@ export function impactoDeAlumnos(afectados: Iterable<number>, matriculados: Iter
   return calcularPrioridadAlumnos(seleccion.size, padron.size, corteId)
 }
 
-export function textoImpactoAlumnos(impacto: ImpactoAlumnos): string {
-  if (impacto.prioridad === null) return 'Sin datos para calcular la prioridad'
+export function textoImpactoAlumnos(impacto: ImpactoAlumnos, t: Diccionario = es): string {
+  const textos = t.libTextos.prioridad
+  if (impacto.prioridad === null) return textos.sinDatos
   const porcentaje = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(impacto.porcentaje!)
-  return `${impacto.afectados} de ${impacto.matricula} alumnos · ${porcentaje}% · Prioridad ${impacto.prioridad}`
+  // Alta and Crítica read the same in both languages, so they are not in the dictionary.
+  const severidad = (textos.severidad as Partial<Record<Severidad, string>>)[impacto.prioridad] ?? impacto.prioridad
+  return textos.resumen(impacto.afectados, impacto.matricula, porcentaje, severidad)
 }
 
 export function proyectarImpactoAlumnos<T extends {

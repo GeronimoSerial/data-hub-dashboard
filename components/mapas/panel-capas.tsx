@@ -1,10 +1,10 @@
 'use client'
 
-import { BASEMAPS, type BasemapId } from '@/lib/map-types'
+import { BASEMAPS, etiquetaBasemap, type BasemapId } from '@/lib/map-types'
 import { type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
 import { RadioGroup, RadioItem } from '@/components/ui/radio'
 import { Switch } from '@/components/ui/switch'
-import { colorNivelPlan, ETIQUETA_NIVEL_PLAN } from '@/lib/infraestructura/mapa/planificacion'
+import { colorNivelPlan, etiquetaNivelPlan } from '@/lib/infraestructura/mapa/planificacion'
 import { type HorasLluvia } from '@/components/mapas/capa-lluvia-observada'
 import { useTextos } from '@/lib/i18n/idioma-provider'
 
@@ -58,7 +58,7 @@ export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChan
         <h3 id="map-capas-mapa-base-titulo" className="map-sitact__titulo-seccion">{t.capas.mapaBase}</h3>
         <RadioGroup value={value} onValueChange={(next) => onChange(next as BasemapId)}>
           {(Object.keys(BASEMAPS) as BasemapId[]).map((id) => (
-            <RadioItem key={id} value={id} label={BASEMAPS[id].label} />
+            <RadioItem key={id} value={id} label={etiquetaBasemap(t, id)} />
           ))}
         </RadioGroup>
         <Switch
@@ -112,7 +112,7 @@ export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChan
             {NIVELES_RIESGO.map((nivel) => (
               <span className="map-leyenda__elemento" key={nivel}>
                 <span className="map-leyenda__muestra map-capas__muestra-riesgo" style={{ backgroundColor: colorNivelPlan(nivel) }} />
-                {ETIQUETA_NIVEL_PLAN[nivel]}
+                {etiquetaNivelPlan(t, nivel)}
               </span>
             ))}
           </div>

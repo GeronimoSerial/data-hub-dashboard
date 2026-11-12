@@ -17,6 +17,7 @@ import type { VistaEstructural, VistaPlanificacion } from '@/lib/infraestructura
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export interface PanelPlanificacionProps {
   vista: VistaPlanificacion
@@ -39,11 +40,12 @@ export interface PanelPlanificacionProps {
 
 export function PanelPlanificacion(props: PanelPlanificacionProps): JSX.Element {
   const { vista, onVista, escuelas, riesgo, onSeleccionar } = props
+  const t = useTextos().controles.planificacion
 
   return (
-    <section className="map-sitact" aria-label="Planificación" data-testid="panel-planificacion">
+    <section className="map-sitact" aria-label={t.titulo} data-testid="panel-planificacion">
       <Segmentado
-        etiqueta="Vista"
+        etiqueta={t.vista}
         opciones={VISTAS_PLANIFICACION.map((valor) => ({ valor, etiqueta: ETIQUETA_VISTA[valor] }))}
         valor={vista}
         onChange={onVista}
@@ -53,7 +55,7 @@ export function PanelPlanificacion(props: PanelPlanificacionProps): JSX.Element 
         <>
           <SelectorHorizonteMotor horizonte={riesgo.horizonte} disponibles={riesgo.disponibles} onHorizonte={riesgo.onHorizonte} />
           {!riesgo.cargando && !riesgo.error && riesgo.disponibles.length === 0 ? (
-            <p className="map-sitact__vacio">Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.</p>
+            <p className="map-sitact__vacio">{t.sinPronostico}</p>
           ) : (
             <EscuelasEnRiesgo
               puntos={riesgo.puntos}
@@ -74,6 +76,8 @@ export function PanelPlanificacion(props: PanelPlanificacionProps): JSX.Element 
 
 function PrioridadEstructural(props: Omit<PanelPlanificacionProps, 'vista'> & { vista: VistaEstructural }): JSX.Element {
   const { vista, escuelas, territorio, cargando, error, onSeleccionar } = props
+  const dict = useTextos()
+  const t = dict.controles.planificacion
   const dependeDelTerritorio = vista === 'aisladas'
   const hayDatosVista = vista === 'aisladas'
     ? territorio?.aislamiento !== null && territorio?.aislamiento !== undefined
@@ -81,16 +85,16 @@ function PrioridadEstructural(props: Omit<PanelPlanificacionProps, 'vista'> & { 
   const lista = prioridadPlanificacion(escuelas, vista, { territorio })
 
   return dependeDelTerritorio && cargando ? (
-    <p role="status" className="map-sitact__vacio">Cargando datos…</p>
+    <p role="status" className="map-sitact__vacio">{t.cargando}</p>
   ) : dependeDelTerritorio && error ? (
-    <p role="status" className="map-sitact__vacio">No se pudieron cargar los datos de esta vista. Intente de nuevo más tarde.</p>
+    <p role="status" className="map-sitact__vacio">{t.errorDatos}</p>
   ) : !hayDatosVista ? (
-    <p className="map-sitact__vacio">Todavía no hay datos para esta vista.</p>
+    <p className="map-sitact__vacio">{t.sinDatos}</p>
   ) : vista === 'aisladas' && territorio ? (
     <EscuelasAisladas escuelas={escuelas} territorio={territorio} onSeleccionar={onSeleccionar} />
   ) : (
     <section aria-labelledby="map-planificacion-prioridad-titulo">
-      <h3 id="map-planificacion-prioridad-titulo" className="map-sitact__titulo-seccion">Prioridad de planificación (exposición estructural)</h3>
+      <h3 id="map-planificacion-prioridad-titulo" className="map-sitact__titulo-seccion">{t.prioridadEstructural}</h3>
       {lista.length > 0 ? (
         <div className="map-sitact__lista">
           {lista.map((item) => {
@@ -110,15 +114,15 @@ function PrioridadEstructural(props: Omit<PanelPlanificacionProps, 'vista'> & { 
                   <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
                   <span className="map-sitact__meta">{departamento}{niveles}</span>
                 </span>
-                <span className="map-sitact__cuando">{textoPrioridad(item, vista)}</span>
+                <span className="map-sitact__cuando">{textoPrioridad(item, vista, dict)}</span>
               </button>
             )
           })}
         </div>
       ) : vista === 'historial' ? (
-        <p className="map-sitact__vacio">Todavía no hay situaciones registradas para estos filtros.</p>
+        <p className="map-sitact__vacio">{t.historialVacio}</p>
       ) : (
-        <p className="map-sitact__vacio">Ninguna escuela con prioridad para estos filtros.</p>
+        <p className="map-sitact__vacio">{t.sinPrioridad}</p>
       )}
     </section>
   )

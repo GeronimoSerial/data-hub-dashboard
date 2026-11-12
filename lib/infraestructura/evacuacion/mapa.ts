@@ -1,4 +1,6 @@
 import type { CentroEvacuadosRespuesta } from './respuesta'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 export const COLOR_POSIBLE_CENTRO = '#15803d'
 export const ETIQUETA_POSIBLE_CENTRO = 'Posible centro de evacuados'
@@ -30,8 +32,9 @@ export function construirCaminoCentro(
 
 const FORMATO_KM = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
-export function etiquetaDistanciaCentro(respuesta: CentroEvacuadosRespuesta): string | null {
+export function etiquetaDistanciaCentro(respuesta: CentroEvacuadosRespuesta, t: Diccionario = es): string | null {
   if (respuesta.distanciaKm === undefined) return null
   const km = FORMATO_KM.format(respuesta.distanciaKm)
-  return respuesta.tipo === 'camino' ? `${km} km por camino` : `${km} km en línea recta (sin camino calculado)`
+  const textos = t.libTextos.distanciaCentro
+  return respuesta.tipo === 'camino' ? textos.porCamino(km) : textos.enLineaRecta(km)
 }
