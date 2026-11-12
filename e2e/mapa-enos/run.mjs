@@ -108,6 +108,7 @@ try {
   const data = path.join(workspace, 'data')
   const port = process.env.MAPA_E2E_PORT ?? (await freePort())
   const sinRadarPort = process.env.MAPA_E2E_SIN_RADAR_PORT ?? (await freePort())
+  const pausaPort = process.env.MAPA_E2E_PAUSA_PORT ?? (await freePort())
   const baseURL = `http://127.0.0.1:${port}`
 
   await mkdir(project, { recursive: true })
@@ -142,6 +143,7 @@ try {
     BETTER_AUTH_SECRET: `mapa-e2e-local-only-${crypto.randomUUID()}-${crypto.randomUUID()}`,
     MAPA_E2E_PORT: port,
     MAPA_E2E_SIN_RADAR_PORT: sinRadarPort,
+    MAPA_E2E_PAUSA_PORT: pausaPort,
     // Salt for the QA account passwords (cuentas-qa.ts). Seed, setup and specs all read it from this env.
     MAPA_E2E_QA_SAL: crypto.randomUUID(),
     // Set only by `pnpm test:e2e:mapa:snapshots`: specs rewrite contratos/snapshots in the workspace copy.
@@ -164,7 +166,7 @@ try {
     GE_SSO_SHARED_KEY: '',
   }
 
-  console.log(`MAPA E2E isolated runtime: ${project}; data: ${data}; browser base: ${baseURL}; sin-radar: http://127.0.0.1:${sinRadarPort}`)
+  console.log(`MAPA E2E isolated runtime: ${project}; data: ${data}; browser base: ${baseURL}; sin-radar: http://127.0.0.1:${sinRadarPort}; pausa: http://127.0.0.1:${pausaPort}`)
   await run(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'build', '--webpack'], project, env)
   await run(process.execPath, ['e2e/mapa-enos/seed/index.mjs'], project, env)
 
