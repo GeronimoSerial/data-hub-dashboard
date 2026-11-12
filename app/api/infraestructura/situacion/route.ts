@@ -1,7 +1,10 @@
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { staffGuard } from '@/lib/session'
-import { obtenerEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
+import {
+  obtenerEstadoSituacion,
+  serializarEstadoSituacion,
+} from '@/lib/infraestructura/riesgo/situacion/consulta'
 import { obtenerEstadoDatosSeguro } from '@/lib/infraestructura/riesgo/estado-datos/consulta'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
@@ -48,20 +51,7 @@ async function handleGET(request: Request) {
 
   return Response.json(
     {
-      corte: estado.corte
-        ? {
-            id: estado.corte.id,
-            generadoEn: estado.corte.generadoEn,
-            kpis: estado.corte.kpis,
-            conteosPorNivelRiesgo: estado.corte.conteosPorNivelRiesgo,
-            fuentesSalud: estado.corte.fuentesSalud,
-            episodiosAbiertos: estado.corte.episodiosAbiertos,
-            episodiosCerradosDesdeAnterior: estado.corte.episodiosCerradosDesdeAnterior,
-          }
-        : null,
-      briefing: estado.briefing,
-      atraso: estado.atraso,
-      prioridades: estado.prioridades,
+      ...serializarEstadoSituacion(estado),
       estadoDatos,
     },
     { status: 200, headers: { 'Cache-Control': 'private, no-store' } },

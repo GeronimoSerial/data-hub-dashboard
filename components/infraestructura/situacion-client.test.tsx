@@ -20,12 +20,14 @@ const ESTADO_CON_CORTE: EstadoSituacionCliente = {
     ],
     episodiosAbiertos: 1,
     episodiosCerradosDesdeAnterior: 0,
+    cobertura: null,
   },
   briefing: ['Línea 1 del briefing.', 'Línea 2 del briefing.'],
   atraso: { texto: 'al día', atrasado: false, desactivadoPorConfig: false },
   prioridades: [
     { cueAnexo: '1800001-00', departamento: 'PARANA', nivelRiesgo: 'alto', scoreRiesgo: 0.7 },
   ],
+  sinRun: false,
   estadoDatos: {
     items: [
       {
@@ -83,6 +85,7 @@ describe('SituacionClient', () => {
       briefing: [],
       atraso: { texto: '—', atrasado: true, desactivadoPorConfig: false },
       prioridades: [],
+      sinRun: true,
       estadoDatos: null,
     }
     unmount()
@@ -165,6 +168,7 @@ describe('SituacionClient', () => {
       briefing: [],
       atraso: { texto: '—', atrasado: true, desactivadoPorConfig: false },
       prioridades: [],
+      sinRun: true,
       estadoDatos: null,
     }
     render(<SituacionClient estadoInicial={estadoVacio} />)
@@ -224,5 +228,70 @@ describe('formatearFecha — igual en servidor y navegador (sin error de hidrata
 
   it('devuelve el texto tal cual si no es una fecha válida', () => {
     expect(formatearFecha('no-es-fecha')).toBe('no-es-fecha')
+  })
+})
+
+function estadoConCobertura(
+  cobertura: { procesadas: number; conEvidencia: number; sinEvidencia: number } | null,
+): EstadoSituacionCliente {
+  const corte = ESTADO_CON_CORTE.corte
+  if (corte === null) throw new Error('el fixture necesita corte')
+  return { ...ESTADO_CON_CORTE, sinRun: false, corte: { ...corte, cobertura } }
+}
+
+const TILE_RIESGO_ALTO = 'situacion-kpi-Escuelas con riesgo alto o muy alto (24 h)'
+
+describe('cobertura junto al KPI de riesgo alto', () => {
+  it('muestra "Cobertura 20%" cuando 2 de 10 escuelas tienen evidencia', () => {
+    render(<SituacionClient estadoInicial={estadoConCobertura({ procesadas: 10, conEvidencia: 2, sinEvidencia: 8 })} />)
+    expect(screen.getByTestId(TILE_RIESGO_ALTO)).toHaveTextContent('Cobertura 20%')
+  })
+
+  it('muestra "Cobertura 100%" con cobertura completa', () => {
+    render(<SituacionClient estadoInicial={estadoConCobertura({ procesadas: 10, conEvidencia: 10, sinEvidencia: 0 })} />)
+    expect(screen.getByTestId(TILE_RIESGO_ALTO)).toHaveTextContent('Cobertura 100%')
+  })
+
+  it('sin dato de cobertura no muestra ninguna cifra de cobertura', () => {
+    render(<SituacionClient estadoInicial={estadoConCobertura(null)} />)
+    expect(screen.getByTestId(TILE_RIESGO_ALTO)).not.toHaveTextContent('Cobertura')
+    expect(screen.queryByText(/Cobertura \d+%/)).toBeNull()
+  })
+
+  it('con cero escuelas procesadas no inventa un porcentaje', () => {
+    render(<SituacionClient estadoInicial={estadoConCobertura({ procesadas: 0, conEvidencia: 0, sinEvidencia: 0 })} />)
+    expect(screen.getByTestId(TILE_RIESGO_ALTO)).not.toHaveTextContent('Cobertura')
+    expect(screen.getByTestId(TILE_RIESGO_ALTO)).not.toHaveTextContent('NaN')
+  })
+})
+
+describe('prioridades sin corrida de riesgo', () => {
+  it('sin corrida vigente dice "Sin cálculo de riesgo disponible" y no "Sin escuelas en riesgo alto"', () => {
+    render(<SituacionClient estadoInicial={{ ...ESTADO_CON_CORTE, prioridades: [], sinRun: true }} />)
+    expect(screen.getByText('Sin cálculo de riesgo disponible')).toBeInTheDocument()
+    expect(screen.queryByText(/Sin escuelas en riesgo alto/)).toBeNull()
+  })
+
+  it('con corrida y cero escuelas en riesgo alto sigue diciendo "Sin escuelas en riesgo alto"', () => {
+    render(<SituacionClient estadoInicial={{ ...ESTADO_CON_CORTE, prioridades: [], sinRun: false }} />)
+    expect(screen.getByText(/Sin escuelas en riesgo alto/)).toBeInTheDocument()
+    expect(screen.queryByText('Sin cálculo de riesgo disponible')).toBeNull()
+  })
+})
+
+describe('corte legado (sin el campo problema por fuente)', () => {
+  it('renderiza sin romper y muestra el KPI de fuentes vencidas tal como quedó persistido', () => {
+    const legado: EstadoSituacionCliente = {
+      ...ESTADO_CON_CORTE,
+      corte: {
+        ...ESTADO_CON_CORTE.corte!,
+        kpis: { ...ESTADO_CON_CORTE.corte!.kpis, fuentesVencidas: 2 },
+        fuentesSalud: [{ provider: 'open-meteo', estado: 'ok', frescuraMinutos: 30, vencida: true }],
+      },
+    }
+
+    render(<SituacionClient estadoInicial={legado} />)
+
+    expect(screen.getByTestId('situacion-kpi-Fuentes vencidas')).toHaveTextContent('2')
   })
 })

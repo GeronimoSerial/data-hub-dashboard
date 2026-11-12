@@ -33,9 +33,11 @@ import {
   obtenerCorteAnterior,
   obtenerPublicadoEnRun,
   obtenerUltimoCorte,
+  normalizarCobertura,
   reconstruirBriefingDesdeCorte,
   type CortePersistido,
 } from './corte'
+import type { CoberturaBriefing } from '@/lib/infraestructura/riesgo/briefing'
 
 // "no verificable": el corte no puede decir qué edad tiene el dato que muestra
 // (sin corrida de riesgo o sin fecha de publicación). Es neutro: nunca "al día".
@@ -48,6 +50,42 @@ export interface EstadoSituacion {
   briefing: string[]
   atraso: EstadoAtrasoSituacion
   prioridades: PrioridadEscuela[]
+  // true cuando no hay ninguna corrida de riesgo vigente: las prioridades
+  // vacías no significan "sin escuelas en riesgo alto", sino "sin cálculo".
+  sinRun: boolean
+}
+
+export interface RespuestaSituacionCorte {
+  id: string
+  generadoEn: string
+  kpis: CortePersistido['kpis']
+  conteosPorNivelRiesgo: CortePersistido['conteosPorNivelRiesgo']
+  fuentesSalud: CortePersistido['fuentesSalud']
+  episodiosAbiertos: number
+  episodiosCerradosDesdeAnterior: number
+  cobertura: CoberturaBriefing | null
+}
+
+/** Forma pública de /api/infraestructura/situacion (sin `estadoDatos`). */
+export function serializarEstadoSituacion(estado: EstadoSituacion): Omit<EstadoSituacion, 'corte'> & {
+  corte: RespuestaSituacionCorte | null
+} {
+  const { corte, ...resto } = estado
+  return {
+    ...resto,
+    corte: corte
+      ? {
+          id: corte.id,
+          generadoEn: corte.generadoEn,
+          kpis: corte.kpis,
+          conteosPorNivelRiesgo: corte.conteosPorNivelRiesgo,
+          fuentesSalud: corte.fuentesSalud,
+          episodiosAbiertos: corte.episodiosAbiertos,
+          episodiosCerradosDesdeAnterior: corte.episodiosCerradosDesdeAnterior,
+          cobertura: normalizarCobertura(corte.cobertura),
+        }
+      : null,
+  }
 }
 
 export interface PrioridadEscuela {
@@ -87,7 +125,18 @@ export async function obtenerEstadoSituacion(opts?: {
     limite: opts?.limitePrioridades ?? LIMITE_PRIORIDADES_DEFAULT,
   })
 
-  return { corte, briefing, atraso, prioridades }
+  const sinRun = !(await hayRunVigente())
+
+  return { corte, briefing, atraso, prioridades, sinRun }
+}
+
+async function hayRunVigente(): Promise<boolean> {
+  const [runVigente] = await getDb()
+    .select({ id: infraRiskRun.id })
+    .from(infraRiskRun)
+    .where(eq(infraRiskRun.estado, 'vigente'))
+    .limit(1)
+  return runVigente !== undefined
 }
 
 /**

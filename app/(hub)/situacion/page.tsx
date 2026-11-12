@@ -3,7 +3,7 @@ import { getSessionUser } from '@/lib/session'
 import { adminPageGate } from '@/lib/acl'
 import { ensureSeeded } from '@/lib/db/seed'
 import { situacionEnabled } from '@/lib/infraestructura/riesgo/flags'
-import { obtenerEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
+import { obtenerEstadoSituacion, serializarEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
 import { obtenerEstadoDatosSeguro } from '@/lib/infraestructura/riesgo/estado-datos/consulta'
 import { SituacionClient } from '@/components/infraestructura/situacion-client'
 import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
@@ -42,20 +42,7 @@ export default async function SituacionPage() {
     <div style={contenedor}>
       <SituacionClient
         estadoInicial={{
-          corte: estadoInicial.corte
-            ? {
-                id: estadoInicial.corte.id,
-                generadoEn: estadoInicial.corte.generadoEn,
-                kpis: estadoInicial.corte.kpis,
-                conteosPorNivelRiesgo: estadoInicial.corte.conteosPorNivelRiesgo,
-                fuentesSalud: estadoInicial.corte.fuentesSalud,
-                episodiosAbiertos: estadoInicial.corte.episodiosAbiertos,
-                episodiosCerradosDesdeAnterior: estadoInicial.corte.episodiosCerradosDesdeAnterior,
-              }
-            : null,
-          briefing: estadoInicial.briefing,
-          atraso: estadoInicial.atraso,
-          prioridades: estadoInicial.prioridades,
+          ...serializarEstadoSituacion(estadoInicial),
           estadoDatos,
         }}
       />

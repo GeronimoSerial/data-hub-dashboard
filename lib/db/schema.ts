@@ -1525,7 +1525,7 @@ export const infraSituacionCorte = pgTable(
     // Salud de fuentes congelada en el instante del corte (frescura ya
     // calculada, no recalculada al leer).
     fuentesSalud: jsonb('fuentes_salud')
-      .$type<Array<{ provider: string; estado: string; frescuraMinutos: number | null; vencida: boolean }>>()
+      .$type<Array<{ provider: string; estado: string; frescuraMinutos: number | null; vencida: boolean; problema?: boolean }>>()
       .notNull(),
     episodiosAbiertos: integer('episodios_abiertos').notNull().default(0),
     // Episodios que pasaron a cerrado entre el corte anterior y este.
