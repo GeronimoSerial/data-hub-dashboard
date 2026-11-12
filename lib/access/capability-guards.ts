@@ -28,6 +28,7 @@ export const CAPABILITY_GUARDS: Record<RouteCapability, readonly string[]> = {
   'hub.section.dashboards': HUB_GUARDS,
   'hub.section.infrastructure': HUB_GUARDS,
   'hub.section.situation': HUB_GUARDS,
+  'hub.section.cuadernillos': HUB_GUARDS,
   'hub.recursos': [...HUB_GUARDS, 'puedeVerEnSeccion', 'puedeAbrir'],
   'infra.map.read': [
     'verificarAccesoLectura',

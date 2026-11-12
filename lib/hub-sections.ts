@@ -7,6 +7,7 @@ export const HUB_SECTIONS = [
   'dashboards',
   'infrastructure',
   'situation',
+  'cuadernillos',
 ] as const
 
 export type HubSection = (typeof HUB_SECTIONS)[number]
@@ -24,6 +25,7 @@ export const HUB_DESTINATIONS: readonly HubDestination[] = [
   { kind: 'section', section: 'dashboards', path: '/tableros' },
   { kind: 'section', section: 'infrastructure', path: '/mapas/infraestructura' },
   { kind: 'section', section: 'situation', path: '/situacion' },
+  { kind: 'section', section: 'cuadernillos', path: '/cuadernillos' },
   { kind: 'section', section: 'maps', path: '/mapas/matricula' },
   { kind: 'section', section: 'maps', path: '/mapas/natalidad' },
   { kind: 'section', section: 'maps', path: '/mapas/reorganizacion' },
@@ -45,12 +47,23 @@ export type SectionPolicy = {
 }
 
 export const LEGACY_SECTION_POLICY: Readonly<Required<SectionPolicy>> = {
-  enabledSections: HUB_SECTIONS,
+  // Preserve the original implicit grant set; new sections require explicit opt-in.
+  enabledSections: ['explore', 'reports', 'maps', 'dashboards', 'infrastructure', 'situation'],
   landing: true,
 }
 
 export function effectiveSections(policy: SectionPolicy): ReadonlySet<HubSection> {
   return new Set(policy.enabledSections ?? LEGACY_SECTION_POLICY.enabledSections)
+}
+
+/**
+ * Sections the user may enter. An admin without an explicit list also holds
+ * the opt-in sections; any explicit list (including []) is honored as stored.
+ */
+export function sectionsForUser(user: { role: string; hubPolicy?: SectionPolicy | null }): ReadonlySet<HubSection> {
+  const policy = user.hubPolicy ?? {}
+  if (user.role === 'admin' && policy.enabledSections === undefined) return new Set(HUB_SECTIONS)
+  return effectiveSections(policy)
 }
 
 export function canUseLanding(policy: SectionPolicy): boolean {
@@ -85,6 +98,7 @@ export function sectionForPath(path: string): HubSection | 'landing' | null {
   if (pathname === '/mapas/infraestructura' || pathname.startsWith('/mapas/infraestructura/')) return 'infrastructure'
   if (pathname === '/infraestructura/cargar' || pathname.startsWith('/infraestructura/cargar/')) return 'infrastructure'
   if (pathname === '/situacion') return 'situation'
+  if (pathname === '/cuadernillos' || pathname.startsWith('/cuadernillos/')) return 'cuadernillos'
   if (pathname === '/tableros' || pathname === '/tablero' || pathname.startsWith('/tablero/')) return 'dashboards'
   if (pathname === '/mapas' || pathname.startsWith('/mapas/') || ['/mapa_interactivo', '/mapa_sobreedad', '/mapa_notas'].includes(pathname)) return 'maps'
   if (pathname === '/recursos' || pathname.startsWith('/recursos/')) return 'explore'

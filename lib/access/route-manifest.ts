@@ -26,6 +26,7 @@ export const ROUTE_MANIFEST: Record<string, RouteCapability | readonly RouteCapa
   'app/(hub)/mapas/infraestructura/page.tsx': 'infra.map.read',
   'app/(hub)/mapas/infraestructura/escuelas/[cue]/page.tsx': 'infra.map.read',
   'app/(hub)/tableros/page.tsx': 'hub.section.dashboards',
+  'app/(hub)/cuadernillos/page.tsx': 'hub.section.cuadernillos',
   'app/(hub)/recursos/[id]/page.tsx': 'hub.recursos',
   // Gated by adminPageGate (staff); the section capability hub.section.situation does not enforce it.
   'app/(hub)/situacion/page.tsx': 'staff',
@@ -73,6 +74,15 @@ export const ROUTE_MANIFEST: Record<string, RouteCapability | readonly RouteCapa
   'app/auth/ge-callback/route.ts': 'public',
   'app/api/gate/[...path]/route.ts': 'hub.recursos',
   'app/api/hub/route.ts': 'hub.explore',
+  'app/api/cuadernillos/assignments/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/overview/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/quotas/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/recommendations/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/requests/[id]/approve/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/requests/[id]/reject/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/requests/[id]/remainder/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/requests/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/stock/route.ts': 'hub.section.cuadernillos',
   'app/api/hub/admin/route.ts': 'staff',
   // TODO(T3): archivo GET uses the resource ACL; POST requires staff.
   'app/api/recursos/[id]/archivo/route.ts': ['hub.recursos', 'staff'],

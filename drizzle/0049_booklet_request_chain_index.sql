@@ -1,0 +1,1 @@
+CREATE INDEX "booklet_request_root_chain_idx" ON "booklet_request" USING btree ("root_request_id","created_at");
