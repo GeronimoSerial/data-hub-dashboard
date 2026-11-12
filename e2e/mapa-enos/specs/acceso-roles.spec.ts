@@ -10,6 +10,14 @@ const RUTA_API_ESCUELAS = '/api/mapas/infraestructura/escuelas'
 // Escuela del seed con parte vigente y una afectación (sembrarParteVigente en seed/partes.ts).
 const CUE_CON_AFECTACION = '1800554-00'
 
+// Ventana del límite de sign-in (3 por 10 s por IP): mismo backoff documentado que setup/auth.setup.ts.
+const VENTANA_LIMITE_MS = 10_500
+const INTENTOS_MAXIMOS = 3
+
+async function esperarVentanaDeLimite(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, VENTANA_LIMITE_MS))
+}
+
 const FILAS_TABLA_ESTADISTICAS = '[data-testid="map-est-tabla"] tbody tr'
 
 // Suma la columna "Escuelas" de la tabla de estadísticas (agrupada por departamento).
@@ -57,6 +65,8 @@ test.describe('consulta sin nominal: enlace ausente', () => {
     await page.goto(`${RUTA_MAPA}/escuelas/${CUE_CON_AFECTACION}`)
     await expect(page).toHaveURL(new RegExp(`/mapas/infraestructura/escuelas/${CUE_CON_AFECTACION}$`))
     await expect(page.getByText('Panorama', { exact: true }).first()).toBeVisible()
+    // Control positivo: la afectación se ve en la sección de situaciones; el enlace falta por el permiso nominal.
+    await expect(page.getByTestId('ficha-incidente').getByText('Alcanzados por la situación')).toBeVisible()
     await expect(page.locator('[data-testid^="ver-alumnos-"]')).toHaveCount(0)
   })
 })
@@ -82,7 +92,20 @@ test.describe('anónimo: redirección al login y vuelta al mapa', () => {
     const cuenta = cuentaPorClave('admin')
     await page.getByLabel('Correo').fill(cuenta.email)
     await page.getByLabel('Contraseña').fill(cuenta.password)
-    await page.getByRole('button', { name: 'Iniciar sesión' }).click()
+    // Mismo reintento que setup/auth.setup.ts: Better Auth limita /sign-in a 3 por 10 s por IP.
+    for (let intento = 1; ; intento++) {
+      const respuesta = page.waitForResponse(
+        (response) => response.url().includes('/api/auth/sign-in') && response.request().method() === 'POST',
+      )
+      await page.getByRole('button', { name: 'Iniciar sesión' }).click()
+      const status = (await respuesta).status()
+      if (status !== 429) {
+        expect(status, 'respuesta de sign-in del admin').toBe(200)
+        break
+      }
+      expect(intento, 'intentos de sign-in agotados por límite de tasa').toBeLessThan(INTENTOS_MAXIMOS)
+      await esperarVentanaDeLimite()
+    }
 
     await expect(page).toHaveURL((url) => url.pathname === RUTA_MAPA)
     await esperarMapaListo(page)
