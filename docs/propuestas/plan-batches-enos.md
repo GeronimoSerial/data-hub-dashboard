@@ -382,7 +382,7 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
   - (c) El área del mapa se ve sin mapa base en la captura; confirmar si son teselas sin conexión del entorno de prueba o un defecto real.
   - (d) La marca institucional de la cabecera del hub está fija en Corrientes.
   - (e) Catálogo sin scope en `lecturas-repo.ts:210`, `MAP_CENTER` de map-matricula, jobs `sync-smn-alertas`/`sync-synop-lluvia`/`importar-exposicion-rio-dem`, y secretos adicionales a B11.6.
-- Evidencia pendiente: el `COPY config` del Dockerfile (`39346b44`) todavía no está probado en una imagen construida. Cuando B9 llegue a dev, bajar la imagen de GHCR y correr dentro de ella un dry run de `scripts/jobs.mjs` (sin escrituras a la base) como evidencia.
+- Evidencia pendiente: el `COPY config` del Dockerfile (`39346b44`) todavía no está probado en una imagen construida. Cuando B9 llegue a dev, bajar la imagen de GHCR y correr dentro de ella `ls /app/config/regiones` y `scripts/jobs.mjs` con un nombre de job desconocido (imprime la lista de jobs, sin escrituras a la base) como evidencia.
 
 ---
 
