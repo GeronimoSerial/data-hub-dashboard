@@ -41,3 +41,7 @@ tmp/pdfs/
 
 # CSV de filas excluidas de la importación de matrícula (contiene nombres en claro).
 *.excluidas-*.csv
+
+# Estado de sesion y resultados de las pruebas e2e del mapa ENOS (se generan en cada corrida).
+e2e/mapa-enos/.auth/
+e2e/mapa-enos/.results/
