@@ -36,6 +36,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], baseURL: manaosURL },
     },
     {
+      name: 'manaos-pt',
+      testMatch: 'specs/portugues.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: manaosURL },
+    },
+    {
       name: 'corrientes-vacio',
       testMatch: 'specs/corrientes-vacio.spec.ts',
       use: { ...devices['Desktop Chrome'], baseURL: corrientesURL },
