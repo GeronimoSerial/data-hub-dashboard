@@ -39,6 +39,7 @@ if (typeof window !== 'undefined') {
 export function InfraestructuraMapClient(props: {
   mostrarEnlaceNominal: boolean
   mostrarCallCenter?: boolean
+  mostrarCuadernillos?: boolean
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
@@ -302,6 +303,12 @@ export function InfraestructuraMapClient(props: {
         {props.mostrarCallCenter && (
           <Link href="/call-center" className={styles.callCenterLink}>
             Call center
+            <ArrowUpRight size={14} aria-hidden="true" />
+          </Link>
+        )}
+        {props.mostrarCuadernillos && (
+          <Link href="/cuadernillos" className={styles.callCenterLink}>
+            Cuadernillos
             <ArrowUpRight size={14} aria-hidden="true" />
           </Link>
         )}
