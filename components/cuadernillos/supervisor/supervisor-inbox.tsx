@@ -185,8 +185,8 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
       {groups.map((group) => (
         <section key={group.cabeceraCueAnexo} role="group" aria-label={group.cabeceraName} style={{ display: 'grid', gap: '.5rem' }}>
           <header style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', alignItems: 'baseline' }}>
-            <h3 style={{ margin: 0, color: 'var(--ink)', fontSize: '1rem' }}>{group.cabeceraName}</h3>
-            <span style={{ color: 'var(--ink-soft)', fontSize: '.9rem' }}>{pluralPending(group.requests.length)}</span>
+            <h3 style={{ margin: 0, minWidth: 0, color: 'var(--ink)', fontSize: '1rem', overflowWrap: 'anywhere' }}>{group.cabeceraName}</h3>
+            <span style={{ flexShrink: 0, whiteSpace: 'nowrap', color: 'var(--ink-soft)', fontSize: '.9rem' }}>{pluralPending(group.requests.length)}</span>
           </header>
           {group.requests.map((request) => {
             const total = request.requested.reduce((sum, line) => sum + line.quantity, 0)
