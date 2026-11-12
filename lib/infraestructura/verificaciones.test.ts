@@ -446,6 +446,7 @@ describe('responderAsistida', () => {
       verificacionId: verificacion.id,
       actorUserId: 'user-operador',
       canal: 'telefono',
+      observacion: "Observación de prueba",
       resultado: 'sin_afectacion',
     })
 
@@ -468,6 +469,7 @@ describe('responderAsistida', () => {
       verificacionId: verificacion.id,
       actorUserId: 'user-operador',
       canal: 'telefono',
+      observacion: "Observación de prueba",
       resultado: 'con_afectacion',
       movimientoId,
     })
@@ -489,6 +491,7 @@ describe('responderAsistida', () => {
       verificacionId: verificacion.id,
       actorUserId: 'user-operador',
       canal: 'telefono',
+      observacion: "Observación de prueba",
       resultado: 'con_afectacion',
       movimientoId: movimientoAjeno,
     })
@@ -712,5 +715,57 @@ describe('listarVerificaciones', () => {
 
     const todas = await listarVerificaciones({ cueAnexo: cue })
     expect(todas).toHaveLength(2)
+  })
+
+  it('marca enlaceVencido sólo en la verificación cuyo token ya venció', async () => {
+    const cue = cueUnico()
+    const vencida = await verificacionPendiente(cue)
+    const vigente = await verificacionPendiente(cue)
+    await getDb()
+      .update(infraVerificacion)
+      .set({ tokenExpiraEn: '2020-01-01T00:00:00.000Z' })
+      .where(eq(infraVerificacion.id, vencida.verificacion.id))
+
+    const listadas = await listarVerificaciones({ cueAnexo: cue })
+    const porId = new Map(listadas.map((v) => [v.id, v]))
+    expect(porId.get(vencida.verificacion.id)?.enlaceVencido).toBe(true)
+    expect(porId.get(vigente.verificacion.id)?.enlaceVencido).toBe(false)
+  })
+})
+
+describe('auditoría de quién respondió (B6.6)', () => {
+  it('responder por enlace registra respondidaPor "enlace" (no hay e-mail en el flujo)', async () => {
+    const { token, verificacion } = await verificacionPendiente()
+
+    const resultado = await responderPorEnlace({
+      verificacionId: verificacion.id,
+      token,
+      resultado: 'sin_afectacion',
+    })
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) return
+    expect(resultado.verificacion.respondidaPor).toBe('enlace')
+    expect(resultado.verificacion.observacion).toBeNull()
+  })
+
+  it('responder asistida guarda la observación y no atribuye respondidaPor', async () => {
+    const { verificacion } = await verificacionPendiente()
+
+    const resultado = await responderAsistida({
+      verificacionId: verificacion.id,
+      actorUserId: 'user-operador',
+      canal: 'telefono',
+      resultado: 'sin_afectacion',
+      observacion: 'La directora confirmó por teléfono que no hubo afectación',
+    })
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) return
+    expect(resultado.verificacion.observacion).toBe(
+      'La directora confirmó por teléfono que no hubo afectación',
+    )
+    expect(resultado.verificacion.respondidaPor).toBeNull()
+    expect(resultado.verificacion.respondidaPorUserId).toBe('user-operador')
   })
 })
