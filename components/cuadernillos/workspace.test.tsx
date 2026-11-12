@@ -137,3 +137,70 @@ describe('CuadernillosWorkspace', () => {
     expect(screen.queryByText('private@example.test')).not.toBeInTheDocument()
   })
 })
+
+describe('CuadernillosWorkspace view-as', () => {
+  const target = { userId: 'supervisor-1', name: 'Supervisora Demo' }
+  const candidate = { userId: 'supervisor-1', name: 'Supervisora Demo', email: 'sup@example.test', capabilities: ['supervisor' as const] }
+
+  it('shows a read-only banner with an exit link and sends viewAs with every read', async () => {
+    const fetchMock = fetchWithAssignments()
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<CuadernillosWorkspace capabilities={['planning']} viewAs={target} />)
+
+    expect(screen.getByText('Viendo como Supervisora Demo (Planeamiento) — solo lectura')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Salir' })).toHaveAttribute('href', '/cuadernillos')
+    await waitFor(() => expect(screen.getByText('Escuela de muestra')).toBeInTheDocument())
+    expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/assignments?capability=planning&viewAs=supervisor-1', expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/cuadernillos/overview?capability=planning&viewAs=supervisor-1'), expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/cuadernillos/requests?'), expect.anything())
+  })
+
+  it('disables write actions while viewing as another account', async () => {
+    vi.stubGlobal('fetch', fetchWithAssignments())
+
+    render(<CuadernillosWorkspace capabilities={['planning']} viewAs={target} />)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Registrar movimiento' })).toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Guardar cupo' })).toBeDisabled()
+  })
+
+  it('does not offer membership administration while viewing as another account', async () => {
+    vi.stubGlobal('fetch', fetchWithAssignments())
+
+    render(<CuadernillosWorkspace capabilities={['planning']} isAdmin viewAs={target} viewAsCandidates={[candidate]} />)
+
+    await waitFor(() => expect(screen.getByText('Escuela de muestra')).toBeInTheDocument())
+    expect(document.getElementById('membership-admin-title')).toBeNull()
+  })
+
+  it('keeps membership administration for an admin working as themselves', async () => {
+    const base = fetchWithAssignments()
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => url.startsWith('/api/cuadernillos/memberships')
+      ? Promise.resolve(jsonResponse({ memberships: [] }))
+      : base(url)))
+
+    render(<CuadernillosWorkspace capabilities={['planning']} isAdmin />)
+
+    await waitFor(() => expect(document.getElementById('membership-admin-title')).not.toBeNull())
+  })
+
+  it('shows the admin account picker only to admins and never a native select', async () => {
+    vi.stubGlobal('fetch', fetchWithAssignments())
+
+    const { container, rerender } = render(<CuadernillosWorkspace capabilities={['planning']} isAdmin viewAsCandidates={[candidate]} />)
+    expect(screen.getByRole('searchbox', { name: 'Buscar cuenta' })).toBeInTheDocument()
+    expect(container.querySelector('select')).toBeNull()
+
+    rerender(<CuadernillosWorkspace capabilities={['planning']} viewAsCandidates={[candidate]} />)
+    expect(screen.queryByRole('searchbox', { name: 'Buscar cuenta' })).not.toBeInTheDocument()
+  })
+
+  it('explains when the requested account cannot be viewed', async () => {
+    vi.stubGlobal('fetch', fetchWithAssignments())
+
+    render(<CuadernillosWorkspace capabilities={['planning']} isAdmin viewAsUnavailable viewAsCandidates={[candidate]} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('No se puede ver como esta cuenta.')
+  })
+})
