@@ -39,9 +39,18 @@ export const RegionConfigSchema = z
         localizaciones: z.string().min(1),
       })
       .strict(),
+    // Dataset keys declared in `datasets` whose data is not published yet
+    // (e.g. waiting for B12). The contract accepts them only when listed here.
+    datasetsPendientes: z.array(z.string().min(1)).optional(),
+    // Reference datasets published by `pnpm region:cargar <id>` (clave = infra_dataset key, archivo = repo-relative file).
+    cargaDatasets: z
+      .array(z.object({ clave: z.string().min(1), archivo: z.string().min(1) }).strict())
+      .optional(),
     fuentesRio: z.array(z.string().min(1)),
     fuentesAlertas: z.array(z.string().min(1)),
-    estacionAncla: z.string().min(1),
+    // Optional: the upstream gauge used for the wave offset. Regions without a
+    // river gauge in the motor (e.g. Manaos before B12) omit it.
+    estacionAncla: z.string().min(1).optional(),
     archivos: z
       .object({
         mascara: z.string().min(1),

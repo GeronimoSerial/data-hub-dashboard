@@ -1,7 +1,8 @@
 import corrientes from '../../../config/regiones/corrientes.json' with { type: 'json' }
+import manaos from '../../../config/regiones/manaos.json' with { type: 'json' }
 import { RegionConfigSchema, type RegionConfig } from './esquema'
 
-const REGISTRO = { corrientes } as const
+const REGISTRO = { corrientes, manaos } as const
 
 export const REGIONES_CONOCIDAS: readonly string[] = Object.keys(REGISTRO)
 

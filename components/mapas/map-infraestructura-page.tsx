@@ -630,6 +630,11 @@ export function vistaRadarDeRegion(region: RegionPublica): { center: [number, nu
   return { center: region.vistaInicial.centro, zoom: region.vistaInicial.zoom }
 }
 
+// Fuente de departamentos cuando el GeoJSON no se pudo cargar (región sin
+// datasets publicados): las capas siguen montadas pero no dibujan nada, sin
+// volver a pedir la URL que ya respondió con error.
+const DEPARTAMENTOS_SIN_DATOS = { type: 'FeatureCollection' as const, features: [] }
+
 export default function MapInfraestructuraPage(props: {
   // Región pública; por defecto la activa en el cliente.
   region?: RegionPublica
@@ -1019,6 +1024,19 @@ export default function MapInfraestructuraPage(props: {
       [Math.max(...puntos.map((p) => p[0])), Math.max(...puntos.map((p) => p[1]))]]
   }, [departamentosRaw])
 
+  // Sin departamentos (sin límites), el encuadre de la provincia cae a la vista
+  // inicial de la región en vez de fitBounds sobre un bbox inexistente.
+  const vistaInicialRegion = useMemo(
+    () => vistaRadarDeRegion(props.region ?? regionPublicaActual()),
+    [props.region],
+  )
+  const encuadrarProvincia = useCallback((opciones: { padding: PaddingOptions; duration?: number }) => {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa) return
+    if (limitesCorrientes) mapa.fitBounds(limitesCorrientes, opciones)
+    else mapa.flyTo({ center: vistaInicialRegion.center, zoom: vistaInicialRegion.zoom, duration: opciones.duration })
+  }, [limitesCorrientes, vistaInicialRegion])
+
   // Closing the preview deselects the school and returns to the province view.
   const cerrarFicha = useCallback(() => {
     setSeleccionCue(null)
@@ -1027,8 +1045,8 @@ export default function MapInfraestructuraPage(props: {
     setFichaPestana(null)
     setAvisoBusqueda(null)
     setCruceInfoClic(null)
-    mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia(), duration: 600 })
-  }, [limitesCorrientes])
+    encuadrarProvincia({ padding: paddingProvincia(), duration: 600 })
+  }, [encuadrarProvincia])
 
   useEffect(() => {
     const contenedor = mapRef.current?.getMap().getContainer()
@@ -1562,7 +1580,7 @@ export default function MapInfraestructuraPage(props: {
       if (limites) {
         mapRef.current?.getMap()?.fitBounds(limites, { padding: paddingEncuadre(), duration: 600 })
       } else {
-        mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia() })
+        encuadrarProvincia({ padding: paddingProvincia() })
       }
     }
   }, [
@@ -1571,7 +1589,7 @@ export default function MapInfraestructuraPage(props: {
     dataEscuelasMapaVisible,
     handleSeleccionarEscuelaBuscada,
     departamentoSeleccionado,
-    limitesCorrientes,
+    encuadrarProvincia,
     departamentosRaw,
     setCruceInfoClic,
     horasLluvia,
@@ -1722,7 +1740,8 @@ export default function MapInfraestructuraPage(props: {
         </div>
       )}
       <div className={styles.mapRoot}>
-        {limitesCorrientes && <MapGL
+        {/* El mapa se monta cuando hay límites o cuando la carga de departamentos falló de forma definitiva: sin datasets publicados el basemap igual aparece, con la vista de la región. Mientras carga, no se monta (el encuadre sale del bbox). */}
+        {(limitesCorrientes || errorGeografia) && <MapGL
           ref={mapRef}
           attributionControl={false}
           mapStyle={mapStyle}
@@ -1731,11 +1750,12 @@ export default function MapInfraestructuraPage(props: {
           locale={localeMaplibre(idiomaMapa)}
           // Encuadre inicial ajustado a la provincia. MAP_CENTER/MAP_ZOOM son
           // los del mapa de matrícula y dejaban a Corrientes descentrada y
-          // demasiado cerca; acá el encuadre sale del bbox real del GeoJSON.
-          initialViewState={{
+          // demasiado cerca; acá el encuadre sale del bbox real del GeoJSON, y
+          // sin GeoJSON, de la vista inicial de la región.
+          initialViewState={limitesCorrientes ? {
             bounds: limitesCorrientes,
             fitBoundsOptions: { padding: paddingProvincia() },
-          }}
+          } : vistaInicialRegion}
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
           onClick={handleClick}
@@ -1765,7 +1785,7 @@ export default function MapInfraestructuraPage(props: {
           <Fragment key={versionEstilo}>
           <ControlesZoom
             mapRef={mapRef}
-            onVerProvincia={() => mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia(), duration: 600 })}
+            onVerProvincia={() => encuadrarProvincia({ padding: paddingProvincia(), duration: 600 })}
           />
           {/* La atribución compacta deja libre la esquina inferior derecha del mapa. */}
           <AttributionControl key={radarActivo ? 'radar-attribution' : 'map-attribution'} position={radarActivo ? 'top-right' : 'bottom-right'} compact />
@@ -1777,14 +1797,13 @@ export default function MapInfraestructuraPage(props: {
           {/*
             F2.4: `data` pasa a ser el GeoJSON ya cruzado con `escuelasCaidas`
             (departamentosGeojson) apenas termina de resolverse el fetch +
-            useMemo; hasta entonces cae a la URL, igual que antes — el
-            coalesce de fillPaintDepartamentos cubre ese instante sin
-            propiedad.
+            useMemo. Sin departamentos publicados la fuente queda vacía
+            (DEPARTAMENTOS_SIN_DATOS): el mapa monta igual y no dibuja límites.
           */}
           <Source
             id="infra-departamentos-src"
             type="geojson"
-            data={departamentosGeojson ?? DEPARTAMENTOS_INFRA_URL}
+            data={departamentosGeojson ?? DEPARTAMENTOS_SIN_DATOS}
           >
             <Layer
               id={CAPA_DEPARTAMENTOS_RELLENO_ID}
@@ -2323,7 +2342,7 @@ export default function MapInfraestructuraPage(props: {
               entradaPuntosPendiente.current = true
               setPuntosVisibles(false)
               setDepartamentoSeleccionado(null)
-              mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia() })
+              encuadrarProvincia({ padding: paddingProvincia() })
             }}
           />
         </aside>

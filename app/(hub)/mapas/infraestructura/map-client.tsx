@@ -20,6 +20,7 @@ import {
   parsearContextoMapaDeQuery,
 } from '@/lib/infraestructura/mapa/estado-retorno'
 import { useTextos } from '@/lib/i18n/idioma-provider'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 import { cn } from '@/lib/utils'
 import styles from './map-header.module.css'
 
@@ -253,7 +254,7 @@ export function InfraestructuraMapClient(props: {
             <TabsList
               ref={tabsListRef}
               className={styles.tabsList}
-              aria-label={t.modos.ariaBarra}
+              aria-label={t.modos.ariaBarra(regionPublicaActual().nombre)}
               onFocusCapture={(event) => {
                 const target = (event.target as HTMLElement | null)?.closest<HTMLElement>('[role="tab"]')
                 if (target) revealTab(target)

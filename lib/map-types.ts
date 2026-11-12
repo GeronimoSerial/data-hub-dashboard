@@ -165,5 +165,15 @@ export const BASEMAPS: Record<
   },
 }
 
-export const MAP_CENTER: [number, number] = regionPublicaActual().mapaCentro
-export const MAP_ZOOM: number = regionPublicaActual().mapaZoom
+export const MAP_CENTER: [number, number] = mapCenterRegion()
+export const MAP_ZOOM: number = mapZoomRegion()
+
+/** Centro inicial de la región activa; se lee al llamar, no al importar el módulo. */
+export function mapCenterRegion(): [number, number] {
+  return regionPublicaActual().mapaCentro
+}
+
+/** Zoom inicial de la región activa; se lee al llamar, no al importar el módulo. */
+export function mapZoomRegion(): number {
+  return regionPublicaActual().mapaZoom
+}
