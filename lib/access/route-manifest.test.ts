@@ -2,6 +2,7 @@ import { readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ROUTE_MANIFEST } from './route-manifest'
+import { ALL_CAPABILITIES } from './capabilities'
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..')
 const APP_DIR = path.join(REPO_ROOT, 'app')
@@ -25,6 +26,12 @@ describe('ROUTE_MANIFEST', () => {
       missing,
       `Routes without a declared capability. Routes must declare a capability in lib/access/route-manifest.ts:\n${missing.join('\n')}`,
     ).toEqual([])
+  })
+
+  it('keeps independent Links administration separate from hub capabilities', () => {
+    expect(ROUTE_MANIFEST['app/(miniapps)/(links)/links/admin/page.tsx']).toBe('links.admin')
+    expect(ROUTE_MANIFEST['app/(miniapps)/(links)/links/api/contenido/route.ts']).toBe('links.admin')
+    expect(ALL_CAPABILITIES).not.toContain('links.admin')
   })
 
   it('has no entries for route files that are missing on disk', () => {

@@ -1,4 +1,4 @@
-import type { Capability } from './capabilities'
+import type { RouteCapability } from './route-manifest'
 
 /**
  * Identificadores de las guardas que hacen cumplir cada capacidad en el código.
@@ -14,7 +14,7 @@ const HUB_GUARDS = [
   'hubConfined',
 ] as const
 
-export const CAPABILITY_GUARDS: Record<Capability, readonly string[]> = {
+export const CAPABILITY_GUARDS: Record<RouteCapability, readonly string[]> = {
   public: [],
   authenticated: ['getSessionUser'],
   staff: ['staffGuard', 'adminPageGate', 'listUsuariosDenied', 'mutateUsuariosDenied'],
@@ -45,6 +45,7 @@ export const CAPABILITY_GUARDS: Record<Capability, readonly string[]> = {
     'bloqueoDeAcceso',
   ],
   'callcenter.access': ['callCenterGuard', 'callCenterPageGate'],
+  'links.admin': ['esAdmin', 'usuarioAdmin'],
 }
 
 /**
