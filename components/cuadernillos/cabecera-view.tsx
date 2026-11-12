@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import type { CabeceraView as CabeceraRow } from '@/lib/cuadernillos/cabeceras'
 import type { BookletAssignmentsPage, BookletBalanceView, BookletCampaignOption, EnrollmentRecommendation } from '@/lib/cuadernillos/types'
 import { AssignmentList } from './assignment-list'
 
 type CriticalSchool = { cueAnexo: string; nombre: string; departamento: string; severity: string }
 type OverviewState = { campaignId: string | null; campaignOptions: BookletCampaignOption[]; balances: BookletBalanceView[] }
+type RequestCabecera = { cueAnexo: string; schoolName: string }
 
 const ERROR_LABELS: Record<string, string> = {
   ineligible: 'La escuela ya no está en severidad Crítica. Buscá otra escuela.',
@@ -38,7 +40,13 @@ function isRecommendationList(value: unknown): value is { recommendations: Enrol
   return Boolean(value && typeof value === 'object' && Array.isArray((value as { recommendations?: unknown }).recommendations))
 }
 
-function CabeceraRequestForm({ cabeceraCues }: { cabeceraCues: Array<{ cueAnexo: string; schoolName: string }> }) {
+function isCabeceraList(value: unknown): value is { cabeceras: CabeceraRow[] } {
+  if (!value || typeof value !== 'object' || !Array.isArray((value as { cabeceras?: unknown }).cabeceras)) return false
+  return (value as { cabeceras: unknown[] }).cabeceras.every((row) => row !== null && typeof row === 'object'
+    && typeof (row as CabeceraRow).cue === 'string' && typeof (row as CabeceraRow).nombre === 'string')
+}
+
+function CabeceraRequestForm({ cabeceraCues, onRequestCreated }: { cabeceraCues: RequestCabecera[]; onRequestCreated: () => void }) {
   const [overview, setOverview] = useState<OverviewState | null>(null)
   const [overviewError, setOverviewError] = useState<string | null>(null)
   const [campaignId, setCampaignId] = useState('')
@@ -144,6 +152,7 @@ function CabeceraRequestForm({ cabeceraCues }: { cabeceraCues: Array<{ cueAnexo:
       if (!response.ok) throw new Error(ERROR_LABELS[errorCode(data)] ?? 'No se pudo enviar la solicitud. Intentá nuevamente.')
       intent.current = null
       setNotice(`Solicitud enviada a revisión para ${selected.nombre}. Aparece en Solicitudes.`)
+      onRequestCreated()
       setSelected(null)
       setRecommendations(null)
       setQuantities({})
@@ -233,22 +242,90 @@ function CabeceraRequestForm({ cabeceraCues }: { cabeceraCues: Array<{ cueAnexo:
   )
 }
 
+function AdminCabeceraPicker({ cabeceras, error, selectedCue, onPick }: {
+  cabeceras: CabeceraRow[] | null
+  error: string | null
+  selectedCue: string | null
+  onPick: (cue: string) => void
+}) {
+  return (
+    <section aria-labelledby="admin-cabecera-picker-title" style={{ display: 'grid', gap: '.75rem', marginTop: '2rem' }}>
+      <h3 id="admin-cabecera-picker-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: '1.15rem' }}>
+        Cabecera que solicita
+      </h3>
+      <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Como administrador, elegí la cabecera en cuyo nombre se realiza el pedido.</p>
+      {error ? <p role="alert" style={{ color: 'var(--danger-ink)' }}>{error}</p> : null}
+      {!cabeceras && !error ? <p role="status" style={{ color: 'var(--ink-soft)' }}>Cargando cabeceras…</p> : null}
+      {cabeceras && cabeceras.length === 0 ? <p style={{ color: 'var(--ink-soft)' }}>No hay cabeceras cargadas.</p> : null}
+      {cabeceras && cabeceras.length ? (
+        <div role="group" aria-label="Cabeceras" style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
+          {cabeceras.map((cabecera) => (
+            <button
+              key={cabecera.cue}
+              type="button"
+              aria-pressed={selectedCue === cabecera.cue}
+              onClick={() => onPick(cabecera.cue)}
+              className={selectedCue === cabecera.cue ? 'ui-button ui-button--primary' : 'ui-button ui-button--secondary'}
+            >
+              {cabecera.nombre} · CUE {cabecera.cue}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 export function CabeceraView({
   page,
   loading,
   error,
   onLoadMore,
   loadingMore,
+  isAdmin = false,
+  readOnly = false,
+  onRequestCreated = () => undefined,
 }: {
   page: BookletAssignmentsPage | null
   loading: boolean
   error: string | null
   onLoadMore: () => void
   loadingMore: boolean
+  isAdmin?: boolean
+  readOnly?: boolean
+  onRequestCreated?: () => void
 }) {
-  const cabeceraCues = (page?.items ?? [])
+  const [adminCabeceras, setAdminCabeceras] = useState<CabeceraRow[] | null>(null)
+  const [adminError, setAdminError] = useState<string | null>(null)
+  const [pickedCue, setPickedCue] = useState<string | null>(null)
+  // An admin has no cabecera of their own: they pick the requesting cabecera from the admin list.
+  const showAdminPicker = isAdmin && !readOnly
+
+  useEffect(() => {
+    if (!showAdminPicker) return
+    const controller = new AbortController()
+    fetch('/api/cuadernillos/cabeceras', { signal: controller.signal, cache: 'no-store' })
+      .then(async (response) => {
+        const data = await readJson(response)
+        if (!response.ok || !isCabeceraList(data)) throw new Error('No se pudieron cargar las cabeceras.')
+        setAdminCabeceras(data.cabeceras)
+        setAdminError(null)
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) setAdminError(reason instanceof Error ? reason.message : 'No se pudieron cargar las cabeceras.')
+      })
+    return () => controller.abort()
+  }, [showAdminPicker])
+
+  const pageCabeceras: RequestCabecera[] = (page?.items ?? [])
     .filter((item) => item.relationship === 'cabecera')
     .map((item) => ({ cueAnexo: item.cueAnexo, schoolName: item.schoolName }))
+  const pickedCabecera = adminCabeceras?.find((cabecera) => cabecera.cue === pickedCue)
+  // A read-only view never creates requests; the session actor owns every write.
+  const requestCabeceras: RequestCabecera[] | null = readOnly ? null
+    : isAdmin ? (pickedCabecera ? [{ cueAnexo: pickedCabecera.cue, schoolName: pickedCabecera.nombre }] : null)
+    : page ? pageCabeceras : null
+
   return (
     <section aria-labelledby="cuadernillos-view-title">
       <header style={{ marginBottom: '1.5rem' }}>
@@ -277,7 +354,8 @@ export function CabeceraView({
         ) : null}
       </section>
 
-      {page ? <CabeceraRequestForm key={cabeceraCues.map((cabecera) => cabecera.cueAnexo).join(',')} cabeceraCues={cabeceraCues} /> : null}
+      {showAdminPicker ? <AdminCabeceraPicker cabeceras={adminCabeceras} error={adminError} selectedCue={pickedCue} onPick={setPickedCue} /> : null}
+      {requestCabeceras ? <CabeceraRequestForm key={requestCabeceras.map((cabecera) => cabecera.cueAnexo).join(',')} cabeceraCues={requestCabeceras} onRequestCreated={onRequestCreated} /> : null}
     </section>
   )
 }
