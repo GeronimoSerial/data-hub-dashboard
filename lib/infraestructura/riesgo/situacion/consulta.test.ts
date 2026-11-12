@@ -184,12 +184,70 @@ describe('obtenerEstadoSituacion', () => {
     expect(estado.briefing.length).toBeGreaterThan(0)
   })
 
-  it('con un corte viejo (más de 2 cadencias, 1h cada una), marca desactualizado', async () => {
+  it('corte nuevo sobre una corrida de riesgo publicada hace 7 días queda Desactualizado', async () => {
     process.env.ENOS_JOBS_ENABLED = 'true'
-    await insertarRunVigente(db)
-    await generarCorte({ ahora: new Date('2026-09-27T09:00:00.000Z'), jobRunId: null })
+    await insertarRunVigente(db, undefined, '2026-09-20T12:00:00.000Z')
+    const ahora = new Date('2026-09-27T12:00:00.000Z')
+    await generarCorte({ ahora, jobRunId: null })
 
-    const estado = await obtenerEstadoSituacion({ ahora: new Date('2026-09-27T12:30:00.000Z') })
+    const estado = await obtenerEstadoSituacion({ ahora })
+    expect(estado.atraso.texto).toBe('atrasado')
+    expect(estado.atraso.atrasado).toBe(true)
+  })
+
+  it('corte sobre una corrida de riesgo sin fecha de publicación es "no verificable", nunca "al día"', async () => {
+    process.env.ENOS_JOBS_ENABLED = 'true'
+    await insertarRunVigente(db, undefined, null)
+    const ahora = new Date('2026-09-27T12:00:00.000Z')
+    await generarCorte({ ahora, jobRunId: null })
+
+    const estado = await obtenerEstadoSituacion({ ahora })
+    expect(estado.atraso.texto).toBe('no verificable')
+    expect(estado.atraso.atrasado).toBe(false)
+    expect(estado.atraso.desactivadoPorConfig).toBe(false)
+  })
+
+  it('corte sobre una corrida con fecha de publicación ilegible es "no verificable", nunca "al día"', async () => {
+    process.env.ENOS_JOBS_ENABLED = 'true'
+    await insertarRunVigente(db, undefined, 'no-es-fecha')
+    const ahora = new Date('2026-09-27T12:00:00.000Z')
+    await generarCorte({ ahora, jobRunId: null })
+
+    const estado = await obtenerEstadoSituacion({ ahora })
+    expect(estado.atraso.texto).toBe('no verificable')
+    expect(estado.atraso.atrasado).toBe(false)
+  })
+
+  it('corte sin corrida de riesgo vigente es "no verificable", nunca "al día"', async () => {
+    process.env.ENOS_JOBS_ENABLED = 'true'
+    const ahora = new Date('2026-09-27T12:00:00.000Z')
+    await generarCorte({ ahora, jobRunId: null })
+
+    const estado = await obtenerEstadoSituacion({ ahora })
+    expect(estado.corte?.riskRunId).toBeNull()
+    expect(estado.atraso.texto).toBe('no verificable')
+    expect(estado.atraso.atrasado).toBe(false)
+  })
+
+  it('corte sobre una corrida de riesgo publicada hace 30 minutos queda al día (control sano)', async () => {
+    process.env.ENOS_JOBS_ENABLED = 'true'
+    await insertarRunVigente(db, undefined, '2026-09-27T11:30:00.000Z')
+    const ahora = new Date('2026-09-27T12:00:00.000Z')
+    await generarCorte({ ahora, jobRunId: null })
+
+    const estado = await obtenerEstadoSituacion({ ahora })
+    expect(estado.atraso.texto).toBe('al día')
+    expect(estado.atraso.atrasado).toBe(false)
+  })
+
+  it('corte viejo (generado hace 5 h, cadencia 1 h) sobre una corrida reciente queda Desactualizado', async () => {
+    process.env.ENOS_JOBS_ENABLED = 'true'
+    await insertarRunVigente(db, undefined, '2026-09-27T11:50:00.000Z')
+    const ahora = new Date('2026-09-27T12:00:00.000Z')
+    await generarCorte({ ahora: new Date('2026-09-27T07:00:00.000Z'), jobRunId: null })
+
+    const estado = await obtenerEstadoSituacion({ ahora })
+    expect(estado.atraso.texto).toBe('atrasado')
     expect(estado.atraso.atrasado).toBe(true)
   })
 })

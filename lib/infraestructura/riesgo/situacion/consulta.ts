@@ -31,15 +31,22 @@ import {
 import { enosJobsEnabled } from '@/lib/infraestructura/jobs/flags'
 import {
   obtenerCorteAnterior,
+  obtenerPublicadoEnRun,
   obtenerUltimoCorte,
   reconstruirBriefingDesdeCorte,
   type CortePersistido,
 } from './corte'
 
+// "no verificable": el corte no puede decir qué edad tiene el dato que muestra
+// (sin corrida de riesgo o sin fecha de publicación). Es neutro: nunca "al día".
+export type EstadoAtrasoSituacion = Omit<EstadoAtrasoJob, 'texto'> & {
+  texto: EstadoAtrasoJob['texto'] | 'no verificable'
+}
+
 export interface EstadoSituacion {
   corte: CortePersistido | null
   briefing: string[]
-  atraso: EstadoAtrasoJob
+  atraso: EstadoAtrasoSituacion
   prioridades: PrioridadEscuela[]
 }
 
@@ -55,11 +62,11 @@ const LIMITE_PRIORIDADES_DEFAULT = 10
 
 /**
  * Estado ejecutivo completo del Centro de Situación: KPIs + briefing +
- * salud vienen 100% del último corte persistido (nunca en vivo); el "atraso"
- * reusa `estaAtrasado`/`estadoAtrasoJob` de OPS1 tomando el `generadoEn` del
- * corte como proxy de "última corrida exitosa" (un corte sólo se persiste
- * cuando el job terminó bien). Sin ningún corte todavía, `atraso.atrasado`
- * es `true` salvo que ENOS_JOBS_ENABLED esté apagado (pausa deliberada).
+ * salud vienen 100% del último corte persistido (nunca en vivo). La frescura
+ * (`atraso`) es la edad de la CORRIDA DE RIESGO detrás del corte
+ * (`infraRiskRun.publicadoEn` vía `corte.riskRunId`), no la hora del corte: un
+ * corte nuevo sobre una corrida muerta no puede verse fresco. Sin ningún corte
+ * todavía, `atraso.atrasado` es `true` salvo que ENOS_JOBS_ENABLED esté apagado.
  */
 export async function obtenerEstadoSituacion(opts?: {
   ahora?: Date
@@ -72,12 +79,7 @@ export async function obtenerEstadoSituacion(opts?: {
   const anterior = corte ? await obtenerCorteAnterior(corte.generadoEn) : null
   const briefing = corte ? reconstruirBriefingDesdeCorte(corte, anterior) : []
 
-  const atraso = estadoAtrasoJob({
-    nombre: 'situacion-corte',
-    ultimaCorridaExitosaEn: corte ? new Date(corte.generadoEn) : null,
-    enosJobsEnabled: enosJobsEnabled(),
-    ahora,
-  })
+  const atraso = await estadoFrescuraSituacion(corte, ahora)
 
   const prioridades = await obtenerTopPrioridades({
     territorioTipo: opts?.territorioTipo,
@@ -86,6 +88,49 @@ export async function obtenerEstadoSituacion(opts?: {
   })
 
   return { corte, briefing, atraso, prioridades }
+}
+
+/**
+ * Frescura del encabezado: `atrasado` si el job del corte está atrasado (edad
+ * de `generadoEn`, cadencia `situacion-corte`) o si la corrida de riesgo del
+ * corte lo está (cadencia de `calcular-riesgo`, dos cadencias de tolerancia,
+ * como en OPS1). Sin corte, el job del corte nunca corrió: queda `atrasado`. Con
+ * pausa operativa (ENOS_JOBS_ENABLED=false) no se evalúa la edad.
+ */
+async function estadoFrescuraSituacion(
+  corte: CortePersistido | null,
+  ahora: Date,
+): Promise<EstadoAtrasoSituacion> {
+  const habilitado = enosJobsEnabled()
+  if (corte === null || !habilitado) {
+    return estadoAtrasoJob({
+      nombre: 'situacion-corte',
+      ultimaCorridaExitosaEn: null,
+      enosJobsEnabled: habilitado,
+      ahora,
+    })
+  }
+
+  const corteAtrasado = estadoAtrasoJob({
+    nombre: 'situacion-corte',
+    ultimaCorridaExitosaEn: new Date(corte.generadoEn),
+    enosJobsEnabled: habilitado,
+    ahora,
+  })
+  if (corteAtrasado.atrasado) return corteAtrasado
+
+  const publicadoEn = await obtenerPublicadoEnRun(corte.riskRunId)
+  const publicadoMs = publicadoEn === null ? NaN : Date.parse(publicadoEn)
+  if (Number.isNaN(publicadoMs)) {
+    return { texto: 'no verificable', atrasado: false, desactivadoPorConfig: false }
+  }
+
+  return estadoAtrasoJob({
+    nombre: 'calcular-riesgo',
+    ultimaCorridaExitosaEn: new Date(publicadoMs),
+    enosJobsEnabled: true,
+    ahora,
+  })
 }
 
 /**
