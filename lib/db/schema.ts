@@ -2161,6 +2161,20 @@ export const bookletIdempotency = pgTable('booklet_idempotency', {
   check('booklet_idempotency_key_check', sql`length(trim(${t.idempotencyKey})) > 0`),
 ])
 
+// Cabeceras identified from supervisor planillas. Seeded by migration; the
+// supervisor name is a planilla assertion, never an account identity.
+export const bookletCabecera = pgTable('booklet_cabecera', {
+  cueAnexo: text('cue_anexo').primaryKey(),
+  nombre: text('nombre').notNull(),
+  departamento: text('departamento').notNull(),
+  supervisorName: text('supervisor_name').notNull(),
+  evidencia: text('evidencia').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check('booklet_cabecera_cue_check', sql`${t.cueAnexo} ~ '^[0-9]{9}$'`),
+])
+
 // Only explicitly confirmed assignments belong here; names from source files
 // are not account identities, so both responsible accounts are mandatory.
 export const bookletSchoolAssignment = pgTable('booklet_school_assignment', {
