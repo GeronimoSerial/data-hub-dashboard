@@ -108,7 +108,21 @@ describe('Configuracion · Membresías', () => {
     await openMemberships()
 
     const row = await screen.findByRole('row', { name: /Ana Pérez.*Planeamiento/ })
-    expect(within(row).getByRole('button', { name: /Revocar/ })).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: /Quitar/ })).toBeInTheDocument()
+  })
+
+  it('renders the capability of each membership as a chip inside its own row', async () => {
+    const supervisor = { ...activeMembership, id: 'membership-2', userName: 'Bruno Ruiz', capability: 'supervisor' as const }
+    vi.stubGlobal('fetch', membershipFetch(response({ memberships: [activeMembership, supervisor] })))
+
+    render(<Configuracion />)
+    await openMemberships()
+
+    const planningRow = await screen.findByRole('row', { name: /Ana Pérez/ })
+    const supervisorRow = screen.getByRole('row', { name: /Bruno Ruiz/ })
+    expect(within(planningRow).getByText('Planeamiento')).toHaveAttribute('data-capability', 'planning')
+    expect(within(supervisorRow).getByText('Supervisor')).toHaveAttribute('data-capability', 'supervisor')
+    expect(within(supervisorRow).queryByText('Planeamiento')).not.toBeInTheDocument()
   })
 
   it('revokes a membership through DELETE and removes it from the table', async () => {
@@ -121,7 +135,7 @@ describe('Configuracion · Membresías', () => {
 
     render(<Configuracion />)
     await openMemberships()
-    fireEvent.click(await screen.findByRole('button', { name: /Revocar/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Quitar/ }))
 
     await waitFor(() => expect(screen.queryByRole('row', { name: /Ana Pérez/ })).not.toBeInTheDocument())
     expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/memberships/membership-1', expect.objectContaining({ method: 'DELETE' }))
