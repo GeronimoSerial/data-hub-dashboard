@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { BookletBalanceView, BookletRequestSummary, BookletRequestsPage } from '@/lib/cuadernillos/types'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
-import { SheetContent, SheetRoot } from '@/components/ui/sheet'
+import { SheetContent, SheetRoot, SheetTitle } from '@/components/ui/sheet'
 import { InboxDetail, type ApprovalLine } from './inbox-detail'
 import { availabilityFor, formatAge, formatCue, groupPendingByCabecera } from './inbox-model'
 import { isBalances, isRequestsPage } from './inbox-guards'
@@ -221,7 +221,7 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
       ) : null}
 
       {phone ? (
-        <BottomSheet open={selected !== null} titulo={selected?.recipientName || 'Escuela destinataria'} onCerrar={closePanel}>
+        <BottomSheet open={selected !== null} titulo="Pedido de cuadernillos" onCerrar={closePanel}>
           {selected ? (
             <InboxDetail
               key={selected.requestId}
@@ -230,7 +230,6 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
               readOnly={readOnly}
               busy={busy}
               error={actionError}
-              showTitle={false}
               onApprove={(lines) => void decide(selected, { kind: 'approve', lines })}
               onReject={(reason) => void decide(selected, { kind: 'reject', reason })}
             />
@@ -239,6 +238,7 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
       ) : (
         <SheetRoot open={selected !== null} onOpenChange={(open) => { if (!open) closePanel() }}>
           <SheetContent side="right" style={{ width: 'min(100vw, 28rem)', maxWidth: '100vw', boxSizing: 'border-box', padding: '1.5rem', overflowY: 'auto' }}>
+            <SheetTitle style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>Pedido de cuadernillos</SheetTitle>
             {selected ? (
               <InboxDetail
                 key={selected.requestId}

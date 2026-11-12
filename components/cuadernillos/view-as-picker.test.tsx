@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ViewAsPicker } from './view-as-picker'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 const candidates = [
   { userId: 'supervisor-1', name: 'Supervisora Demo', email: 'sup@example.test', capabilities: ['supervisor' as const] },
@@ -67,5 +70,18 @@ describe('ViewAsPicker', () => {
     fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Buscar cuenta' }), { key: 'Escape' })
 
     expect(screen.queryByRole('searchbox', { name: 'Buscar cuenta' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ViewAsPicker on phones', () => {
+  it('opens as a full-width bottom sheet at 640px and below', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(max-width: 640px)', media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+
+    render(<ViewAsPicker candidates={candidates} currentUserId={null} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver como' }))
+
+    expect(await screen.findByRole('dialog')).toHaveClass('bottom-sheet')
+    expect(screen.getByRole('searchbox', { name: 'Buscar cuenta' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Supervisora Demo/ })).toHaveAttribute('href', '/cuadernillos?viewAs=supervisor-1')
   })
 })

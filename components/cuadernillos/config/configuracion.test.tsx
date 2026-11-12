@@ -40,13 +40,25 @@ function stubCabeceraApi() {
 }
 
 async function pick(term: string, name: RegExp, slotIndex: number) {
-  fireEvent.click(screen.getAllByRole('button', { name: /Sin asignar/ })[slotIndex])
+  fireEvent.click(screen.getAllByRole('button', { name: /Asignar/ })[slotIndex])
   fireEvent.change(screen.getByPlaceholderText('Nombre o correo'), { target: { value: term } })
   fireEvent.click(screen.getByRole('button', { name: 'Buscar' }))
   fireEvent.click(await screen.findByRole('button', { name }))
 }
 
 describe('Configuracion · Cabeceras', () => {
+  it('shows each cabecera as one card with its CUE, planilla supervisor and a status chip', async () => {
+    stubCabeceraApi()
+    render(<Configuracion />)
+
+    const list = await screen.findByRole('list', { name: 'Escuelas cabeceras' })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getByText('CUE 1800170-00')).toBeTruthy()
+    expect(within(list).getAllByText('Pendiente')).toHaveLength(2)
+    expect(within(list).getAllByText('Asignar')).toHaveLength(4)
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
   it('lists the cabeceras and posts the chosen account pair for a cabecera', async () => {
     const fetchMock = stubCabeceraApi()
     render(<Configuracion />)
