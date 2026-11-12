@@ -163,6 +163,8 @@ export const user = pgTable('user', {
   hubSecciones: jsonb('hub_secciones').$type<string[] | null>(),
   hubLanding: boolean('hub_landing'),
   hubDestino: text('hub_destino'),
+  // Idioma elegido por el usuario ('es' | 'pt'); NULL = idioma por defecto de la región (D4).
+  idioma: text('idioma'),
 })
 
 export const session = pgTable(
