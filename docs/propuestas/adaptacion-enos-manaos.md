@@ -160,6 +160,7 @@ const RegionConfig = z.object({
   vistaInicial: z.object({ centro: z.tuple([lon, lat]), zoom }),
   zonaHoraria: z.string(),              // IANA: America/Manaus
   locale: z.string(),                   // es-AR, pt-BR
+  idiomas: z.array(z.enum(['es', 'pt'])).min(1), // idiomas de la interfaz; el selector aparece solo con 2 o más
   toleranciaBordeKm: z.number(),
   datasets: z.object({                  // claves de infra_dataset
     unidadesAdministrativas: z.string(),
@@ -172,6 +173,8 @@ const RegionConfig = z.object({
 });
 ```
 
+- `idiomas` define qué diccionarios de interfaz usa la región. Corrientes (`['es']`) no muestra selector de idioma; Manaos (`['pt','es']`) sí.
+- La configuración real de Corrientes (`config/regiones/corrientes.json`, validada en `lib/infraestructura/region/esquema.ts`) usa campos que el bloque anterior no tiene: `bboxPlausible`, `limitesMapa`, `bboxRuta`, `regionesInteresLluvia`, `vistaInicial`, `mapaCentro`, `mapaZoom`, `toleranciaBorde` (en km) y `archivos` (`{mascara, departamentos}`). El bloque es un resumen; el esquema vigente manda.
 - `regionActiva()` lee `REGION` del entorno una vez, carga y valida su archivo, y falla al arrancar si no existe o es inválido. Sin valor, usa `corrientes` para no romper el despliegue actual.
 - **Registro de proveedores por id:** cada fuente de río o de alertas (`prefectura`, `ina`, `smn`, `ana`, `sgb`, `inmet`, y a futuro `dinagua`, `inumet`, `senamhi`…) se registra una vez con su id y su adaptador al puerto neutral. La región elige cuáles usa por configuración. Un país nuevo agrega un adaptador; una región nueva en un país ya soportado no agrega código.
 - Cliente: la configuración pública (bbox, vista inicial, locale) se pasa desde el layout del servidor al mapa; no se lee el entorno en el navegador.
@@ -207,12 +210,14 @@ const RegionConfig = z.object({
 
 - Extraer los textos de interfaz y metodología (`lib/copy/didactica.ts` y componentes del mapa) a diccionarios `es` y `pt`.
 - El idioma por defecto sale de `region.locale`; el usuario puede cambiarlo.
+- El selector de idioma aparece solo si `region.idiomas` tiene dos o más entradas. Corrientes y el hub nunca lo muestran; lo fija una prueba.
 
 #### 1f. Card en el hub
 
-- En el hub de Corrientes, nueva fila de `recursos` (patrón de `lib/infraestructura/recurso-seed.ts`) "ENOS Manaos" que enlaza al despliegue de Manaos.
+- En el hub de Corrientes, nueva fila de `recursos` (patrón de `lib/infraestructura/recurso-seed.ts`) "ENOS Manaos" que enlaza al despliegue de Manaos. Se crea solo si `ENOS_MANAOS_URL` es una URL `https`; su `ruta` es esa URL.
+- El enlace externo se permite solo para ese id de recurso (lista de permitidos), no como política general de URL externas.
 - Clasificar su ruta en `lib/hub-sections.ts` dentro de la sección de infraestructura.
-- La card actual pasa a llamarse "ENOS Corrientes".
+- La card actual pasa a llamarse "ENOS Corrientes" (aprobado 12/11/2026). El cambio aplica a toda etiqueta visible del producto; ids, slugs y rutas no cambian.
 - La ruta `/mapas/infraestructura`, escrita a mano en unos 6 lugares de permisos (`acceso-lectura.ts`, `hub-entry-server.ts`, layout, `escuelas/[cue]/page.tsx`, `acl.ts`, `mapa-ruta.ts`), se centraliza en una constante. Ese cambio es higiene, no requisito de la opción B.
 
 #### 1g. Pruebas
@@ -396,15 +401,19 @@ B1 ─► B2 ─┬─► B3a ─┐                                      │
 - Esquema de región, `config/regiones/corrientes.json`, `regionActiva()`.
 - Reemplazo de todas las constantes de la tabla de la Fase 1b.
 - **Cierre:** snapshots de API de B2 idénticos y suite e2e verde sin cambios en las pruebas.
+- **Estado de implementación B8:** en la rama existen el esquema (`lib/infraestructura/region/esquema.ts`), `regionActiva()` (`activa.ts`), el registro de proveedores (`registro.ts`), la vista pública para cliente (`publica.ts`, `region-provider.tsx`) y `config/regiones/corrientes.json`, con sus pruebas junto a cada archivo. Falta confirmar antes de dar B8 por cerrado: el reemplazo de las constantes de la tabla 1b (B8.2 a B8.8), los snapshots de B2 idénticos y la suite e2e verde (CA6 del plan de batches).
 
 #### B9 — Río neutral y jobs por región
 - Puerto de nivel de río neutral, adaptador de Prefectura, registro de proveedores por id, `estacionAncla`.
 - Filtro de jobs por región en `jobs-esperados.ts`.
+- Desviaciones de implementación respecto de este plan (sin `aplicaA`, registro en `motor/proveedores-rio.ts`, calibración de `pna-corrientes` por id de región): ver `plan-batches-enos.md`, sección B9.
 - **Cierre:** mismos snapshots de B2; jobs de Corrientes sin cambios.
 
 #### B10 — Interfaz bilingüe y card del hub
-- Diccionarios `es` y `pt`; idioma por defecto de la región.
-- Card "ENOS Manaos", la actual renombrada a "ENOS Corrientes", y clasificación en `hub-sections.ts`.
+- Diccionarios `es` y `pt`; idioma por defecto de la región. Selector solo en regiones con dos o más idiomas.
+- Card "ENOS Manaos" (solo con `ENOS_MANAOS_URL` https), la actual renombrada a "ENOS Corrientes", y clasificación en `hub-sections.ts`.
+- Columna `user.idioma` por la migración `0058_usuario_idioma` (nullable).
+- Prueba e2e de cambio a portugués: se ejecuta en B11 contra `REGION=manaos`.
 - **Cierre:** suite e2e verde en español; pruebas nuevas de cambio de idioma.
 
 #### B11 — Despliegue de Manaos

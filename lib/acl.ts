@@ -35,9 +35,11 @@ export type RecursoAccess = {
 /** Recursos que no pueden perder acceso con la regla de lista de permitidos
  *  (S8, odd/tasks/hub-acceso-por-rol.md): sin audiencia siguen abiertos a todo
  *  usuario con sesión, como antes. */
-export const RUTAS_ABIERTAS_SIN_AUDIENCIA: ReadonlySet<string> = new Set(['/mapas/infraestructura'])
+export const RUTAS_ABIERTAS_SIN_AUDIENCIA: ReadonlySet<string> = new Set([RUTA_MAPA_INFRAESTRUCTURA])
 
 import { can } from './access/capabilities'
+import { RECURSO_ENOS_MANAOS_ID, RUTA_MAPA_INFRAESTRUCTURA } from './infraestructura/rutas-hub'
+import { esRutaExterna } from './ruta-externa'
 import {
   effectiveSections,
   resourceInSections,
@@ -69,9 +71,11 @@ export function puedeAbrir(
   const noAudience =
     recurso.audienciaNivelJurIds.length === 0 &&
     recurso.audienciaUserIds.length === 0
+  const enlaceManaos = recurso.id === RECURSO_ENOS_MANAOS_ID && esRutaExterna(recurso.ruta ?? '')
   // Allow-list: sin audiencia sólo lo ve el staff. La asignación explícita
   // (seleccionados + recursoIds) sí es permiso por sí misma.
-  if (noAudience) return assigned || (!assigned && RUTAS_ABIERTAS_SIN_AUDIENCIA.has(recurso.ruta ?? ''))
+  // La card externa de Manaos sin audiencia se abre como la de Corrientes: a toda sesión.
+  if (noAudience) return assigned || (!assigned && (enlaceManaos || RUTAS_ABIERTAS_SIN_AUDIENCIA.has(recurso.ruta ?? '')))
   if (recurso.audienciaUserIds.includes(user.id)) return true
   return user.nivelJurIds.some((id) => recurso.audienciaNivelJurIds.includes(id))
 }

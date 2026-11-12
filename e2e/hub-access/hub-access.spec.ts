@@ -136,7 +136,7 @@ test('admin creates and edits an infrastructure-only account with an assigned pa
   const destination = adminPage.getByRole('combobox', { name: 'Destino inicial' })
   await expect(destination).toBeEnabled()
   await destination.click()
-  await adminPage.getByRole('option', { name: 'ENOS 2026' }).click()
+  await adminPage.getByRole('option', { name: 'ENOS Corrientes' }).click()
   const createResponsePromise = adminPage.waitForResponse((response) =>
     response.url().endsWith('/api/usuarios') && response.request().method() === 'POST',
   )
@@ -202,7 +202,7 @@ test('infrastructure-only login, route denial, password recovery, logout, and br
   if (test.info().project.name === 'mobile-chromium') {
     // The main nav is collapsed behind the mobile menu on phone widths; the menu is covered by the section-only mobile test.
     await page.getByRole('button', { name: 'Abrir navegación' }).click()
-    await expect(page.getByRole('menu').getByRole('menuitem', { name: 'ENOS 2026' })).toBeVisible()
+    await expect(page.getByRole('menu').getByRole('menuitem', { name: 'ENOS Corrientes' })).toBeVisible()
     await page.keyboard.press('Escape')
   } else {
     await expect(nav.locator('a[href="/mapas/infraestructura"]')).toBeVisible()
@@ -272,15 +272,15 @@ test('section-only mobile navigation and keyboard controls stay within the allow
   await mobileNavButton.focus()
   await page.keyboard.press('Enter')
   const menu = page.getByRole('menu')
-  await expect(menu.getByRole('menuitem', { name: 'ENOS 2026' })).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: 'ENOS Corrientes' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()
   await mobileNavButton.click()
-  await expect(menu.getByRole('menuitem', { name: 'ENOS 2026' })).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: 'ENOS Corrientes' })).toBeVisible()
   for (const text of ['Inicio', 'Explorar', 'Reportes', 'Mapas', 'Tableros', 'Centro de Situación']) {
     await expect(menu.getByRole('menuitem', { name: text, exact: true })).toHaveCount(0)
   }
-  await menu.getByRole('menuitem', { name: 'ENOS 2026' }).click()
+  await menu.getByRole('menuitem', { name: 'ENOS Corrientes' }).click()
   await expect(page).toHaveURL(/\/mapas\/infraestructura(?:\?|$)/)
   // Closing the menu returns focus to its trigger once the menu item unmounts. A Tab sent before that
   // restore landed on BODY in the failing runs, so wait for the restore instead of racing it.

@@ -9,8 +9,14 @@ import { useHubData } from '@/components/hub-data'
 import { authClient } from '@/lib/auth-client'
 import { resourceCardHref, resourceCardTarget } from '@/lib/resource-href'
 import { ArchivoMetadata } from '@/components/archivo-metadata'
+import { esRutaExterna } from '@/lib/ruta-externa'
 
 const ICON = { reporte: FileText, tablero: BarChart3, mapa: Map }
+
+/** Enlaces a otro despliegue salen a una pestaña nueva, sin pasar referrer. */
+function enlaceExterno(href: string) {
+  return esRutaExterna(href) ? { target: '_blank', rel: 'noopener noreferrer' } : {}
+}
 
 /** Lock/href derivados del `recurso.acceso` calculado por el servidor
  *  (lib/acl.ts marcarAcceso). Evita depender de la sesión del cliente para
@@ -98,7 +104,7 @@ export function ResourceCard({ recurso }: { recurso: Recurso }) {
         <Link href={href}>{content}</Link>
         <ArchivoMetadata recurso={recurso} />
       </article>
-    ) : <Link className="resource-card" data-formato={recurso.formato} href={href}>{content}</Link>
+    ) : <Link className="resource-card" data-formato={recurso.formato} href={href} {...enlaceExterno(href)}>{content}</Link>
   ) : (
     <article className="resource-card" data-formato={recurso.formato}>{content}<ArchivoMetadata recurso={recurso} /></article>
   )

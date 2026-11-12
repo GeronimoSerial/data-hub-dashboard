@@ -34,7 +34,7 @@ Las rutas y líneas surgen de un relevamiento del código del 12/11/2026; verifi
 | D1 | Base de las pruebas e2e | B1, B4 | **PostgreSQL real**, en local y en CI (no PGlite) |
 | D2 | Dónde se valida `REGION` al arrancar | B8 | **`instrumentation.ts`**: si `REGION` es inválida, la app no arranca |
 | D3 | Interfaz bilingüe | B10 | **Diccionarios propios tipados** `es`/`pt`; falta de traducción = error de compilación |
-| D4 | Preferencia de idioma del usuario | B10 | **Columna en `user`** (migración aditiva, nullable; sin valor = idioma de la región) |
+| D4 | Preferencia de idioma del usuario | B10 | **Columna en `user`** `user.idioma` (migración `0058_usuario_idioma`, aditiva, nullable; sin valor = idioma de la región) |
 | D5 | Card "ENOS Manaos" en el hub | B10 | **Enlace externo** al despliegue de Manaos; agregar soporte de recurso externo si `resource-href.ts` no lo tiene |
 | D6 | Rango para valores atípicos de río | B6 | **Guardar mín/máx** (`hidro_referencia.min_m`, `max_m`), completados por el próximo histórico |
 | D7 | Observación de la respuesta asistida | B6 | **Columna nueva** `infra_verificacion.observacion`, en la migración `0043` junto con `respondida_por` |
@@ -310,16 +310,29 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 | B9.2 | Traducción de Prefectura al formato neutral solo en el adaptador | `motor/adaptadores/rio-prefectura.ts:520`, `motor/rio-prefectura.ts` |
 | B9.3 | Registro de proveedores por id, seleccionado por `fuentesRio` de la región (no confundir con `adaptadores-ingesta/puertos.ts` ni `briefing-ia/puertos.ts`) | `riesgo/jobs/compartido-riesgo.ts:77-106,195-199`, `jobs/calcular-riesgo.ts:66,165`, `jobs/calcular-riesgo-v04.ts:58,161` |
 | B9.4 | Casos especiales de `pna-corrientes` a `estacionAncla`; evidencia de sequía a datos por región | `motor/altura-critica.ts:55`, `motor-v04/escenarios-estacion.ts:38`, `motor/evidencia-seco-s2.ts:20-125` |
-| B9.5 | Campo `aplicaA` por job; filtro por región en jobs esperados; el despachador rechaza jobs que no aplican | `riesgo/jobs-esperados.ts:24,116,124`, `providers/rol-entorno.ts:18`, `scripts/jobs.mjs:34-63` |
+| B9.5 | Filtro por región en jobs esperados y rechazo en el despachador, sin campo `aplicaA` (ver desviación a) | `riesgo/jobs-esperados.ts:24,116,124`, `providers/rol-entorno.ts:18`, `scripts/jobs.mjs:34-63` |
+
+**Desviaciones respecto del plan (registradas en implementación):**
+- (a) Sin campo `aplicaA` en los objetos de job. La aplicabilidad se deriva del nombre del job y de `fuentesRio` de la región: `sync-prefectura-*` requiere `prefectura` e `sync-ina-*` requiere `ina`. Una prueba de paridad compara `jobs-esperados.ts` con `scripts/jobs.mjs`. El despachador rechaza con código de salida 2 y el mensaje `job <id> does not apply to region <id>`.
+- (b) El registro genérico de proveedores vive en `motor/proveedores-rio.ts`. El registro concreto de `prefectura` está en `jobs/compartido-riesgo.ts`, porque CA1 prohíbe importar Prefectura desde `motor/`. `ina` se declara en `FUENTES_RIO_FUERA_DEL_MOTOR`. `ana` y `sgb` lanzan `proveedor de río no implementado` hasta B12.
+- (c) La fila de calibración de `pna-corrientes` se mantiene como dato, porque la tabla cubre otras 13 estaciones. Su alcance se fija por id de región en lugar de por `estacionAncla`. El helper neutral `valorAmenazaRio` vive en `motor/nivel-rio.ts`.
 
 **CA:**
 - CA1: el motor no importa nada de Prefectura fuera del adaptador (verificable por búsqueda de imports).
 - CA2: tabla de traducción de estados Prefectura → neutral cubierta por prueba.
 - CA3: lista de jobs de Corrientes idéntica a la actual; la de una región de prueba sin Prefectura excluye `sync-prefectura-*` y `sync-ina-*`.
-- CA4: `scripts/jobs.mjs` rechaza con código de error un job que no aplica a la región.
+- CA4: `scripts/jobs.mjs` rechaza con código de salida 2 y el mensaje `job <id> does not apply to region <id>` un job que no aplica a la región.
 - CA5: **snapshots de B2 idénticos** y suite e2e verde.
 
 ## B10 — Interfaz bilingüe y card del hub
+
+**Decisiones (aprobadas 12/11/2026):**
+- **Nombre del producto:** "ENOS 2026" → "ENOS Corrientes", aprobado por el dueño del producto. Se aplica a toda etiqueta visible del producto: título de la card, rótulos de navegación y sección, `aria-label` de la barra de pestañas del mapa y nombres de las pruebas e2e de acceso al hub. Los ids internos, slugs y rutas no cambian.
+- **Selector de idioma:** aparece solo en regiones con dos o más entradas en `idiomas` (por ejemplo, Manaos `['pt','es']`). Corrientes (`['es']`) y el hub nunca lo muestran; lo fija una prueba.
+- **Prueba e2e de cambio a portugués:** se traslada a B11, porque corre contra un despliegue local con `REGION=manaos` (Corrientes no tiene selector). B10 la cubre con pruebas unitarias y de proveedor.
+- **Card "ENOS Manaos":** se crea solo si la variable de entorno `ENOS_MANAOS_URL` es una URL `https`. El enlace externo se permite únicamente para ese id de recurso (lista de permitidos), no como política general de URL externas. Su `ruta` es esa URL.
+- **Migración de idioma (D4):** `0058_usuario_idioma`, columna `user.idioma` nullable.
+- **Estado de CA3 (diccionarios):** `es` y `pt` están tipados. Migrado: `lib/copy/didactica`, pestañas y modos, panel de capas, leyenda, vista previa de escuela y encabezado de la ficha. Pendiente: barrido del resto de componentes (cuerpo de las secciones de la ficha; helpers de etiquetas en `lib` como `ETIQUETA_ESTADO_CLASES`, `ETIQUETA_NIVEL_RIESGO` y `TITULO_LEYENDA_VISTA`; etiquetas de `BASEMAPS`; etiquetas de accesos del control de capas; componentes de radar y estadísticas). Se registra como seguimiento que debe cerrarse antes de que Manaos salga en producción.
 
 | Subtarea | Acción | Archivos |
 |---|---|---|
@@ -331,9 +344,9 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 
 **CA:**
 - CA1: suite e2e verde en español sin modificar pruebas.
-- CA2: prueba e2e nueva que cambia a portugués y verifica textos de pestañas, leyenda y ficha.
-- CA3: no quedan textos de interfaz del mapa fuera de los diccionarios (prueba que recorre los componentes o revisión con búsqueda).
-- CA4: la card "ENOS Corrientes" y "ENOS Manaos" aparecen en la sección de infraestructura; la de Manaos abre el otro despliegue.
+- CA2: movido a B11 (prueba e2e de cambio a portugués con `REGION=manaos`). En B10, el cambio de idioma queda cubierto por pruebas unitarias y de proveedor, incluida la regla de selector solo con dos o más idiomas.
+- CA3: no quedan textos de interfaz del mapa fuera de los diccionarios (prueba que recorre los componentes o revisión con búsqueda). Abierto: barrido pendiente listado en las decisiones de esta sección.
+- CA4: la card "ENOS Corrientes" aparece en la sección de infraestructura; la card "ENOS Manaos" aparece solo si `ENOS_MANAOS_URL` es `https`, y abre esa URL.
 - CA5: pruebas de `hub-sections`, `hub-entry-server` y ACL en verde.
 
 ## B11 — Despliegue de Manaos
@@ -356,6 +369,7 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 - CA3: Manaos responde con el mapa vacío pero sano, y el Centro de Situación muestra honestamente que no hay datos (gracias a B5–B6).
 - CA4: Corrientes no cambia: snapshots de B2 idénticos y suite e2e verde.
 - CA5: el runbook documenta cómo crear una región nueva de punta a punta.
+- CA6: prueba e2e de cambio a portugués (movida desde B10) que verifica textos de pestañas, leyenda y ficha, corrida contra un despliegue local con `REGION=manaos`.
 
 ---
 
@@ -364,7 +378,7 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 | Subtarea | Acción |
 |---|---|
 | B12.1 | Datasets de Manaos: padrón INEP, municipios IBGE, estaciones ANA; carga con `region:cargar manaos` |
-| B12.2 | Adaptador ANA/SGB al puerto `PuertoNivelRio` y su job de sincronización (con `aplicaA: ['manaos']`) |
+| B12.2 | Adaptador ANA/SGB al puerto `PuertoNivelRio` y su job de sincronización (aplicable a Manaos por `fuentesRio`, sin campo `aplicaA`). Hasta este batch, `ana` y `sgb` lanzan `proveedor de río no implementado` (ver B9, desviación b) |
 | B12.3 | Adaptador de alertas INMET (CAP si B0.7 lo confirma) |
 | B12.4 | Perfil territorial con FABDEM en lugar de Copernicus DEM para la región |
 | B12.5 | Seed e2e de Manaos, manifiesto de esperados y snapshots propios; correr la suite e2e con `REGION=manaos` |

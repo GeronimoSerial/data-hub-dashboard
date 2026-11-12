@@ -94,6 +94,7 @@ export const ROUTE_MANIFEST: Record<string, RouteCapability | readonly RouteCapa
   'app/api/recursos/[id]/route.ts': 'staff',
   'app/api/recursos/route.ts': 'staff',
   'app/api/taxonomia/[kind]/route.ts': 'admin',
+  'app/api/usuario/idioma/route.ts': 'authenticated',
   // TODO(T3): GET requires staff (listUsuariosDenied); PUT/DELETE require admin.
   'app/api/usuarios/[id]/route.ts': 'staff',
   // TODO(T3): write path requires admin (mutateUsuariosDenied).

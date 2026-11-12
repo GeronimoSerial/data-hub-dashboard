@@ -314,3 +314,27 @@ describe('confined roles never see hub resources (S1)', () => {
     expect(puedeVerEnSeccion(user, recurso)).toBe(true)
   })
 })
+
+describe('external card without audience', () => {
+  const sesion: SessionUser = {
+    id: 'u-consulta',
+    role: 'consulta',
+    banned: false,
+    nivelJurIds: [],
+    accesoRecursos: 'todos',
+    recursoIds: [],
+  }
+  const sinAudiencia = { id: 'recurso-enos-manaos', estado: 'publicado' as const, audienciaNivelJurIds: [], audienciaUserIds: [] }
+
+  it('opens to any session user like the Corrientes card', () => {
+    expect(puedeAbrir(sesion, { ...sinAudiencia, ruta: 'https://manaos.example/mapas/infraestructura' })).toBe(true)
+  })
+
+  it('does not open other external rutas without audience', () => {
+    expect(puedeAbrir(sesion, { ...sinAudiencia, id: 'r1', ruta: 'https://evil.example' })).toBe(false)
+  })
+
+  it('keeps internal rutas without audience closed to non-staff', () => {
+    expect(puedeAbrir(sesion, { ...sinAudiencia, ruta: '/mapas/matricula' })).toBe(false)
+  })
+})
