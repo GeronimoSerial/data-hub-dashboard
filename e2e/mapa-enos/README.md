@@ -7,7 +7,7 @@ End-to-end and API contract tests for the infrastructure map. The plan is in `do
 | Path | Contents |
 |---|---|
 | `run.mjs` | Runner: builds the app in an isolated copy, starts a throwaway PostgreSQL, seeds it, runs Playwright. |
-| `playwright.config.ts` | Projects: `setup`, `chromium`, `mobile`, `chromium-sin-radar`. |
+| `playwright.config.ts` | Projects: `setup`, `chromium`, `mobile`, `chromium-sin-radar`, `chromium-escritura`, `chromium-situacion`, `chromium-pausa`. |
 | `setup/auth.setup.ts` | Logs in every QA account once and stores its `storageState` in `.auth/` (git-ignored). |
 | `cuentas-qa.ts` | Fixed QA accounts (email, password, role, scope). Test-only credentials. |
 | `seed/` | Seed steps run in order by `seed/index.mjs`. `escuelas.ts` is the school roster. |
@@ -16,6 +16,9 @@ End-to-end and API contract tests for the infrastructure map. The plan is in `do
 | `contratos/snapshots/` | Versioned JSON snapshots of API responses. |
 | `specs/` | Playwright specs for the `chromium` and `mobile` projects. |
 | `specs-sin-radar/` | Specs for the server started without the radar. |
+| `specs-situacion/` | Escenarios de falla del Centro de Situación (plan 9.4). Project `chromium-situacion` depends on `chromium-escritura`. |
+| `specs-pausa/` | Server started with `ENOS_JOBS_ENABLED=false` (`MAPA_E2E_PAUSA=1`, own port). Project `chromium-pausa`. |
+| `seed/escenarios-falla.ts` | Applies a failure scenario inside a test and returns its restore function (stale risk run, fresh cut). |
 | `specs-escritura/` | Specs that write data (parte del operador). Project `chromium-escritura` depends on `chromium`, so they run after every read-only spec. |
 | `fixtures/base.ts` | Extended `test`: map helpers and external-request isolation. |
 

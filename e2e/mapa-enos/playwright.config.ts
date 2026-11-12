@@ -10,6 +10,8 @@ const mainPort = process.env.MAPA_E2E_PORT ?? '3201'
 const sinRadarPort = process.env.MAPA_E2E_SIN_RADAR_PORT ?? '3202'
 const mainURL = `http://127.0.0.1:${mainPort}`
 const sinRadarURL = `http://127.0.0.1:${sinRadarPort}`
+const pausaPort = process.env.MAPA_E2E_PAUSA_PORT ?? '3203'
+const pausaURL = `http://127.0.0.1:${pausaPort}`
 
 export default defineConfig({
   testDir: here,
@@ -59,6 +61,20 @@ export default defineConfig({
       dependencies: ['setup'],
       use: { ...devices['Desktop Chrome'], baseURL: sinRadarURL },
     },
+    {
+      // Escenarios del Centro de Situación (plan 9.4). Corren después de las lecturas y las escrituras.
+      name: 'chromium-situacion',
+      testMatch: 'specs-situacion/**/*.spec.ts',
+      dependencies: ['chromium-escritura'],
+      use: { ...devices['Desktop Chrome'], baseURL: mainURL },
+    },
+    {
+      // Servidor con ENOS_JOBS_ENABLED=false (pausa operativa, I8).
+      name: 'chromium-pausa',
+      testMatch: 'specs-pausa/**/*.spec.ts',
+      dependencies: ['setup'],
+      use: { ...devices['Desktop Chrome'], baseURL: pausaURL },
+    },
   ],
   webServer: [
     {
@@ -72,6 +88,13 @@ export default defineConfig({
       command: `node ${serveScript}`,
       url: sinRadarURL,
       env: { ...process.env, MAPA_E2E_PORT: sinRadarPort, MAPA_E2E_SIN_RADAR: '1' },
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+    {
+      command: `node ${serveScript}`,
+      url: pausaURL,
+      env: { ...process.env, MAPA_E2E_PORT: pausaPort, MAPA_E2E_PAUSA: '1' },
       reuseExistingServer: false,
       timeout: 120_000,
     },
