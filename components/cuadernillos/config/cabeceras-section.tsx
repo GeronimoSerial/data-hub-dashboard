@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { CabeceraAccount, CabeceraView } from '@/lib/cuadernillos/cabeceras'
 import type { MembershipUser } from '@/lib/cuadernillos/memberships'
+import { formatCue } from '../supervisor/inbox-model'
 
 type Role = 'supervisor' | 'cabecera'
 type Target = { cue: string; role: Role } | null
@@ -32,8 +33,6 @@ const errorCopy = (error: unknown) => (error instanceof CabeceraRequestError && 
 const slotsFrom = (cabeceras: CabeceraView[]): Slots => Object.fromEntries(
   cabeceras.map((item) => [item.cue, { supervisor: item.supervisor, cabecera: item.cabecera }]),
 )
-
-const accountCopy = (account: CabeceraAccount | null) => account ? `${account.name} (${account.email})` : 'Sin asignar'
 
 export function CabecerasSection() {
   const [cabeceras, setCabeceras] = useState<CabeceraView[] | null>(null)
@@ -127,7 +126,7 @@ export function CabecerasSection() {
     }
   }
 
-  const slotButton = (cue: string, role: Role, account: CabeceraAccount | null) => {
+  const slotButton = (cue: string, role: Role, account: CabeceraAccount | null, label: string) => {
     const active = target?.cue === cue && target.role === role
     return (
       <button
@@ -135,9 +134,10 @@ export function CabecerasSection() {
         aria-pressed={active}
         className="ui-button ui-button--secondary"
         onClick={() => setTarget(active ? null : { cue, role })}
-        style={{ width: '100%', justifyContent: 'flex-start', textAlign: 'left' }}
+        style={{ display: 'grid', gap: '.1rem', minWidth: '10rem', justifyItems: 'start', textAlign: 'left' }}
       >
-        {accountCopy(account)}
+        <span style={{ color: 'var(--ink-soft)', fontSize: '.8rem' }}>{label}</span>
+        <strong style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{account ? account.name : 'Asignar'}</strong>
       </button>
     )
   }
@@ -145,9 +145,6 @@ export function CabecerasSection() {
   return (
     <section aria-labelledby="cabeceras-section-title" style={{ display: 'grid', gap: '1rem' }}>
       <h4 id="cabeceras-section-title" style={{ margin: 0, color: 'var(--ink)', fontSize: '1rem' }}>Cabeceras</h4>
-      <p style={{ margin: 0, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
-        Cada escuela cabecera debe tener un supervisor y una cuenta de cabecera. Elija un casillero de la tabla y luego una cuenta de la búsqueda.
-      </p>
       {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}
       {notice ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>{notice}</p> : null}
       {cabeceras === null && !error ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando cabeceras…</p> : null}
@@ -157,38 +154,34 @@ export function CabecerasSection() {
           <p style={{ margin: 0, color: 'var(--ink-soft)' }}>No hay cabeceras cargadas.</p>
         ) : (
           <form onSubmit={save} style={{ display: 'grid', gap: '1rem' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table aria-label="Escuelas cabeceras" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '44rem' }}>
-                <thead>
-                  <tr>
-                    <th scope="col" style={{ textAlign: 'left' }}>CUE</th>
-                    <th scope="col" style={{ textAlign: 'left' }}>Nombre</th>
-                    <th scope="col" style={{ textAlign: 'left' }}>Departamento</th>
-                    <th scope="col" style={{ textAlign: 'left' }}>Supervisor según planilla</th>
-                    <th scope="col" style={{ textAlign: 'left' }}>Cuenta supervisor</th>
-                    <th scope="col" style={{ textAlign: 'left' }}>Cuenta cabecera</th>
-                    <th scope="col" style={{ textAlign: 'left' }}>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cabeceras.map((item) => {
-                    const slot = slots[item.cue] ?? { supervisor: null, cabecera: null }
-                    const complete = Boolean(slot.supervisor && slot.cabecera)
-                    return (
-                      <tr key={item.cue}>
-                        <td>{item.cue}</td>
-                        <td>{item.nombre}</td>
-                        <td>{item.departamento}</td>
-                        <td>{item.supervisorName}</td>
-                        <td>{slotButton(item.cue, 'supervisor', slot.supervisor)}</td>
-                        <td>{slotButton(item.cue, 'cabecera', slot.cabecera)}</td>
-                        <td>{item.status === 'confirmada' ? 'Confirmada' : complete ? 'Lista para guardar' : 'Pendiente'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <ul aria-label="Escuelas cabeceras" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '.6rem' }}>
+              {cabeceras.map((item) => {
+                const slot = slots[item.cue] ?? { supervisor: null, cabecera: null }
+                const ready = item.status === 'confirmada' || Boolean(slot.supervisor && slot.cabecera)
+                return (
+                  <li
+                    key={item.cue}
+                    style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '.75rem 1rem', padding: '.85rem 1rem', border: '1px solid var(--line)', borderRadius: '.6rem', background: 'var(--surface)' }}
+                  >
+                    <div style={{ display: 'grid', gap: '.2rem', flex: '1 1 14rem', minWidth: 0 }}>
+                      <strong style={{ color: 'var(--ink)', overflowWrap: 'anywhere' }}>{item.nombre}</strong>
+                      <span style={{ color: 'var(--ink-soft)', fontSize: '.9rem', overflowWrap: 'anywhere' }}>
+                        <span style={{ whiteSpace: 'nowrap' }}>CUE {formatCue(item.cue)}</span>
+                        {` · ${item.departamento} · Supervisora según planilla: `}
+                        <span>{item.supervisorName}</span>
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '.5rem' }}>
+                      {slotButton(item.cue, 'supervisor', slot.supervisor, 'Supervisor')}
+                      {slotButton(item.cue, 'cabecera', slot.cabecera, 'Cabecera')}
+                      <span style={{ whiteSpace: 'nowrap', padding: '.2rem .65rem', border: '1px solid var(--line)', borderRadius: '999px', fontSize: '.85rem', color: ready ? 'var(--ink)' : 'var(--ink-soft)' }}>
+                        {ready ? 'Lista' : 'Pendiente'}
+                      </span>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
             <div>
               <button type="submit" className="ui-button ui-button--primary" disabled={busy}>Guardar</button>
             </div>

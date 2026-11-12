@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import type { BookletBalanceView, BookletCampaignOption, BookletOverview, BookletRequestSummary } from '@/lib/cuadernillos/types'
 import { isRequestsPage } from '../supervisor/inbox-guards'
-import { Configuracion } from '../config/configuracion'
 import { PlanningSummary } from './planning-summary'
 
 const LOAD_ERROR = 'No se pudo cargar el catálogo y los saldos.'
@@ -76,17 +75,13 @@ function actionEnabled(campaign: BookletCampaignOption | undefined) {
 }
 
 export function PlanningHome({
-  isAdmin,
   readOnly,
   viewAsUserId,
 }: {
-  isAdmin: boolean
   readOnly: boolean
   viewAsUserId: string | null
 }) {
-  // Read-only while viewing as another account: every write control is disabled and configuration is hidden.
-  const canConfigure = isAdmin && !readOnly && !viewAsUserId
-  const [section, setSection] = useState<'inicio' | 'configuracion'>('inicio')
+  // Read-only while viewing as another account: every write control is disabled.
   const [overview, setOverview] = useState<BookletOverview | null>(null)
   const [selectedCampaign, setSelectedCampaign] = useState('')
   const [requests, setRequests] = useState<BookletRequestSummary[]>([])
@@ -209,20 +204,11 @@ export function PlanningHome({
 
   return (
     <section aria-labelledby="planning-home-title" style={{ display: 'grid', gap: '1.5rem' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '.75rem' }}>
-        <h2 id="planning-home-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.8rem)' }}>
-          Planeamiento
-        </h2>
-        {canConfigure ? (
-          <nav aria-label="Secciones de planeamiento" style={{ display: 'flex', gap: '.5rem' }}>
-            <button type="button" aria-pressed={section === 'inicio'} onClick={() => setSection('inicio')} className={section === 'inicio' ? 'ui-button ui-button--primary' : 'ui-button ui-button--secondary'}>Inicio</button>
-            <button type="button" aria-pressed={section === 'configuracion'} onClick={() => setSection('configuracion')} className={section === 'configuracion' ? 'ui-button ui-button--primary' : 'ui-button ui-button--secondary'}>Configuración</button>
-          </nav>
-        ) : null}
-      </div>
+      <h2 id="planning-home-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.8rem)' }}>
+        Planeamiento
+      </h2>
 
-      {canConfigure && section === 'configuracion' ? <Configuracion /> : (
-        <>
+      <>
           {loading && !overview ? <p role="status" style={{ color: 'var(--ink-soft)' }}>Cargando catálogo y saldos…</p> : null}
           {error ? <p role="alert" style={{ color: 'var(--danger-ink)' }}>{error}</p> : null}
           {notice ? <p role="status" style={{ color: 'var(--ink)' }}>{notice}</p> : null}
@@ -299,8 +285,7 @@ export function PlanningHome({
               ) : null}
             </>
           ) : null}
-        </>
-      )}
+      </>
     </section>
   )
 }

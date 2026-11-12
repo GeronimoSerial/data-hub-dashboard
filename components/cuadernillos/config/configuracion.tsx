@@ -15,10 +15,7 @@ export function Configuracion() {
   const [section, setSection] = useState<Section>('cabeceras')
 
   return (
-    <section aria-labelledby="configuracion-title" style={{ display: 'grid', gap: '1rem' }}>
-      <h3 id="configuracion-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: '1.15rem' }}>
-        Configuración
-      </h3>
+    <section aria-label="Configuración" style={{ display: 'grid', gap: '1rem' }}>
       <nav aria-label="Secciones de configuración" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
         {SECTIONS.map((item) => (
           <button
