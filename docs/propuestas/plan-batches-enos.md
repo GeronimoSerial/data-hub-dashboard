@@ -472,8 +472,8 @@ Dos frentes. **Corrientes:** B1–B11 llegan a staging y después a prod. **Mana
 ### Mapa de dependencias
 
 ```
-Corrientes:  P1 ─► P2 (staging) ─► P3 (Coolify) ─► P5 (prod)
-             P4 (repositorio, en paralelo)    P6 (Metodología, sin fecha)
+Dev:         P1, P4, M1, M2 ─► P2 (staging) ─► P3 (Coolify) ─► P5 (prod)
+             P6 (Metodología, sin fecha)
 
 Manaos:      M0 (decisiones y datos, dueño) ─┬─► M1 (interfaz pt) ─┐
                                               ├─► M2 (región limpia) ─┼─► B12 ─► M3 (infraestructura) ─► M4 (salida en vivo)
@@ -483,7 +483,7 @@ Manaos:      M0 (decisiones y datos, dueño) ─┬─► M1 (interfaz pt) ─�
 | Batch | Nombre | Depende de | Responsable | Riesgo |
 |---|---|---|---|---|
 | P1 | Correcciones previas a staging | B11 | Agente | Alto (seguridad) |
-| P2 | Promoción de B1–B11 y P1 a staging | P1 | Agente; el dueño aprueba los cambios visibles | Alto (entrega, migraciones) |
+| P2 | Promoción a staging de B1–B11 y de todo lo de este plan que ya esté en dev | P1, P4, M1, M2 en dev | Agente; el dueño aprueba los cambios visibles | Alto (entrega, migraciones) |
 | P3 | Tareas programadas en Coolify | P2 | Dueño, o agente con acceso autorizado | Medio (entrega) |
 | P4 | Pendientes del repositorio | — | Agente y dueño | Bajo |
 | P5 | Promoción a prod | P2, P3; aprobación explícita | Agente | Alto (entrega, migraciones) |
@@ -509,6 +509,8 @@ Manaos:      M0 (decisiones y datos, dueño) ─┬─► M1 (interfaz pt) ─�
 - CA3: suite e2e del mapa y pruebas de verificaciones en verde.
 
 ### P2 — Promoción a staging
+
+**Orden (decisión del dueño, 12/11/2026):** "igual el promote a staging es recien cuando esté el plan extendido terminado en dev". P2 empieza cuando P1, P4 (partes del agente), M1 y M2 estén en dev. Lo que depende del dueño o de datos externos (P3, P6, M0, B12, M3, M4) no bloquea P2.
 
 Rama `promote/enos-b1-b11-staging`, cortada de `origin/staging`, con `git cherry-pick -x` de los commits de los PR #260, #264, #265, #267, #274 y #281 a #286 (57 commits), más P1.2. El PR #280 (sincronización main → dev) no se incluye.
 
