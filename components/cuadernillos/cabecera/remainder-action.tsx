@@ -13,9 +13,8 @@ function isChain(value: unknown): value is RequestChainView {
 }
 
 /** Remainder for a partially approved request: check availability, then ask for the open quantities. */
-export function RemainderAction({ request, disabled, onRequested }: {
+export function RemainderAction({ request, onRequested }: {
   request: BookletRequestSummary
-  disabled: boolean
   onRequested: (message: string) => void
 }) {
   const [available, setAvailable] = useState<QuantityLine[] | null>(null)
@@ -72,7 +71,7 @@ export function RemainderAction({ request, disabled, onRequested }: {
   if (available === null) {
     return (
       <div style={{ display: 'grid', gap: '.5rem', justifySelf: 'end', justifyItems: 'end' }}>
-        <Button type="button" variant="secondary" size="sm" disabled={disabled || busy !== null} onClick={() => void check()}>
+        <Button type="button" variant="secondary" size="sm" disabled={busy !== null} onClick={() => void check()}>
           {busy === 'check' ? 'Consultando…' : 'Pedir remanente'}
         </Button>
         {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}
@@ -90,7 +89,7 @@ export function RemainderAction({ request, disabled, onRequested }: {
         <label key={line.productId} style={{ display: 'grid', gap: '.3rem', maxWidth: '18rem', color: 'var(--ink)', fontWeight: 600 }}>
           Remanente · {labelOf(line.productId)}
           <Input
-            type="number" min="1" step="1" inputMode="numeric" max={line.quantity} disabled={disabled}
+            type="number" min="1" step="1" inputMode="numeric" max={line.quantity}
             value={quantities[line.productId] ?? String(line.quantity)}
             onChange={(event) => setQuantities((current) => ({ ...current, [line.productId]: event.target.value }))}
           />
@@ -98,7 +97,7 @@ export function RemainderAction({ request, disabled, onRequested }: {
         </label>
       ))}
       {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}
-      <Button type="button" variant="default" disabled={disabled || busy !== null} onClick={() => void submit()}>
+      <Button type="button" variant="default" disabled={busy !== null} onClick={() => void submit()}>
         {busy === 'submit' ? 'Enviando…' : 'Solicitar remanente'}
       </Button>
     </div>

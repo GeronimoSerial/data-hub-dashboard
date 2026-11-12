@@ -35,16 +35,14 @@ async function fetchJson<T>(url: string, guard: (value: unknown) => value is T, 
   return data
 }
 
-async function fetchInbox(campaignId: string, viewAs: string | null, signal: AbortSignal): Promise<{ page: BookletRequestsPage; balances: BookletBalanceView[] }> {
+async function fetchInbox(campaignId: string, signal: AbortSignal): Promise<{ page: BookletRequestsPage; balances: BookletBalanceView[] }> {
   const query = new URLSearchParams({ limit: String(PAGE_SIZE) })
   if (campaignId) query.set('campaignId', campaignId)
-  if (viewAs) query.set('viewAs', viewAs)
   const page = await fetchJson(`/api/cuadernillos/requests?${query}`, isRequestsPage, signal)
   let balances: BookletBalanceView[] = []
   if (page.campaignId) {
     // Availability is informative: if it fails, approvals still default to the requested quantity.
     const overviewQuery = new URLSearchParams({ capability: 'supervisor', campaignId: page.campaignId })
-    if (viewAs) overviewQuery.set('viewAs', viewAs)
     balances = await fetch(`/api/cuadernillos/overview?${overviewQuery}`, { signal, cache: 'no-store' })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => (data && typeof data === 'object' && isBalances((data as { balances?: unknown }).balances) ? (data as { balances: BookletBalanceView[] }).balances : []))
@@ -73,7 +71,7 @@ function useIsPhone() {
   return phone
 }
 
-export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: boolean; readOnly: boolean; viewAsUserId?: string | null }) {
+export function SupervisorInbox() {
   const [page, setPage] = useState<BookletRequestsPage | null>(null)
   const [balances, setBalances] = useState<BookletBalanceView[]>([])
   const [campaign, setCampaign] = useState('')
@@ -90,7 +88,7 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
   useEffect(() => {
     const controller = new AbortController()
     void Promise.resolve()
-      .then(() => fetchInbox(campaign, viewAsUserId, controller.signal))
+      .then(() => fetchInbox(campaign, controller.signal))
       .then((data) => {
         if (controller.signal.aborted) return
         setPage(data.page)
@@ -104,7 +102,7 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [campaign, viewAsUserId, refresh])
+  }, [campaign, refresh])
 
   const groups = useMemo(() => groupPendingByCabecera(page?.requests ?? []), [page])
   const pending = useMemo(() => groups.flatMap((group) => group.requests), [groups])
@@ -227,7 +225,6 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
               key={selected.requestId}
               request={selected}
               availability={availabilityFor(selected, balances)}
-              readOnly={readOnly}
               busy={busy}
               error={actionError}
               onApprove={(lines) => void decide(selected, { kind: 'approve', lines })}
@@ -244,8 +241,7 @@ export function SupervisorInbox({ readOnly, viewAsUserId = null }: { isAdmin: bo
                 key={selected.requestId}
                 request={selected}
                 availability={availabilityFor(selected, balances)}
-                readOnly={readOnly}
-                busy={busy}
+                  busy={busy}
                 error={actionError}
                 onApprove={(lines) => void decide(selected, { kind: 'approve', lines })}
                 onReject={(reason) => void decide(selected, { kind: 'reject', reason })}
