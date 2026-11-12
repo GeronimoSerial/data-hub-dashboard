@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { MENSAJE_ACCESO_VENCIDO } from './estado-actual-textos'
 import { LineaDeTiempo } from './linea-de-tiempo'
 import type { MovimientoHistorial } from './historial-movimiento'
@@ -48,6 +49,7 @@ export function HistorialParte({
    */
   mostrarReingresoCookie?: boolean
 }): JSX.Element {
+  const t = useTextos().fichaHistorial.parte
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
   // Cuenta los pedidos (inicial + reintentos). El efecto sólo lee su valor
   // como dependencia: no expone una función que el efecto pueda invocar de
@@ -91,7 +93,7 @@ export function HistorialParte({
     // blanco mientras la red responde.
     return (
       <p className="historial-estado" role="status">
-        Buscando los movimientos del parte…
+        {t.cargando}
       </p>
     )
   }
@@ -102,14 +104,14 @@ export function HistorialParte({
         <p className="historial-estado__texto">
           {estado.accesoVencido
             ? MENSAJE_ACCESO_VENCIDO
-            : 'No pudimos mostrar el historial. Revise su conexión y vuelva a intentar.'}
+            : t.error}
         </p>
         {estado.accesoVencido ? (
           <a
             className="ui-button ui-button--default historial-estado__accion"
             href={`/problematicas/parte/historial?cue=${encodeURIComponent(cue)}`}
           >
-            Volver a ingresar la contraseña
+            {t.reingresar}
           </a>
         ) : (
           <Button
@@ -119,7 +121,7 @@ export function HistorialParte({
               setIntento((valor) => valor + 1)
             }}
           >
-            Reintentar
+            {t.reintentar}
           </Button>
         )}
       </div>
@@ -130,10 +132,10 @@ export function HistorialParte({
     return (
       <div className="historial-estado">
         <p className="historial-estado__texto">
-          No hay una situación hidrometeorológica en seguimiento para este establecimiento.
+          {t.sinSituacion}
         </p>
         <a className="ui-button ui-button--default historial-estado__accion" href={`/problematicas/parte/nuevo?cue=${encodeURIComponent(cue)}`}>
-          Cargar una situación
+          {t.cargarSituacion}
         </a>
       </div>
     )

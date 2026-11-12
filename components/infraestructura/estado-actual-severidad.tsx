@@ -1,6 +1,7 @@
 import type { JSX } from 'react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import type { Severidad } from '@/lib/infraestructura/trayectoria-tipos'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 // Indicador de severidad de una afectación: el nombre escrito sobre una
 // pastilla con el tono de la paleta oficial. El texto es la señal que no
@@ -40,7 +41,10 @@ export function EstadoActualSeveridad({
   sugerida = false,
   actual = false,
 }: EstadoActualSeveridadProps): JSX.Element {
-  const texto = prefijo ? `Gravedad ${severidad}` : severidad
+  const t = useTextos().fichaPanorama
+  // Labels that match the enum value are read as-is (Alta, Crítica are the same in pt).
+  const nombre = (t.severidad.nombres as Partial<Record<Severidad, string>>)[severidad] ?? severidad
+  const texto = prefijo ? t.severidad.gravedad(nombre) : nombre
   return (
     <span className="estado-actual-severidad">
       {marca ? (
@@ -53,7 +57,7 @@ export function EstadoActualSeveridad({
       ) : (
         <span className="estado-actual-severidad__texto">{texto}</span>
       )}
-      {sugerida ? <span className="badge badge--neutral badge-sugerido" aria-hidden="true">Sugerido</span> : actual ? <span className="badge badge--neutral badge-sugerido" aria-hidden="true">Actual</span> : null}
+      {sugerida ? <span className="badge badge--neutral badge-sugerido" aria-hidden="true">{t.severidad.sugerido}</span> : actual ? <span className="badge badge--neutral badge-sugerido" aria-hidden="true">{t.severidad.actual}</span> : null}
     </span>
   )
 }

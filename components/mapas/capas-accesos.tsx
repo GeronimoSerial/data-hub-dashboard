@@ -12,13 +12,13 @@ import type { SymbolLayerSpecification, LineLayerSpecification } from 'maplibre-
 import { Layer, Source } from 'react-map-gl/maplibre'
 import {
   COLOR_RUTA_ACCESO,
-  ETIQUETAS_AISLAMIENTO,
+  etiquetasAislamiento,
+  tituloAcceso,
   SVG_ICONO_AISLAMIENTO_0,
   SVG_ICONO_AISLAMIENTO_1,
   SVG_ICONO_AISLAMIENTO_2,
   SVG_ICONO_AISLAMIENTO_3,
   SVG_ICONO_AISLAMIENTO_SIN_DATOS,
-  TEXTOS_ACCESOS,
 } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
@@ -281,10 +281,11 @@ function BloqueAislamiento({
   const styles = useOverlayStyles()
   const t = useTextos()
   const sinDatos =territorio?.aislamiento == null || resumen === null
+  const etiquetas = etiquetasAislamiento(t)
 
   return (
     <div className={styles.legendItemStack} data-testid="leyenda-aislamiento">
-      <b>{TEXTOS_ACCESOS.tituloAcceso}</b>
+      <b>{tituloAcceso(t)}</b>
       {sinDatos ? (
         <div className={styles.legendItemStack} data-testid="leyenda-aislamiento-sin-datos">
           <div className={styles.hint}>{t.capas.accesos.sinDatosCaminos}</div>
@@ -297,8 +298,8 @@ function BloqueAislamiento({
               svg={ICONO_AISLAMIENTO[nivel]}
               etiqueta={
                 nivel === 'sin_datos_red'
-                  ? ETIQUETAS_AISLAMIENTO[nivel]
-                  : `${ETIQUETAS_AISLAMIENTO[nivel]} (${nivel})`
+                  ? etiquetas[nivel]
+                  : `${etiquetas[nivel]} (${nivel})`
               }
               conteo={resumen.aislamiento[nivel]}
             />

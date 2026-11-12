@@ -1,5 +1,7 @@
 import type { CategoriaAfectacion } from './categorias'
 import { dentroDeRangoVigencia, MENSAJE_FUERA_DE_RANGO_VIGENCIA } from './vigencia-rango'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 export const MENSAJE_HORA_FUTURA = 'Esa hora todavía no pasó. Elija una hora anterior a la actual.'
 
@@ -12,8 +14,6 @@ export type EleccionVigencia =
   | { modo: 'otro'; fecha: string; hora: string }
 
 export const VIGENCIA_AHORA: EleccionVigencia = { modo: 'ahora' }
-
-const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
 
 function pad(n: number): string {
   return String(n).padStart(2, '0')
@@ -70,12 +70,14 @@ export function errorVigencia(eleccion: EleccionVigencia, ahora: Date = new Date
   return MENSAJE_FUERA_DE_RANGO_VIGENCIA
 }
 
-export function resumenVigencia(eleccion: EleccionVigencia, etiquetaMomento = 'Desde'): string {
-  if (eleccion.modo === 'ahora') return `${etiquetaMomento} ahora`
-  if (eleccion.modo === 'hoy') return eleccion.hora ? `${etiquetaMomento} hoy a las ${eleccion.hora}` : 'Elija la hora'
+export function resumenVigencia(eleccion: EleccionVigencia, etiquetaMomento?: string, t: Diccionario = es): string {
+  const v = t.residuos.vigencia
+  const etiqueta = etiquetaMomento ?? v.desde
+  if (eleccion.modo === 'ahora') return v.ahora(etiqueta)
+  if (eleccion.modo === 'hoy') return eleccion.hora ? v.hoy(etiqueta, eleccion.hora) : v.elijaHora
   const fecha = fechaLocal(eleccion.fecha)
-  if (!fecha || !eleccion.hora) return 'Elija la fecha y la hora'
-  return `${etiquetaMomento} el ${DIAS[fecha.getDay()]} ${pad(fecha.getDate())}/${pad(fecha.getMonth() + 1)} a las ${eleccion.hora}`
+  if (!fecha || !eleccion.hora) return v.elijaFechaYHora
+  return v.fechaYHora(etiqueta, v.dias[fecha.getDay()]!, `${pad(fecha.getDate())}/${pad(fecha.getMonth() + 1)}`, eleccion.hora)
 }
 
 export function etiquetaVigencia(categoria: CategoriaAfectacion | ''): string {

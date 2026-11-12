@@ -5,6 +5,7 @@ import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { formatearFechaLocal } from '@/components/mapas/capa-estaciones-rio'
 import { LogoNasa } from '@/components/mapas/logo-nasa'
 import { haceCuanto } from '@/components/mapas/tarjeta-estacion-rio'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import type { RegionPublica } from '@/lib/infraestructura/region/esquema'
 import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
@@ -273,19 +274,23 @@ function TarjetaLluvia({
   hasta: string | null
   celda: PropiedadesCelda
 }) {
+  const t = useTextos()
+  const l = t.radarResto.lluvia
   const clase = celda.acumuladoMm >= 1 ? claseDe(celda.acumuladoMm) : null
   const indice = clase ? CLASES_LLUVIA.indexOf(clase) : -1
   const [entero, decimal] = celda.acumuladoMm.toFixed(1).split('.')
+  // CLASES_LLUVIA labels are numeric ranges (same in both languages) except the open top class.
+  const etiquetaClase = clase ? (clase.desde === 150 ? l.masDe150 : clase.etiqueta) : 'Menos de 1 mm'
 
   return (
     <div className="map-popup tarjeta-lluvia" data-testid="capa-lluvia-observada">
       <div className="tarjeta-estacion__cabecera">
         <div>
-          <h3 className="tarjeta-estacion__titulo">Lluvia observada</h3>
-          <p className="tarjeta-estacion__sub">Acumulado de las últimas {horas} h</p>
+          <h3 className="tarjeta-estacion__titulo">{l.titulo}</h3>
+          <p className="tarjeta-estacion__sub">{l.acumulado(horas)}</p>
         </div>
         <span className="tarjeta-lluvia__clase" style={clase ? { background: clase.color, color: indice >= 3 ? '#fff' : '#0b2540' } : undefined}>
-          {clase ? clase.etiqueta : 'Menos de 1 mm'}
+          {etiquetaClase}
         </span>
       </div>
 
@@ -306,7 +311,7 @@ function TarjetaLluvia({
 
       {desde && hasta && (
         <p className="tarjeta-estacion__hora">
-          <time dateTime={hasta}>Actualizado {haceCuanto(hasta, new Date())}</time>
+          <time dateTime={hasta}>{t.radarResto.pronostico.actualizado(haceCuanto(hasta, new Date(), t.fichaCuerpo.estacionRio.hace))}</time>
           {' · '}
           {formatearFechaLocal(desde)} – {formatearFechaLocal(hasta)}
         </p>
@@ -314,7 +319,7 @@ function TarjetaLluvia({
 
       {celda.parcial && (
         <p className="tarjeta-lluvia__aviso">
-          Faltan pasadas del satélite en esta ventana ({Math.round(celda.cobertura * 100)} % cubierto): la lluvia real puede ser mayor.
+          {l.satelite(Math.round(celda.cobertura * 100))}
         </p>
       )}
 
@@ -322,7 +327,7 @@ function TarjetaLluvia({
         <LogoNasa size={26} />
         <div>
           <p className="tarjeta-lluvia__fuente-nombre">NASA IMERG</p>
-          <p className="tarjeta-estacion__sub">Constelación de satélites NASA · JAXA</p>
+          <p className="tarjeta-estacion__sub">{l.constelacion}</p>
         </div>
       </div>
     </div>

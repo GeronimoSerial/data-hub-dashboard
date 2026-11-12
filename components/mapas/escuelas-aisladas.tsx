@@ -11,11 +11,11 @@ import {
   resumenAisladas,
   type OrdenAisladas,
 } from '@/lib/infraestructura/mapa/escuelas-aisladas'
-import { colorPrioridad, ETIQUETA_NIVEL_PLAN, prioridadPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
+import { localeNumero } from '@/lib/i18n/formato-numero'
+import { colorPrioridad, etiquetaNivelPlan, prioridadPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
-
-const formatoEntero = new Intl.NumberFormat('es-AR')
 
 export function EscuelasAisladas(props: {
   escuelas: EscuelaMapaEnriquecida[]
@@ -23,6 +23,8 @@ export function EscuelasAisladas(props: {
   onSeleccionar: (cueAnexo: string) => void
 }): JSX.Element {
   const { escuelas, territorio, onSeleccionar } = props
+  const dict = useTextos()
+  const t = dict.controles.aisladas
   const [orden, setOrden] = useState<OrdenAisladas>('distancia')
 
   const items = useMemo(() => {
@@ -38,20 +40,20 @@ export function EscuelasAisladas(props: {
   return (
     <section aria-labelledby="map-planificacion-aisladas-titulo" data-testid="escuelas-aisladas">
       <div className="map-sitact__titulo-seccion">
-        <h3 id="map-planificacion-aisladas-titulo" style={{ margin: 0, font: 'inherit' }}>Escuelas aisladas</h3>
+        <h3 id="map-planificacion-aisladas-titulo" style={{ margin: 0, font: 'inherit' }}>{t.titulo}</h3>
         <ComoFunciona />
       </div>
 
       {items.length > 0 ? (
         <>
-          <ul className="map-sitact__kpis" aria-label="Resumen de aislamiento" style={{ listStyle: 'none', margin: '0 0 var(--s-2)', padding: 0 }}>
-            <Kpi valor={resumen.escuelas} texto="Escuelas" testid="escuelas-aisladas-total" />
-            <Kpi valor={resumen.alumnos} texto="Alumnos" />
-            <Kpi valor={resumen.lejanas} texto="A más de 30 km de una localidad urbana" />
-            <Kpi valor={resumen.sinAlternativa} texto="Sin camino alternativo" />
+          <ul className="map-sitact__kpis" aria-label={t.resumen} style={{ listStyle: 'none', margin: '0 0 var(--s-2)', padding: 0 }}>
+            <Kpi valor={resumen.escuelas} texto={t.escuelas} testid="escuelas-aisladas-total" />
+            <Kpi valor={resumen.alumnos} texto={t.alumnos} />
+            <Kpi valor={resumen.lejanas} texto={t.lejanas} />
+            <Kpi valor={resumen.sinAlternativa} texto={t.sinAlternativa} />
           </ul>
           <Select value={orden} items={ORDENES_AISLADAS.map((o) => ({ value: o.valor, label: o.etiqueta }))} onValueChange={(v) => v != null && setOrden(v as OrdenAisladas)}>
-            <SelectTrigger className="map-filtro-input" aria-label="Ordenar por" />
+            <SelectTrigger className="map-filtro-input" aria-label={t.ordenar} />
             <SelectContent>
               {ORDENES_AISLADAS.map((o) => (
                 <SelectItem key={o.valor} value={o.valor}>{o.etiqueta}</SelectItem>
@@ -77,20 +79,22 @@ export function EscuelasAisladas(props: {
                     <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
                     <span className="map-sitact__meta">{detalle || departamento}</span>
                   </span>
-                  <span className="map-sitact__cuando">{ETIQUETA_NIVEL_PLAN[item.nivel]}</span>
+                  <span className="map-sitact__cuando">{etiquetaNivelPlan(dict, item.nivel)}</span>
                 </button>
               )
             })}
           </div>
         </>
       ) : (
-        <p className="map-sitact__vacio">Ninguna escuela aislada para estos filtros.</p>
+        <p className="map-sitact__vacio">{t.vacio}</p>
       )}
     </section>
   )
 }
 
 function Kpi({ valor, texto, testid }: { valor: number; texto: string; testid?: string }): JSX.Element {
+  const idioma = useIdioma()
+  const formatoEntero = useMemo(() => new Intl.NumberFormat(localeNumero(idioma)), [idioma])
   return (
     <li className="map-sitact__kpi">
       <strong data-testid={testid}>{formatoEntero.format(valor)}</strong>
@@ -102,6 +106,7 @@ function Kpi({ valor, texto, testid }: { valor: number; texto: string; testid?: 
 // Popover (no tooltip) porque contiene un enlace: se abre con hover, foco o clic
 // y se puede recorrer con teclado.
 function ComoFunciona(): JSX.Element {
+  const t = useTextos().controles.aisladas
   return (
     <Popover.Root>
       <Popover.Trigger
@@ -110,16 +115,16 @@ function ComoFunciona(): JSX.Element {
         type="button"
         style={{ border: 0, background: 'none', padding: 0, color: 'var(--accent)', font: 'inherit', fontSize: 'var(--t-micro)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
       >
-        ¿Cómo funciona?
+        {t.comoFunciona}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner className="ui-tooltip-positioner" sideOffset={6} align="end">
           <Popover.Popup className="ui-tooltip-popup" style={{ lineHeight: 1.4 }}>
             <p style={{ margin: 0 }}>
-              Distancia por camino hasta la localidad urbana más cercana (2.000 habitantes o más), según la red de caminos de OpenStreetMap.
+              {t.explicacion}
             </p>
             <a href="#metodologia/metodologia-aislamiento" style={{ display: 'inline-block', marginTop: 4, color: 'inherit', fontWeight: 600, textDecoration: 'underline' }}>
-              Ver metodología
+              {t.verMetodologia}
             </a>
           </Popover.Popup>
         </Popover.Positioner>

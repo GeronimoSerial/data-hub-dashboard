@@ -3,11 +3,12 @@
 import { useId, type JSX } from 'react'
 import { rangoVigencia } from '@/lib/infraestructura/vigencia-rango'
 import { resumenVigencia, type EleccionVigencia } from '@/lib/infraestructura/vigencia-eleccion'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
-const OPCIONES: Array<{ modo: EleccionVigencia['modo']; etiqueta: string }> = [
-  { modo: 'ahora', etiqueta: 'Ahora' },
-  { modo: 'hoy', etiqueta: 'Hoy, más temprano' },
-  { modo: 'otro', etiqueta: 'Otro día' },
+const OPCIONES: Array<{ modo: EleccionVigencia['modo']; clave: 'ahora' | 'hoy' | 'otro' }> = [
+  { modo: 'ahora', clave: 'ahora' },
+  { modo: 'hoy', clave: 'hoy' },
+  { modo: 'otro', clave: 'otro' },
 ]
 
 function pad(n: number): string {
@@ -28,8 +29,10 @@ export interface VigenciaChipsProps {
   minimo?: string
 }
 
-export function VigenciaChips({ value, onChange, label, disabled = false, error = null, etiquetaMomento = 'Desde', minimo }: VigenciaChipsProps): JSX.Element {
+export function VigenciaChips({ value, onChange, label, disabled = false, error = null, etiquetaMomento, minimo }: VigenciaChipsProps): JSX.Element {
   const id = useId()
+  const dic = useTextos()
+  const t = dic.fichaPanorama.vigencia
   const { min, max } = rangoVigencia()
   const fechaMinima = minimo && Date.parse(minimo) > min.getTime() ? new Date(minimo) : min
   const mostrarResumen = value.modo === 'hoy'
@@ -55,7 +58,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
               checked={value.modo === opcion.modo}
               onChange={() => elegir(opcion.modo)}
             />
-            <span>{opcion.etiqueta}</span>
+            <span>{t[opcion.clave]}</span>
           </label>
         ))}
       </div>
@@ -64,7 +67,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
         <div className="vigencia-chips__campos">
           {value.modo === 'otro' && (
             <label className="ui-label" htmlFor={`${id}-fecha`}>
-              Fecha
+              {t.fecha}
               <input
                 id={`${id}-fecha`}
                 type="date"
@@ -94,7 +97,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
       )}
 
       {error ? <p id={`${id}-error`} className="vigencia-field__error" role="alert">{error}</p> : null}
-      {!error && mostrarResumen ? <p className={`vigencia-chips__resumen${etiquetaMomento === 'Se solucionó' ? ' vigencia-chips__resumen--solucionada' : ''}`} aria-live="polite">{resumenVigencia(value, etiquetaMomento)}</p> : null}
+      {!error && mostrarResumen ? <p className={`vigencia-chips__resumen${etiquetaMomento === 'Se solucionó' ? ' vigencia-chips__resumen--solucionada' : ''}`} aria-live="polite">{resumenVigencia(value, etiquetaMomento, dic)}</p> : null}
     </fieldset>
   )
 }

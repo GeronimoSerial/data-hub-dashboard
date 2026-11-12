@@ -7,6 +7,8 @@ import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 // navegador.
 import type { EvolucionMapa, PuntoEscuelasServicioCaido } from '@/lib/infraestructura/evolucion'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
+import type { Idioma } from '@/lib/i18n/idioma'
 import type { FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
 import {
   GraficoAlumnosAcumulados,
@@ -21,7 +23,11 @@ type Vista = 'serie' | 'ranking' | 'motivos' | 'acumulado'
 
 const VISTAS: readonly Vista[] = ['serie', 'ranking', 'motivos', 'acumulado']
 const URL_EVOLUCION = '/api/mapas/infraestructura/evolucion'
-const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
+// Locale numérico por idioma: es-AR queda igual que antes.
+const FORMATOS_NUMERO: Record<Idioma, Intl.NumberFormat> = {
+  es: new Intl.NumberFormat('es-AR'),
+  pt: new Intl.NumberFormat('pt-BR'),
+}
 
 function claveConsulta(filtros: FiltrosMapa): string {
   const parametros = new URLSearchParams()
@@ -51,6 +57,9 @@ export function recortarSerieAlRangoConDatos(
 }
 
 export function EvolucionPanel({ filtros }: { filtros: FiltrosMapa }): JSX.Element {
+  const idioma = useIdioma()
+  const t = useTextos().fichaHistorial.evolucion
+  const formatoNumero = FORMATOS_NUMERO[idioma]
   const [vista, setVista] = useState<Vista>('serie')
   const [datos, setDatos] = useState<EvolucionMapa | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -64,7 +73,7 @@ export function EvolucionPanel({ filtros }: { filtros: FiltrosMapa }): JSX.Eleme
     fetch(url)
       .then(async (respuesta) => {
         if (!respuesta.ok) {
-          throw new Error(`No se pudo leer la evolución (HTTP ${respuesta.status})`)
+          throw new Error(t.error.http(respuesta.status))
         }
         return (await respuesta.json()) as EvolucionMapa
       })
@@ -78,12 +87,12 @@ export function EvolucionPanel({ filtros }: { filtros: FiltrosMapa }): JSX.Eleme
         // Sin datos no hay gráfico que valga: se muestra el error y se
         // permite reintentar recargando la pestaña, nunca una grilla vacía
         // que parezca "cero escuelas afectadas".
-        setError(causa instanceof Error ? causa.message : 'No se pudo leer la evolución')
+        setError(causa instanceof Error ? causa.message : t.error.generico)
       })
     return () => {
       cancelado = true
     }
-  }, [consulta])
+  }, [consulta, t])
 
   if (error) {
     return (
@@ -98,7 +107,7 @@ export function EvolucionPanel({ filtros }: { filtros: FiltrosMapa }): JSX.Eleme
   if (!datos) {
     return (
       <div className="evolucion-panel">
-        <p className="map-hint">Cargando…</p>
+        <p className="map-hint">{t.cargando}</p>
       </div>
     )
   }
@@ -115,20 +124,22 @@ export function EvolucionPanel({ filtros }: { filtros: FiltrosMapa }): JSX.Eleme
     <div className="evolucion-panel">
       <Tabs value={vista} onValueChange={(valor: string) => esVista(valor) && setVista(valor)}>
         <TabsList>
-          <TabsTab value="serie">Servicio caído</TabsTab>
+          <TabsTab value="serie">{t.pestanas.serie}</TabsTab>
+          {/* "Departamentos" y "Motivos" se escriben igual en portugués: literales a propósito. */}
           <TabsTab value="ranking">Departamentos</TabsTab>
           <TabsTab value="motivos">Motivos</TabsTab>
-          <TabsTab value="acumulado">Alumnos acumulados</TabsTab>
+          <TabsTab value="acumulado">{t.pestanas.acumulado}</TabsTab>
         </TabsList>
       </Tabs>
 
       {vista === 'serie' && (
         <section className="evolucion-vista">
           {datos.serieEscuelasServicioCaido.length === 0 ? (
-            <p className="map-hint">No hay escuelas con servicio caído.</p>
+            <p className="map-hint">{t.vacio.serie}</p>
           ) : (
             <GraficoSerieServicioCaido
               puntos={recortarSerieAlRangoConDatos(datos.serieEscuelasServicioCaido)}
+              idioma={idioma}
             />
           )}
         </section>
@@ -137,24 +148,24 @@ export function EvolucionPanel({ filtros }: { filtros: FiltrosMapa }): JSX.Eleme
       {vista === 'ranking' && (
         <section className="evolucion-vista">
           {datos.rankingDepartamentos.length === 0 ? (
-            <p className="map-hint">No hay escuelas afectadas.</p>
+            <p className="map-hint">{t.vacio.ranking}</p>
           ) : (
             <div className="ui-table-wrap">
               <table className="ui-table evolucion-tabla">
                 <thead>
                   <tr>
                     <th scope="col">Departamento</th>
-                    <th scope="col">Escuelas afectadas</th>
-                    <th scope="col">Alumnos alcanzados</th>
-                    <th scope="col">Proporción</th>
+                    <th scope="col">{t.tabla.escuelas}</th>
+                    <th scope="col">{t.tabla.alumnos}</th>
+                    <th scope="col">{t.tabla.proporcion}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {datos.rankingDepartamentos.map((fila) => (
                     <tr key={fila.departamento}>
                       <th scope="row">{etiquetaDepartamento(fila.departamento)}</th>
-                      <td>{FORMATO_NUMERO.format(fila.escuelasAfectadas)}</td>
-                      <td>{FORMATO_NUMERO.format(fila.alumnosAlcanzados)}</td>
+                      <td>{formatoNumero.format(fila.escuelasAfectadas)}</td>
+                      <td>{formatoNumero.format(fila.alumnosAlcanzados)}</td>
                       <td className="evolucion-barra-celda">
                         {/* Decorativa: el número ya está en la columna anterior. */}
                         <span className="evolucion-barra" aria-hidden="true">
@@ -181,20 +192,20 @@ export function EvolucionPanel({ filtros }: { filtros: FiltrosMapa }): JSX.Eleme
       {vista === 'motivos' && (
         <section className="evolucion-vista">
           {datos.distribucionMotivo.length === 0 ? (
-            <p className="map-hint">No hay afectaciones vigentes.</p>
+            <p className="map-hint">{t.vacio.motivos}</p>
           ) : (
-            <GraficoMotivos motivos={datos.distribucionMotivo} />
+            <GraficoMotivos motivos={datos.distribucionMotivo} idioma={idioma} />
           )}
         </section>
       )}
 
       {vista === 'acumulado' && (
         <section className="evolucion-vista">
-          <p className="map-sitact__atenuado">Cuenta a cada alumno una sola vez en todo el período.</p>
+          <p className="map-sitact__atenuado">{t.acumuladoNota}</p>
           {datos.alumnosAcumulados.length === 0 ? (
-            <p className="map-hint">No hay alumnos alcanzados.</p>
+            <p className="map-hint">{t.vacio.alumnos}</p>
           ) : (
-            <GraficoAlumnosAcumulados puntos={datos.alumnosAcumulados} />
+            <GraficoAlumnosAcumulados puntos={datos.alumnosAcumulados} idioma={idioma} />
           )}
         </section>
       )}

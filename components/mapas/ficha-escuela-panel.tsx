@@ -3,8 +3,10 @@
 import { etiquetaClases, etiquetaFuncionamiento, tieneServicioInformado } from '@/lib/infraestructura/funcionamiento'
 import { derivarClases } from '@/lib/infraestructura/mapa/enriquecer'
 import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
+import { localeNumero } from '@/lib/i18n/formato-numero'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { BookMinus, BookX, ChevronDown, Clock, DoorOpen, House, ShieldCheck, Utensils, X } from 'lucide-react'
 import { ETIQUETA_COMEDOR } from '@/lib/infraestructura/comedores/estado'
@@ -58,8 +60,6 @@ interface FichaEscuelaPanelProps {
   distanciaLocalidad?: VistaPreviaEscuelaProps['distanciaLocalidad']
 }
 
-const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
-
 function IconoClases({ estado }: { estado: EscuelaMapaEnriquecida['clases'] }) {
   if (estado === 'sin') return <BookX aria-hidden="true" />
   if (estado === 'parcial') return <BookMinus aria-hidden="true" />
@@ -74,14 +74,15 @@ function etiquetaCategoria(categoria: string | null): string | null {
 }
 
 function FilaEstado({ escuela }: { escuela: EscuelaMapaEnriquecida }) {
-  const etiquetaApoyo = etiquetaApoyoMapa(escuela.clases, escuela.apoyo)
+  const t = useTextos()
+  const etiquetaApoyo = etiquetaApoyoMapa(escuela.clases, escuela.apoyo, t)
   return (
-    <div className="map-sitact__chips map-ficha-escuela__chips" aria-label="Estado de la escuela">
+    <div className="map-sitact__chips map-ficha-escuela__chips" aria-label={t.fichaPanel.estadoEscuela}>
       {escuela.clases === 'normal' ? (
-        <span className={`map-sitact__pill ${escuela.clasesInformadas ? 'map-sitact__pill--ok' : 'map-sitact__pill--neutro'}`}>{etiquetaClases('normal', escuela.clasesInformadas === true)}</span>
+        <span className={`map-sitact__pill ${escuela.clasesInformadas ? 'map-sitact__pill--ok' : 'map-sitact__pill--neutro'}`}>{etiquetaClases('normal', escuela.clasesInformadas === true, t)}</span>
       ) : (
         <span className="map-sitact__pill map-sitact__pill--clases">
-          <IconoClases estado={escuela.clases} />{etiquetaClases(escuela.clases, escuela.clasesInformadas === true)}
+          <IconoClases estado={escuela.clases} />{etiquetaClases(escuela.clases, escuela.clasesInformadas === true, t)}
         </span>
       )}
       {etiquetaApoyo && (
@@ -90,7 +91,7 @@ function FilaEstado({ escuela }: { escuela: EscuelaMapaEnriquecida }) {
         </span>
       )}
       {escuela.sinActualizar && (
-        <span className="map-sitact__pill map-sitact__pill--neutro"><Clock aria-hidden="true" />Sin actualizar</span>
+        <span className="map-sitact__pill map-sitact__pill--neutro"><Clock aria-hidden="true" />{t.fichaPanel.sinActualizar}</span>
       )}
       {escuela.posibleCentroEvacuados === true && (
         <span className="map-sitact__pill map-sitact__pill--posible-centro"><ShieldCheck aria-hidden="true" />{escuela.posibleCentroSinAntecedentes === true ? ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES : ETIQUETA_POSIBLE_CENTRO}</span>
@@ -139,6 +140,9 @@ export function FichaEscuelaPanel({
   aislamiento = null,
   distanciaLocalidad = null,
 }: FichaEscuelaPanelProps) {
+  const t = useTextos()
+  const idioma = useIdioma()
+  const FORMATO_NUMERO = useMemo(() => new Intl.NumberFormat(localeNumero(idioma)), [idioma])
   const { estado, historial } = useFichaParte(escuela.cueAnexo)
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const [ahoraMs] = useState(() => Date.now())
@@ -248,7 +252,7 @@ export function FichaEscuelaPanel({
   return (
     <section className="map-ficha-escuela" aria-label={`Ficha de ${escuela.nombre}`}>
       <div className="map-ficha-escuela__encabezado-fijo">
-        <button className="map-cerrar map-ficha-escuela__cerrar" type="button" aria-label="Cerrar ficha" onClick={onCerrar}>
+        <button className="map-cerrar map-ficha-escuela__cerrar" type="button" aria-label={t.fichaPanel.cerrarFicha} onClick={onCerrar}>
           <X aria-hidden="true" />
         </button>
 
@@ -259,7 +263,7 @@ export function FichaEscuelaPanel({
             {escuela.carreras !== undefined
               ? ` · ${contar(escuela.carreras, 'carrera', 'carreras')}`
               : escuela.niveles.length > 0 && ` · ${escuela.niveles.join(', ')}`}
-            {escuela.alumnos > 0 && ` · ${FORMATO_NUMERO.format(escuela.alumnos)} alumnos`}
+            {escuela.alumnos > 0 && ` · ${t.fichaPanel.alumnosConteo(FORMATO_NUMERO.format(escuela.alumnos))}`}
           </p>
         </header>
       </div>
@@ -269,11 +273,11 @@ export function FichaEscuelaPanel({
           className="map-ficha-escuela__gravedad"
           style={{ backgroundColor: colorSeveridad(severidad), color: TINTA_POR_SEVERIDAD[severidad] }}
         >
-          <strong>{(principal?.categoria ?? escuela.categoriaPrincipal) === 'alumnos' ? 'Prioridad' : 'Gravedad'} {severidad}</strong>
+          <strong>{(principal?.categoria ?? escuela.categoriaPrincipal) === 'alumnos' ? t.fichaPanel.prioridad : t.fichaPanel.gravedad} {severidad}</strong>
           <span>{principal ? `${categoria} · desde ${desde(principal.rigeDesde)}` : categoria}</span>
         </div>
       ) : (
-        <p className="map-ficha-escuela__sin-reportes">{afectaciones.length ? 'Sin datos para calcular la prioridad' : 'Sin situaciones abiertas'}</p>
+        <p className="map-ficha-escuela__sin-reportes">{afectaciones.length ? t.fichaPanel.sinDatosPrioridad : t.fichaPanel.sinSituacionesAbiertas}</p>
       )}
 
       <p>{etiquetaFuncionamiento(situacionesFuncionamiento)}</p>
@@ -286,26 +290,26 @@ export function FichaEscuelaPanel({
       {centroEvacuados}
 
       <div>
-        <Desplegable titulo="Acceso" abierto>
+        <Desplegable titulo={t.fichaPanel.acceso} abierto>
           {acceso}
         </Desplegable>
 
-        <Desplegable titulo="Clases y asistencia pedagógica" abierto={clasesActuales !== 'normal'}>
+        <Desplegable titulo={t.fichaPanel.clasesYAsistencia} abierto={clasesActuales !== 'normal'}>
           <dl className="map-ficha-escuela__kv">
-            <dt>Clases</dt><dd>{etiquetaClases(clasesActuales, clasesInformadas)}</dd>
-            <dt>Asistencia pedagógica</dt><dd>{valorApoyoMapa(clasesActuales, escuela.apoyo) ?? 'No corresponde'}</dd>
-            <dt>Alumnos</dt><dd>{FORMATO_NUMERO.format(escuela.alumnos)}</dd>
-            {datos?.parte && afectaciones.some((afectacion) => afectacion.categoria === 'establecimiento') && <><dt>Edificio</dt><dd>{ETIQUETA_ESTABLECIMIENTO[datos.parte.estadoEstablecimiento]}</dd></>}
+            <dt>{t.fichaPanel.clases}</dt><dd>{etiquetaClases(clasesActuales, clasesInformadas)}</dd>
+            <dt>{t.fichaPanel.asistenciaPedagogica}</dt><dd>{valorApoyoMapa(clasesActuales, escuela.apoyo) ?? t.fichaPanel.noCorresponde}</dd>
+            <dt>{t.fichaPanel.alumnos}</dt><dd>{FORMATO_NUMERO.format(escuela.alumnos)}</dd>
+            {datos?.parte && afectaciones.some((afectacion) => afectacion.categoria === 'establecimiento') && <><dt>{t.fichaPanel.edificio}</dt><dd>{ETIQUETA_ESTABLECIMIENTO[datos.parte.estadoEstablecimiento]}</dd></>}
           </dl>
         </Desplegable>
 
-        <Desplegable titulo={estado.fase === 'listo' ? `Situaciones (${afectaciones.length} ${afectaciones.length === 1 ? 'abierta' : 'abiertas'})` : 'Situaciones'}>
+        <Desplegable titulo={estado.fase === 'listo' ? t.fichaPanel.situacionesConteo(afectaciones.length) : t.ficha.situacionesSeccion}>
           {estado.fase === 'cargando' ? (
-            <p role="status">Cargando…</p>
+            <p role="status">{t.fichaPanel.cargando}</p>
           ) : estado.fase === 'error' ? (
-            <p role="alert">No se pudo cargar la información de la escuela.</p>
+            <p role="alert">{t.fichaPanel.errorCarga}</p>
           ) : afectaciones.length === 0 ? (
-            <p>Sin situaciones abiertas.</p>
+            <p>{t.fichaPanel.sinSituacionesAbiertasLista}</p>
           ) : (
             <>
               {afectaciones.map((afectacion) => {
@@ -320,13 +324,13 @@ export function FichaEscuelaPanel({
                       <dt>Alcance</dt><dd>{resumirAlcance(afectacion.totales)}</dd>
                       {rigeDesde && <><dt>Desde</dt><dd>{rigeDesde}</dd></>}
                       {causadaPor && <><dt>Causada por</dt><dd>{causadaPor.motivo}</dd></>}
-                      {justificacionCritica && <><dt>Justificación de gravedad</dt><dd>{justificacionCritica.etiqueta}</dd></>}
-                      {justificacionCritica?.detalle && <><dt>Detalle de la justificación</dt><dd>{justificacionCritica.detalle}</dd></>}
-                      <dt>Categoría</dt><dd>{CATEGORIA_META[afectacion.categoria].label}</dd>
+                      {justificacionCritica && <><dt>{t.fichaPanel.justificacionGravedad}</dt><dd>{justificacionCritica.etiqueta}</dd></>}
+                      {justificacionCritica?.detalle && <><dt>{t.fichaPanel.detalleJustificacion}</dt><dd>{justificacionCritica.detalle}</dd></>}
+                      <dt>{t.fichaPanel.categoria}</dt><dd>{CATEGORIA_META[afectacion.categoria].label}</dd>
                       {mostrarEnlaceNominal && escuela.carreras === undefined && (
                         <dd className="map-ficha-escuela__accion">
                           <button type="button" className="map-ficha-escuela__link" onClick={() => onVerAlumnosAlcanzados(afectacion.id)}>
-                            Ver alumnos alcanzados
+                            {t.fichaPanel.verAlumnosAlcanzados}
                           </button>
                         </dd>
                       )}
@@ -337,8 +341,8 @@ export function FichaEscuelaPanel({
               })}
             </>
           )}
-          {datos?.parte && novedad && <p><strong>Última novedad:</strong> {novedad}</p>}
-          <button type="button" className="map-ficha-escuela__link" onClick={onVerHistorialCompleto}>Ver historial</button>
+          {datos?.parte && novedad && <p><strong>{t.fichaPanel.ultimaNovedad}</strong> {novedad}</p>}
+          <button type="button" className="map-ficha-escuela__link" onClick={onVerHistorialCompleto}>{t.fichaPanel.verHistorial}</button>
         </Desplegable>
 
         {borradoresServerCount !== null && borradoresServerCount > 0 && (
@@ -346,15 +350,15 @@ export function FichaEscuelaPanel({
         )}
 
         {recientes.length > 0 && (
-          <Desplegable titulo={`Solucionadas recientemente (${recientes.length})`} abierto={afectaciones.length === 0}>
+          <Desplegable titulo={t.fichaPanel.solucionadasRecientes(recientes.length)} abierto={afectaciones.length === 0}>
             {recientes.map((solucionada) => {
               const retiradaEn = formatearMomentoHistorial(solucionada.retiradaEn).replace(/^Hoy/, 'hoy')
               return (
                 <div className="map-ficha-escuela__situacion" key={solucionada.id}>
                   <h3>{solucionada.motivo}</h3>
                   <dl className="map-ficha-escuela__kv">
-                    <dt>Gravedad que tenía</dt><dd><EstadoActualSeveridad severidad={solucionada.severidad} prefijo={false} /></dd>
-                    <dt>Solucionada</dt><dd>{retiradaEn}</dd>
+                    <dt>{t.fichaPanel.gravedadQueTenia}</dt><dd><EstadoActualSeveridad severidad={solucionada.severidad} prefijo={false} /></dd>
+                    <dt>{t.fichaPanel.solucionada}</dt><dd>{retiradaEn}</dd>
                   </dl>
                 </div>
               )
@@ -362,16 +366,16 @@ export function FichaEscuelaPanel({
           </Desplegable>
         )}
 
-        <Desplegable titulo="Historial">
+        <Desplegable titulo={t.fichaPanel.historial}>
           {historial.fase === 'cargando' ? (
-            <p role="status">Cargando…</p>
+            <p role="status">{t.fichaPanel.cargando}</p>
           ) : historial.fase === 'error' ? (
-            <p role="alert">No se pudo cargar la información de la escuela.</p>
+            <p role="alert">{t.fichaPanel.errorCarga}</p>
           ) : (
             <>
               <p>{escuela.situacionesHistoricas === 0
-                ? 'Sin situaciones registradas'
-                : `${escuela.situacionesHistoricas} ${escuela.situacionesHistoricas === 1 ? 'situación registrada' : 'situaciones registradas'}`}</p>
+                ? t.fichaPanel.sinSituacionesRegistradas
+                : t.fichaPanel.situacionesRegistradas(escuela.situacionesHistoricas)}</p>
               {historial.movimientos.length > 0 && <LineaDeTiempo movimientos={historial.movimientos} limite={5} />}
             </>
           )}
@@ -387,12 +391,12 @@ export function FichaEscuelaPanel({
           onClick={onAbrirFichaCompleta}
           data-testid="abrir-ficha-completa"
         >
-          Abrir ficha completa
+          {t.ficha.vistaPrevia.abrirFichaCompleta}
         </Link>
       )}
 
       <a className="ui-button ui-button--secondary ui-button--sm" href={`/infraestructura/cargar?cue=${encodeURIComponent(escuela.cueAnexo)}`}>
-        {escuela.gravedad > 0 || afectaciones.length > 0 ? 'Actualizar el parte' : 'Cargar una situación'}
+        {escuela.gravedad > 0 || afectaciones.length > 0 ? t.ficha.actualizarParte : t.ficha.cargarSituacion}
       </a>
 
       {onQuitarSeleccion && (
@@ -402,7 +406,7 @@ export function FichaEscuelaPanel({
           onClick={onQuitarSeleccion}
           data-testid="preview-quitar-seleccion"
         >
-          Quitar selección
+          {t.fichaPanel.quitarSeleccion}
         </button>
       )}
     </section>
@@ -410,12 +414,13 @@ export function FichaEscuelaPanel({
 }
 
 function SeccionPeligro({ cueAnexo, localidad }: { cueAnexo: string; localidad: string }) {
+  const t = useTextos()
   const [estadoPeligro, setEstadoPeligro] = useState<EstadoVistaPeligro>('cargando')
   return (
     <section className="map-ficha-escuela__situacion">
       <details open={estadoPeligro !== 'sin_datos'}>
         <summary>
-          <h3>Lluvia y río: datos de apoyo</h3>
+          <h3>{t.fichaPanel.lluviaYRio}</h3>
         </summary>
         <FichaTerritorial cueAnexo={cueAnexo} localidad={localidad} onEstado={setEstadoPeligro} />
       </details>

@@ -4,9 +4,9 @@
 import { useSyncExternalStore } from 'react'
 import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { colorNivelPlan, ETIQUETA_NIVEL_PLAN, nivelesLeyendaPlanificacion, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
-import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
-import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
+import { colorNivelPlan, etiquetaNivelPlan, nivelesLeyendaPlanificacion, tituloLeyendaVista, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
+import { colorRiesgo, etiquetaHorizonteMotor, etiquetaNivelRiesgo, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
+import { etiquetaEstadoClases } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import { IconoMapaLeyenda, svgMarcadorEstacion, type EstadoEstacion } from '@/lib/mapas/insignias-mapa'
@@ -26,11 +26,11 @@ type PropsLeyendaMapa =
 // Mismo SVG que rasteriza el mapa, a tamaño de leyenda (16 px, escala 1).
 const svgEstadoLeyenda = (icono: keyof typeof GLIFO_BADGE_ESTADO) => svgBadgeEstado(GLIFO_BADGE_ESTADO[icono], false, 16, 1)
 
-const estadosLeyenda = (t: TextosLeyenda) => [
-  { svg: svgEstadoLeyenda('sin'), etiqueta: ETIQUETA_ESTADO_CLASES.sin },
-  { svg: svgEstadoLeyenda('parcial'), etiqueta: ETIQUETA_ESTADO_CLASES.parcial },
-  { svg: svgEstadoLeyenda('evacuado'), etiqueta: ETIQUETA_ESTADO_CLASES.evacuado },
-  { svg: svgEstadoLeyenda('centro'), etiqueta: ETIQUETA_ESTADO_CLASES.centro },
+const estadosLeyenda = (t: TextosLeyenda, dict: Diccionario) => [
+  { svg: svgEstadoLeyenda('sin'), etiqueta: etiquetaEstadoClases(dict, 'sin') },
+  { svg: svgEstadoLeyenda('parcial'), etiqueta: etiquetaEstadoClases(dict, 'parcial') },
+  { svg: svgEstadoLeyenda('evacuado'), etiqueta: etiquetaEstadoClases(dict, 'evacuado') },
+  { svg: svgEstadoLeyenda('centro'), etiqueta: etiquetaEstadoClases(dict, 'centro') },
   { svg: svgEstadoLeyenda('reloj'), etiqueta: t.sinActualizar },
   { svg: SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, etiqueta: t.solucionadaRecientemente },
 ] as const
@@ -51,6 +51,7 @@ const OPCIONES_CORTE_LLUVIA: Intl.DateTimeFormatOptions = {
 }
 
 function LeyendaLluviaObservada({ meta, t }: { meta: MetaLluviaObservada; t: TextosLeyenda }) {
+  const dict = useTextos()
   const hasta = meta.hasta && !Number.isNaN(Date.parse(meta.hasta)) ? formatoFechaRegion(OPCIONES_CORTE_LLUVIA).format(new Date(meta.hasta)) : null
   return (
     <div className="map-leyenda__bloque" data-testid="leyenda-lluvia">
@@ -64,7 +65,7 @@ function LeyendaLluviaObservada({ meta, t }: { meta: MetaLluviaObservada; t: Tex
         {CLASES_LLUVIA.map((clase) => (
           <li className="map-leyenda__elemento" key={clase.desde}>
             <span aria-hidden="true" className="map-leyenda__muestra" style={{ backgroundColor: clase.color }} />
-            <span>{clase.etiqueta}</span>
+            <span>{clase.desde >= 150 ? dict.libTextos2.lluvia.clase150 : clase.etiqueta}</span>
           </li>
         ))}
       </ul>
@@ -95,6 +96,7 @@ function SituacionActual({ estacionesRio, lluviaObservada, riesgoHoy, abierta, t
   lluviaObservada: MetaLluviaObservada | null
   t: TextosLeyenda
 }) {
+  const dict = useTextos()
   return (
     <details className="map-leyenda__seccion" open={abierta}>
       <summary className="map-leyenda__seccion-titulo">{t.situacionActual}</summary>
@@ -120,7 +122,7 @@ function SituacionActual({ estacionesRio, lluviaObservada, riesgoHoy, abierta, t
               {(['muy_alto', 'alto', 'moderado'] as const).map((nivel) => (
                 <li className="map-leyenda__elemento" key={nivel}>
                   <span aria-hidden="true" className="map-leyenda__muestra" style={{ backgroundColor: colorRiesgo(nivel) }} />
-                  <span>{ETIQUETA_NIVEL_RIESGO[nivel]}</span>
+                  <span>{etiquetaNivelRiesgo(dict, nivel)}</span>
                 </li>
               ))}
             </ul>
@@ -132,21 +134,22 @@ function SituacionActual({ estacionesRio, lluviaObservada, riesgoHoy, abierta, t
 }
 
 function ReferenciasRiesgo({ props, t }: { props: PropsLeyendaMapa; t: TextosLeyenda }) {
+  const dict = useTextos()
   // Riesgo hoy de Planificación comparte la escala del motor con el Radar.
   if (props.pestana === 'planificacion' && props.vista === 'riesgo') {
     return <ReferenciasRiesgo props={{ pestana: 'radar', horizonte: props.horizonte ?? 24 }} t={t} />
   }
   if (props.pestana === 'radar') {
     const niveles = [
-      ['muy_alto', ETIQUETA_NIVEL_RIESGO.muy_alto],
-      ['alto', ETIQUETA_NIVEL_RIESGO.alto],
-      ['moderado', ETIQUETA_NIVEL_RIESGO.moderado],
+      ['muy_alto', etiquetaNivelRiesgo(dict, 'muy_alto')],
+      ['alto', etiquetaNivelRiesgo(dict, 'alto')],
+      ['moderado', etiquetaNivelRiesgo(dict, 'moderado')],
     ] as const
 
     return (
       <>
         <b className="map-leyenda__titulo">
-          {t.riesgoActual(ETIQUETA_HORIZONTE_MOTOR[props.horizonte])}
+          {t.riesgoActual(etiquetaHorizonteMotor(props.horizonte, dict))}
           <NotaInfo texto={t.riesgoActualNota} />
         </b>
         <ul className="map-leyenda__fila">
@@ -170,7 +173,7 @@ function ReferenciasRiesgo({ props, t }: { props: PropsLeyendaMapa; t: TextosLey
 
     return (
       <>
-        <b className="map-leyenda__titulo">{TITULO_LEYENDA_VISTA[props.vista]}</b>
+        <b className="map-leyenda__titulo">{tituloLeyendaVista(dict, props.vista)}</b>
         <ul className="map-leyenda__fila">
           {niveles.map((nivel) => (
             <li className="map-leyenda__elemento" key={nivel}>
@@ -179,7 +182,7 @@ function ReferenciasRiesgo({ props, t }: { props: PropsLeyendaMapa; t: TextosLey
                 className={`map-leyenda__muestra${nivel === 0 ? ' map-leyenda__muestra--neutra' : ''}`}
                 style={nivel === 0 ? undefined : { backgroundColor: colorNivelPlan(nivel) }}
               />
-              <span>{ETIQUETA_NIVEL_PLAN[nivel]}</span>
+              <span>{etiquetaNivelPlan(dict, nivel)}</span>
             </li>
           ))}
         </ul>
@@ -217,7 +220,8 @@ function ReferenciasRiesgo({ props, t }: { props: PropsLeyendaMapa; t: TextosLey
 
 export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; lluviaObservada?: MetaLluviaObservada | null; riesgoHoy?: boolean }) {
   const estrecha = usePantallaEstrecha()
-  const t = useTextos().leyenda
+  const dict = useTextos()
+  const t = dict.leyenda
   const estacionesRio = Boolean(props.estacionesRio)
   const lluviaObservada = props.lluviaObservada ?? null
   const riesgoHoy = Boolean(props.riesgoHoy)
@@ -250,7 +254,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
           <summary className="map-leyenda__seccion-titulo">{t.simbolos}</summary>
           <div className="map-leyenda__seccion-cuerpo">
             <ul className="map-leyenda__simbolos">
-              {estadosLeyenda(t).map(({ svg, etiqueta }) => (
+              {estadosLeyenda(t, dict).map(({ svg, etiqueta }) => (
                 <li className="map-leyenda__elemento" key={etiqueta}>
                   <IconoMapaLeyenda svg={svg} />
                   <span>{etiqueta}</span>

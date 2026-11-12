@@ -1,15 +1,9 @@
 import type { ReactNode } from 'react'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 import { PanelEncabezado } from './panel-encabezado'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 type PestanaConMapa = Exclude<PestanaMapa, 'estadisticas' | 'metodologia' | 'exportar'>
-
-const TITULOS: Record<PestanaConMapa, string> = {
-  actual: 'Situación actual',
-  radar: 'Radar',
-  planificacion: 'Planificación',
-  capas: 'Capas',
-}
 
 export interface PanelLateralProps {
   pestana: PestanaConMapa
@@ -29,6 +23,13 @@ export interface PanelLateralProps {
 }
 
 export function PanelLateral(props: PanelLateralProps) {
+  const t = useTextos()
+  const titulos: Record<PestanaConMapa, string> = {
+    actual: t.controlesCapas.pestanas.actual,
+    radar: 'Radar',
+    planificacion: t.controlesCapas.pestanas.planificacion,
+    capas: t.controlesCapas.capas,
+  }
   let contenido = props.actual
   const mostrandoFicha = props.seleccion !== null && props.ficha != null
   if (mostrandoFicha) {
@@ -44,7 +45,7 @@ export function PanelLateral(props: PanelLateralProps) {
   // Lo invocan las fichas que se montan acá desde la Task 13.
   return (
     <div className="map-panel-lateral" data-testid="panel-lateral">
-      {!mostrandoFicha && <PanelEncabezado titulo={TITULOS[props.pestana]} subtitulo={props.subtitulos?.[props.pestana]} />}
+      {!mostrandoFicha && <PanelEncabezado titulo={titulos[props.pestana]} subtitulo={props.subtitulos?.[props.pestana]} />}
       <div className="map-panel-lateral__cuerpo" data-testid="panel-cuerpo">
         {!mostrandoFicha && props.cabecera}
         {contenido}

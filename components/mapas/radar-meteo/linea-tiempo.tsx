@@ -3,6 +3,7 @@
 import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 import { calcularMarcasEje } from './ejes-tiempo'
 import { fechaRadar } from './escalas'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export function LineaTiempoRadar({
   times,
@@ -25,6 +26,8 @@ export function LineaTiempoRadar({
   onSpeedChange: (speed: 1 | 2 | 4) => void
   onPasoChange: (paso: 1 | 3) => void
 }) {
+  const t = useTextos()
+  const l = t.radarResto.linea
   const current = times[frame]
   const marcas = calcularMarcasEje(times, regionPublicaActual().zonaHoraria)
   const label = current
@@ -34,9 +37,9 @@ export function LineaTiempoRadar({
   return (
     <div className="radar-meteo-timeline" data-frame-index={frame} data-frame-time={current ?? ''}>
       <div className="radar-meteo-timeline-actions">
-        <button type="button" aria-label="Retroceder un cuadro" onClick={() => onFrameChange((value) => Math.max(0, value - 1))}>‹</button>
-        <button type="button" aria-label={playing ? 'Pausar' : 'Reproducir'} onClick={() => onPlayingChange((value) => !value)}>{playing ? 'Ⅱ' : '▶'}</button>
-        <button type="button" aria-label="Avanzar un cuadro" onClick={() => onFrameChange((value) => Math.min(times.length - 1, value + 1))}>›</button>
+        <button type="button" aria-label={l.retroceder} onClick={() => onFrameChange((value) => Math.max(0, value - 1))}>‹</button>
+        <button type="button" aria-label={playing ? 'Pausar' : l.reproducir} onClick={() => onPlayingChange((value) => !value)}>{playing ? 'Ⅱ' : '▶'}</button>
+        <button type="button" aria-label={l.avanzar} onClick={() => onFrameChange((value) => Math.min(times.length - 1, value + 1))}>›</button>
         <strong>{label}</strong>
         <span className="radar-meteo-speeds">
           {([1, 2, 4] as const).map((value) => (
@@ -44,7 +47,7 @@ export function LineaTiempoRadar({
           ))}
         </span>
         <label>
-          Paso
+          {l.paso}
           <select value={paso} onChange={(event) => onPasoChange(Number(event.target.value) as 1 | 3)}>
             <option value={3}>3 h</option>
             <option value={1}>1 h</option>
@@ -57,7 +60,7 @@ export function LineaTiempoRadar({
         max={Math.max(0, times.length - 1)}
         value={Math.min(frame, Math.max(0, times.length - 1))}
         onChange={(event) => onFrameChange(Number(event.target.value))}
-        aria-label="Cuadro del pronóstico"
+        aria-label={l.cuadro}
         disabled={!times.length}
       />
       <div className="radar-meteo-days">

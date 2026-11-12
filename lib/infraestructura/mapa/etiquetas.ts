@@ -1,8 +1,9 @@
 import { ETIQUETA_ESTABLECIMIENTO, ETIQUETA_SERVICIO } from '@/components/infraestructura/estado-actual-textos'
 import type { EstadoClases, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import { severidadDeGravedad } from './gravedad'
-import { contar } from '@/lib/infraestructura/parte/instituto-ui'
 import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 
@@ -10,11 +11,14 @@ const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
  * Detalle de una escuela en listas y paneles: los niveles GE, o para un
  * instituto superior "N carreras · M alumnos matriculados" (igual que la ficha).
  */
-export function detalleNivelOInstituto(escuela: { niveles: string[]; carreras?: number; alumnos: number }): string {
+export function detalleNivelOInstituto(
+  escuela: { niveles: string[]; carreras?: number; alumnos: number },
+  t: Diccionario = es,
+): string {
   if (escuela.carreras === undefined) return escuela.niveles.join(', ')
   return [
-    contar(escuela.carreras, 'carrera', 'carreras'),
-    `${FORMATO_NUMERO.format(escuela.alumnos)} ${escuela.alumnos === 1 ? 'alumno matriculado' : 'alumnos matriculados'}`,
+    t.etiquetas.instituto.carreras(escuela.carreras),
+    t.etiquetas.instituto.alumnosMatriculados(escuela.alumnos, FORMATO_NUMERO.format(escuela.alumnos)),
   ].join(' · ')
 }
 
@@ -93,4 +97,19 @@ export const ETIQUETA_APOYO: Record<'brinda' | 'no' | 'sin_dato', string> = {
   brinda: 'Se brinda',
   no: 'No se brinda',
   sin_dato: 'Sin dato',
+}
+
+// Etiquetas del mapa en el idioma de `t`. Sin idioma (o exportaciones) siguen valiendo las constantes en español.
+export function etiquetaEstadoClases(t: Diccionario, clase: EstadoClases): string {
+  const tabla = t.etiquetas.estadoClases
+  return clase in tabla ? tabla[clase as keyof typeof tabla] : ETIQUETA_ESTADO_CLASES[clase]
+}
+
+export function etiquetaGravedad(t: Diccionario, gravedad: GravedadMapa): string {
+  const tabla = t.etiquetas.gravedad
+  return gravedad in tabla ? tabla[gravedad as keyof typeof tabla] : ETIQUETA_GRAVEDAD[gravedad]
+}
+
+export function etiquetaApoyo(t: Diccionario, apoyo: 'brinda' | 'no' | 'sin_dato'): string {
+  return t.etiquetas.apoyo[apoyo]
 }
