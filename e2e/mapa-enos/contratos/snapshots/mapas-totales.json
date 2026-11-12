@@ -1,0 +1,37 @@
+{
+  "departamentos": [
+    {
+      "departamento": "CAPITAL",
+      "departamentoOriginal": "Capital",
+      "escuelasAfectadas": 7,
+      "porcentajeAfectadas": 63.6,
+      "totalEscuelas": 11
+    },
+    {
+      "departamento": "GOYA",
+      "departamentoOriginal": "Goya",
+      "escuelasAfectadas": 4,
+      "porcentajeAfectadas": 44.4,
+      "totalEscuelas": 9
+    },
+    {
+      "departamento": "PASO DE LOS LIBRES",
+      "departamentoOriginal": "Paso de los Libres",
+      "escuelasAfectadas": 3,
+      "porcentajeAfectadas": 50,
+      "totalEscuelas": 6
+    },
+    {
+      "departamento": "SANTO TOME",
+      "departamentoOriginal": "Santo Tomé",
+      "escuelasAfectadas": 3,
+      "porcentajeAfectadas": 50,
+      "totalEscuelas": 6
+    }
+  ],
+  "provincia": {
+    "escuelasAfectadas": 17,
+    "porcentajeAfectadas": 53.1,
+    "totalEscuelas": 32
+  }
+}

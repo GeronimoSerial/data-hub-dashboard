@@ -1,0 +1,630 @@
+{
+  "escuelas": [
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": null,
+      "categoriaPrincipal": "establecimiento",
+      "clases": "normal",
+      "clasesInformadas": false,
+      "comedor": "sin_servicio",
+      "cueAnexo": "1800554-00",
+      "departamento": "Capital",
+      "estado": "afectada",
+      "gravedad": 2,
+      "lat": -27.47149,
+      "localidad": "CORRIENTES",
+      "lon": -58.83663,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "ESCUELA NORMAL \"DR.JUAN GREGORIO PUJOL\"",
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "afectaciones": [
+          {
+            "categoria": "establecimiento",
+            "creadaEn": "<fecha>",
+            "descripcion": null,
+            "id": "<uuid:1>",
+            "motivo": "Inundación",
+            "rigeDesde": "<fecha>",
+            "severidad": "Media"
+          }
+        ],
+        "alumnosAlcanzados": 0,
+        "alumnosDelHecho": 0,
+        "categorias": [
+          "establecimiento"
+        ],
+        "cueAnexo": "1800554-00",
+        "departamento": "Capital",
+        "estadoEstablecimiento": "habitual",
+        "lat": -27.471495,
+        "localidad": "CORRIENTES",
+        "lon": -58.836628,
+        "nombre": "ESCUELA NORMAL \"DR.JUAN GREGORIO PUJOL\"",
+        "parteId": "<uuid:2>",
+        "peorSeveridad": "Media",
+        "rigeDesde": "<fecha>",
+        "seccionesAlcanzadas": 0,
+        "servicio": "normal",
+        "servicioInformado": false
+      },
+      "sinActualizar": false,
+      "situacionesHistoricas": 1,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": "<fecha>"
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": null,
+      "categoriaPrincipal": "establecimiento",
+      "clases": "normal",
+      "clasesInformadas": false,
+      "comedor": "desayuno_almuerzo",
+      "cueAnexo": "1800643-00",
+      "departamento": "Capital",
+      "estado": "afectada",
+      "gravedad": 1,
+      "lat": -27.48901,
+      "localidad": "CORRIENTES",
+      "lon": -58.83311,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "JARDIN DE INFANTES \"LUNA DE PAPEL\" IPP.4",
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "afectaciones": [
+          {
+            "categoria": "establecimiento",
+            "creadaEn": "<fecha>",
+            "descripcion": null,
+            "id": "<uuid:3>",
+            "motivo": "Inundación",
+            "rigeDesde": "<fecha>",
+            "severidad": "Baja"
+          }
+        ],
+        "alumnosAlcanzados": 0,
+        "alumnosDelHecho": 0,
+        "categorias": [
+          "establecimiento"
+        ],
+        "cueAnexo": "1800643-00",
+        "departamento": "Capital",
+        "estadoEstablecimiento": "habitual",
+        "lat": -27.489014,
+        "localidad": "CORRIENTES",
+        "lon": -58.83311,
+        "nombre": "JARDIN DE INFANTES \"LUNA DE PAPEL\" IPP.4",
+        "parteId": "<uuid:4>",
+        "peorSeveridad": "Baja",
+        "rigeDesde": "<fecha>",
+        "seccionesAlcanzadas": 0,
+        "servicio": "normal",
+        "servicioInformado": false
+      },
+      "sinActualizar": false,
+      "situacionesHistoricas": 1,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": "<fecha>"
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": null,
+      "categoriaPrincipal": "establecimiento",
+      "clases": "normal",
+      "clasesInformadas": false,
+      "comedor": "solo_almuerzo",
+      "cueAnexo": "1801110-00",
+      "departamento": "Capital",
+      "estado": "afectada",
+      "gravedad": 2,
+      "lat": -27.46273,
+      "localidad": "CORRIENTES",
+      "lon": -58.83818,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "COLEGIO INFORMATICO \"SAN JUAN DE VERA\"",
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "afectaciones": [
+          {
+            "categoria": "establecimiento",
+            "creadaEn": "<fecha>",
+            "descripcion": null,
+            "id": "<uuid:5>",
+            "motivo": "Corte de agua",
+            "rigeDesde": "<fecha>",
+            "severidad": "Media"
+          }
+        ],
+        "alumnosAlcanzados": 0,
+        "alumnosDelHecho": 0,
+        "categorias": [
+          "establecimiento"
+        ],
+        "cueAnexo": "1801110-00",
+        "departamento": "Capital",
+        "estadoEstablecimiento": "habitual",
+        "lat": -27.46273,
+        "localidad": "CORRIENTES",
+        "lon": -58.83818,
+        "nombre": "COLEGIO INFORMATICO \"SAN JUAN DE VERA\"",
+        "parteId": "<uuid:6>",
+        "peorSeveridad": "Media",
+        "rigeDesde": "<fecha>",
+        "seccionesAlcanzadas": 0,
+        "servicio": "normal",
+        "servicioInformado": false
+      },
+      "sinActualizar": false,
+      "situacionesHistoricas": 1,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": "<fecha>"
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": null,
+      "categoriaPrincipal": null,
+      "clases": "normal",
+      "clasesInformadas": false,
+      "comedor": "sin_servicio",
+      "cueAnexo": "1801176-00",
+      "departamento": "Capital",
+      "estado": "sin_afectacion_reportada",
+      "gravedad": 0,
+      "lat": -27.46505,
+      "localidad": "CORRIENTES",
+      "lon": -58.83773,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "INSTITUTO SUPERIOR \"CARMEN MOLINA DE LLANO\"",
+      "sinActualizar": false,
+      "situacionesHistoricas": 0,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": null
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": "sin_dato",
+      "categoriaPrincipal": "establecimiento",
+      "clases": "centro",
+      "clasesInformadas": true,
+      "comedor": "sin_servicio",
+      "cueAnexo": "1801533-00",
+      "departamento": "Goya",
+      "estado": "afectada",
+      "gravedad": 3,
+      "lat": -29.1367,
+      "localidad": "GOYA",
+      "lon": -59.24654,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "ESCUELA HOSPITALARIA DOMICILIARIA Nº 30",
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "afectaciones": [
+          {
+            "categoria": "establecimiento",
+            "creadaEn": "<fecha>",
+            "descripcion": null,
+            "id": "<uuid:7>",
+            "motivo": "Inundación",
+            "rigeDesde": "<fecha>",
+            "severidad": "Alta"
+          }
+        ],
+        "alumnosAlcanzados": 0,
+        "alumnosDelHecho": 0,
+        "categorias": [
+          "establecimiento"
+        ],
+        "cueAnexo": "1801533-00",
+        "departamento": "Goya",
+        "estadoEstablecimiento": "centro_evacuados",
+        "lat": -29.1367,
+        "localidad": "GOYA",
+        "lon": -59.246536,
+        "nombre": "ESCUELA HOSPITALARIA DOMICILIARIA Nº 30",
+        "parteId": "<uuid:8>",
+        "peorSeveridad": "Alta",
+        "rigeDesde": "<fecha>",
+        "seccionesAlcanzadas": 0,
+        "servicio": "normal",
+        "servicioInformado": false
+      },
+      "sinActualizar": false,
+      "situacionesHistoricas": 1,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": "<fecha>"
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": null,
+      "categoriaPrincipal": null,
+      "clases": "normal",
+      "clasesInformadas": false,
+      "comedor": "desayuno_almuerzo",
+      "cueAnexo": "1801608-03",
+      "departamento": "Goya",
+      "estado": "sin_afectacion_reportada",
+      "gravedad": 0,
+      "lat": -29.10279,
+      "localidad": "REMANSO",
+      "lon": -59.24866,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "J.I.N. Nº 12 - ESCUELA Nº 733",
+      "sinActualizar": false,
+      "situacionesHistoricas": 0,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": null
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": null,
+      "categoriaPrincipal": "establecimiento",
+      "clases": "normal",
+      "clasesInformadas": false,
+      "comedor": "sin_servicio",
+      "cueAnexo": "1800953-00",
+      "departamento": "Goya",
+      "estado": "afectada",
+      "gravedad": 4,
+      "lat": -29.48386,
+      "localidad": "ESTANCIA DON RAUL",
+      "lon": -59.17313,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "ESCUELA Nº 270 \"DR. EDUARDO CONI MOLINA\"",
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "afectaciones": [
+          {
+            "categoria": "establecimiento",
+            "creadaEn": "<fecha>",
+            "descripcion": null,
+            "id": "<uuid:9>",
+            "motivo": "Inundación",
+            "rigeDesde": "<fecha>",
+            "severidad": "Crítica"
+          }
+        ],
+        "alumnosAlcanzados": 0,
+        "alumnosDelHecho": 0,
+        "categorias": [
+          "establecimiento"
+        ],
+        "cueAnexo": "1800953-00",
+        "departamento": "Goya",
+        "estadoEstablecimiento": "habitual",
+        "lat": -29.48386,
+        "localidad": "ESTANCIA DON RAUL",
+        "lon": -59.173134,
+        "nombre": "ESCUELA Nº 270 \"DR. EDUARDO CONI MOLINA\"",
+        "parteId": "<uuid:10>",
+        "peorSeveridad": "Crítica",
+        "rigeDesde": "<fecha>",
+        "seccionesAlcanzadas": 0,
+        "servicio": "normal",
+        "servicioInformado": false
+      },
+      "sinActualizar": false,
+      "situacionesHistoricas": 1,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": "<fecha>"
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": "cuadernillo",
+      "categoriaPrincipal": "establecimiento",
+      "clases": "sin",
+      "clasesInformadas": true,
+      "comedor": "sin_servicio",
+      "cueAnexo": "1800405-00",
+      "departamento": "Paso de los Libres",
+      "estado": "afectada",
+      "gravedad": 2,
+      "lat": -29.71152,
+      "localidad": "PASO DE LOS LIBRES",
+      "lon": -57.07979,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "COLEGIO SECUNDARIO \"PRESIDENTE ARTURO FRONDIZI\"",
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "afectaciones": [
+          {
+            "categoria": "establecimiento",
+            "creadaEn": "<fecha>",
+            "descripcion": null,
+            "id": "<uuid:11>",
+            "motivo": "Falta de calefacción",
+            "rigeDesde": "<fecha>",
+            "severidad": "Media"
+          }
+        ],
+        "alumnosAlcanzados": 0,
+        "alumnosDelHecho": 0,
+        "categorias": [
+          "establecimiento"
+        ],
+        "cueAnexo": "1800405-00",
+        "departamento": "Paso de los Libres",
+        "estadoEstablecimiento": "sin_clases",
+        "lat": -29.71152,
+        "localidad": "PASO DE LOS LIBRES",
+        "lon": -57.07979,
+        "nombre": "COLEGIO SECUNDARIO \"PRESIDENTE ARTURO FRONDIZI\"",
+        "parteId": "<uuid:12>",
+        "peorSeveridad": "Media",
+        "rigeDesde": "<fecha>",
+        "seccionesAlcanzadas": 0,
+        "servicio": "normal",
+        "servicioInformado": false
+      },
+      "sinActualizar": false,
+      "situacionesHistoricas": 1,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": "<fecha>"
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": null,
+      "categoriaPrincipal": "establecimiento",
+      "clases": "normal",
+      "clasesInformadas": false,
+      "comedor": "sin_servicio",
+      "cueAnexo": "1800929-00",
+      "departamento": "Paso de los Libres",
+      "estado": "afectada",
+      "gravedad": 3,
+      "lat": -29.3203,
+      "localidad": "LA FLORIDA",
+      "lon": -57.43006,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "ESCUELA Nº 342",
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "afectaciones": [
+          {
+            "categoria": "establecimiento",
+            "creadaEn": "<fecha>",
+            "descripcion": null,
+            "id": "<uuid:13>",
+            "motivo": "Corte de agua",
+            "rigeDesde": "<fecha>",
+            "severidad": "Alta"
+          }
+        ],
+        "alumnosAlcanzados": 0,
+        "alumnosDelHecho": 0,
+        "categorias": [
+          "establecimiento"
+        ],
+        "cueAnexo": "1800929-00",
+        "departamento": "Paso de los Libres",
+        "estadoEstablecimiento": "habitual",
+        "lat": -29.320297,
+        "localidad": "LA FLORIDA",
+        "lon": -57.430058,
+        "nombre": "ESCUELA Nº 342",
+        "parteId": "<uuid:14>",
+        "peorSeveridad": "Alta",
+        "rigeDesde": "<fecha>",
+        "seccionesAlcanzadas": 0,
+        "servicio": "normal",
+        "servicioInformado": false
+      },
+      "sinActualizar": false,
+      "situacionesHistoricas": 1,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": "<fecha>"
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": null,
+      "categoriaPrincipal": null,
+      "clases": "normal",
+      "clasesInformadas": false,
+      "comedor": "sin_servicio",
+      "cueAnexo": "1800932-00",
+      "departamento": "Paso de los Libres",
+      "estado": "sin_afectacion_reportada",
+      "gravedad": 0,
+      "lat": -29.5058,
+      "localidad": "TAPEBICUA",
+      "lon": -56.97763,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "ESCUELA Nº 516 \"SAN JOSE DE CALASANZ\"",
+      "sinActualizar": false,
+      "situacionesHistoricas": 0,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": null
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": null,
+      "categoriaPrincipal": "establecimiento",
+      "clases": "normal",
+      "clasesInformadas": false,
+      "comedor": "sin_servicio",
+      "cueAnexo": "1801101-00",
+      "departamento": "Santo Tomé",
+      "estado": "afectada",
+      "gravedad": 2,
+      "lat": -28.00685,
+      "localidad": "GOBERNADOR VIRASORO",
+      "lon": -56.21687,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "ESCUELA Nº 561 \"CTTE. GREGORIO A. PORTILLO\"",
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "afectaciones": [
+          {
+            "categoria": "establecimiento",
+            "creadaEn": "<fecha>",
+            "descripcion": null,
+            "id": "<uuid:15>",
+            "motivo": "Corte de luz",
+            "rigeDesde": "<fecha>",
+            "severidad": "Media"
+          }
+        ],
+        "alumnosAlcanzados": 0,
+        "alumnosDelHecho": 0,
+        "categorias": [
+          "establecimiento"
+        ],
+        "cueAnexo": "1801101-00",
+        "departamento": "Santo Tomé",
+        "estadoEstablecimiento": "habitual",
+        "lat": -28.00685,
+        "localidad": "GOBERNADOR VIRASORO",
+        "lon": -56.21687,
+        "nombre": "ESCUELA Nº 561 \"CTTE. GREGORIO A. PORTILLO\"",
+        "parteId": "<uuid:16>",
+        "peorSeveridad": "Media",
+        "rigeDesde": "<fecha>",
+        "seccionesAlcanzadas": 0,
+        "servicio": "normal",
+        "servicioInformado": false
+      },
+      "sinActualizar": true,
+      "situacionesHistoricas": 1,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": "<fecha>"
+    },
+    {
+      "alumnos": 0,
+      "alumnosSinClases": 0,
+      "apoyo": "sin_dato",
+      "categoriaPrincipal": "establecimiento",
+      "clases": "evacuado",
+      "clasesInformadas": true,
+      "comedor": "sin_servicio",
+      "cueAnexo": "1801285-00",
+      "departamento": "Santo Tomé",
+      "estado": "afectada",
+      "gravedad": 4,
+      "lat": -28.54799,
+      "localidad": "SANTO TOME",
+      "lon": -56.0308,
+      "nivelJurisdiccional": {
+        "id": 1,
+        "nombre": "Dirección de Nivel Secundario"
+      },
+      "nivelJurisdiccionalId": 1,
+      "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
+      "niveles": [],
+      "nombre": "COLEGIO \"SIGLO XXI\" IS.13 - IP.56 - IPP.39",
+      "parte": {
+        "actualizadaEn": "<fecha>",
+        "afectaciones": [
+          {
+            "categoria": "establecimiento",
+            "creadaEn": "<fecha>",
+            "descripcion": null,
+            "id": "<uuid:17>",
+            "motivo": "Incendio",
+            "rigeDesde": "<fecha>",
+            "severidad": "Crítica"
+          }
+        ],
+        "alumnosAlcanzados": 0,
+        "alumnosDelHecho": 0,
+        "categorias": [
+          "establecimiento"
+        ],
+        "cueAnexo": "1801285-00",
+        "departamento": "Santo Tomé",
+        "estadoEstablecimiento": "evacuado",
+        "lat": -28.54799,
+        "localidad": "SANTO TOME",
+        "lon": -56.0308,
+        "nombre": "COLEGIO \"SIGLO XXI\" IS.13 - IP.56 - IPP.39",
+        "parteId": "<uuid:18>",
+        "peorSeveridad": "Crítica",
+        "rigeDesde": "<fecha>",
+        "seccionesAlcanzadas": 0,
+        "servicio": "normal",
+        "servicioInformado": false
+      },
+      "sinActualizar": false,
+      "situacionesHistoricas": 1,
+      "solucionadasRecientes": 0,
+      "ultimaNovedad": "<fecha>"
+    }
+  ],
+  "sinUbicacion": [],
+  "totalPadron": 12
+}

@@ -33,7 +33,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testMatch: 'specs/**/*.spec.ts',
+      testMatch: ['specs/**/*.spec.ts', 'contratos/**/*.spec.ts'],
       testIgnore: '**/*.mobile.spec.ts',
       dependencies: ['setup'],
       use: { ...devices['Desktop Chrome'], baseURL: mainURL },
