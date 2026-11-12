@@ -12,7 +12,7 @@
 // que gane una sola. El select posterior al UPDATE fallido sirve para
 // *clasificar* el conflicto (404/409), no para decidir la escritura.
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import {
   infraAfectacion,
@@ -475,12 +475,22 @@ export async function verificacionHabilitaSesionEscritura(
   return true
 }
 
+// Proyección sin `tokenHash`: lo que cualquier caller de lectura recibe. El
+// hash sólo lo consultan las transiciones (con su propio select), nunca esta
+// función.
+const COLUMNAS_PUBLICAS = (() => {
+  const { tokenHash: _tokenHash, ...columnas } = getTableColumns(infraVerificacion)
+  return columnas
+})()
+
+export type VerificacionPublica = Omit<VerificacionRow, 'tokenHash'>
+
 export async function obtenerVerificacion(
   verificacionId: string,
-): Promise<VerificacionRow | null> {
+): Promise<VerificacionPublica | null> {
   const db = getDb()
   const [fila] = await db
-    .select()
+    .select(COLUMNAS_PUBLICAS)
     .from(infraVerificacion)
     .where(eq(infraVerificacion.id, verificacionId))
   return fila ?? null
