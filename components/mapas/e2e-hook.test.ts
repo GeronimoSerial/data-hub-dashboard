@@ -66,6 +66,17 @@ describe('instalarGanchoE2E', () => {
     expect(typeof window.__mapaE2E?.zoom).toBe('function')
   })
 
+  it('capaPresente indica si la capa existe y su fuente cargó', () => {
+    vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
+    const map = {
+      getLayer: vi.fn((id: string) => (id === 'infra-mascara-provincia' ? { id, source: 'infra-mascara-src' } : undefined)),
+      isSourceLoaded: vi.fn((id: string) => id === 'infra-mascara-src'),
+    }
+    instalarGanchoE2E(map as unknown as MapaMaplibre)
+    expect(window.__mapaE2E?.capaPresente('infra-mascara-provincia')).toBe(true)
+    expect(window.__mapaE2E?.capaPresente('capa-inexistente')).toBe(false)
+  })
+
   it('zoom devuelve el zoom actual del mapa', () => {
     vi.stubEnv('NEXT_PUBLIC_E2E', 'true')
     instalarGanchoE2E(mapaFalso() as unknown as MapaMaplibre)
