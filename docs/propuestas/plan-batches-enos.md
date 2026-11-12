@@ -611,6 +611,7 @@ Amplía B10b. Bloquea la salida en vivo.
 - CA2: Corrientes sin cambios (snapshots idénticos, e2e en verde).
 
 **Estado de implementación (M1):**
+- Estado: en `dev` (12/11/2026), aprobado por el coordinador. Corrientes sin cambios: suite e2e del mapa 181 aprobadas y 7 omitidas, 29 snapshots de API idénticos a `dev`.
 - Hecho: diccionarios `es`/`pt` por grupo en `lib/i18n/diccionarios/grupos/` (ficha, etiquetas, radar, estadísticas y exportar, controles, paneles del mapa, Centro de Situación y panel de operación); los helpers de `lib` que devuelven texto aceptan un diccionario opcional con el español por defecto, así que exportaciones y API no cambian; prueba que falla si queda un literal visible en español en los componentes del mapa (`components/mapas/textos-en-diccionario.test.ts`); `/situacion` y `/admin/operacion` quedan dentro de `IdiomaProvider`; prueba e2e `e2e/region-manaos/specs/portugues.spec.ts` (proyecto `manaos-pt`).
 - Fuera de M1 (abierto): cabecera y menú del hub en español (M2.2 y barrido del shell); formularios de carga de partes (`actualizar/*`, `reporte-inicial-*`); `metodologia/`, natalidad, matrícula y reorganización (otros mapas); textos libres que genera el servidor (descripciones de movimientos, `ultimoError`); la pestaña Radar con base vacía falla en `origin/dev` y en esta rama (se diagnostica en M2); las letras de la rosa de los vientos en portugués están por confirmar.
 
