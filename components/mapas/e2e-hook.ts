@@ -10,6 +10,8 @@ export type GanchoMapaE2E = {
   capasVisibles(): Array<keyof CapasVisibles>
   /** Features dibujadas (queryRenderedFeatures) de la capa indicada. Clave desconocida: error. */
   featuresRenderizadas(capa: string): number
+  /** Indica si la capa MapLibre con ese id existe y su fuente ya cargó. */
+  capaPresente(id: string): boolean
   /** Coordenada de página (píxeles CSS del viewport) de un lon/lat, para clics con Playwright. */
   proyectar(lon: number, lat: number): { x: number; y: number }
   /** Zoom actual del mapa MapLibre. */
@@ -75,6 +77,11 @@ export function instalarGanchoE2E(map: MapaMaplibre): void {
         for (const feature of map.queryRenderedFeatures(undefined, { layers: [id] })) claves.add(claveFeature(feature))
       }
       return claves.size
+    },
+
+    capaPresente: (id) => {
+      const capa = map.getLayer(id)
+      return capa !== undefined && map.isSourceLoaded(capa.source)
     },
 
     proyectar: (lon, lat) => {
