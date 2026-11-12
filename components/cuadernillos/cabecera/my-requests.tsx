@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { BookletRequestLineView, BookletRequestSummary, BookletRequestsPage } from '@/lib/cuadernillos/types'
-import { PAGE_SIZE, fichaEscuelaHref, isRequestsPage, readJson, requestLabel, scopedQuery } from './cabecera-api'
+import { PAGE_SIZE, dashedCue, fichaEscuelaHref, isRequestsPage, readJson, requestLabel, scopedQuery } from './cabecera-api'
 import { RemainderAction } from './remainder-action'
 
 function total(lines: BookletRequestLineView[]): number {
@@ -34,9 +34,9 @@ function RequestRow({ request, readOnly, onRequested }: {
       <div className="cab-req-main">
         <strong className="cab-req-name">{request.recipientName || 'Escuela destinataria'}</strong>
         <div className="cab-req-meta">
-          <span>CUE {request.recipientCueAnexo}</span>
-          {submittedAt ? <span>{submittedAt}</span> : null}
-          <span>{total(request.requested)} solicitados</span>
+          <span className="cab-req-cue">CUE {dashedCue(request.recipientCueAnexo)}</span>
+          <span className="cab-req-date">{submittedAt ?? ''}</span>
+          <span className="cab-req-total">{total(request.requested)} solicitados</span>
         </div>
         <StatusChip request={request} />
         <Button

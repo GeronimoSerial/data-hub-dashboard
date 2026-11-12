@@ -71,8 +71,8 @@ export function RemainderAction({ request, disabled, onRequested }: {
 
   if (available === null) {
     return (
-      <div style={{ display: 'grid', gap: '.5rem' }}>
-        <Button type="button" variant="secondary" disabled={disabled || busy !== null} onClick={() => void check()}>
+      <div style={{ display: 'grid', gap: '.5rem', justifySelf: 'end', justifyItems: 'end' }}>
+        <Button type="button" variant="secondary" size="sm" disabled={disabled || busy !== null} onClick={() => void check()}>
           {busy === 'check' ? 'Consultando…' : 'Pedir remanente'}
         </Button>
         {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}

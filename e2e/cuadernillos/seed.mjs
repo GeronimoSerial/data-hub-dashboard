@@ -142,22 +142,25 @@ await rawClient.query(
    ON CONFLICT (id) DO NOTHING`,
 )
 for (const [index, cue] of criticalCues.entries()) {
+  // Map and GE tables store the dashed CUE (prod: 1801190-00); booklet tables use 9 digits.
+  const dashed = `${cue.slice(0, 7)}-${cue.slice(7)}`
   await rawClient.query(
     `INSERT INTO ge.ge_localizacion (cue_anexo, nombre, departamento, localidad)
-     VALUES ($1, $2, 'Fixture', 'Fixture')`,
-    [cue, criticalNames[index]],
+     VALUES ($1, $2, 'Fixture', 'Fixture')
+     ON CONFLICT (cue_anexo) DO UPDATE SET nombre = excluded.nombre`,
+    [dashed, criticalNames[index]],
   )
   await rawClient.query(
     `INSERT INTO ge.ge_escuela_nivel_jur (cue_anexo, nivel_jurisdiccional_id, ciclo_lectivo)
      VALUES ($1, 9, $2)`,
-    [cue, affectationAt.getFullYear()],
+    [dashed, affectationAt.getFullYear()],
   )
   const partId = `t8-fixture-part-${index}`
   await rawClient.query(
     `INSERT INTO infra_parte (id, periodo_id, cue_anexo, estado_establecimiento,
       estado_establecimiento_rige_desde, corte_id, creada_en, actualizada_en)
      VALUES ($1, $2, $3, 'habitual', $4, 0, $4, $4)`,
-    [partId, periodId, cue, affectationAt.toISOString()],
+    [partId, periodId, dashed, affectationAt.toISOString()],
   )
   await rawClient.query(
     `INSERT INTO infra_afectacion (id, parte_id, motivo, categoria, severidad, rige_desde, creada_en, retirada_en)

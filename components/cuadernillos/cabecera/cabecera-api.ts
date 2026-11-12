@@ -58,6 +58,11 @@ export function errorCode(data: unknown): string {
   return data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : ''
 }
 
+/** Dashed CUE anexo (1634151-19) for display; a value that is not 9 digits is returned unchanged. */
+export function dashedCue(cueAnexo: string): string {
+  return /^\d{9}$/.test(cueAnexo) ? `${cueAnexo.slice(0, 7)}-${cueAnexo.slice(7)}` : cueAnexo
+}
+
 /** ENOS ficha route takes the dashed CUE form (1801234-57) for a 9-digit booklet CUE (180123457). */
 export function fichaEscuelaHref(cueAnexo: string): string | null {
   if (!/^\d{9}$/.test(cueAnexo)) return null

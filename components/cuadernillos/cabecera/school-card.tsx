@@ -2,7 +2,7 @@
 
 import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { fichaEscuelaHref, type CriticalSchool } from './cabecera-api'
+import { dashedCue, fichaEscuelaHref, type CriticalSchool } from './cabecera-api'
 
 export function SchoolCard({ school, selected, onChoose, onClear }: {
   school: CriticalSchool
@@ -16,20 +16,20 @@ export function SchoolCard({ school, selected, onChoose, onClear }: {
       aria-label={school.nombre}
       style={{
         display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '.75rem', minWidth: 0,
-        padding: '.85rem 1rem', borderRadius: '.75rem', background: selected ? 'var(--accent-tint)' : 'var(--surface)',
-        border: selected ? '2px solid var(--accent)' : '1px solid var(--line)',
+        padding: '.85rem 1rem', borderRadius: '.75rem', background: selected ? 'var(--fill)' : 'var(--surface)',
+        border: selected ? '2px solid var(--ink)' : '1px solid var(--line)',
       }}
     >
       <div style={{ display: 'grid', gap: '.2rem', minWidth: 0, flex: '1 1 12rem' }}>
         {selected ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem', color: 'var(--accent)', fontSize: '.85rem', fontWeight: 700 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem', color: 'var(--ink)', fontSize: '.85rem', fontWeight: 700 }}>
             <Check aria-hidden size={16} strokeWidth={2.5} />
             Seleccionada
           </span>
         ) : null}
         <strong style={{ color: 'var(--ink)', overflowWrap: 'anywhere' }}>{school.nombre}</strong>
         <span style={{ color: 'var(--ink-soft)', fontSize: '.875rem', overflowWrap: 'anywhere' }}>
-          CUE {school.cueAnexo} · {school.departamento}
+          CUE {dashedCue(school.cueAnexo)} · {school.departamento}
         </span>
         <span style={{ justifySelf: 'start', padding: '.1rem .5rem', borderRadius: '.4rem', border: '1px solid var(--danger-ink)', color: 'var(--danger-ink)', fontSize: '.75rem', fontWeight: 600 }}>
           {school.severity}
