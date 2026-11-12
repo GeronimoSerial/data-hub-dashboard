@@ -15,6 +15,7 @@ import {
   type TendenciaAltura,
 } from './estado-altura'
 import type { FilaAlturaPrefectura } from './prefectura-parser'
+import { zonaHorariaRegion } from '../formato-region'
 
 // A parsed row already resolved to a catalogue station (`estacionId`).
 export type LecturaResuelta = Pick<
@@ -167,7 +168,7 @@ export type RespuestaHistoriaEstacion = {
     nombre: string
     tabla: 'hidro_lectura'
     unidadAltura: 'm'
-    zonaHorariaReferencia: 'America/Argentina/Buenos_Aires'
+    zonaHorariaReferencia: string
     edadMaximaVigenciaHoras: number
     notaReferenciaAnual: string
   }
@@ -580,7 +581,7 @@ export async function consultarHistoriaEstacion(
       nombre: 'Prefectura Naval Argentina (PNA)',
       tabla: 'hidro_lectura',
       unidadAltura: 'm',
-      zonaHorariaReferencia: 'America/Argentina/Buenos_Aires',
+      zonaHorariaReferencia: zonaHorariaRegion(),
       edadMaximaVigenciaHoras: EDAD_MAXIMA_LECTURA_HORAS,
       notaReferenciaAnual:
         'Las estadísticas de hidro_referencia son agregados anuales (p10, mediana, p90) y nunca se interpolan como puntos de la serie.',

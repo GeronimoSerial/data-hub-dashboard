@@ -11,6 +11,7 @@ import { useDatasetReorganizacion } from '@/components/mapas/reorganizacion/use-
 import { Button } from '@/components/ui/button'
 import { BASEMAPS } from '@/lib/map-types'
 import { ensureMapWorker } from '@/lib/map-worker'
+// Corrientes-only view: natalidad/reorganizacion are not region-aware
 import {
   DEPARTAMENTOS_URL,
   LIMITES_CORRIENTES,

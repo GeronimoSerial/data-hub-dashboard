@@ -1,5 +1,6 @@
 'use client'
 
+import { localeRegion } from '@/lib/infraestructura/formato-region'
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { ArrowUpRight, Camera, Plus } from 'lucide-react'
 import Image from 'next/image'
@@ -22,7 +23,7 @@ function fechaMovimiento(value: string): string {
   const date = new Date(value)
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat('es-AR', { dateStyle: 'long', timeStyle: 'short' }).format(date)
+    : new Intl.DateTimeFormat(localeRegion(), { dateStyle: 'long', timeStyle: 'short' }).format(date)
 }
 
 function etiquetaMovimiento(type: string): string {

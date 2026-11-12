@@ -1,3 +1,5 @@
+import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
+
 export type Rgba = readonly [number, number, number, number]
 
 type RGB = readonly [number, number, number]
@@ -167,10 +169,7 @@ export function letraViento(direccion: number | null): string {
 }
 
 export function fechaRadar(value: string, options: Intl.DateTimeFormatOptions = {}): string {
-  return new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    ...options,
-  }).format(new Date(value))
+  return formatoFechaRegion(options).format(new Date(value))
 }
 
 export function indiceCercano(times: string[], now = Date.now()): number {

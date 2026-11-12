@@ -5,6 +5,7 @@ import { normalizarNombreDepartamentoONull } from '@/lib/mapas/normalizar-depart
 import { asegurarGeAdjuntada } from '../impacto'
 import { crearEjecutorSql } from '../ge-db'
 import { celdaDeCoordenada } from './celda'
+import { regionActiva } from '@/lib/infraestructura/region'
 
 // Perfil geográfico por establecimiento: resuelve, para el 100% del padrón de
 // ge_localizacion, la coordenada y la celda de grilla que usa la ingesta de
@@ -21,13 +22,11 @@ export type ResultadoCalculoGeoPerfiles = {
 // una corrida vieja con una nueva (ver comentario de infraGeoProfile).
 const PERFIL_VERSION = 'geo-perfil-v1'
 
-// Rango geográfico razonable para Corrientes. Fuera de esto la coordenada no
+// Rango geográfico razonable de la región activa (config/regiones). Fuera de esto la coordenada no
 // es confiable (0,0, signo invertido, grados/minutos mal parseados) y el
 // perfil se excluye en vez de mandar consultas al vacío.
-const LAT_MIN = -32
-const LAT_MAX = -26
-const LON_MIN = -61
-const LON_MAX = -54
+const { latMin: LAT_MIN, latMax: LAT_MAX, lonMin: LON_MIN, lonMax: LON_MAX } =
+  regionActiva().bboxPlausible
 
 // El dato fuente trae el mismo departamento con y sin tilde
 // ("CONCEPCIÓN" vs "CONCEPCION") y a veces con espacios dobles, lo que parte

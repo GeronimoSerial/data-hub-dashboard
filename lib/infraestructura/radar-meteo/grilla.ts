@@ -1,6 +1,7 @@
 import { referencia } from '@/lib/infraestructura/datasets/memoria'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
-export const GRID_VERSION = 'corrientes-0.2-v1'
+export const GRID_VERSION = `${regionPublicaActual().id}-0.2-v1`
 export const ESPACIADO_GRILLA = 0.2
 export type CeldaRadar = { id: string; row: number; col: number; lat: number; lon: number }
 type Punto = [number, number]

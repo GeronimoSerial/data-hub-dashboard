@@ -12,6 +12,7 @@ import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { severidadDeGravedad } from '@/lib/infraestructura/mapa/gravedad'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { detalleNivelOInstituto } from '@/lib/infraestructura/mapa/etiquetas'
+import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
 
 /** " · " más el detalle de la escuela, o nada si no tiene. */
 function textoDetalle(escuela: EscuelaMapaEnriquecida): string {
@@ -27,18 +28,16 @@ interface PanelSituacionActualProps {
   secciones?: ReactNode
 }
 
-const FORMATO_HORA = new Intl.DateTimeFormat('es-AR', {
-  timeZone: 'America/Argentina/Buenos_Aires',
+const OPCIONES_HORA: Intl.DateTimeFormatOptions = {
   hourCycle: 'h23',
   hour: '2-digit',
   minute: '2-digit',
-})
+}
 
-const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
-  timeZone: 'America/Argentina/Buenos_Aires',
+const OPCIONES_FECHA: Intl.DateTimeFormatOptions = {
   day: 'numeric',
   month: 'short',
-})
+}
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 
@@ -59,11 +58,12 @@ export function horaActualizacion(iso: string, ahoraMs: number): string {
   const fecha = new Date(iso)
   if (!Number.isFinite(fecha.getTime())) return ''
 
-  const hoy = new Date(ahoraMs).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
-  const dia = fecha.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
-  if (hoy === dia) return `Hoy ${FORMATO_HORA.format(fecha)}`
+  const diaFormato = formatoFechaRegion()
+  const hoy = diaFormato.format(new Date(ahoraMs))
+  const dia = diaFormato.format(fecha)
+  if (hoy === dia) return `Hoy ${formatoFechaRegion(OPCIONES_HORA).format(fecha)}`
   // Shows today's date but keeps the last report date visible so stale data is not mistaken for current.
-  return `Hoy ${FORMATO_FECHA.format(new Date(ahoraMs))} · último parte ${FORMATO_FECHA.format(fecha)}`
+  return `Hoy ${formatoFechaRegion(OPCIONES_FECHA).format(new Date(ahoraMs))} · último parte ${formatoFechaRegion(OPCIONES_FECHA).format(fecha)}`
 }
 
 function IconoClases({ estado }: { estado: EscuelaMapaEnriquecida['clases'] }) {

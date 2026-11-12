@@ -10,6 +10,7 @@ import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-ac
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
+import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
 import { detalleNivelOInstituto, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
@@ -56,7 +57,7 @@ function formatearFechaCorta(iso: string | null): string | null {
   if (!iso) return null
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return null
-  return new Intl.DateTimeFormat('es-AR', {
+  return formatoFechaRegion({
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

@@ -1,22 +1,18 @@
 import { asignarCeldasADepartamentos, listarDepartamentos, type Departamento } from './departamentos'
 import { categoriaGranizo, type EntradaGranizo } from './granizo'
+import { formatoFechaRegion } from '../formato-region'
 
 export type DatosRadar = {
   times: string[]
   cells: Array<{ id: string; row?: number; col?: number; lat: number; lon: number; latModelo?: number; lonModelo?: number }>
   values: Record<string, Array<Array<number | null>>>
 }
-const ZONA = 'America/Argentina/Buenos_Aires'
 export const UMBRALES_RESALTADO = { lluvia24h: { atencion: 25, importante: 50 }, rafagaKmh: { atencion: 60, importante: 80 } } as const
-// Building an Intl.DateTimeFormat is expensive; calcularResumen formats every
-// forecast hour, so the formatters are created once per module.
-const FORMATO_DIA = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit' })
-const FORMATO_HORA = new Intl.DateTimeFormat('sv-SE', { timeZone: ZONA, dateStyle: 'short', timeStyle: 'short' })
 function diaLocal(iso: string): string {
-  const v = Object.fromEntries(FORMATO_DIA.formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
+  const v = Object.fromEntries(formatoFechaRegion('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
   return `${v.year}-${v.month}-${v.day}`
 }
-function horaLocal(iso: string): string { return FORMATO_HORA.format(new Date(iso)) }
+function horaLocal(iso: string): string { return formatoFechaRegion('sv-SE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) }
 function valor(datos: DatosRadar, campo: string, celda: number, hora: number): number | null {
   const n = datos.values[campo]?.[celda]?.[hora]
   return typeof n === 'number' && Number.isFinite(n) ? n : null

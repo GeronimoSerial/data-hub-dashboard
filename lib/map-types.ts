@@ -1,4 +1,5 @@
 import type { FeatureCollection, Geometry } from 'geojson'
+import { regionPublicaActual } from './infraestructura/region/publica'
 
 export type Trend = 'up' | 'down' | 'flat' | 'partial'
 
@@ -164,5 +165,5 @@ export const BASEMAPS: Record<
   },
 }
 
-export const MAP_CENTER: [number, number] = [-58.215, -28.811]
-export const MAP_ZOOM = 8
+export const MAP_CENTER: [number, number] = regionPublicaActual().mapaCentro
+export const MAP_ZOOM: number = regionPublicaActual().mapaZoom

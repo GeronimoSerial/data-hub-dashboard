@@ -6,6 +6,7 @@ import { EDAD_MAXIMA_LECTURA_HORAS } from '@/lib/infraestructura/hidrometria/est
 import type { CoberturaClimatologia, EstadoJobRun } from '../salud'
 import { EDAD_MAXIMA_DATO_IMERG_MINUTOS, evaluarFrescuraFuente } from '../salud'
 import { filasRecibidas, TOLERANCIA_ATRASO_JOB, type JobEsperado } from '../jobs-esperados'
+import { formatoFechaRegion, localeRegion } from '../../formato-region'
 
 // `pausado`: job programado que no corre por ENOS_JOBS_ENABLED=false (problema).
 // `deshabilitado`: job que no se programa por diseño (neutral, no cuenta).
@@ -90,15 +91,10 @@ export function sanearError(error: string | null | undefined): string | null {
   return limpio.length > LARGO_MAXIMO_ERROR ? `${limpio.slice(0, LARGO_MAXIMO_ERROR - 1)}…` : limpio
 }
 
-const FORMATO_DIA = new Intl.DateTimeFormat('es-AR', {
-  timeZone: 'America/Argentina/Buenos_Aires',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-})
 
 function formatearDia(iso: string): string {
-  const p = Object.fromEntries(FORMATO_DIA.formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
+  const formato = formatoFechaRegion(localeRegion(), { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const p = Object.fromEntries(formato.formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
   return `${p.day}/${p.month}/${p.year}`
 }
 

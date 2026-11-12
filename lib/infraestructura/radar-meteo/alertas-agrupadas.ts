@@ -1,3 +1,5 @@
+import { formatoFechaRegion, localeRegion } from '../formato-region'
+
 export type AlertaRadar = {
   id: string
   nivelSat: string | null
@@ -86,8 +88,7 @@ export interface ResumenAlertasRadar {
 }
 
 export function fechaCorta(fecha: string): string {
-  const partes = new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+  const partes = formatoFechaRegion(localeRegion(), {
     weekday: 'short',
     day: 'numeric',
     hour: '2-digit',
