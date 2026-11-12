@@ -32,7 +32,7 @@ const ETIQUETA: Record<keyof CapasVisibles, string> = {
 //    (lib/infraestructura/mapa/planificacion.ts, nivelesLeyendaPlanificacion).
 //  - escuelasEnRiesgo: moderado, alto y muy alto del manifiesto (ESPERADOS.riesgo.porNivel).
 // Escuela aislada 1800893-00 (seed/escuelas.ts: lat -29.30617, lon -59.19734): tiene ruta y 2 cruces de agua.
-const ESCUELA_CON_CRUCES = { lon: -59.19734, lat: -29.30617 }
+const ESCUELA_CON_CRUCES = { cue: '1800893-00', lon: -59.19734, lat: -29.30617 }
 const CUENTA_CONTEOS = {
   estacionesRio: ESPERADOS.hidrometria.estaciones.total,
   lluviaObservada: ESPERADOS.radar.lluviaObservada.celdas,
@@ -89,14 +89,15 @@ async function abrirCapas(page: Page): Promise<void> {
   await irACapas(page)
 }
 
-// El clic en el mapa se hace en "Situación actual": ahí se abre la ficha. Después se cambia a Capas,
-// donde la selección sigue vigente (ruta y cruces se dibujan) y la ficha no reemplaza el panel.
+// La selección se hace por el buscador de escuelas (CUE) desde "Situación actual". Seleccionar abre la
+// ficha y encuadra la escuela; después se cambia a Capas, donde la selección sigue vigente.
 async function seleccionarEscuela(page: Page): Promise<void> {
-  const punto = await page.evaluate(
-    ([lon, lat]) => (window as unknown as { __mapaE2E: { proyectar(lon: number, lat: number): { x: number; y: number } } }).__mapaE2E.proyectar(lon, lat),
-    [ESCUELA_CON_CRUCES.lon, ESCUELA_CON_CRUCES.lat],
-  )
-  await page.mouse.click(punto.x, punto.y)
+  await page.getByRole('tab', { name: /Situación actual/ }).click()
+  await page.getByRole('button', { name: 'Buscar escuela o CUE' }).click()
+  await page.getByTestId('filtros-busqueda-input').fill(ESCUELA_CON_CRUCES.cue)
+  await expect(page.getByTestId('filtros-sugerencia')).toHaveCount(1)
+  await expect(page.getByTestId('filtros-sugerencia')).toHaveAttribute('data-cue', ESCUELA_CON_CRUCES.cue)
+  await page.getByTestId('filtros-sugerencia').click()
   // Espera a que la ruta de la escuela se dibuje (condición del mapa, no una pausa fija).
   await expect.poll(() => conteo(page, 'rutaAcceso')).toBe(CUENTA_CONTEOS.rutaAcceso)
 }
@@ -117,11 +118,7 @@ test('valores por defecto: 6 capas encendidas y 2 apagadas en la interfaz', asyn
   )
 })
 
-// PENDIENTE (fixme): en el encuadre por defecto, el clic en el canvas sobre la escuela 1800893-00
-// no la selecciona (no abre la ficha, ruta y cruces siguen en 0). La búsqueda por CUE no existe en
-// el mapa de infraestructura (SearchBox solo se usa en natalidad). Hace falta otra forma de
-// seleccionar una escuela desde la interfaz pública para estas tres pruebas.
-test.fixme('con una escuela seleccionada se dibujan las 6 capas encendidas por defecto', async ({ page }) => {
+test('con una escuela seleccionada se dibujan las 6 capas encendidas por defecto', async ({ page }) => {
   await abrirMapa(page)
   await seleccionarEscuela(page)
   await irACapas(page)
@@ -135,8 +132,7 @@ test.fixme('con una escuela seleccionada se dibujan las 6 capas encendidas por d
 // Una prueba por capa: se parte de los valores por defecto, la capa pasa de N a 0 al apagarla
 // y vuelve a N al encenderla. Las capas de ruta y cruces necesitan una escuela seleccionada.
 for (const capa of CLAVES) {
-  const prueba = NECESITA_SELECCION.includes(capa) ? test.fixme : test
-  prueba(`capa ${capa}: apagar deja 0 features y encender vuelve a ${CUENTA_CONTEOS[capa]}`, async ({ page }) => {
+  test(`capa ${capa}: apagar deja 0 features y encender vuelve a ${CUENTA_CONTEOS[capa]}`, async ({ page }) => {
     await abrirMapa(page)
     if (NECESITA_SELECCION.includes(capa)) await seleccionarEscuela(page)
     await irACapas(page)
