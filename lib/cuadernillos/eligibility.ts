@@ -12,10 +12,16 @@ export async function lockCurrentEligibilitySources(executor: EjecutorSql): Prom
   })
 }
 
+/** Booklet tables store 9-digit CUEs; map partes (infra_parte) use the dashed `1234567-89` form. */
+export function toDashedCue(cueAnexo: string): string {
+  return /^\d{9}$/.test(cueAnexo) ? `${cueAnexo.slice(0, 7)}-${cueAnexo.slice(7)}` : cueAnexo
+}
+
 const readCurrentSeverity: CurrentSeverityProjection = async (cueAnexo) => {
   const { listarPartesVigentes } = await import('@/lib/infraestructura/parte-mapa')
-  const { partes } = await listarPartesVigentes({ cueAnexo })
-  const matches = partes.filter((parte) => parte.cueAnexo === cueAnexo)
+  const dashed = toDashedCue(cueAnexo)
+  const { partes } = await listarPartesVigentes({ cueAnexo: dashed })
+  const matches = partes.filter((parte) => parte.cueAnexo === dashed)
   if (matches.length !== 1) return null
   return matches[0].peorSeveridad
 }
