@@ -118,10 +118,12 @@ export const createApprovalRepository = (db: Awaited<ReturnType<typeof getDb>>):
   // confirmed staged revision and current responsible-account memberships.
   async approvalAuthorityReady(recipientCueAnexo, cabeceraCueAnexo) {
     try {
+      // Same rule as the assignment confirmation: responsible accounts may be unverified (GE SSO),
+      // so only existence, not-banned and active membership are required.
       const hasActiveConfirmedAccount = async (userId: string, capability: 'supervisor' | 'cabecera') => {
-        const [account] = await db.select({ emailVerified: user.emailVerified, banned: user.banned })
+        const [account] = await db.select({ banned: user.banned })
           .from(user).where(eq(user.id, userId)).limit(1).for('update')
-        if (!account?.emailVerified || account.banned) return false
+        if (!account || account.banned) return false
         const [membership] = await db.select({ id: bookletMembership.id }).from(bookletMembership)
           .where(and(eq(bookletMembership.userId, userId), eq(bookletMembership.capability, capability), sql`${bookletMembership.revokedAt} IS NULL`)).limit(1).for('update')
         return membership !== undefined
