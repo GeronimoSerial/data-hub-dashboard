@@ -43,6 +43,19 @@ function routeFetch(overrides: Record<string, () => unknown> = {}) {
   })
 }
 
+function adminCabecera(cue: string, nombre: string) {
+  return { cue, nombre, departamento: 'CAPITAL', supervisorName: 'Supervisora', evidencia: 'hoja', status: 'confirmada', supervisor: null, cabecera: null }
+}
+
+/** Admin flow: the cabecera list plus an overview and recommendation for whichever cabecera is picked. */
+function adminRoutes(cabeceras: ReturnType<typeof adminCabecera>[]) {
+  return {
+    '/api/cuadernillos/cabeceras': () => json({ cabeceras }),
+    '/api/cuadernillos/overview': () => overviewFor(cabeceras[0].cue, cabeceras[0].nombre),
+    '/api/cuadernillos/recommendations': () => json({ recommendations: [{ productId: 'product-1', students: 12, suggested: 12, sourceCutId: 'cut-1' }] }),
+  }
+}
+
 describe('CabeceraHome request flow', () => {
   it('searches critical schools by CUE and only offers the ones the endpoint returns', async () => {
     const fetchMock = routeFetch()
@@ -122,19 +135,15 @@ describe('CabeceraHome request flow', () => {
   })
 
   it('requires an admin to choose the cabecera and sends its cue with the request', async () => {
-    const cabeceras = { cabeceras: [{ cue: '180123000', nombre: 'Escuela Cabecera Norte', departamento: 'CAPITAL', supervisorName: 'Supervisora', evidencia: 'hoja', status: 'confirmada', supervisor: null, cabecera: null }] }
-    const fetchMock = routeFetch({
-      '/api/cuadernillos/cabeceras': () => json(cabeceras),
-      '/api/cuadernillos/overview': () => overviewFor('180123000', 'Escuela Cabecera Norte'),
-      '/api/cuadernillos/recommendations': () => json({ recommendations: [{ productId: 'product-1', students: 12, suggested: 12, sourceCutId: 'cut-1' }] }),
-    })
+    const fetchMock = routeFetch(adminRoutes([adminCabecera('180123000', 'Escuela Cabecera Norte')]))
     vi.stubGlobal('fetch', fetchMock)
 
     render(<CabeceraHome isAdmin readOnly={false} viewAsUserId={null} />)
 
     expect(await screen.findByText(/Elegí la cabecera/)).toBeInTheDocument()
     expect(screen.queryByLabelText('CUE de la escuela')).not.toBeInTheDocument()
-    fireEvent.click(await screen.findByRole('button', { name: /Escuela Cabecera Norte/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Elegí una cabecera' }))
+    fireEvent.click(await screen.findByRole('option', { name: /Escuela Cabecera Norte/ }))
     fireEvent.change(await screen.findByLabelText('CUE de la escuela'), { target: { value: '180123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
     fireEvent.click(await screen.findByRole('button', { name: /Elegir Escuela Critica/ }))
@@ -172,5 +181,108 @@ describe('CabeceraHome request flow', () => {
     expect(screen.getByText('Aprobado parcial')).toBeInTheDocument()
     expect(screen.getByText('Rechazado')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pedir remanente' })).toBeInTheDocument()
+  })
+
+  it('filters the admin cabecera combobox by name or CUE and chooses one', async () => {
+    const fetchMock = routeFetch(adminRoutes([adminCabecera('180123000', 'Escuela Cabecera Norte'), adminCabecera('180999000', 'Escuela Sur Central')]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<CabeceraHome isAdmin readOnly={false} viewAsUserId={null} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Elegí una cabecera' }))
+    const search = screen.getByRole('combobox', { name: /Buscar cabecera/ })
+    expect(screen.getAllByRole('option')).toHaveLength(2)
+
+    fireEvent.change(search, { target: { value: 'sur' } })
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    expect(screen.getByRole('option', { name: /Escuela Sur Central/ })).toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: '180123' } })
+    expect(screen.getByRole('option', { name: /Escuela Cabecera Norte/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Sur Central/ })).not.toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: 'nada' } })
+    expect(screen.getByText('Ninguna cabecera coincide con la búsqueda.')).toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: 'sur' } })
+    fireEvent.keyDown(search, { key: 'Enter' })
+    expect(await screen.findByRole('button', { name: /Escuela Sur Central · CUE 180999000/ })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /Buscar cabecera/ })).not.toBeInTheDocument()
+  })
+
+  it('moves the active option with arrow keys and closes on Escape', async () => {
+    vi.stubGlobal('fetch', routeFetch(adminRoutes([adminCabecera('180123000', 'Escuela Cabecera Norte'), adminCabecera('180999000', 'Escuela Sur Central')])))
+
+    render(<CabeceraHome isAdmin readOnly={false} viewAsUserId={null} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Elegí una cabecera' }))
+    const search = screen.getByRole('combobox', { name: /Buscar cabecera/ })
+    fireEvent.keyDown(search, { key: 'ArrowDown' })
+    expect(screen.getByRole('option', { name: /Escuela Sur Central/ })).toHaveAttribute('data-active', 'true')
+
+    fireEvent.keyDown(search, { key: 'Escape' })
+    expect(screen.queryByRole('combobox', { name: /Buscar cabecera/ })).not.toBeInTheDocument()
+  })
+
+  it('shows the selected school only, and "Cambiar escuela" clears the selection', async () => {
+    const schools = { schools: [
+      { cueAnexo: '180123457', nombre: 'Escuela Critica', departamento: 'CAPITAL', severity: 'Crítica' },
+      { cueAnexo: '180123458', nombre: 'Escuela Otra', departamento: 'CAPITAL', severity: 'Crítica' },
+    ] }
+    vi.stubGlobal('fetch', routeFetch({ '/api/cuadernillos/schools': () => json(schools) }))
+
+    render(<CabeceraHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    fireEvent.change(await screen.findByLabelText('CUE de la escuela'), { target: { value: '180123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Elegir Escuela Critica/ }))
+
+    expect(screen.getByText('Seleccionada')).toBeInTheDocument()
+    expect(screen.queryByText('Escuela Otra')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Elegir Escuela Critica/ })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar escuela' }))
+    expect(screen.queryByText('Seleccionada')).not.toBeInTheDocument()
+    expect(await screen.findByText('Escuela Otra')).toBeInTheDocument()
+  })
+
+  it('toggles the per-product detail of a request with "Ver detalle"', async () => {
+    const request = {
+      requestId: 'r2', rootRequestId: 'r2', recipientCueAnexo: '180123457', recipientName: 'Escuela Critica',
+      cabeceraCueAnexo: '180123456', cabeceraName: 'Escuela Cabecera', status: 'approved',
+      requested: [{ productId: 'product-1', productLabel: 'Cuadernillo A', quantity: 12 }],
+      approved: [{ productId: 'product-1', productLabel: 'Cuadernillo A', quantity: 12 }], remaining: [],
+      submittedAt: '2026-11-10T12:00:00.000Z', approvedAt: null, approvalIdentity: null,
+    }
+    vi.stubGlobal('fetch', routeFetch({ '/api/cuadernillos/requests': () => json({ ...emptyRequests, requests: [request] }) }))
+
+    render(<CabeceraHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    const toggle = await screen.findByRole('button', { name: 'Ver detalle' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle.getAttribute('aria-controls')).toBeTruthy()
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const detail = document.getElementById(toggle.getAttribute('aria-controls') ?? '')
+    expect(detail).toHaveTextContent('Cuadernillo A: 12')
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(document.getElementById(toggle.getAttribute('aria-controls') ?? '')).toBeNull()
+  })
+
+  it('shows a dash instead of "sin dato" when the recommendation or quota is missing', async () => {
+    vi.stubGlobal('fetch', routeFetch({
+      '/api/cuadernillos/overview': () => json({ campaignId: 'campaign-1', campaignOptions: [], balances: [
+        { productId: 'product-1', productLabel: 'Cuadernillo A', globalAvailable: 100, quotaAssigned: 0, quotaAvailable: null, cabeceraCueAnexo: '180123456', cabeceraName: 'Escuela Cabecera' },
+      ] }),
+      '/api/cuadernillos/recommendations': () => json({ recommendations: [{ productId: 'product-1', students: null, suggested: null, sourceCutId: null }] }),
+    }))
+
+    render(<CabeceraHome isAdmin={false} readOnly={false} viewAsUserId={null} />)
+    fireEvent.change(await screen.findByLabelText('CUE de la escuela'), { target: { value: '180123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Elegir Escuela Critica/ }))
+
+    expect(await screen.findByRole('table')).toBeInTheDocument()
+    expect(screen.getAllByText('—')).toHaveLength(2)
+    expect(screen.queryByText(/sin dato/)).not.toBeInTheDocument()
   })
 })

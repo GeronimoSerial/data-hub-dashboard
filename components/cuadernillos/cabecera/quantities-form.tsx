@@ -80,37 +80,72 @@ export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, read
   if (loadError) return <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{loadError}</p>
   if (!recommendations) return <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Calculando recomendación…</p>
 
+  const totalUnits = applicableProducts.reduce((sum, { row }) => {
+    const quantity = Number(quantities[row.productId] ?? 0)
+    return Number.isSafeInteger(quantity) && quantity > 0 ? sum + quantity : sum
+  }, 0)
+
+  const actions = (
+    <div className="cab-qty-actions">
+      <Button type="button" variant="secondary" disabled={!canWrite} onClick={() => void save(false)}>
+        {submitting === 'draft' ? 'Guardando…' : 'Guardar borrador'}
+      </Button>
+      <Button type="button" variant="default" disabled={!canWrite} onClick={() => void save(true)}>
+        {submitting === 'submit' ? 'Enviando…' : 'Enviar pedido'}
+      </Button>
+    </div>
+  )
+
   return (
-    <div style={{ display: 'grid', gap: '1rem' }}>
+    <div className="cab-stack">
       {applicableProducts.length === 0 ? (
         <p style={{ margin: 0, color: 'var(--ink-soft)' }}>No hay productos con cupo para esta cabecera.</p>
       ) : (
-        <div style={{ display: 'grid', gap: '.75rem' }}>
-          {applicableProducts.map(({ row, balance }) => (
-            <label key={row.productId} style={{ display: 'grid', gap: '.3rem', maxWidth: '22rem', color: 'var(--ink)', fontWeight: 600 }}>
-              Cantidad · {balance.productLabel}
-              <Input
-                type="number" min="1" step="1" inputMode="numeric" disabled={readOnly}
-                max={balance.quotaAvailable ?? undefined}
-                value={quantities[row.productId] ?? '0'}
-                onChange={(event) => setQuantities((current) => ({ ...current, [row.productId]: event.target.value }))}
-              />
-              <span style={{ color: 'var(--ink-soft)', fontSize: '.85rem', fontWeight: 400 }}>
-                Recomendado: {row.suggested ?? 'sin dato'} · Disponible en cupo: {balance.quotaAvailable ?? 'sin dato'}
-              </span>
-            </label>
-          ))}
+        <div className="cab-qty-wrap">
+          <table className="cab-qty">
+            <caption className="sr-only">Cantidades para {school.nombre}</caption>
+            <thead>
+              <tr>
+                <th scope="col">Producto</th>
+                <th scope="col">Recomendado</th>
+                <th scope="col">Disponible</th>
+                <th scope="col">Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {applicableProducts.map(({ row, balance }) => (
+                <tr key={row.productId}>
+                  <th scope="row" className="cab-qty-product">{balance.productLabel}</th>
+                  <td data-label="Recomendado">{row.suggested ?? '—'}</td>
+                  <td data-label="Disponible">{balance.quotaAvailable ?? '—'}</td>
+                  <td data-label="Cantidad">
+                    <Input
+                      aria-label={`Cantidad · ${balance.productLabel}`}
+                      className="cab-qty-input"
+                      type="number" min="1" step="1" inputMode="numeric" disabled={readOnly}
+                      max={balance.quotaAvailable ?? undefined}
+                      value={quantities[row.productId] ?? '0'}
+                      onChange={(event) => setQuantities((current) => ({ ...current, [row.productId]: event.target.value }))}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={4}>
+                  <div className="cab-qty-foot">
+                    <span style={{ color: 'var(--ink)' }}>Total: <strong>{totalUnits}</strong></span>
+                    {actions}
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       )}
+      {applicableProducts.length === 0 ? actions : null}
       {formError ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{formError}</p> : null}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
-        <Button type="button" variant="default" disabled={!canWrite} onClick={() => void save(true)}>
-          {submitting === 'submit' ? 'Enviando…' : 'Enviar pedido'}
-        </Button>
-        <Button type="button" variant="secondary" disabled={!canWrite} onClick={() => void save(false)}>
-          {submitting === 'draft' ? 'Guardando…' : 'Guardar borrador'}
-        </Button>
-      </div>
     </div>
   )
 }
