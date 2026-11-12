@@ -75,3 +75,11 @@ This sets `MAPA_E2E_ACTUALIZAR_SNAPSHOTS=1`. The specs write the files in the wo
 4. Tests are independent. Tests that write data restore it or use their own records.
 5. Each test is checked by mutation when written: break the feature or change the seed, confirm the test fails, then restore.
 6. No `waitForTimeout`. Wait for a response, a visible element, or a map event.
+
+## Known gaps and follow-ups
+
+- Selecting a school by clicking the map canvas does not open the preview in the tests. Specs select schools through the filters search box. Exposing `queryRenderedFeatures` in the e2e hook would allow canvas-click tests.
+- Department polygon popups are not covered: the hook gives no access to the polygon click.
+- The Radar tab 24 h forecast sums rain by local calendar day on the client, so it depends on the time of day. The radar spec uses the default 72 h horizon, which covers all seeded rain.
+- The Estadisticas tab has no totals row. The specs assert the sum of the per-department rows.
+- Every map count excludes the two seeded schools without coordinates (30 of 32).
