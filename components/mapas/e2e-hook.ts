@@ -12,6 +12,8 @@ export type GanchoMapaE2E = {
   featuresRenderizadas(capa: string): number
   /** Coordenada de página (píxeles CSS del viewport) de un lon/lat, para clics con Playwright. */
   proyectar(lon: number, lat: number): { x: number; y: number }
+  /** Zoom actual del mapa MapLibre. */
+  zoom(): number
 }
 
 declare global {
@@ -78,5 +80,7 @@ export function instalarGanchoE2E(map: MapaMaplibre): void {
       const caja = map.getCanvas().getBoundingClientRect()
       return { x: caja.left + punto.x, y: caja.top + punto.y }
     },
+
+    zoom: () => map.getZoom(),
   }
 }

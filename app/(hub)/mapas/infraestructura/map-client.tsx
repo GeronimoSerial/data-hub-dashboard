@@ -255,6 +255,7 @@ export function InfraestructuraMapClient(props: {
               <TabsTab
                 value="actual"
                 className={styles.tabTrigger}
+                data-testid="tab-actual"
                 aria-label={cantidadConReporte > 0
                   ? `Situación actual, ${cantidadConReporte} ${cantidadConReporte === 1 ? 'escuela' : 'escuelas'} con situaciones abiertas`
                   : undefined}
@@ -273,16 +274,17 @@ export function InfraestructuraMapClient(props: {
                 )}
               </TabsTab>
               {props.riskRadarEnabled && (
-                <TabsTab value="radar" className={styles.tabTrigger}>
+                <TabsTab value="radar" className={styles.tabTrigger} data-testid="tab-radar">
                   Radar
                 </TabsTab>
               )}
-              <TabsTab value="planificacion" className={styles.tabTrigger}>
+              <TabsTab value="planificacion" className={styles.tabTrigger} data-testid="tab-planificacion">
                 Planificación
               </TabsTab>
               <TabsTab
                 value="capas"
                 className={styles.tabTrigger}
+                data-testid="tab-capas"
                 data-cluster-start="true"
               >
                 Capas
@@ -290,11 +292,12 @@ export function InfraestructuraMapClient(props: {
               <TabsTab
                 value="estadisticas"
                 className={styles.tabTrigger}
+                data-testid="tab-estadisticas"
                 data-cluster-start="true"
               >
                 Estadísticas
               </TabsTab>
-              <TabsTab value="exportar" className={styles.tabTrigger}>
+              <TabsTab value="exportar" className={styles.tabTrigger} data-testid="tab-exportar">
                 Exportar
               </TabsTab>
             </TabsList>
