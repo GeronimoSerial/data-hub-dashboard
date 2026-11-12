@@ -5,6 +5,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const randomSecret = (label) => `${label}-${crypto.randomUUID()}-Aa9!`
+const screensFlag = process.argv.indexOf('--screens')
+const screensDir = screensFlag === -1 ? null : path.resolve(process.argv[screensFlag + 1] ?? '')
+if (screensFlag !== -1 && !process.argv[screensFlag + 1]) throw new Error('--screens requires an output directory')
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const workspace = await import('node:fs/promises').then(({ mkdtemp }) => mkdtemp(path.join(os.tmpdir(), 'cuadernillos-t8-')))
 const project = path.join(workspace, 'project')
@@ -35,6 +38,8 @@ const env = {
   T8_PLANNING_PASSWORD: randomSecret('Planning'),
   T8_CABECERA_PASSWORD: randomSecret('Cabecera'),
   T8_SUPERVISOR_PASSWORD: randomSecret('Supervisor'),
+  T8_ADMIN_PASSWORD: randomSecret('Admin'),
+  T8_SCREENS_DIR: screensDir ?? '',
   OBS_BUCKET: '', OBS_REGION: '', OBS_ENDPOINT: '', OBS_ACCESS_KEY_ID: '', OBS_SECRET_ACCESS_KEY: '',
   AWS_ACCESS_KEY_ID: '', AWS_SECRET_ACCESS_KEY: '', GE_SSO_SHARED_SECRET: '', GE_SSO_SHARED_KEY: '',
 }
@@ -99,10 +104,23 @@ try {
   // file tracer cannot see the runtime-selected migrationsFolder string.
   await cp(path.join(project, 'drizzle'), path.join(project, '.next/standalone/drizzle'), { recursive: true })
   run(process.execPath, ['e2e/cuadernillos/seed.mjs'], project)
-  run(process.execPath, [
-    path.join(root, 'node_modules/@playwright/test/cli.js'), 'test',
-    '--config=e2e/cuadernillos/playwright.config.mjs', '--grep', '@pglite-smoke',
-  ], project)
+  // Screens run independently of the smoke result, so a smoke failure still yields captures.
+  let smokeFailure = null
+  try {
+    if (!screensDir) run(process.execPath, [
+      path.join(root, 'node_modules/@playwright/test/cli.js'), 'test',
+      '--config=e2e/cuadernillos/playwright.config.mjs', '--grep', '@pglite-smoke',
+    ], project)
+  } catch (error) {
+    smokeFailure = error
+  }
+  if (screensDir) {
+    run(process.execPath, [
+      path.join(root, 'node_modules/@playwright/test/cli.js'), 'test',
+      '--config=e2e/cuadernillos/playwright.config.mjs', '--grep', '@screens',
+    ], project)
+  }
+  if (smokeFailure) throw smokeFailure
 
   if (postgresUrl) {
     const postgresEnv = {

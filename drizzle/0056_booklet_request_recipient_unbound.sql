@@ -1,0 +1,1 @@
+ALTER TABLE "booklet_request" DROP CONSTRAINT IF EXISTS "booklet_request_recipient_cue_anexo_booklet_school_assignment_cue_anexo_fk";
