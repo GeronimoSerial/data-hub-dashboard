@@ -280,7 +280,32 @@ function claveDeCliente(client: EjecutorSql): object {
   return (rawDeEjecutor(client) ?? client) as object
 }
 
+// PGlite es una sola conexión sin .connect(). Abrir un BEGIN sobre esa sesión y
+// mantenerlo abierto a través de awaits, junto con la memoización por proceso,
+// rompió el build con PGlite (27 workers de prerender: "RuntimeError: Aborted()"
+// en CREATE SCHEMA "drizzle"). Ahí se usa el DDL secuencial original, sin
+// transacción ni memoización. Un ejecutor drizzle sólo cuenta como PGlite cuando
+// su `$client` no tiene .connect(); el resto (pool de node-postgres) sigue igual.
+function esConexionUnica(client: EjecutorSql): boolean {
+  const raw = rawDeEjecutor(client)
+  if (!raw) return true
+  if (esDrizzleLike(raw)) {
+    const driver = (raw as unknown as { $client?: { connect?: unknown } }).$client
+    return driver !== undefined && typeof driver.connect !== 'function'
+  }
+  return typeof (raw as { connect?: unknown }).connect !== 'function'
+}
+
 export async function ensureGeSchema(client: EjecutorSql): Promise<GeSchemaReady> {
+  if (esConexionUnica(client)) {
+    for (const stmt of GE_DDL) {
+      await client.execute(stmt)
+    }
+    await crearFuncionGuard(client)
+    await crearTriggersGuard(client)
+    return Object.freeze({ [geSchemaReadyBrand]: true })
+  }
+
   const clave = claveDeCliente(client)
   let listo = bootstrapPorCliente.get(clave)
   if (!listo) {
@@ -322,8 +347,16 @@ async function ensureEligibilitySourceGuard(tx: EjecutorSql): Promise<void> {
   if (prosrc !== CUERPO_GUARD_ELIGIBILITY) {
     await tx.execute(CREATE_GUARD_ELIGIBILITY)
   }
+  await crearTriggersGuard(tx)
+}
+
+async function crearFuncionGuard(client: EjecutorSql): Promise<void> {
+  await client.execute(CREATE_GUARD_ELIGIBILITY)
+}
+
+async function crearTriggersGuard(client: EjecutorSql): Promise<void> {
   for (const table of ['ge_corte', 'ge_seccion', 'ge_alumno_seccion', 'ge_localizacion']) {
-    await tx.execute(`
+    await client.execute(`
       DO $$
       BEGIN
         IF NOT EXISTS (
