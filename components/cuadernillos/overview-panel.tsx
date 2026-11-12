@@ -76,11 +76,15 @@ export function OverviewPanel({
   capability,
   assignments,
   onRequestCreated,
+  viewAsUserId = null,
 }: {
   capability: BookletCapability
   assignments: BookletAssignmentsPage | null
   onRequestCreated: () => void
+  viewAsUserId?: string | null
 }) {
+  // Read-only while viewing as another account: every write control is disabled.
+  const readOnly = Boolean(viewAsUserId)
   const [overview, setOverview] = useState<BookletOverview | null>(null)
   const [selectedCampaign, setSelectedCampaign] = useState('')
   const [loading, setLoading] = useState(true)
@@ -102,6 +106,7 @@ export function OverviewPanel({
   const loadOverview = useCallback(async (campaignId?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ capability })
     if (campaignId) query.set('campaignId', campaignId)
+    if (viewAsUserId) query.set('viewAs', viewAsUserId)
     const response = await fetch(`/api/cuadernillos/overview?${query}`, { signal, cache: 'no-store' })
     const data = await readJson(response)
     if (!response.ok) throw new Error(errorText(data, 'No se pudo cargar el catálogo y los saldos.'))
@@ -111,7 +116,7 @@ export function OverviewPanel({
     setStockProduct(data.balances[0]?.productId ?? '')
     setQuotaProduct(data.balances[0]?.productId ?? '')
     setQuotaHead(data.balances.find((balance) => balance.cabeceraCueAnexo)?.cabeceraCueAnexo ?? '')
-  }, [capability])
+  }, [capability, viewAsUserId])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -124,7 +129,7 @@ export function OverviewPanel({
   }, [loadOverview])
 
   useEffect(() => {
-    if (capability !== 'cabecera' || !selectedRecipient || !selectedCampaign) return
+    if (capability !== 'cabecera' || readOnly || !selectedRecipient || !selectedCampaign) return
     const controller = new AbortController()
     const key = `${selectedCampaign}:${selectedRecipient}`
     const query = new URLSearchParams({ cueAnexo: selectedRecipient, campaignId: selectedCampaign })
@@ -149,7 +154,7 @@ export function OverviewPanel({
         if (!controller.signal.aborted) setRecommendationIssue({ key, error: reason instanceof Error ? reason.message : 'No se pudieron calcular las recomendaciones.' })
       })
     return () => controller.abort()
-  }, [capability, selectedRecipient, selectedCampaign])
+  }, [capability, readOnly, selectedRecipient, selectedCampaign])
 
   const products = useMemo(() => [...new Map((overview?.balances ?? []).map((row) => [row.productId, row])).values()], [overview])
   const heads = useMemo(() => [...new Map((overview?.balances ?? []).flatMap((row) => row.cabeceraCueAnexo && row.cabeceraName
@@ -284,14 +289,14 @@ export function OverviewPanel({
                 <label>Producto<select value={stockProduct} onChange={(event) => setStockProduct(event.target.value)}>{products.map((row) => <option key={row.productId} value={row.productId}>{row.productLabel}</option>)}</select></label>
                 <label>Movimiento<select value={stockMovement} onChange={(event) => setStockMovement(event.target.value as 'initial' | 'replenishment')}><option value="initial">Ingreso inicial</option><option value="replenishment">Reposición</option></select></label>
                 <label>Cantidad<input aria-label="Cantidad de stock" type="number" min="1" step="1" value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} /></label>
-                <button type="submit" disabled={saving} className="ui-button ui-button--primary">{saving ? 'Guardando…' : 'Registrar movimiento'}</button>
+                <button type="submit" disabled={saving || readOnly} className="ui-button ui-button--primary">{saving ? 'Guardando…' : 'Registrar movimiento'}</button>
               </form>
               <form onSubmit={(event) => void updateQuota(event)} style={{ display: 'grid', alignContent: 'start', gap: '.75rem', borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>
                 <h4 style={{ margin: 0, color: 'var(--ink)' }}>Definir cupo disponible</h4>
                 <label>Cabecera<select value={quotaHead} onChange={(event) => setQuotaHead(event.target.value)}>{heads.map((head) => <option value={head.cueAnexo} key={head.cueAnexo}>{head.name} · {head.cueAnexo}</option>)}</select></label>
                 <label>Producto<select value={quotaProduct} onChange={(event) => setQuotaProduct(event.target.value)}>{products.map((row) => <option key={row.productId} value={row.productId}>{row.productLabel}</option>)}</select></label>
                 <label>Cantidad disponible<input aria-label="Cantidad de cupo disponible" type="number" min="0" step="1" value={quotaQuantity} onChange={(event) => setQuotaQuantity(event.target.value)} /></label>
-                <button type="submit" disabled={saving || !heads.length} className="ui-button ui-button--secondary">{saving ? 'Guardando…' : 'Guardar cupo'}</button>
+                <button type="submit" disabled={saving || readOnly || !heads.length} className="ui-button ui-button--secondary">{saving ? 'Guardando…' : 'Guardar cupo'}</button>
               </form>
             </div>
           ) : null}
@@ -324,8 +329,8 @@ export function OverviewPanel({
           })}
           {applicableRecommendations.length ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem', marginTop: '1rem' }}>
-              <button type="button" onClick={() => void createRequest(false)} disabled={saving || !writeEnabled} className="ui-button ui-button--secondary">{saving ? 'Guardando…' : 'Guardar borrador'}</button>
-              <button type="button" onClick={() => void createRequest(true)} disabled={saving || !writeEnabled} className="ui-button ui-button--primary">{saving ? 'Enviando…' : 'Enviar a revisión'}</button>
+              <button type="button" onClick={() => void createRequest(false)} disabled={saving || readOnly || !writeEnabled} className="ui-button ui-button--secondary">{saving ? 'Guardando…' : 'Guardar borrador'}</button>
+              <button type="button" onClick={() => void createRequest(true)} disabled={saving || readOnly || !writeEnabled} className="ui-button ui-button--primary">{saving ? 'Enviando…' : 'Enviar a revisión'}</button>
             </div>
           ) : null}
         </>

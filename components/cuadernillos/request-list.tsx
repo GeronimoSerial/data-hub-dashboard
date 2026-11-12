@@ -105,7 +105,9 @@ function RequestLines({ lines }: { lines: BookletRequestLineView[] }) {
   )
 }
 
-export function RequestList({ refreshKey = 0, capability }: { refreshKey?: number; capability?: BookletCapability }) {
+export function RequestList({ refreshKey = 0, capability, viewAsUserId = null }: { refreshKey?: number; capability?: BookletCapability; viewAsUserId?: string | null }) {
+  // Read-only while viewing as another account: writes always belong to the session actor.
+  const readOnly = Boolean(viewAsUserId)
   const [page, setPage] = useState<BookletRequestsPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -124,11 +126,12 @@ export function RequestList({ refreshKey = 0, capability }: { refreshKey?: numbe
   const load = useCallback(async (campaignId?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ limit: String(PAGE_SIZE) })
     if (campaignId) query.set('campaignId', campaignId)
+    if (viewAsUserId) query.set('viewAs', viewAsUserId)
     const next = await fetchPage(`/api/cuadernillos/requests?${query}`, signal)
     setError(null)
     setPage(next)
     setSelectedCampaign(next.campaignId ?? '')
-  }, [])
+  }, [viewAsUserId])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -237,6 +240,7 @@ export function RequestList({ refreshKey = 0, capability }: { refreshKey?: numbe
     setLoadingMore(true)
     setError(null)
     const query = new URLSearchParams({ campaignId: page.campaignId, cursor: page.nextCursor, limit: String(PAGE_SIZE) })
+    if (viewAsUserId) query.set('viewAs', viewAsUserId)
     try {
       const next = await fetchPage(`/api/cuadernillos/requests?${query}`)
       setPage((current) => current ? { ...next, requests: [...current.requests, ...next.requests] } : next)
@@ -309,9 +313,9 @@ export function RequestList({ refreshKey = 0, capability }: { refreshKey?: numbe
                     </label>
                   ))}
                   <label><input type="checkbox" checked={confirmedDecisions[request.requestId] ?? false} onChange={(event) => setConfirmedDecisions((current) => ({ ...current, [request.requestId]: event.target.checked }))} /> Confirmo la decisión individual y el descuento inmediato sin anulación.</label>
-                  <button type="button" disabled={Boolean(actionBusy) || !confirmedDecisions[request.requestId]} onClick={() => void submitDecision(request, 'approve')} className="ui-button ui-button--primary">{actionBusy === `${request.requestId}:approve` ? 'Procesando…' : 'Confirmar aprobación'}</button>
+                  <button type="button" disabled={readOnly || Boolean(actionBusy) || !confirmedDecisions[request.requestId]} onClick={() => void submitDecision(request, 'approve')} className="ui-button ui-button--primary">{actionBusy === `${request.requestId}:approve` ? 'Procesando…' : 'Confirmar aprobación'}</button>
                   <label style={{ display: 'grid', gap: '.25rem' }}>Motivo del rechazo<textarea value={rejectReasons[request.requestId] ?? ''} onChange={(event) => setRejectReasons((current) => ({ ...current, [request.requestId]: event.target.value }))} maxLength={1000} /></label>
-                  <button type="button" disabled={Boolean(actionBusy) || !(rejectReasons[request.requestId]?.trim())} onClick={() => void submitDecision(request, 'reject')} className="ui-button ui-button--secondary">{actionBusy === `${request.requestId}:reject` ? 'Procesando…' : 'Rechazar solicitud'}</button>
+                  <button type="button" disabled={readOnly || Boolean(actionBusy) || !(rejectReasons[request.requestId]?.trim())} onClick={() => void submitDecision(request, 'reject')} className="ui-button ui-button--secondary">{actionBusy === `${request.requestId}:reject` ? 'Procesando…' : 'Rechazar solicitud'}</button>
                 </div>
               ) : null}
               {capability === 'cabecera' && request.rootRequestId === request.requestId && request.status === 'approved' && request.remaining.length ? (
@@ -319,7 +323,7 @@ export function RequestList({ refreshKey = 0, capability }: { refreshKey?: numbe
                   <h5 style={{ margin: 0 }}>Proponer una solicitud de remanente</h5>
                   <p style={{ margin: 0, color: 'var(--ink-soft)' }}>La diferencia no aprobada de esta solicitud es indicativa; no es un saldo disponible. Consultá la cadena para descontar remanentes ya reservados. El servidor vuelve a validar antes de crear una solicitud pendiente; esto no aprueba ni completa el faltante.</p>
                   {!requestChains[request.requestId] ? (
-                    <button type="button" disabled={Boolean(actionBusy)} onClick={() => void loadRequestChain(request)} className="ui-button ui-button--secondary">Consultar disponibilidad de remanente</button>
+                    <button type="button" disabled={readOnly || Boolean(actionBusy)} onClick={() => void loadRequestChain(request)} className="ui-button ui-button--secondary">Consultar disponibilidad de remanente</button>
                   ) : (
                     <>
                       <div><strong>Solicitado en la cadena</strong><RequestLines lines={requestChains[request.requestId].requested.map((line) => ({ ...line, productLabel: request.requested.find((requested) => requested.productId === line.productId)?.productLabel ?? line.productId }))} /></div>
@@ -336,7 +340,7 @@ export function RequestList({ refreshKey = 0, capability }: { refreshKey?: numbe
                           </label>
                         ) : null
                       })}
-                      <button type="button" disabled={Boolean(actionBusy) || requestChains[request.requestId].availableRemainder.length === 0} onClick={() => void submitDecision(request, 'remainder')} className="ui-button ui-button--secondary">{actionBusy === `${request.requestId}:remainder` ? 'Enviando…' : 'Solicitar remanente'}</button>
+                      <button type="button" disabled={readOnly || Boolean(actionBusy) || requestChains[request.requestId].availableRemainder.length === 0} onClick={() => void submitDecision(request, 'remainder')} className="ui-button ui-button--secondary">{actionBusy === `${request.requestId}:remainder` ? 'Enviando…' : 'Solicitar remanente'}</button>
                     </>
                   )}
                 </div>
