@@ -439,7 +439,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
 
     const tablist = screen.getByRole('tablist', {
-      name: 'Modos y vistas de ENOS 2026',
+      name: 'Modos y vistas de ENOS Corrientes',
     })
     expect(tablist).toBeInTheDocument()
     expect(tablist.parentElement).toHaveAttribute('data-overflow')
@@ -470,7 +470,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     try {
       render(<InfraestructuraMapClient mostrarEnlaceNominal />)
       const tablist = screen.getByRole('tablist', {
-        name: 'Modos y vistas de ENOS 2026',
+        name: 'Modos y vistas de ENOS Corrientes',
       })
       const scrollToSpy = vi.fn()
       tablist.scrollTo = scrollToSpy

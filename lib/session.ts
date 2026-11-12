@@ -13,7 +13,10 @@ export function staffGuard(user: SessionUser | null) {
   return null
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+// SessionUser plus the user's saved language preference (NULL = region default).
+export type SessionUserConIdioma = SessionUser & { idioma?: string | null }
+
+export async function getSessionUser(): Promise<SessionUserConIdioma | null> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) return null
   const role = (session.user.role as Role | undefined) ?? 'consulta'
@@ -32,7 +35,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       .from(userRecursos)
       .where(eq(userRecursos.userId, session.user.id)),
     db
-      .select({ accesoRecursos: userTable.accesoRecursos, geCueAnexo: userTable.geCueAnexo, hubSecciones: userTable.hubSecciones, hubLanding: userTable.hubLanding, hubDestino: userTable.hubDestino })
+      .select({ accesoRecursos: userTable.accesoRecursos, geCueAnexo: userTable.geCueAnexo, hubSecciones: userTable.hubSecciones, hubLanding: userTable.hubLanding, hubDestino: userTable.hubDestino, idioma: userTable.idioma })
       .from(userTable)
       .where(eq(userTable.id, session.user.id)),
   ])
@@ -48,6 +51,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     cueAnexo: userRow?.geCueAnexo ?? null,
     hubPolicy: normalizeSectionPolicy({ enabledSections: userRow?.hubSecciones, landing: userRow?.hubLanding }),
     hubDestination: userRow?.hubDestino ?? null,
+    idioma: userRow?.idioma ?? null,
   }
 }
 

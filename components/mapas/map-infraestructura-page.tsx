@@ -30,20 +30,14 @@ import type {
 import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
 import type { PaddingOptions } from 'maplibre-gl'
 import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
+import { localeMaplibre } from '@/lib/i18n/locale-maplibre'
+import { useIdioma } from '@/lib/i18n/idioma-provider'
 // V8: MapLibre trae sus cadenas de UI (tooltips de controles, aria-labels) en
 // inglés por defecto. `locale` acepta la tabla `{ clave: texto }` de
 // `maplibre-gl` y sólo pisa las claves presentes en el objeto, así que acá se
 // declaran las que este mapa realmente monta: NavigationControl (zoom y
 // orientación), el canvas del mapa (`Map.Title`), los attr de atribución y los
 // del popup (`Popup.Close`). En español neutro y profesional.
-const LOCALE_MAPLIBRE_ES: Record<string, string> = {
-  'NavigationControl.ZoomIn': 'Acercar',
-  'NavigationControl.ZoomOut': 'Alejar',
-  'NavigationControl.ResetBearing': 'Arrastrar para rotar el mapa, clic para reiniciar al norte',
-  'Map.Title': 'Mapa',
-  'AttributionControl.ToggleAttribution': 'Mostrar u ocultar la atribución',
-  'Popup.Close': 'Cerrar',
-}
 import {
   MapPin,
 } from 'lucide-react'
@@ -654,6 +648,7 @@ export default function MapInfraestructuraPage(props: {
   contenedorPantallaCompleta?: RefObject<HTMLElement | null>
   filtrosActivos?: FiltrosMapa
 }) {
+  const idiomaMapa = useIdioma()
   const panel = props.panel ?? props.pestana
   const panelLateral = panel === 'radar' && !(props.riskRadarEnabled ?? false) ? 'actual' : panel
   const styles = useOverlayStyles()
@@ -1733,7 +1728,7 @@ export default function MapInfraestructuraPage(props: {
           mapStyle={mapStyle}
           // Los estilos claro y oscuro son distintos: el diff descarta las fuentes propias sin emitir `style.load`.
           styleDiffing={false}
-          locale={LOCALE_MAPLIBRE_ES}
+          locale={localeMaplibre(idiomaMapa)}
           // Encuadre inicial ajustado a la provincia. MAP_CENTER/MAP_ZOOM son
           // los del mapa de matrícula y dejaban a Corrientes descentrada y
           // demasiado cerca; acá el encuadre sale del bbox real del GeoJSON.

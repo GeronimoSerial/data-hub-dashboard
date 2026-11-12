@@ -169,7 +169,7 @@ test.describe('vista móvil (iPhone 13)', () => {
 
     // La barra desborda 390px a propósito: .ui-tabs-list tiene overflow-x auto (map-header.module.css),
     // así que su contenido queda dentro de ese scroller y el escáner de desborde lo excluye.
-    const tablist = page.getByRole('tablist', { name: 'Modos y vistas de ENOS 2026' })
+    const tablist = page.getByRole('tablist', { name: 'Modos y vistas de ENOS Corrientes' })
     const estado = await tablist.evaluate((el) => ({
       overflowX: getComputedStyle(el).overflowX,
       scrollWidth: el.scrollWidth,
