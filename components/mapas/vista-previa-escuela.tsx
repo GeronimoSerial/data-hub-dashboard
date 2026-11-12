@@ -77,7 +77,9 @@ export function VistaPreviaEscuela({
   distanciaLocalidad = null,
 }: VistaPreviaEscuelaProps) {
   const tituloRef = useRef<HTMLHeadingElement>(null)
-  const t = useTextos().ficha
+  const dic = useTextos()
+  const t = dic.ficha
+  const tr = dic.residuos
   const sinUbicacion =
     escuela.ubicacionDisponible === false ||
     escuela.lat === null ||
@@ -102,7 +104,7 @@ export function VistaPreviaEscuela({
     ? CATEGORIA_META[principal.categoria].label
     : etiquetaCategoria(escuela.categoriaPrincipal)
 
-  const etiquetaApoyo = etiquetaApoyoMapa(escuela.clases, escuela.apoyo)
+  const etiquetaApoyo = etiquetaApoyoMapa(escuela.clases, escuela.apoyo, dic)
   // Per-situation totals can overlap, so the affected count never exceeds enrolment.
   const alumnosAfectados = Math.min(
     escuela.alumnos,
@@ -135,7 +137,7 @@ export function VistaPreviaEscuela({
   return (
     <section
       className={styles.card}
-      aria-label={`Vista previa de ${escuela.nombre}`}
+      aria-label={tr.vistaPrevia.ariaTitulo(escuela.nombre)}
       data-testid="vista-previa-escuela"
     >
       <div className={styles.header}>
@@ -146,7 +148,7 @@ export function VistaPreviaEscuela({
           <p className={styles.meta} data-testid="preview-cue">
             CUE {escuela.cueAnexo}
             {ubicacionTexto ? ` · ${ubicacionTexto}` : ''}
-            {detalleNivelOInstituto(escuela) ? ` · ${detalleNivelOInstituto(escuela)}` : ''}
+            {detalleNivelOInstituto(escuela, dic) ? ` · ${detalleNivelOInstituto(escuela, dic)}` : ''}
           </p>
         </div>
         <button
@@ -238,7 +240,7 @@ export function VistaPreviaEscuela({
       )}
 
       <dl className={styles.datos} data-testid="preview-bloque-clases">
-        <div><dt>{t.vistaPrevia.funcionamiento}</dt><dd>{etiquetaFuncionamiento(afectaciones)}</dd></div>
+        <div><dt>{t.vistaPrevia.funcionamiento}</dt><dd>{etiquetaFuncionamiento(afectaciones, dic)}</dd></div>
         {seccionesAfectadas > 0 && (
           <div>
             <dt>{t.vistaPrevia.seccionesAfectadas}</dt>
@@ -248,7 +250,7 @@ export function VistaPreviaEscuela({
         <div>
           <dt>{t.vistaPrevia.clases}</dt>
           <dd className={escuela.clases === 'normal' ? undefined : escuela.clases === 'parcial' ? styles.aviso : styles.alerta}>
-            {etiquetaClases(escuela.clases, escuela.clasesInformadas === true)}
+            {etiquetaClases(escuela.clases, escuela.clasesInformadas === true, dic)}
             {escuela.alumnosSinClases > 0 && (
               <span className={styles.atenuado}>
                 {t.vistaPrevia.sinClases(FORMATO_NUMERO.format(escuela.alumnosSinClases))}

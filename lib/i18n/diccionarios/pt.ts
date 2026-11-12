@@ -1,4 +1,22 @@
 import type { Semaforo } from '@/lib/sobreoferta'
+import { libTextos2Pt } from './grupos/libTextos2.pt'
+import { residuosPt } from './grupos/residuos.pt'
+import { fichaPanelPt } from './grupos/fichaPanel.pt'
+import { fichaPaginaPt } from './grupos/fichaPagina.pt'
+import { radarRestoPt } from './grupos/radarResto.pt'
+import { libTextosPt } from './grupos/libTextos.pt'
+import { controlesCapasPt } from './grupos/controlesCapas.pt'
+import { controlesFiltrosPt } from './grupos/controlesFiltros.pt'
+import { fichaPanoramaPt } from './grupos/fichaPanorama.pt'
+import { fichaTerritorioPt } from './grupos/fichaTerritorio.pt'
+import { fichaHistorialPt } from './grupos/fichaHistorial.pt'
+import { fichaCuerpoPt } from './grupos/fichaCuerpo.pt'
+import { etiquetasPt } from './grupos/etiquetas.pt'
+import { radarPt } from './grupos/radar.pt'
+import { estadisticasPt } from './grupos/estadisticas.pt'
+import { controlesPt } from './grupos/controles.pt'
+import { panelesMapaPt } from './grupos/panelesMapa.pt'
+import { situacionPt } from './grupos/situacion.pt'
 import type { Diccionario } from './tipos'
 
 // Brazilian Portuguese dictionary for the Manaos (Amazonas) audience. It must
@@ -258,4 +276,22 @@ export const pt: Diccionario = {
       quitarSeleccion: 'Remover seleção',
     },
   },
+  fichaCuerpo: fichaCuerpoPt,
+  etiquetas: etiquetasPt,
+  radar: radarPt,
+  estadisticas: estadisticasPt,
+  controles: controlesPt,
+  panelesMapa: panelesMapaPt,
+  situacion: situacionPt,
+  fichaPanorama: fichaPanoramaPt,
+  fichaTerritorio: fichaTerritorioPt,
+  fichaHistorial: fichaHistorialPt,
+  controlesCapas: controlesCapasPt,
+  controlesFiltros: controlesFiltrosPt,
+  radarResto: radarRestoPt,
+  libTextos: libTextosPt,
+  fichaPanel: fichaPanelPt,
+  fichaPagina: fichaPaginaPt,
+  libTextos2: libTextos2Pt,
+  residuos: residuosPt,
 }

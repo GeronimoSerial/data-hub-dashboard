@@ -3,23 +3,16 @@
 import { useState } from 'react'
 import { formatearAntiguedad } from './escalas'
 import type { VariableRadarUI } from './selector'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
 
-const titulos: Record<VariableRadarUI, string> = {
-  lluvia: 'Lluvia (mm)',
-  probabilidad: 'Lluvia (prob)',
-  viento: 'Viento',
-  granizo: 'Granizo (estimado)',
-}
-
-const unidades: Record<VariableRadarUI, string> = {
+const unidades: Record<Exclude<VariableRadarUI, 'granizo'>, string> = {
   lluvia: 'mm/h',
   probabilidad: '%',
   viento: 'km/h',
-  granizo: 'categoría',
 }
 
-export function etiquetaUnidadLluvia(paso: 1 | 3) {
-  return paso === 3 ? 'mm en 3 h' : 'mm/h'
+export function etiquetaUnidadLluvia(paso: 1 | 3, mm3h = 'mm en 3 h') {
+  return paso === 3 ? mm3h : 'mm/h'
 }
 
 const etiquetas: Record<VariableRadarUI, string[]> = {
@@ -41,6 +34,12 @@ export function LeyendaRadar({
   paso: 1 | 3
 }) {
   const [expanded, setExpanded] = useState(false)
+  const t = useTextos()
+  const idioma = useIdioma()
+  const l = t.radar.leyenda
+  const titulo = l.titulos[variable]
+  const unidad = variable === 'granizo' ? l.unidadGranizo : unidades[variable]
+
 
   return (
     <div className={`radar-meteo-legend${expanded ? ' is-expanded' : ''}`}>
@@ -48,18 +47,18 @@ export function LeyendaRadar({
         type="button"
         className="radar-meteo-legend-toggle"
         aria-expanded={expanded}
-        aria-label={`${expanded ? 'Contraer' : 'Expandir'} leyenda: ${titulos[variable]}`}
+        aria-label={l.leyendaAria(expanded ? l.contraer : l.expandir, titulo)}
         onClick={() => setExpanded((current) => !current)}
       >
         <span className="radar-meteo-legend-title">
           {/* Frescura en el tooltip; un pronóstico vencido se ve atenuado, sin texto de aviso. */}
           <b
             className={desactualizado ? 'is-stale' : undefined}
-            title={minutos != null ? `Actualizado ${formatearAntiguedad(minutos)}` : undefined}
+            title={minutos != null ? t.radarResto.pronostico.actualizado(formatearAntiguedad(minutos, idioma)) : undefined}
           >
-            {titulos[variable]}
+            {titulo}
           </b>
-          <small>{variable === 'lluvia' ? etiquetaUnidadLluvia(paso) : unidades[variable]}</small>
+          <small>{variable === 'lluvia' ? etiquetaUnidadLluvia(paso, l.mm3h) : unidad}</small>
         </span>
         <span className={`radar-meteo-gradient radar-meteo-gradient--${variable}`} />
       </button>

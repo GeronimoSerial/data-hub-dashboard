@@ -1,4 +1,4 @@
-const MENSAJE_RED = 'No se pudo conectar con el servidor. Intentá de nuevo.'
+import { textosActuales } from '@/lib/i18n'
 
 /** Nombre de archivo de `Content-Disposition: attachment; filename="…"`, o null. */
 export function nombreDesdeDisposition(cabecera: string | null): string | null {
@@ -13,7 +13,7 @@ async function mensajeDeRespuesta(respuesta: Response): Promise<string> {
   } catch {
     // Sin cuerpo JSON: se usa el mensaje genérico con el código HTTP.
   }
-  return `No se pudo generar el archivo (HTTP ${respuesta.status}).`
+  return textosActuales().estadisticas.exportar.errorGenerico(respuesta.status)
 }
 
 /** Descarga el .xlsx del servidor. Lanza un Error con el mensaje del servidor si la respuesta no es 2xx. */
@@ -22,7 +22,7 @@ export async function descargarExportacion(url: string, nombreRespaldo: string):
   try {
     respuesta = await fetch(url, { cache: 'no-store' })
   } catch {
-    throw new Error(MENSAJE_RED)
+    throw new Error(textosActuales().estadisticas.exportar.errorRed)
   }
   if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
 

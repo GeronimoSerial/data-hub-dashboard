@@ -1,0 +1,87 @@
+// Spanish (Corrientes) texts of the `fichaPanorama` group. Values stay byte-for-byte as shipped.
+export const fichaPanoramaEs = {
+  afectacion: {
+    verCarreras: 'Ver carreras alcanzadas',
+    verAlumnos: 'Ver alumnos alcanzados',
+    todaLaCarrera: ' (toda la carrera)',
+    alumnosDeCarrera: (cantidad: number) => ` (${cantidad === 1 ? '1 alumno' : `${cantidad} alumnos`})`,
+  },
+  alcance: {
+    secciones: (cantidad: number) => (cantidad === 1 ? '1 sección' : `${cantidad} secciones`),
+    alumnos: (cantidad: number) => (cantidad === 1 ? '1 alumno' : `${cantidad} alumnos`),
+    sinSecciones: 'Sin secciones ni alumnos informados',
+  },
+  impacto: {
+    sinDatos: 'Sin datos para calcular la prioridad',
+  },
+  severidad: {
+    gravedad: (nombre: string) => `Gravedad ${nombre}`,
+    sugerido: 'Sugerido',
+    actual: 'Actual',
+    // Only the labels that differ in pt; the others are read as-is.
+    nombres: { Baja: 'Baja', Media: 'Media' },
+  },
+  vigencia: {
+    ahora: 'Ahora',
+    hoy: 'Hoy, más temprano',
+    otro: 'Otro día',
+    fecha: 'Fecha',
+  },
+  parte: {
+    buscando: 'Buscando el estado actual del establecimiento…',
+    reintentar: 'Reintentar',
+    volverContrasena: 'Volver a ingresar la contraseña',
+    funcionamiento: 'Funcionamiento',
+    clases: 'Clases',
+    edificio: 'Edificio',
+    rigeDesde: (fecha: string) => `Rige desde el ${fecha}`,
+    enSeguimiento: 'En seguimiento',
+    cargarSituacion: 'Cargar una situación',
+    actualizarParte: 'Actualizar el parte',
+    verHistorial: 'Ver historial',
+    historial: 'Historial',
+    ultimaActualizacion: (fecha: string) => `Última actualización: ${fecha}`,
+    sinSituacion: 'No hay una situación hidrometeorológica en seguimiento para este establecimiento.',
+    errorLectura: 'No pudimos mostrar el estado actual del establecimiento. Intente nuevamente.',
+    accesoVencido: 'Su acceso ya no está vigente. Vuelva a ingresar la contraseña para ver el estado actual.',
+    sinCorte: 'No hay datos de escuelas disponibles en este momento. Intente nuevamente más tarde.',
+  },
+  establecimiento: {
+    habitual: 'Sin daños / en uso normal',
+    parcial: 'Uso parcial',
+    evacuado: 'Evacuado',
+    centro_evacuados: 'Usado como centro de evacuados',
+    sin_clases: 'Sin clases',
+  },
+  riesgo: {
+    region: 'Riesgo de la escuela',
+    titulo: 'Riesgo por el clima',
+    horizonte: (etiqueta: string) => `Próximas ${etiqueta}`,
+    explicacion:
+      'Estimación automática con el pronóstico de lluvia y la altura de los ríos. Indica lo que podría pasar, no lo que la escuela ya reportó.',
+    cargando: 'Cargando riesgo actual…',
+    error: 'No se pudo cargar el riesgo actual.',
+    nivelEstimado: 'Nivel estimado',
+    situacionActual: 'Situación actual',
+    zonaExpuesta: 'Zona expuesta a crecidas',
+    detalleTecnico: 'Ver detalle técnico',
+    planificacionTitulo: 'Prioridad para obras y prevención',
+    planificacionExplicacion:
+      'Qué tan expuesta está la escuela por su ubicación y sus antecedentes. Depende de la ubicación y los antecedentes, no del clima de hoy: sirve para planificar.',
+    ayudaVista: {
+      Aislamiento: 'Si un corte de camino puede dejarla sin acceso',
+      'Exposición a inundación': 'Cercanía a ríos y zonas que se anegan',
+      'Veces con situaciones': 'Situaciones reportadas en ciclos anteriores',
+    },
+  },
+  pronostico: {
+    cargando: 'Cargando pronóstico…',
+    error: 'No se pudo cargar el pronóstico',
+    proximas24: 'Próximas 24 horas',
+    sinDatos: 'Sin datos',
+    sinLluvia: 'Sin lluvia',
+    hoy: 'Hoy',
+    manana: 'Mañana',
+    masHoras: (horas: number) => `+${horas} h`,
+  },
+} as const

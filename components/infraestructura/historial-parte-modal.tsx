@@ -2,6 +2,7 @@
 
 import type { JSX } from 'react'
 import { SheetContent, SheetRoot, SheetTitle } from '@/components/ui/sheet'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { HistorialParte } from './historial-parte'
 
 /**
@@ -28,11 +29,12 @@ export function HistorialParteModal({
   onOpenChange: (open: boolean) => void
 }): JSX.Element {
   const open = cueAnexo !== null
+  const t = useTextos().fichaHistorial.parte
 
   return (
     <SheetRoot open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="map-historial-sheet">
-        <SheetTitle>Historial del parte</SheetTitle>
+        <SheetTitle>{t.titulo}</SheetTitle>
         <div className="historial-parte-modal__body">
           {/* Igual que RecursoDialog (components/admin-page.tsx): el
               contenido sólo se monta con el panel abierto, así el fetch de

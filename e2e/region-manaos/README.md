@@ -78,6 +78,9 @@ Common to both modes:
   persists across reload and switches back (stored in `user.idioma`); the school API returns zero schools with
   status 200; the Situation Center shows "Sin datos" and never the "chain verified" line; the Corrientes name does
   not appear in the Manaos map text.
+- `portugues.spec.ts` (project `manaos-pt`, M1 CA1): the map tabs, the Camadas panel, `/situacion` and
+  `/admin/operacion` render Portuguese with no Spanish marker. The Radar tab is not walked: with an empty database its
+  panel crashes the page on `origin/dev` too (open problem). Page content only; the hub shell is still Spanish.
 - `corrientes-vacio.spec.ts`: health; the Corrientes tablist label; no language selector.
 - `run.mjs`: an invalid `REGION` refuses to boot; in standalone mode, the CLI reads `config/` from the runner layout.
 
@@ -98,4 +101,4 @@ Screenshots: `manaos-mapa-pt.png`, `manaos-mapa-es.png`, `manaos-situacion.png` 
 - `run.mjs`: orchestration and cleanup, both modes.
 - `playwright.config.ts`: projects and base URLs from the environment.
 - `specs/sesion.ts`: one UI sign-in per project, cookies reused per test, screenshot helper.
-- `specs/manaos.spec.ts`, `specs/corrientes-vacio.spec.ts`: the assertions above.
+- `specs/manaos.spec.ts`, `specs/portugues.spec.ts`, `specs/corrientes-vacio.spec.ts`: the assertions above.

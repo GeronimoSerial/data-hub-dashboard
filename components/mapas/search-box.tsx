@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import type { EstablishmentProperties } from '@/lib/map-types'
 import type { MapData } from '@/lib/use-map-data'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 type Hit = {
   cue: string
@@ -22,6 +23,7 @@ type Props = {
 export function SearchBox({ data, onSelect }: Props) {
   const styles = useOverlayStyles()
   const [query, setQuery] = useState('')
+  const t = useTextos().controles.buscador
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -38,24 +40,24 @@ export function SearchBox({ data, onSelect }: Props) {
       const coordinates = geom.coordinates as [number, number]
       hits.push({
         cue: p.cue ?? '',
-        name: p.name ?? 'Establecimiento',
+        name: p.name ?? t.sinNombre,
         coordinates,
         properties: p,
       })
       if (hits.length >= 12) break
     }
     return hits
-  }, [data.establishments, query])
+  }, [data.establishments, query, t])
 
   return (
     <div className={styles.controlCard}>
-      <h2 className={styles.controlHeading}>Buscar</h2>
+      <h2 className={styles.controlHeading}>{t.titulo}</h2>
       <Input
         type="search"
-        placeholder="Nombre o CUE…"
+        placeholder={t.placeholder}
         value={query}
         onChange={(event) => setQuery(event.currentTarget.value)}
-        aria-label="Buscar establecimiento"
+        aria-label={t.etiqueta}
       />
       {results.length > 0 && (
         <ul className={styles.searchResults}>

@@ -14,6 +14,11 @@ import { formatoFechaRegion, localeRegion } from '@/lib/infraestructura/formato-
 import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { EstadoDatos } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
 import { PanelEstadoDatos } from './estado-datos/panel-estado-datos'
+import { traducirMotivo } from './estado-datos/traducir-motivo'
+import { traducirPlantilla } from './estado-datos/traducir-plantillas'
+import type { Diccionario } from '@/lib/i18n'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import { situacionEs } from '@/lib/i18n/diccionarios/grupos/situacion.es'
 
 export interface KpisSituacionCliente {
   escuelasAfectacionConfirmadaVigente: number
@@ -88,28 +93,33 @@ const REFRESCO_MS = 5 * 60 * 1000
 type ModoCambios = 'registro' | 'vigencia'
 
 const OPCIONES_DESDE = [
-  { valor: '1h', etiqueta: 'Última hora', horas: 1 },
-  { valor: '24h', etiqueta: 'Últimas 24 horas', horas: 24 },
-  { valor: '7d', etiqueta: 'Últimos 7 días', horas: 24 * 7 },
+  { valor: '1h', clave: 'ultimaHora', horas: 1 },
+  { valor: '24h', clave: 'ultimas24h', horas: 24 },
+  { valor: '7d', clave: 'ultimos7d', horas: 24 * 7 },
 ] as const
 
-const ETIQUETA_TIPO_CAMBIO: Record<CambioSituacionCliente['tipo'], string> = {
-  afectacion: 'Afectación',
-  episodio_abierto: 'Episodio abierto',
-  episodio_cerrado: 'Episodio cerrado',
-  riesgo: 'Riesgo',
-}
+const CLAVE_TIPO_CAMBIO = {
+  afectacion: 'afectacion',
+  episodio_abierto: 'episodioAbierto',
+  episodio_cerrado: 'episodioCerrado',
+  riesgo: 'riesgo',
+} as const satisfies Record<CambioSituacionCliente['tipo'], keyof Diccionario['situacion']['tipoCambio']>
 
-const ETIQUETA_NIVEL_RIESGO: Record<string, string> = {
-  bajo: 'Bajo',
-  moderado: 'Moderado',
-  alto: 'Alto',
-  muy_alto: 'Muy alto',
-}
-
-function etiquetaNivelRiesgo(nivel: string | null): string {
-  if (nivel === null) return 'Sin dato'
-  return ETIQUETA_NIVEL_RIESGO[nivel] ?? nivel
+// "Moderado" y "Alto" son iguales en portugués: no van al diccionario.
+function etiquetaNivelRiesgo(nivel: string | null, t: Diccionario): string {
+  if (nivel === null) return t.situacion.sinDato
+  switch (nivel) {
+    case 'bajo':
+      return t.situacion.nivel.bajo
+    case 'moderado':
+      return 'Moderado'
+    case 'alto':
+      return 'Alto'
+    case 'muy_alto':
+      return t.situacion.nivel.muyAlto
+    default:
+      return nivel
+  }
 }
 
 // Built from formatToParts with an explicit 24 h cycle: `toLocaleString` output
@@ -140,7 +150,9 @@ export function formatearFecha(iso: string): string {
   return `${p.day}/${p.month}/${p.year}, ${p.hour}:${p.minute}`
 }
 
+// `clave` is the Spanish key of the KPI: it feeds the stable testid for every language.
 function kpiTile(props: {
+  clave: string
   titulo: string
   valor: number
   tono: 'neutro' | 'alerta_texto'
@@ -150,7 +162,7 @@ function kpiTile(props: {
     <div
       className="situacion-kpi"
       data-tono={props.tono}
-      data-testid={`situacion-kpi-${props.titulo}`}
+      data-testid={`situacion-kpi-${props.clave}`}
     >
       <span className="situacion-kpi__titulo">{props.titulo}</span>
       <span className="situacion-kpi__valor">{props.valor}</span>
@@ -161,25 +173,26 @@ function kpiTile(props: {
 
 const ENLACE_RADAR = '/mapas/infraestructura#radar'
 
-function textoCobertura(cobertura: CoberturaSituacionCliente | null): string | undefined {
+function textoCobertura(cobertura: CoberturaSituacionCliente | null, t: Diccionario): string | undefined {
   if (cobertura === null || cobertura.procesadas <= 0) return undefined
   const porcentaje = Math.round((cobertura.conEvidencia / cobertura.procesadas) * 100)
-  return `Cobertura ${porcentaje}%`
+  return t.situacion.cobertura(porcentaje)
 }
 
 function PanelPrioridades(props: { prioridades: PrioridadCliente[]; sinRun: boolean }): JSX.Element {
+  const t = useTextos()
   if (props.sinRun) {
-    return <p role="status">Sin cálculo de riesgo disponible</p>
+    return <p role="status">{t.situacion.sinCalculo}</p>
   }
   if (props.prioridades.length === 0) {
-    return <p role="status">Sin escuelas en riesgo alto o muy alto en este momento.</p>
+    return <p role="status">{t.situacion.sinEscuelasRiesgo}</p>
   }
   return (
     <ul className="situacion-prioridades" data-testid="situacion-prioridades">
       {props.prioridades.map((p) => (
         <li key={p.cueAnexo}>
           <a href={ENLACE_RADAR}>
-            {p.cueAnexo} — {p.departamento ?? 'sin departamento'} — {etiquetaNivelRiesgo(p.nivelRiesgo)}
+            {p.cueAnexo} — {p.departamento ?? t.situacion.sinDepartamento} — {etiquetaNivelRiesgo(p.nivelRiesgo, t)}
           </a>
         </li>
       ))}
@@ -188,17 +201,18 @@ function PanelPrioridades(props: { prioridades: PrioridadCliente[]; sinRun: bool
 }
 
 function PanelTimeline(props: { cambios: CambioSituacionCliente[] }): JSX.Element {
+  const t = useTextos()
   if (props.cambios.length === 0) {
-    return <p role="status">Sin cambios en el rango seleccionado.</p>
+    return <p role="status">{t.situacion.sinCambiosRango}</p>
   }
   return (
     <ol className="situacion-timeline" data-testid="situacion-timeline">
       {props.cambios.map((cambio) => (
         <li key={cambio.id} data-testid="situacion-timeline-item">
           <span className="situacion-timeline__fecha">{formatearFecha(cambio.ocurreEn)}</span>{' '}
-          <span className="situacion-timeline__tipo">[{ETIQUETA_TIPO_CAMBIO[cambio.tipo]}]</span>{' '}
+          <span className="situacion-timeline__tipo">[{t.situacion.tipoCambio[CLAVE_TIPO_CAMBIO[cambio.tipo]]}]</span>{' '}
           {cambio.departamento && <a href={ENLACE_RADAR}>{cambio.departamento}</a>}{' '}
-          {cambio.descripcion}
+          {traducirPlantilla(cambio.descripcion, t.situacion)}
         </li>
       ))}
     </ol>
@@ -206,6 +220,7 @@ function PanelTimeline(props: { cambios: CambioSituacionCliente[] }): JSX.Elemen
 }
 
 export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }): JSX.Element {
+  const t = useTextos()
   const [estado, setEstado] = useState(props.estadoInicial)
   const [modoCambios, setModoCambios] = useState<ModoCambios>('vigencia')
   const [rangoDesde, setRangoDesde] = useState<(typeof OPCIONES_DESDE)[number]['valor']>('24h')
@@ -213,7 +228,8 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
     porRegistro: CambioSituacionCliente[]
     porVigencia: CambioSituacionCliente[]
   }>({ porRegistro: [], porVigencia: [] })
-  const [estadoTexto, setEstadoTexto] = useState('')
+  // Hora del último refresco; el texto se arma al pintar para seguir la región.
+  const [ultimaActualizacion, setUltimaActualizacion] = useState<string | null>(null)
 
   const calcularDesdeIso = useCallback((rango: (typeof OPCIONES_DESDE)[number]['valor']) => {
     const opcion = OPCIONES_DESDE.find((o) => o.valor === rango) ?? OPCIONES_DESDE[1]
@@ -253,7 +269,7 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
         .then((body) => {
           if (body === null) return
           setEstado(body)
-          setEstadoTexto(`Actualizado a las ${formatearFecha(new Date().toISOString())}.`)
+          setUltimaActualizacion(new Date().toISOString())
         })
         .catch(() => {
           // Ídem: se conserva el último estado visto ante un error de red.
@@ -268,38 +284,38 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
   return (
     <div className="situacion-page" data-testid="situacion-page">
       <header className="situacion-page__header">
-        <h1>Centro de Situación</h1>
+        <h1>{t.situacion.centroTitulo}</h1>
         {estado.corte === null ? (
-          <p role="status">Todavía no se generó ningún corte.</p>
+          <p role="status">{t.situacion.sinCorte}</p>
         ) : (
           <p className="situacion-page__generado">
-            Corte generado el {formatearFecha(estado.corte.generadoEn)}
+            {t.situacion.corteGenerado(formatearFecha(estado.corte.generadoEn))}
             {estado.atraso.desactivadoPorConfig
-              ? ' — jobs batch en pausa operativa'
+              ? t.situacion.sufijoPausaBatch
               : estado.atraso.texto === 'no verificable'
-                ? ' — No verificable'
+                ? t.situacion.sufijoNoVerificable
                 : estado.atraso.atrasado
-                  ? ' — Desactualizado'
+                  ? t.situacion.sufijoDesactualizado
                   : ''}
           </p>
         )}
         {cadenaVerificada !== null && (
           <p className="situacion-page__generado" data-testid="situacion-cadena-verificada">
-            {cadenaVerificada}
+            {traducirMotivo(cadenaVerificada, t.situacion)}
           </p>
         )}
         {/* Región aria-live polite: anuncia el refresco sin mover el foco del
             usuario a ningún lado (ni scroll, ni focus()). */}
         <span aria-live="polite" className="sr-only" data-testid="situacion-live">
-          {estadoTexto}
+          {ultimaActualizacion === null ? '' : t.situacion.actualizadoA(formatearFecha(ultimaActualizacion))}
         </span>
         {estado.corte ? (
           <a className="ui-button" href="/api/infraestructura/situacion/export?formato=csv" download>
-            Exportar CSV
+            {t.situacion.exportarCsv}
           </a>
         ) : (
           <button className="ui-button" type="button" disabled aria-disabled="true">
-            Exportar CSV
+            {t.situacion.exportarCsv}
           </button>
         )}
       </header>
@@ -307,20 +323,23 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
       <PanelEstadoDatos estado={estado.estadoDatos} />
 
       {estado.corte !== null && (
-        <section aria-label="Indicadores principales" className="situacion-kpis">
+        <section aria-label={t.situacion.aria.indicadores} className="situacion-kpis">
           {kpiTile({
-            titulo: 'Escuelas con afectación confirmada vigente',
+            clave: situacionEs.kpi.afectacion,
+            titulo: t.situacion.kpi.afectacion,
             valor: estado.corte.kpis.escuelasAfectacionConfirmadaVigente,
             tono: estado.corte.kpis.escuelasAfectacionConfirmadaVigente > 0 ? 'alerta_texto' : 'neutro',
           })}
           {kpiTile({
-            titulo: 'Escuelas con riesgo alto o muy alto (24 h)',
+            clave: situacionEs.kpi.riesgoAlto,
+            titulo: t.situacion.kpi.riesgoAlto,
             valor: estado.corte.kpis.escuelasRiesgoAlto24h,
             tono: estado.corte.kpis.escuelasRiesgoAlto24h > 0 ? 'alerta_texto' : 'neutro',
-            nota: textoCobertura(estado.corte.cobertura),
+            nota: textoCobertura(estado.corte.cobertura, t),
           })}
           {kpiTile({
-            titulo: 'Fuentes vencidas',
+            clave: situacionEs.kpi.fuentesVencidas,
+            titulo: t.situacion.kpi.fuentesVencidas,
             valor: estado.corte.kpis.fuentesVencidas,
             tono: estado.corte.kpis.fuentesVencidas > 0 ? 'alerta_texto' : 'neutro',
           })}
@@ -328,20 +347,20 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
       )}
 
       {estado.briefing.length > 0 && (
-        <section aria-label="Resumen" className="situacion-briefing">
+        <section aria-label={t.situacion.aria.resumen} className="situacion-briefing">
           {/* Nunca abierto por defecto ni largo: una lista corta de líneas
               cortas, sin acordeón que el operador tenga que gestionar. */}
           <ul>
             {estado.briefing.map((linea, i) => (
-              <li key={i}>{linea}</li>
+              <li key={i}>{traducirPlantilla(linea, t.situacion)}</li>
             ))}
           </ul>
         </section>
       )}
 
-      <section aria-label="Cambios desde">
+      <section aria-label={t.situacion.aria.cambiosDesde}>
         <div className="situacion-cambios__controles">
-          <label htmlFor="situacion-rango-desde">Rango de cambios</label>
+          <label htmlFor="situacion-rango-desde">{t.situacion.rangoCambios}</label>
           <select
             id="situacion-rango-desde"
             value={rangoDesde}
@@ -349,26 +368,26 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
           >
             {OPCIONES_DESDE.map((o) => (
               <option key={o.valor} value={o.valor}>
-                {o.etiqueta}
+                {t.situacion.rango[o.clave]}
               </option>
             ))}
           </select>
 
-          <label htmlFor="situacion-modo-cambios">Mostrar por</label>
+          <label htmlFor="situacion-modo-cambios">{t.situacion.mostrarPor}</label>
           <select
             id="situacion-modo-cambios"
             value={modoCambios}
             onChange={(e) => setModoCambios(e.target.value as ModoCambios)}
           >
-            <option value="vigencia">Vigencia (cuándo rige)</option>
-            <option value="registro">Registro (cuándo se cargó)</option>
+            <option value="vigencia">{t.situacion.modoVigencia}</option>
+            <option value="registro">{t.situacion.modoRegistro}</option>
           </select>
         </div>
         <PanelTimeline cambios={listaCambios} />
       </section>
 
-      <section aria-label="Prioridades">
-        <h2>Prioridades (riesgo alto o muy alto)</h2>
+      <section aria-label={t.situacion.aria.prioridades}>
+        <h2>{t.situacion.prioridadesTitulo}</h2>
         <PanelPrioridades prioridades={estado.prioridades} sinRun={estado.sinRun} />
       </section>
     </div>

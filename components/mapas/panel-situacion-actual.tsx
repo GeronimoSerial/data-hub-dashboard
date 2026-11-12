@@ -2,10 +2,10 @@
 
 import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alumnos-resumen'
 
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { BookMinus, BookX, Check, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { etiquetaDepartamento, ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
+import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { ordenarReportes, resumir } from '@/lib/infraestructura/mapa/agregar'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
@@ -13,10 +13,14 @@ import { severidadDeGravedad } from '@/lib/infraestructura/mapa/gravedad'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { detalleNivelOInstituto } from '@/lib/infraestructura/mapa/etiquetas'
 import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
+import { localeNumero } from '@/lib/i18n/formato-numero'
+import { panelesMapaEs } from '@/lib/i18n/diccionarios/grupos/panelesMapa.es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 /** " · " más el detalle de la escuela, o nada si no tiene. */
-function textoDetalle(escuela: EscuelaMapaEnriquecida): string {
-  const detalle = detalleNivelOInstituto(escuela)
+function textoDetalle(escuela: EscuelaMapaEnriquecida, dic: Diccionario): string {
+  const detalle = detalleNivelOInstituto(escuela, dic)
   return detalle ? ` · ${detalle}` : ''
 }
 
@@ -39,31 +43,27 @@ const OPCIONES_FECHA: Intl.DateTimeFormatOptions = {
   month: 'short',
 }
 
-const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
-
 type FiltroLista = 'todas' | 'sinClases' | 'sinActualizar'
 
-const FILTROS_LISTA: { id: FiltroLista; etiqueta: string }[] = [
-  { id: 'todas', etiqueta: 'Todas' },
-  { id: 'sinClases', etiqueta: 'Sin clases' },
-  { id: 'sinActualizar', etiqueta: 'Sin actualizar' },
-]
+type Textos = Diccionario['panelesMapa']
+
+const IDS_FILTRO_LISTA: FiltroLista[] = ['todas', 'sinClases', 'sinActualizar']
 
 function cumpleFiltro(escuela: EscuelaMapaEnriquecida, filtro: FiltroLista): boolean {
   if (filtro === 'sinClases') return escuela.clases !== 'normal'
   if (filtro === 'sinActualizar') return escuela.sinActualizar
   return true
 }
-export function horaActualizacion(iso: string, ahoraMs: number): string {
+export function horaActualizacion(iso: string, ahoraMs: number, t: Textos = panelesMapaEs): string {
   const fecha = new Date(iso)
   if (!Number.isFinite(fecha.getTime())) return ''
 
   const diaFormato = formatoFechaRegion()
   const hoy = diaFormato.format(new Date(ahoraMs))
   const dia = diaFormato.format(fecha)
-  if (hoy === dia) return `Hoy ${formatoFechaRegion(OPCIONES_HORA).format(fecha)}`
+  if (hoy === dia) return t.sitHoy(formatoFechaRegion(OPCIONES_HORA).format(fecha))
   // Shows today's date but keeps the last report date visible so stale data is not mistaken for current.
-  return `Hoy ${formatoFechaRegion(OPCIONES_FECHA).format(new Date(ahoraMs))} · último parte ${formatoFechaRegion(OPCIONES_FECHA).format(fecha)}`
+  return t.sitHoyUltimoParte(formatoFechaRegion(OPCIONES_FECHA).format(new Date(ahoraMs)), formatoFechaRegion(OPCIONES_FECHA).format(fecha))
 }
 
 function IconoClases({ estado }: { estado: EscuelaMapaEnriquecida['clases'] }) {
@@ -74,14 +74,15 @@ function IconoClases({ estado }: { estado: EscuelaMapaEnriquecida['clases'] }) {
   return null
 }
 
-function chipsEscuela(escuela: EscuelaMapaEnriquecida) {
-  const apoyo = etiquetaApoyoMapa(escuela.clases, escuela.apoyo)
+function chipsEscuela(escuela: EscuelaMapaEnriquecida, dic: Diccionario) {
+  const t = dic.panelesMapa
+  const apoyo = etiquetaApoyoMapa(escuela.clases, escuela.apoyo, dic)
   return (
     <span className="map-sitact__chips">
       {escuela.clases !== 'normal' && (
         <span className="map-sitact__pill map-sitact__pill--clases">
           <IconoClases estado={escuela.clases} />
-          {ETIQUETA_ESTADO_CLASES[escuela.clases]}
+          {t.sitClases[escuela.clases]}
         </span>
       )}
       {apoyo && (
@@ -92,7 +93,7 @@ function chipsEscuela(escuela: EscuelaMapaEnriquecida) {
       {escuela.sinActualizar && (
         <span className="map-sitact__pill map-sitact__pill--neutro">
           <Clock aria-hidden="true" />
-          Sin actualizar
+          {t.sitSinActualizar}
         </span>
       )}
     </span>
@@ -102,6 +103,15 @@ function chipsEscuela(escuela: EscuelaMapaEnriquecida) {
 export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: PanelSituacionActualProps) {
   const [ahoraMs] = useState(() => Date.now())
   const [filtro, setFiltro] = useState<FiltroLista>('todas')
+  const dic = useTextos()
+  const t = dic.panelesMapa
+  const idioma = useIdioma()
+  const FORMATO_NUMERO = useMemo(() => new Intl.NumberFormat(localeNumero(idioma)), [idioma])
+  const etiquetasFiltro: Record<FiltroLista, string> = {
+    todas: 'Todas',
+    sinClases: t.sitFiltroSinClases,
+    sinActualizar: t.sitSinActualizar,
+  }
   const resumen = resumir(escuelas)
   const abiertas = ordenarReportes(escuelas).filter((escuela) => escuela.gravedad > 0 || (escuela.parte?.afectaciones.length ?? 0) > 0)
   const reportes = abiertas.filter((escuela) => cumpleFiltro(escuela, filtro))
@@ -115,49 +125,49 @@ export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: Pan
     })
 
   return (
-    <section className="map-sitact" aria-label="Situación actual" data-testid="panel-situacion-actual">
-      <div className="map-sitact__kpis" aria-label="Resumen de escuelas">
+    <section className="map-sitact" aria-label={t.sitAriaPanel} data-testid="panel-situacion-actual">
+      <div className="map-sitact__kpis" aria-label={t.sitAriaResumen}>
         <div className="map-sitact__kpi map-sitact__kpi--resaltado">
-          <span>Escuelas sin clases</span>
+          <span>{t.sitSinClases}</span>
           <strong>{FORMATO_NUMERO.format(resumen.sinClases)}</strong>
-          <small>De {FORMATO_NUMERO.format(resumen.conReporte)} con situaciones abiertas</small>
+          <small>{t.sitDeAbiertas(FORMATO_NUMERO.format(resumen.conReporte))}</small>
         </div>
         <div className="map-sitact__kpi">
-          <span>Alumnos sin clases</span>
+          <span>{t.sitAlumnosSinClases}</span>
           <strong>{FORMATO_NUMERO.format(resumen.alumnosSinClases)}</strong>
-          <small>Sin clases presenciales</small>
+          <small>{t.sitSinClasesPresenciales}</small>
         </div>
       </div>
 
       <dl className="map-sitact__secundarios">
         <div>
-          <dt>Sin actualizar</dt>
+          <dt>{t.sitSinActualizar}</dt>
           <dd>{FORMATO_NUMERO.format(resumen.sinActualizar)}</dd>
         </div>
         {resumen.sinClases > 0 && (
           <div className="map-sitact__apoyo">
-            <dt>Con asistencia pedagógica</dt>
+            <dt>{t.sitConApoyo}</dt>
             <dd>{resumen.sinClasesConApoyo} de {resumen.sinClases}</dd>
-            {resumen.sinClasesSinDato > 0 && <dd className="map-sitact__atenuado">{resumen.sinClasesSinDato} sin dato</dd>}
+            {resumen.sinClasesSinDato > 0 && <dd className="map-sitact__atenuado">{t.sitSinDato(resumen.sinClasesSinDato)}</dd>}
           </div>
         )}
       </dl>
 
       <section className="map-sitact__reportes" aria-labelledby="map-sitact-reportes-titulo">
         <h3 id="map-sitact-reportes-titulo" className="map-sitact__titulo-seccion">
-          <span>Escuelas afectadas</span><span className="map-sitact__atenuado">{FORMATO_NUMERO.format(abiertas.length)} abiertas</span>
+          <span>{t.sitAfectadas}</span><span className="map-sitact__atenuado">{t.sitAbiertas(FORMATO_NUMERO.format(abiertas.length))}</span>
         </h3>
         {abiertas.length > 0 && (
-          <div className="map-sitact__filtros" role="group" aria-label="Filtrar escuelas afectadas">
-            {FILTROS_LISTA.map((opcion) => (
+          <div className="map-sitact__filtros" role="group" aria-label={t.sitAriaFiltrar}>
+            {IDS_FILTRO_LISTA.map((id) => (
               <button
-                key={opcion.id}
+                key={id}
                 type="button"
                 className="map-sitact__filtro"
-                aria-pressed={filtro === opcion.id}
-                onClick={() => setFiltro(opcion.id)}
+                aria-pressed={filtro === id}
+                onClick={() => setFiltro(id)}
               >
-                {opcion.etiqueta}
+                {etiquetasFiltro[id]}
               </button>
             ))}
           </div>
@@ -166,8 +176,8 @@ export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: Pan
           <div className="map-sitact__lista">
             {reportes.map((escuela) => {
               const severidad = severidadDeGravedad(escuela.gravedad)
-              const nivel = textoDetalle(escuela)
-              const novedad = escuela.ultimaNovedad ? tiempoRelativo(escuela.ultimaNovedad, ahoraMs) : ''
+              const nivel = textoDetalle(escuela, dic)
+              const novedad =escuela.ultimaNovedad ? tiempoRelativo(escuela.ultimaNovedad, ahoraMs) : ''
               const departamento = etiquetaDepartamento(escuela.departamento)
               return (
                 <button
@@ -188,29 +198,29 @@ export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: Pan
                       {novedad && <span className="map-sitact__cuando">{novedad}</span>}
                     </span>
                     {escuela.impactoAlumnos && <span className="map-sitact__meta"><ImpactoAlumnosResumen impacto={escuela.impactoAlumnos} /></span>}
-                    {chipsEscuela(escuela)}
+                    {chipsEscuela(escuela, dic)}
                   </span>
                 </button>
               )
             })}
           </div>
         ) : abiertas.length > 0 ? (
-          <p className="map-sitact__vacio">Ninguna escuela afectada coincide con este filtro.</p>
+          <p className="map-sitact__vacio">{t.sitVacioFiltro}</p>
         ) : solucionadasRecientes.length === 0 ? (
-          <p className="map-sitact__vacio">Ninguna escuela con situaciones abiertas para estos filtros.</p>
+          <p className="map-sitact__vacio">{t.sitVacioAbiertas}</p>
         ) : null}
       </section>
 
       {solucionadasRecientes.length > 0 && (
         <details className="map-sitact__plegable">
           <summary className="map-sitact__titulo-seccion">
-            <span>Solucionadas en los últimos 15 días</span>
+            <span>{t.sitSolucionadas}</span>
             <span className="map-sitact__atenuado">{FORMATO_NUMERO.format(solucionadasRecientes.length)}</span>
           </summary>
           <div className="map-sitact__lista">
             {solucionadasRecientes.map((escuela) => {
-              const nivel = textoDetalle(escuela)
-              const departamento = etiquetaDepartamento(escuela.departamento)
+              const nivel = textoDetalle(escuela, dic)
+              const departamento =etiquetaDepartamento(escuela.departamento)
               return (
                 <button
                   key={escuela.cueAnexo}
@@ -225,7 +235,7 @@ export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: Pan
                     <span className="map-sitact__meta">{departamento}{nivel}</span>
                     <span className="map-sitact__chips">
                       <span className="map-sitact__pill map-sitact__pill--ok">
-                        <Check aria-hidden="true" />Solucionada recientemente
+                        <Check aria-hidden="true" />{t.sitSolucionadaReciente}
                       </span>
                     </span>
                   </span>

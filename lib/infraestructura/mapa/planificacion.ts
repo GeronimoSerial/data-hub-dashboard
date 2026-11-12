@@ -2,6 +2,7 @@ import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
 import type { EscuelaMapaEnriquecida } from './tipos'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 /** `riesgo` es el pronóstico del motor; las demás son vistas estructurales con niveles propios. */
 export type VistaPlanificacion = 'riesgo' | 'aisladas' | 'historial'
@@ -84,9 +85,10 @@ export function prioridadPlanificacion(
       || a.escuela.nombre.localeCompare(b.escuela.nombre, 'es'))
 }
 
-export function textoPrioridad(item: EscuelaPrioridad, vista: VistaEstructural): string {
-  if (vista !== 'historial') return ETIQUETA_NIVEL_PLAN[item.nivel]
+export function textoPrioridad(item: EscuelaPrioridad, vista: VistaEstructural, t?: Diccionario): string {
+  if (vista !== 'historial') return t ? etiquetaNivelPlan(t, item.nivel) : ETIQUETA_NIVEL_PLAN[item.nivel]
   const cantidad = item.escuela.situacionesHistoricas
+  if (t) return t.etiquetas.vecesSituaciones(cantidad)
   return `${cantidad} ${cantidad === 1 ? 'situación' : 'situaciones'}`
 }
 
@@ -117,4 +119,13 @@ export function coloresPlanificacion(
     const nivel = nivelPlanificacion(escuela, vista, datos)
     return nivel === 0 ? [] : [[escuela.cueAnexo, colorNivelPlan(nivel)] as const]
   }))
+}
+
+export function etiquetaNivelPlan(t: Diccionario, nivel: NivelPlanificacion): string {
+  const tabla = t.etiquetas.nivelPlan
+  return nivel in tabla ? tabla[nivel as keyof typeof tabla] : ETIQUETA_NIVEL_PLAN[nivel]
+}
+
+export function tituloLeyendaVista(t: Diccionario, vista: VistaEstructural): string {
+  return t.etiquetas.tituloVista[vista]
 }

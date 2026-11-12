@@ -1,0 +1,102 @@
+import type { DeepStringify } from '../tipos'
+import type { fichaCuerpoEs } from './fichaCuerpo.es'
+
+// Brazilian Portuguese texts of the `fichaCuerpo` group; must mirror fichaCuerpo.es.ts key for key.
+export const fichaCuerpoPt: DeepStringify<typeof fichaCuerpoEs> = {
+  acceso: {
+    calculando: 'Calculando o acesso…',
+    error: 'Não foi possível calcular o acesso.',
+    sinAcceso: 'Sem acesso calculado',
+    comoSeCalcula: 'Como é calculado',
+    etiqueta: 'Acesso',
+    junto: 'Junto à lagoa',
+    sujetos: { escuela: 'na escola', camino: 'no caminho' },
+    riesgo: {
+      sinCamino: 'Sem caminho calculado',
+      alto: (sujeto: string) => `Risco alto de inundação ${sujeto}`,
+      medio: (sujeto: string) => `Risco médio de inundação ${sujeto}`,
+      bajo: (sujeto: string) => `Risco baixo de inundação ${sujeto}`,
+      sinRiesgo: (sujeto: string) => `Sem risco de inundação ${sujeto}`,
+      sinDato: (sujeto: string) => `Sem dado de inundação ${sujeto}`,
+    },
+  },
+  centroEvacuados: {
+    ocultar: 'Ocultar caminho até o centro de evacuados',
+    ver: 'Ver caminho até o centro de evacuados mais próximo',
+    etiqueta: 'Centro de evacuados mais próximo',
+    buscando: 'Buscando o centro de evacuados mais próximo…',
+    error: 'Não foi possível carregar o centro de evacuados mais próximo.',
+    motivo: {
+      sin_calculo: 'Ainda não foi calculado o centro de evacuados mais próximo.',
+      sin_destino_apto: 'Não há outro possível centro de evacuados para esta escola.',
+    },
+  },
+  resumen: {
+    filtroActivo: 'Filtro ativo',
+    escuelas: (total: string) => ` · ${total} escolas`,
+    escuelasAfectadas: (n: number) =>
+      n === 1 ? 'escola com situações abertas' : 'escolas com situações abertas',
+    porcentajeDelDepartamento: (porcentaje: number) => `${porcentaje}% das escolas do departamento`,
+    porcentajeAfectadas: (porcentaje: number) => `${porcentaje}% das escolas afetadas`,
+    cerrar: 'Fechar departamento',
+    quitar: 'Remover filtro',
+  },
+  cruceAgua: {
+    cruceDeAgua: 'Travessia de água',
+    puente: (nombre: string) => `Ponte: ${nombre}`,
+    caminoA: (destino: string) => `Caminho para ${destino}`,
+    viaSinNombre: 'Via principal sem nome',
+    viaPrincipal: (nombre: string) => `Via principal: ${nombre}`,
+    posicion: 'Posição no caminho',
+    cruce: (orden: number, total: number) => `Travessia ${orden} de ${total}`,
+    desdeLaEscuela: 'Desde a escola',
+    aEscuela: (km: string) => `${km} km de distância`,
+    lluviaObservada: (horas: number) => `Chuva observada (${horas} h)`,
+    etiqueta: {
+      puente: 'Ponte',
+      vado: 'Vau',
+      vado_probable: 'Vau provável',
+      sin_evidencia: 'Sem ponte registrada',
+    },
+    descripcion: {
+      puente: 'Travessia de água com ponte registrada no mapa.',
+      vado: 'Travessia de água no nível do leito, sem ponte. Não diz se hoje dá para passar.',
+      vado_probable:
+        'Travessia sem tag ford=yes sobre uma via não pavimentada; estima-se como vau para o índice.',
+      sin_evidencia:
+        'Não há ponte registrada no mapa nesta travessia; ela pode existir sem estar registrada. Não diz se hoje dá para passar.',
+    },
+  },
+  estacionRio: {
+    rio: { parana: 'Rio Paraná', uruguay: 'Rio Uruguai' },
+    evacuacion: 'Evacuação',
+    sinDato: 'Sem dado',
+    actual: 'Atual',
+    evacuacionDt: 'Evacuação',
+    lecturaVencida: 'Leitura de mais de 18 h',
+    inconsistente: 'Marcada como inconsistente pela fonte',
+    sinLecturas: 'Sem leituras publicadas.',
+    cargandoSerie: 'Carregando a série…',
+    errorSerie: 'Não foi possível carregar a série.',
+    respaldoSerie: 'Não foi possível atualizar a série; mostram-se os dados mais recentes disponíveis.',
+    pocasLecturas: 'Poucas leituras para representar no gráfico.',
+    alturaRio: (dias: number) => `Altura do rio nos últimos ${dias} dias`,
+    ultimosDias: (dias: number) => `Últimos ${dias} dias`,
+    variacion24: 'Variação 24 h',
+    variacion72: 'Variação 72 h',
+    hastaAlerta: 'Até alerta',
+    hastaEvacuacion: 'Até evacuação',
+    sinUmbral: 'Sem limiar',
+    faltan: (valor: string) => `Faltam ${valor}`,
+    superada: (valor: string) => `Superado por ${valor}`,
+    umbralAlerta: (valor: string) => `Alerta ${valor}`,
+    umbralEvacuacion: (valor: string) => `Evac. ${valor}`,
+    sobreEvacuacion: (valor: string) => `▲ ${valor} acima da evacuação`,
+    sobreAlerta: (valor: string) => `▲ ${valor} acima do alerta`,
+    hace: {
+      menosDeUnaHora: 'há menos de 1 h',
+      horas: (horas: number) => `há ${horas} h`,
+      dias: (dias: number) => `há ${dias} dias`,
+    },
+  },
+}

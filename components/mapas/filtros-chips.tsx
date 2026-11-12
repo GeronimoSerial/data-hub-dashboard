@@ -6,9 +6,11 @@ import { ChevronDown, Search, X } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { contarOpciones, filtrarEscuelas, opcionesDireccion, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
-import { etiquetaDepartamento, ETIQUETA_APOYO, ETIQUETA_ESTADO_CLASES, ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
+import { etiquetaApoyo, etiquetaDepartamento, etiquetaEstadoClases, etiquetaGravedad } from '@/lib/infraestructura/mapa/etiquetas'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type EstadoClases, type FiltrosMapa, type GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import { cantidadFiltrosEnLinea } from '@/lib/infraestructura/mapa/filtros-en-linea'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 type ClaveFiltro = 'departamentos' | 'gravedades' | 'clases' | 'apoyo' | 'direcciones'
 type Opcion = { valor: string; etiqueta: string }
@@ -16,34 +18,44 @@ type Opcion = { valor: string; etiqueta: string }
 const CLAVES_DESPLEGABLES: readonly ClaveFiltro[] = ['departamentos', 'gravedades', 'clases', 'apoyo', 'direcciones']
 const CLAVES_INTERRUPTOR = ['sinActualizar', 'solucionadasRecientes', 'conComedor'] as const
 type ClaveInterruptor = (typeof CLAVES_INTERRUPTOR)[number]
-const ETIQUETAS_INTERRUPTOR: Record<ClaveInterruptor, string> = {
-  sinActualizar: 'Sin actualizar',
-  solucionadasRecientes: 'Solucionadas en los últimos 15 días',
-  conComedor: 'Con comedor',
-}
 const CLAVES_FILTROS_EN_ORDEN = [...CLAVES_DESPLEGABLES, ...CLAVES_INTERRUPTOR]
 
-const OPCIONES_GRAVEDAD: Opcion[] = [4, 3, 2, 1, 0].map((valor) => ({
-  valor: String(valor),
-  etiqueta: ETIQUETA_GRAVEDAD[valor as GravedadMapa],
-}))
+type TextosFiltrosChips = Diccionario['controlesFiltros']['filtrosChips']
 
-const OPCIONES_CLASES: Opcion[] = (['normal', 'parcial', 'sin', 'evacuado', 'centro'] as EstadoClases[]).map((valor) => ({
-  valor,
-  etiqueta: ETIQUETA_ESTADO_CLASES[valor],
-}))
+function etiquetasInterruptor(textos: TextosFiltrosChips): Record<ClaveInterruptor, string> {
+  return {
+    sinActualizar: textos.sinActualizar,
+    solucionadasRecientes: textos.solucionadasRecientes,
+    conComedor: textos.conComedor,
+  }
+}
 
-const OPCIONES_APOYO: Opcion[] = (['brinda', 'no', 'sin_dato'] as const).map((valor) => ({
-  valor,
-  etiqueta: ETIQUETA_APOYO[valor],
-}))
+function etiquetasFiltro(textos: TextosFiltrosChips): Record<ClaveFiltro, string> {
+  return {
+    departamentos: 'Departamento',
+    gravedades: textos.gravedad,
+    clases: textos.clases,
+    apoyo: textos.apoyo,
+    direcciones: textos.direccion,
+  }
+}
 
-const ETIQUETAS_FILTRO: Record<ClaveFiltro, string> = {
-  departamentos: 'Departamento',
-  gravedades: 'Gravedad',
-  clases: 'Clases',
-  apoyo: 'Asistencia pedagógica',
-  direcciones: 'Dirección',
+const CLAVES_CLASES: readonly EstadoClases[] = ['normal', 'parcial', 'sin', 'evacuado', 'centro']
+const CLAVES_APOYO = ['brinda', 'no', 'sin_dato'] as const
+
+function opcionesGravedad(t: Diccionario): Opcion[] {
+  return [4, 3, 2, 1, 0].map((valor) => ({
+    valor: String(valor),
+    etiqueta: etiquetaGravedad(t, valor as GravedadMapa),
+  }))
+}
+
+function opcionesClases(t: Diccionario): Opcion[] {
+  return CLAVES_CLASES.map((valor) => ({ valor, etiqueta: etiquetaEstadoClases(t, valor) }))
+}
+
+function opcionesApoyo(t: Diccionario): Opcion[] {
+  return CLAVES_APOYO.map((valor) => ({ valor, etiqueta: etiquetaApoyo(t, valor) }))
 }
 
 function valoresSeleccionados(filtros: FiltrosMapa, clave: ClaveFiltro): string[] {
@@ -55,21 +67,21 @@ function esGravedadMapa(valor: number): valor is GravedadMapa {
 }
 
 function esClase(valor: string): valor is EstadoClases {
-  return OPCIONES_CLASES.some((opcion) => opcion.valor === valor)
+  return (CLAVES_CLASES as readonly string[]).includes(valor)
 }
 
 function esApoyo(valor: string): valor is FiltrosMapa['apoyo'][number] {
-  return OPCIONES_APOYO.some((opcion) => opcion.valor === valor)
+  return (CLAVES_APOYO as readonly string[]).includes(valor)
 }
 
-function opcionesPorFiltro(escuelas: EscuelaMapaEnriquecida[], clave: ClaveFiltro): Opcion[] {
+function opcionesPorFiltro(escuelas: EscuelaMapaEnriquecida[], clave: ClaveFiltro, t: Diccionario): Opcion[] {
   if (clave === 'departamentos') {
     return opcionesDisponibles(escuelas).departamentos.map((valor) => ({ valor, etiqueta: etiquetaDepartamento(valor) }))
   }
   if (clave === 'direcciones') return opcionesDireccion(escuelas).map((direccion) => ({ valor: String(direccion.id), etiqueta: direccion.nombre }))
-  if (clave === 'gravedades') return OPCIONES_GRAVEDAD
-  if (clave === 'clases') return OPCIONES_CLASES
-  return OPCIONES_APOYO
+  if (clave === 'gravedades') return opcionesGravedad(t)
+  if (clave === 'clases') return opcionesClases(t)
+  return opcionesApoyo(t)
 }
 
 function alternarValor(filtros: FiltrosMapa, clave: ClaveFiltro, valor: string): FiltrosMapa {
@@ -98,13 +110,14 @@ function OpcionesFiltro({
   onChange: (filtros: FiltrosMapa) => void
   primerCheckbox?: Ref<HTMLElement>
 }) {
+  const t = useTextos()
   const seleccionados = valoresSeleccionados(filtros, clave)
-  const opciones = opcionesPorFiltro(escuelas, clave)
+  const opciones = opcionesPorFiltro(escuelas, clave, t)
   const conteos = contarOpciones(escuelas, clave)
 
   return opciones.length === 0 ? (
     <div className="filtros-opcion-vacio" role="status">
-      No hay opciones disponibles.
+      {t.controlesFiltros.filtrosChips.sinOpciones}
     </div>
   ) : opciones.map((opcion, indice) => (
     <Checkbox
@@ -143,7 +156,9 @@ function FiltroDesplegable({
   contenedorPopovers?: RefObject<HTMLElement | null>
   enMedicion: boolean
 }) {
-  const etiqueta = ETIQUETAS_FILTRO[clave]
+  const t = useTextos()
+  const textos = t.controlesFiltros.filtrosChips
+  const etiqueta = etiquetasFiltro(textos)[clave]
   const seleccionadosActuales = valoresSeleccionados(filtros, clave)
   // The bar is right-aligned: if the chip grew while its list is open, the list
   // would slide sideways. Keep the chip as it was until the list closes.
@@ -151,12 +166,12 @@ function FiltroDesplegable({
   if (!abierto && seleccionados.join('\u0000') !== seleccionadosActuales.join('\u0000')) {
     setSeleccionados(seleccionadosActuales)
   }
-  const opciones = opcionesPorFiltro(escuelas, clave)
+  const opciones = opcionesPorFiltro(escuelas, clave, t)
   const primerCheckbox = useRef<HTMLElement>(null)
   const textoChip = seleccionados.length === 0
     ? etiqueta
     : `${etiqueta}: ${seleccionados.length > 1
-      ? `${seleccionados.length} elegidos`
+      ? textos.elegidos(seleccionados.length)
       : opciones.find((opcion) => opcion.valor === seleccionados[0])?.etiqueta ?? seleccionados[0]}`
 
   return (
@@ -187,7 +202,7 @@ function FiltroDesplegable({
         <button
           type="button"
           className="filtros-chip__quitar"
-          aria-label={`Quitar filtro ${etiqueta}`}
+          aria-label={textos.quitarFiltro(etiqueta)}
           data-testid={enMedicion ? undefined : `filtro-quitar-${clave}`}
           onClick={() => onChange({ ...filtros, [clave]: [] })}
         >
@@ -211,6 +226,8 @@ export function FiltrosChips({
   onSeleccionar?: (cueAnexo: string) => void
   contenedorPopovers?: RefObject<HTMLElement | null>
 }) {
+  const t = useTextos()
+  const textos = t.controlesFiltros.filtrosChips
   const [popoverAbierto, setPopoverAbierto] = useState<{ grupo: 'principal' | 'medicion'; clave: ClaveFiltro } | null>(null)
   const [sugerenciasCerradas, setSugerenciasCerradas] = useState(false)
   const [opcionActiva, setOpcionActiva] = useState(0)
@@ -239,7 +256,7 @@ export function FiltrosChips({
     + filtros.gravedades.length + filtros.clases.length + filtros.apoyo.length + filtros.direcciones.length + interruptoresActivos
   const cantidadFuera = CLAVES_FILTROS_EN_ORDEN.length - cantidadEnLinea
   const sinFiltrosEnLinea = cantidadEnLinea === 0
-  const etiquetaBotonMas = sinFiltrosEnLinea ? 'Filtros' : 'Más filtros'
+  const etiquetaBotonMas = sinFiltrosEnLinea ? 'Filtros' : textos.masFiltros
   const conteosActivosEnOrden = [
     filtros.departamentos.length,
     filtros.gravedades.length,
@@ -303,7 +320,7 @@ export function FiltrosChips({
     )
   }
   function renderInterruptor(clave: ClaveInterruptor, enMedicion = false) {
-    const etiqueta = ETIQUETAS_INTERRUPTOR[clave]
+    const etiqueta = etiquetasInterruptor(textos)[clave]
     const activo = filtros[clave]
     return (
       <button key={clave} type="button" className={`filtros-chip filtros-chip--interruptor${activo ? ' filtros-chip--activo' : ''}`} aria-pressed={activo} data-testid={enMedicion ? undefined : `filtro-interruptor-${clave}`} onClick={() => onChange({ ...filtros, [clave]: !activo })}>
@@ -312,7 +329,7 @@ export function FiltrosChips({
     )
   }
   function renderGrupoPanel(clave: ClaveFiltro) {
-    const titulo = ETIQUETAS_FILTRO[clave]
+    const titulo = etiquetasFiltro(textos)[clave]
     return (
       <section className="map-filtros-mas-grupo" aria-label={titulo} key={clave}>
         <h3 className="map-filtros-mas-titulo">{titulo}</h3>
@@ -322,7 +339,7 @@ export function FiltrosChips({
   }
 
   return (
-    <div className="filtros-barra" aria-label="Filtros de escuelas" ref={filtrosBarraRef}>
+    <div className="filtros-barra" aria-label={textos.filtrosEscuelas} ref={filtrosBarraRef}>
       <div className={`filtros-busqueda-contenedor${busquedaVisible ? ' filtros-busqueda-contenedor--abierto' : ''}`}>
         {busquedaVisible ? (
           <label className="filtros-busqueda">
@@ -331,13 +348,13 @@ export function FiltrosChips({
               ref={busquedaRef}
               type="search"
               role="combobox"
-              aria-label="Buscar escuela o CUE"
+              aria-label={textos.buscarEscuela}
               aria-expanded={sugerenciasAbiertas}
               aria-controls={idLista}
               aria-activedescendant={indiceActivo >= 0 ? idOpcionActiva : undefined}
               aria-autocomplete="list"
               data-testid="filtros-busqueda-input"
-              placeholder="Buscar escuela o CUE"
+              placeholder={textos.buscarEscuela}
               value={filtros.q}
               onChange={(evento) => {
                 onChange({ ...filtros, q: evento.currentTarget.value })
@@ -372,7 +389,7 @@ export function FiltrosChips({
           <button
             type="button"
             className="filtros-busqueda-boton"
-            aria-label="Buscar escuela o CUE"
+            aria-label={textos.buscarEscuela}
             aria-expanded={false}
             onClick={() => setBusquedaAbierta(true)}
           >
@@ -380,9 +397,9 @@ export function FiltrosChips({
           </button>
         )}
         {busquedaVisible && sugerenciasAbiertas && (
-          <div className="filtros-sugerencias" id={idLista} role="listbox" aria-label="Escuelas coincidentes">
+          <div className="filtros-sugerencias" id={idLista} role="listbox" aria-label={textos.escuelasCoincidentes}>
             {sugerencias.length === 0 ? (
-              <div className="filtros-sugerencias__vacio" role="status">Ninguna escuela coincide</div>
+              <div className="filtros-sugerencias__vacio" role="status">{textos.ningunaCoincide}</div>
             ) : sugerencias.map((escuela, indice) => (
               <div
                 key={escuela.cueAnexo}
@@ -417,7 +434,7 @@ export function FiltrosChips({
               className={`filtros-chip${cantidadActivosFuera ? ' filtros-chip--activo' : ''}`}
               data-testid="filtros-mas"
               aria-expanded={masFiltrosAbiertos}
-              aria-label={`${etiquetaBotonMas}${cantidadActivosFuera ? `, ${cantidadActivosFuera} activos` : ''}`}
+              aria-label={`${etiquetaBotonMas}${cantidadActivosFuera ? textos.activosAria(cantidadActivosFuera) : ''}`}
             />}
           >
             {etiquetaBotonMas}
@@ -428,25 +445,25 @@ export function FiltrosChips({
             <Popover.Positioner className="map-filtros-mas-posicionador" side="bottom" align="end" sideOffset={4}>
               <Popover.Popup className="map-filtros-mas-panel" aria-label={etiquetaBotonMas}>
                 {CLAVES_DESPLEGABLES.slice(cantidadEnLinea).map(renderGrupoPanel)}
-                {cantidadEnLinea <= CLAVES_DESPLEGABLES.length ? <section className="map-filtros-mas-grupo" aria-label="Sin actualizar"><h3 className="map-filtros-mas-titulo">Sin actualizar</h3><Switch
+                {cantidadEnLinea <= CLAVES_DESPLEGABLES.length ? <section className="map-filtros-mas-grupo" aria-label={textos.sinActualizar}><h3 className="map-filtros-mas-titulo">{textos.sinActualizar}</h3><Switch
                   data-testid="filtro-mas-switch-sinActualizar"
                   checked={filtros.sinActualizar}
                   onCheckedChange={(sinActualizar) => onChange({ ...filtros, sinActualizar })}
-                  label="Sin actualizar"
+                  label={textos.sinActualizar}
                 /></section> : null}
-                {cantidadEnLinea <= CLAVES_DESPLEGABLES.length + 1 ? <section className="map-filtros-mas-grupo" aria-label="Solucionadas en los últimos 15 días"><h3 className="map-filtros-mas-titulo">Solucionadas en los últimos 15 días</h3><Switch
+                {cantidadEnLinea <= CLAVES_DESPLEGABLES.length + 1 ? <section className="map-filtros-mas-grupo" aria-label={textos.solucionadasRecientes}><h3 className="map-filtros-mas-titulo">{textos.solucionadasRecientes}</h3><Switch
                   data-testid="filtro-mas-switch-solucionadasRecientes"
                   checked={filtros.solucionadasRecientes}
                   onCheckedChange={(solucionadasRecientes) => onChange({ ...filtros, solucionadasRecientes })}
-                  label="Solucionadas en los últimos 15 días"
+                  label={textos.solucionadasRecientes}
                 /></section> : null}
-                {cantidadEnLinea <= CLAVES_DESPLEGABLES.length + 2 ? <section className="map-filtros-mas-grupo" aria-label="Con comedor"><h3 className="map-filtros-mas-titulo">Con comedor</h3><Switch
+                {cantidadEnLinea <= CLAVES_DESPLEGABLES.length + 2 ? <section className="map-filtros-mas-grupo" aria-label={textos.conComedor}><h3 className="map-filtros-mas-titulo">{textos.conComedor}</h3><Switch
                   data-testid="filtro-mas-switch-conComedor"
                   checked={filtros.conComedor}
                   onCheckedChange={(conComedor) => onChange({ ...filtros, conComedor })}
-                  label="Con comedor"
+                  label={textos.conComedor}
                 /></section> : null}
-                {hayFiltrosActivos ? <button type="button" className="filtros-limpiar" data-testid="filtros-limpiar" onClick={() => onChange(FILTROS_MAPA_VACIOS)}>Limpiar filtros</button> : null}
+                {hayFiltrosActivos ? <button type="button" className="filtros-limpiar" data-testid="filtros-limpiar" onClick={() => onChange(FILTROS_MAPA_VACIOS)}>{textos.limpiarFiltros}</button> : null}
               </Popover.Popup>
             </Popover.Positioner>
           </Popover.Portal>
@@ -457,7 +474,7 @@ export function FiltrosChips({
         <div data-medicion-filtro="sinActualizar">{renderInterruptor('sinActualizar', true)}</div>
         <div data-medicion-filtro="solucionadasRecientes">{renderInterruptor('solucionadasRecientes', true)}</div>
         <div data-medicion-filtro="conComedor">{renderInterruptor('conComedor', true)}</div>
-        <button data-medicion-filtro="mas" type="button" className="filtros-chip">Más filtros</button>
+        <button data-medicion-filtro="mas" type="button" className="filtros-chip">{textos.masFiltros}</button>
       </div>
     </div>
   )
