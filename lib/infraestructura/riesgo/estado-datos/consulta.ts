@@ -28,6 +28,7 @@ import {
   clasificarPlausibilidad,
   clasificarPrefectura,
   clasificarRunVigente,
+  clasificarSondaCadena,
   LECTURAS_IDENTICAS_SENSOR_TRABADO,
   type EstadoDatos,
 } from './clasificar'
@@ -69,6 +70,7 @@ export async function obtenerEstadoDatos(): Promise<EstadoDatos> {
   const granulosDeHoy = await consultarGranulosImergDelDia(db, ahora)
   const huecosImerg = clasificarHuecosImerg({ observadosEn: granulosDeHoy, ahora })
 
+  const sonda = clasificarSondaCadena({ ultima: ultimaPorTipo.get('sonda-cadena-datos'), ahora })
   const items = [
     // Los jobs sin `tipo` no escriben infra_job_run: no hay forma de verificarlos acá.
     ...JOBS_ESPERADOS.filter((job) => job.tipo !== null).map((job) =>
@@ -90,6 +92,9 @@ export async function obtenerEstadoDatos(): Promise<EstadoDatos> {
       lecturasRecientes: lecturasRecientesPorEstacion(recientes),
       referencias: rangosDeReferencia(referencias),
     }),
+    // Sólo verificada o fallida: nunca corrió, atrasada o pausada ya las informa el item
+    // `job:sonda-cadena-datos`; repetirlas acá contaría el mismo problema dos veces.
+    ...(['ok', 'fallido'].includes(sonda.estado) ? [sonda] : []),
     clasificarImerg({ desde: imerg[0]?.desde ?? null, hasta: datoMasRecienteImerg, ahora }),
     ...(huecosImerg ? [huecosImerg] : []),
     clasificarClimatologia(operativo.climatologiaPrecipitacion),

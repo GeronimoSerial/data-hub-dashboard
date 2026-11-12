@@ -124,6 +124,13 @@ const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
   hourCycle: 'h23',
 })
 
+// Sólo cuando la sonda de la cadena está ok; el texto sale del mismo item del panel.
+export function textoCadenaVerificada(estadoDatos: EstadoDatos | null): string | null {
+  const item = estadoDatos?.items.find((i) => i.id === 'sonda:cadena')
+  if (item?.estado !== 'ok') return null
+  return item.motivo.replace(/\.$/, '')
+}
+
 export function formatearFecha(iso: string): string {
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return iso
@@ -254,6 +261,7 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
   }, [])
 
   const listaCambios = modoCambios === 'registro' ? cambios.porRegistro : cambios.porVigencia
+  const cadenaVerificada = textoCadenaVerificada(estado.estadoDatos)
 
   return (
     <div className="situacion-page" data-testid="situacion-page">
@@ -271,6 +279,11 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
                 : estado.atraso.atrasado
                   ? ' — Desactualizado'
                   : ''}
+          </p>
+        )}
+        {cadenaVerificada !== null && (
+          <p className="situacion-page__generado" data-testid="situacion-cadena-verificada">
+            {cadenaVerificada}
           </p>
         )}
         {/* Región aria-live polite: anuncia el refresco sin mover el foco del

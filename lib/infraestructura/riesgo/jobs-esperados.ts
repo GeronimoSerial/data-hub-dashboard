@@ -88,6 +88,8 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
   },
   { nombre: 'sync-ensemble', tipo: 'sync-hazard-ensemble', intervaloMinutos: 360, habilitado: true, contadorFilas: 'filas', minimoFilas: 1 },
   { nombre: 'situacion-corte', tipo: 'situacion-corte-v1', intervaloMinutos: 60, habilitado: true },
+  // Coolify Scheduled Task `41 * * * *` (ver runbook-scheduler.md): corre en producción y en consumidor.
+  { nombre: 'sonda-cadena-datos', tipo: 'sonda-cadena-datos', intervaloMinutos: 60, habilitado: true },
   { nombre: 'episodios-derivados', tipo: 'episodios-derivados-v0', intervaloMinutos: 60, habilitado: false },
   { nombre: 'sync-seasonal', tipo: 'sync-hazard-seasonal', intervaloMinutos: 1440, habilitado: false },
   // Coolify Scheduled Task `17 * * * *` in production since 2026-10-13.

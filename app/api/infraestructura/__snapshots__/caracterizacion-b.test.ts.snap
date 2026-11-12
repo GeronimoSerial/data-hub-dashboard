@@ -1466,6 +1466,18 @@ exports[`GET /api/infraestructura/situacion > devuelve el estado de situación p
         {
           "edadMinutos": null,
           "estado": "sin_datos",
+          "grupo": "riesgo",
+          "id": "job:sonda-cadena-datos",
+          "intervaloMinutos": 60,
+          "motivo": "Nunca corrió.",
+          "nombre": "sonda-cadena-datos",
+          "ultimoError": null,
+          "ultimoExitoEn": null,
+          "ultimoIntentoEn": null,
+        },
+        {
+          "edadMinutos": null,
+          "estado": "sin_datos",
           "grupo": "hidrometria",
           "id": "job:sync-prefectura-alturas",
           "intervaloMinutos": 60,
@@ -1668,7 +1680,7 @@ exports[`GET /api/infraestructura/situacion > devuelve el estado de situación p
           "ultimoIntentoEn": null,
         },
       ],
-      "problemas": 20,
+      "problemas": 21,
     },
     "prioridades": [
       {

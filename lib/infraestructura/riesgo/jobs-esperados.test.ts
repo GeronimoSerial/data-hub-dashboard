@@ -18,6 +18,7 @@ describe('JOBS_ESPERADOS', () => {
     ['sync-synop-lluvia', 60],
     ['sync-prefectura-historico', 1440],
     ['importar-exposicion-rio-dem', 1440],
+    ['sonda-cadena-datos', 60],
   ])('vigila %s cada %i min en producción', (nombre, intervalo) => {
     expect(porNombre.get(nombre)).toMatchObject({ habilitado: true, intervaloMinutos: intervalo })
   })
@@ -50,6 +51,8 @@ describe('jobsEsperadosParaRol', () => {
     // INA no comparte cupo: el consumidor corre sus propios jobs INA.
     expect(consumidor.find((job) => job.nombre === 'sync-ina-serie-diaria')).toMatchObject({ habilitado: true })
     expect(consumidor.find((job) => job.nombre === 'sync-ina-pronostico')).toMatchObject({ habilitado: true })
+    // La sonda corre también en consumidor (sólo omite la comparación con Prefectura).
+    expect(consumidor.find((job) => job.nombre === 'sonda-cadena-datos')).toMatchObject({ habilitado: true })
     expect(consumidor.map((job) => job.nombre)).toEqual(JOBS_ESPERADOS.map((job) => job.nombre))
   })
 
