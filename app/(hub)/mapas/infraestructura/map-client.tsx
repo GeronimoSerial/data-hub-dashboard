@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { pestanaDeMapa, resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
