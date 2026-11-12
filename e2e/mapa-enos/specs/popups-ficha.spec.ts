@@ -22,9 +22,16 @@ const CUE_SIN_UBICACION = '1801176-01'
 // Escuela con parte vigente y marcada "sin actualizar" (4 escuelas en el seed).
 const CUE_SIN_ACTUALIZAR = '1801477-00'
 
+// Coordenadas del roster (seed/escuelas.ts) de CUE_CON_PARTE.
+const COORD_CON_PARTE = { lat: -27.4714939, lon: -58.836627 }
+
 async function abrirMapa(page: Page): Promise<void> {
   await page.goto('/mapas/infraestructura')
   await esperarMapaListo(page)
+}
+
+async function centroActual(page: Page): Promise<{ lon: number; lat: number; zoom: number }> {
+  return page.evaluate(() => (window as unknown as { __mapaE2E: { centro(): { lon: number; lat: number; zoom: number } } }).__mapaE2E.centro())
 }
 
 async function seleccionarPorBusqueda(page: Page, texto: string, cue: string): Promise<void> {
@@ -109,5 +116,13 @@ test.describe('ficha de escuela', () => {
     await expect(page).toHaveURL(/\/mapas\/infraestructura/)
     await expect(page.getByTestId('volver-al-mapa')).toHaveCount(0)
     await esperarMapaListo(page)
+    await expect.poll(async () => {
+      const centro = await centroActual(page)
+      return Math.abs(centro.lat - COORD_CON_PARTE.lat) < 0.0005 && Math.abs(centro.lon - COORD_CON_PARTE.lon) < 0.0005 && Math.abs(centro.zoom - 14) < 0.005
+    }).toBe(true)
+    const centro = await centroActual(page)
+    expect(centro.lat).toBeCloseTo(COORD_CON_PARTE.lat, 3)
+    expect(centro.lon).toBeCloseTo(COORD_CON_PARTE.lon, 3)
+    expect(centro.zoom).toBeCloseTo(14, 2)
   })
 })
