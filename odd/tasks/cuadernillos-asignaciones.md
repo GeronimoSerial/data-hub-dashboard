@@ -15,12 +15,12 @@ Branch: `feat/cuadernillos-asignaciones` (from `origin/main` 71832ce0). Delivery
 
 ## Tasks
 
-- [ ] T1 — S1, S2; data; delegated (haiku, parallel); build script + `data/cuadernillos/asignaciones-consejo.csv`; commit: pending
-- [ ] T2 — S3, S7; backend; delegated (haiku, parallel); admin bypass in `assignment-source.ts` (ensurePlanningActor, confirmation account checks) and `approvalAuthorityReady` responsible-account checks when actor is admin; commit: pending
-- [ ] T3 — S5; backend + UI; delegated (haiku, parallel); memberships service, `app/api/cuadernillos/memberships`, admin panel in planning view; commit: pending
-- [ ] T4 — S4; backend; delegated after T2; upload/stage/preview/confirm routes under `app/api/cuadernillos/assignments/sources`; commit: pending
-- [ ] T5 — S4; UI; delegated after T4; assignment import screen with account mapping; commit: pending
-- [ ] T6 — S6; backend + UI; delegated after T3; admin "ver como" for supervisor/cabecera; commit: pending
+- [x] T1 — S1, S2; data; delegated (haiku, parallel); build script + `data/cuadernillos/asignaciones-consejo.csv`; commit: 8591d4fa, a9c81cad
+- [x] T2 — S3, S7; backend; delegated (haiku, parallel); admin bypass in `assignment-source.ts` (ensurePlanningActor, confirmation account checks) and `approvalAuthorityReady` responsible-account checks when actor is admin; commit: a14b0e6a, 05087340
+- [x] T3 — S5; backend + UI; delegated (haiku, parallel); memberships service, `app/api/cuadernillos/memberships`, admin panel in planning view; commit: f95c85a9
+- [x] T4 — S4; backend; delegated after T2; upload/stage/preview/confirm routes under `app/api/cuadernillos/assignments/sources`; commit: 05087340
+- [x] T5 — S4; UI; delegated after T4; assignment import screen with account mapping; commit: latest
+- [x] T6 — S6; backend + UI; delegated after T3; admin "ver como" for supervisor/cabecera; commit: 585e4bfa
 - [ ] T7 — S7; parent; load the list into prod, grant memberships, promote main → staging → prod, smoke as admin; commit: pending
 
 Route evidence: T1/T2/T3 have disjoint edit surfaces and run in parallel (user asked for haiku workers). T4 shares `assignment-source.ts` with T2; T5 depends on T4; T6 shares workspace files with T3.
@@ -33,3 +33,4 @@ L3: Mapping: confirm route returns 503 unconditionally; no loader, no membership
 L5: T1 done (haiku): 1316 rows; ok 28, sin_cabecera 895, sin_supervisor 388, conflicto_supervisor 5; cabecera resolved only for 48 schools from explicit sheet evidence. Earlier 429 baseline was a weaker scan (missed Esquina rows). User asked for an Excel of schools without supervisor: `../escuelas-consejo-sin-supervisor.xlsx` (388 rows, outside repo).
 L6: T2 done (haiku): admin bypass in ensurePlanningActor; responsible accounts need not-banned + membership, not emailVerified. lib/cuadernillos + api: 160 passed, 17 skipped. Gap: `assignment-import.ts` ~305 still requires emailVerified (legacy path, not used by S4).
 L4 (assumption): admin approving still needs a confirmed assignment for the school (recipient/cabecera must be known); only account/membership checks are bypassed.
+L7: T1b: 12 more read, 74 inferred by department (Esquina override per user), sin_supervisor 302; Excel at planeamiento-flujo root. T5/T6 done. Seam: 254 passed, 17 skipped; tsc 0. BLOCKER: only 76 schools have a cabecera; confirmation requires one. Awaiting user on cabecera source.
