@@ -19,6 +19,7 @@ import type {
 } from '@/lib/infraestructura/trayectoria-tipos'
 import { textoAlcanceInstituto } from '@/lib/infraestructura/parte/instituto-ui'
 import { fichaPanoramaEs } from '@/lib/i18n/diccionarios/grupos/fichaPanorama.es'
+import { parteComunTextosEs } from '@/lib/i18n/diccionarios/grupos/parteComunTextos.es'
 import { es } from '@/lib/i18n/diccionarios/es'
 import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
@@ -114,21 +115,27 @@ export const MENSAJE_SIN_CORTE = fichaPanoramaEs.parte.sinCorte
 
 // spec §3.4 y §10. El funcionamiento parcialmente interrumpido es un resultado
 // informativo: se muestra, nunca se ofrece como opción de carga.
-export const ETIQUETA_SERVICIO: Record<EstadoServicioGeneral, string> = {
-  normal: 'Funcionamiento habitual',
-  parcial: 'Funcionamiento parcialmente interrumpido',
-  suspendido: 'Funcionamiento interrumpido',
-}
+export const ETIQUETA_SERVICIO: Record<EstadoServicioGeneral, string> = parteComunTextosEs.etiquetaServicio
 
 // Respuestas de la pregunta de carga "¿Hay clases?" (spec rediseño §5.6).
-export const ETIQUETA_CLASES: Record<'normal' | 'suspendido', string> = {
-  normal: 'Sí, con normalidad',
-  suspendido: 'No, se suspendieron',
-}
+export const ETIQUETA_CLASES: Record<'normal' | 'suspendido', string> = parteComunTextosEs.etiquetaClases
 
 // spec §3.5.
 // Todo el edificio sin clases sin estar evacuado (p. ej. sin agua ni energía).
 export const ETIQUETA_ESTABLECIMIENTO: Record<EstadoEstablecimiento, string> = fichaPanoramaEs.establecimiento
+
+/** Etiquetas de la pantalla "estado actual" en el idioma `t` (por defecto español). */
+export function etiquetaServicio(estado: EstadoServicioGeneral, t: Diccionario = es): string {
+  return t.parteComunTextos.etiquetaServicio[estado]
+}
+
+export function etiquetaClases(estado: 'normal' | 'suspendido', t: Diccionario = es): string {
+  return t.parteComunTextos.etiquetaClases[estado]
+}
+
+export function etiquetaEstablecimiento(estado: EstadoEstablecimiento, t: Diccionario = es): string {
+  return t.fichaPanorama.establecimiento[estado]
+}
 
 function formatoFecha(): Intl.DateTimeFormat {
   return formatoFechaRegion(localeRegion(), { day: 'numeric', month: 'long' })

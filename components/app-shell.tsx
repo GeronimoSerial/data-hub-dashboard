@@ -15,11 +15,8 @@ import { decideScrollAction, isAdminWorkspacePath, isBleedViewerPath, isMapViewe
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu'
 import { MarcaBanda, MarcaCompacta, MarcaHorizontal, MarcaHorizontalInversa } from '@/components/marca'
-
-const NAV = [
-  { href: '/', label: 'Inicio' },
-  { href: '/explorar', label: 'Explorar' },
-]
+import { marcaActual } from '@/lib/infraestructura/region/publica'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 const SectionAccessContext = React.createContext<(path: string) => boolean>(() => true)
 
@@ -265,6 +262,11 @@ export function AppShell({
   situacionEnabled?: boolean
 }) {
   const { mode, setMode } = useThemeMode()
+  const t = useTextos().shellHub.shell
+  const navItems = [
+    { href: '/', label: t.navInicio },
+    { href: '/explorar', label: 'Explorar' },
+  ]
   const router = useRouter()
   const pathname = usePathname()
   const session = authClient.useSession()
@@ -284,7 +286,7 @@ export function AppShell({
   // Map pages carry no primary navigation; elsewhere only what the role's capabilities allow.
   const navRole = role ?? initialUser?.role
   const navUser = navRole ? shellUserFor(navRole, policy) : null
-  const visibleNav = isMapViewerPath(pathname) ? [] : NAV.filter((item) => shellNavAllowed(navUser, item.href))
+  const visibleNav = isMapViewerPath(pathname) ? [] : navItems.filter((item) => shellNavAllowed(navUser, item.href))
   const compactoMapa = isMapViewerPath(pathname) || isAdminWorkspacePath(pathname)
   const mapViewer = isBleedViewerPath(pathname) || isAdminWorkspacePath(pathname)
   const resourceViewer = pathname.startsWith('/recursos/')
@@ -297,6 +299,7 @@ export function AppShell({
     router.replace('/login')
   }
 
+  const marca = marcaActual()
   return (
     <div className="app-page">
       <React.Suspense fallback={null}>
@@ -304,7 +307,7 @@ export function AppShell({
       </React.Suspense>
 
       <a href="#contenido" className="skip-link">
-        Ir al contenido
+        {t.saltarContenido}
       </a>
 
       <header className={`app-header${compactoMapa ? ' app-header--mapa' : ''}`} data-compacto={compactoMapa ? 'true' : undefined}>
@@ -323,18 +326,25 @@ export function AppShell({
         {compactoMapa ? null : (
           <div className="app-signature">
             <div className="app-signature__inner">
-              <MarcaHorizontal />
-              <MarcaHorizontalInversa />
-              <MarcaCompacta />
-              <span className="app-signature__reparticiones">
-                <span>Dirección de Sistemas de Información</span>
-                <span>Dirección de Gestión Escolar</span>
-              </span>
-              <span className="app-signature__aside">
-                Provincia de Corrientes
-                <br />
-                República Argentina
-              </span>
+              {marca.logo ? (
+                <>
+                  <MarcaHorizontal />
+                  <MarcaHorizontalInversa />
+                  <MarcaCompacta />
+                </>
+              ) : null}
+              {marca.reparticionesLineas.length ? (
+                <span className="app-signature__reparticiones">
+                  {marca.reparticionesLineas.map((linea) => <span key={linea}>{linea}</span>)}
+                </span>
+              ) : null}
+              {marca.jurisdiccionLineas.length ? (
+                <span className="app-signature__aside">
+                  {marca.jurisdiccionLineas.map((linea, indice) => (
+                    <React.Fragment key={linea}>{indice > 0 ? <br /> : null}{linea}</React.Fragment>
+                  ))}
+                </span>
+              ) : null}
             </div>
           </div>
         )}
@@ -342,14 +352,14 @@ export function AppShell({
         {/* Lower band: the product and its navigation. */}
         <div className="app-header__band">
           <div className="app-header__inner">
-            {compactoMapa ? <span className="app-header--mapa__marca"><MarcaBanda /></span> : null}
+            {compactoMapa && marca.logo ? <span className="app-header--mapa__marca"><MarcaBanda /></span> : null}
             {canAccessPath('/') ? (
-              <Link href="/" className="app-brand" aria-label="Hub de Datos, inicio">
-                <span className="app-brand__text">Hub de Datos</span>
+              <Link href="/" className="app-brand" aria-label={t.ariaInicio}>
+                <span className="app-brand__text">{t.producto}</span>
               </Link>
-            ) : <span className="app-brand"><span className="app-brand__text">Hub de Datos</span></span>}
+            ) : <span className="app-brand"><span className="app-brand__text">{t.producto}</span></span>}
 
-            <nav className="app-nav" aria-label="Navegación principal">
+            <nav className="app-nav" aria-label={t.ariaNavegacion}>
               {visibleNav.map((item) => (
                 <Link key={item.href} href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
                   {item.label}
@@ -358,50 +368,50 @@ export function AppShell({
             </nav>
 
             <div className="app-actions">
-              {shellNavAllowed(navUser, '/explorar') ? <Link href="/explorar" className="ui-button ui-button--ghost ui-button--icon" aria-label="Buscar recursos">
+              {shellNavAllowed(navUser, '/explorar') ? <Link href="/explorar" className="ui-button ui-button--ghost ui-button--icon" aria-label={t.ariaBuscarRecursos}>
                 <Search size={19} />
               </Link> : null}
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
-                aria-label={mode === 'light' ? 'Usar tema oscuro' : 'Usar tema claro'}
+                aria-label={mode === 'light' ? t.ariaTemaOscuro : t.ariaTemaClaro}
               >
                 {mode === 'light' ? <Moon size={19} /> : <Sun size={19} />}
               </Button>
 
               <Menu>
-                <MenuTrigger render={<Button variant="ghost" aria-label="Menú de cuenta" />}>
+                <MenuTrigger render={<Button variant="ghost" aria-label={t.ariaMenuCuenta} />}>
                   <UserRound size={19} />
-                  <span className="app-actions__name">{sessionUser?.name ?? 'Cuenta'}</span>
+                  <span className="app-actions__name">{sessionUser?.name ?? t.cuentaSinNombre}</span>
                 </MenuTrigger>
                 <MenuContent>
                   {sessionUser ? (
                     <>
                       {isStaff(role) ? (
                         <>
-                          <MenuItem onClick={() => router.push('/admin')}>Administración</MenuItem>
-                          {situacionEnabled && canAccessPath('/situacion') ? <MenuItem onClick={() => router.push('/situacion')}>Centro de Situación</MenuItem> : null}
+                          <MenuItem onClick={() => router.push('/admin')}>{t.administracion}</MenuItem>
+                          {situacionEnabled && canAccessPath('/situacion') ? <MenuItem onClick={() => router.push('/situacion')}>{t.centroSituacion}</MenuItem> : null}
                         </>
                       ) : null}
-                      <MenuItem onClick={() => router.push('/cuenta')}>Cambiar contraseña</MenuItem>
-                      <MenuItem onClick={signOut}>Cerrar sesión</MenuItem>
+                      <MenuItem onClick={() => router.push('/cuenta')}>{t.cambiarContrasena}</MenuItem>
+                      <MenuItem onClick={signOut}>{t.cerrarSesion}</MenuItem>
                     </>
                   ) : (
-                    <MenuItem onClick={() => router.push('/login')}>Iniciar sesión</MenuItem>
+                    <MenuItem onClick={() => router.push('/login')}>{t.iniciarSesion}</MenuItem>
                   )}
                 </MenuContent>
               </Menu>
 
               <Menu>
-                <MenuTrigger render={<Button className="app-mobile" variant="ghost" size="icon" aria-label="Abrir navegación" />}>
+                <MenuTrigger render={<Button className="app-mobile" variant="ghost" size="icon" aria-label={t.ariaAbrirNavegacion} />}>
                   <MenuIcon size={20} />
                 </MenuTrigger>
                 <MenuContent>
                   {visibleNav.map((item) => (
                     <MenuItem key={item.href} onClick={() => router.push(item.href)}>{item.label}</MenuItem>
                   ))}
-                  {shellNavAllowed(navUser, '/explorar') ? <MenuItem onClick={() => router.push('/explorar')}>Buscar</MenuItem> : null}
+                  {shellNavAllowed(navUser, '/explorar') ? <MenuItem onClick={() => router.push('/explorar')}>{t.buscar}</MenuItem> : null}
                 </MenuContent>
               </Menu>
 
@@ -410,7 +420,7 @@ export function AppShell({
                   variant="ghost"
                   size="icon"
                   className="resource-details-toggle"
-                  aria-label={resourceDetailsExpanded ? 'Ocultar detalles del recurso' : 'Mostrar detalles del recurso'}
+                  aria-label={resourceDetailsExpanded ? t.ariaOcultarDetalles : t.ariaMostrarDetalles}
                   aria-expanded={resourceDetailsExpanded}
                   aria-controls="resource-details"
                   onClick={() => setResourceDetailsExpanded((expanded) => !expanded)}
@@ -434,9 +444,9 @@ export function AppShell({
                 <div className="app-content__inner">{children}</div>
                 <footer className="app-footer">
                   <span>
-                    Ministerio de Educación
-                    <br />
-                    Provincia de Corrientes
+                    {marca.pieLineas.map((linea, indice) => (
+                      <React.Fragment key={linea}>{indice > 0 ? <br /> : null}{linea}</React.Fragment>
+                    ))}
                   </span>
                   <span className="app-footer__links">
                     {shellNavAllowed(navUser, '/explorar') ? <Link href="/explorar">Explorar recursos</Link> : null}

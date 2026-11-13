@@ -3,7 +3,7 @@
 import { useEffect, useRef, type JSX } from 'react'
 import { CircleAlert, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { MENSAJES_ESTADO } from '@/lib/infraestructura/parte/envio-offline'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export function EstadoEnvioAviso({
   estado,
@@ -16,6 +16,7 @@ export function EstadoEnvioAviso({
   mensaje?: string
   disabled?: boolean
 }): JSX.Element {
+  const t = useTextos().parteResto
   const desconectado = estado === 'pendiente-envio'
   const Icono = desconectado ? WifiOff : CircleAlert
   const ref = useRef<HTMLDivElement>(null)
@@ -30,10 +31,10 @@ export function EstadoEnvioAviso({
   return (
     <div ref={ref} className="estado-envio-aviso" role={desconectado ? 'status' : 'alert'}>
       <Icono className="estado-envio-aviso__icono" aria-hidden="true" />
-      <p>{mensaje ?? MENSAJES_ESTADO[estado]}</p>
+      <p>{mensaje ?? t.estadoEnvio[estado]}</p>
       {!desconectado && onRetry ? (
         <Button type="button" variant="secondary" onClick={onRetry} disabled={disabled}>
-          Reintentar ahora
+          {t.estadoEnvio.reintentarAhora}
         </Button>
       ) : null}
     </div>

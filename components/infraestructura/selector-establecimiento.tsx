@@ -4,6 +4,7 @@ import { useId, type JSX } from 'react'
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { Opcion } from '@/components/ui/opcion'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export interface ValorAlcanceEstablecimiento {
   alcance: '' | 'toda' | 'algunas'
@@ -29,13 +30,14 @@ export function SelectorEstablecimiento({
   disabled?: boolean
 }): JSX.Element {
   const id = useId()
+  const t = useTextos().parteGaleria.establecimiento
   return (
     <div className="selector-establecimiento">
-      <div className="selector-establecimiento__opciones" role="radiogroup" aria-label="A quién afecta">
+      <div className="selector-establecimiento__opciones" role="radiogroup" aria-label={t.aria}>
         <Opcion
           tipo="radio"
           name={`${id}-alcance`}
-          label="Toda la escuela"
+          label={t.toda}
           checked={valor.alcance === 'toda'}
           onChange={() => onCambiar({ alcance: 'toda', secciones: idsDe(turnos) })}
           disabled={disabled}
@@ -44,7 +46,7 @@ export function SelectorEstablecimiento({
         <Opcion
           tipo="radio"
           name={`${id}-alcance`}
-          label="Algunas secciones"
+          label={t.algunas}
           checked={valor.alcance === 'algunas'}
           onChange={() => onCambiar({ alcance: 'algunas', secciones: [] })}
           disabled={disabled}

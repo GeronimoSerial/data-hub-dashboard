@@ -1,6 +1,10 @@
 import Link from 'next/link'
+import { regionActiva } from '@/lib/infraestructura/region'
+import { textosActuales } from '@/lib/i18n'
 
 export default function EscuelaFichaNotFound() {
+  const t = textosActuales().shellHub.escuela
+  const region = regionActiva().nombre
   return (
     <main
       style={{
@@ -15,10 +19,10 @@ export default function EscuelaFichaNotFound() {
       data-testid="escuela-ficha-not-found"
     >
       <h1 style={{ margin: 0, fontSize: 'var(--t-h2)', fontWeight: 700 }}>
-        Establecimiento no disponible
+        {t.titulo}
       </h1>
       <p style={{ margin: 0, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
-        No se encontró el establecimiento solicitado o no está disponible para tu alcance.
+        {t.detalle}
       </p>
       <div>
         <Link
@@ -26,7 +30,7 @@ export default function EscuelaFichaNotFound() {
           className="ui-button ui-button--secondary ui-button--sm"
           data-testid="not-found-volver-mapa"
         >
-          Volver a ENOS Corrientes
+          {t.volverMapa(region)}
         </Link>
       </div>
     </main>

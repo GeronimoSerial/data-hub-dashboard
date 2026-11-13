@@ -3,6 +3,10 @@
 // se conserva en el almacén local para reintentar sin perder lo cargado ni
 // duplicar el envío (la idempotencyKey se reutiliza entre reintentos).
 
+import { parteComunTextosEs } from '@/lib/i18n/diccionarios/grupos/parteComunTextos.es'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+
 export type EstadoEnvio =
   | 'guardado-local'
   | 'pendiente-envio'
@@ -62,14 +66,11 @@ export type ResultadoEnvio =
   | { ok: true; respuesta: unknown }
   | { ok: false; estado: EstadoEnvio; motivo?: string }
 
-export const MENSAJES_ESTADO: Record<EstadoEnvio, string> = {
-  'guardado-local': 'Guardado en este dispositivo',
-  'pendiente-envio': 'Sin conexión. Su parte queda guardado y se envía solo cuando vuelva.',
-  'error-servidor': 'No pudimos enviar. Reintentamos en unos segundos.',
-  enviando: 'Enviando…',
-  enviado: 'Enviado',
-  'sesion-vencida': 'La sesión venció. Vuelva a ingresar con el enlace de su escuela; lo cargado se conserva.',
-  error: 'No se pudo enviar',
+export const MENSAJES_ESTADO: Record<EstadoEnvio, string> = parteComunTextosEs.envio
+
+/** Mensajes de estado de envio en el idioma `t` (por defecto español). */
+export function mensajesEstado(t: Diccionario = es): Record<EstadoEnvio, string> {
+  return t.parteComunTextos.envio
 }
 
 export const TIEMPO_MAXIMO_ENVIO_MS = 15000
@@ -148,6 +149,28 @@ function conMutexLocal<T>(almacen: AlmacenClaveValor, clave: string, tarea: () =
 
 export const TIEMPO_MAXIMO_BLOQUEO_MS = 10000
 
+// Error de almacén ocupado: el mensaje español se conserva; la UI lo traduce
+// por `codigo` con `mensajeErrorAlmacen`.
+export class AlmacenOcupadoError extends Error {
+  readonly codigo = 'almacen-ocupado'
+
+  constructor() {
+    super('El almacenamiento local está ocupado. Intente guardar de nuevo.')
+    this.name = 'AlmacenOcupadoError'
+  }
+}
+
+/** Aviso de un error de almacenamiento en el idioma `t` (por defecto español). */
+export function mensajeErrorAlmacen(error: unknown, respaldo = '', t: Diccionario = es): string {
+  if (error instanceof AlmacenOcupadoError) return t.parteComunTextos.almacenOcupado
+  return error instanceof Error ? error.message : respaldo
+}
+
+/** Motivo persistido de un envío: el de tiempo agotado se muestra en el idioma `t`. */
+export function traducirMotivoEnvio(motivo: string, t: Diccionario = es): string {
+  return motivo === MENSAJE_TIEMPO_AGOTADO ? t.parteComunTextos.tiempoAgotado : motivo
+}
+
 // Bounds only the WAIT for the lock: a lock held by a hung tab must not leave
 // the save button stuck. If the lock arrives after giving up, the task is skipped.
 function conBloqueo<T>(almacen: AlmacenClaveValor, nombre: string, tarea: () => Promise<T>): Promise<T> {
@@ -162,7 +185,7 @@ function conBloqueo<T>(almacen: AlmacenClaveValor, nombre: string, tarea: () => 
   const espera = new Promise<never>((_resolver, rechazar) => {
     temporizador = setTimeout(() => {
       abandonado = true
-      rechazar(new Error('El almacenamiento local está ocupado. Intente guardar de nuevo.'))
+      rechazar(new AlmacenOcupadoError())
     }, TIEMPO_MAXIMO_BLOQUEO_MS)
   })
   turno.catch(() => undefined)

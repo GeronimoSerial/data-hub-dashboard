@@ -4,12 +4,13 @@ import { getRawClient } from '@/lib/db'
 import { resolverContextoPorCue } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { obtenerVerificacion } from '@/lib/infraestructura/verificaciones'
+import { textosActuales } from '@/lib/i18n'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'Verificación escolar',
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: textosActuales().shellHub.verificacion.titulo }
 }
 
 /**
@@ -34,11 +35,12 @@ export default async function VerificacionPage({
   const { token } = await searchParams
 
   if (!token) {
+    const t = textosActuales().shellHub.verificacion
     return (
       <div className="publico-content">
         <div className="estado-actual-aviso">
           <p className="estado-actual-aviso__texto" role="alert">
-            Este enlace no incluye la credencial de acceso.
+            {t.sinCredencial}
           </p>
         </div>
       </div>

@@ -5,8 +5,9 @@ import 'lightgallery/css/lg-thumbnail.css'
 import 'lightgallery/css/lg-zoom.css'
 import './globals.css'
 import { Providers } from './providers'
-import { regionActiva, regionPublica } from '@/lib/infraestructura/region'
+import { marcaPublica, regionActiva, regionPublica } from '@/lib/infraestructura/region'
 import { RegionProvider } from '@/lib/infraestructura/region/region-provider'
+import { textosActuales } from '@/lib/i18n'
 
 // Manual de Marca §4: Barlow is the system family. Regular and SemiBold for
 // reading and subheads, Bold for pastillas.
@@ -41,26 +42,39 @@ const inter = Inter({
   display: 'swap',
 })
 
-export const metadata: Metadata = {
-  title: {
-    default: 'Hub de Datos · Ministerio de Educación de Corrientes',
-    template: '%s · Hub de Datos',
-  },
-  description:
-    'Reportes, tableros y mapas del sistema educativo de la Provincia de Corrientes, publicados por el Ministerio de Educación para el análisis y la toma de decisiones.',
-  applicationName: 'Hub de Datos',
-  icons: {
-    icon: '/marca/escudo.svg',
-    apple: '/marca/escudo.png',
-  },
-  openGraph: {
-    title: 'Hub de Datos · Ministerio de Educación de Corrientes',
-    description:
-      'Reportes, tableros y mapas del sistema educativo de la Provincia de Corrientes.',
-    locale: 'es_AR',
-    type: 'website',
-    siteName: 'Hub de Datos',
-  },
+// Title and product name follow the active region; Corrientes keeps the
+// shipped Spanish values byte for byte.
+export async function generateMetadata(): Promise<Metadata> {
+  const t = textosActuales().shellHub
+  const producto = t.shell.producto
+  const titulo = `${producto} · ${t.meta.organismo(regionActiva().nombre)}`
+  const region = regionActiva()
+  const esCorrientes = region.id === 'corrientes'
+  const descripcion = esCorrientes
+    ? t.meta.descripcionCorrientes
+    : t.meta.descripcionRegion(region.nombre)
+  const descripcionSocial = esCorrientes
+    ? t.meta.descripcionSocialCorrientes
+    : t.meta.descripcionSocialRegion(region.nombre)
+  return {
+    title: {
+      default: titulo,
+      template: `%s · ${producto}`,
+    },
+    description: descripcion,
+    applicationName: producto,
+    icons: {
+      icon: '/marca/escudo.svg',
+      apple: '/marca/escudo.png',
+    },
+    openGraph: {
+      title: titulo,
+      description: descripcionSocial,
+      locale: region.locale.replace('-', '_'),
+      type: 'website',
+      siteName: producto,
+    },
+  }
 }
 
 export const viewport: Viewport = {
@@ -77,12 +91,12 @@ export default function RootLayout({
 }) {
   return (
     <html
-      lang="es-AR"
+      lang={regionActiva().locale}
       className={`${barlow.variable} ${barlowSemiCondensed.variable} ${montserrat.variable} ${inter.variable}`}
     >
       <body>
         <Providers>
-          <RegionProvider region={regionPublica(regionActiva())}>{children}</RegionProvider>
+          <RegionProvider region={regionPublica(regionActiva())} marca={marcaPublica(regionActiva())}>{children}</RegionProvider>
         </Providers>
       </body>
     </html>
