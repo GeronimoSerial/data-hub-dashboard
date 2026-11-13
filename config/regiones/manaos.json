@@ -30,6 +30,7 @@
   "fuentesRio": ["ana", "sgb"],
   "fuentesAlertas": ["inmet"],
   "fuenteDem": "fabdem",
+  "capasEstaticas": ["exposicion-rio-dem"],
   "archivos": {
     "mascara": "/data/mascara-manaos.geojson",
     "departamentos": "/data/municipios-manaos.geojson"

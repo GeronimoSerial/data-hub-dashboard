@@ -68,7 +68,7 @@ runbook: confirmarla en la configuración de Coolify de cada despliegue antes de
 | veredicto-diario | `45 0,6,12,18 * * *` | sí | Requiere `AI_VEREDICTO_ENABLED=true` |
 | veredicto-cierre | `30 3 * * *` | sí | |
 | sync-synop-lluvia | — | **no** | Excluido por regla (sin `synop` en `fuentesLluvia`; las estaciones SYNOP son de Corrientes) |
-| importar-exposicion-rio-dem | — | **no** | Excluido por regla (sin `exposicion-rio-dem` en `capasEstaticas`; la capa DEM es la del río de Corrientes) |
+| importar-exposicion-rio-dem | `50 7 * * *` | sí | Capa DEM FABDEM de Manaos. Antes de la primera corrida: `descargar_fuentes_inundacion --region manaos` (en `.data/manaos`) y `calcular_exposicion_rio_dem --region manaos` |
 | sync-prefectura-alturas | — | **no** | Excluido por regla (sin `prefectura`) |
 | sync-prefectura-historico | — | **no** | Excluido por regla |
 | sync-ina-serie-diaria | — | **no** | Excluido por regla (sin `ina`) |

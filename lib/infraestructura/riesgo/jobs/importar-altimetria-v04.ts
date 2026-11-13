@@ -12,14 +12,24 @@ import { promises as fs } from 'node:fs'
 import { count, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraAltimetriaEscolar } from '@/lib/db/schema'
+import { regionActiva } from '@/lib/infraestructura/region/activa'
+import { fuenteDemDe } from '@/lib/infraestructura/region/fuente-dem'
 import type { ResultadoAltimetria } from '../motor-v04/altimetria'
 import {
   type FilaCsvAltimetria,
   FormatoAltimetriaInvalido, evaluarFilaCsvAltimetria, parsearCsvAltimetria } from '../motor-v04/altimetria-csv'
 
 const TAMANO_LOTE = 500
-const CONVERSION =
+const CONVERSION_COPERNICUS =
   'Copernicus GLO-30 EGM2008 convertido a SRVN16 (GEOIDE-Ar16) de forma aproximada; IGN MDE-Ar v2.1 en SRVN16'
+// FABDEM regions: the heights are EGM2008 and no conversion to SRVN16 is applied.
+const CONVERSION_FABDEM =
+  'FABDEM V1-2 (Universidade de Bristol / Fathom, CC BY-NC-SA 4.0), alturas em EGM2008; sem conversao para SRVN16'
+
+// Text stamped in `conversion`, chosen by the active region's DEM source.
+function conversionDeRegionActiva(): string {
+  return fuenteDemDe(regionActiva()) === 'fabdem' ? CONVERSION_FABDEM : CONVERSION_COPERNICUS
+}
 
 export type ResultadoImportarAltimetriaV04 =
   | { ejecutado: false; estado: 'fallido'; mensaje: string; cuesDiscrepantes?: string[] }
@@ -76,6 +86,7 @@ export async function importarAltimetriaV04(
   const sha256 = createHash('sha256').update(texto).digest('hex')
   const version = `altimetria-v04-${sha256.slice(0, 16)}`
   const contadores = contar(evaluadas.map((e) => e.resultado))
+  const conversion = conversionDeRegionActiva()
   const db = getDb()
 
   const [existente] = await db
@@ -99,7 +110,7 @@ export async function importarAltimetriaV04(
     fuentesValidas: r.estado === 'candidata' ? r.fuentesValidas : 0,
     referenciaVertical: fila.referenciaVertical,
     operador: fila.operador,
-    conversion: CONVERSION,
+    conversion,
     origenSha256: sha256,
     importadoEn,
   }))
