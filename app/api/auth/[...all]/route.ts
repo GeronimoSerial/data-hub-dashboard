@@ -3,7 +3,7 @@ import { toNextJsHandler } from 'better-auth/next-js'
 import { ensureSeeded } from '@/lib/db/seed'
 import type { AccionAuditoria } from '@/lib/infraestructura/auditoria/catalogo'
 import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
-import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 import { getSessionUser } from '@/lib/session'
 
@@ -27,7 +27,13 @@ async function handlePOST(request: Request) {
       })
     }
   }
-  return handler.POST(request)
+  // El handler corre dentro de la transacción del evento: sus escrituras (sesión, usuario, baneo)
+  // se confirman junto con el evento. Un 4xx se confirma igual; una excepción o una falla de
+  // inserción revierte todo y la respuesta sale como 503 sin Set-Cookie.
+  return cambioAuditado(() => handler.POST(request), (respuesta) => ({
+    status: respuesta.status,
+    accion: accionSesion(pathname(request), respuesta.status),
+  }))
 }
 
 // La acción la decide la ruta y el status. Sin cuerpo: ni correo ni contraseña llegan al evento.
@@ -38,14 +44,17 @@ function accionSesion(pathname: string, status: number): AccionAuditoria {
   return 'cuenta.operacion'
 }
 
+function pathname(request: Request) {
+  return new URL(request.url).pathname
+}
+
 async function handlePOSTAuditado(request: Request) {
-  const pathname = new URL(request.url).pathname
   try {
     const respuesta = await handlePOST(request)
-    describirAuditoria({ accion: accionSesion(pathname, respuesta.status) })
+    describirAuditoria({ accion: accionSesion(pathname(request), respuesta.status) })
     return respuesta
   } catch (error) {
-    describirAuditoria({ accion: accionSesion(pathname, 500) })
+    describirAuditoria({ accion: accionSesion(pathname(request), 500) })
     throw error
   }
 }
