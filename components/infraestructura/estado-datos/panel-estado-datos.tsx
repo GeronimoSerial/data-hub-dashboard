@@ -3,7 +3,7 @@
 // Panel "Estado de los datos" del Centro de Situación: una línea de resumen
 // neutra con los conteos por estado y, al abrirlo, sólo las fuentes con
 // problema. Cerrado por defecto; se abre solo si una fuente falló, los jobs
-// están en pausa, no se pudo leer el estado o ninguna fuente está al día. Las
+// están en pausa, no se pudo leer el estado o hay más fuentes sin datos que al día. Las
 // fuentes al día y las no programadas quedan detrás de "Ver todas las
 // fuentes". Rojo sólo para "Falló", ámbar para "Desactualizado"; el estado
 // siempre es ícono + texto (el color sólo refuerza).
@@ -102,6 +102,8 @@ function Fila({
           corridas={corridas}
           ahora={generadoEn}
           ultimoExitoEn={item.ultimoExitoEn}
+          ultimoIntentoEn={item.ultimoIntentoEn}
+          estado={item.estado}
           intervaloMinutos={item.intervaloMinutos}
           t={t}
         />
@@ -160,8 +162,9 @@ export function PanelEstadoDatos({
   // La elección del usuario (abrir/cerrar) se respeta en los refrescos.
   const hayPausa = items.some((i) => i.estado === 'pausado')
   // Alarmas que el operador debe ver sin hacer clic: fuente caída, jobs en
-  // pausa operativa, estado ilegible o ninguna fuente sana (todo sin datos).
-  const ningunaSana = items.length > 0 && !items.some((i) => i.estado === 'ok')
+  // pausa operativa, estado ilegible o más fuentes sin datos que sanas (región sin datos).
+  const sinDatos = items.filter((i) => i.estado === 'sin_datos').length
+  const ningunaSana = items.length > 0 && sinDatos > items.filter((i) => i.estado === 'ok').length
   const [abierto, setAbierto] = useState(hayFallo || hayPausa || estado === null || ningunaSana)
   const [verTodas, setVerTodas] = useState(false)
 
