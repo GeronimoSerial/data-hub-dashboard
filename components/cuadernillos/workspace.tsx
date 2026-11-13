@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { CabeceraHome } from './cabecera/cabecera-home'
 import { SupervisorInbox } from './supervisor/supervisor-inbox'
 import { PlanningHome } from './planning/planning-home'
-import { ResponsiveStyles } from './planning/responsive-styles'
+import { KitStyles } from './kit'
 
 const SECTION_LABELS: Record<BookletCapability, string> = {
   planning: 'Planeamiento',
@@ -27,7 +27,7 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
 
   return (
     <div className="cdl-page" style={{ maxWidth: '72rem', width: '100%', boxSizing: 'border-box', margin: '0 auto', padding: 'clamp(1.25rem, 4vw, 3rem)', color: 'var(--ink)', display: 'grid', gap: '1.5rem' }}>
-      <ResponsiveStyles />
+      <KitStyles />
       <header>
         <h1 style={{ margin: 0, minWidth: 0, fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 5vw, 2.6rem)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.02em' }}>
           Cuadernillos
