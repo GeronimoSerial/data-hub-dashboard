@@ -5,6 +5,8 @@ import { HUB_DESTINATIONS } from '@/lib/hub-sections'
 import { serverHubPathAllowedByExistingAcl } from '@/lib/hub-entry-server'
 import type { Role } from '@/lib/acl'
 import { ensureSeeded } from '@/lib/db/seed'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -44,6 +46,12 @@ async function handlePOST(request: Request) {
   }
   if (!body || typeof body !== 'object') return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: NO_STORE })
   const input = body as Record<string, unknown>
+  // Calcula destinos para el formulario de un usuario existente o de uno nuevo; no escribe nada.
+  describirAuditoria({
+    accion: input.userId !== undefined ? 'usuario.modificar' : 'usuario.crear',
+    objetoTipo: 'usuario',
+    objetoId: typeof input.userId === 'string' ? input.userId : null,
+  })
   if (typeof input.role !== 'string' || !ROLES.includes(input.role as Role)
     || !Array.isArray(input.nivelJurIds) || !input.nivelJurIds.every((id) => Number.isSafeInteger(id) && Number(id) > 0)
     || !Array.isArray(input.recursoIds) || !input.recursoIds.every((id) => typeof id === 'string')
@@ -71,4 +79,4 @@ async function handlePOST(request: Request) {
 }
 
 export const GET = ruta('usuarios.opciones.get', handleGET)
-export const POST = ruta('usuarios.opciones.post', handlePOST)
+export const POST = conAuditoria('usuario.crear', '/api/usuarios/opciones', ruta('usuarios.opciones.post', handlePOST))

@@ -11,7 +11,7 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 export type DescripcionResultado = DatosAuditoria & { status: number }
 const CLAVES = new Set([
   'movimientoId', 'draftId', 'verificacionId', 'attachmentId', 'parteId', 'enlaceId', 'permisoId',
-  'revision', 'campos', 'formato', 'cantidad', 'jobRunId', 'versionId', 'datasetId', 'disparador', 'invocacionId', 'fase',
+  'revision', 'campos', 'formato', 'cantidad', 'jobRunId', 'versionId', 'datasetId', 'disparador', 'invocacionId', 'fase', 'region',
 ])
 
 export function metadatosPermitidos(datos: Record<string, unknown> = {}) {
@@ -138,7 +138,12 @@ export async function lecturaAuditada<T>(accion: AccionAuditoria, ruta: string, 
 }
 
 /** Jobs can commit several batches and affect OBS: persist intent before dispatch. */
-export async function jobAuditado<T>(nombre: string, ejecutar: () => Promise<T>, exitoso: (valor: T) => boolean): Promise<T> {
+export async function jobAuditado<T>(
+  nombre: string,
+  ejecutar: () => Promise<T>,
+  exitoso: (valor: T) => boolean,
+  metadatos: Record<string, unknown> = {},
+): Promise<T> {
   const contexto = nuevoContexto(`job.${nombre}`, 'scripts/jobs.mjs', 'CLI')
   contexto.actorTipo = 'sistema'
   contexto.actorId = referencia(process.env.INFRA_AUDIT_OPERATOR) ?? 'infra-jobs'
@@ -149,7 +154,7 @@ export async function jobAuditado<T>(nombre: string, ejecutar: () => Promise<T>,
   const declarado = process.env.INFRA_AUDIT_TRIGGER
   const disparador = declarado === 'manual' || declarado === 'programado'
     ? declarado : process.env.INVOCATION_ID ? 'systemd' : 'cli'
-  contexto.metadatos = { fase: 'inicio', disparador, invocacionId: process.env.INVOCATION_ID }
+  contexto.metadatos = { ...metadatos, fase: 'inicio', disparador, invocacionId: process.env.INVOCATION_ID }
   await migrarDb()
   await escribir(getDb(), contexto, 202)
   contexto.id = randomUUID()
