@@ -46,6 +46,8 @@ export const situacionEs = {
     riesgo: 'Riesgo',
   },
   prioridadesTitulo: 'Prioridades (riesgo alto o muy alto)',
+  prioridadesColumnas: { escuela: 'Escuela', departamento: 'Departamento', nivel: 'Nivel de riesgo', accion: 'Ficha' },
+  verEscuela: 'Ver escuela',
   cadenaVerificada: (hora: string) => `Cadena de datos verificada a las ${hora}`,
   motivos: {
     noProgramado: 'No programado en producción',
@@ -124,6 +126,24 @@ export const situacionEs = {
   },
   estadoDatos: {
     titulo: 'Estado de los datos',
+    fuentesConProblemas: 'Fuentes con problemas',
+    verTodas: 'Ver todas las fuentes',
+    latido: {
+      viva: 'viva',
+      intermitente: 'intermitente',
+      sinLatido: (dias: number) => `sin latido ${dias} d`,
+      nunca: 'nunca corrió',
+      aria: (estado: string, completadas: number, fallidas: number) =>
+        `${estado}: ${completadas} corridas exitosas y ${fallidas} fallidas en las últimas 72 h`,
+    },
+    conteo: {
+      ok: (n: number) => `${n} al día`,
+      atrasado: (n: number) => (n === 1 ? '1 desactualizada' : `${n} desactualizadas`),
+      sinDatos: (n: number) => `${n} sin datos`,
+      fallido: (n: number) => (n === 1 ? '1 falló' : `${n} fallaron`),
+      pausado: (n: number) => `Tareas pausadas (${n})`,
+      deshabilitado: (n: number) => (n === 1 ? '1 no programada' : `${n} no programadas`),
+    },
     noLeer: 'No se pudo leer el estado de los datos',
     todosAlDia: 'Todos los datos al día',
     problemaUno: '1 fuente con problemas',

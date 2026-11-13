@@ -125,10 +125,11 @@ describe('SituacionClient', () => {
     const user = userEvent.setup()
     render(<SituacionClient estadoInicial={ESTADO_CON_CORTE} />)
 
-    const selectModo = screen.getByLabelText('Mostrar por') as HTMLSelectElement
-    expect(selectModo.value).toBe('vigencia')
-    await user.selectOptions(selectModo, 'registro')
-    expect(selectModo.value).toBe('registro')
+    const selectModo = screen.getByRole('combobox', { name: 'Mostrar por' })
+    expect(selectModo).toHaveTextContent('Vigencia (cuándo rige)')
+    await user.click(selectModo)
+    await user.click(await screen.findByRole('option', { name: 'Registro (cuándo se cargó)' }))
+    expect(selectModo).toHaveTextContent('Registro (cuándo se cargó)')
   })
 
   it('el selector de rango dispara un nuevo fetch de cambios con el "desde" recalculado', async () => {
@@ -138,8 +139,8 @@ describe('SituacionClient', () => {
     await screen.findByText('Sin cambios en el rango seleccionado.')
     const llamadasIniciales = fetchMock.mock.calls.length
 
-    const selectRango = screen.getByLabelText('Rango de cambios') as HTMLSelectElement
-    await user.selectOptions(selectRango, '7d')
+    await user.click(screen.getByRole('combobox', { name: 'Rango de cambios' }))
+    await user.click(await screen.findByRole('option', { name: 'Últimos 7 días' }))
 
     expect(fetchMock.mock.calls.length).toBeGreaterThan(llamadasIniciales)
     const ultimaUrl = fetchMock.mock.calls.at(-1)?.[0] as string
