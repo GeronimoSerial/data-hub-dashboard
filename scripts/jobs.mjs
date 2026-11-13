@@ -684,10 +684,35 @@ export async function correrJob(nombre, opts) {
   }
 }
 
+// Intención antes del despacho y resultado después, con el mismo requestId (dos eventos por corrida,
+// nunca por fila). Un nombre desconocido se rechaza antes de auditar: no se registra un nombre arbitrario.
+// Un rechazo de región sí llega a la envoltura y deja el par intención + error.
+export async function ejecutarJobAuditado(nombre, opts) {
+  if (!NOMBRES_VALIDOS.includes(nombre)) throw new JobDesconocidoError(nombre)
+  const { jobAuditado } = await import('../lib/infraestructura/auditoria/servidor.ts')
+  return jobAuditado(nombre, () => correrJob(nombre, opts), resultado => codigoSalida(nombre, resultado) === 0, regionAuditada())
+}
+
+// Si la región no resuelve, correrJob falla igual después y ese error es el que queda registrado.
+function regionAuditada() {
+  try {
+    return { region: regionDespacho().id }
+  } catch {
+    return {}
+  }
+}
+
+export function mensajeFalloDespacho(nombre, error) {
+  const mensaje = error instanceof Error ? error.message : error
+  if (mensaje !== 'auditoria_no_disponible') return mensaje
+  return `[jobs] "${nombre}": auditoria_no_disponible. Si la intención no se guardó, el job no se ejecutó; ` +
+    'si solo falló el resultado, revisar los efectos del job antes de reintentar.'
+}
+
 // Coolify no conserva stderr de los jobs programados: el fallo (mensaje + stack) también va por
 // stdout. Se redacta EARTHDATA_TOKEN por si una excepción de red lo embebiera.
 export function reportarFalloDespacho(nombre, error) {
-  const mensaje = error instanceof Error ? error.message : error
+  const mensaje = mensajeFalloDespacho(nombre, error)
   console.error(mensaje)
   const stack = error instanceof Error && error.stack ? `\n${error.stack}` : ''
   let detalle = `[jobs] "${nombre}" fallo: ${mensaje}${stack}`
@@ -743,7 +768,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? { ...(desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : {}), apply: true }
     : desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : undefined
   try {
-    const resultado = await correrJob(nombre, opts)
+    const resultado = await ejecutarJobAuditado(nombre, opts)
     console.log(JSON.stringify(resultado))
     process.exit(codigoSalida(nombre, resultado))
   } catch (error) {
