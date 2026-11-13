@@ -657,12 +657,11 @@ Amplía B10b. Bloquea la salida en vivo.
 - Abierto, solo Corrientes (se dejan así): `app/(landing)/materiales`, páginas de natalidad y reorganización (incluido «Volver a Corrientes») y `app/(mockups)/intranet`.
 - Resuelto en F7 (13/11/2026): el veredicto público, el modal del veredicto, sus acciones y el chip de nivel salen en portugués con `REGION=manaos` mediante `residuos.veredicto` (Corrientes fijado por hash del DOM). Abierto: el texto libre que escribe la IA del veredicto y los eventos de terreno (título, lugar, medio) quedan en el idioma en que se generaron; el PDF del veredicto y el prompt del modelo siguen en español (`niveles.ts`, `pdf.ts`, `prompt.ts`).
 - Barrido final con la suite e2e de región (Manaos en pt-BR, base con datasets, 13/11/2026). Texto en español que sigue alcanzable desde la UI de Manaos, sin corregir:
-  - Catálogo sembrado: la base de Manaos conserva los 9 recursos del catálogo inicial de Corrientes (matrícula provincial, sobreedad, notas, tablero y mapa de alertas de trayectorias, tres reportes ejecutivos de sobreedad). Aparecen en `/`, `/explorar`, `/mapas`, `/reportes`, `/tableros` y `/admin/recursos` con títulos, descripciones y áreas en español. Decisión de datos: no sembrar ese catálogo fuera de Corrientes o traducirlo.
-  - Portada `/`: textos de la sección de bienvenida, buscador, bloque «Registrar una problemática» y las secciones «Explorar por tema, formato y nivel» en español.
+  - Catálogo sembrado: resuelto en F8 (13/11/2026). Con `REGION=manaos` solo se siembran los recursos ENOS. Las bases de Manaos que ya arrancaron conservan las filas de Corrientes: limpieza única manual, documentada en `docs/ejecucion-enos/OPS1/runbook-nueva-region.md` §10.
+  - Portada `/` y tarjetas de recursos: resuelto en F8 (`shellHub.home` y `shellHub.catalogo`).
   - `/admin` (recursos, usuarios, organización, operación): todo el panel en español.
-  - `/cuadernillos` («Ver como», «Configuración», estado vacío y «Sección en desarrollo») y `/links` («Todavía no hay accesos publicados»).
-  - `/mapas/matricula`: mapa de Corrientes accesible por URL directa («Provincia de Corrientes - Evolución de matrícula 2023-2026» y sus leyendas).
-  - `/situacion`: «Niveles del río (ANA)» y «Niveles del río (SGB)».
+  - `/cuadernillos`, `/links` y `/mapas/matricula`: resuelto en F8. Son módulos exclusivos de Corrientes (`lib/infraestructura/region/modulos.ts`): con otra región responden `notFound()`, su API responde 404 y el menú no los lista. Igual para natalidad y reorganización.
+  - `/situacion`: nombres «Niveles del río (ANA/SGB)» y «Avisos meteorológicos (INMET)» traducidos en F8. Abierto: `/admin` sigue en español (solo lo usa nuestro equipo).
   - `/mapas/natalidad`, `/mapas/reorganizacion` y `/login` con sesión iniciada redirigen a la portada; `/evolucion` y `/metodologia` responden 404 en esa base.
 
 ### B12–B16
