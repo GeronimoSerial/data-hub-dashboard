@@ -64,7 +64,7 @@ describe('CuadernillosWorkspace roles', () => {
     render(<CuadernillosWorkspace capabilities={['planning']} />)
 
     expect(screen.getByRole('heading', { name: 'Cuadernillos' })).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: 'Registrar stock global' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Stock por grado' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
   })
 

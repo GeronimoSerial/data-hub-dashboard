@@ -52,21 +52,35 @@ function mockApi(routes: { list: unknown; overview?: unknown; decide?: unknown }
 }
 
 describe('SupervisorInbox', () => {
-  it('groups pending requests by cabecera with counts and keeps decided ones in a collapsed history', async () => {
+  it('groups pending requests by cabecera with counts and moves decided ones to the history tab', async () => {
     vi.stubGlobal('fetch', mockApi({ list: listResponse([pending, otherCabecera, decided]) }))
 
     render(<SupervisorInbox />)
 
     const groupA = await screen.findByRole('group', { name: /Escuela Cabecera/ })
-    expect(within(groupA).getByText('1 pendiente')).toBeInTheDocument()
+    expect(screen.getAllByText('1 pendiente').length).toBeGreaterThan(0)
     expect(within(groupA).getByText('Escuela Anexo')).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /Cabecera Norte/ })).toBeInTheDocument()
-    expect(screen.getAllByText('hace 2 h')).toHaveLength(2)
+    expect(screen.getAllByText(/hace 2 h/)).toHaveLength(2)
+    expect(screen.queryByText('Escuela Decidida')).not.toBeInTheDocument()
 
-    const history = screen.getByText('Historial').closest('details')
-    expect(history).not.toBeNull()
-    expect(history).not.toHaveAttribute('open')
-    expect(within(history!).getByText('Escuela Decidida')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Historial (1)' }))
+    expect(screen.getByText('Escuela Decidida')).toBeInTheDocument()
+    expect(screen.getByText('Rechazada')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /Escuela Cabecera/ })).not.toBeInTheDocument()
+  })
+
+  it('summarizes pending, units to review, approved and rejected requests', async () => {
+    const approved = { ...pending, requestId: 'request-4', rootRequestId: 'request-4', status: 'approved' as const }
+    vi.stubGlobal('fetch', mockApi({ list: listResponse([pending, otherCabecera, decided, approved]) }))
+
+    render(<SupervisorInbox />)
+
+    const summary = await screen.findByLabelText('Resumen de pedidos')
+    expect(summary).toHaveTextContent(/Pendientes\s*2/)
+    expect(summary).toHaveTextContent(/Cuadernillos a revisar\s*24/)
+    expect(summary).toHaveTextContent(/Aprobados\s*1/)
+    expect(summary).toHaveTextContent(/Rechazados\s*1/)
   })
 
   it('shows the empty state when nothing is pending', async () => {
@@ -77,18 +91,21 @@ describe('SupervisorInbox', () => {
     expect(await screen.findByText('No hay pedidos pendientes')).toBeInTheDocument()
   })
 
-  it('shows requested, available and approved quantities as a table with an unknown availability dash', async () => {
+  it('shows requested and available quantities per grade with an unknown availability dash', async () => {
     vi.stubGlobal('fetch', mockApi({ list: listResponse([pending]), overview: overviewResponse([]) }))
 
     render(<SupervisorInbox />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Escuela Anexo/ }))
-    const table = await screen.findByRole('table', { name: 'Cantidades solicitadas' })
-    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['Producto', 'Solicitado', 'Disponible', 'Aprobar'])
-    expect(within(table).getByRole('row', { name: /Cuadernillo A.*12.*—/ })).toBeInTheDocument()
-    expect(within(table).getByLabelText('Cantidad aprobada · Cuadernillo A')).toHaveValue(12)
-    expect(screen.getByText('La aprobación descuenta stock y cupo y no se puede anular.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Ver ficha/ })).toHaveAttribute('target', '_blank')
+    const drawer = await screen.findByRole('dialog')
+    expect(within(drawer).getByRole('list', { name: 'Cantidades solicitadas' })).toHaveTextContent('Pidió 12 · Disponible —')
+    expect(within(drawer).getByLabelText('Cantidad aprobada · Cuadernillo A')).toHaveValue(12)
+    expect(within(drawer).getByRole('link', { name: /Ver ficha/ })).toHaveAttribute('target', '_blank')
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Aprobar' }))
+    expect(await within(drawer).findByText(/La aprobación descuenta stock y cupo y no se puede anular\./)).toBeInTheDocument()
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Volver' }))
+    expect(within(drawer).getByRole('button', { name: 'Aprobar' })).toBeInTheDocument()
   })
 
   it('posts the approval with the default quantities and then with edited quantities', async () => {
@@ -134,17 +151,16 @@ describe('SupervisorInbox', () => {
     expect(body).toEqual({ reason: 'Solicitud duplicada', idempotencyKey: expect.any(String) })
   })
 
-  it('names each row by its dashed CUE and opens the detail as a bottom sheet on phones', async () => {
-    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
-      matches: query === '(max-width: 640px)', media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-    })))
+  it('names each row by its dashed CUE and opens the detail in a drawer, never a centered modal', async () => {
     vi.stubGlobal('fetch', mockApi({ list: listResponse([pending]) }))
 
     render(<SupervisorInbox />)
 
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /CUE 1801234-57/ }))
-    expect(await screen.findByRole('dialog')).toHaveClass('bottom-sheet')
+    const drawer = await screen.findByRole('dialog')
+    expect(drawer).toHaveClass('k-drawer')
+    expect(drawer).toHaveClass('ui-sheet--right')
     expect(screen.getByRole('button', { name: 'Aprobar' })).toBeInTheDocument()
-    vi.unstubAllGlobals()
   })
 })

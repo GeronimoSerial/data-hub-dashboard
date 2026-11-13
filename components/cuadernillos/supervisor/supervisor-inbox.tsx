@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { BookletBalanceView, BookletRequestSummary, BookletRequestsPage } from '@/lib/cuadernillos/types'
-import { BottomSheet } from '@/components/ui/bottom-sheet'
-import { SheetContent, SheetRoot, SheetTitle } from '@/components/ui/sheet'
+import { Chip, Drawer, EmptyState, KpiStrip, Note, PageHeader, Panel, Segmented, formatCount } from '../kit'
 import { InboxDetail, type ApprovalLine } from './inbox-detail'
 import { availabilityFor, formatAge, formatCue, groupPendingByCabecera } from './inbox-model'
 import { isBalances, isRequestsPage } from './inbox-guards'
@@ -55,22 +54,6 @@ function pluralPending(count: number) {
   return `${count} pendiente${count === 1 ? '' : 's'}`
 }
 
-const PHONE_QUERY = '(max-width: 640px)'
-
-// Phones get the detail as a bottom sheet; wider screens get the right-side sheet.
-function useIsPhone() {
-  const [phone, setPhone] = useState(false)
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-    const query = window.matchMedia(PHONE_QUERY)
-    const update = () => setPhone(query.matches)
-    update()
-    query.addEventListener('change', update)
-    return () => query.removeEventListener('change', update)
-  }, [])
-  return phone
-}
-
 export function SupervisorInbox() {
   const [page, setPage] = useState<BookletRequestsPage | null>(null)
   const [balances, setBalances] = useState<BookletBalanceView[]>([])
@@ -83,7 +66,7 @@ export function SupervisorInbox() {
   const [notice, setNotice] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
   const intentKeys = useRef(new Map<string, { body: string; key: string }>())
-  const phone = useIsPhone()
+  const [view, setView] = useState<'pending' | 'history'>('pending')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -150,106 +133,107 @@ export function SupervisorInbox() {
     setActionError(null)
   }
 
-  return (
-    <section aria-labelledby="supervisor-inbox-title" style={{ display: 'grid', gap: '1.25rem' }}>
-      <header>
-        <h2 id="supervisor-inbox-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: 'clamp(1.25rem, 3vw, 1.6rem)' }}>
-          Pedidos pendientes
-        </h2>
-      </header>
+  const unitsPending = pending.reduce((sum, request) => sum + request.requested.reduce((inner, line) => inner + line.quantity, 0), 0)
+  const approvedCount = decided.filter((request) => request.status === 'approved').length
+  const rejectedCount = decided.length - approvedCount
 
-      {notice ? <p role="status" style={{ margin: 0, color: 'var(--ink)' }}>{notice}</p> : null}
+  return (
+    <section aria-labelledby="supervisor-inbox-title" className="k-stack">
+      <PageHeader id="supervisor-inbox-title" title="Pedidos pendientes" description="Revisá lo que piden las cabeceras de tu zona y aprobá o rechazá cada pedido." />
+
+      {notice ? <Note tone="ok">{notice}</Note> : null}
       {loading && !page ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando pedidos…</p> : null}
-      {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}
+      {error ? <Note tone="danger">{error}</Note> : null}
 
       {page && page.campaignOptions.length > 1 ? (
-        <div role="group" aria-label="Campaña" style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
-          {page.campaignOptions.map((option) => (
-            <button key={option.id} type="button" aria-pressed={campaign === option.id} className="ui-button ui-button--secondary"
-              onClick={() => { setLoading(true); setCampaign(option.id) }}>
-              {option.name}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="Campaña"
+          value={campaign}
+          options={page.campaignOptions.map((option) => ({ value: option.id, label: option.name }))}
+          onChange={(id) => { setLoading(true); setCampaign(id) }}
+        />
       ) : null}
       {page && page.campaignId === null && page.campaignOptions.length > 0 ? (
-        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Elegí una campaña para ver sus pedidos.</p>
+        <EmptyState title="Elegí una campaña" description="Elegí una campaña para ver sus pedidos." />
       ) : null}
 
-      {page && page.campaignId !== null && pending.length === 0 && !loading ? (
-        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>No hay pedidos pendientes</p>
-      ) : null}
+      {page && page.campaignId !== null ? (
+        <>
+          <KpiStrip label="Resumen de pedidos" items={[
+            { label: 'Pendientes', value: pending.length, tone: pending.length > 0 ? 'warn' : undefined },
+            { label: 'Cuadernillos a revisar', value: formatCount(unitsPending) },
+            { label: 'Aprobados', value: approvedCount },
+            { label: 'Rechazados', value: rejectedCount },
+          ]} />
 
-      {groups.map((group) => (
-        <section key={group.cabeceraCueAnexo} role="group" aria-label={group.cabeceraName} style={{ display: 'grid', gap: '.5rem' }}>
-          <header style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', alignItems: 'baseline' }}>
-            <h3 style={{ margin: 0, minWidth: 0, color: 'var(--ink)', fontSize: '1rem', overflowWrap: 'anywhere' }}>{group.cabeceraName}</h3>
-            <span style={{ flexShrink: 0, whiteSpace: 'nowrap', color: 'var(--ink-soft)', fontSize: '.9rem' }}>{pluralPending(group.requests.length)}</span>
-          </header>
-          {group.requests.map((request) => {
-            const total = request.requested.reduce((sum, line) => sum + line.quantity, 0)
-            return (
-              <button key={request.requestId} type="button" className="cdl-row-button" onClick={() => { setActionError(null); setSelectedId(request.requestId) }}>
-                <span style={{ fontWeight: 600, minWidth: 0 }}>{request.recipientName || 'Escuela destinataria'}</span>
-                <span style={{ color: 'var(--ink-soft)', fontSize: '.9rem', minWidth: 0 }}>
-                  CUE {formatCue(request.recipientCueAnexo)} · {total} cuadernillos
-                </span>
-                <span style={{ color: 'var(--ink-soft)', fontSize: '.85rem', minWidth: 0 }}>{formatAge(request.submittedAt)}</span>
-                <ChevronRight className="cdl-chevron" aria-hidden="true" size={20} />
-              </button>
-            )
-          })}
-        </section>
-      ))}
+          <Segmented
+            label="Ver pedidos"
+            value={view}
+            options={[{ value: 'pending', label: `Pendientes (${pending.length})` }, { value: 'history', label: `Historial (${decided.length})` }]}
+            onChange={setView}
+          />
 
-      {decided.length ? (
-        <details>
-          <summary style={{ cursor: 'pointer', color: 'var(--ink-soft)' }}>
-            <span>Historial</span> <span>({decided.length})</span>
-          </summary>
-          <ul style={{ listStyle: 'none', margin: '.75rem 0 0', padding: 0, display: 'grid', gap: '.5rem' }}>
-            {decided.map((request) => (
-              <li key={request.requestId} style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', color: 'var(--ink-soft)' }}>
-                <span>{request.recipientName || 'Escuela destinataria'}</span>
-                <span>{STATUS_LABELS[request.status]}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-
-      {phone ? (
-        <BottomSheet open={selected !== null} titulo="Pedido de cuadernillos" onCerrar={closePanel}>
-          {selected ? (
-            <InboxDetail
-              key={selected.requestId}
-              request={selected}
-              availability={availabilityFor(selected, balances)}
-              busy={busy}
-              error={actionError}
-              onApprove={(lines) => void decide(selected, { kind: 'approve', lines })}
-              onReject={(reason) => void decide(selected, { kind: 'reject', reason })}
-            />
+          {view === 'pending' && pending.length === 0 && !loading ? (
+            <EmptyState title="No hay pedidos pendientes" description="Cuando una cabecera envíe un pedido, aparece acá para que lo revises." />
           ) : null}
-        </BottomSheet>
-      ) : (
-        <SheetRoot open={selected !== null} onOpenChange={(open) => { if (!open) closePanel() }}>
-          <SheetContent side="right" style={{ width: 'min(100vw, 28rem)', maxWidth: '100vw', boxSizing: 'border-box', padding: '1.5rem', overflowY: 'auto' }}>
-            <SheetTitle style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>Pedido de cuadernillos</SheetTitle>
-            {selected ? (
-              <InboxDetail
-                key={selected.requestId}
-                request={selected}
-                availability={availabilityFor(selected, balances)}
-                  busy={busy}
-                error={actionError}
-                onApprove={(lines) => void decide(selected, { kind: 'approve', lines })}
-                onReject={(reason) => void decide(selected, { kind: 'reject', reason })}
-              />
-            ) : null}
-          </SheetContent>
-        </SheetRoot>
-      )}
+
+          {view === 'pending' ? groups.map((group) => (
+            <Panel key={group.cabeceraCueAnexo} title={group.cabeceraName} aside={pluralPending(group.requests.length)}>
+              <div role="group" aria-label={group.cabeceraName} className="k-list">
+                {group.requests.map((request) => {
+                  const total = request.requested.reduce((sum, line) => sum + line.quantity, 0)
+                  return (
+                    <button key={request.requestId} type="button" className="k-row" onClick={() => { setActionError(null); setSelectedId(request.requestId) }}>
+                      <span className="k-row-main">
+                        <span className="k-row-title">{request.recipientName || 'Escuela destinataria'}</span>
+                        <span className="k-row-meta">CUE {formatCue(request.recipientCueAnexo)} · {total} cuadernillos · {formatAge(request.submittedAt)}</span>
+                      </span>
+                      <span className="k-row-side"><Chip tone="warn">Pendiente</Chip><ChevronRight aria-hidden size={20} /></span>
+                    </button>
+                  )
+                })}
+              </div>
+            </Panel>
+          )) : null}
+
+          {view === 'history' ? (
+            decided.length === 0 ? (
+              <EmptyState title="Todavía no hay pedidos resueltos" />
+            ) : (
+              <ul className="k-list">
+                {decided.map((request) => (
+                  <li key={request.requestId} className="k-row">
+                    <span className="k-row-main">
+                      <span className="k-row-title">{request.recipientName || 'Escuela destinataria'}</span>
+                      <span className="k-row-meta">CUE {formatCue(request.recipientCueAnexo)} · {request.cabeceraName}</span>
+                    </span>
+                    <span className="k-row-side"><Chip tone={request.status === 'approved' ? 'ok' : 'danger'}>{STATUS_LABELS[request.status]}</Chip></span>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : null}
+        </>
+      ) : null}
+
+      <Drawer
+        open={selected !== null}
+        title={selected?.recipientName || 'Pedido de cuadernillos'}
+        description="Pedido de cuadernillos"
+        onClose={closePanel}
+      >
+        {selected ? (
+          <InboxDetail
+            key={selected.requestId}
+            request={selected}
+            availability={availabilityFor(selected, balances)}
+            busy={busy}
+            error={actionError}
+            onApprove={(lines) => void decide(selected, { kind: 'approve', lines })}
+            onReject={(reason) => void decide(selected, { kind: 'reject', reason })}
+          />
+        ) : null}
+      </Drawer>
     </section>
   )
 }
