@@ -27,6 +27,7 @@ import { estadisticasPt } from './grupos/estadisticas.pt'
 import { controlesPt } from './grupos/controles.pt'
 import { panelesMapaPt } from './grupos/panelesMapa.pt'
 import { situacionPt } from './grupos/situacion.pt'
+import { auditoriaPt } from './grupos/auditoria.pt'
 import type { Diccionario } from './tipos'
 
 // Brazilian Portuguese dictionary for the Manaos (Amazonas) audience. It must
@@ -293,6 +294,7 @@ export const pt: Diccionario = {
   controles: controlesPt,
   panelesMapa: panelesMapaPt,
   situacion: situacionPt,
+  auditoria: auditoriaPt,
   fichaPanorama: fichaPanoramaPt,
   fichaTerritorio: fichaTerritorioPt,
   fichaHistorial: fichaHistorialPt,
