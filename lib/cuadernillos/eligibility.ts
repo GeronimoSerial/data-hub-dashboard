@@ -1,5 +1,7 @@
 import type { Eligibility } from './types'
+import { getDb } from '@/lib/db'
 import { esSeveridad } from '@/lib/infraestructura/validacion'
+import { ejecutorGe, prepararEsquemaGe } from './ge-conexion'
 import { BOOKLET_ELIGIBILITY_LOCK_CLASS, BOOKLET_ELIGIBILITY_LOCK_OBJECT, type EjecutorSql } from '@/lib/infraestructura/ge-db'
 
 export type CurrentSeverityProjection = (cueAnexo: string) => Promise<string | null>
@@ -23,7 +25,12 @@ export type CurrentParteProjection = (cueAnexo: string) => Promise<CurrentParte 
 const readCurrentParte: CurrentParteProjection = async (cueAnexo) => {
   const { listarPartesVigentes } = await import('@/lib/infraestructura/parte-mapa')
   const dashed = toDashedCue(cueAnexo)
-  const { partes } = await listarPartesVigentes({ cueAnexo: dashed })
+  // Misma conexión que la transacción abierta, si la hay: sin una segunda conexión del pool.
+  const { partes } = await listarPartesVigentes({ cueAnexo: dashed }, {
+    db: getDb(),
+    client: ejecutorGe(),
+    geSchema: await prepararEsquemaGe(),
+  })
   const matches = partes.filter((parte) => parte.cueAnexo === dashed)
   if (matches.length !== 1) return null
   return { peorSeveridad: matches[0].peorSeveridad, nombre: matches[0].nombre }

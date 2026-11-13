@@ -3,6 +3,8 @@ import { createRemainderRequest, getRequestChain } from '@/lib/cuadernillos/rema
 import { BookletServiceError } from '@/lib/cuadernillos/inventory'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+import { prepararEsquemaGe } from '@/lib/cuadernillos/ge-conexion'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -23,7 +25,15 @@ async function handlePOST(request: Request, context: { params: Promise<{ id: str
   const parsed = schema.safeParse(body)
   if (!parsed.success || !id.trim()) return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: noStore })
   try {
-    const result = await createRemainderRequest(actor!, { rootRequestId: id, ...parsed.data })
+    // Esquema GE antes de abrir la auditoría; si falla, el servicio lo reintenta y responde como antes.
+    await prepararEsquemaGe().catch(() => undefined)
+    const result = await cambioAuditado(() => createRemainderRequest(actor!, { rootRequestId: id, ...parsed.data }), (creada) => ({
+      status: 201,
+      objetoTipo: 'cuadernillo_solicitud',
+      objetoId: creada.requestId,
+      cueAnexo: creada.recipientCueAnexo,
+      metadatos: { cantidad: parsed.data.lines.reduce((total, line) => total + line.quantity, 0) },
+    }))
     return Response.json({ request: result }, { status: 201, headers: noStore })
   } catch (error) {
     if (error instanceof BookletServiceError) return Response.json({ error: error.code }, { status: error.status, headers: noStore })
@@ -48,5 +58,5 @@ async function handleGET(request: Request, context: { params: Promise<{ id: stri
   }
 }
 
-export const POST = ruta('cuadernillos.requests.remainder.post', handlePOST)
+export const POST = conAuditoria('cuadernillo.solicitud_remanente', '/api/cuadernillos/requests/[id]/remainder', ruta('cuadernillos.requests.remainder.post', handlePOST))
 export const GET = ruta('cuadernillos.requests.remainder.get', handleGET)

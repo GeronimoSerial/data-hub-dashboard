@@ -1,3 +1,4 @@
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Route from './route'
@@ -8,6 +9,8 @@ import { hasBookletCapability } from '@/lib/cuadernillos/permissions'
 import { confirmAndPersistAssignments, validateAssignments } from '@/lib/cuadernillos/assignment-import'
 import type { BookletAssignmentsPage } from '@/lib/cuadernillos/types'
 import { resolveViewAsActor } from '@/lib/cuadernillos/view-as'
+
+usarDbTemporal('cuadernillos-assignments-rutas-')
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/lib/hub-entry-server', () => ({ hubApiAccessResponse: vi.fn() }))

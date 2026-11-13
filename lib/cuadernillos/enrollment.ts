@@ -1,8 +1,8 @@
 import { and, eq } from 'drizzle-orm'
-import { getDb, getRawClient } from '@/lib/db'
+import { getDb } from '@/lib/db'
 import { bookletCampaign, bookletProduct, bookletProductMapping } from '@/lib/db/schema'
-import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
-import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from '@/lib/infraestructura/ge-db'
+import { getCorteVigente, type EjecutorSql } from '@/lib/infraestructura/ge-db'
+import { ejecutorGe, prepararEsquemaGe } from './ge-conexion'
 import type { EnrollmentRecommendation } from './types'
 
 export type EnrollmentRow = {
@@ -81,15 +81,13 @@ const databaseRepository: EnrollmentRepository = {
     }))
   },
   async getCurrentCut() {
-    const client = crearEjecutorSql(getRawClient())
-    await asegurarGeAdjuntada(client)
-    const cut = await getCorteVigente(client)
+    await prepararEsquemaGe()
+    const cut = await getCorteVigente(ejecutorGe())
     return cut ? { id: cut.id } : null
   },
   async listEnrollmentRows(cueAnexo, cutId) {
-    const client = crearEjecutorSql(getRawClient())
-    await asegurarGeAdjuntada(client)
-    return listEnrollmentRows(client, cueAnexo, cutId)
+    await prepararEsquemaGe()
+    return listEnrollmentRows(ejecutorGe(), cueAnexo, cutId)
   },
 }
 
