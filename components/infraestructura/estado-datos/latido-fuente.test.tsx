@@ -13,7 +13,7 @@ describe('LatidoFuente', () => {
     render(
       <LatidoFuente
         corridas={[{ en: hace(10), ok: true }, { en: hace(4), ok: false }, { en: hace(1), ok: true }]}
-        ahora={AHORA} ultimoExitoEn={hace(1)} intervaloMinutos={360} t={textos('es')}
+        ahora={AHORA} estado="ok" ultimoIntentoEn={null} ultimoExitoEn={hace(1)} intervaloMinutos={360} t={textos('es')}
       />,
     )
     const raiz = screen.getByTestId('estado-datos-latido')
@@ -24,7 +24,7 @@ describe('LatidoFuente', () => {
   })
 
   it('nunca corrió: línea plana y texto', () => {
-    render(<LatidoFuente corridas={[]} ahora={AHORA} ultimoExitoEn={null} intervaloMinutos={1440} t={textos('es')} />)
+    render(<LatidoFuente corridas={[]} ahora={AHORA} estado="ok" ultimoIntentoEn={null} ultimoExitoEn={null} intervaloMinutos={1440} t={textos('es')} />)
     const raiz = screen.getByTestId('estado-datos-latido')
     expect(raiz).toHaveTextContent('nunca corrió')
     expect(raiz.querySelector('.situacion-latido__pulso')).toBeNull()
@@ -32,7 +32,7 @@ describe('LatidoFuente', () => {
   })
 
   it('sin latido N d y portugués', () => {
-    render(<LatidoFuente corridas={[]} ahora={AHORA} ultimoExitoEn={hace(28 * 24)} intervaloMinutos={1440} t={textos('pt')} />)
+    render(<LatidoFuente corridas={[]} ahora={AHORA} estado="ok" ultimoIntentoEn={null} ultimoExitoEn={hace(28 * 24)} intervaloMinutos={1440} t={textos('pt')} />)
     expect(screen.getByTestId('estado-datos-latido')).toHaveTextContent('sem batimento há 28 d')
   })
 })

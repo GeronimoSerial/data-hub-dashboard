@@ -108,12 +108,17 @@ describe('Centro de Situación: situación primero', () => {
     expect(screen.getByTestId('estado-datos-conteos')).toHaveTextContent('1 falló')
   })
 
-  it('se abre solo cuando ninguna fuente está al día (todo Sin datos)', () => {
+  it('se abre solo cuando hay más fuentes sin datos que al día', () => {
     render(<SituacionClient estadoInicial={estado(estadoDatos([item('a', 'sin_datos'), item('b', 'sin_datos'), item('c', 'deshabilitado')]))} />)
     expect(screen.getByTestId('estado-datos')).toHaveAttribute('open')
   })
 
-  it('sigue cerrado si hay al menos una fuente al día y ninguna falló', () => {
+  it('también cuando sólo una fuente está al día pero hay más sin datos', () => {
+    render(<SituacionClient estadoInicial={estado(estadoDatos([item('a', 'ok'), item('b', 'sin_datos'), item('c', 'sin_datos')]))} />)
+    expect(screen.getByTestId('estado-datos')).toHaveAttribute('open')
+  })
+
+  it('sigue cerrado si hay tantas o más fuentes al día que sin datos y ninguna falló', () => {
     render(<SituacionClient estadoInicial={estado(SIN_FALLA)} />)
     expect(screen.getByTestId('estado-datos')).not.toHaveAttribute('open')
   })
@@ -137,5 +142,54 @@ describe('Centro de Situación: situación primero', () => {
     expect(clase('Fuente atrasada')).toContain('badge--warning')
     expect(clase('Fuente sin datos')).toContain('badge--neutral')
     expect(clase('Fuente estática')).toContain('badge--neutral')
+  })
+})
+
+describe('Centro de Situación: lista de cambios', () => {
+  const cambio = (id: string, cue: string) => ({
+    id, tipo: 'afectacion' as const, ocurreEn: '2026-09-27T11:00:00.000Z', departamento: 'CAPITAL', cueAnexo: cue,
+    descripcion: 'Situación: Inundación',
+  })
+
+  function conCambios(lista: ReturnType<typeof cambio>[], nombres: Record<string, string> = {}) {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/situacion/cambios')) return { ok: true, json: async () => ({ porRegistro: lista, porVigencia: lista }) }
+      if (url.includes('/situacion/escuelas')) return { ok: true, json: async () => ({ nombres }) }
+      return { ok: true, json: async () => ({}) }
+    }))
+  }
+
+  it('agrupa cambios idénticos consecutivos y se expande con el nombre de cada escuela', async () => {
+    const user = userEvent.setup()
+    conCambios(
+      [cambio('1', '1800001-00'), cambio('2', '1800002-00'), cambio('3', '1800003-00')],
+      { '1800001-00': 'Escuela Uno', '1800002-00': 'Escuela Dos', '1800003-00': 'Escuela Tres' },
+    )
+    render(<SituacionClient estadoInicial={estado(SIN_FALLA)} />)
+    const items = await screen.findAllByTestId('situacion-timeline-item')
+    expect(items).toHaveLength(1)
+    expect(items[0]).toHaveTextContent('3 escuelas')
+    expect(items[0]).toHaveTextContent('CAPITAL')
+    await user.click(screen.getByRole('button', { name: /3 escuelas/ }))
+    expect(await screen.findByText('Escuela Dos')).toBeInTheDocument()
+  })
+
+  it('un cambio suelto muestra el nombre de la escuela, no sólo el departamento', async () => {
+    conCambios([cambio('1', '1800001-00')], { '1800001-00': 'Escuela Uno' })
+    render(<SituacionClient estadoInicial={estado(SIN_FALLA)} />)
+    const item = await screen.findByTestId('situacion-timeline-item')
+    expect(await within(item).findByText('Escuela Uno')).toBeInTheDocument()
+  })
+
+  it('cambios distintos no se agrupan', async () => {
+    conCambios([cambio('1', '1800001-00'), { ...cambio('2', '1800002-00'), descripcion: 'Situación: Sin clases' }])
+    render(<SituacionClient estadoInicial={estado(SIN_FALLA)} />)
+    expect(await screen.findAllByTestId('situacion-timeline-item')).toHaveLength(2)
+  })
+
+  it('el resumen del briefing es texto plano, no una lista con viñeta', () => {
+    const { container } = render(<SituacionClient estadoInicial={estado(SIN_FALLA)} />)
+    expect(screen.getByText('Línea 1.')).toBeInTheDocument()
+    expect(container.querySelector('.situacion-briefing ul')).toBeNull()
   })
 })

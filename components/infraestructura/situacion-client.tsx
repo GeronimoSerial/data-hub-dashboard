@@ -12,6 +12,7 @@
 // dato" nunca se pinta de verde; el copy no usa "alerta" ni "SMN".
 import { formatoFechaRegion, localeRegion } from '@/lib/infraestructura/formato-region'
 import { useCallback, useEffect, useState, type JSX } from 'react'
+import { ChevronDown } from 'lucide-react'
 import type { EstadoDatos } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import type { CorridaLatido } from './estado-datos/latido'
@@ -237,20 +238,86 @@ function PanelPrioridades(props: {
   )
 }
 
-function PanelTimeline(props: { cambios: CambioSituacionCliente[] }): JSX.Element {
+export interface GrupoCambios {
+  clave: string
+  cambios: CambioSituacionCliente[]
+}
+
+// Agrupa cambios consecutivos idénticos (mismo tipo, departamento y
+// descripción): "4 escuelas · CAPITAL · Inundación" en vez de 4 filas iguales.
+export function agruparCambios(cambios: CambioSituacionCliente[]): GrupoCambios[] {
+  const grupos: GrupoCambios[] = []
+  for (const cambio of cambios) {
+    const clave = `${cambio.tipo}|${cambio.departamento ?? ''}|${cambio.descripcion}`
+    const ultimo = grupos[grupos.length - 1]
+    if (ultimo?.clave === clave) ultimo.cambios.push(cambio)
+    else grupos.push({ clave, cambios: [cambio] })
+  }
+  return grupos
+}
+
+function nombreEscuela(cue: string | null, nombres: Record<string, string>, t: Diccionario): string | null {
+  if (cue === null) return null
+  return nombres[cue] ?? `${t.situacion.cue} ${cue}`
+}
+
+function FilaCambio(props: { grupo: GrupoCambios; nombres: Record<string, string> }): JSX.Element {
+  const t = useTextos()
+  const [abierto, setAbierto] = useState(false)
+  const { cambios } = props.grupo
+  const primero = cambios[0]!
+  const resto = (
+    <>
+      <span className="situacion-timeline__tipo">[{t.situacion.tipoCambio[CLAVE_TIPO_CAMBIO[primero.tipo]]}]</span>{' '}
+      {primero.departamento && <a href={ENLACE_RADAR}>{primero.departamento}</a>}{' '}
+      {traducirPlantilla(primero.descripcion, t.situacion)}
+    </>
+  )
+  if (cambios.length === 1) {
+    const nombre = nombreEscuela(primero.cueAnexo, props.nombres, t)
+    return (
+      <li data-testid="situacion-timeline-item">
+        <span className="situacion-timeline__fecha">{formatearFecha(primero.ocurreEn)}</span>{' '}
+        {nombre !== null && <strong className="situacion-timeline__escuela">{nombre}</strong>} {resto}
+      </li>
+    )
+  }
+  return (
+    <li data-testid="situacion-timeline-item" data-agrupado={cambios.length}>
+      <span className="situacion-timeline__fecha">{formatearFecha(primero.ocurreEn)}</span>{' '}
+      <button
+        type="button"
+        className="situacion-timeline__grupo"
+        aria-expanded={abierto}
+        onClick={() => setAbierto((v) => !v)}
+      >
+        <ChevronDown aria-hidden="true" size={16} data-abierto={abierto} />
+        {t.situacion.escuelasCantidad(cambios.length)}
+      </button>{' '}
+      {resto}
+      {abierto && (
+        <ul className="situacion-timeline__miembros">
+          {cambios.map((cambio) => (
+            <li key={cambio.id}>
+              <span className="situacion-timeline__fecha">{formatearFecha(cambio.ocurreEn)}</span>{' '}
+              {nombreEscuela(cambio.cueAnexo, props.nombres, t)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+
+function PanelTimeline(props: { cambios: CambioSituacionCliente[]; nombres: Record<string, string> }): JSX.Element {
   const t = useTextos()
   if (props.cambios.length === 0) {
     return <p role="status">{t.situacion.sinCambiosRango}</p>
   }
   return (
     <ol className="situacion-timeline" data-testid="situacion-timeline">
-      {props.cambios.map((cambio) => (
-        <li key={cambio.id} data-testid="situacion-timeline-item">
-          <span className="situacion-timeline__fecha">{formatearFecha(cambio.ocurreEn)}</span>{' '}
-          <span className="situacion-timeline__tipo">[{t.situacion.tipoCambio[CLAVE_TIPO_CAMBIO[cambio.tipo]]}]</span>{' '}
-          {cambio.departamento && <a href={ENLACE_RADAR}>{cambio.departamento}</a>}{' '}
-          {traducirPlantilla(cambio.descripcion, t.situacion)}
-        </li>
+      {agruparCambios(props.cambios).map((grupo) => (
+        <FilaCambio key={grupo.cambios[0]!.id} grupo={grupo} nombres={props.nombres} />
       ))}
     </ol>
   )
@@ -264,6 +331,10 @@ export function SituacionClient(props: {
   const t = useTextos()
   const [estado, setEstado] = useState(props.estadoInicial)
   const [corridas, setCorridas] = useState(props.corridasIniciales)
+  // Nombres de escuela por CUE: los iniciales del servidor más los que se
+  // piden al mostrar cambios o prioridades nuevas (los nombres no cambian).
+  const [nombres, setNombres] = useState<Record<string, string>>(props.nombresEscuelas ?? {})
+  const [consultados, setConsultados] = useState<Set<string>>(() => new Set(Object.keys(props.nombresEscuelas ?? {})))
   const [modoCambios, setModoCambios] = useState<ModoCambios>('vigencia')
   const [rangoDesde, setRangoDesde] = useState<(typeof OPCIONES_DESDE)[number]['valor']>('24h')
   const [cambios, setCambios] = useState<{
@@ -328,6 +399,33 @@ export function SituacionClient(props: {
   }, [])
 
   const listaCambios = modoCambios === 'registro' ? cambios.porRegistro : cambios.porVigencia
+
+  const cuesVisibles = [
+    ...new Set([
+      ...[...cambios.porRegistro, ...cambios.porVigencia].map((c) => c.cueAnexo).filter((c): c is string => c !== null),
+      ...estado.prioridades.map((p) => p.cueAnexo),
+    ]),
+  ]
+  const cuesPendientes = cuesVisibles.filter((cue) => !consultados.has(cue))
+  const clavePendientes = cuesPendientes.join(',')
+  useEffect(() => {
+    if (clavePendientes === '') return
+    let cancelado = false
+    const cues = clavePendientes.split(',')
+    fetch(`/api/infraestructura/situacion/escuelas?cues=${encodeURIComponent(clavePendientes)}`)
+      .then(async (res) => (res.ok ? await res.json() : null))
+      .then((body) => {
+        if (cancelado || !body?.nombres) return
+        setNombres((previos) => ({ ...previos, ...body.nombres }))
+        setConsultados((previos) => new Set([...previos, ...cues]))
+      })
+      .catch(() => {
+        // Sin nombre: la fila muestra el CUE, nunca bloquea la lista.
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [clavePendientes])
   const cadenaVerificada = textoCadenaVerificada(estado.estadoDatos)
   const opcionesRango = OPCIONES_DESDE.map((o) => ({ value: o.valor, label: t.situacion.rango[o.clave] }))
   const opcionesModo = [
@@ -403,20 +501,16 @@ export function SituacionClient(props: {
         <PanelPrioridades
           prioridades={estado.prioridades}
           sinRun={estado.sinRun}
-          nombres={props.nombresEscuelas ?? {}}
+          nombres={nombres}
         />
       </section>
 
       <section aria-label={t.situacion.aria.cambiosDesde} className="situacion-seccion">
         {estado.briefing.length > 0 && (
           <div aria-label={t.situacion.aria.resumen} role="group" className="situacion-briefing">
-            {/* Nunca abierto por defecto ni largo: una lista corta de líneas
-                cortas, sin acordeón que el operador tenga que gestionar. */}
-            <ul>
-              {estado.briefing.map((linea, i) => (
-                <li key={i}>{traducirPlantilla(linea, t.situacion)}</li>
-              ))}
-            </ul>
+            {estado.briefing.map((linea, i) => (
+              <p key={i}>{traducirPlantilla(linea, t.situacion)}</p>
+            ))}
           </div>
         )}
         <div className="situacion-cambios__controles">
@@ -456,7 +550,7 @@ export function SituacionClient(props: {
             </Select>
           </div>
         </div>
-        <PanelTimeline cambios={listaCambios} />
+        <PanelTimeline cambios={listaCambios} nombres={nombres} />
       </section>
 
       <PanelEstadoDatos estado={estado.estadoDatos} corridas={corridas} />
