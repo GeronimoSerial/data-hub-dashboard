@@ -10,7 +10,10 @@ import Zoom from '@lightgallery/react/plugins/zoom'
 import styles from './galeria-evidencia.module.css'
 import { CargaEvidencia } from './carga-evidencia'
 import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import type { Diccionario } from '@/lib/i18n'
 
+type Etiquetas = Diccionario['parteGaleria']['etiquetas']
 type FotoEvidencia = { attachmentId: string; thumbnailUrl: string }
 type MovimientoEvidencia = {
   id: string
@@ -26,11 +29,11 @@ function fechaMovimiento(value: string): string {
     : new Intl.DateTimeFormat(localeRegion(), { dateStyle: 'long', timeStyle: 'short' }).format(date)
 }
 
-function etiquetaMovimiento(type: string): string {
-  if (type === 'evidencia_fotografica') return 'Evidencia adicional'
-  if (type === 'reporte_inicial') return 'Reporte inicial'
-  if (type === 'actualizacion') return 'Actualización'
-  return 'Movimiento'
+function etiquetaMovimiento(type: string, etiquetas: Etiquetas): string {
+  if (type === 'evidencia_fotografica') return etiquetas.evidenciaAdicional
+  if (type === 'reporte_inicial') return etiquetas.reporteInicial
+  if (type === 'actualizacion') return etiquetas.actualizacion
+  return etiquetas.movimiento
 }
 
 export function GaleriaEvidencia({
@@ -58,6 +61,7 @@ export function GaleriaEvidencia({
   const [recarga, setRecarga] = useState(0)
   const [aviso, setAviso] = useState<string | null>(null)
   const openerRef = useRef<HTMLButtonElement | null>(null)
+  const t = useTextos().parteGaleria
   const photos = useMemo(() => (movements ?? []).flatMap((movement) =>
     movement.photos.map((photo) => ({ movement, photo })),
   ), [movements])
@@ -105,8 +109,8 @@ export function GaleriaEvidencia({
         return {
           src: result.url,
           thumb: photo.thumbnailUrl,
-          alt: 'Evidencia fotográfica',
-          caption: `${etiquetaMovimiento(movement.type)} · ${fechaMovimiento(movement.createdAt)}`,
+          alt: t.galeria.alt,
+          caption: t.galeria.caption(etiquetaMovimiento(movement.type, t.etiquetas), fechaMovimiento(movement.createdAt)),
           downloadUrl: false as const,
         }
       }))
@@ -147,13 +151,13 @@ export function GaleriaEvidencia({
   }
 
   return (
-    <section className={[styles.gallery, className].filter(Boolean).join(' ')} aria-label="Evidencia fotográfica">
+    <section className={[styles.gallery, className].filter(Boolean).join(' ')} aria-label={t.galeria.titulo}>
       <div className={styles.header}>
         <div className={styles.heading}>
-          <h3>Evidencia fotográfica</h3>
-          {lista && <span className={styles.count}>{total === 1 ? '1 adjunto' : `${total} adjuntos`}</span>}
+          <h3>{t.galeria.titulo}</h3>
+          {lista && <span className={styles.count}>{total === 1 ? t.galeria.adjunto1 : t.galeria.adjuntos(total)}</span>}
         </div>
-        {!cargando && accionCarga(styles.attach, 'Adjuntar foto', <Plus aria-hidden="true" />)}
+        {!cargando && accionCarga(styles.attach, t.galeria.adjuntar, <Plus aria-hidden="true" />)}
       </div>
       {cargando && (
         <CargaEvidencia
@@ -163,33 +167,33 @@ export function GaleriaEvidencia({
           onCancelar={() => setCargando(false)}
           onGuardado={() => {
             setCargando(false)
-            setAviso('Fotos guardadas. Se suben en segundo plano y aparecen acá cuando terminan.')
+            setAviso(t.galeria.guardadas)
             setRecarga((valor) => valor + 1)
           }}
         />
       )}
       {aviso && <p role="status" className={styles.uploadNote}>{aviso}</p>}
-      {lista === null && !error && <p role="status">Cargando fotos…</p>}
-      {error && <p role="alert">No se pudo cargar la evidencia fotográfica.</p>}
+      {lista === null && !error && <p role="status">{t.galeria.cargando}</p>}
+      {error && <p role="alert">{t.galeria.error}</p>}
       {lista && total === 0 && !cargando && (
         <div className={styles.empty}>
           <span className={styles.emptyIcon} aria-hidden="true"><Camera /></span>
           <div>
-            <p className={styles.emptyTitle}>Sin imágenes registradas</p>
-            <p className={styles.emptyText}>Se pueden adjuntar fotografías del estado de caminos, accesos o del predio escolar.</p>
+            <p className={styles.emptyTitle}>{t.galeria.sinImagenes}</p>
+            <p className={styles.emptyText}>{t.galeria.sinImagenesTexto}</p>
           </div>
-          {accionCarga(styles.browse, 'Examinar archivos', <ArrowUpRight aria-hidden="true" />)}
+          {accionCarga(styles.browse, t.galeria.examinar, <ArrowUpRight aria-hidden="true" />)}
         </div>
       )}
       {lista?.map((movement) => (
         <section className={styles.movement} key={movement.id}>
-          <h4>{etiquetaMovimiento(movement.type)} · {fechaMovimiento(movement.createdAt)}</h4>
+          <h4>{t.galeria.caption(etiquetaMovimiento(movement.type, t.etiquetas), fechaMovimiento(movement.createdAt))}</h4>
           <div className={styles.photos}>
             {movement.photos.map((photo) => (
               <button
                 key={photo.attachmentId}
                 type="button"
-                aria-label={`Ampliar foto del ${fechaMovimiento(movement.createdAt)}`}
+                aria-label={t.galeria.ampliar(fechaMovimiento(movement.createdAt))}
                 aria-busy={loadingPhoto === photo.attachmentId}
                 onClick={(event) => void openPhoto(photo.attachmentId, event.currentTarget)}
               >
@@ -215,25 +219,25 @@ export function GaleriaEvidencia({
         closeOnTap
         trapFocus
         strings={{
-          closeGallery: 'Cerrar galería',
-          toggleMaximize: 'Alternar pantalla completa',
-          previousSlide: 'Imagen anterior',
-          nextSlide: 'Imagen siguiente',
-          download: 'Descargar imagen',
-          playVideo: 'Reproducir video',
-          mediaLoadingFailed: 'No se pudo cargar la imagen',
-          galleryLabel: 'Galería de evidencia',
-          slideAnnouncement: 'Imagen {index} de {total}',
-          moreOptions: 'Más opciones',
-          share: 'Compartir',
-          toggleThumbnails: 'Mostrar u ocultar miniaturas',
-          toggleAutoplay: 'Iniciar o detener presentación',
-          toggleFullscreen: 'Alternar pantalla completa',
-          zoomIn: 'Acercar imagen',
-          zoomOut: 'Alejar imagen',
-          viewActualSize: 'Ver tamaño real',
-          rotateLeft: 'Girar a la izquierda',
-          rotateRight: 'Girar a la derecha',
+          closeGallery: t.visor.cerrar,
+          toggleMaximize: t.visor.pantallaCompleta,
+          previousSlide: t.visor.anterior,
+          nextSlide: t.visor.siguiente,
+          download: t.visor.descargar,
+          playVideo: t.visor.reproducir,
+          mediaLoadingFailed: t.visor.errorImagen,
+          galleryLabel: t.visor.galeria,
+          slideAnnouncement: t.visor.imagen,
+          moreOptions: t.visor.masOpciones,
+          share: t.visor.compartir,
+          toggleThumbnails: t.visor.miniaturas,
+          toggleAutoplay: t.visor.presentacion,
+          toggleFullscreen: t.visor.pantallaCompleta,
+          zoomIn: t.visor.acercar,
+          zoomOut: t.visor.alejar,
+          viewActualSize: t.visor.tamanoReal,
+          rotateLeft: t.visor.girarIzquierda,
+          rotateRight: t.visor.girarDerecha,
         }}
       />
     </section>

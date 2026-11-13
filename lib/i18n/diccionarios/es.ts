@@ -1,4 +1,14 @@
 import type { Semaforo } from '@/lib/sobreoferta'
+import { shellHubEs } from './grupos/shellHub.es'
+import { parteRecorridoEs } from './grupos/parteRecorrido.es'
+import { parteReporteInicialEs } from './grupos/parteReporteInicial.es'
+import { parteAlgoNuevoEs } from './grupos/parteAlgoNuevo.es'
+import { parteVerificacionesEs } from './grupos/parteVerificaciones.es'
+import { parteCamposEs } from './grupos/parteCampos.es'
+import { parteGaleriaEs } from './grupos/parteGaleria.es'
+import { parteRestoEs } from './grupos/parteResto.es'
+import { parteComunTextosEs } from './grupos/parteComunTextos.es'
+import { parteComunControlesEs } from './grupos/parteComunControles.es'
 import { libTextos2Es } from './grupos/libTextos2.es'
 import { residuosEs } from './grupos/residuos.es'
 import { fichaPanelEs } from './grupos/fichaPanel.es'
@@ -296,4 +306,14 @@ export const es = {
   fichaPagina: fichaPaginaEs,
   libTextos2: libTextos2Es,
   residuos: residuosEs,
+  parteComunTextos: parteComunTextosEs,
+  parteComunControles: parteComunControlesEs,
+  shellHub: shellHubEs,
+  parteRecorrido: parteRecorridoEs,
+  parteReporteInicial: parteReporteInicialEs,
+  parteAlgoNuevo: parteAlgoNuevoEs,
+  parteVerificaciones: parteVerificacionesEs,
+  parteCampos: parteCamposEs,
+  parteGaleria: parteGaleriaEs,
+  parteResto: parteRestoEs,
 } as const

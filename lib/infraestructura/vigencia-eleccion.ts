@@ -1,9 +1,10 @@
 import type { CategoriaAfectacion } from './categorias'
-import { dentroDeRangoVigencia, MENSAJE_FUERA_DE_RANGO_VIGENCIA } from './vigencia-rango'
+import { dentroDeRangoVigencia } from './vigencia-rango'
+import { parteComunTextosEs } from '@/lib/i18n/diccionarios/grupos/parteComunTextos.es'
 import { es } from '@/lib/i18n/diccionarios/es'
 import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
-export const MENSAJE_HORA_FUTURA = 'Esa hora todavía no pasó. Elija una hora anterior a la actual.'
+export const MENSAJE_HORA_FUTURA = parteComunTextosEs.vigencia.horaFutura
 
 // Spec rediseño §5.3: tres chips en vez de un panel de fecha y hora. "Ahora"
 // se resuelve al ENVIAR, no al abrir el formulario: un parte que se carga en
@@ -50,8 +51,8 @@ export function resolverVigencia(eleccion: EleccionVigencia, ahora: Date = new D
   return momento.toISOString()
 }
 
-export const MENSAJE_ELIJA_HORA = 'Elija la hora.'
-export const MENSAJE_ELIJA_FECHA_Y_HORA = 'Elija la fecha y la hora.'
+export const MENSAJE_ELIJA_HORA = parteComunTextosEs.vigencia.elijaHora
+export const MENSAJE_ELIJA_FECHA_Y_HORA = parteComunTextosEs.vigencia.elijaFechaYHora
 
 /**
  * Mensaje para una elección que no se puede resolver. Una elección incompleta
@@ -59,15 +60,16 @@ export const MENSAJE_ELIJA_FECHA_Y_HORA = 'Elija la fecha y la hora.'
  * mensaje de la ventana, que no debe aparecer mientras el director todavía
  * no terminó de cargarla.
  */
-export function errorVigencia(eleccion: EleccionVigencia, ahora: Date = new Date()): string | null {
+export function errorVigencia(eleccion: EleccionVigencia, ahora: Date = new Date(), t: Diccionario = es): string | null {
+  const v = t.parteComunTextos.vigencia
   if (eleccion.modo === 'ahora' || resolverVigencia(eleccion, ahora) !== null) return null
-  if (eleccion.modo === 'hoy' && !eleccion.hora) return MENSAJE_ELIJA_HORA
-  if (eleccion.modo === 'otro' && (!fechaLocal(eleccion.fecha) || !eleccion.hora)) return MENSAJE_ELIJA_FECHA_Y_HORA
+  if (eleccion.modo === 'hoy' && !eleccion.hora) return v.elijaHora
+  if (eleccion.modo === 'otro' && (!fechaLocal(eleccion.fecha) || !eleccion.hora)) return v.elijaFechaYHora
   if (eleccion.modo === 'hoy' && eleccion.hora) {
     const momento = combinar(ahora, eleccion.hora)
-    if (momento && momento.getTime() > ahora.getTime()) return MENSAJE_HORA_FUTURA
+    if (momento && momento.getTime() > ahora.getTime()) return v.horaFutura
   }
-  return MENSAJE_FUERA_DE_RANGO_VIGENCIA
+  return v.fueraDeRango
 }
 
 export function resumenVigencia(eleccion: EleccionVigencia, etiquetaMomento?: string, t: Diccionario = es): string {

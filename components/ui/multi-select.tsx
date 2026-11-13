@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { Check, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 /**
  * Multi-select picker built on the Base UI Select primitive (multiple).
@@ -14,10 +15,10 @@ export function MultiSelect<T extends string>({
   value,
   onChange,
   options,
-  placeholder = 'Seleccionar…',
+  placeholder,
   className,
   ariaLabel,
-  resumen = (cantidad) => `${cantidad} seleccionadas`,
+  resumen,
 }: {
   value: T[]
   onChange: (next: T[]) => void
@@ -28,6 +29,9 @@ export function MultiSelect<T extends string>({
   /** Texto del disparador cuando hay 2 o más valores elegidos. */
   resumen?: (cantidad: number) => string
 }) {
+  const t = useTextos().parteComunControles
+  const textoVacio = placeholder ?? t.seleccionar
+  const textoResumen = resumen ?? t.seleccionadas
   return (
     // modal={false}: el modo modal de Base UI monta una capa fija a pantalla
     // completa (data-base-ui-inert) cuyo recorte sigue al disparador en cada
@@ -42,12 +46,12 @@ export function MultiSelect<T extends string>({
         <SelectPrimitive.Value className="ui-select-value">
           {(current) => {
             const values = Array.isArray(current) ? (current as T[]) : []
-            if (values.length === 0) return placeholder
+            if (values.length === 0) return textoVacio
             if (values.length === 1) {
               const unica = options.find((o) => o.value === values[0])?.label ?? values[0]
               return <span title={unica}>{unica}</span>
             }
-            return resumen(values.length)
+            return textoResumen(values.length)
           }}
         </SelectPrimitive.Value>
         <SelectPrimitive.Icon>

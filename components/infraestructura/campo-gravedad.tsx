@@ -7,14 +7,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import {
-  ETIQUETA_JUSTIFICACION_CRITICA,
+  etiquetaJustificacionCritica,
   JUSTIFICACIONES_CRITICA,
   requiereJustificacionCritica,
   type JustificacionCritica,
 } from '@/lib/infraestructura/justificacion-critica'
 import { criterioSeveridad } from '@/lib/infraestructura/severidad'
-import { CRITERIO_SEVERIDAD_INSTITUTO } from '@/lib/copy/institutos'
 import { SEVERIDADES, type Severidad } from '@/lib/infraestructura/validacion'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export interface ValorGravedad {
   severidad: Severidad | ''
@@ -57,11 +57,13 @@ export function CampoGravedad({
   sugerida,
   severidadActual,
   esInstituto = false,
-  pregunta = '¿Qué tan grave es?',
+  pregunta,
   valor,
   onCambiar,
   disabled = false,
 }: CampoGravedadProps): JSX.Element {
+  const diccionario = useTextos()
+  const t = diccionario.parteCampos
   const [pidiendoJustificacion, setPidiendoJustificacion] = useState(false)
   const [razon, setRazon] = useState<JustificacionCritica | ''>('')
   const [detalle, setDetalle] = useState('')
@@ -81,7 +83,7 @@ export function CampoGravedad({
 
   return (
     <fieldset className="afectacion-campos__grupo" disabled={disabled}>
-      <legend className="afectacion-campos__legend">{pregunta}</legend>
+      <legend className="afectacion-campos__legend">{pregunta ?? t.gravedad.pregunta}</legend>
       <div className="afectacion-campos__opciones">
         {SEVERIDADES.map((severidad) => (
           <Opcion
@@ -100,7 +102,7 @@ export function CampoGravedad({
                 </span>
               </>}
               ayuda={<span id={`${idPrefijo}-severidad-${severidad}-criterio`}>
-                {esInstituto ? CRITERIO_SEVERIDAD_INSTITUTO[categoriaCriterio][severidad] : criterioSeveridad(severidad, categoriaCriterio)}
+                {esInstituto ? diccionario.parteComunTextos.criterioSeveridadInstituto[categoriaCriterio][severidad] : criterioSeveridad(severidad, categoriaCriterio, diccionario)}
               </span>}
             />
         ))}
@@ -108,7 +110,7 @@ export function CampoGravedad({
 
       <ConfirmSheet
         open={pidiendoJustificacion}
-        titulo="¿Por qué es crítica?"
+        titulo={t.comun.porQueCritica}
         confirmarLabel="Confirmar"
         confirmarDeshabilitado={!razonValida || disabled}
         onCancelar={() => setPidiendoJustificacion(false)}
@@ -131,14 +133,14 @@ export function CampoGravedad({
                 checked={razon === justificacion}
                 disabled={disabled}
                 onChange={() => setRazon(justificacion)}
-                label={ETIQUETA_JUSTIFICACION_CRITICA[justificacion]}
+                label={etiquetaJustificacionCritica(justificacion, diccionario)}
                 compacta
               />
           ))}
         </div>
         {razon === 'otro' ? (
           <label className="ui-label afectacion-campos__detalle">
-            Describa qué pasa
+            {t.comun.describaQuePasa}
             <Textarea maxLength={300} value={detalle} disabled={disabled} onChange={(e) => setDetalle(e.target.value)} />
           </label>
         ) : null}

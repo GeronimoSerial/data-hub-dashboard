@@ -1,5 +1,6 @@
 import {
   evaluarConsistenciaParte,
+  mensajeConsistencia,
   type AlcanceSecciones,
   type EstadoClasesConsistencia,
   type EstadoEdificioConsistencia,
@@ -8,6 +9,8 @@ import {
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import type { JustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import type { Severidad } from '@/lib/infraestructura/validacion'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 export interface DatosSituacionConsistencia {
   categoria: CategoriaAfectacion | null
@@ -40,10 +43,14 @@ export function respuestasDeSituacion(datos: DatosSituacionConsistencia): Respue
 // Mensajes de bloqueo de una situación que esta actualización toca. La
 // descripción sólo se exige en situaciones nuevas: las existentes no la
 // editan aquí.
-export function mensajesDeBloqueo(respuestas: RespuestasConsistencia, { descripcion }: { descripcion: boolean }): string[] {
+export function mensajesDeBloqueo(
+  respuestas: RespuestasConsistencia,
+  { descripcion }: { descripcion: boolean },
+  t: Diccionario = es,
+): string[] {
   return evaluarConsistenciaParte(respuestas).bloqueos
     .filter((regla) => descripcion || regla.campo !== 'descripcion')
-    .map((regla) => regla.mensaje)
+    .map((regla) => mensajeConsistencia(regla.mensaje, t))
 }
 
 export function alcanceDe(secciones: number[] | undefined, seccionesDeLaEscuela: number[]): AlcanceSecciones | null {
