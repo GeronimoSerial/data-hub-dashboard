@@ -332,6 +332,13 @@ export function clasificarSondaCadena(params: { ultima: EstadoJobRun | undefined
     return { ...base, estado: 'sin_datos', motivo: 'La sonda de la cadena de datos nunca corrió.' }
   }
   const contadores = ultima.contadoresUltimaCompletada
+  if ((contadores?.sinTestigos ?? 0) > 0) {
+    return {
+      ...base,
+      estado: 'sin_datos',
+      motivo: 'Sin testigos configurados para esta región: la cadena de datos no se verificó.',
+    }
+  }
   if (!contadores || CLAVES_CONTADORES_SONDA.some((clave) => typeof contadores[clave] !== 'number')) {
     return {
       ...base,

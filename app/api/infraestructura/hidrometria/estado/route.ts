@@ -3,7 +3,10 @@ import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { ultimaLecturaEstacion } from '@/lib/infraestructura/hidrometria/lecturas-repo'
-import { obtenerEstacionesPrefecturaDeRegion } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import {
+  obtenerEstacionesPrefecturaDeRegion,
+  regionTienePrefectura,
+} from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { estacionParaLocalidad } from '@/lib/infraestructura/hidrometria/tramos-prefectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
@@ -28,6 +31,9 @@ async function handleGET(request: Request) {
   if (!parsed.success) {
     return Response.json({ error: 'localidad inválida' }, { status: 400 })
   }
+
+  // Sin fuente Prefectura en la región no existen tramos: no se lee su dataset.
+  if (!regionTienePrefectura()) return jsonNoStore({ tramo: null, lectura: null })
 
   const tramo = estacionParaLocalidad(parsed.data)
   if (!tramo) return jsonNoStore({ tramo: null, lectura: null })

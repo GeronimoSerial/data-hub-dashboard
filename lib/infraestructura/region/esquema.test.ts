@@ -104,6 +104,7 @@ describe('regionPublica', () => {
     expect(Object.keys(publica).sort()).toEqual(
       [
         'archivos',
+        'fuentesRio',
         'id',
         'idiomas',
         'limitesMapa',

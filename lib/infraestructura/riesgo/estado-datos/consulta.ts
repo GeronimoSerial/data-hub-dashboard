@@ -78,6 +78,9 @@ export async function obtenerEstadoDatos(): Promise<EstadoDatos> {
     nombre: e.nombrePna,
   }))
   const sonda = clasificarSondaCadena({ ultima: ultimaPorTipo.get('sonda-cadena-datos'), ahora })
+  const sondaSinTestigos =
+    sonda.estado === 'sin_datos' &&
+    (ultimaPorTipo.get('sonda-cadena-datos')?.contadoresUltimaCompletada?.sinTestigos ?? 0) > 0
   const items = [
     // Los jobs sin `tipo` no escriben infra_job_run: no hay forma de verificarlos acá.
     ...JOBS_ESPERADOS.filter((job) => job.tipo !== null).map((job) =>
@@ -108,9 +111,10 @@ export async function obtenerEstadoDatos(): Promise<EstadoDatos> {
           }),
         ]
       : []),
-    // Sólo verificada o fallida: nunca corrió, atrasada o pausada ya las informa el item
-    // `job:sonda-cadena-datos`; repetirlas acá contaría el mismo problema dos veces.
-    ...(['ok', 'fallido'].includes(sonda.estado) ? [sonda] : []),
+    // Verificada o fallida; también sin testigos (la región no tiene cómo verificar la cadena).
+    // Nunca corrió, atrasada o pausada ya las informa el item `job:sonda-cadena-datos`;
+    // repetirlas acá contaría el mismo problema dos veces.
+    ...(['ok', 'fallido'].includes(sonda.estado) || sondaSinTestigos ? [sonda] : []),
     clasificarImerg({ desde: imerg[0]?.desde ?? null, hasta: datoMasRecienteImerg, ahora }),
     ...(huecosImerg ? [huecosImerg] : []),
     clasificarClimatologia(operativo.climatologiaPrecipitacion),

@@ -151,18 +151,21 @@ export function jobsEsperadosParaRol(rol: RolEntorno): readonly JobEsperado[] {
 }
 
 // Aplicabilidad por región (B9.5). Un job sin regla aplica a todas las regiones.
-// La regla depende de `fuentesRio` de la región, no de su id: sync-prefectura-*
-// requiere 'prefectura' y sync-ina-* requiere 'ina'. Se deriva del nombre del job
-// y no de un campo por job para no alterar la forma de los objetos de la lista.
-// scripts/jobs.mjs replica esta misma regla (ver aplicaJobARegionDespacho).
-const FUENTE_REQUERIDA_POR_PREFIJO: readonly { prefijo: string; fuente: string }[] = [
-  { prefijo: 'sync-prefectura-', fuente: 'prefectura' },
-  { prefijo: 'sync-ina-', fuente: 'ina' },
-]
+// La regla depende de los datos que declara la región, no de su id: sync-prefectura-*
+// requiere 'prefectura' en fuentesRio, sync-ina-* requiere 'ina', sync-smn-alertas
+// requiere 'smn' en fuentesAlertas, sync-synop-lluvia requiere 'synop' en fuentesLluvia
+// e importar-exposicion-rio-dem requiere 'exposicion-rio-dem' en capasEstaticas.
+// Se deriva del nombre del job y no de un campo por job para no alterar la forma de
+// los objetos de la lista. scripts/jobs.mjs replica esta misma regla (ver aplicaJobARegionDespacho).
+type RegionAplicable = Pick<RegionConfig, 'fuentesRio' | 'fuentesAlertas' | 'fuentesLluvia' | 'capasEstaticas'>
 
-export function aplicaJobARegion(nombre: string, region: Pick<RegionConfig, 'fuentesRio'>): boolean {
-  const regla = FUENTE_REQUERIDA_POR_PREFIJO.find(({ prefijo }) => nombre.startsWith(prefijo))
-  return regla === undefined || region.fuentesRio.includes(regla.fuente)
+export function aplicaJobARegion(nombre: string, region: RegionAplicable): boolean {
+  if (nombre.startsWith('sync-prefectura-')) return region.fuentesRio.includes('prefectura')
+  if (nombre.startsWith('sync-ina-')) return region.fuentesRio.includes('ina')
+  if (nombre === 'sync-smn-alertas') return (region.fuentesAlertas ?? []).includes('smn')
+  if (nombre === 'sync-synop-lluvia') return (region.fuentesLluvia ?? []).includes('synop')
+  if (nombre === 'importar-exposicion-rio-dem') return (region.capasEstaticas ?? []).includes('exposicion-rio-dem')
+  return true
 }
 
 // Lista esperada para una región y un rol. Sólo filtra: no cambia los objetos.
