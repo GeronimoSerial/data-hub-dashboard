@@ -37,6 +37,8 @@ export type EventoVisible = {
   ocurridoEn: string
   actorTipo: string
   actorId: string | null
+  actorNombre: string | null
+  actorCorreo: string | null
   actorRol: string | null
   viaAcceso: string
   accion: string
@@ -137,6 +139,12 @@ function Campo({ id, texto, children }: { id: string; texto: string; children: R
       <div className="ui-field__control">{children}</div>
     </div>
   )
+}
+
+// Tipo, id y rol del actor, tal como se muestran cuando no hay nombre que mostrar.
+function describirActor(evento: EventoVisible, actores: Record<string, string>): string {
+  const tipo = etiqueta(actores, evento.actorTipo)
+  return `${tipo}: ${evento.actorId ?? actores.sinIdentidad}${evento.actorRol ? ` (${evento.actorRol})` : ''}`
 }
 
 function MetadatosCompactos({ metadatos, sinDatos }: { metadatos: Record<string, unknown> | null; sinDatos: string }) {
@@ -312,11 +320,19 @@ export function AuditoriaVisor() {
                 {items.map((evento) => (
                   <tr key={evento.id}>
                     <td><strong>{etiqueta(t.acciones, evento.accion)}</strong></td>
-                    <td data-label={t.columnas.fecha}>
+                    <td data-label={t.columnas.fecha} style={{ whiteSpace: 'nowrap' }}>
                       <time dateTime={evento.ocurridoEn}>{formatoFecha.format(new Date(evento.ocurridoEn))}</time>
                     </td>
                     <td data-label={t.columnas.actor} style={{ overflowWrap: 'anywhere' }}>
-                      <span>{`${etiqueta(t.actores, evento.actorTipo)}: ${evento.actorId ?? t.actores.sinIdentidad}${evento.actorRol ? ` (${evento.actorRol})` : ''}`}</span>
+                      {evento.actorNombre || evento.actorCorreo ? (
+                        <>
+                          <span>{evento.actorNombre || evento.actorCorreo}</span>
+                          <br />
+                          <span className="ui-hint">{describirActor(evento, t.actores)}</span>
+                        </>
+                      ) : (
+                        <span>{describirActor(evento, t.actores)}</span>
+                      )}
                       <br />
                       <span className="ui-hint">{etiqueta(t.vias, evento.viaAcceso)}</span>
                     </td>
