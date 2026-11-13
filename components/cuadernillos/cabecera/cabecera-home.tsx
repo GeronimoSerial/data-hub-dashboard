@@ -9,7 +9,7 @@ import {
   type CabeceraChoice, type Overview,
 } from './cabecera-api'
 import { MyRequests } from './my-requests'
-import { NewRequestDrawer } from './new-request-drawer'
+import { NewRequestModal } from './new-request-modal'
 
 export function CabeceraHome() {
   const [ownCabeceras, setOwnCabeceras] = useState<CabeceraChoice[] | null>(null)
@@ -18,7 +18,7 @@ export function CabeceraHome() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [overviewError, setOverviewError] = useState<string | null>(null)
   const [campaignId, setCampaignId] = useState('')
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [retryKey, setRetryKey] = useState(0)
@@ -92,7 +92,7 @@ export function CabeceraHome() {
 
   function saved(message: string) {
     setNotice(message)
-    setDrawerOpen(false)
+    setModalOpen(false)
     setRefreshKey((value) => value + 1)
   }
 
@@ -107,7 +107,7 @@ export function CabeceraHome() {
         id="cabecera-home-title"
         title={activeCabecera ? activeCabecera.nombre : 'Pedidos de cuadernillos'}
         description={activeCabecera ? `CUE ${activeCabecera.cue} · Pedí cuadernillos para las escuelas de tu zona.` : 'Pedí cuadernillos para las escuelas de tu zona.'}
-        action={<Button type="button" disabled={!canRequest} onClick={() => { setNotice(null); setDrawerOpen(true) }}>Nuevo pedido</Button>}
+        action={<Button type="button" disabled={!canRequest} onClick={() => { setNotice(null); setModalOpen(true) }}>Nuevo pedido</Button>}
       />
 
       {cabeceraError ? (
@@ -166,12 +166,12 @@ export function CabeceraHome() {
       <MyRequests refreshKey={refreshKey} onRequested={saved} />
 
       {activeCue && overview && campaignId ? (
-        <NewRequestDrawer
-          open={drawerOpen}
+        <NewRequestModal
+          open={modalOpen}
           cabeceraCue={activeCue}
           campaignId={campaignId}
           balances={overview.balances}
-          onClose={() => setDrawerOpen(false)}
+          onClose={() => setModalOpen(false)}
           onSaved={saved}
         />
       ) : null}

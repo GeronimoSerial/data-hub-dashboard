@@ -6,8 +6,8 @@ import { Input } from '@/components/ui/input'
 import type { BookletBalanceView, BookletCampaignOption, BookletOverview, BookletRequestSummary } from '@/lib/cuadernillos/types'
 import { isRequestsPage } from '../supervisor/inbox-guards'
 import { Chip, EmptyState, KpiStrip, Meter, Note, PageHeader, Panel, Segmented, formatCount } from '../kit'
-import { QuotaDrawer, type QuotaChange } from './quota-drawer'
-import { StockDrawer } from './stock-drawer'
+import { QuotaModal, type QuotaChange } from './quota-modal'
+import { StockModal } from './stock-modal'
 
 const LOAD_ERROR = 'No se pudo cargar el catálogo y los saldos.'
 const REQUESTS_LOAD_ERROR = 'No se pudieron cargar las solicitudes para contar pendientes y aprobadas hoy.'
@@ -94,7 +94,7 @@ export function PlanningHome() {
   const [notice, setNotice] = useState<string | null>(null)
   const [stockProductId, setStockProductId] = useState<string | null>(null)
   const [quotaHeadCue, setQuotaHeadCue] = useState<string | null>(null)
-  const [drawerError, setDrawerError] = useState<string | null>(null)
+  const [modalError, setModalError] = useState<string | null>(null)
   const [headFilter, setHeadFilter] = useState('')
 
   const loadRequests = useCallback(async (campaignId: string, signal?: AbortSignal) => {
@@ -177,19 +177,19 @@ export function PlanningHome() {
 
   async function registerStock(productId: string, quantity: number, movement: 'initial' | 'replenishment') {
     if (!selectedCampaign || !writeEnabled) return
-    setSaving(true); setDrawerError(null); setNotice(null)
+    setSaving(true); setModalError(null); setNotice(null)
     try {
       await postJson('/api/cuadernillos/stock', { campaignId: selectedCampaign, productId, quantity, movement, idempotencyKey: crypto.randomUUID() })
       await loadOverview(selectedCampaign)
       setStockProductId(null)
       setNotice('Movimiento de stock registrado.')
-    } catch (reason) { setDrawerError(reason instanceof Error ? reason.message : 'No se pudo registrar el movimiento de stock.') }
+    } catch (reason) { setModalError(reason instanceof Error ? reason.message : 'No se pudo registrar el movimiento de stock.') }
     finally { setSaving(false) }
   }
 
   async function saveQuotas(cabeceraCueAnexo: string, changes: QuotaChange[]) {
     if (!selectedCampaign || !writeEnabled || changes.length === 0) return
-    setSaving(true); setDrawerError(null); setNotice(null)
+    setSaving(true); setModalError(null); setNotice(null)
     try {
       for (const change of changes) {
         await postJson('/api/cuadernillos/quotas', { campaignId: selectedCampaign, cabeceraCueAnexo, productId: change.productId, quantity: change.quantity })
@@ -198,9 +198,9 @@ export function PlanningHome() {
       setQuotaHeadCue(null)
       setNotice('Cupos actualizados.')
     } catch (reason) {
-      // Earlier changes of this batch were already saved: refresh so the drawer shows the real state.
+      // Earlier changes of this batch were already saved: refresh so the modal shows the real state.
       await loadOverview(selectedCampaign).catch(() => undefined)
-      setDrawerError(reason instanceof Error ? reason.message : 'No se pudo actualizar el cupo.')
+      setModalError(reason instanceof Error ? reason.message : 'No se pudo actualizar el cupo.')
     }
     finally { setSaving(false) }
   }
@@ -253,7 +253,7 @@ export function PlanningHome() {
                 return (
                   <button key={row.productId} type="button" className="k-row" disabled={!writeEnabled}
                     aria-label={`${row.productLabel}: ${stock === null ? 'sin stock' : `stock ${stock}`}`}
-                    onClick={() => { setDrawerError(null); setStockProductId(row.productId) }}>
+                    onClick={() => { setModalError(null); setStockProductId(row.productId) }}>
                     <span className="k-row-main">
                       <span className="k-row-title">{row.productLabel}</span>
                       {stock === null ? (
@@ -289,7 +289,7 @@ export function PlanningHome() {
                     const waiting = pendingByHead(head.cueAnexo)
                     return (
                       <button key={head.cueAnexo} type="button" className="k-row" disabled={!writeEnabled}
-                        onClick={() => { setDrawerError(null); setQuotaHeadCue(head.cueAnexo) }}>
+                        onClick={() => { setModalError(null); setQuotaHeadCue(head.cueAnexo) }}>
                         <span className="k-row-main">
                           <span className="k-row-title">{head.name}</span>
                           <span className="k-row-meta">CUE {head.cueAnexo}{waiting ? ` · ${waiting} pedido${waiting === 1 ? '' : 's'} pendiente${waiting === 1 ? '' : 's'}` : ''}</span>
@@ -308,20 +308,20 @@ export function PlanningHome() {
         </>
       ) : null}
 
-      <StockDrawer
+      <StockModal
         product={stockProduct}
         saving={saving}
-        error={drawerError}
+        error={modalError}
         onClose={() => setStockProductId(null)}
         onSubmit={(quantity, movement) => void registerStock(stockProduct?.productId ?? '', quantity, movement)}
       />
-      <QuotaDrawer
+      <QuotaModal
         head={quotaHead}
         products={products}
         quotaOf={quotaOf}
         assignedTo={assignedTo}
         saving={saving}
-        error={drawerError}
+        error={modalError}
         onClose={() => setQuotaHeadCue(null)}
         onSubmit={(changes) => void saveQuotas(quotaHead?.cueAnexo ?? '', changes)}
       />

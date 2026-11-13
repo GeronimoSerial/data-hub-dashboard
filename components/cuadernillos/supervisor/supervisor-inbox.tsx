@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { BookletBalanceView, BookletRequestSummary, BookletRequestsPage } from '@/lib/cuadernillos/types'
-import { Chip, Drawer, EmptyState, KpiStrip, Note, PageHeader, Panel, Segmented, formatCount } from '../kit'
+import { Chip, Modal, EmptyState, KpiStrip, Note, PageHeader, Panel, Segmented, formatCount } from '../kit'
 import { InboxDetail, type ApprovalLine } from './inbox-detail'
 import { availabilityFor, formatAge, formatCue, groupPendingByCabecera } from './inbox-model'
 import { isBalances, isRequestsPage } from './inbox-guards'
@@ -216,7 +216,7 @@ export function SupervisorInbox() {
         </>
       ) : null}
 
-      <Drawer
+      <Modal
         open={selected !== null}
         title={selected?.recipientName || 'Pedido de cuadernillos'}
         description="Pedido de cuadernillos"
@@ -233,7 +233,7 @@ export function SupervisorInbox() {
             onReject={(reason) => void decide(selected, { kind: 'reject', reason })}
           />
         ) : null}
-      </Drawer>
+      </Modal>
     </section>
   )
 }

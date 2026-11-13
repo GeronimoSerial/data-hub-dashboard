@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { BookletBalanceView } from '@/lib/cuadernillos/types'
-import { Drawer, DrawerBody, DrawerFoot, Note, Stepper, formatCount } from '../kit'
+import { Modal, ModalBody, ModalFoot, Note, Stepper, formatCount } from '../kit'
 
 export type QuotaChange = { productId: string; quantity: number }
 type Head = { cueAnexo: string; name: string }
 
 /** Set the quota of every grade for one cabecera in a single pass. Only changed grades are saved. */
-export function QuotaDrawer({ head, products, quotaOf, assignedTo, saving, error, onClose, onSubmit }: {
+export function QuotaModal({ head, products, quotaOf, assignedTo, saving, error, onClose, onSubmit }: {
   head: Head | null
   products: BookletBalanceView[]
   quotaOf: (cue: string, productId: string) => number
@@ -20,9 +20,9 @@ export function QuotaDrawer({ head, products, quotaOf, assignedTo, saving, error
   onSubmit: (changes: QuotaChange[]) => void
 }) {
   return (
-    <Drawer open={head !== null} title={head?.name ?? 'Cupos'} description={head ? `CUE ${head.cueAnexo} · Cuántos cuadernillos de cada grado puede pedir.` : undefined} onClose={onClose}>
+    <Modal open={head !== null} title={head?.name ?? 'Cupos'} description={head ? `CUE ${head.cueAnexo} · Cuántos cuadernillos de cada grado puede pedir.` : undefined} onClose={onClose}>
       {head ? <QuotaForm key={head.cueAnexo} head={head} products={products} quotaOf={quotaOf} assignedTo={assignedTo} saving={saving} error={error} onSubmit={onSubmit} /> : null}
-    </Drawer>
+    </Modal>
   )
 }
 
@@ -42,7 +42,7 @@ function QuotaForm({ head, products, quotaOf, assignedTo, saving, error, onSubmi
   })
   return (
     <>
-      <DrawerBody>
+      <ModalBody>
         <ul className="k-qty-list" aria-label={`Cupos de ${head.name}`}>
           {products.map((row) => {
             const stock = row.globalAvailable
@@ -67,12 +67,12 @@ function QuotaForm({ head, products, quotaOf, assignedTo, saving, error, onSubmi
           })}
         </ul>
         {error ? <Note tone="danger">{error}</Note> : null}
-      </DrawerBody>
-      <DrawerFoot>
+      </ModalBody>
+      <ModalFoot>
         <Button type="button" disabled={saving || changes.length === 0} onClick={() => onSubmit(changes)}>
           {saving ? 'Guardando…' : changes.length > 1 ? `Guardar ${changes.length} cupos` : 'Guardar cupo'}
         </Button>
-      </DrawerFoot>
+      </ModalFoot>
     </>
   )
 }

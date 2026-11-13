@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import type { BookletBalanceView } from '@/lib/cuadernillos/types'
-import { Drawer, DrawerBody } from '../kit'
+import { Modal, ModalBody } from '../kit'
 import type { CriticalSchool } from './cabecera-api'
 import { QuantitiesForm } from './quantities-form'
 import { SchoolSearch, useSchoolSearchState } from './school-search'
 
-/** New request in two steps inside one drawer: pick the school, then set quantities per grade. */
-export function NewRequestDrawer({ open, cabeceraCue, campaignId, balances, onClose, onSaved }: {
+/** New request in two steps inside one modal: pick the school, then set quantities per grade. */
+export function NewRequestModal({ open, cabeceraCue, campaignId, balances, onClose, onSaved }: {
   open: boolean
   cabeceraCue: string
   campaignId: string
@@ -27,7 +27,7 @@ export function NewRequestDrawer({ open, cabeceraCue, campaignId, balances, onCl
   }
 
   return (
-    <Drawer
+    <Modal
       open={open}
       title="Nuevo pedido"
       description={selected ? `Cuántos cuadernillos pedís para ${selected.nombre}.` : 'Buscá la escuela destinataria por CUE.'}
@@ -46,10 +46,10 @@ export function NewRequestDrawer({ open, cabeceraCue, campaignId, balances, onCl
           />
         </>
       ) : (
-        <DrawerBody>
+        <ModalBody>
           <SchoolSearch state={search} selected={null} onChoose={setSelected} onClear={() => setSelected(null)} />
-        </DrawerBody>
+        </ModalBody>
       )}
-    </Drawer>
+    </Modal>
   )
 }
