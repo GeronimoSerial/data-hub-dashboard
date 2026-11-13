@@ -1,5 +1,8 @@
 import { ensureSeeded } from '@/lib/db/seed'
+import { tieneAccesoPublico } from '@/lib/infraestructura/acceso-publico'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
+import { actorAuditoria, describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { BorradorError, getDraft, getDraftCue, readJsonBody, syncDraft } from '@/lib/infraestructura/borradores/service'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 import { ruta } from '@/lib/http/ruta'
@@ -27,6 +30,8 @@ async function authorize(request: Request, draftId: string): Promise<Response | 
   if (!(await tieneAccesoAlParteParaCue(request, cue))) {
     return Response.json({ error: 'No autorizado' }, { status: 401, headers: NO_STORE })
   }
+  if (tieneAccesoPublico(request)) actorAuditoria({ actorTipo: 'compartido', actorId: null, actorRol: null, viaAcceso: 'contrasena_compartida' })
+  describirAuditoria({ objetoTipo: 'borrador', objetoId: draftId, cueAnexo: cue })
   return null
 }
 
@@ -48,7 +53,7 @@ async function handlePUT(request: Request, context: Context) {
     const denied = await authorize(request, draftId)
     if (denied) return denied
     const body = await readJsonBody(request)
-    const result = await syncDraft(draftId, body)
+    const result = await cambioAuditado(() => syncDraft(draftId, body))
     return Response.json(result, { status: 200, headers: NO_STORE })
   } catch (error) {
     return errorResponse(error)
@@ -56,4 +61,4 @@ async function handlePUT(request: Request, context: Context) {
 }
 
 export const GET = ruta('parte.borradores.draftId.get', handleGET)
-export const PUT = ruta('parte.borradores.draftId.put', handlePUT)
+export const PUT = conAuditoria('borrador.sincronizar', '/api/problematicas/parte/borradores/[draftId]', ruta('parte.borradores.draftId.put', handlePUT))
