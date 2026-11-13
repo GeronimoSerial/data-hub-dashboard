@@ -48,7 +48,7 @@ Cada región es un despliegue independiente:
 - Un secreto (por ejemplo `NOMINAL_ENCRYPTION_KEY`, `DATASET_SALT_E7B`,
   `MATRICULA_DNI_SECRET`) no se copia de una región a otra: cambiarlo en una
   región no debe romper otra.
-- `ENOS_MANAOS_URL` sólo se setea en el despliegue de Corrientes (card del hub).
+- `ENOS_MANAOS_URL` sólo se setea en el despliegue de Corrientes (card del hub) Valor decidido en M0: `ENOS_MANAOS_URL=https://enos-manaos.sistemas.mec.gob.ar`, a setear recién cuando Manaos esté en vivo (M3.6). Manaos se aloja en el mismo Coolify que Corrientes, con base y secretos propios.
 
 ## Archivos de referencia (volumen y datos de la región)
 
