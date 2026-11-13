@@ -22,13 +22,14 @@ export async function cookiesDeSesion(browser: Browser, baseURL: string): Promis
   try {
     const page = await context.newPage()
     await page.goto('/login')
-    await page.getByLabel('Correo').fill(email)
-    await page.getByLabel('Contraseña').fill(password)
+    // The login form follows the region language: Spanish (Corrientes) or Portuguese (Manaos).
+    await page.getByLabel(/^(Correo|E-mail)/).fill(email)
+    await page.getByLabel(/^(Contraseña|Senha)/).fill(password)
     for (let intento = 1; ; intento++) {
       const respuesta = page.waitForResponse(
         (response) => response.url().includes('/api/auth/sign-in') && response.request().method() === 'POST',
       )
-      await page.getByRole('button', { name: 'Iniciar sesión' }).click()
+      await page.getByRole('button', { name: /^Iniciar (sesión|sessão)$/ }).click()
       const status = (await respuesta).status()
       if (status === 200) break
       if (status !== 429 || intento === INTENTOS_MAXIMOS) throw new Error(`sign-in returned ${status}`)

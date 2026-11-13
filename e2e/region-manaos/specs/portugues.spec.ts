@@ -44,7 +44,8 @@ test('(1) map tabs render Portuguese panels with no Spanish markers', async ({ b
     // Radar's panel title is the hardcoded literal 'Radar' in panel-lateral.tsx.
     const pestanas: Array<{ testid: string; etiqueta: string; titulo: string }> = [
       { testid: 'tab-actual', etiqueta: 'Situação atual', titulo: 'Situação atual' },
-      // Radar is not walked: with an empty database its panel crashes the page on origin/dev as well (open problem for M2).
+      // modos.radar in pt.ts; the panel heading is the literal 'Radar' in panel-lateral.tsx.
+      { testid: 'tab-radar', etiqueta: 'Radar de risco', titulo: 'Radar' },
       { testid: 'tab-planificacion', etiqueta: 'Planejamento', titulo: 'Planejamento' },
       { testid: 'tab-estadisticas', etiqueta: 'Estatísticas', titulo: 'Estatísticas' },
       { testid: 'tab-exportar', etiqueta: 'Exportação', titulo: 'Exportação' },
@@ -57,6 +58,10 @@ test('(1) map tabs render Portuguese panels with no Spanish markers', async ({ b
       await expect(tab).toHaveAttribute('aria-selected', 'true')
       if (pestana.testid !== 'tab-estadisticas' && pestana.testid !== 'tab-exportar') {
         await expect(page.getByTestId('panel-lateral')).toContainText(pestana.titulo)
+      }
+      if (pestana.testid === 'tab-radar') {
+        await expect(page.getByTestId('panel-lateral').getByRole('heading', { name: 'Radar', exact: true })).toBeVisible()
+        await expect(page.getByText(/This page couldn.t load/i)).toHaveCount(0)
       }
       expect(await marcadoresEspanol(page), `Spanish markers on tab ${pestana.etiqueta}`).toEqual([])
     }
