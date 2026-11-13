@@ -674,6 +674,35 @@ describe('ejecutarSyncImerg', () => {
     })
   })
 
+  describe('retención de 90 días', () => {
+    it('invoca la purga tras publicar con el mismo ahora; si falla, el job queda completado', async () => {
+      const ahora = new Date('2026-09-29T10:05:00.000Z')
+      let estadoAlPurgar: string | undefined
+      const purgar = vi.fn(async () => {
+        estadoAlPurgar = (await (await db()).select().from(infraJobRun)).find(
+          (fila) => fila.tipo === 'sync-hazard-imerg' && fila.claveIdempotente === '2026-09-29T10:00',
+        )?.estado
+        throw new Error('disco lleno')
+      })
+      const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const resultado = await sync({ ahora, purgarImerg: purgar })
+        expect(resultado.ok).toBe(true)
+        expect(aviso).toHaveBeenCalledWith(expect.stringContaining('disco lleno'))
+      } finally {
+        aviso.mockRestore()
+      }
+
+      expect(purgar).toHaveBeenCalledTimes(1)
+      expect(purgar.mock.calls[0]).toEqual([expect.anything(), { ahora }])
+      expect(estadoAlPurgar).toBe('completado')
+      const run = (await (await db()).select().from(infraJobRun)).find(
+        (fila) => fila.tipo === 'sync-hazard-imerg' && fila.claveIdempotente === '2026-09-29T10:00',
+      )
+      expect(run?.estado).toBe('completado')
+    })
+  })
+
   describe('excepción fuera de los try/catch del cuerpo', () => {
     it('publica el error real saneado (sin el token) y relanza la excepción original', async () => {
       const original = new Error('canceling statement due to statement timeout (token-fake)')

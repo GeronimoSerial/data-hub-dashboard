@@ -51,6 +51,15 @@ describe('índice hazard_observation (provider, variable, observado_en)', () => 
     expect(usado).not.toContain('hazard_observation_uidx')
   })
 
+  it('el lote de la purga de retención IMERG recorre sólo el rango viejo por el índice nuevo', async () => {
+    const r = await filas(`EXPLAIN SELECT ctid FROM hazard_observation
+      WHERE provider = 'nasa-imerg' AND variable = 'precipitacion_observada_satelital'
+      AND observado_en < '2026-10-22T00:00:00.000Z' LIMIT 20000`)
+    const texto = r.map((fila) => String(fila['QUERY PLAN'])).join('\n')
+    expect(texto).toContain(INDICE)
+    expect(texto).not.toContain('hazard_observation_uidx')
+  })
+
   it('sin el índice nuevo el rango cae al índice único / seq scan (control)', async () => {
     await filas(`DROP INDEX ${INDICE}`)
     try {
