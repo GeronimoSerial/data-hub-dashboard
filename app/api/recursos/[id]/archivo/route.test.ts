@@ -28,10 +28,13 @@ describe('archivo endpoint (mocked DB and storage)', () => {
     user = { id: 'reader', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [], hubPolicy: { enabledSections: ['reports'], landing: false } }
     audience = [{ userId: 'reader', nivelJurisdiccionalId: null }]
     mocks.getSessionUser.mockImplementation(async () => user)
-    mocks.getDb.mockReturnValue({
+    const db: Record<string, unknown> = {
       select: (fields?: unknown) => ({ from: () => ({ where: async () => fields && !('storageKey' in (fields as object)) ? audience : [row] }) }),
       update: () => ({ set: mocks.set.mockReturnValue({ where: async () => undefined }) }),
-    })
+      insert: () => ({ values: async () => undefined }),
+    }
+    db.transaction = async (fn: (tx: unknown) => unknown) => fn(db)
+    mocks.getDb.mockReturnValue(db)
     mocks.stat.mockResolvedValue({ isFile: () => true })
     mocks.readFile.mockResolvedValue(html)
     mocks.createReadStream.mockImplementation(() => Readable.from([Buffer.from(html)]))

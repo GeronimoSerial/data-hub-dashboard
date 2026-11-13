@@ -22,7 +22,7 @@ describe('POST /api/recursos/[id]/explain', () => {
     vi.clearAllMocks()
     getDb.mockReturnValue({ select: () => ({ from: () => ({ where: async () => [{
       id: 'recurso-infraestructura', estado: 'publicado', formato: 'mapa', ruta: '/mapas/infraestructura',
-    }] }) }) })
+    }] }) }), insert: () => ({ values: async () => undefined }) })
     loadRecursoAccess.mockResolvedValue({
       id: 'recurso-infraestructura', estado: 'publicado', audienciaNivelJurIds: [], audienciaUserIds: [],
     })

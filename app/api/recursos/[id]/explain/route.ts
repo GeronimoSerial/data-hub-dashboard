@@ -22,6 +22,8 @@ import {
   getExplainProvider,
 } from '@/lib/explain-provider'
 import { ruta } from '@/lib/http/ruta'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,6 +35,7 @@ function explainJson(body: unknown, status = 200) {
 async function handlePOST(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   await ensureSeeded()
   const { id } = await ctx.params
+  describirAuditoria({ objetoTipo: 'recurso', objetoId: id })
   const [row] = await getDb().select().from(recursos).where(eq(recursos.id, id))
   if (!row || row.estado !== 'publicado') return explainJson({ error: 'Recurso no encontrado' }, 404)
   const access = await loadRecursoAccess(id)
@@ -97,4 +100,4 @@ async function handlePOST(_request: Request, ctx: { params: Promise<{ id: string
   }
 }
 
-export const POST = ruta('recursos.id.explain.post', handlePOST)
+export const POST = conAuditoria('recurso.explicar', '/api/recursos/[id]/explain', ruta('recursos.id.explain.post', handlePOST))
