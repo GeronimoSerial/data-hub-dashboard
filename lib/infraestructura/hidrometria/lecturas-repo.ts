@@ -3,7 +3,7 @@ import { and, asc, count, desc, eq, gte, lte, max, min } from 'drizzle-orm'
 import type { getDb } from '@/lib/db'
 import { hidroLectura } from '@/lib/db/schema'
 import {
-  obtenerEstacionesPrefectura,
+  obtenerEstacionesPrefecturaDeRegion,
   obtenerVersionCatalogoPrefectura,
   type EstacionPrefectura,
 } from './estaciones-prefectura'
@@ -207,7 +207,7 @@ function parsearIsoConZona(valor: unknown): number | null {
 }
 
 export function obtenerEstacionCatalogo(estacionId: string): EstacionPrefectura | null {
-  return obtenerEstacionesPrefectura().find((e) => e.estacionId === estacionId) ?? null
+  return obtenerEstacionesPrefecturaDeRegion().find((e) => e.estacionId === estacionId) ?? null
 }
 
 export function validarConsultaHistoriaEstacion(entrada: {

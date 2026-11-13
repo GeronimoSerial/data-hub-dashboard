@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { colorNivelPlan, etiquetaNivelPlan } from '@/lib/infraestructura/mapa/planificacion'
 import { type HorasLluvia } from '@/components/mapas/capa-lluvia-observada'
 import { useTextos } from '@/lib/i18n/idioma-provider'
+import { regionTienePrefecturaPublica } from '@/lib/infraestructura/region/publica'
 
 type Props = {
   value: BasemapId
@@ -33,11 +34,13 @@ export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChan
     <section className="map-sitact" aria-label={t.capas.ariaPanel} data-testid="panel-capas">
       <section className="map-capas__grupo" role="group" aria-labelledby="map-capas-situacion-titulo">
         <h3 id="map-capas-situacion-titulo" className="map-sitact__titulo-seccion">{t.capas.situacionActual}</h3>
-        <Switch
-          checked={capasVisibles.estacionesRio}
-          onCheckedChange={(visible) => cambiarCapa('estacionesRio', visible)}
-          label={t.capas.estacionesRio}
-        />
+        {regionTienePrefecturaPublica() && (
+          <Switch
+            checked={capasVisibles.estacionesRio}
+            onCheckedChange={(visible) => cambiarCapa('estacionesRio', visible)}
+            label={t.capas.estacionesRio}
+          />
+        )}
         <Switch
           checked={capasVisibles.lluviaObservada}
           onCheckedChange={(visible) => cambiarCapa('lluviaObservada', visible)}

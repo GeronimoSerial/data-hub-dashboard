@@ -393,9 +393,9 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
 
     let cancelled = false
     fetch(URL_DEPARTAMENTOS)
-      .then((response) => response.json())
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('departamentos'))))
       .then((geojson: FeatureCollection<Polygon | MultiPolygon>) => {
-        if (!cancelled) {
+        if (!cancelled && Array.isArray(geojson?.features)) {
           setBoundary(geojson)
         }
       })
