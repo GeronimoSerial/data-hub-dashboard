@@ -320,7 +320,7 @@ export function AuditoriaVisor() {
                 {items.map((evento) => (
                   <tr key={evento.id}>
                     <td><strong>{etiqueta(t.acciones, evento.accion)}</strong></td>
-                    <td data-label={t.columnas.fecha} style={{ whiteSpace: 'nowrap' }}>
+                    <td data-label={t.columnas.fecha} className="auditoria-fecha">
                       <time dateTime={evento.ocurridoEn}>{formatoFecha.format(new Date(evento.ocurridoEn))}</time>
                     </td>
                     <td data-label={t.columnas.actor} style={{ overflowWrap: 'anywhere' }}>
