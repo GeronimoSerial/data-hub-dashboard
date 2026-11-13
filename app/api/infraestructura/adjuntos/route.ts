@@ -6,6 +6,8 @@ import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { firmarLecturaAdjunto } from '@/lib/infraestructura/adjuntos/lectura'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 import { ruta } from '@/lib/http/ruta'
 
@@ -24,6 +26,7 @@ async function handleGET(request: Request) {
   const cue = normalizeCue(searchParams.get('cue') ?? '')
   if (!cue) return Response.json({ error: 'CUE inválido' }, { status: 400, headers: CACHE_HEADERS })
   await ensureSeeded()
+  describirAuditoria({ cueAnexo: cue.value })
 
   const attachmentId = searchParams.get('attachmentId')
   const variant = searchParams.get('variant')
@@ -31,6 +34,7 @@ async function handleGET(request: Request) {
     if (!ID_SEGURO.test(attachmentId) || variant !== 'optimizada') {
       return Response.json({ error: 'Adjunto inválido' }, { status: 400, headers: CACHE_HEADERS })
     }
+    describirAuditoria({ objetoTipo: 'adjunto', objetoId: attachmentId })
     const [row] = await getDb()
       .select({ key: infraAdjunto.optimizadaObsKey })
       .from(infraAdjunto)
@@ -92,4 +96,4 @@ async function handleGET(request: Request) {
   return Response.json({ movements: [...movements.values()] }, { headers: CACHE_HEADERS })
 }
 
-export const GET = ruta('infraestructura.adjuntos.get', handleGET)
+export const GET = conAuditoria('foto.autorizar_lectura', '/api/infraestructura/adjuntos', ruta('infraestructura.adjuntos.get', handleGET))

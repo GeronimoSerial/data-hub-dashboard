@@ -46,7 +46,7 @@ async function escribir(db: Pick<Db, 'insert'>, contexto: ContextoAuditoria, sta
   try {
     await db.insert(auditoriaEvento).values({
       id: contexto.id, requestId: contexto.requestId, ocurridoEn: contexto.ocurridoEn,
-      actorTipo: contexto.actorTipo, actorId: contexto.actorId, actorRol: contexto.actorRol,
+      actorTipo: contexto.actorTipo, actorId: referencia(contexto.actorId), actorRol: referencia(contexto.actorRol),
       viaAcceso: contexto.viaAcceso, accion: contexto.accion, metodo: contexto.metodo,
       rutaPlantilla: contexto.rutaPlantilla, objetoTipo: contexto.objetoTipo,
       objetoId: referencia(contexto.objetoId), cueAnexo: referencia(contexto.cueAnexo),
@@ -116,7 +116,7 @@ function respuestaNoDisponible(contexto: ContextoAuditoria): Response {
   console.error('[auditoria] persistencia fallida', { requestId: contexto.requestId, accion: contexto.accion })
   return Response.json(
     { code: 'auditoria_no_disponible', error: 'No se pudo registrar la operación. Reintentá en unos instantes.' },
-    { status: 503, headers: { ...NO_STORE, 'X-Request-Id': contexto.requestId } },
+    { status: 503, headers: { ...NO_STORE, 'X-Request-Id': contexto.requestId, 'X-Audit-Id': contexto.requestId } },
   )
 }
 
@@ -202,21 +202,31 @@ export function conAuditoria<A extends unknown[]>(accion: AccionAuditoria, rutaP
       }
       if (!contexto.fallo && !contexto.persistido) await escribirFuera(contexto, response.status)
       if (contexto.fallo) return respuestaNoDisponible(contexto)
-      return conRequestId(response, contexto.requestId)
+      return conIdsDeAuditoria(response, contexto.requestId)
     })
   }
 }
 
-/** Respuestas como Response.redirect() tienen cabeceras inmutables: se reconstruyen con el id. */
-function conRequestId(response: Response, requestId: string): Response {
+/**
+ * Sin X-Request-Id previo, el id de auditoría va en X-Request-Id. Si el handler ya lo puso (p. ej. `ruta`),
+ * se conserva y el id de auditoría va en X-Audit-Id para correlacionar con el evento.
+ */
+function conIdsDeAuditoria(response: Response, requestId: string): Response {
+  return response.headers.has('X-Request-Id')
+    ? conCabeceras(response, { 'X-Audit-Id': requestId })
+    : conCabeceras(response, { 'X-Request-Id': requestId })
+}
+
+/** Respuestas como Response.redirect() tienen cabeceras inmutables: se reconstruyen con las cabeceras nuevas. */
+function conCabeceras(response: Response, cabeceras: Record<string, string>): Response {
   try {
-    response.headers.set('X-Request-Id', requestId)
+    for (const [nombre, valor] of Object.entries(cabeceras)) response.headers.set(nombre, valor)
     return response
   } catch {
     // Response.error() tiene estado 0, que el constructor no admite: se devuelve tal cual.
     if (response.status < 200 || response.status > 599) return response
     const headers = new Headers(response.headers)
-    headers.set('X-Request-Id', requestId)
+    for (const [nombre, valor] of Object.entries(cabeceras)) headers.set(nombre, valor)
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
   }
 }

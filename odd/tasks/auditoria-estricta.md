@@ -13,8 +13,8 @@ S8. Criterio rector: ENOS Corrientes byte a byte igual (snapshots B2 idénticos,
 S9. A1 base. A2 reportes+verificaciones (incl. cola B6 `Enlace vencido`, respuesta asistida). A3 ENOS/admin/auth/jobs (incl. región Manaos, textos pt). A4 visor + medición reproducible + runbook.
 
 ## Tasks
-- [ ] T1 A1 base (S2-S5) — inline/haiku — commit:
-- [ ] T2 A2 reportes y verificaciones (S3,S5) — commit:
+- [x] T1 A1 base (S2-S5) — delegated haiku, 3 writers + verifier — dev PR #317 (a36319e2)
+- [x] T2 A2 reportes y verificaciones (S3,S5) — 3 haiku writers in parallel + verifier — dev PR pending
 - [ ] T3 A3 ENOS/admin/auth/jobs (S3,S5,S7) — commit:
 - [ ] T4 A4 visor + medición + runbook (S6) — commit:
 

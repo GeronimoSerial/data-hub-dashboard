@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { actorAuditoria, describirAuditoria } from './auditoria/contexto'
 import { getSessionUser } from '@/lib/session'
 import {
   NOMBRE_COOKIE,
@@ -48,7 +49,10 @@ async function esAdministrador(): Promise<boolean> {
 
 /** Para Route Handlers, que reciben la cookie dentro del Request. */
 export async function tieneAccesoAlParte(request: Request): Promise<boolean> {
-  if (tieneAccesoPublico(request)) return true
+  if (tieneAccesoPublico(request)) {
+    actorAuditoria({ actorTipo: 'compartido', actorId: null, actorRol: null, viaAcceso: 'password_compartida' })
+    return true
+  }
   return esAdministrador()
 }
 
@@ -98,11 +102,15 @@ export async function codigoSinAccesoParte(): Promise<401 | 403> {
  * Después, la sesión por rol (operador/director) con su alcance propio.
  */
 export async function tieneAccesoAlParteParaCue(request: Request, cueAnexo: string): Promise<boolean> {
+  describirAuditoria({ cueAnexo })
   if (await tieneAccesoAlParte(request)) return true
   const cookieHeader = request.headers.get('cookie')
   const valor = extraerCookieVerificacionSesion(cookieHeader)
   const verificacionId = verificacionIdDeSesionValida(valor, cueAnexo)
-  if (verificacionId && (await verificacionHabilitaSesionEscritura(verificacionId))) return true
+  if (verificacionId && (await verificacionHabilitaSesionEscritura(verificacionId))) {
+    actorAuditoria({ actorTipo: 'enlace', actorId: verificacionId, actorRol: null, viaAcceso: 'sesion_verificacion' })
+    return true
+  }
   return (await decisionAccesoParteDeSesion(cueAnexo)).permitido
 }
 
@@ -113,7 +121,9 @@ async function tieneCredencialParteDesdeCookies(cueAnexo: string | null): Promis
   const valor = cookieStore.get(NOMBRE_COOKIE_SESION_VERIFICACION)?.value
   const verificacionId = verificacionIdDeSesionValida(valor, cueAnexo)
   if (!verificacionId) return false
-  return verificacionHabilitaSesionEscritura(verificacionId)
+  const habilitada = await verificacionHabilitaSesionEscritura(verificacionId)
+  if (habilitada) actorAuditoria({ actorTipo: 'enlace', actorId: verificacionId, actorRol: null, viaAcceso: 'sesion_verificacion' })
+  return habilitada
 }
 
 /** Para Server Components (app/problematicas/parte/page.tsx). */

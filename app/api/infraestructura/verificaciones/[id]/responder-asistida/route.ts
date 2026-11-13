@@ -8,6 +8,7 @@ import { sinTokenHash } from '@/lib/infraestructura/verificacion-route'
 import {
   responderAsistida,
 } from '@/lib/infraestructura/verificaciones'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -67,13 +68,26 @@ async function handlePOST(
     return jsonError(parsed.error.issues[0]?.message ?? 'Cuerpo inválido', 400, NO_STORE)
   }
 
-  const resultado = await responderAsistida({
-    verificacionId: id,
-    actorUserId: user!.id,
-    canal: parsed.data.canal,
-    resultado: parsed.data.resultado,
-    observacion: parsed.data.observacion,
-  })
+  // La observación es texto libre: queda en la verificación, nunca en la auditoría.
+  const resultado = await cambioAuditado(
+    () => responderAsistida({
+      verificacionId: id,
+      actorUserId: user!.id,
+      canal: parsed.data.canal,
+      resultado: parsed.data.resultado,
+      observacion: parsed.data.observacion,
+    }),
+    valor => valor.ok
+      ? {
+        status: 200,
+        objetoTipo: 'verificacion',
+        objetoId: id,
+        cueAnexo: valor.verificacion.cueAnexo,
+        metadatos: { verificacionId: id },
+        ...(valor.replay ? { resultado: 'repetido' as const } : {}),
+      }
+      : { status: valor.status, objetoTipo: 'verificacion', objetoId: id, metadatos: { verificacionId: id } },
+  )
 
   if (!resultado.ok) {
     return jsonError(mensajeMotivo(resultado.motivo), resultado.status, NO_STORE)
@@ -82,4 +96,8 @@ async function handlePOST(
   return jsonNoStore({ ok: true, verificacion: sinTokenHash(resultado.verificacion) })
 }
 
-export const POST = ruta('infraestructura.verificaciones.id.responder-asistida.post', handlePOST)
+export const POST = conAuditoria(
+  'verificacion.responder_asistida',
+  '/api/infraestructura/verificaciones/[id]/responder-asistida',
+  ruta('infraestructura.verificaciones.id.responder-asistida.post', handlePOST),
+)

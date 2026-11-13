@@ -1,5 +1,7 @@
 import type { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
+import { actorAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { cambioAuditado, type DescripcionResultado } from '@/lib/infraestructura/auditoria/servidor'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import type { VerificacionRow } from '@/lib/infraestructura/verificaciones'
 
@@ -22,7 +24,7 @@ export const MENSAJES_CREDENCIAL: Record<string, string> = {
 }
 
 export type ResultadoEndpointVerificacion =
-  | { ok: true; verificacion: VerificacionRow }
+  | { ok: true; verificacion: VerificacionRow; replay?: boolean }
   | { ok: false; motivo: string; status: number }
 
 type OpcionesPost<T> = {
@@ -31,6 +33,19 @@ type OpcionesPost<T> = {
   mensajeDefault: string
   ejecutar: (id: string, body: T) => Promise<ResultadoEndpointVerificacion>
   responderExito?: (verificacion: Omit<VerificacionRow, 'tokenHash'>, id: string) => Response
+  // Datos extra para la auditoría (solo ids permitidos por servidor.ts).
+  metadatosAuditoria?: (body: T) => Record<string, unknown>
+}
+
+function descripcionVerificacion(
+  id: string,
+  resultado: ResultadoEndpointVerificacion,
+  metadatos: Record<string, unknown>,
+): DescripcionResultado {
+  const base = { objetoTipo: 'verificacion', objetoId: id, metadatos: { verificacionId: id, ...metadatos } }
+  if (!resultado.ok) return { ...base, status: resultado.status }
+  if (resultado.replay) return { ...base, status: 200, cueAnexo: resultado.verificacion.cueAnexo, resultado: 'repetido' }
+  return { ...base, status: 200, cueAnexo: resultado.verificacion.cueAnexo }
 }
 
 export function sinTokenHash(verificacion: VerificacionRow): Omit<VerificacionRow, 'tokenHash'> {
@@ -43,6 +58,9 @@ export function sinTokenHash(verificacion: VerificacionRow): Omit<VerificacionRo
 export function crearPostVerificacion<T>(opciones: OpcionesPost<T>) {
   return async (request: Request, context: { params: Promise<{ id: string }> }) => {
     // Credential-bearing requests use POST so tokens stay out of URLs and access logs.
+    const { id } = await context.params
+    // Quien actúa es el enlace de la verificación, nunca el token.
+    actorAuditoria({ actorTipo: 'enlace', actorId: id, actorRol: null, viaAcceso: 'enlace' })
     await ensureSeeded()
 
     if (ipExcedeLimite(getClientIp(request), Date.now(), IP_MAX_VERIFICACION)) {
@@ -52,7 +70,6 @@ export function crearPostVerificacion<T>(opciones: OpcionesPost<T>) {
       )
     }
 
-    const { id } = await context.params
     let body: unknown
     try {
       body = await request.json()
@@ -65,7 +82,11 @@ export function crearPostVerificacion<T>(opciones: OpcionesPost<T>) {
       return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: CACHE_HEADERS })
     }
 
-    const resultado = await opciones.ejecutar(id, parsed.data)
+    // El cambio y su evento se confirman juntos; los rechazos quedan igual en el evento.
+    const resultado = await cambioAuditado(
+      () => opciones.ejecutar(id, parsed.data),
+      valor => descripcionVerificacion(id, valor, opciones.metadatosAuditoria?.(parsed.data) ?? {}),
+    )
     if (!resultado.ok) {
       return Response.json(
         { error: opciones.mensajes[resultado.motivo] ?? opciones.mensajeDefault },
