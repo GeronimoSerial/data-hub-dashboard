@@ -5,7 +5,7 @@ import { ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { BookletRequestLineView, BookletRequestSummary, BookletRequestsPage } from '@/lib/cuadernillos/types'
 import { PAGE_SIZE, dashedCue, fichaEscuelaHref, isRequestsPage, readJson, requestLabel, scopedQuery } from './cabecera-api'
-import { Chip, Drawer, DrawerBody, EmptyState, Note, Panel } from '../kit'
+import { Chip, Modal, ModalBody, EmptyState, Note, Panel } from '../kit'
 import { RemainderAction } from './remainder-action'
 
 function total(lines: BookletRequestLineView[]): number {
@@ -19,7 +19,7 @@ function statusTone(request: BookletRequestSummary) {
   return 'neutral' as const
 }
 
-function RequestDrawer({ request, onClose, onRequested }: {
+function RequestModal({ request, onClose, onRequested }: {
   request: BookletRequestSummary | null
   onClose: () => void
   onRequested: (message: string) => void
@@ -27,9 +27,9 @@ function RequestDrawer({ request, onClose, onRequested }: {
   const ficha = request ? fichaEscuelaHref(request.recipientCueAnexo) : null
   const canRemainder = request !== null && request.status === 'approved' && request.rootRequestId === request.requestId && request.remaining.length > 0
   return (
-    <Drawer open={request !== null} title={request?.recipientName || 'Escuela destinataria'} description="Detalle del pedido" onClose={onClose}>
+    <Modal open={request !== null} title={request?.recipientName || 'Escuela destinataria'} description="Detalle del pedido" onClose={onClose}>
       {request ? (
-        <DrawerBody>
+        <ModalBody>
           <p style={{ margin: 0, color: 'var(--ink-soft)', display: 'flex', flexWrap: 'wrap', gap: '.5rem', alignItems: 'center' }}>
             <Chip tone={statusTone(request)}>{requestLabel(request)}</Chip>
             <span>CUE {dashedCue(request.recipientCueAnexo)}</span>
@@ -56,9 +56,9 @@ function RequestDrawer({ request, onClose, onRequested }: {
             <Note>Quedaron {total(request.remaining)} cuadernillos sin aprobar.</Note>
           ) : null}
           {canRemainder ? <RemainderAction request={request} onRequested={onRequested} /> : null}
-        </DrawerBody>
+        </ModalBody>
       ) : null}
-    </Drawer>
+    </Modal>
   )
 }
 
@@ -140,7 +140,7 @@ export function MyRequests({ refreshKey, onRequested }: {
           {loadingMore ? 'Cargando…' : 'Ver más pedidos'}
         </Button>
       ) : null}
-      <RequestDrawer request={openRequest} onClose={() => setOpenId(null)} onRequested={(message) => { setOpenId(null); onRequested(message) }} />
+      <RequestModal request={openRequest} onClose={() => setOpenId(null)} onRequested={(message) => { setOpenId(null); onRequested(message) }} />
     </Panel>
   )
 }

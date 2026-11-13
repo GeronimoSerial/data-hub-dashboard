@@ -5,14 +5,14 @@ import { ExternalLink } from 'lucide-react'
 import type { BookletRequestSummary } from '@/lib/cuadernillos/types'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { DrawerBody, DrawerFoot, Note, Stepper } from '../kit'
+import { ModalBody, ModalFoot, Note, Stepper } from '../kit'
 import { type ProductAvailability, defaultApprovalQuantities, fichaEscuelaHref, formatCue } from './inbox-model'
 
 export type ApprovalLine = { productId: string; quantity: number }
 
 type Step = 'review' | 'confirm' | 'reject'
 
-/** Body and footer of the decision drawer; the drawer chrome belongs to the caller. */
+/** Body and footer of the decision modal; the modal chrome belongs to the caller. */
 export function InboxDetail({
   request, availability, busy, error, onApprove, onReject,
 }: {
@@ -59,7 +59,7 @@ export function InboxDetail({
   )
   return (
     <>
-      <DrawerBody>
+      <ModalBody>
       <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
         CUE {formatCue(request.recipientCueAnexo)} · Cabecera {request.cabeceraName}
         {ficha ? (
@@ -112,8 +112,8 @@ export function InboxDetail({
       )}
 
       {error ? <Note tone="danger">{error}</Note> : null}
-      </DrawerBody>
-      <DrawerFoot>{footer}</DrawerFoot>
+      </ModalBody>
+      <ModalFoot>{footer}</ModalFoot>
     </>
   )
 }

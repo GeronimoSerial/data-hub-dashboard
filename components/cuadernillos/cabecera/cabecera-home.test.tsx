@@ -44,7 +44,7 @@ function routeFetch(overrides: Record<string, () => unknown> = {}) {
   })
 }
 
-/** Opens the "Nuevo pedido" drawer once the cabecera and the campaign have loaded. */
+/** Opens the "Nuevo pedido" modal once the cabecera and the campaign have loaded. */
 async function openNewRequest() {
   const button = await screen.findByRole('button', { name: 'Nuevo pedido' })
   await waitFor(() => expect(button).toBeEnabled())
@@ -155,7 +155,7 @@ describe('CabeceraHome request flow', () => {
     expect(await screen.findByText('Escuela Otra')).toBeInTheDocument()
   })
 
-  it('opens the per-product detail of a request in a drawer', async () => {
+  it('opens the per-product detail of a request in a modal', async () => {
     const request = {
       requestId: 'r2', rootRequestId: 'r2', recipientCueAnexo: '180123457', recipientName: 'Escuela Critica',
       cabeceraCueAnexo: '180123456', cabeceraName: 'Escuela Cabecera', status: 'approved',
@@ -169,10 +169,10 @@ describe('CabeceraHome request flow', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /Escuela Critica/ }))
 
-    const drawer = await screen.findByRole('dialog')
-    expect(drawer).toHaveTextContent('Detalle del pedido')
-    expect(drawer).toHaveTextContent('Cuadernillo A')
-    expect(drawer).toHaveTextContent('10 de 12')
+    const modal = await screen.findByRole('dialog')
+    expect(modal).toHaveTextContent('Detalle del pedido')
+    expect(modal).toHaveTextContent('Cuadernillo A')
+    expect(modal).toHaveTextContent('10 de 12')
   })
 
   it('shows the quota per grade assigned by planning', async () => {
