@@ -7,6 +7,7 @@ import path from 'node:path'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraExposicionRioDem } from '@/lib/db/schema'
+import { esFuenteFabdem, LICENCIA_SALUD_FABDEM } from '@/lib/infraestructura/region/fuente-dem'
 import { adquirirLease, publicarResultado } from '../job-run'
 import { actualizarSaludFuente } from './salud-fuente'
 
@@ -81,6 +82,14 @@ function numeroOpcional(valor: string): number | null {
   const numero = Number(valor)
   if (!Number.isFinite(numero)) throw new Error(ERROR_FORMATO)
   return numero
+}
+
+/** Licencia de salud según la fuente DEM: un archivo que mezcla FABDEM con otra fuente es un error de formato. */
+function licenciaDeFilas(filas: FilaExposicion[]): string {
+  const fabdem = filas.filter((fila) => esFuenteFabdem(fila.fuente)).length
+  if (fabdem === 0) return LICENCIA_SALUD
+  if (fabdem !== filas.length) throw new Error(ERROR_FORMATO)
+  return LICENCIA_SALUD_FABDEM
 }
 
 /** Parseo simple: el archivo no contiene comillas, se separa por coma. */
@@ -177,6 +186,7 @@ export async function importarExposicionRioDem(
       archivo = { version: filas[0].versionJob, fecha: filas[0].fechaCorrida }
     }
 
+    const licencia = licenciaDeFilas(filas)
     const db = getDb()
     const yaImportadas = await filasYaImportadas(db, archivo.version, archivo.fecha)
     const omitir = yaImportadas >= filas.length
@@ -195,7 +205,7 @@ export async function importarExposicionRioDem(
       contadores,
       ahora,
     })
-    await registrarSalud('ok', null, ahora)
+    await registrarSalud('ok', null, ahora, licencia)
     return { ejecutado: true, estado: 'completo', contadores }
   } catch (error) {
     const mensaje =
@@ -219,12 +229,13 @@ async function registrarSalud(
   estado: 'ok' | 'no_disponible',
   ultimoErrorSaneado: string | null,
   ahora: Date,
+  licencia: string = LICENCIA_SALUD,
 ) {
   try {
     await actualizarSaludFuente(getDb(), {
       provider: PROVIDER_SALUD,
       ttlMinutos: TTL_SALUD_MINUTOS,
-      licencia: LICENCIA_SALUD,
+      licencia,
       estado,
       ultimoErrorSaneado,
       ahoraIso: ahora.toISOString(),
