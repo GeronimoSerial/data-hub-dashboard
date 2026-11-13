@@ -40,6 +40,7 @@ export const shellHubPt: DeepStringify<typeof shellHubEs> = {
       'Relatórios, painéis e mapas do sistema educacional da Província de Corrientes.',
     descripcionRegion: (region: string) =>
       `Relatórios, painéis e mapas do sistema educacional de ${region}, publicados pelo Ministério de Educação para análise e tomada de decisões.`,
+    tituloVeredicto: (lugar: string) => `Veredito diário de inundações — ${lugar}`,
     descripcionSocialRegion: (region: string) =>
       `Relatórios, painéis e mapas do sistema educacional de ${region}.`,
   },
