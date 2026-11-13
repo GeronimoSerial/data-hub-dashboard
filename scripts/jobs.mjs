@@ -599,6 +599,18 @@ export async function correrJob(nombre, opts) {
   }
 }
 
+// Coolify no conserva stderr de los jobs programados: el fallo (mensaje + stack) también va por
+// stdout. Se redacta EARTHDATA_TOKEN por si una excepción de red lo embebiera.
+export function reportarFalloDespacho(nombre, error) {
+  const mensaje = error instanceof Error ? error.message : error
+  console.error(mensaje)
+  const stack = error instanceof Error && error.stack ? `\n${error.stack}` : ''
+  let detalle = `[jobs] "${nombre}" fallo: ${mensaje}${stack}`
+  const token = process.env.EARTHDATA_TOKEN
+  if (token) detalle = detalle.split(token).join('[REDACTED]')
+  console.log(detalle)
+}
+
 export function codigoSalida(nombreJob, resultado) {
   const motivo = resultado?.motivo
 
@@ -653,7 +665,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.error(error.message)
       process.exit(2)
     }
-    console.error(error instanceof Error ? error.message : error)
+    reportarFalloDespacho(nombre, error)
     process.exit(1)
   }
 }
