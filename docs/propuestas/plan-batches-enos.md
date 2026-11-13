@@ -588,12 +588,12 @@ Es el B0 de este plan más las decisiones de operación. Sin M0 no se instancia 
 
 | Subtarea | Decisión o entregable |
 |---|---|
-| M0.1 | B0.1–B0.7 completos: padrón INEP con coordenadas, estaciones ANA, niveles del puerto (SGB), licencia FABDEM, estaciones virtuales, contacto SEDUC-AM y SEMED, alertas INMET |
-| M0.2 | Jurisdicción del alojamiento de datos (LGPD) y proveedor: el mismo Coolify u otro |
-| M0.3 | Dominio público de Manaos (define `ENOS_MANAOS_URL` para la card del hub de Corrientes) |
-| M0.4 | Límites definitivos del área piloto (reemplazan los provisionales de `config/regiones/manaos.json`) |
-| M0.5 | Marca institucional de la cabecera de Manaos: logo, nombre y organismo |
-| M0.6 | Usuarios iniciales y quién administra el despliegue |
+| M0.1 | B0.1–B0.7 completos: padrón INEP con coordenadas, estaciones ANA, niveles del puerto (SGB), licencia FABDEM, estaciones virtuales, contacto SEDUC-AM y SEMED, alertas INMET. **Decisión (13/11/2026):** el agente arma B0 con fuentes públicas; B0.6 (contacto SEDUC-AM y SEMED) queda con el dueño |
+| M0.2 | Jurisdicción del alojamiento de datos (LGPD) y proveedor: el mismo Coolify u otro. **Resuelto (13/11/2026):** el mismo Coolify que Corrientes |
+| M0.3 | Dominio público de Manaos (define `ENOS_MANAOS_URL` para la card del hub de Corrientes). **Resuelto (13/11/2026):** `enos-manaos.sistemas.mec.gob.ar`, es decir `ENOS_MANAOS_URL=https://enos-manaos.sistemas.mec.gob.ar` |
+| M0.4 | Límites definitivos del área piloto (reemplazan los provisionales de `config/regiones/manaos.json`). **Resuelto (13/11/2026):** se mantiene el bbox provisional de `config/regiones/manaos.json` |
+| M0.5 | Marca institucional de la cabecera de Manaos: logo, nombre y organismo. **Resuelto (13/11/2026):** marca neutra "ENOS", sin institución; en `manaos.json` logo nulo, repartición y pie "ENOS", jurisdicción "Amazonas" y "Brasil" |
+| M0.6 | Usuarios iniciales y quién administra el despliegue. **Resuelto (13/11/2026):** solo nuestro propio admin |
 
 ### M1 — Interfaz en portugués completa
 
@@ -635,7 +635,7 @@ Amplía B10b. Bloquea la salida en vivo.
 - Estado: en `dev` (12/11/2026), autorizado por el coordinador. Corrientes sin cambios: suite e2e del mapa 181 aprobadas y 7 omitidas, 29 snapshots de API sin tocar, volcado de texto de 11 páginas de Corrientes idéntico a `dev` salvo marcas de tiempo.
 - Hecho: M2.1 a M2.6 (campos opcionales `fuentesLluvia`, `capasEstaticas`, `sondaTestigos` y `marca` en `config/regiones/*.json`; `fuentesRio` solo contiene ids de proveedor); cabecera, menú, pie y login del hub y formularios de carga de partes (`actualizar/*`, `reporte-inicial-*`, verificaciones) en portugués con la región `manaos`; `<html lang>` y metadatos por región; pestaña Radar con base vacía: la causa era que el fetch de frontera guardaba el cuerpo de error 503 como si fueran datos, ahora valida `response.ok` y `features`; letras de la rosa de los vientos en portugués (L/O, LNE/LSE), con la fuente en el comentario de `escalas.ts`; comentario de `sync-imerg.ts`.
 - Único cambio visible en Corrientes: con la base de geografía vacía, la vista inicial pasa de (0, 0) al centro de la región; con datos queda idéntica.
-- Abierto: marca de Manaos con marcadores `[PENDIENTE M0.5]` en `config/regiones/manaos.json` y logo nulo, a la espera del dueño; título raíz de Manaos armado con el nombre de la región, falta confirmar el texto; páginas solo en español (Metodología, natalidad, matrícula, reorganización); textos libres del servidor (descripciones de movimientos, `ultimoError`) y cadenas ya guardadas en español; los formularios de carga usan el idioma por defecto de la región, no la preferencia del usuario; error de bloqueo en `recorrido-actualizacion.tsx` y 3 mensajes de `consistencia-estado-activo.ts` siguen en español bajo `pt`.
+- Marca de Manaos: resuelta por M0.5 (13/11/2026), marca neutra "ENOS" sin marcadores `[PENDIENTE M0.5]` y con logo nulo. Abierto: título raíz de Manaos armado con el nombre de la región, falta confirmar el texto; páginas solo en español (Metodología, natalidad, matrícula, reorganización); textos libres del servidor (descripciones de movimientos, `ultimoError`) y cadenas ya guardadas en español; los formularios de carga usan el idioma por defecto de la región, no la preferencia del usuario; error de bloqueo en `recorrido-actualizacion.tsx` y 3 mensajes de `consistencia-estado-activo.ts` siguen en español bajo `pt`.
 
 ### B12–B16
 
@@ -647,12 +647,12 @@ Sigue `docs/ejecucion-enos/OPS1/runbook-nueva-region.md` y `deploy/regiones/`.
 
 | Subtarea | Acción | Responsable |
 |---|---|---|
-| M3.1 | Aplicación de Coolify con la misma imagen y `REGION=manaos`, base Postgres propia y dominio de M0.3 | Dueño, o agente con acceso autorizado |
+| M3.1 | Aplicación en el mismo Coolify que Corrientes (decisión M0.2), con la misma imagen y `REGION=manaos`, base Postgres propia y dominio `enos-manaos.sistemas.mec.gob.ar` (M0.3) | Dueño, o agente con acceso autorizado |
 | M3.2 | Secretos: los de B11.6 (`DATABASE_URL`, `OPEN_METEO_API_KEY`, `EARTHDATA_TOKEN`, `OPENROUTER_API_KEY`, `RIESGO_DATOS_ROL`) más `NOMINAL_ENCRYPTION_KEY`, `ADMIN_PASSWORD`, `MATRICULA_DNI_SECRET`, `DATASET_SALT_E7B`, `AI_API_KEY`, `OBS_*` y `GE_SSO_API_KEY`. Valores nuevos, nunca copiados de Corrientes | Dueño |
 | M3.3 | Carga de datos: `pnpm region:cargar manaos` con los datasets de B12 | Agente |
 | M3.4 | Tareas programadas de la tabla "Manaos" de `deploy/regiones/scheduler-jobs.md`, más las de los proveedores de B12. Las marcadas "revisar" o "no programar" esperan a M2.5 | Dueño, o agente con acceso autorizado |
 | M3.5 | Monitoreo y backup de la base, igual que Corrientes | Dueño |
-| M3.6 | `ENOS_MANAOS_URL` en Corrientes, solo cuando Manaos esté en vivo: hace visible la card "ENOS Manaos" en el hub | Dueño |
+| M3.6 | `ENOS_MANAOS_URL=https://enos-manaos.sistemas.mec.gob.ar` en Corrientes, solo cuando Manaos esté en vivo: hace visible la card "ENOS Manaos" en el hub | Dueño |
 
 ### M4 — Salida en vivo de Manaos
 
