@@ -39,6 +39,7 @@ export const ROUTE_MANIFEST: Record<string, RouteCapability | readonly RouteCapa
   'app/(hub)/admin/episodios-derivados/page.tsx': 'staff',
   'app/(hub)/admin/episodios-derivados/[id]/page.tsx': 'staff',
   'app/(hub)/admin/verificaciones/page.tsx': 'staff',
+  'app/(hub)/admin/auditoria/page.tsx': 'admin',
   'app/(hub)/call-center/page.tsx': 'callcenter.access',
 
   // --- Pages (otras) ---
@@ -94,6 +95,7 @@ export const ROUTE_MANIFEST: Record<string, RouteCapability | readonly RouteCapa
   'app/api/recursos/[id]/route.ts': 'staff',
   'app/api/recursos/route.ts': 'staff',
   'app/api/taxonomia/[kind]/route.ts': 'admin',
+  'app/api/infraestructura/auditoria/route.ts': 'admin',
   'app/api/usuario/idioma/route.ts': 'authenticated',
   // TODO(T3): GET requires staff (listUsuariosDenied); PUT/DELETE require admin.
   'app/api/usuarios/[id]/route.ts': 'staff',
