@@ -8,12 +8,13 @@ const { limitMock, permissionMock, confirmMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/db', () => ({
-  getDb: () => ({ select: () => ({ from: () => ({
+  getDb: () => ({ insert: () => ({ values: async () => undefined }), select: () => ({ from: () => ({
     innerJoin: () => ({ innerJoin: () => ({ where: () => ({ limit: limitMock }) }) }),
   }) }) }),
 }))
 vi.mock('@/lib/db/seed', () => ({ ensureSeeded: vi.fn(async () => undefined) }))
 vi.mock('@/lib/db/schema', () => ({
+  auditoriaEvento: { requestId: 'auditoria.requestId' },
   infraAdjunto: { id: 'attachment.id', movimientoId: 'attachment.movimientoId' },
   infraMovimiento: { id: 'movement.id', parteId: 'movement.parteId' },
   infraParte: { cueAnexo: 'part.cueAnexo', id: 'part.id' },

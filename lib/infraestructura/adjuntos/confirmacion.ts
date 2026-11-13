@@ -1,7 +1,15 @@
 import { and, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraAdjunto } from '@/lib/db/schema'
+import { contextoAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { cambioAuditado, type DescripcionResultado } from '@/lib/infraestructura/auditoria/servidor'
 import { getObsBucket, headAttachmentObject, ObsObjectMissingError, type AttachmentObjectMetadata } from './obs'
+
+/** Ejecuta la escritura junto con su evento (cambioAuditado). Por defecto, sin auditoría. */
+export type TransaccionConfirmacion = <T>(
+  ejecutar: () => Promise<T>,
+  describir: (valor: T) => DescripcionResultado,
+) => Promise<T>
 
 export type ConfirmarAdjuntoInput = {
   attachmentId: string
@@ -14,8 +22,18 @@ export type ConfirmarAdjuntoResult =
   | { ok: true; repetido: boolean; optimizadaEtag: string; miniaturaEtag: string }
   | { ok: false; status: 404 | 409; code: 'not_found' | 'object_not_ready'; missingVariants?: ('optimizada' | 'miniatura')[] }
 
-/** Verifies both OBS objects and marks the row confirmed in an idempotent update. */
-export async function confirmarAdjunto(input: ConfirmarAdjuntoInput): Promise<ConfirmarAdjuntoResult> {
+/**
+ * Verifies both OBS objects and marks the row confirmed in an idempotent update.
+ * La verificación OBS queda fuera de `transaccion`; solo la escritura y su evento comparten transacción.
+ */
+/** Dentro de una solicitud auditada, la escritura y su evento comparten transacción; fuera, se escribe sin evento. */
+const transaccionPorDefecto: TransaccionConfirmacion = (ejecutar, describir) =>
+  contextoAuditoria.getStore() ? cambioAuditado(ejecutar, describir) : ejecutar()
+
+export async function confirmarAdjunto(
+  input: ConfirmarAdjuntoInput,
+  transaccion: TransaccionConfirmacion = transaccionPorDefecto,
+): Promise<ConfirmarAdjuntoResult> {
   const db = getDb()
   const [adjunto] = await db.select({
     id: infraAdjunto.id,
@@ -68,20 +86,23 @@ export async function confirmarAdjunto(input: ConfirmarAdjuntoInput): Promise<Co
   const repetido = adjunto.estado === 'confirmed'
     && adjunto.optimizadaEtag === objects.optimizada.etag
     && adjunto.miniaturaEtag === objects.miniatura.etag
-  if (!repetido) {
-    await db.update(infraAdjunto).set({
-      estado: 'confirmed',
+  return transaccion(async () => {
+    if (!repetido) {
+      // getDb() dentro de la transacción: une la escritura con el evento (db se capturó antes).
+      await getDb().update(infraAdjunto).set({
+        estado: 'confirmed',
+        optimizadaEtag: objects.optimizada.etag,
+        miniaturaEtag: objects.miniatura.etag,
+      }).where(and(
+        eq(infraAdjunto.id, input.attachmentId),
+        eq(infraAdjunto.movimientoId, input.movimientoId),
+      ))
+    }
+    return {
+      ok: true as const,
+      repetido,
       optimizadaEtag: objects.optimizada.etag,
       miniaturaEtag: objects.miniatura.etag,
-    }).where(and(
-      eq(infraAdjunto.id, input.attachmentId),
-      eq(infraAdjunto.movimientoId, input.movimientoId),
-    ))
-  }
-  return {
-    ok: true,
-    repetido,
-    optimizadaEtag: objects.optimizada.etag,
-    miniaturaEtag: objects.miniatura.etag,
-  }
+    }
+  }, valor => ({ status: 200, resultado: valor.repetido ? 'repetido' : 'exito' }))
 }
