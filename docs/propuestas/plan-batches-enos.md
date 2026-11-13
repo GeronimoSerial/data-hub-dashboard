@@ -654,7 +654,16 @@ Amplía B10b. Bloquea la salida en vivo.
 - Único cambio visible en Corrientes: con la base de geografía vacía, la vista inicial pasa de (0, 0) al centro de la región; con datos queda idéntica.
 - Marca de Manaos: resuelta por M0.5 (13/11/2026), marca neutra "ENOS" sin marcadores `[PENDIENTE M0.5]` y con logo nulo. Abierto: título raíz de Manaos armado con el nombre de la región, falta confirmar el texto; páginas solo en español (Metodología, natalidad, matrícula, reorganización); textos libres del servidor (descripciones de movimientos, `ultimoError`) y cadenas ya guardadas en español; los formularios de carga usan el idioma por defecto de la región, no la preferencia del usuario; error de bloqueo en `recorrido-actualizacion.tsx` y 3 mensajes de `consistencia-estado-activo.ts` siguen en español bajo `pt`.
 - Resuelto en F4 a F6 (13/11/2026): card y enlace del pie con el nombre de la región, cards de natalidad y reorganización no sembradas fuera de Corrientes, etiqueta de destino del admin, título del veredicto público, jurisdicción de la ficha de escuela y firma institucional (`components/marca.tsx` no dibuja nada con `logo` nulo). Corrientes sin cambios, fijado con una prueba por cada punto.
-- Abierto, solo Corrientes (se dejan así): `app/(landing)/materiales`, páginas de natalidad y reorganización (incluido «Volver a Corrientes») y `app/(mockups)/intranet`. El resto del texto del veredicto público sigue en español.
+- Abierto, solo Corrientes (se dejan así): `app/(landing)/materiales`, páginas de natalidad y reorganización (incluido «Volver a Corrientes») y `app/(mockups)/intranet`.
+- Resuelto en F7 (13/11/2026): el veredicto público, el modal del veredicto, sus acciones y el chip de nivel salen en portugués con `REGION=manaos` mediante `residuos.veredicto` (Corrientes fijado por hash del DOM). Abierto: el texto libre que escribe la IA del veredicto y los eventos de terreno (título, lugar, medio) quedan en el idioma en que se generaron; el PDF del veredicto y el prompt del modelo siguen en español (`niveles.ts`, `pdf.ts`, `prompt.ts`).
+- Barrido final con la suite e2e de región (Manaos en pt-BR, base con datasets, 13/11/2026). Texto en español que sigue alcanzable desde la UI de Manaos, sin corregir:
+  - Catálogo sembrado: la base de Manaos conserva los 9 recursos del catálogo inicial de Corrientes (matrícula provincial, sobreedad, notas, tablero y mapa de alertas de trayectorias, tres reportes ejecutivos de sobreedad). Aparecen en `/`, `/explorar`, `/mapas`, `/reportes`, `/tableros` y `/admin/recursos` con títulos, descripciones y áreas en español. Decisión de datos: no sembrar ese catálogo fuera de Corrientes o traducirlo.
+  - Portada `/`: textos de la sección de bienvenida, buscador, bloque «Registrar una problemática» y las secciones «Explorar por tema, formato y nivel» en español.
+  - `/admin` (recursos, usuarios, organización, operación): todo el panel en español.
+  - `/cuadernillos` («Ver como», «Configuración», estado vacío y «Sección en desarrollo») y `/links` («Todavía no hay accesos publicados»).
+  - `/mapas/matricula`: mapa de Corrientes accesible por URL directa («Provincia de Corrientes - Evolución de matrícula 2023-2026» y sus leyendas).
+  - `/situacion`: «Niveles del río (ANA)» y «Niveles del río (SGB)».
+  - `/mapas/natalidad`, `/mapas/reorganizacion` y `/login` con sesión iniciada redirigen a la portada; `/evolucion` y `/metodologia` responden 404 en esa base.
 
 ### B12–B16
 
