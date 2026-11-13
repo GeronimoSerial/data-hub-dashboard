@@ -37,7 +37,7 @@ export default defineConfig({
     },
     {
       name: 'manaos-pt',
-      testMatch: 'specs/portugues.spec.ts',
+      testMatch: ['specs/portugues.spec.ts', 'specs/portugues-hub.spec.ts'],
       use: { ...devices['Desktop Chrome'], baseURL: manaosURL },
     },
     {
