@@ -140,3 +140,13 @@ Una marca de ANA en hora de Manaus (UTC−4) quedaría en el futuro; en Brasíli
 - Umbrales (decisión técnica, a confirmar con el dueño): Manaus alerta = 27,00 m y `evacuacion` = 29,00 m (inundación severa de SACE); la cota de «inundación» de 27,50 m de SACE queda sin uso. Otras estaciones no tienen umbrales: devuelven «sin dato».
 - **Limitación consciente:** un colegio sólo recibe evidencia de río si tiene `distanciaKm` al río ≤ 1 km (`infra_geo_rio`) y una estación a ≤ 60 km. Mientras Manaos no tenga datos de ribera (B12.4/B14), el motor no recibe exposición de río: no se inventó ninguna. Los niveles sí se sincronizan y alimentan frescura y volumen en el Centro de Situación.
 - `periodo_horas` es entera: las lecturas de 15 min lo guardan en `null`.
+
+## Estado de implementación G3 (B12.3, 13/11/2026)
+
+- Adaptador `lib/infraestructura/radar-meteo/inmet-alertas.ts` (`syncInmetAlertas`) sobre el JSON `avisos/ativos`; job `sync-inmet-alertas` (`9-59/15 * * * *`, «pendiente de crear en Coolify»), aplica sólo si `fuentesAlertas` incluye `inmet`. No es CAP: la hipótesis CAP de B0.7 quedó descartada.
+- Convención de SMN: los avisos se guardan en la misma tabla `smn_alerta` con id `inmet:<codigo>`; los consumidores (API de alertas, resumen, agrupación) los leen sin cambios. Un aviso es relevante si sus `geocodes` incluyen algún id de las unidades administrativas de la región (en Manaos, los códigos IBGE de los 12 municipios).
+- Marcas de tiempo `inicio`/`fim` interpretadas como hora de Brasília (UTC−3), supuesto sin confirmar.
+- Barrido: lo que ya no figura en el feed (instantánea de avisos activos y futuros) y no venció se marca cancelado; sólo toca ids `inmet:`, nunca filas de SMN.
+- Fuente no oficial: el titular lleva «(aviso não oficial, fonte INMET)». Falla blanda: un error HTTP o de forma registra la corrida fallida y la salud `no_disponible`/`degradado` con mensajes fijos, sin tocar los avisos ya guardados.
+- No se mapeó INMET en `veredicto/salud-fuentes.ts` (el tipo `FuenteVeredicto` es una unión cerrada de `veredicto/reglas.ts`); decisión de producto pendiente.
+- El filtro de pertenencia no se reevalúa en el barrido: un aviso modificado para dejar de incluir Manaus sigue activo hasta que INMET lo retire del feed.
