@@ -97,15 +97,15 @@ describe('SupervisorInbox', () => {
     render(<SupervisorInbox />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Escuela Anexo/ }))
-    const drawer = await screen.findByRole('dialog')
-    expect(within(drawer).getByRole('list', { name: 'Cantidades solicitadas' })).toHaveTextContent('Pidió 12 · Disponible —')
-    expect(within(drawer).getByLabelText('Cantidad aprobada · Cuadernillo A')).toHaveValue(12)
-    expect(within(drawer).getByRole('link', { name: /Ver ficha/ })).toHaveAttribute('target', '_blank')
+    const modal = await screen.findByRole('dialog')
+    expect(within(modal).getByRole('list', { name: 'Cantidades solicitadas' })).toHaveTextContent('Pidió 12 · Disponible —')
+    expect(within(modal).getByLabelText('Cantidad aprobada · Cuadernillo A')).toHaveValue(12)
+    expect(within(modal).getByRole('link', { name: /Ver ficha/ })).toHaveAttribute('target', '_blank')
 
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Aprobar' }))
-    expect(await within(drawer).findByText(/La aprobación descuenta stock y cupo y no se puede anular\./)).toBeInTheDocument()
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Volver' }))
-    expect(within(drawer).getByRole('button', { name: 'Aprobar' })).toBeInTheDocument()
+    fireEvent.click(within(modal).getByRole('button', { name: 'Aprobar' }))
+    expect(await within(modal).findByText(/La aprobación descuenta stock y cupo y no se puede anular\./)).toBeInTheDocument()
+    fireEvent.click(within(modal).getByRole('button', { name: 'Volver' }))
+    expect(within(modal).getByRole('button', { name: 'Aprobar' })).toBeInTheDocument()
   })
 
   it('posts the approval with the default quantities and then with edited quantities', async () => {
@@ -151,16 +151,16 @@ describe('SupervisorInbox', () => {
     expect(body).toEqual({ reason: 'Solicitud duplicada', idempotencyKey: expect.any(String) })
   })
 
-  it('names each row by its dashed CUE and opens the detail in a drawer, never a centered modal', async () => {
+  it('names each row by its dashed CUE and opens the detail in a modal', async () => {
     vi.stubGlobal('fetch', mockApi({ list: listResponse([pending]) }))
 
     render(<SupervisorInbox />)
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /CUE 1801234-57/ }))
-    const drawer = await screen.findByRole('dialog')
-    expect(drawer).toHaveClass('k-drawer')
-    expect(drawer).toHaveClass('ui-sheet--right')
+    const modal = await screen.findByRole('dialog')
+    expect(modal).toHaveClass('k-modal')
+    expect(modal).toHaveClass('ui-dialog-popup')
     expect(screen.getByRole('button', { name: 'Aprobar' })).toBeInTheDocument()
   })
 })

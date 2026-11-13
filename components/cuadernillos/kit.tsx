@@ -2,10 +2,10 @@
 
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Minus, Plus } from 'lucide-react'
-import { SheetContent, SheetRoot, SheetTitle } from '@/components/ui/sheet'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 /**
- * Shared building blocks of the cuadernillos screens: KPIs, chips, panels, drawer, stepper.
+ * Shared building blocks of the cuadernillos screens: KPIs, chips, panels, modal, stepper.
  * Layout rules that inline styles cannot express (hover, focus, breakpoints) live in KitStyles.
  */
 const CSS = `
@@ -16,7 +16,7 @@ const CSS = `
 .k-head h2 { margin: 0; font-family: var(--font-display); font-size: clamp(1.35rem, 3vw, 1.75rem); line-height: 1.1; color: var(--ink); }
 .k-head p { margin: .25rem 0 0; color: var(--ink-soft); }
 
-.k-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }
+.k-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }
 .k-kpi { display: grid; gap: .2rem; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); }
 .k-kpi dt, .k-kpi-label { color: var(--ink-soft); font-size: .85rem; font-weight: 600; }
 .k-kpi dd, .k-kpi-value { margin: 0; color: var(--ink); font-family: var(--font-display); font-size: 1.9rem; line-height: 1.05; font-variant-numeric: tabular-nums; }
@@ -63,18 +63,17 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-seg button[aria-pressed="true"] { background: var(--ink); color: var(--white); }
 .k-seg button:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
 
-.k-drawer { width: min(30rem, 100vw); max-width: 100vw; box-sizing: border-box; }
-.k-drawer-head { display: grid; gap: .25rem; padding: 1.25rem 3.5rem 1rem 1.5rem; border-bottom: 1px solid var(--line); }
-.k-drawer-head p { margin: 0; color: var(--ink-soft); font-size: .9rem; }
-.k-drawer-title { margin: 0; padding: 0 !important; font-family: var(--font-display); font-size: 1.3rem !important; font-weight: 700; line-height: 1.15; text-transform: none !important; color: var(--ink); }
-.k-drawer-body { display: grid; gap: 1rem; align-content: start; padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1 1 auto; }
-.k-drawer-foot { display: flex; flex-wrap: wrap; gap: .5rem; padding: .9rem 1.5rem calc(.9rem + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--card); }
-.k-drawer-foot > * { flex: 1 1 8rem; min-height: 44px; }
+.k-modal.k-modal { display: flex; flex-direction: column; width: min(34rem, calc(100vw - 2rem)); max-height: min(44rem, calc(100dvh - 2rem)); padding: 0; overflow: hidden; }
+.k-modal-head { display: grid; gap: .25rem; padding: 1.25rem 3.5rem 1rem 1.5rem; border-bottom: 1px solid var(--line); }
+.k-modal-head p { margin: 0; color: var(--ink-soft); font-size: .9rem; }
+.k-modal-title { margin: 0; padding: 0 !important; font-family: var(--font-display); font-size: 1.3rem !important; font-weight: 700; line-height: 1.15; text-transform: none !important; color: var(--ink); }
+.k-modal-body { display: grid; gap: 1rem; align-content: start; padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+.k-modal-foot { display: flex; flex-wrap: wrap; gap: .5rem; padding: .9rem 1.5rem; border-top: 1px solid var(--line); background: var(--card); }
+.k-modal-foot > * { flex: 1 1 8rem; min-height: 44px; }
 @media (max-width: 640px) {
-  .k-drawer { width: 100vw; height: 92dvh; top: auto !important; bottom: 0; left: 0; right: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; }
-  .k-drawer-head { padding-left: 1rem; }
-  .k-drawer-body { padding: 1rem; }
-  .k-drawer-foot { padding-left: 1rem; padding-right: 1rem; }
+  .k-modal-head { padding-left: 1rem; }
+  .k-modal-body { padding: 1rem; }
+  .k-modal-foot { padding-left: 1rem; padding-right: 1rem; }
 }
 
 .k-field { display: grid; gap: .35rem; }
@@ -185,8 +184,8 @@ export function Segmented<T extends string>({ label, value, options, onChange }:
   )
 }
 
-/** Right-side drawer on desktop, bottom drawer on phones. Never a centered modal. Compose with DrawerBody and DrawerFoot. */
-export function Drawer({ open, title, description, onClose, children }: {
+/** Centered modal dialog. Compose with ModalBody and ModalFoot. */
+export function Modal({ open, title, description, onClose, children }: {
   open: boolean
   title: string
   description?: string
@@ -194,24 +193,24 @@ export function Drawer({ open, title, description, onClose, children }: {
   children: ReactNode
 }) {
   return (
-    <SheetRoot open={open} onOpenChange={(next) => { if (!next) onClose() }}>
-      <SheetContent side="right" className="k-drawer">
-        <div className="k-drawer-head">
-          <SheetTitle className="k-drawer-title">{title}</SheetTitle>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      <DialogContent className="k-modal">
+        <div className="k-modal-head">
+          <DialogTitle className="k-modal-title">{title}</DialogTitle>
           {description ? <p>{description}</p> : null}
         </div>
         {children}
-      </SheetContent>
-    </SheetRoot>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-export function DrawerBody({ children }: { children: ReactNode }) {
-  return <div className="k-drawer-body">{children}</div>
+export function ModalBody({ children }: { children: ReactNode }) {
+  return <div className="k-modal-body">{children}</div>
 }
 
-export function DrawerFoot({ children }: { children: ReactNode }) {
-  return <div className="k-drawer-foot">{children}</div>
+export function ModalFoot({ children }: { children: ReactNode }) {
+  return <div className="k-modal-foot">{children}</div>
 }
 
 export function Stepper({ label, value, max, disabled, onChange }: {
