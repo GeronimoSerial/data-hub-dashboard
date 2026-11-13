@@ -49,7 +49,7 @@ const resolved = []
 const unresolved = []
 for (const school of source.escuelas) {
   const { rows } = await rawClient.query('SELECT cue_anexo FROM ge.ge_localizacion WHERE cue_anexo LIKE $1', [`${school.cue}%`])
-  const matches = rows.map((row) => String(row.cue_anexo)).filter((value) => /^\d{9}$/.test(value))
+  const matches = rows.map((row) => String(row.cue_anexo).replace('-', '')).filter((value) => /^\d{9}$/.test(value))
   if (matches.length === 1) resolved.push({ ...school, cueAnexo: matches[0] })
   else unresolved.push({ ...school, matches })
 }
