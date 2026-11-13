@@ -421,6 +421,13 @@
       "when": 1794600000000,
       "tag": "0059_auditoria_evento",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1794602384501,
+      "tag": "0060_hazard_observation_observado_idx",
+      "breakpoints": true
     }
   ]
 }

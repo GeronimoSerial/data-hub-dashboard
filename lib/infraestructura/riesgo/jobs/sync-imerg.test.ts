@@ -646,4 +646,31 @@ describe('ejecutarSyncImerg', () => {
       expect(salud?.ultimoExitoEn).toBe(new Date('2026-09-26T06:35:00.000Z').toISOString())
     })
   })
+
+  describe('excepción fuera de los try/catch del cuerpo', () => {
+    it('publica el error real saneado (sin el token) y relanza la excepción original', async () => {
+      const original = new Error('canceling statement due to statement timeout (token-fake)')
+      const spy = vi.spyOn(await db(), 'selectDistinct').mockImplementationOnce(() => {
+        throw original
+      })
+      try {
+        await expect(
+          sync({
+            ahora: new Date('2026-09-28T10:05:00.000Z'),
+          }),
+        ).rejects.toBe(original)
+      } finally {
+        spy.mockRestore()
+      }
+
+      const run = (await (await db()).select().from(infraJobRun)).find(
+        (fila) => fila.tipo === 'sync-hazard-imerg' && fila.claveIdempotente === '2026-09-28T10:00',
+      )
+      expect(run?.estado).toBe('fallido')
+      expect(run?.errorSaneado).toBe(
+        'canceling statement due to statement timeout ([REDACTED])',
+      )
+      expect(run?.errorSaneado).not.toContain('token-fake')
+    })
+  })
 })
