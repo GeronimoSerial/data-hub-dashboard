@@ -13,7 +13,7 @@ import { RadioGroup, RadioItem } from '@/components/ui/radio'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { AccesoRecursos, HubUserRow, UserAdminOptions} from '@/components/admin/shared';
-import { SECTION_LABELS, DESTINATION_LABELS, ROLES, rolLabel, OPCIONES_DIRECCION, idsADirecciones, direccionesAIds, nombresDirecciones, AdminField, FormDialog, useEditorDialog, useListaRemota, SelectField, leerErrorApi, BotonEditar, DialogActions, AdminListToolbar, AdminEmptyRow, AdminStatus, useBusqueda, filaEditable } from '@/components/admin/shared'
+import { SECTION_LABELS, etiquetaDestino, ROLES, rolLabel, OPCIONES_DIRECCION, idsADirecciones, direccionesAIds, nombresDirecciones, AdminField, FormDialog, useEditorDialog, useListaRemota, SelectField, leerErrorApi, BotonEditar, DialogActions, AdminListToolbar, AdminEmptyRow, AdminStatus, useBusqueda, filaEditable } from '@/components/admin/shared'
 
 function UserDialog({
   open,
@@ -132,7 +132,7 @@ function UserForm({
   const destinationOptions = HUB_DESTINATIONS
     .filter((entry) => allowedDestinations.includes(entry.path))
     .filter((entry) => entry.kind === 'landing' ? draft.landing : entry.kind === 'special' || draft.enabledSections.includes(entry.section))
-    .map((entry) => ({ value: entry.path, label: DESTINATION_LABELS[entry.path] ?? entry.path }))
+    .map((entry) => ({ value: entry.path, label: etiquetaDestino(entry.path) ?? entry.path }))
   const destinationInvalid = Boolean(draft.destination && !destinationOptions.some((item) => item.value === draft.destination))
   const noAccessPolicy = draft.enabledSections.length === 0 && !draft.landing
   const noDestinationNeeded = noAccessPolicy && draft.destination === null
@@ -314,7 +314,7 @@ function UserForm({
               options={[
                 { value: '', label: 'Seleccione un destino' },
                 ...destinationOptions,
-                ...(destinationInvalid && draft.destination ? [{ value: draft.destination, label: `${DESTINATION_LABELS[draft.destination] ?? draft.destination} (ya no válido)` }] : []),
+                ...(destinationInvalid && draft.destination ? [{ value: draft.destination, label: `${etiquetaDestino(draft.destination) ?? draft.destination} (ya no válido)` }] : []),
               ]}
               hint={destinationInvalid ? 'El destino guardado ya no es válido con los permisos actuales. Elija otro antes de guardar.' : 'Solo se ofrecen destinos válidos para el rol, los recursos y el alcance de este usuario.'}
               onChange={(destination) => setDraft((prev) => ({ ...prev, destination: destination || null }))}
@@ -388,7 +388,7 @@ export function UsersAdmin() {
                   ? 'Sin secciones'
                   : u.hubPolicy.enabledSections.map((section) => SECTION_LABELS[section]).join(', ')
               const destino = u.hubDestination
-                ? DESTINATION_LABELS[u.hubDestination] ?? u.hubDestination
+                ? etiquetaDestino(u.hubDestination) ?? u.hubDestination
                 : heredado
                   ? u.role === 'operador_establecimiento' ? 'Entrada GE según CUE; si no aplica, Inicio' : 'Inicio'
                   : 'Sin configurar'

@@ -28,6 +28,7 @@ import {
   user,
 } from './schema'
 import { RECURSO_INFRAESTRUCTURA_ID, upsertRecursoInfraestructura, upsertRecursoManaos } from '@/lib/infraestructura/recurso-seed'
+import { regionActiva } from '@/lib/infraestructura/region/activa'
 import { upsertRecursoNatalidad } from '@/lib/mapas/recurso-seed-natalidad'
 import { upsertRecursoReorganizacion } from '@/lib/mapas/recurso-seed-reorganizacion'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
@@ -186,7 +187,8 @@ async function seedHub() {
   // El catálogo completo de instalaciones nuevas y bases existentes sigue
   // recibiendo natalidad; no se agregan otros módulos a un catálogo exclusivo.
   const catalogo = await db.select({ id: recursos.id }).from(recursos)
-  if (catalogo.some((recurso) => recurso.id !== RECURSO_INFRAESTRUCTURA_ID)) {
+  // Natalidad y reorganización son módulos exclusivos de Corrientes.
+  if (regionActiva().id === 'corrientes' && catalogo.some((recurso) => recurso.id !== RECURSO_INFRAESTRUCTURA_ID)) {
     await upsertRecursoNatalidad()
     await upsertRecursoReorganizacion()
   }
