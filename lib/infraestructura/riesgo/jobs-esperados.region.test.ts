@@ -40,13 +40,37 @@ describe('jobsEsperadosParaRegion', () => {
   it('Corrientes conserva exactamente la lista actual (ids, orden y campos)', () => {
     const lista = jobsEsperadosParaRegion(corrientes, 'productor')
     expect(lista.map((job) => job.nombre)).toEqual(IDS_CORRIENTES)
-    expect(lista).toEqual(JOBS_ESPERADOS_PRODUCTOR)
+    // Los jobs de ANA y SGB (B12.2) viven en la lista productora pero no aplican a Corrientes.
+    expect(lista).toEqual(JOBS_ESPERADOS_PRODUCTOR.filter((job) => aplicaJobARegion(job.nombre, corrientes)))
   })
 
   it('una región sin Prefectura ni INA excluye sync-prefectura-* y sync-ina-*', () => {
     const nombres = jobsEsperadosParaRegion(sinPrefecturaNiIna, 'productor').map((job) => job.nombre)
     expect(nombres.filter((nombre) => nombre.startsWith('sync-prefectura-') || nombre.startsWith('sync-ina-'))).toEqual([])
-    expect(nombres).toHaveLength(IDS_CORRIENTES.length - 4)
+    expect(nombres).toEqual([
+      'sync-radar-meteo',
+      'sync-radar-ensemble',
+      'sync-smn-alertas',
+      'verificar-radar-meteo',
+      'sync-imerg',
+      'climatologia-caudal',
+      'climatologia-precipitacion',
+      'climatologia-imerg',
+      'calcular-riesgo',
+      'sync-pronostico-caudal',
+      'sync-ensemble',
+      'situacion-corte',
+      'sonda-cadena-datos',
+      'episodios-derivados',
+      'sync-seasonal',
+      'veredicto-diario',
+      'veredicto-cierre',
+      'sync-synop-lluvia',
+      'importar-exposicion-rio-dem',
+      'importar-altimetria-v04',
+      'sync-ana-niveis',
+      'sync-sgb-niveis',
+    ])
     expect(nombres).toContain('importar-exposicion-rio-dem')
     expect(nombres).toContain('sync-imerg')
   })

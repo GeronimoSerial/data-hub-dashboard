@@ -36,6 +36,9 @@ export type LecturaResuelta = Pick<
 export type OpcionesGuardarLecturas = {
   capturadaEn: string
   catalogoVersion: string
+  // Fuente de las lecturas (columna `fuente`). Sin valor se omite y rige el
+  // default de la columna ('prefectura'), igual que antes de B12.2.
+  fuente?: string
 }
 
 export type ResultadoGuardarLecturas = {
@@ -327,7 +330,7 @@ export function hashLecturaOriginal(lectura: LecturaResuelta): string {
 export async function guardarLecturasPrefectura(
   db: Db,
   lecturas: readonly LecturaResuelta[],
-  { capturadaEn, catalogoVersion }: OpcionesGuardarLecturas,
+  { capturadaEn, catalogoVersion, fuente }: OpcionesGuardarLecturas,
 ): Promise<ResultadoGuardarLecturas> {
   const conFecha = lecturas.filter(tieneFecha)
   const sinFecha = lecturas.length - conFecha.length
@@ -337,6 +340,7 @@ export async function guardarLecturasPrefectura(
     const lote = conFecha.slice(inicio, inicio + TAMANO_LOTE).map((lectura) => ({
       id: randomUUID(),
       estacionId: lectura.estacionId,
+      ...(fuente === undefined ? {} : { fuente }),
       lecturaM: lectura.lecturaM,
       variacionM: lectura.variacionM,
       periodoHoras: lectura.periodoHoras,

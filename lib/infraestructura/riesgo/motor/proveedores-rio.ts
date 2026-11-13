@@ -28,8 +28,15 @@ export const FUENTES_RIO_FUERA_DEL_MOTOR: readonly string[] = ['ina']
 
 const PROVEEDORES_RIO_PLANIFICADOS: readonly string[] = ['ana', 'sgb']
 
+export type OpcionesRegistroProveedoresRio<Deps> = {
+  // Une varios proveedores de motor de una misma región en uno. Sin esta opción,
+  // más de un proveedor de motor sigue siendo un error.
+  combinar?: (proveedores: readonly ProveedorRio<Deps>[]) => ProveedorRio<Deps>
+}
+
 export function crearRegistroProveedoresRio<Deps>(
   implementados: readonly ProveedorRio<Deps>[],
+  opciones: OpcionesRegistroProveedoresRio<Deps> = {},
 ): RegistroProveedoresRio<Deps> {
   function obtener(id: string): ProveedorRio<Deps> {
     const proveedor = implementados.find((registrado) => registrado.id === id)
@@ -44,6 +51,7 @@ export function crearRegistroProveedoresRio<Deps>(
     const delMotor = fuentesRio.filter((fuente) => !FUENTES_RIO_FUERA_DEL_MOTOR.includes(fuente))
     const proveedores = delMotor.map(obtener)
     if (proveedores.length > 1) {
+      if (opciones.combinar) return opciones.combinar(proveedores)
       throw new Error(`varios proveedores de río no soportados todavía: ${delMotor.join(', ')}`)
     }
     return proveedores[0] ?? null
