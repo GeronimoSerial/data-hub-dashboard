@@ -1,6 +1,8 @@
 // Public view of the daily verdict, for non technical readers. No 'use client':
 // safe to render on the server. Same reading as the modal: headline, one line
 // per department ordered by severity, quiet departments in one line.
+import { textosActuales } from '@/lib/i18n'
+import { marcaActual } from '@/lib/infraestructura/region/publica'
 import type { DtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import type { EventoTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { etiquetaNivel, nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
@@ -87,7 +89,7 @@ export function VeredictoPublico({
   return (
     <article className="veredicto-publico">
       <div className="veredicto-publico__contenido">
-        <h1>Veredicto diario de inundaciones — Provincia de Corrientes</h1>
+        <h1>{textosActuales().shellHub.meta.tituloVeredicto(marcaActual().jurisdiccionLineas[0] ?? '')}</h1>
         <p className="veredicto-publico__aviso" role="note">
           No es un aviso oficial. Consulte al SMN, a Prefectura Naval y a Defensa Civil.
         </p>

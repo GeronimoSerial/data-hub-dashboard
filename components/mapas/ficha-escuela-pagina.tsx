@@ -18,6 +18,7 @@ import { ObservacionReporte } from './observacion-reporte'
 import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
 import { localeNumero } from '@/lib/i18n/formato-numero'
 import { contar } from '@/lib/infraestructura/parte/instituto-ui'
+import { jurisdiccionCorta } from '@/lib/infraestructura/region/publica'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { valorComedor } from '@/lib/infraestructura/comedores/estado'
@@ -650,7 +651,7 @@ export function FichaEscuelaPagina({
             </div>
             <div className={styles.direccion}>
               <p className={styles.direccionFuerte}>{escuela.localidad?.trim() || tp.sinLocalidad}</p>
-              <p>{etiquetaDepartamento(escuela.departamento)}, Corrientes</p>
+              <p>{etiquetaDepartamento(escuela.departamento)}, {jurisdiccionCorta()}</p>
               {!sinUbicacion && (
                 <p className={styles.coordenadas}>
                   {escuela.lat?.toFixed(4)}, {escuela.lon?.toFixed(4)}

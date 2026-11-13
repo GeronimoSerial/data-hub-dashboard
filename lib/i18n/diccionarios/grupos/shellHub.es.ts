@@ -37,6 +37,7 @@ export const shellHubEs = {
       'Reportes, tableros y mapas del sistema educativo de la Provincia de Corrientes.',
     descripcionRegion: (region: string) =>
       `Reportes, tableros y mapas del sistema educativo de ${region}, publicados por el Ministerio de Educación para el análisis y la toma de decisiones.`,
+    tituloVeredicto: (lugar: string) => `Veredicto diario de inundaciones — ${lugar}`,
     descripcionSocialRegion: (region: string) =>
       `Reportes, tableros y mapas del sistema educativo de ${region}.`,
   },
