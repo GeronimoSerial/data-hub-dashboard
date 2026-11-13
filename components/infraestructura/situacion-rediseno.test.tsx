@@ -108,6 +108,16 @@ describe('Centro de Situación: situación primero', () => {
     expect(screen.getByTestId('estado-datos-conteos')).toHaveTextContent('1 falló')
   })
 
+  it('se abre solo cuando ninguna fuente está al día (todo Sin datos)', () => {
+    render(<SituacionClient estadoInicial={estado(estadoDatos([item('a', 'sin_datos'), item('b', 'sin_datos'), item('c', 'deshabilitado')]))} />)
+    expect(screen.getByTestId('estado-datos')).toHaveAttribute('open')
+  })
+
+  it('sigue cerrado si hay al menos una fuente al día y ninguna falló', () => {
+    render(<SituacionClient estadoInicial={estado(SIN_FALLA)} />)
+    expect(screen.getByTestId('estado-datos')).not.toHaveAttribute('open')
+  })
+
   it('las fuentes al día y no programadas quedan ocultas tras "Ver todas las fuentes"', async () => {
     const user = userEvent.setup()
     render(<SituacionClient estadoInicial={estado(CON_FALLA)} />)
