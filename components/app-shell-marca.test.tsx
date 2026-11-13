@@ -47,13 +47,13 @@ describe('AppShell marca de la region', () => {
     expect(firma()?.querySelector('img[src="/marca/escudo.svg"]')).toBeInTheDocument()
   })
 
-  it('Manaos muestra los placeholders y ningun logo de Corrientes', () => {
+  it('Manaos muestra la marca neutra ENOS y ningun logo de Corrientes', () => {
     renderConRegion(cargarRegion('manaos'))
 
-    expect(firma()?.textContent).toContain('[PENDIENTE M0.5] Nome do organismo')
-    expect(firma()?.textContent).toContain('[PENDIENTE M0.5] Jurisdição')
+    expect(firma()?.textContent).toContain('ENOS')
+    expect(firma()?.textContent).toContain('Amazonas')
     expect(firma()?.textContent).not.toContain('Corrientes')
-    expect(pie()?.textContent).toBe('[PENDIENTE M0.5] Nome do organismo[PENDIENTE M0.5] Jurisdição')
+    expect(pie()?.textContent).toBe('ENOS')
     expect(pie()?.textContent).not.toContain('Corrientes')
     expect(firma()?.querySelector('img')).toBeNull()
   })

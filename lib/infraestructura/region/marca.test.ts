@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import corrientesJson from '../../../config/regiones/corrientes.json'
 import manaosJson from '../../../config/regiones/manaos.json'
@@ -6,6 +8,7 @@ import { marcaActual, __reiniciarRegionPublicaClienteParaPruebas } from './publi
 import { cargarRegion } from './index'
 import { __reiniciarRegionActivaParaPruebas } from './activa'
 
+const DIR_REGIONES = join(process.cwd(), 'config', 'regiones')
 const originalRegion = process.env.REGION
 
 describe('marca de la region (esquema)', () => {
@@ -24,13 +27,19 @@ describe('marca de la region (esquema)', () => {
     })
   })
 
-  it('Manaos usa placeholders pendientes M0.5 sin logo de Corrientes', () => {
+  it('Manaos usa la marca neutra ENOS sin logo de Corrientes', () => {
     const marca = marcaPublica(RegionConfigSchema.parse(manaosJson))
     expect(marca.logo).toBeNull()
-    expect(marca.reparticionesLineas).toEqual(['[PENDIENTE M0.5] Nome do organismo'])
-    expect(marca.jurisdiccionLineas).toEqual(['[PENDIENTE M0.5] Jurisdição', '[PENDIENTE M0.5] País'])
-    expect(marca.pieLineas).toEqual(['[PENDIENTE M0.5] Nome do organismo', '[PENDIENTE M0.5] Jurisdição'])
+    expect(marca.reparticionesLineas).toEqual(['ENOS'])
+    expect(marca.jurisdiccionLineas).toEqual(['Amazonas', 'Brasil'])
+    expect(marca.pieLineas).toEqual(['ENOS'])
     expect(JSON.stringify(marca)).not.toMatch(/Corrientes/)
+  })
+
+  it('ninguna config de region contiene el texto [PENDIENTE', () => {
+    for (const archivo of readdirSync(DIR_REGIONES).filter((f) => f.endsWith('.json'))) {
+      expect(readFileSync(join(DIR_REGIONES, archivo), 'utf8'), archivo).not.toContain('[PENDIENTE')
+    }
   })
 
   it('rechaza claves desconocidas dentro de marca', () => {

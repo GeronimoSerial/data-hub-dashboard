@@ -37,9 +37,7 @@ describe('PublicoLayout marca de la region', () => {
     const { container } = render(<PublicoLayout><p>x</p></PublicoLayout>)
 
     expect(container.querySelector('img')).toBeNull()
-    expect(container.querySelector('.publico-footer')?.textContent).toBe(
-      '[PENDIENTE M0.5] Nome do organismo · [PENDIENTE M0.5] Jurisdição',
-    )
+    expect(container.querySelector('.publico-footer')?.textContent).toBe('ENOS')
     expect(container.textContent).not.toContain('Corrientes')
   })
 })
