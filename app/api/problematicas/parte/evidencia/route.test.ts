@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { migrarDb } from '@/lib/db'
 
 const { enabled, seeded, crear, resolver } = vi.hoisted(() => ({
   enabled: vi.fn(),
@@ -21,6 +22,11 @@ vi.mock('@/lib/infraestructura/adjuntos/evidencia-fotografica', () => ({
 }))
 
 import { POST } from './route'
+
+// La ruta audita cada respuesta: la tabla de auditoría debe existir.
+beforeAll(async () => {
+  await migrarDb()
+})
 
 const declaration = {
   attachmentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
