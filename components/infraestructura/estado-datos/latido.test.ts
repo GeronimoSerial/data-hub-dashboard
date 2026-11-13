@@ -54,6 +54,13 @@ describe('construirLatido', () => {
     expect(l.etiqueta).toEqual({ clave: 'nunca' })
   })
 
+  it('sólo el último éxito: viva si es reciente, intermitente si pasó más de dos intervalos', () => {
+    const fresca = construirLatido({ corridas: [], ahora: AHORA, ultimoExitoEn: hace(2), intervaloMinutos: 360 })
+    expect(fresca.etiqueta).toEqual({ clave: 'viva' })
+    const vieja = construirLatido({ corridas: [], ahora: AHORA, ultimoExitoEn: hace(40), intervaloMinutos: 360 })
+    expect(vieja.etiqueta).toEqual({ clave: 'intermitente' })
+  })
+
   it('sin historial de corridas usa el último éxito como único latido', () => {
     const l = construirLatido({ corridas: null, ahora: AHORA, ultimoExitoEn: hace(6), intervaloMinutos: 360 })
     expect(l.marcas.map((m) => m.tipo)).toEqual(['latido'])
