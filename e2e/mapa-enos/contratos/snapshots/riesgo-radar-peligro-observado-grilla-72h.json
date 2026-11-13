@@ -1,0 +1,126 @@
+{
+  "desde": "<fecha>",
+  "fuente": "NASA IMERG Early",
+  "geojson": {
+    "features": [
+      {
+        "geometry": {
+          "coordinates": [
+            [
+              [
+                -58.95,
+                -27.45
+              ],
+              [
+                -58.85,
+                -27.45
+              ],
+              [
+                -58.85,
+                -27.35
+              ],
+              [
+                -58.95,
+                -27.35
+              ],
+              [
+                -58.95,
+                -27.45
+              ]
+            ]
+          ],
+          "type": "Polygon"
+        },
+        "properties": {
+          "acumuladoMm": 10.5,
+          "cobertura": 0.013888888888888888,
+          "esperados": 144,
+          "geometryRef": "-27.4_-58.9",
+          "granulos": 2,
+          "parcial": true
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            [
+              [
+                -58.85,
+                -27.55
+              ],
+              [
+                -58.75,
+                -27.55
+              ],
+              [
+                -58.75,
+                -27.45
+              ],
+              [
+                -58.85,
+                -27.45
+              ],
+              [
+                -58.85,
+                -27.55
+              ]
+            ]
+          ],
+          "type": "Polygon"
+        },
+        "properties": {
+          "acumuladoMm": 7.3,
+          "cobertura": 0.013888888888888888,
+          "esperados": 144,
+          "geometryRef": "-27.5_-58.8",
+          "granulos": 2,
+          "parcial": true
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            [
+              [
+                -59.25,
+                -29.15
+              ],
+              [
+                -59.15,
+                -29.15
+              ],
+              [
+                -59.15,
+                -29.05
+              ],
+              [
+                -59.25,
+                -29.05
+              ],
+              [
+                -59.25,
+                -29.15
+              ]
+            ]
+          ],
+          "type": "Polygon"
+        },
+        "properties": {
+          "acumuladoMm": 20,
+          "cobertura": 0.013888888888888888,
+          "esperados": 144,
+          "geometryRef": "-29.1_-59.2",
+          "granulos": 2,
+          "parcial": true
+        },
+        "type": "Feature"
+      }
+    ],
+    "type": "FeatureCollection"
+  },
+  "hasta": "<fecha>",
+  "horas": 72,
+  "vencida": false
+}

@@ -36,7 +36,7 @@ export function EscuelasAisladas(props: {
   const resumen = resumenAisladas(items)
 
   return (
-    <section aria-labelledby="map-planificacion-aisladas-titulo">
+    <section aria-labelledby="map-planificacion-aisladas-titulo" data-testid="escuelas-aisladas">
       <div className="map-sitact__titulo-seccion">
         <h3 id="map-planificacion-aisladas-titulo" style={{ margin: 0, font: 'inherit' }}>Escuelas aisladas</h3>
         <ComoFunciona />
@@ -45,7 +45,7 @@ export function EscuelasAisladas(props: {
       {items.length > 0 ? (
         <>
           <ul className="map-sitact__kpis" aria-label="Resumen de aislamiento" style={{ listStyle: 'none', margin: '0 0 var(--s-2)', padding: 0 }}>
-            <Kpi valor={resumen.escuelas} texto="Escuelas" />
+            <Kpi valor={resumen.escuelas} texto="Escuelas" testid="escuelas-aisladas-total" />
             <Kpi valor={resumen.alumnos} texto="Alumnos" />
             <Kpi valor={resumen.lejanas} texto="A más de 30 km de una localidad urbana" />
             <Kpi valor={resumen.sinAlternativa} texto="Sin camino alternativo" />
@@ -68,6 +68,7 @@ export function EscuelasAisladas(props: {
                   key={escuela.cueAnexo}
                   type="button"
                   className="map-sitact__fila"
+                  data-testid={`escuela-aislada-${escuela.cueAnexo}`}
                   onClick={() => onSeleccionar(escuela.cueAnexo)}
                   aria-label={`${escuela.nombre}, ${departamento}`}
                 >
@@ -89,10 +90,10 @@ export function EscuelasAisladas(props: {
   )
 }
 
-function Kpi({ valor, texto }: { valor: number; texto: string }): JSX.Element {
+function Kpi({ valor, texto, testid }: { valor: number; texto: string; testid?: string }): JSX.Element {
   return (
     <li className="map-sitact__kpi">
-      <strong>{formatoEntero.format(valor)}</strong>
+      <strong data-testid={testid}>{formatoEntero.format(valor)}</strong>
       <span>{texto}</span>
     </li>
   )

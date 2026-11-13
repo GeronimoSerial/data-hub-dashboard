@@ -110,6 +110,7 @@ function OpcionesFiltro({
     <Checkbox
       key={opcion.valor}
       className="filtros-opcion"
+      data-testid={`filtro-opcion-${clave}-${opcion.valor}`}
       checked={seleccionados.includes(opcion.valor)}
       ref={indice === 0 ? primerCheckbox : undefined}
       onCheckedChange={() => onChange(alternarValor(filtros, clave, opcion.valor))}
@@ -131,6 +132,7 @@ function FiltroDesplegable({
   abierto,
   onAbiertoChange,
   contenedorPopovers,
+  enMedicion,
 }: {
   clave: ClaveFiltro
   escuelas: EscuelaMapaEnriquecida[]
@@ -139,6 +141,7 @@ function FiltroDesplegable({
   abierto: boolean
   onAbiertoChange: (abierto: boolean) => void
   contenedorPopovers?: RefObject<HTMLElement | null>
+  enMedicion: boolean
 }) {
   const etiqueta = ETIQUETAS_FILTRO[clave]
   const seleccionadosActuales = valoresSeleccionados(filtros, clave)
@@ -165,6 +168,7 @@ function FiltroDesplegable({
             className={`filtros-chip${seleccionados.length ? ' filtros-chip--activo' : ''}`}
             aria-haspopup="dialog"
             aria-expanded={abierto}
+            data-testid={enMedicion ? undefined : `filtro-chip-${clave}`}
           />}
         >
           <span className="filtros-chip__texto">{textoChip}</span>
@@ -184,6 +188,7 @@ function FiltroDesplegable({
           type="button"
           className="filtros-chip__quitar"
           aria-label={`Quitar filtro ${etiqueta}`}
+          data-testid={enMedicion ? undefined : `filtro-quitar-${clave}`}
           onClick={() => onChange({ ...filtros, [clave]: [] })}
         >
           <X aria-hidden="true" />
@@ -293,14 +298,15 @@ export function FiltrosChips({
         abierto={popoverAbierto?.grupo === grupo && popoverAbierto.clave === clave}
         onAbiertoChange={(abierto) => setPopoverAbierto(abierto ? { grupo, clave } : null)}
         contenedorPopovers={contenedorPopovers}
+        enMedicion={grupo === 'medicion'}
       />
     )
   }
-  function renderInterruptor(clave: ClaveInterruptor) {
+  function renderInterruptor(clave: ClaveInterruptor, enMedicion = false) {
     const etiqueta = ETIQUETAS_INTERRUPTOR[clave]
     const activo = filtros[clave]
     return (
-      <button key={clave} type="button" className={`filtros-chip filtros-chip--interruptor${activo ? ' filtros-chip--activo' : ''}`} aria-pressed={activo} onClick={() => onChange({ ...filtros, [clave]: !activo })}>
+      <button key={clave} type="button" className={`filtros-chip filtros-chip--interruptor${activo ? ' filtros-chip--activo' : ''}`} aria-pressed={activo} data-testid={enMedicion ? undefined : `filtro-interruptor-${clave}`} onClick={() => onChange({ ...filtros, [clave]: !activo })}>
         {etiqueta}{activo ? <X aria-hidden="true" /> : null}
       </button>
     )
@@ -330,6 +336,7 @@ export function FiltrosChips({
               aria-controls={idLista}
               aria-activedescendant={indiceActivo >= 0 ? idOpcionActiva : undefined}
               aria-autocomplete="list"
+              data-testid="filtros-busqueda-input"
               placeholder="Buscar escuela o CUE"
               value={filtros.q}
               onChange={(evento) => {
@@ -380,6 +387,8 @@ export function FiltrosChips({
               <div
                 key={escuela.cueAnexo}
                 id={`${idLista}-opcion-${indice}`}
+                data-testid="filtros-sugerencia"
+                data-cue={escuela.cueAnexo}
                 role="option"
                 aria-selected={indice === indiceActivo}
                 className="filtros-sugerencias__opcion"
@@ -406,6 +415,7 @@ export function FiltrosChips({
             render={<button
               type="button"
               className={`filtros-chip${cantidadActivosFuera ? ' filtros-chip--activo' : ''}`}
+              data-testid="filtros-mas"
               aria-expanded={masFiltrosAbiertos}
               aria-label={`${etiquetaBotonMas}${cantidadActivosFuera ? `, ${cantidadActivosFuera} activos` : ''}`}
             />}
@@ -419,21 +429,24 @@ export function FiltrosChips({
               <Popover.Popup className="map-filtros-mas-panel" aria-label={etiquetaBotonMas}>
                 {CLAVES_DESPLEGABLES.slice(cantidadEnLinea).map(renderGrupoPanel)}
                 {cantidadEnLinea <= CLAVES_DESPLEGABLES.length ? <section className="map-filtros-mas-grupo" aria-label="Sin actualizar"><h3 className="map-filtros-mas-titulo">Sin actualizar</h3><Switch
+                  data-testid="filtro-mas-switch-sinActualizar"
                   checked={filtros.sinActualizar}
                   onCheckedChange={(sinActualizar) => onChange({ ...filtros, sinActualizar })}
                   label="Sin actualizar"
                 /></section> : null}
                 {cantidadEnLinea <= CLAVES_DESPLEGABLES.length + 1 ? <section className="map-filtros-mas-grupo" aria-label="Solucionadas en los últimos 15 días"><h3 className="map-filtros-mas-titulo">Solucionadas en los últimos 15 días</h3><Switch
+                  data-testid="filtro-mas-switch-solucionadasRecientes"
                   checked={filtros.solucionadasRecientes}
                   onCheckedChange={(solucionadasRecientes) => onChange({ ...filtros, solucionadasRecientes })}
                   label="Solucionadas en los últimos 15 días"
                 /></section> : null}
                 {cantidadEnLinea <= CLAVES_DESPLEGABLES.length + 2 ? <section className="map-filtros-mas-grupo" aria-label="Con comedor"><h3 className="map-filtros-mas-titulo">Con comedor</h3><Switch
+                  data-testid="filtro-mas-switch-conComedor"
                   checked={filtros.conComedor}
                   onCheckedChange={(conComedor) => onChange({ ...filtros, conComedor })}
                   label="Con comedor"
                 /></section> : null}
-                {hayFiltrosActivos ? <button type="button" className="filtros-limpiar" onClick={() => onChange(FILTROS_MAPA_VACIOS)}>Limpiar filtros</button> : null}
+                {hayFiltrosActivos ? <button type="button" className="filtros-limpiar" data-testid="filtros-limpiar" onClick={() => onChange(FILTROS_MAPA_VACIOS)}>Limpiar filtros</button> : null}
               </Popover.Popup>
             </Popover.Positioner>
           </Popover.Portal>
@@ -441,9 +454,9 @@ export function FiltrosChips({
       </div> : null}
       <div className="map-filtros-medicion" aria-hidden="true" ref={medicionRef}>
         {CLAVES_DESPLEGABLES.map((clave) => <div key={clave} data-medicion-filtro={clave}>{renderDesplegable(clave, 'medicion')}</div>)}
-        <div data-medicion-filtro="sinActualizar">{renderInterruptor('sinActualizar')}</div>
-        <div data-medicion-filtro="solucionadasRecientes">{renderInterruptor('solucionadasRecientes')}</div>
-        <div data-medicion-filtro="conComedor">{renderInterruptor('conComedor')}</div>
+        <div data-medicion-filtro="sinActualizar">{renderInterruptor('sinActualizar', true)}</div>
+        <div data-medicion-filtro="solucionadasRecientes">{renderInterruptor('solucionadasRecientes', true)}</div>
+        <div data-medicion-filtro="conComedor">{renderInterruptor('conComedor', true)}</div>
         <button data-medicion-filtro="mas" type="button" className="filtros-chip">Más filtros</button>
       </div>
     </div>

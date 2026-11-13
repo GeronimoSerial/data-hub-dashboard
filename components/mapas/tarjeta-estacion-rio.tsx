@@ -175,6 +175,7 @@ export function TarjetaEstacionRio({ estacion, onCerrar }: { estacion: EstacionT
     <div
       ref={raiz}
       className="map-popup tarjeta-estacion"
+      data-testid="tarjeta-estacion-rio"
       role="dialog"
       aria-labelledby={idTitulo}
       tabIndex={-1}

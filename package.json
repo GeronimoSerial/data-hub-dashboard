@@ -20,7 +20,10 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e:reportes": "node e2e/reportes-offline/run.mjs",
-    "test:e2e:hub-access": "node e2e/hub-access/run.mjs"
+    "test:e2e:hub-access": "node e2e/hub-access/run.mjs",
+    "test:e2e:mapa": "node e2e/mapa-enos/run.mjs",
+    "test:e2e:mapa:unit": "vitest run --config e2e/mapa-enos/vitest.config.ts",
+    "test:e2e:mapa:snapshots": "MAPA_E2E_ACTUALIZAR_SNAPSHOTS=1 node e2e/mapa-enos/run.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

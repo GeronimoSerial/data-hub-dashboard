@@ -163,6 +163,7 @@ import { coloresPlanificacion, ETIQUETA_NIVEL_PLAN, nivelPlanificacion, TITULO_L
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
 import { mantenerPopupsVisibles } from '@/components/mapas/popups-visibles'
+import { instalarGanchoE2E } from '@/components/mapas/e2e-hook'
 import { puntosRiesgoSobreSituacion } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   iconosClusterMapa,
@@ -1644,6 +1645,7 @@ export default function MapInfraestructuraPage(props: {
     actualizarCuesNoAgrupados()
     const map = mapRef.current?.getMap()
     if (map) aquietarBasemap(map)
+    if (map && process.env.NEXT_PUBLIC_E2E === 'true') instalarGanchoE2E(map)
     if (map) {
       soltarPopupsVisibles.current?.()
       soltarPopupsVisibles.current = mantenerPopupsVisibles(map)
