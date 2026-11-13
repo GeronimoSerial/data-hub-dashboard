@@ -500,7 +500,9 @@ async function proveStandalone() {
   const atlantida = spawnServer({ name: `${PREFIX}-atlantida`, port: atlantidaPort, region: 'atlantida', databaseName: 'region_atlantida', postgres, admin, runner })
   await expectBootRefusalProcess(atlantida)
 
-  return { admin, manaosPort, corrientesPort }
+  // Standalone only: the host reaches Postgres through its published loopback port, so specs can run `region:cargar`.
+  const manaosDatabaseUrl = `postgres://postgres:${postgres.password}@127.0.0.1:${postgres.port}/region_manaos`
+  return { admin, manaosPort, corrientesPort, manaosDatabaseUrl }
 }
 
 // ---- docker mode: the repository Dockerfile image ----
@@ -557,7 +559,7 @@ try {
   state.tmp = mkdtempSync(path.join(os.tmpdir(), `${PREFIX}-`))
   mkdirSync(shots, { recursive: true })
 
-  const { admin, manaosPort, corrientesPort } = MODE === 'docker' ? await proveDocker() : await proveStandalone()
+  const { admin, manaosPort, corrientesPort, manaosDatabaseUrl } = MODE === 'docker' ? await proveDocker() : await proveStandalone()
 
   const env = {
     PATH: process.env.PATH ?? '',
@@ -571,6 +573,7 @@ try {
     REGION_PROOF_ADMIN_EMAIL: admin.email,
     REGION_PROOF_ADMIN_PASSWORD: admin.password,
     REGION_PROOF_SHOTS: shots,
+    ...(manaosDatabaseUrl ? { REGION_PROOF_MANAOS_DATABASE_URL: manaosDatabaseUrl } : {}),
   }
   console.log(`region proof (${MODE}): manaos ${env.REGION_PROOF_MANAOS_URL}, corrientes ${env.REGION_PROOF_CORRIENTES_URL}, screenshots ${shots}`)
   exitCode = await runPlaywright(env)
