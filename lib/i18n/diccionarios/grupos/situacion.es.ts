@@ -229,4 +229,14 @@ export const situacionEs = {
       'Límites del nivel gratuito de Open-Meteo, con margen de seguridad. Ver docs/ejecucion-enos/OM-cupo/registro.md.',
     generadoEn: (fecha: string) => `Generado en: ${fecha}`,
   },
+  fuenteDem: {
+    titulo: 'Terreno: FABDEM',
+    cuerpo:
+      'El terreno de esta región proviene de FABDEM V1-2 (Universidade de Bristol / Fathom) y reemplaza a Copernicus GLO-30 para la exposición al río.',
+    licencia: 'Licencia CC BY-NC-SA 4.0',
+    copernicus:
+      'Copernicus WorldDEM-30 © DLR e.V. 2010-2014 y © Airbus Defence and Space GmbH 2014-2018, provisto bajo COPERNICUS por la Unión Europea y la ESA; todos los derechos reservados.',
+    modificado: 'Valores derivados y modificados: se usa el percentil 10 por escuela.',
+    noComercial: 'Uso no comercial únicamente, con atribución y bajo la misma licencia.',
+  },
 } as const

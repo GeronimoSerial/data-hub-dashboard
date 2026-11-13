@@ -34,6 +34,7 @@ const DEGRADACION = {
 } satisfies Record<MotivoDegradacionV04, string>
 
 import { iniciarSimuladores } from './simuladores'
+import { AtribucionDem } from './atribucion-dem'
 
 export function MetodologiaMapa() {
   const raiz = useRef<HTMLElement>(null)
@@ -504,6 +505,7 @@ export function MetodologiaMapa() {
         <p>Marca aparte de la clase de río: se activa cuando hay agua presente al menos el <b>25 %</b> del tiempo dentro de <b>300 m</b> y el terreno de la escuela está a <b>6 m</b> o menos sobre esa agua.</p>
         <h3 id="inundacion-ruta-acceso">Ruta de acceso</h3>
         <p>Se recorre la ruta calculada en la sección 4 y se toma la peor clase sostenida en al menos unos 270 m (3 puntos cada 90 m). Así un píxel aislado no define la clase de todo el camino.</p>
+        <AtribucionDem />
       </section>
 
       <section id="limites">

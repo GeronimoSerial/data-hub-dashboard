@@ -33,6 +33,8 @@ export const MARCA_SIN_CONFIGURAR: MarcaRegion = {
   pieLineas: [],
 }
 
+export const FUENTES_DEM = ['copernicus', 'fabdem'] as const
+
 export const RegionConfigSchema = z
   .object({
     id: z.string().min(1),
@@ -73,6 +75,8 @@ export const RegionConfigSchema = z
     // (exposición DEM del río). Un job que las necesita sólo aplica si la región las declara.
     fuentesLluvia: z.array(z.string().min(1)).optional(),
     capasEstaticas: z.array(z.string().min(1)).optional(),
+    // Optional: DEM terrain for river exposure. Omitted means copernicus.
+    fuenteDem: z.enum(FUENTES_DEM).optional(),
     // Optional: the upstream gauge used for the wave offset. Regions without a
     // river gauge in the motor (e.g. Manaos before B12) omit it.
     estacionAncla: z.string().min(1).optional(),
