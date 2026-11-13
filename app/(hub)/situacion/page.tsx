@@ -4,6 +4,8 @@ import { adminPageGate } from '@/lib/acl'
 import { ensureSeeded } from '@/lib/db/seed'
 import { situacionEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { obtenerEstadoSituacion, serializarEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
+import { nombresDeEscuelas } from '@/lib/infraestructura/riesgo/situacion/nombres-escuelas'
+import { obtenerCorridasPorItemSeguro } from '@/lib/infraestructura/riesgo/estado-datos/latidos'
 import { obtenerEstadoDatosSeguro } from '@/lib/infraestructura/riesgo/estado-datos/consulta'
 import { SituacionClient } from '@/components/infraestructura/situacion-client'
 import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
@@ -48,11 +50,17 @@ export default async function SituacionPage() {
 
   await ensureSeeded()
   const [estadoInicial, estadoDatos] = await Promise.all([obtenerEstadoSituacion(), obtenerEstadoDatosSeguro()])
+  const [nombresEscuelas, corridasIniciales] = await Promise.all([
+    nombresDeEscuelas(estadoInicial.prioridades.map((p) => p.cueAnexo)),
+    obtenerCorridasPorItemSeguro(),
+  ])
 
   return (
     <IdiomaProvider idioma={idioma}>
       <div style={contenedor}>
         <SituacionClient
+          nombresEscuelas={nombresEscuelas}
+          corridasIniciales={corridasIniciales}
           estadoInicial={{
             ...serializarEstadoSituacion(estadoInicial),
             estadoDatos,
