@@ -260,9 +260,9 @@ describe('territorio', () => {
 describe('datasets publicados de Manaos', () => {
   const region = leerRegion('manaos')
 
-  it('región:cargar encuentra las tres entradas con las claves fijas de la aplicación', () => {
+  it('región:cargar encuentra las cuatro entradas con las claves fijas de la aplicación', () => {
     const entradas = leerCargaDatasets(region)
-    expect(entradas.map((e: { clave: string }) => e.clave)).toEqual(['localizaciones', 'departamentos', 'mascara'])
+    expect(entradas.map((e: { clave: string }) => e.clave)).toEqual(['localizaciones', 'departamentos', 'mascara', 'estacoes-ana'])
   })
 
   it('las entradas versionadas validan y el mapa de municipios coincide con los archivos públicos', () => {
