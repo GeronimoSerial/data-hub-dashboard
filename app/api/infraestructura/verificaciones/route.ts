@@ -9,6 +9,7 @@ import {
   crearVerificacion,
   listarVerificaciones,
 } from '@/lib/infraestructura/verificaciones'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -64,11 +65,22 @@ async function handlePOST(request: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? 'Cuerpo inválido', 400, NO_STORE)
   }
 
-  const resultado = await crearVerificacion({
-    cueAnexo: parsed.data.cueAnexo,
-    solicitadaPorUserId: user!.id,
-    vencimientoEn: parsed.data.vencimientoEn ?? null,
-  })
+  const resultado = await cambioAuditado(
+    () => crearVerificacion({
+      cueAnexo: parsed.data.cueAnexo,
+      solicitadaPorUserId: user!.id,
+      vencimientoEn: parsed.data.vencimientoEn ?? null,
+    }),
+    valor => valor.ok
+      ? {
+        status: 201,
+        objetoTipo: 'verificacion',
+        objetoId: valor.verificacion.id,
+        cueAnexo: parsed.data.cueAnexo,
+        metadatos: { verificacionId: valor.verificacion.id },
+      }
+      : { status: valor.status, objetoTipo: 'verificacion', cueAnexo: parsed.data.cueAnexo },
+  )
 
   if (!resultado.ok) {
     return jsonError('No hay un período vigente', resultado.status, NO_STORE)
@@ -84,4 +96,4 @@ async function handlePOST(request: Request) {
 }
 
 export const GET = ruta('infraestructura.verificaciones.get', handleGET)
-export const POST = ruta('infraestructura.verificaciones.post', handlePOST)
+export const POST = conAuditoria('verificacion.crear', '/api/infraestructura/verificaciones', ruta('infraestructura.verificaciones.post', handlePOST))
