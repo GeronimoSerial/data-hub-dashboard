@@ -15,7 +15,7 @@ import { decideScrollAction, isAdminWorkspacePath, isBleedViewerPath, isMapViewe
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu'
 import { MarcaBanda, MarcaCompacta, MarcaHorizontal, MarcaHorizontalInversa } from '@/components/marca'
-import { marcaActual } from '@/lib/infraestructura/region/publica'
+import { marcaActual, regionPublicaActual } from '@/lib/infraestructura/region/publica'
 import { useTextos } from '@/lib/i18n/idioma-provider'
 
 const SectionAccessContext = React.createContext<(path: string) => boolean>(() => true)
@@ -300,6 +300,7 @@ export function AppShell({
   }
 
   const marca = marcaActual()
+  const nombreRegion = regionPublicaActual().nombre
   return (
     <div className="app-page">
       <React.Suspense fallback={null}>
@@ -450,7 +451,7 @@ export function AppShell({
                   </span>
                   <span className="app-footer__links">
                     {shellNavAllowed(navUser, '/explorar') ? <Link href="/explorar">Explorar recursos</Link> : null}
-                    {canAccessPath('/mapas/infraestructura') ? <Link href="/mapas/infraestructura">ENOS Corrientes</Link> : null}
+                    {canAccessPath('/mapas/infraestructura') ? <Link href="/mapas/infraestructura">ENOS {nombreRegion}</Link> : null}
                   </span>
                 </footer>
               </>

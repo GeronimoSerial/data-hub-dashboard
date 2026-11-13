@@ -111,6 +111,8 @@ test('(5) the Manaos map draws without errors and the Situation Center still rep
     await page.goto('/situacion')
     await expect(page.getByRole('heading', { name: 'Centro de Situação', level: 1 })).toBeVisible({ timeout: 60_000 })
     await expect(page.getByText('Sem dados', { exact: true }).first()).toBeVisible()
+    // The resource card of the map carries the region name, not the Corrientes one (recurso-seed.ts).
+    expect(await page.locator('body').innerText()).not.toContain('Corrientes')
     await captura(page, 'manaos-situacion-escuelas')
   })
 })

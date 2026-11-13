@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/db'
 import { categorias, recursos, recursoTags, tags } from '@/lib/db/schema'
 import { RECURSO_ENOS_MANAOS_ID, RUTA_MAPA_INFRAESTRUCTURA } from '@/lib/infraestructura/rutas-hub'
+import { regionActiva } from '@/lib/infraestructura/region/activa'
 import { esRutaExterna } from '@/lib/ruta-externa'
 
 // ID estable: ya anticipado por el test de B5 en
@@ -19,7 +20,7 @@ const TAGS_REQUERIDOS = [
   { id: 'alertas', nombre: 'Alertas' },
 ]
 
-const RECURSO_INFRAESTRUCTURA = {
+const RECURSO_INFRAESTRUCTURA_CORRIENTES = {
   id: RECURSO_INFRAESTRUCTURA_ID,
   titulo: 'ENOS Corrientes',
   descripcion:
@@ -34,12 +35,27 @@ const RECURSO_INFRAESTRUCTURA = {
   ruta: RUTA_MAPA_INFRAESTRUCTURA,
 }
 
+// Corrientes conserva sus textos exactos; el resto de las regiones lleva su propio nombre y ningún
+// texto institucional de Corrientes (el mismo id estable: es la entrada al mapa de cada despliegue).
+function recursoInfraestructuraDeRegion() {
+  const region = regionActiva()
+  if (region.id === 'corrientes') return RECURSO_INFRAESTRUCTURA_CORRIENTES
+  return {
+    ...RECURSO_INFRAESTRUCTURA_CORRIENTES,
+    titulo: `ENOS ${region.nombre}`,
+    descripcion:
+      'Alertas ativas de infraestrutura escolar georreferenciadas, com indicadores consolidados por território, nível e estabelecimento.',
+    area: 'ENOS',
+  }
+}
+
 // Alta idempotente del recurso del catálogo, pensada para correr en cada
 // arranque sobre una base ya poblada (no solo en el seed inicial). Nunca
 // toca recurso_audiencia_niveles_jur ni recurso_audiencia_usuarios: la audiencia
 // que un admin configuró para este recurso no se pisa en un reinicio.
 export async function upsertRecursoInfraestructura() {
   const db = getDb()
+  const RECURSO_INFRAESTRUCTURA = recursoInfraestructuraDeRegion()
 
   await db
     .insert(categorias)
@@ -100,7 +116,7 @@ export async function upsertRecursoManaos() {
     tipoId: 'georref',
     categoriaId: CATEGORIA_INFRAESTRUCTURA.id,
     area: 'Dirección de Gestión Escolar',
-    actualizado: RECURSO_INFRAESTRUCTURA.actualizado,
+    actualizado: RECURSO_INFRAESTRUCTURA_CORRIENTES.actualizado,
     estado: 'publicado' as const,
     ruta: url,
   }
