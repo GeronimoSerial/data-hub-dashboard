@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EjecutorSqlRaw } from './ge-db'
 import { getRawClient } from '../db'
 import { activarCorte, attachGe, crearEjecutorSql, ensureGeSchema, getCorteVigente } from './ge-db'
@@ -302,3 +302,38 @@ describe('activarCorte sobre pg.Pool (conexión dedicada)', () => {
   })
 })
 
+describe('ensureGeSchema sobre PGlite (conexión única, sin transacción)', () => {
+  it('ejecuta el DDL en cada llamada sin emitir BEGIN, COMMIT ni locks de transacción', async () => {
+    const raw = getRawClient() as unknown as { query: (texto: string, ...resto: unknown[]) => Promise<unknown> }
+    const original = raw.query.bind(raw)
+    const textos: string[] = []
+    const spy = vi.spyOn(raw, 'query').mockImplementation((texto: string, ...resto: unknown[]) => {
+      textos.push(texto)
+      return original(texto, ...resto)
+    })
+    try {
+      const client = cliente()
+      await ensureGeSchema(client)
+      await ensureGeSchema(client)
+    } finally {
+      spy.mockRestore()
+    }
+
+    expect(textos.filter((t) => /^\s*(BEGIN|COMMIT|ROLLBACK)\b/i.test(t))).toEqual([])
+    expect(textos.some((t) => t.includes('pg_advisory_xact_lock'))).toBe(true)
+    expect(textos.filter((t) => t.includes('CREATE OR REPLACE FUNCTION')).length).toBe(2)
+  })
+
+  it('no memoiza: si la función desaparece, la siguiente llamada la vuelve a crear', async () => {
+    const client = cliente()
+    await ensureGeSchema(client)
+    await client.execute('DROP FUNCTION IF EXISTS public.booklet_eligibility_source_write_guard() CASCADE')
+
+    await ensureGeSchema(client)
+
+    const res = await client.execute(
+      "SELECT count(*) AS n FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'booklet_eligibility_source_write_guard'",
+    )
+    expect(Number(res.rows[0].n)).toBe(1)
+  })
+})
