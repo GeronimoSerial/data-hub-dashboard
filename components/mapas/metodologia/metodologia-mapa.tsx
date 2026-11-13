@@ -35,9 +35,14 @@ const DEGRADACION = {
 
 import { iniciarSimuladores } from './simuladores'
 import { AtribucionDem } from './atribucion-dem'
+import { fuenteDemDeRegionId } from '@/lib/infraestructura/region/fuente-dem'
+import { useRegion } from '@/lib/infraestructura/region/region-provider'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export function MetodologiaMapa() {
   const raiz = useRef<HTMLElement>(null)
+  const esFabdem = fuenteDemDeRegionId(useRegion().id) === 'fabdem'
+  const dem = useTextos().situacion.fuenteDem
 
   useEffect(() => {
     const nodo = raiz.current
@@ -80,7 +85,7 @@ export function MetodologiaMapa() {
         <div className="sources">
           <a href="#metodologia/nasa"><b>NASA</b><span>Lluvia observada por satélite cada 30 minutos (misión GPM, junto a JAXA)</span></a>
           <a href="#metodologia/inundacion"><b>Comisión Europea · JRC</b><span>Mapas globales de crecidas de río y de agua superficial</span></a>
-          <a href="#metodologia/inundacion"><b>Copernicus</b><span>Modelo de elevación del terreno a 30 m</span></a>
+          <a href="#metodologia/inundacion"><b>{esFabdem ? dem.navTitulo : 'Copernicus'}</b><span>{esFabdem ? dem.navDescripcion : 'Modelo de elevación del terreno a 30 m'}</span></a>
           <a href="#metodologia/lluvia"><b>NASA IMERG · ERA5</b><span>Climatología histórica de lluvia (IMERG Final 2001 en adelante; ERA5 como respaldo)</span></a>
           <a href="#metodologia/lluvia"><b>Open-Meteo · ECMWF</b><span>Pronóstico de lluvia para {HORIZONTES.map((h) => `${h.horas} h`).join(" / ")}</span></a>
           <a href="#metodologia/riesgo"><b>GloFAS · Prefectura · INA</b><span>Caudal pronosticado, alturas observadas y series diarias de los ríos</span></a>
@@ -308,7 +313,7 @@ export function MetodologiaMapa() {
         <h3 id="riesgo-rio">Probabilidad de superación del terreno</h3>
         <p>Las series diarias INA A5 y la última lectura de Prefectura alimentan trayectorias históricas análogas del nivel del río. En tramos aprobados del Paraná con estaciones que encierran a la escuela, ceros de escala, kilómetros de río y cotas válidas, el motor interpola el nivel absoluto del agua en el sitio. La probabilidad es la fracción de trayectorias cuyo máximo dentro del horizonte alcanza o supera el terreno. Las ventanas comparten trayectorias: al ampliar el horizonte, esta probabilidad no disminuye.</p>
         <Formula tex={String.raw`P_h=\frac{\#\{\text{trayectorias con }\max_{t\in(0,h]} Z_{\text{agua}}(t)\ge Z_{\text{terreno}}\}}{\#\{\text{trayectorias completas}\}}`} />
-        <p>La cota principal usa Copernicus; la conservadora toma la menor estimación válida comparable entre las fuentes de altimetría, incluida IGN. Se conserva la incertidumbre de la conversión vertical. Superar el terreno supone conexión con el cauce principal: <b>no significa agua dentro del edificio</b>, porque no hay cota de piso relevada, ni equivale a una probabilidad de interrupción educativa. El pronóstico INA se ingesta para seguimiento, pero no alimenta esta probabilidad.</p>
+        <p>{esFabdem ? dem.cotaPrincipal : 'La cota principal usa Copernicus; la conservadora toma la menor estimación válida comparable entre las fuentes de altimetría, incluida IGN. Se conserva la incertidumbre de la conversión vertical. Superar el terreno supone conexión con el cauce principal: '}<b>no significa agua dentro del edificio</b>, porque no hay cota de piso relevada, ni equivale a una probabilidad de interrupción educativa. El pronóstico INA se ingesta para seguimiento, pero no alimenta esta probabilidad.</p>
         <p>Si la probabilidad principal es estimable, <b>reemplaza</b> al componente de Prefectura con el mismo peso de {porcentaje(PESOS_AMENAZA.rioPrefectura)}; no se cuentan dos veces. Prefectura sigue aportando los pisos observados. Sin probabilidad estimable, se evalúa el río observado bajo las reglas actuales de alcance; si tampoco hay evidencia utilizable, el peso se redistribuye. Sin alcance, la lectura observada queda como información y no entra al puntaje; con alcance reducido o completo, su valor depende del estado y de si el río está creciendo.</p>
         <h3>Pisos del río</h3>
         <p>Con lectura de Prefectura de hasta {MAX_ANTIGUEDAD_LECTURA_HORAS} horas, sin fecha futura, y alcance completo del agua posible, se fijan estos mínimos. El estado oficial es propio de cada estación; sus alturas de alerta y evacuación no son iguales en todos los tramos.</p>
@@ -460,7 +465,7 @@ export function MetodologiaMapa() {
           <tr><th>Fuente</th><th>Qué aporta</th><th>Resolución</th></tr>
           <tr><td>JRC Global River Flood Hazard Maps v2.1</td><td>Profundidad de crecida de río para períodos de retorno de 10, 100 y 500 años</td><td className="mono">~90 m</td></tr>
           <tr><td>JRC Global Surface Water</td><td>Porcentaje del tiempo con agua presente (1984–2021)</td><td className="mono">30 m</td></tr>
-          <tr><td>Copernicus DEM GLO-30</td><td>Altura del terreno</td><td className="mono">30 m</td></tr>
+          <tr><td>{esFabdem ? dem.filaTerreno : 'Copernicus DEM GLO-30'}</td><td>Altura del terreno</td><td className="mono">30 m</td></tr>
         </tbody></table></div>
         <h3>Período de retorno</h3>
         <p>Una crecida de <span className="term" tabIndex={0} data-def="Tiempo medio entre dos eventos de igual o mayor magnitud. Una crecida de 100 años tiene 1 % de probabilidad de ocurrir en un año cualquiera.">período de retorno</span> <Tex tex={String.raw`T`} /> tiene probabilidad anual <Tex tex={String.raw`p=1/T`} />. La probabilidad de que ocurra al menos una vez en <Tex tex={String.raw`n`} /> años es:</p>
