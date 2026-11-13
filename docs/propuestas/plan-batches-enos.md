@@ -740,6 +740,7 @@ La base es la PR #185 (`feat(infraestructura): auditoría obligatoria de reporte
 
 ## Criterios comunes a todos los batches
 
+- **Seguimiento de A4 (13/11/2026):** el evento de `auth/ge-login` queda con actor anónimo en el éxito porque su respuesta solo trae un ticket de redirección; la sesión se crea después en `ge-callback`. Cubrir el actor en `ge-callback` queda como lote aparte (el inicio de sesión local sí guarda al usuario). El visor mide con 1.000.000 de eventos por debajo de 300 ms; el filtro por acción rara es el más cercano al límite (242 ms), y el índice candidato `(accion, ocurrido_en, id)` solo se evalúa si crece el volumen.
 - Pruebas y documentación en el mismo batch que el comportamiento.
 - Suite e2e y CI en verde (desde B4).
 - Desde B8: snapshots de Corrientes idénticos, salvo cambios pedidos y explicados en el PR.
