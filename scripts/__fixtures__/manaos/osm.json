@@ -1,0 +1,219 @@
+{
+ "elements": [
+  {
+   "type": "node",
+   "id": 2632398084,
+   "lat": -3.0939261,
+   "lon": -60.0043808,
+   "tags": {
+    "name": "Centro Educacional Lato Sensu",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "node",
+   "id": 7894413441,
+   "lat": -3.2979402,
+   "lon": -60.6277038,
+   "tags": {
+    "name": "Escola Estadual José Kallil Assaf",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 224877347,
+   "center": {
+    "lat": -3.1214026,
+    "lon": -60.020673
+   },
+   "tags": {
+    "name": "Escola Estadual Augusto Carneiro dos Santos",
+    "ref": "INEP-13027174",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 226195747,
+   "center": {
+    "lat": -3.127093,
+    "lon": -60.0231465
+   },
+   "tags": {
+    "name": "Escola Estadual Frei Sílvio Vagheggi",
+    "ref": "INEP- \t13030310",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 226195749,
+   "center": {
+    "lat": -3.127648,
+    "lon": -60.0232377
+   },
+   "tags": {
+    "name": "Instituto Benjamin Constant",
+    "ref": "INEP-13094149",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 226197256,
+   "center": {
+    "lat": -3.1236855,
+    "lon": -60.0239014
+   },
+   "tags": {
+    "name": "Escola Estadual Ribeiro da Cunha",
+    "ref": "INEP-13030841",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 291807972,
+   "center": {
+    "lat": -3.0274841,
+    "lon": -59.9175426
+   },
+   "tags": {
+    "name": "Escola Municipal Professor Roberto dos Santos Vieira",
+    "ref": "INEP-13075730",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 297239777,
+   "center": {
+    "lat": -3.003655,
+    "lon": -60.0333066
+   },
+   "tags": {
+    "name": "Escola Municipal  Nestor José Soeiro do Nascimento",
+    "ref": "INEP-13093444",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 297788090,
+   "center": {
+    "lat": -3.1386603,
+    "lon": -59.9931026
+   },
+   "tags": {
+    "name": "Escola Estadual Senador Antóvila Mourão Vieira",
+    "ref": "INEP-13030906",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 584733283,
+   "center": {
+    "lat": -2.9911418,
+    "lon": -59.9844868
+   },
+   "tags": {
+    "name": "Escola Estadua Doutora Zilda Arns Neumann",
+    "ref": "INEP-13304240",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 702577947,
+   "center": {
+    "lat": -3.1403279,
+    "lon": -59.990947
+   },
+   "tags": {
+    "name": "Escola Estadual Brigadeiro João Camarão Telles Ribeiro",
+    "ref": "INEP-13029967",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 721028489,
+   "center": {
+    "lat": -3.1354282,
+    "lon": -59.9961381
+   },
+   "tags": {
+    "name": "Escola Estadual Nossa Senhora da Divina Providencia",
+    "ref": "INEP-13030655",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 954765180,
+   "center": {
+    "lat": -3.0750569,
+    "lon": -59.9440125
+   },
+   "tags": {
+    "name": "Escola Municipal João dos Santos Braga",
+    "ref": "INEP-13059165",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 954766008,
+   "center": {
+    "lat": -2.9980671,
+    "lon": -60.0146776
+   },
+   "tags": {
+    "name": "Escola Municipal Professor Heleno Nogueira dos Santos",
+    "ref": "INEP-13071734",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 1023702709,
+   "center": {
+    "lat": -3.0803109,
+    "lon": -60.0475329
+   },
+   "tags": {
+    "name": "Escola de Educação Básica e Profissional Fundação Bradesco",
+    "ref": "INEP+-13026950",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 1072144854,
+   "center": {
+    "lat": -3.1238187,
+    "lon": -60.0035789
+   },
+   "tags": {
+    "name": "Escola Estadual Professor Antenor Sarmento",
+    "ref": "INEP-13031147",
+    "amenity": "school"
+   }
+  },
+  {
+   "type": "way",
+   "id": 1072144855,
+   "center": {
+    "lat": -3.1277818,
+    "lon": -60.0068616
+   },
+   "tags": {
+    "name": "Escola Estadual Ruy Araújo",
+    "ref": "INEP-13027930",
+    "amenity": "school"
+   }
+  }
+ ]
+}
