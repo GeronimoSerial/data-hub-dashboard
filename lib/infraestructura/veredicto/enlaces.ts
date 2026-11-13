@@ -29,13 +29,13 @@ export function venceEnFinDelDiaArt(ahora: Date): string {
 
 export async function crearEnlace(
   db: Db,
-  params: { desde: string; hasta: string; creadoPor: string; ahora?: Date },
+  params: { id?: string; desde: string; hasta: string; creadoPor: string; ahora?: Date },
 ): Promise<{ token: string; venceEn: string }> {
   const ahora = params.ahora ?? new Date()
   const token = randomBytes(32).toString('base64url')
   const venceEn = venceEnFinDelDiaArt(ahora)
   await db.insert(infraVeredictoEnlace).values({
-    id: randomUUID(),
+    id: params.id ?? randomUUID(),
     tokenHash: hashToken(token),
     fechaDesde: params.desde,
     fechaHasta: params.hasta,

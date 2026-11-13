@@ -4,6 +4,7 @@ import {
   crearPostVerificacion,
   MENSAJES_CREDENCIAL,
 } from '@/lib/infraestructura/verificacion-route'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { crearLimitador } from '@/lib/http/limitador'
 import { ruta } from '@/lib/http/ruta'
 
@@ -23,4 +24,8 @@ const handlePOST = crearPostVerificacion({
   ejecutar: (id, body) => validarCredencial({ verificacionId: id, token: body.token }),
 })
 
-export const POST = ruta('problematicas.verificaciones.id.validar-token.post', handlePOST, { limite: { limitador } })
+export const POST = conAuditoria(
+  'verificacion.validar_token',
+  '/api/problematicas/verificaciones/[id]/validar-token',
+  ruta('problematicas.verificaciones.id.validar-token.post', handlePOST, { limite: { limitador } }),
+)

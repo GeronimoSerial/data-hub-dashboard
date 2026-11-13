@@ -5,6 +5,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { esCategoria } from '@/lib/infraestructura/categorias'
 import { esSeveridad } from '@/lib/infraestructura/validacion'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { ruta } from '@/lib/http/ruta'
 
@@ -105,18 +106,23 @@ async function handlePOST(request: Request) {
     return jsonError('Ya existe un motivo con ese nombre', 400)
   }
 
-  await db
-    .insert(infraMotivo)
-    .values(row)
-    .onConflictDoUpdate({
-      target: infraMotivo.id,
-      set: {
-        nombre: row.nombre,
-        categoria: row.categoria,
-        orden: row.orden,
-        severidadSugerida: row.severidadSugerida,
-      },
-    })
+  await cambioAuditado(
+    async tx => {
+      await tx
+        .insert(infraMotivo)
+        .values(row)
+        .onConflictDoUpdate({
+          target: infraMotivo.id,
+          set: {
+            nombre: row.nombre,
+            categoria: row.categoria,
+            orden: row.orden,
+            severidadSugerida: row.severidadSugerida,
+          },
+        })
+    },
+    () => ({ status: 200, objetoTipo: 'motivo', objetoId: row.id }),
+  )
 
   return Response.json({ ok: true })
 }
@@ -149,10 +155,15 @@ async function handleDELETE(request: Request) {
     return jsonError('No se puede eliminar: hay afectaciones que usan este motivo', 400)
   }
 
-  await db.delete(infraMotivo).where(eq(infraMotivo.id, id))
+  await cambioAuditado(
+    async tx => {
+      await tx.delete(infraMotivo).where(eq(infraMotivo.id, id))
+    },
+    () => ({ status: 200, objetoTipo: 'motivo', objetoId: id }),
+  )
   return Response.json({ ok: true })
 }
 
 export const GET = ruta('infraestructura.motivos.get', handleGET)
-export const POST = ruta('infraestructura.motivos.post', handlePOST)
-export const DELETE = ruta('infraestructura.motivos.delete', handleDELETE)
+export const POST = conAuditoria('motivo.guardar', '/api/infraestructura/motivos', ruta('infraestructura.motivos.post', handlePOST))
+export const DELETE = conAuditoria('motivo.eliminar', '/api/infraestructura/motivos', ruta('infraestructura.motivos.delete', handleDELETE))
