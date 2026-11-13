@@ -253,3 +253,47 @@ describe('AuditoriaVisor (pt, Manaos)', () => {
     expect(screen.queryByText('Guardado de parte')).not.toBeInTheDocument()
   })
 })
+
+describe('columna Quién, filtro Resultado y columna Fecha', () => {
+  it('muestra el nombre del usuario como texto principal y su id como texto secundario', async () => {
+    fetchMock.mockResolvedValue(respuesta({ items: [evento({ actorNombre: 'Ana Pérez', actorCorreo: 'ana@ejemplo.test' })], nextCursor: null }))
+    renderVisor()
+    expect(await screen.findByText('Ana Pérez')).toBeInTheDocument()
+    expect(screen.getByText('Ana Pérez')).not.toHaveClass('ui-hint')
+    expect(screen.getByText('Usuario: user-1 (admin)')).toHaveClass('ui-hint')
+    expect(screen.queryByText('ana@ejemplo.test')).not.toBeInTheDocument()
+  })
+
+  it('usa el correo como texto principal cuando el usuario no tiene nombre', async () => {
+    fetchMock.mockResolvedValue(respuesta({ items: [evento({ actorNombre: null, actorCorreo: 'ana@ejemplo.test' })], nextCursor: null }))
+    renderVisor()
+    expect(await screen.findByText('ana@ejemplo.test')).toBeInTheDocument()
+    expect(screen.getByText('Usuario: user-1 (admin)')).toHaveClass('ui-hint')
+  })
+
+  it('deja el texto de siempre cuando el actor no es un usuario registrado', async () => {
+    fetchMock.mockResolvedValue(respuesta({
+      items: [evento({ actorTipo: 'enlace', actorId: 'enlace-7', actorRol: null, actorNombre: null, actorCorreo: null })],
+      nextCursor: null,
+    }))
+    renderVisor()
+    expect(await screen.findByText('Enlace: enlace-7')).toBeInTheDocument()
+  })
+
+  it('no renderiza ningún select nativo: el filtro Resultado es el componente personalizado', async () => {
+    fetchMock.mockResolvedValue(respuesta({ items: [evento()], nextCursor: null }))
+    const { container } = renderVisor()
+    expect(await screen.findByText('Guardado de parte')).toBeInTheDocument()
+    expect(container.querySelector('select')).toBeNull()
+    expect(screen.getByRole('combobox', { name: 'Resultado' })).toBeInTheDocument()
+  })
+
+  it('impide que la fecha se parta en dos líneas en escritorio', async () => {
+    fetchMock.mockResolvedValue(respuesta({ items: [evento()], nextCursor: null }))
+    const { container } = renderVisor()
+    expect(await screen.findByText('Guardado de parte')).toBeInTheDocument()
+    const celdaFecha = container.querySelector('td[data-label="Fecha"]')
+    expect(celdaFecha).toHaveStyle({ whiteSpace: 'nowrap' })
+    expect(celdaFecha?.querySelector('time')).not.toBeNull()
+  })
+})
