@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent, type JSX } from 'react'
 import { MAX_FOTOS_POR_ENVIO } from '@/lib/infraestructura/reportes-offline-contratos'
 import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import type { FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 import styles from './selector-fotos.module.css'
 
@@ -35,6 +36,7 @@ export function SelectorFotos({ onChange, fotos: fotosControladas, onFotosChange
   const [mensaje, setMensaje] = useState('')
   const [enabled, setEnabled] = useState(false)
   const disponibles = MAX_FOTOS_POR_ENVIO - fotos.length
+  const t = useTextos().parteGaleria.fotos
 
   useEffect(() => () => {
     for (const url of objectUrls.current) URL.revokeObjectURL(url)
@@ -71,10 +73,10 @@ export function SelectorFotos({ onChange, fotos: fotosControladas, onFotosChange
 
     const avisos: string[] = []
     if (omitidos > rechazadosPorFormato) {
-      avisos.push(`Se pueden agregar hasta ${MAX_FOTOS_POR_ENVIO} fotos. Se omitieron ${omitidos - rechazadosPorFormato}.`)
+      avisos.push(t.omitidasLimite(MAX_FOTOS_POR_ENVIO, omitidos - rechazadosPorFormato))
     }
     if (rechazadosPorFormato > 0) {
-      avisos.push(`Se omitieron ${rechazadosPorFormato} archivos que no son imágenes.`)
+      avisos.push(t.omitidasFormato(rechazadosPorFormato))
     }
     setMensaje(avisos.join(' '))
   }
@@ -88,12 +90,12 @@ export function SelectorFotos({ onChange, fotos: fotosControladas, onFotosChange
   if (!enabled) return null
 
   return (
-    <section className={styles.picker} aria-label={fotos.length > 0 ? 'Fotos del parte' : 'Fotos del reporte'}>
+    <section className={styles.picker} aria-label={fotos.length > 0 ? t.parte : t.reporte}>
       <div className={styles.encabezado}>
-        <label className={styles.etiqueta} htmlFor={inputId}>{fotos.length > 0 ? 'Agregar más fotos' : 'Agregar fotos'}</label>
-        <span className={styles.contador}>{fotos.length} de {MAX_FOTOS_POR_ENVIO} fotos</span>
+        <label className={styles.etiqueta} htmlFor={inputId}>{fotos.length > 0 ? t.agregarMas : t.agregar}</label>
+        <span className={styles.contador}>{t.contador(fotos.length, MAX_FOTOS_POR_ENVIO)}</span>
       </div>
-      <p className={styles.ayuda} id={helpId}>Elegí hasta tres imágenes para adjuntar al reporte.</p>
+      <p className={styles.ayuda} id={helpId}>{t.ayuda}</p>
       <input
         className={styles.entrada}
         id={inputId}
@@ -105,10 +107,10 @@ export function SelectorFotos({ onChange, fotos: fotosControladas, onFotosChange
         onChange={manejarSeleccion}
       />
       <p className={styles.estado} id={`${inputId}-estado`} role="status" aria-live="polite">
-        {mensaje || `${fotos.length} de ${MAX_FOTOS_POR_ENVIO} fotos seleccionadas.`}
+        {mensaje || t.estado(fotos.length, MAX_FOTOS_POR_ENVIO)}
       </p>
       {fotos.length > 0 ? (
-        <ul className={styles.lista} aria-label="Fotos seleccionadas">
+        <ul className={styles.lista} aria-label={t.seleccionadas}>
           {fotos.map((foto) => (
             <li className={styles.foto} key={foto.id}>
               {/* The thumbnail is a local preview; no original bytes are uploaded from here. */}
@@ -119,10 +121,10 @@ export function SelectorFotos({ onChange, fotos: fotosControladas, onFotosChange
                 className={styles.quitar}
                 type="button"
                 disabled={disabled}
-                aria-label={`Quitar ${foto.nombre}`}
+                aria-label={t.quitarAria(foto.nombre)}
                 onClick={() => quitarFoto(foto)}
               >
-                Quitar
+                {t.quitar}
               </button>
             </li>
           ))}

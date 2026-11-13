@@ -11,6 +11,7 @@ import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import { IconoMapaLeyenda, svgMarcadorEstacion, type EstadoEstacion } from '@/lib/mapas/insignias-mapa'
 import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
+import { regionPublicaActual, regionTienePrefecturaPublica } from '@/lib/infraestructura/region/publica'
 import { GLIFO_BADGE_ESTADO, SVG_ICONO_ESCUELA_SOLUCIONADA_LEYENDA, svgBadgeEstado } from '@/lib/mapas/iconos-mapa'
 import { useTextos } from '@/lib/i18n/idioma-provider'
 import type { Diccionario } from '@/lib/i18n'
@@ -222,7 +223,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
   const estrecha = usePantallaEstrecha()
   const dict = useTextos()
   const t = dict.leyenda
-  const estacionesRio = Boolean(props.estacionesRio)
+  const estacionesRio = Boolean(props.estacionesRio) && regionTienePrefecturaPublica(regionPublicaActual())
   const lluviaObservada = props.lluviaObservada ?? null
   const riesgoHoy = Boolean(props.riesgoHoy)
   const hayCapas = estacionesRio || lluviaObservada !== null || riesgoHoy

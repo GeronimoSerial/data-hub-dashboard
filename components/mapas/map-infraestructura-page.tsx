@@ -1746,7 +1746,11 @@ export default function MapInfraestructuraPage(props: {
           initialViewState={limitesCorrientes ? {
             bounds: limitesCorrientes,
             fitBoundsOptions: { padding: paddingProvincia() },
-          } : vistaInicialRegion}
+          } : {
+            longitude: vistaInicialRegion.center[0],
+            latitude: vistaInicialRegion.center[1],
+            zoom: vistaInicialRegion.zoom,
+          }}
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
           onClick={handleClick}

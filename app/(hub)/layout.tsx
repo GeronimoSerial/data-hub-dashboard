@@ -11,6 +11,9 @@ import { resolveServerHubEntry, serverHubPathAllowedByExistingAcl, serverHubPath
 import { safeInternalReturnTo } from '@/lib/hub-entry'
 import { sectionForPath } from '@/lib/hub-sections'
 import { hubConfined } from '@/lib/access/hub-confinement'
+import { regionActiva } from '@/lib/infraestructura/region'
+import { idiomaEfectivo } from '@/lib/i18n/idioma'
+import { IdiomaProvider } from '@/lib/i18n/idioma-provider'
 
 export default async function HubLayout({
   children,
@@ -53,9 +56,13 @@ export default async function HubLayout({
   const initialCatalog = await loadCatalogFor(sessionUser)
   // /api/hub answers 403 without the explore section; skip the client refresh then.
   const canRefreshCatalog = await serverHubPathAllowedByPolicy(sessionUser, '/explorar')
+  const region = regionActiva()
+  const idioma = idiomaEfectivo({ preferencia: sessionUser.idioma, region })
   return (
-    <HubDataProvider initialCatalog={initialCatalog} canRefreshCatalog={canRefreshCatalog}>
-      <AppShell initialUser={initialUser} situacionEnabled={situacionEnabled()}>{children}</AppShell>
-    </HubDataProvider>
+    <IdiomaProvider idioma={idioma}>
+      <HubDataProvider initialCatalog={initialCatalog} canRefreshCatalog={canRefreshCatalog}>
+        <AppShell initialUser={initialUser} situacionEnabled={situacionEnabled()}>{children}</AppShell>
+      </HubDataProvider>
+    </IdiomaProvider>
   )
 }

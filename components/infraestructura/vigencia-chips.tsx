@@ -3,7 +3,7 @@
 import { useId, type JSX } from 'react'
 import { rangoVigencia } from '@/lib/infraestructura/vigencia-rango'
 import { resumenVigencia, type EleccionVigencia } from '@/lib/infraestructura/vigencia-eleccion'
-import { useTextos } from '@/lib/i18n/idioma-provider'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
 
 const OPCIONES: Array<{ modo: EleccionVigencia['modo']; clave: 'ahora' | 'hoy' | 'otro' }> = [
   { modo: 'ahora', clave: 'ahora' },
@@ -26,12 +26,16 @@ export interface VigenciaChipsProps {
   disabled?: boolean
   error?: string | null
   etiquetaMomento?: string
+  /** La elección es "Se solucionó": marca el resumen sin depender del texto traducido. */
+  solucionada?: boolean
   minimo?: string
 }
 
-export function VigenciaChips({ value, onChange, label, disabled = false, error = null, etiquetaMomento, minimo }: VigenciaChipsProps): JSX.Element {
+export function VigenciaChips({ value, onChange, label, disabled = false, error = null, etiquetaMomento, solucionada = false, minimo }: VigenciaChipsProps): JSX.Element {
   const id = useId()
   const dic = useTextos()
+  const idioma = useIdioma()
+  const localeFecha = idioma === 'pt' ? 'pt-BR' : 'es-AR'
   const t = dic.fichaPanorama.vigencia
   const { min, max } = rangoVigencia()
   const fechaMinima = minimo && Date.parse(minimo) > min.getTime() ? new Date(minimo) : min
@@ -71,7 +75,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
               <input
                 id={`${id}-fecha`}
                 type="date"
-                lang="es-AR"
+                lang={localeFecha}
                 min={fechaInput(fechaMinima)}
                 max={fechaInput(max)}
                 value={value.fecha}
@@ -82,11 +86,11 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
             </label>
           )}
           <label className="ui-label" htmlFor={`${id}-hora`}>
-            Hora
+            {dic.parteComunTextos.vigencia.hora}
             <input
               id={`${id}-hora`}
               type="time"
-              lang="es-AR"
+              lang={localeFecha}
               value={value.hora}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? `${id}-error` : undefined}
@@ -97,7 +101,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
       )}
 
       {error ? <p id={`${id}-error`} className="vigencia-field__error" role="alert">{error}</p> : null}
-      {!error && mostrarResumen ? <p className={`vigencia-chips__resumen${etiquetaMomento === 'Se solucionó' ? ' vigencia-chips__resumen--solucionada' : ''}`} aria-live="polite">{resumenVigencia(value, etiquetaMomento, dic)}</p> : null}
+      {!error && mostrarResumen ? <p className={`vigencia-chips__resumen${solucionada ? ' vigencia-chips__resumen--solucionada' : ''}`} aria-live="polite">{resumenVigencia(value, etiquetaMomento, dic)}</p> : null}
     </fieldset>
   )
 }

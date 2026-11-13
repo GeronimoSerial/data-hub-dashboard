@@ -24,10 +24,14 @@ import {
   type AlcanceSecciones,
   type CampoConsistencia,
   type RespuestasConsistencia,
+  mensajeConsistencia,
 } from '@/lib/infraestructura/consistencia-parte'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
-import { MENSAJE_GUARDADO_INSTITUTO } from '@/lib/copy/institutos'
+import { mensajeGuardadoInstituto } from '@/lib/copy/institutos'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+import { parteReporteInicialEs } from '@/lib/i18n/diccionarios/grupos/parteReporteInicial.es'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
@@ -65,7 +69,7 @@ import {
   VIGENCIA_AHORA,
   type EleccionVigencia,
 } from '@/lib/infraestructura/vigencia-eleccion'
-import { MENSAJE_FUERA_DE_RANGO_VIGENCIA, rangoVigencia } from '@/lib/infraestructura/vigencia-rango'
+import { mensajeFueraDeRangoVigencia, rangoVigencia } from '@/lib/infraestructura/vigencia-rango'
 import { VERSION_BORRADOR_ACTUAL, migrarPasoBorrador } from '@/lib/infraestructura/parte/borrador-migracion'
 import {
   colapsarHistorial,
@@ -80,7 +84,9 @@ import {
   registrarAutoReintento,
   programarReintento,
   leerBorrador as leerColaEnvio,
-  MENSAJES_ESTADO,
+  mensajeErrorAlmacen,
+  mensajesEstado,
+  traducirMotivoEnvio,
   type AlmacenClaveValor,
   type EnviarOpciones,
   type EstadoEnvio,
@@ -104,42 +110,23 @@ function severidadDeFila(fila: FilaResumen): Severidad | null {
   return esSeveridad(texto) ? texto : null
 }
 
-const MENSAJE_FALTA_CARRERA = 'Elija al menos una carrera para esta situación.'
-const MENSAJE_FALTA_ALUMNO_CADA_CARRERA = 'Seleccione al menos un alumno afectado en cada carrera elegida.'
+export const MENSAJE_BORRADOR_PENDIENTE = parteReporteInicialEs.borrador.titulo
 
-const MENSAJE_ERROR_GUARDADO =
-  'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
+type TextosReporte = Diccionario['parteReporteInicial']
 
-const MENSAJE_GUARDADO =
-  'Ya figura en el estado actual de su escuela.'
-
-const MENSAJE_FALTA_QUE_PASO =
-  'Elija el tipo de situación, el motivo y la gravedad para continuar.'
-
-const MENSAJE_FALTA_ALCANCE_AFECTACION =
-  'Elija al menos una sección para esta situación.'
-
-const MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO = 'Indique cómo está el edificio.'
-const MENSAJE_FECHA_FUTURA = 'La fecha no puede ser posterior a hoy.'
-const MENSAJE_FECHA_ANTIGUA = 'La fecha no puede ser anterior a hace 12 meses.'
-
-export const MENSAJE_BORRADOR_PENDIENTE =
-  'Tiene un parte sin enviar.'
-
-function mensajeErrorVigencia(eleccion: EleccionVigencia): string | null {
-  const mensaje = obtenerErrorVigencia(eleccion)
+function mensajeErrorVigencia(eleccion: EleccionVigencia, diccionario: Diccionario): string | null {
+  const textos: TextosReporte = diccionario.parteReporteInicial
+  const mensaje = obtenerErrorVigencia(eleccion, new Date(), diccionario)
   if (!mensaje || eleccion.modo !== 'otro' || !eleccion.fecha || !eleccion.hora) return mensaje
 
   const [año, mes, dia] = eleccion.fecha.split('-').map(Number)
   const [hora, minuto] = eleccion.hora.split(':').map(Number)
   const momento = new Date(año, mes - 1, dia, hora, minuto)
   const { min, max } = rangoVigencia()
-  if (momento.getTime() > max.getTime()) return MENSAJE_FECHA_FUTURA
-  if (momento.getTime() < min.getTime()) return MENSAJE_FECHA_ANTIGUA
+  if (momento.getTime() > max.getTime()) return textos.mensajes.fechaFutura
+  if (momento.getTime() < min.getTime()) return textos.mensajes.fechaAntigua
   return mensaje
 }
-
-const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', 'Clases y edificio', '¿Desde cuándo?', 'Confirmar'] as const
 
 type Paso = 1 | 2 | 3 | 4 | 5
 
@@ -186,8 +173,10 @@ function pasosDe(_categoria: AfectacionBorrador['categoria']): Paso[] {
   return [1, 2, 3, 4, 5]
 }
 
-function tituloPaso(paso: Paso, categoria: AfectacionBorrador['categoria']): string {
-  return paso === 3 && categoria === 'alumnos' ? 'Asistencia pedagógica' : PASOS[paso - 1]
+function tituloPaso(paso: Paso, categoria: AfectacionBorrador['categoria'], textos: TextosReporte): string {
+  if (paso === 3 && categoria === 'alumnos') return textos.pasos.asistenciaPedagogica
+  const pasos = [textos.pasos.queSucedio, textos.pasos.aQuienesAfecta, textos.pasos.clasesEdificio, textos.pasos.desdeCuando, 'Confirmar']
+  return pasos[paso - 1]
 }
 
 // Borrador de sesión (#32): F5 no debería empezar el asistente de cero. La
@@ -311,6 +300,8 @@ function sincronizarHistorialTrasRestaurar(
  * vacías, igual que antes.
  */
 export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoChange }: ReporteInicialFormProps): JSX.Element {
+  const diccionario = useTextos()
+  const t = diccionario.parteReporteInicial
   // Institutos superiores informan por carreras y alumnos; GE, por secciones.
   const esInstituto = carreras !== undefined
   const catalogoCarreras = carreras ?? []
@@ -372,7 +363,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
     }
     if (paso === 2 && siguiente.categoria === 'establecimiento' && siguiente.motivo === '') {
       setPaso(1)
-      setError('Elija el motivo de la situación del establecimiento.')
+      setError(t.mensajes.motivoEstablecimiento)
     }
     setAfectacion(siguiente)
   }
@@ -389,7 +380,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
     const pasoRestaurado = faltaMotivoEstablecimiento ? 1 : pasoSolicitado
     setPaso(pasoRestaurado)
     setAfectacion({ ...crearAfectacionVacia(borrador.afectacion.clientId), ...borrador.afectacion })
-    setError(faltaMotivoEstablecimiento ? 'Elija el motivo de la situación del establecimiento.' : null)
+    setError(faltaMotivoEstablecimiento ? t.mensajes.motivoEstablecimiento : null)
     setServicioEstado(borrador.servicioEstado)
     setEstadoEstablecimiento(borrador.estadoEstablecimiento)
     setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
@@ -456,7 +447,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
         }
       } catch (error) {
         if (!cancelado) {
-          setAvisoAlmacen(error instanceof Error ? error.message : 'No se pudo acceder al almacenamiento local. Puede enviar sus respuestas.')
+          setAvisoAlmacen(mensajeErrorAlmacen(error, t.mensajes.almacenNoAccesible, diccionario))
           try {
             const anterior: unknown = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
             if (esBorradorParteNuevo(anterior) && !borradorResueltoRef.current) {
@@ -542,7 +533,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
       enviandoRef.current = false
       setEnviando(false)
       setError(null)
-      setErrorVigencia(mensajeErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      setErrorVigencia(mensajeErrorVigencia(vigencia, diccionario) ?? mensajeFueraDeRangoVigencia(diccionario))
       return
     }
 
@@ -594,7 +585,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
           alEnviarConExito(datos.movimientoId)
           return
         }
-        setError(datos && typeof datos.error === 'string' ? datos.error : MENSAJE_ERROR_GUARDADO)
+        setError(datos && typeof datos.error === 'string' ? mensajeConsistencia(datos.error, diccionario) : t.mensajes.errorGuardado)
       }
       // 'pendiente-envio' no es un error: queda en cola y se reintenta solo al
       // volver la conexión, sin acción del director. El texto de estado ya lo
@@ -602,7 +593,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
     } catch {
       // Local storage or lock failure: never leave the button on "Guardando…".
       setEstadoEnvio((actual) => (actual === 'enviando' ? null : actual))
-      setError(MENSAJE_ERROR_GUARDADO)
+      setError(t.mensajes.errorGuardado)
     } finally {
       if (!exito) {
         enviandoRef.current = false
@@ -681,7 +672,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
         borradorCompartidoRef.current = null
         localStorage.removeItem(claveBorrador)
       }).catch((error: unknown) => {
-        setAvisoAlmacen(error instanceof Error ? error.message : MENSAJE_ERROR_GUARDADO)
+        setAvisoAlmacen(mensajeErrorAlmacen(error, t.mensajes.errorGuardado, diccionario))
       })
     }
     limpiarVinculoVerificacion()
@@ -709,7 +700,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
       idempotencyKey: claveEvidenciaRef.current,
       fotos,
     }).catch((error: unknown) => {
-      setAvisoAlmacen(error instanceof Error ? error.message : 'Las fotos quedaron guardadas en este dispositivo y se pueden reintentar.')
+      setAvisoAlmacen(mensajeErrorAlmacen(error, t.mensajes.fotosLocales, diccionario))
     })
   }
 
@@ -807,7 +798,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
       setAvisoAlmacen(null)
       try { localStorage.setItem(claveBorrador, JSON.stringify(datos)) } catch { /* IndexedDB sigue siendo el almacenamiento principal. */ }
     }).catch((error: unknown) => {
-      setAvisoAlmacen(error instanceof Error ? error.message : 'No se pudo guardar el borrador local. Puede enviar sus respuestas.')
+      setAvisoAlmacen(mensajeErrorAlmacen(error, t.mensajes.borradorNoGuardado, diccionario))
     })
   }, [
     restauracionCompleta,
@@ -860,7 +851,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
   function faltanteDelPaso(actual: Paso): string | null {
     const bloqueosDelPaso = consistencia.bloqueos
       .filter((regla) => (CAMPOS_CONSISTENCIA_POR_PASO[actual] ?? []).includes(regla.campo))
-      .map((regla) => regla.mensaje)
+      .map((regla) => mensajeConsistencia(regla.mensaje, diccionario))
     if (bloqueosDelPaso.length > 0) return bloqueosDelPaso.join(' ')
     if (actual === 1) {
       const sugerida = sugeridaDeAfectacion(afectacion)
@@ -873,40 +864,40 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
         afectacion.severidad !== '' &&
         requiereJustificacionCritica(afectacion.severidad, sugerida)
       ) {
-        return 'Indique por qué la situación es crítica.'
+        return t.mensajes.faltaJustificacion
       }
-      return completo ? null : prioridadPorAlumnos ? 'Elija el motivo de la inaccesibilidad.' : MENSAJE_FALTA_QUE_PASO
+      return completo ? null : prioridadPorAlumnos ? t.mensajes.faltaMotivoInaccesibilidad : t.mensajes.faltaQuePaso
     }
     if (actual === 2) {
       if (esInstituto) {
         const seleccion = seleccionDeAfectacion()
-        if (seleccion.carreras.length === 0) return MENSAJE_FALTA_CARRERA
+        if (seleccion.carreras.length === 0) return t.mensajes.faltaCarrera
         // Igual que GE: en la categoría de alumnos, cada unidad lleva al menos un alumno.
         const exigeAlumno = afectacion.categoria === 'alumnos' && carrerasSinAlumno(seleccion.carreras, seleccion.alumnosElegidos).length > 0
-        return exigeAlumno ? MENSAJE_FALTA_ALUMNO_CADA_CARRERA : null
+        return exigeAlumno ? t.mensajes.faltaAlumnoCadaCarrera : null
       }
       if (afectacion.categoria === 'establecimiento' && afectacion.alcanceEstablecimiento === '') {
-        return MENSAJE_FALTA_ALCANCE_AFECTACION
+        return t.mensajes.faltaAlcanceAfectacion
       }
-      if (afectacion.secciones.length === 0) return MENSAJE_FALTA_ALCANCE_AFECTACION
-      if (afectacion.categoria === 'alumnos' && !esInstituto && afectacion.alumnos.length === 0) return 'Seleccione al menos un alumno afectado.'
+      if (afectacion.secciones.length === 0) return t.mensajes.faltaAlcanceAfectacion
+      if (afectacion.categoria === 'alumnos' && !esInstituto && afectacion.alumnos.length === 0) return t.mensajes.faltaAlumno
       return null
     }
     if (actual === 3) {
       const faltantes: string[] = []
       if (afectacion.categoria !== 'alumnos') {
-        if (servicioEstado === '') faltantes.push('Indique si hay clases.')
-        if (estadoEstablecimiento === '') faltantes.push(MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO)
+        if (servicioEstado === '') faltantes.push(t.mensajes.faltaClases)
+        if (estadoEstablecimiento === '') faltantes.push(t.mensajes.faltaEstadoEstablecimiento)
       }
       if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) {
-        faltantes.push('Elija al menos una modalidad de asistencia pedagógica.')
+        faltantes.push(t.mensajes.faltaModalidad)
       }
       return faltantes.length > 0 ? faltantes.join(' ') : null
     }
     if (actual === PASO_DESDE_CUANDO) {
       if (vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null) {
-        setErrorVigencia(mensajeErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
-        return MENSAJE_FUERA_DE_RANGO_VIGENCIA
+        setErrorVigencia(mensajeErrorVigencia(vigencia, diccionario) ?? mensajeFueraDeRangoVigencia(diccionario))
+        return mensajeFueraDeRangoVigencia(diccionario)
       }
     }
     return null
@@ -915,9 +906,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
   function avanzar() {
     const faltante = faltanteDelPaso(paso)
     if (faltante) {
-      if (faltante === MENSAJE_FUERA_DE_RANGO_VIGENCIA) {
+      if (faltante === mensajeFueraDeRangoVigencia(diccionario)) {
         setError(null)
-        setErrorVigencia(mensajeErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+        setErrorVigencia(mensajeErrorVigencia(vigencia, diccionario) ?? mensajeFueraDeRangoVigencia(diccionario))
       } else setError(faltante)
       return
     }
@@ -992,14 +983,14 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
       <div className="reporte-inicial__confirmacion" role="status">
         <div className="reporte-inicial__confirmacion-mensaje">
           <CircleCheck aria-hidden="true" size={20} />
-          <div><h2>Situación guardada</h2><p>{esInstituto ? MENSAJE_GUARDADO_INSTITUTO : MENSAJE_GUARDADO}</p></div>
+          <div><h2>{t.confirmacion.titulo}</h2><p>{esInstituto ? mensajeGuardadoInstituto(diccionario) : t.mensajes.yaGuardado}</p></div>
         </div>
         <div className="reporte-inicial__confirmacion-acciones">
           <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
-            Ver estado actual
+            {t.confirmacion.verEstado}
           </a>
           <Button type="button" variant="secondary" onClick={registrarOtra}>
-            Cargar otra situación
+            {t.confirmacion.cargarOtra}
           </Button>
         </div>
         <MaterialesTrasReporte />
@@ -1038,7 +1029,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
       ? {}
       : { asistenciaPedagogica: { brinda: asistenciaBrinda === 'si', modalidades: modalidadesAsistencia } }),
     fotosAdjuntas: cantidadFotos,
-  })
+  }, diccionario)
 
   return (
     <form
@@ -1046,11 +1037,11 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
       onSubmit={manejarEnvio}
       onChangeCapture={() => { interaccionRef.current = true }}
     >
-      {avisoAlmacen && <p role="status">{avisoAlmacen} Puede continuar y enviar las respuestas.</p>}
+      {avisoAlmacen && <p role="status">{`${avisoAlmacen} ${t.mensajes.puedeEnviar}`}</p>}
       <ConfirmSheet
         open={borradorPendiente !== null && !confirmarDescarte}
-        titulo={MENSAJE_BORRADOR_PENDIENTE}
-        confirmarLabel="Continuar donde lo dejé"
+        titulo={t.borrador.titulo}
+        confirmarLabel={t.borrador.continuarDonde}
         cancelarLabel="Descartar"
         onConfirmar={() => {
           if (!borradorPendiente) return
@@ -1066,16 +1057,16 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
           setBorradorPendiente(null)
         }}
       >
-        <p>Puede seguir donde lo dejó o descartarlo y empezar de nuevo.</p>
+        <p>{t.borrador.descripcion}</p>
       </ConfirmSheet>
       {borradorPendiente ? null : (
         <>
       <h3 id="asistente-paso-titulo" className="asistente__titulo asistente__titulo--paso">
-        {tituloPaso(paso, afectacion.categoria)}
+        {tituloPaso(paso, afectacion.categoria, t)}
       </h3>
       <div className="asistente__progreso">
         <p className="asistente__contador">
-          Paso {indicePaso + 1} de {pasos.length}
+          {t.contador(indicePaso + 1, pasos.length)}
         </p>
         <ol className="asistente__pasos">
           {pasos.map((numero, i) => (
@@ -1086,7 +1077,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
               }`}
               aria-current={numero === paso ? 'step' : undefined}
             >
-              <span className="asistente__paso-texto">{tituloPaso(numero, afectacion.categoria)}</span>
+              <span className="asistente__paso-texto">{tituloPaso(numero, afectacion.categoria, t)}</span>
             </li>
           ))}
         </ol>
@@ -1104,7 +1095,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
             onChange={(siguiente) => {
               cambiarAfectacion(siguiente)
               const sugerida = sugeridaDeAfectacion(siguiente)
-              if (error === MENSAJE_FALTA_QUE_PASO && siguiente.categoria !== '' && siguiente.motivo !== '' && gravedadCompleta(siguiente, sugerida)) {
+              if (error === t.mensajes.faltaQuePaso && siguiente.categoria !== '' && siguiente.motivo !== '' && gravedadCompleta(siguiente, sugerida)) {
                 setError(null)
               }
             }}
@@ -1121,7 +1112,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
           {fotosHabilitadas && afectacion.categoria !== 'alumnos' && afectacion.severidad === 'Crítica' ? (
             <p className="aviso-badge" role="note">
               <span className="aviso-badge__sello">Recomendado</span>
-              <span className="aviso-badge__texto">Recomendamos adjuntar una foto: ayuda a evaluar situaciones críticas.</span>
+              <span className="aviso-badge__texto">{t.recomendacionFoto.texto}</span>
             </p>
           ) : null}
           <SelectorFotosFormulario
@@ -1194,19 +1185,19 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
             )}
 
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-              <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
+              <legend className="afectacion-campos__legend">{t.asistencia.pregunta}</legend>
               {(['si', 'no'] as const).map((valor) => (
-                <Opcion key={valor} tipo="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} label={valor === 'si' ? 'Sí' : 'No'} compacta />
+                <Opcion key={valor} tipo="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} label={valor === 'si' ? t.opciones.si : t.opciones.no} compacta />
               ))}
               {asistenciaBrinda === 'si' && (
                 <div className="afectacion-campos__anidado">
-                  <p className="afectacion-campos__subtitulo">¿De qué tipo?</p>
+                  <p className="afectacion-campos__subtitulo">{t.asistencia.tipo}</p>
                   <MultiSelect<string>
                     value={modalidadesAsistencia}
                     onChange={setModalidadesAsistencia}
                     options={MODALIDADES_ASISTENCIA}
-                    placeholder="Seleccione una o más opciones"
-                    ariaLabel="¿De qué tipo?"
+                    placeholder={t.asistencia.seleccione}
+                    ariaLabel={t.asistencia.tipo}
                   />
                 </div>
               )}
@@ -1231,7 +1222,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
           <>
           <div className="asistente__resumen">
             <p className="asistente__resumen-intro">
-              Esto es lo que va a quedar informado. Revíselo antes de guardar.
+              {t.resumenIntro}
             </p>
             <dl className="asistente__resumen-lista">
               {lineasResumen.map((fila) => (
@@ -1256,18 +1247,18 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
 
       {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) && (
         estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando'
-          ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={() => void reintentarRef.current(true)} disabled={estadoEnvio === 'enviando' && estadoAvisoEnvio !== 'error-servidor'} />
+          ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ? traducirMotivoEnvio(motivoEnvio, diccionario) : undefined} onRetry={() => void reintentarRef.current(true)} disabled={estadoEnvio === 'enviando' && estadoAvisoEnvio !== 'error-servidor'} />
           : <p role="status" aria-live="polite">
               {estadoEnvio === 'error' && motivoEnvio
-                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-                : MENSAJES_ESTADO[estadoEnvio]}
+                ? `${mensajesEstado(diccionario).error}: ${traducirMotivoEnvio(motivoEnvio, diccionario)}`
+                : mensajesEstado(diccionario)[estadoEnvio]}
             </p>
       )}
 
       <div className="asistente__acciones asistente__acciones--pegada">
         {indicePaso > 0 && (
           <Button type="button" variant="secondary" onClick={retroceder}>
-            Volver
+            {t.acciones.volver}
           </Button>
         )}
         {/*
@@ -1289,7 +1280,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
           // Habilitado siempre: llegar a Confirmar ya exige los datos
           // obligatorios, así que no queda ningún botón gris sin explicación.
           <Button key="guardar" type="submit" disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
-            {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? 'Reintentando…' : enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar situación'}
+            {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? t.acciones.reintentando : enviando || estadoEnvio === 'enviando' ? t.acciones.guardando : estadoEnvio === 'pendiente-envio' ? t.acciones.envioPendiente : t.acciones.guardar}
           </Button>
         )}
       </div>
@@ -1297,15 +1288,15 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
       )}
       <ConfirmSheet
         open={confirmarDescarte}
-        titulo="¿Descartar el parte sin enviar?"
-        confirmarLabel="Sí, descartar"
+        titulo={t.descarte.titulo}
+        confirmarLabel={t.descarte.confirmar}
         onCancelar={() => setConfirmarDescarte(false)}
         onConfirmar={() => {
           const actual = borradorCompartidoRef.current
           void (async () => {
             try {
               if (actual && !(await eliminarBorradorFormulario(actual))) {
-                setAvisoAlmacen('El borrador cambió en otra pestaña y se conservó. Puede enviar las respuestas.')
+                setAvisoAlmacen(t.mensajes.borradorCambiadoOtraPestana)
                 setConfirmarDescarte(false)
                 return
               }
@@ -1322,12 +1313,12 @@ export function ReporteInicialForm({ cue, turnos, motivos, carreras, onGuardadoC
               setMotivoEnvio(null)
               setErrorVigencia(null)
             } catch (error) {
-              setAvisoAlmacen(error instanceof Error ? error.message : 'No se pudo descartar el borrador local. Puede enviar las respuestas.')
+              setAvisoAlmacen(mensajeErrorAlmacen(error, t.mensajes.borradorNoDescartado, diccionario))
             }
           })()
         }}
       >
-        <p>Se pierde lo que cargó y no se envía nada.</p>
+        <p>{t.descarte.descripcion}</p>
       </ConfirmSheet>
     </form>
   )

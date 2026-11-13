@@ -1,4 +1,7 @@
+'use client'
+
 import type { JSX } from 'react'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 /**
  * Encabezado común a las cuatro pantallas del director (estado actual,
@@ -14,13 +17,6 @@ import type { JSX } from 'react'
  * <h1>: el título completo ocupa cuatro renglones en un celular y empuja todo
  * el formulario fuera de la primera pantalla.
  */
-export const TITULO_PROGRAMA = 'Registro de Incidencias ENOS 2026/2027'
-
-export const GLOSA_PROGRAMA = 'El Niño – Oscilación del Sur'
-
-/** Título del documento (pestaña del navegador), donde sí entra completo. */
-export const TITULO_PROGRAMA_COMPLETO =
-  'Registro de Incidencias ENOS (El Niño – Oscilación del Sur) 2026/2027'
 
 export interface EscuelaEncabezado {
   nombre: string
@@ -47,30 +43,31 @@ export interface EncabezadoParteProps {
   pantallaOculta?: boolean
 }
 
-function lineaEscuela(escuela: EscuelaEncabezado): string {
-  const lugar = [escuela.localidad, escuela.departamento].filter(Boolean).join(', ')
-  return lugar ? `CUE ${escuela.cueAnexo} · ${lugar}` : `CUE ${escuela.cueAnexo}`
-}
-
 export function EncabezadoParte({
   pantalla,
   escuela,
   descripcion,
   pantallaOculta = false,
 }: EncabezadoParteProps): JSX.Element {
+  const t = useTextos().parteResto
+  const lugar = escuela ? [escuela.localidad, escuela.departamento].filter(Boolean).join(', ') : ''
+  const lineaEscuelaTexto = escuela
+    ? lugar ? t.encabezado.cueConLugar(escuela.cueAnexo, lugar) : t.encabezado.cue(escuela.cueAnexo)
+    : ''
+
   return (
     <header className="encabezado-parte">
-      <h1 className="publico-content__title encabezado-parte__programa">{TITULO_PROGRAMA}</h1>
-      <p className="encabezado-parte__glosa">{GLOSA_PROGRAMA}</p>
+      <h1 className="publico-content__title encabezado-parte__programa">{t.encabezado.programa}</h1>
+      <p className="encabezado-parte__glosa">{t.encabezado.glosa}</p>
       <a className="encabezado-parte__materiales" href="/materiales" target="_blank" rel="noopener noreferrer">
-        Manuales y cuadernillos
-        <span className="sr-only"> (abre en otra pestaña)</span>
+        {t.encabezado.materiales}
+        <span className="sr-only"> {t.abreEnOtraPestana}</span>
       </a>
 
       {escuela && (
         <div className="encabezado-parte__escuela">
           <p className="encabezado-parte__escuela-nombre">{escuela.nombre}</p>
-          <p className="encabezado-parte__escuela-datos">{lineaEscuela(escuela)}</p>
+          <p className="encabezado-parte__escuela-datos">{lineaEscuelaTexto}</p>
         </div>
       )}
 

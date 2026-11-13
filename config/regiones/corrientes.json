@@ -26,9 +26,21 @@
   },
   "fuentesRio": ["prefectura", "ina"],
   "fuentesAlertas": ["smn"],
+  "fuentesLluvia": ["synop"],
+  "capasEstaticas": ["exposicion-rio-dem"],
   "estacionAncla": "pna-corrientes",
+  "sondaTestigos": {
+    "escuelas": ["1800643-00", "1801605-04", "1801131-00"],
+    "estaciones": ["pna-corrientes", "pna-paso-de-los-libres"]
+  },
   "archivos": {
     "mascara": "/data/mascara-corrientes.geojson",
     "departamentos": "/data/departamentos-corrientes-georef-2026-09-27.geojson"
+  },
+  "marca": {
+    "logo": "educacion-corrientes",
+    "reparticionesLineas": ["Dirección de Sistemas de Información", "Dirección de Gestión Escolar"],
+    "jurisdiccionLineas": ["Provincia de Corrientes", "República Argentina"],
+    "pieLineas": ["Ministerio de Educación", "Provincia de Corrientes"]
   }
 }

@@ -631,6 +631,12 @@ Amplía B10b. Bloquea la salida en vivo.
 - CA2: un job que no aplica a Manaos sale con código 2.
 - CA3: Corrientes sin cambios.
 
+**Estado de implementación (M2):**
+- Estado: en `dev` (12/11/2026), autorizado por el coordinador. Corrientes sin cambios: suite e2e del mapa 181 aprobadas y 7 omitidas, 29 snapshots de API sin tocar, volcado de texto de 11 páginas de Corrientes idéntico a `dev` salvo marcas de tiempo.
+- Hecho: M2.1 a M2.6 (campos opcionales `fuentesLluvia`, `capasEstaticas`, `sondaTestigos` y `marca` en `config/regiones/*.json`; `fuentesRio` solo contiene ids de proveedor); cabecera, menú, pie y login del hub y formularios de carga de partes (`actualizar/*`, `reporte-inicial-*`, verificaciones) en portugués con la región `manaos`; `<html lang>` y metadatos por región; pestaña Radar con base vacía: la causa era que el fetch de frontera guardaba el cuerpo de error 503 como si fueran datos, ahora valida `response.ok` y `features`; letras de la rosa de los vientos en portugués (L/O, LNE/LSE), con la fuente en el comentario de `escalas.ts`; comentario de `sync-imerg.ts`.
+- Único cambio visible en Corrientes: con la base de geografía vacía, la vista inicial pasa de (0, 0) al centro de la región; con datos queda idéntica.
+- Abierto: marca de Manaos con marcadores `[PENDIENTE M0.5]` en `config/regiones/manaos.json` y logo nulo, a la espera del dueño; título raíz de Manaos armado con el nombre de la región, falta confirmar el texto; páginas solo en español (Metodología, natalidad, matrícula, reorganización); textos libres del servidor (descripciones de movimientos, `ultimoError`) y cadenas ya guardadas en español; los formularios de carga usan el idioma por defecto de la región, no la preferencia del usuario; error de bloqueo en `recorrido-actualizacion.tsx` y 3 mensajes de `consistencia-estado-activo.ts` siguen en español bajo `pt`.
+
 ### B12–B16
 
 Sin cambios: datos y proveedores de Manaos (B12), bajante (B13), acceso fluvial (B14), calibración (B15) y alertas (B16). **B12 es requisito de M3:** sin padrón ni niveles de río, Manaos sale vacío. B13–B16 pueden seguir después de la salida en vivo.
