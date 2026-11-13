@@ -238,5 +238,11 @@ export const situacionEs = {
       'Copernicus WorldDEM-30 © DLR e.V. 2010-2014 y © Airbus Defence and Space GmbH 2014-2018, provisto bajo COPERNICUS por la Unión Europea y la ESA; todos los derechos reservados.',
     modificado: 'Valores derivados y modificados: se usa el percentil 10 por escuela.',
     noComercial: 'Uso no comercial únicamente, con atribución y bajo la misma licencia.',
+    compacta: 'Terreno: FABDEM V1-2 © Universidad de Bristol / Fathom,',
+    detalle: 'Atribución completa del terreno',
+    navTitulo: 'Elevación FABDEM V1-2',
+    navDescripcion: 'Modelo de elevación del terreno a 30 m',
+    cotaPrincipal: 'La cota principal usa FABDEM V1-2; la conservadora toma la menor estimación válida comparable entre las fuentes de altimetría, incluida IGN. Se conserva la incertidumbre de la conversión vertical. Superar el terreno supone conexión con el cauce principal: ',
+    filaTerreno: 'FABDEM V1-2 (Universidad de Bristol)',
   },
 } as const
