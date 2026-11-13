@@ -13,6 +13,7 @@ import type { MovimientoHistorial } from '@/components/infraestructura/historial
 import { reportesDelRecorrido, seleccionarReporteLocal } from '@/lib/infraestructura/parte/retomar-reporte-local'
 import { reconectarParte, type ConflictoContexto } from '@/lib/infraestructura/parte/reconexion'
 import type { CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 type ContextoLocal = ContextoReporte & {
   /** Form-ready values are captured when the online flow starts. */
@@ -104,6 +105,7 @@ export function PantallaParteOffline(): JSX.Element {
   const [seleccion, setSeleccion] = useState<string | null>(null)
   const [conflictosContexto, setConflictosContexto] = useState<ConflictoContexto[]>([])
   const reconexionEnCurso = useRef(false)
+  const t = useTextos().parteGaleria.offline
 
   useEffect(() => {
     let vigente = true
@@ -114,10 +116,10 @@ export function PantallaParteOffline(): JSX.Element {
       setSeleccion(seleccionarReporteLocal(delRecorrido.map(({ contexto }) => contexto), window.location.search))
       setCarga(delRecorrido.length ? { tipo: 'listo', flujos: delRecorrido } : { tipo: 'vacio' })
     }).catch(() => {
-      if (vigente) setCarga({ tipo: 'error', mensaje: 'No se pudo leer el trabajo guardado en este dispositivo.' })
+      if (vigente) setCarga({ tipo: 'error', mensaje: t.noLeer })
     })
     return () => { vigente = false }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (carga.tipo === 'cargando') return
@@ -141,23 +143,22 @@ export function PantallaParteOffline(): JSX.Element {
     : null
   useLocalUpdateReads(flujoSeleccionado?.contexto ?? null)
 
-  if (carga.tipo === 'cargando') return <main className="publico-content"><p role="status">Buscando trabajo guardado en este dispositivo…</p></main>
-  if (carga.tipo === 'error') return <main className="publico-content"><h1>No se pudo abrir el reporte</h1><p role="alert">{carga.mensaje}</p></main>
+  if (carga.tipo === 'cargando') return <main className="publico-content"><p role="status">{t.buscando}</p></main>
+  if (carga.tipo === 'error') return <main className="publico-content"><h1>{t.noAbrir}</h1><p role="alert">{carga.mensaje}</p></main>
   if (carga.tipo === 'vacio') {
-    return <main className="publico-content"><h1>Reporte no disponible sin conexión</h1><p role="status">No hay un reporte guardado para este recorrido en este dispositivo. Conéctese a internet para abrir el reporte de su escuela.</p></main>
+    return <main className="publico-content"><h1>{t.noDisponible}</h1><p role="status">{t.sinReporte}</p></main>
   }
 
   if (!flujoSeleccionado) {
     return (
       <main className="publico-content">
-        <h1>Reportes guardados</h1>
-        <p>Seleccione un reporte guardado en este dispositivo.</p>
+        <h1>{t.guardados}</h1>
+        <p>{t.seleccione}</p>
         {conflictosContexto.length > 0 && (
-          <ul aria-label="Conflictos de contexto">
+          <ul aria-label={t.conflictosAria}>
             {conflictosContexto.map((conflicto) => (
               <li key={conflicto.draftId} role="alert">
-                Los datos de la escuela {conflicto.localSchool || `CUE ${conflicto.cue}`} cambiaron o ya no están disponibles.
-                Las respuestas del borrador se conservaron para su revisión.
+                {t.conflicto(conflicto.localSchool || `CUE ${conflicto.cue}`)}
               </li>
             ))}
           </ul>
@@ -166,7 +167,7 @@ export function PantallaParteOffline(): JSX.Element {
           {carga.flujos.map(({ contexto }) => (
             <li key={contexto.draftId}>
               <button type="button" onClick={() => setSeleccion(contexto.draftId)}>
-                {contexto.flujo === 'inicial' ? 'Reporte inicial' : 'Actualización'} · CUE {contexto.cue}
+                {t.reporteCue(contexto.flujo === 'inicial' ? t.tipoInicial : t.tipoActualizacion, contexto.cue)}
               </button>
             </li>
           ))}
@@ -178,30 +179,29 @@ export function PantallaParteOffline(): JSX.Element {
   const { contexto } = flujoSeleccionado
   const formulario = contexto.formulario
   if (!formulario || !formulario.turnos || !formulario.motivos) {
-    return <main className="publico-content"><h1>Reporte guardado</h1><p role="alert">El contexto guardado no contiene los datos necesarios para abrir este recorrido. El borrador se conservó en el dispositivo.</p><button type="button" onClick={() => setSeleccion(null)}>Volver a reportes</button></main>
+    return <main className="publico-content"><h1>{t.guardado}</h1><p role="alert">{t.contextoIncompleto}</p><button type="button" onClick={() => setSeleccion(null)}>{t.volver}</button></main>
   }
 
   if (contexto.flujo === 'actualizacion' && !formulario.estadoActual?.parte) {
-    return <main className="publico-content"><h1>Actualización guardada</h1><p role="alert">No hay una copia local del estado e historial necesarios para continuar sin conexión. El borrador se conservó.</p><button type="button" onClick={() => setSeleccion(null)}>Volver a reportes</button></main>
+    return <main className="publico-content"><h1>{t.actualizacionGuardada}</h1><p role="alert">{t.sinCopia}</p><button type="button" onClick={() => setSeleccion(null)}>{t.volver}</button></main>
   }
 
   return (
     <main className="publico-content publico-content--parte">
-      <button type="button" onClick={() => setSeleccion(null)}>← Reportes guardados</button>
+      <button type="button" onClick={() => setSeleccion(null)}>{t.volverFlecha}</button>
       {conflictosContexto.some((conflicto) => conflicto.draftId === contexto.draftId) && (
         <p role="alert">
-          La escuela o el CUE guardados ya no coinciden con los datos actuales del servidor.
-          Sus respuestas se conservaron en este dispositivo y requieren revisión antes de enviarse.
+          {t.conflictoFlujo}
         </p>
       )}
       {contexto.flujo === 'inicial' ? (
         <>
-          <h1>Reporte inicial · {formulario.escuela.nombre}</h1>
+          <h1>{t.tituloInicial(formulario.escuela.nombre)}</h1>
           <ReporteInicialForm cue={contexto.cue} turnos={formulario.turnos} motivos={formulario.motivos} carreras={formulario.carreras} />
         </>
       ) : (
         <>
-          <h1>Actualización · {formulario.escuela.nombre}</h1>
+          <h1>{t.tituloActualizacion(formulario.escuela.nombre)}</h1>
           <RecorridoActualizacion cue={contexto.cue} turnos={formulario.turnos} motivos={formulario.motivos} />
         </>
       )}

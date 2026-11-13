@@ -1,16 +1,19 @@
 import type { Metadata } from 'next'
-import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
+import { EncabezadoParte } from '@/components/infraestructura/encabezado-parte'
 import { EstadoActualParte } from '@/components/infraestructura/estado-actual-parte'
+import { textosActuales } from '@/lib/i18n'
 import { bloqueoDeAcceso, cargarContextoParte, ErrorContexto } from './compartido'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const t = textosActuales().parteResto
+
 export const metadata: Metadata = {
-  title: `Estado actual · ${TITULO_PROGRAMA_COMPLETO}`,
+  title: `${t.pantallas.estadoActual} · ${t.encabezado.programaCompleto}`,
 }
 
-const TITULO = 'Estado actual'
+const TITULO = t.pantallas.estadoActual
 
 /**
  * Pantalla inicial del director (spec §6): muestra el estado actual ANTES de

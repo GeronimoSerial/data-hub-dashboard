@@ -8,7 +8,7 @@ import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infr
 import { SEVERIDADES, type Severidad } from '@/lib/infraestructura/validacion'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import {
-  ETIQUETA_JUSTIFICACION_CRITICA,
+  etiquetaJustificacionCritica,
   JUSTIFICACIONES_CRITICA,
   requiereJustificacionCritica,
 } from '@/lib/infraestructura/justificacion-critica'
@@ -24,15 +24,14 @@ import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
 import { AvisosRedSeguridad } from '@/components/infraestructura/aviso-red-seguridad'
 import { evaluarRedesSeguridad } from '@/lib/infraestructura/red-seguridad'
-import { alcanceDeSecciones, severidadSugeridaPorAlcance, type CampoConsistencia, type Regla, type Sugerencia } from '@/lib/infraestructura/consistencia-parte'
+import { alcanceDeSecciones, etiquetaSugerencia, mensajeConsistencia, severidadSugeridaPorAlcance, type CampoConsistencia, type Regla, type Sugerencia } from '@/lib/infraestructura/consistencia-parte'
 import type { AlumnoElegido } from '@/lib/infraestructura/parte/instituto-ui'
-import { CONFIRMAR_CATEGORIA_INSTITUTO, DESCRIPCION_CATEGORIA_INSTITUTO } from '@/lib/copy/institutos'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
-  establecimiento:
-    'Va a marcar las secciones donde la escuela no puede funcionar con normalidad. Si son alumnos puntuales que no pueden llegar, elija "Inaccesibilidad de alumnos".',
-  alumnos:
-    'Va a marcar sólo a los alumnos que no pueden llegar a la escuela. Si la situación afecta al edificio o a la escuela, elija "Afecta al establecimiento".',
+  establecimiento: es.parteCampos.categoria.confirmarEstablecimiento,
+  alumnos: es.parteCampos.categoria.confirmarAlumnos,
 }
 
 export interface AfectacionBorrador {
@@ -143,6 +142,8 @@ export function AvisosConsistencia({
   campos: CampoConsistencia[]
   onAplicar?: (sugerencia: Sugerencia) => void
 }): JSX.Element | null {
+  const diccionario = useTextos()
+  const t = diccionario.parteCampos.comun
   const [descartadas, setDescartadas] = useState<Record<string, string>>({})
   // Una regla que deja de cumplirse olvida su descarte: si vuelve a cumplirse, se muestra.
   const codigosActivos = reglas.map((regla) => regla.codigo).join('\n')
@@ -158,12 +159,12 @@ export function AvisosConsistencia({
     <>
       {visibles.map((regla) => (
         <div key={regla.codigo} className="aviso-badge" role="note">
-          <span className="aviso-badge__sello">Revisar</span>
-          <span className="aviso-badge__texto">{regla.mensaje}</span>
+          <span className="aviso-badge__sello">{t.revisar}</span>
+          <span className="aviso-badge__texto">{mensajeConsistencia(regla.mensaje, diccionario)}</span>
           <span className="aviso-badge__acciones">
             {regla.sugerencia && onAplicar ? (
               <button type="button" className="aviso-badge__accion" onClick={() => onAplicar(regla.sugerencia!)}>
-                {regla.sugerencia.etiqueta}
+                {etiquetaSugerencia(regla.sugerencia, diccionario)}
               </button>
             ) : null}
             <button
@@ -171,7 +172,7 @@ export function AvisosConsistencia({
               className="aviso-badge__accion aviso-badge__accion--secundaria"
               onClick={() => setDescartadas((actual) => ({ ...actual, [regla.codigo]: regla.firma ?? '' }))}
             >
-              Está bien así
+              {t.estaBienAsi}
             </button>
           </span>
         </div>
@@ -204,6 +205,8 @@ export function CamposQuePaso({
   onChange,
   disabled = false,
 }: CamposQuePasoProps): JSX.Element {
+  const diccionario = useTextos()
+  const t = diccionario.parteCampos
   const [categoriaPendiente, setCategoriaPendiente] = useState<CategoriaAfectacion | null>(null)
 
   // Al cambiar la categoría se limpian los datos dependientes: el motivo y
@@ -228,6 +231,9 @@ export function CamposQuePaso({
   const motivosDeLaCategoria = borrador.categoria
     ? motivos.filter((m) => m.categoria === borrador.categoria)
     : []
+  const textoConfirmarCategoria = esInstituto
+    ? diccionario.parteComunTextos.institutoCategoria.confirmar
+    : { establecimiento: t.categoria.confirmarEstablecimiento, alumnos: t.categoria.confirmarAlumnos }
 
   /*
     Recomendación, nunca decisión (spec §18.14).
@@ -259,7 +265,7 @@ export function CamposQuePaso({
   return (
     <>
       <fieldset className="afectacion-campos__grupo" disabled={disabled}>
-        <legend className="afectacion-campos__legend">¿Qué tipo de situación es?</legend>
+        <legend className="afectacion-campos__legend">{t.quePaso.tipoSituacion}</legend>
         <div className="afectacion-campos__opciones">
           {CATEGORIAS.map((c) => (
             <Opcion
@@ -273,8 +279,8 @@ export function CamposQuePaso({
                   setCategoriaPendiente(c)
                 }}
                 disabled={disabled}
-                label={CATEGORIA_META[c].label}
-                ayuda={esInstituto ? DESCRIPCION_CATEGORIA_INSTITUTO[c] : CATEGORIA_META[c].descripcion}
+                label={diccionario.parteComunTextos.categoriaAfectacion[c].etiqueta}
+                ayuda={esInstituto ? diccionario.parteComunTextos.institutoCategoria.descripcion[c] : diccionario.parteComunTextos.categoriaAfectacion[c].descripcion}
               />
           ))}
         </div>
@@ -282,22 +288,22 @@ export function CamposQuePaso({
 
       <ConfirmSheet
         open={categoriaPendiente !== null}
-        titulo={categoriaPendiente ? CATEGORIA_META[categoriaPendiente].label : ''}
-        confirmarLabel="Continuar"
-        cancelarLabel="Elegir otra"
+        titulo={categoriaPendiente ? diccionario.parteComunTextos.categoriaAfectacion[categoriaPendiente].etiqueta : ''}
+        confirmarLabel={t.quePaso.continuar}
+        cancelarLabel={t.quePaso.elegirOtra}
         onCancelar={() => setCategoriaPendiente(null)}
         onConfirmar={() => {
           if (categoriaPendiente) cambiarCategoria(categoriaPendiente)
           setCategoriaPendiente(null)
         }}
       >
-        <p>{categoriaPendiente ? (esInstituto ? CONFIRMAR_CATEGORIA_INSTITUTO : TEXTO_CONFIRMAR_CATEGORIA)[categoriaPendiente] : null}</p>
+        <p>{categoriaPendiente ? textoConfirmarCategoria[categoriaPendiente] : null}</p>
       </ConfirmSheet>
 
       <fieldset className="afectacion-campos__grupo" disabled={disabled || !borrador.categoria}>
-        <legend className="afectacion-campos__legend">¿Cuál es el motivo?</legend>
+        <legend className="afectacion-campos__legend">{t.quePaso.motivo}</legend>
         {borrador.categoria === '' ? (
-          <p className="afectacion-campos__espera">Elija primero el tipo de situación.</p>
+          <p className="afectacion-campos__espera">{t.quePaso.elijaTipo}</p>
         ) : (
           <div className="afectacion-campos__opciones">
             {motivosDeLaCategoria.map((m) => (
@@ -337,9 +343,9 @@ export function CamposQuePaso({
 
       {duplicado?.coincidenciaExacta && (
         <p className="aviso-badge" role="status">
-          <span className="aviso-badge__sello">Ya informado</span>
+          <span className="aviso-badge__sello">{t.quePaso.yaInformado}</span>
           <span className="aviso-badge__texto">
-            Ya hay una situación por este mismo motivo. Puede continuar igual.
+            {t.quePaso.yaHayUna}
           </span>
         </p>
       )}
@@ -378,6 +384,8 @@ export function CamposAQuienAfecta({
   const [justificandoCritica, setJustificandoCritica] = useState(false)
   const [razonCritica, setRazonCritica] = useState<JustificacionCritica | ''>('')
   const [detalleCritica, setDetalleCritica] = useState('')
+  const diccionario = useTextos()
+  const t = diccionario.parteCampos
 
   const totalAlumnos = totalAlumnosDe(borrador, turnos)
   const seccionesDisponibles = aplanarSecciones(turnos)
@@ -395,10 +403,10 @@ export function CamposAQuienAfecta({
   }
   const cantidadSecciones = borrador.secciones.length
   const textoSecciones = cantidadSecciones === 0
-    ? 'Ninguna sección seleccionada'
+    ? t.aQuienAfecta.ninguna
     : cantidadSecciones === 1
-      ? '1 sección seleccionada'
-      : `${cantidadSecciones} secciones seleccionadas`
+      ? t.aQuienAfecta.una
+      : t.aQuienAfecta.varias(cantidadSecciones)
 
   const motivoElegido = motivos.find((m) => m.nombre === borrador.motivo)
   // Sugerida efectiva: la del motivo subida por el alcance real (todas las secciones
@@ -443,8 +451,8 @@ export function CamposAQuienAfecta({
     <>
       {borrador.categoria === 'alumnos' ? (
         <div className="afectacion-campos__grupo">
-          <Label>Alumnos afectados</Label>
-          <p className="afectacion-borrador__resumen" aria-live="polite">{textoImpactoAlumnos(impactoAlumnosEnContexto(borrador.alumnos, turnos))}</p>
+          <Label>{t.comun.alumnosAfectados}</Label>
+          <p className="afectacion-borrador__resumen" aria-live="polite">{textoImpactoAlumnos(impactoAlumnosEnContexto(borrador.alumnos, turnos), diccionario)}</p>
           <SelectorAlumnos
             turnos={turnos}
             alumnosSeleccionados={borrador.alumnos}
@@ -455,7 +463,7 @@ export function CamposAQuienAfecta({
         </div>
       ) : usaSelectorEstablecimiento && borrador.categoria === 'establecimiento' ? (
         <div className="afectacion-campos__grupo">
-          <p className={`afectacion-campos__legend${ocultarPreguntaAlcance ? ' sr-only' : ''}`}>¿A quiénes afecta?</p>
+          <p className={`afectacion-campos__legend${ocultarPreguntaAlcance ? ' sr-only' : ''}`}>{t.aQuienAfecta.aQuienes}</p>
           <AvisosRedSeguridad
             avisos={evaluarRedesSeguridad({
               categoria: 'establecimiento',
@@ -489,14 +497,13 @@ export function CamposAQuienAfecta({
           <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
           {borrador.alcanceEstablecimiento === 'algunas' ? (
             <p className="afectacion-borrador__resumen" aria-live="polite">
-              Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
-              {matriculaDisponible} alumnos
+              {t.aQuienAfecta.seleccionadas(borrador.secciones.length, seccionesDisponibles.length, totalAlumnos, matriculaDisponible)}
             </p>
           ) : null}
         </div>
       ) : (
         <div className="afectacion-campos__grupo">
-          <Label>Secciones afectadas</Label>
+          <Label>{t.aQuienAfecta.seccionesAfectadas}</Label>
           <SeccionesSelector
             turnos={turnos}
             seleccionadas={borrador.secciones}
@@ -508,7 +515,7 @@ export function CamposAQuienAfecta({
           <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
           {borrador.secciones.length > 0 ? (
             <p className="afectacion-borrador__resumen">
-              {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de {matriculaDisponible} alumnos
+              {t.aQuienAfecta.resumen(borrador.secciones.length, seccionesDisponibles.length, totalAlumnos, matriculaDisponible)}
             </p>
           ) : null}
         </div>
@@ -518,22 +525,22 @@ export function CamposAQuienAfecta({
 
       <ConfirmSheet
         open={recomendacion !== null}
-        titulo="Recomendamos subir la gravedad"
-        confirmarLabel={`Cambiar a ${recomendacion?.sugerida ?? ''}`}
-        cancelarLabel={`Mantener ${borrador.severidad}`}
+        titulo={t.aQuienAfecta.recomendacionTitulo}
+        confirmarLabel={t.aQuienAfecta.cambiarA(recomendacion?.sugerida ?? '')}
+        cancelarLabel={t.aQuienAfecta.mantener(borrador.severidad)}
         onCancelar={() => setRecomendacion(null)}
         onConfirmar={() => {
           if (recomendacion) cambiarGravedadRecomendada(recomendacion.sugerida)
         }}
       >
-        <p>{`Sugerimos ${recomendacion?.sugerida ?? ''} en lugar de ${recomendacion?.porMotivo ?? ''} porque afecta a toda la escuela.`}</p>
+        <p>{t.aQuienAfecta.sugerimos(recomendacion?.sugerida ?? '', recomendacion?.porMotivo ?? '')}</p>
       </ConfirmSheet>
 
       <ConfirmSheet
         open={justificandoCritica}
-        titulo="¿Por qué es crítica?"
+        titulo={t.comun.porQueCritica}
         confirmarLabel="Confirmar"
-        cancelarLabel="Volver"
+        cancelarLabel={t.aQuienAfecta.volver}
         confirmarDeshabilitado={!razonCriticaValida || disabled}
         onCancelar={() => setJustificandoCritica(false)}
         onConfirmar={() => {
@@ -556,14 +563,14 @@ export function CamposAQuienAfecta({
               checked={razonCritica === justificacion}
               disabled={disabled}
               onChange={() => setRazonCritica(justificacion)}
-              label={ETIQUETA_JUSTIFICACION_CRITICA[justificacion]}
+              label={etiquetaJustificacionCritica(justificacion, diccionario)}
               compacta
             />
           ))}
         </div>
         {razonCritica === 'otro' ? (
           <label className="ui-label afectacion-campos__detalle">
-            Describa qué pasa
+            {t.comun.describaQuePasa}
             <Textarea maxLength={300} value={detalleCritica} disabled={disabled} onChange={(e) => setDetalleCritica(e.target.value)} />
           </label>
         ) : null}
@@ -571,7 +578,7 @@ export function CamposAQuienAfecta({
 
       {!ocultarDescripcion ? (
         <div className="afectacion-campos__grupo">
-          <Label htmlFor={`${idPrefijo}-descripcion`}>{descripcionObligatoria ? 'Descripción (obligatoria)' : 'Descripción (opcional)'}</Label>
+          <Label htmlFor={`${idPrefijo}-descripcion`}>{descripcionObligatoria ? t.comun.descripcionObligatoria : t.comun.descripcionOpcional}</Label>
           <Textarea
             id={`${idPrefijo}-descripcion`}
             maxLength={500}

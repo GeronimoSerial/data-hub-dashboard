@@ -1,21 +1,24 @@
 import type { Metadata } from 'next'
 import { RecorridoActualizacion } from '@/components/infraestructura/actualizar/recorrido-actualizacion'
-import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
+import { EncabezadoParte } from '@/components/infraestructura/encabezado-parte'
 import { bloqueoDeAcceso, cargarCarrerasDelCue, cargarContextoParte, ErrorContexto } from '../compartido'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
 import { obtenerParteActual } from '@/lib/infraestructura/parte-consulta'
 import { redirect } from 'next/navigation'
 import { ensureSeeded } from '@/lib/db/seed'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
+import { textosActuales } from '@/lib/i18n'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const t = textosActuales().parteResto
+
 export const metadata: Metadata = {
-  title: `Actualizar · ${TITULO_PROGRAMA_COMPLETO}`,
+  title: `${t.pantallas.actualizar} · ${t.encabezado.programaCompleto}`,
 }
 
-const TITULO = 'Actualizar'
+const TITULO = t.pantallas.actualizar
 
 /**
  * Pantalla "Actualizar el parte" (spec §8): el director modifica lo que

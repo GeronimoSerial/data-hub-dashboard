@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { fetchDraftPage, type DraftCursor, type DraftMapItem } from '@/lib/infraestructura/borradores/mapa-client'
 import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
 
 type State = 'loading' | 'ready' | 'error'
 
@@ -13,33 +14,36 @@ function etiqueta(value: string): string {
 }
 
 function Respuestas({ value }: { value: unknown }) {
+  const t = useTextos().parteVerificaciones.borradores
   if (value === null || value === undefined || typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') {
-    return <span>{typeof value === 'string' ? value : String(value ?? 'Sin respuesta')}</span>
+    return <span>{typeof value === 'string' ? value : String(value ?? t.sinRespuesta)}</span>
   }
   if (Array.isArray(value)) {
-    return value.length ? <ul>{value.map((item, index) => <li key={index}><Respuestas value={item} /></li>)}</ul> : <span>Sin respuestas</span>
+    return value.length ? <ul>{value.map((item, index) => <li key={index}><Respuestas value={item} /></li>)}</ul> : <span>{t.sinRespuestas}</span>
   }
   const entries = Object.entries(value as Record<string, unknown>)
   return entries.length ? (
     <dl className="map-ficha-escuela__kv">
       {entries.map(([key, answer]) => <div key={key}><dt>{etiqueta(key)}</dt><dd><Respuestas value={answer} /></dd></div>)}
     </dl>
-  ) : <span>Sin respuestas</span>
+  ) : <span>{t.sinRespuestas}</span>
 }
 
 function FilaBorrador({ draft }: { draft: DraftMapItem }) {
+  const t = useTextos().parteVerificaciones.borradores
+  const idioma = useIdioma()
   const completados = draft.progreso.pasosCompletados
   return (
     <article className="map-ficha-escuela__borrador">
-      <h3>{draft.flujo === 'actualizacion' ? 'Actualización pendiente' : 'Reporte inicial pendiente'}</h3>
+      <h3>{draft.flujo === 'actualizacion' ? t.actualizacion : t.inicial}</h3>
       <dl className="map-ficha-escuela__kv">
-        <dt>Progreso</dt>
-        <dd>{completados.length} {completados.length === 1 ? 'paso completado' : 'pasos completados'} · En {etiqueta(draft.progreso.pasoActual)}</dd>
-        {completados.length > 0 && <><dt>Completados</dt><dd>{completados.map(etiqueta).join(', ')}</dd></>}
-        <dt>Última actividad</dt><dd>{formatearMomentoHistorial(draft.actividadEn)}</dd>
+        <dt>{t.progreso}</dt>
+        <dd>{t.progresoResumen(completados.length, etiqueta(draft.progreso.pasoActual))}</dd>
+        {completados.length > 0 && <><dt>{t.completados}</dt><dd>{completados.map(etiqueta).join(', ')}</dd></>}
+        <dt>{t.ultimaActividad}</dt><dd>{formatearMomentoHistorial(draft.actividadEn, undefined, idioma)}</dd>
       </dl>
       <details className="map-ficha-escuela__borrador-respuestas">
-        <summary>Respuestas permitidas<ChevronDown aria-hidden="true" /></summary>
+        <summary>{t.respuestasPermitidas}<ChevronDown aria-hidden="true" /></summary>
         <Respuestas value={draft.respuestas} />
       </details>
     </article>
@@ -47,6 +51,7 @@ function FilaBorrador({ draft }: { draft: DraftMapItem }) {
 }
 
 export function BorradoresPendientes({ cue, count }: { cue: string; count: number | null }) {
+  const t = useTextos().parteVerificaciones.borradores
   const [items, setItems] = useState<DraftMapItem[]>([])
   const [cursor, setCursor] = useState<DraftCursor | null>(null)
   const [state, setState] = useState<State>('loading')
@@ -93,19 +98,19 @@ export function BorradoresPendientes({ cue, count }: { cue: string; count: numbe
   if (!enabled) return null
 
   return (
-    <section className="map-ficha-escuela__borradores" aria-label="Borradores sin enviar" style={{ border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: 'var(--s-3)', background: 'var(--fill)' }}>
+    <section className="map-ficha-escuela__borradores" aria-label={t.titulo} style={{ border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: 'var(--s-3)', background: 'var(--fill)' }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--s-2)' }}>
-        <h3>Borradores sin enviar</h3>
-        {count !== null ? <strong aria-label={`${count} borradores sin enviar`}>{count}</strong> : null}
+        <h3>{t.titulo}</h3>
+        {count !== null ? <strong aria-label={t.ariaCantidad(count)}>{count}</strong> : null}
       </header>
-      <p style={{ color: 'var(--ink-faint)' }}>Avances guardados en el servidor. No forman parte de las situaciones confirmadas.</p>
-      {state === 'loading' ? <p role="status">Cargando borradores…</p> : null}
-      {state === 'error' ? <p role="alert">No se pudieron cargar los borradores.</p> : null}
-      {state === 'ready' && items.length === 0 ? <p>No hay borradores pendientes para esta escuela.</p> : null}
+      <p style={{ color: 'var(--ink-faint)' }}>{t.aviso}</p>
+      {state === 'loading' ? <p role="status">{t.cargando}</p> : null}
+      {state === 'error' ? <p role="alert">{t.error}</p> : null}
+      {state === 'ready' && items.length === 0 ? <p>{t.sinBorradores}</p> : null}
       {items.map((draft) => <FilaBorrador key={draft.draftId} draft={draft} />)}
-      {pageError ? <p role="alert">No se pudo cargar la página siguiente.</p> : null}
+      {pageError ? <p role="alert">{t.paginaSiguienteError}</p> : null}
       {cursor && <button type="button" className="map-ficha-escuela__link" onClick={() => void loadMore()} disabled={loadingMore}>
-        {loadingMore ? 'Cargando…' : 'Cargar más borradores'}
+        {loadingMore ? t.cargandoMas : t.cargarMas}
       </button>}
     </section>
   )

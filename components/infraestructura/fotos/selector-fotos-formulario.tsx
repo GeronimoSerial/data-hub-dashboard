@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type JSX } from 'react'
 import { prepararFotosFormulario, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
 import { descartarSubidaFotoNoDeclarada } from '@/lib/infraestructura/fotos/subida-cola'
 import { fetchReportesOfflineFeatures } from '@/lib/infraestructura/parte/feature-flags-client'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { SelectorFotos, type FotoSeleccionada } from './selector-fotos'
 
 export function SelectorFotosFormulario({
@@ -40,6 +41,7 @@ export function SelectorFotosFormulario({
   const fotos = fotosControladas ?? internas
   const [aviso, setAviso] = useState('')
   const [procesando, setProcesando] = useState(false)
+  const t = useTextos().parteGaleria.fotosFormulario
 
   // Las fotos restauradas ya están preparadas: se registran para no procesarlas otra vez.
   useEffect(() => {
@@ -76,7 +78,7 @@ export function SelectorFotosFormulario({
         } else if (preparadas[0]) {
           preparadasRef.current.set(foto.id, preparadas[0])
         } else {
-          fallidasRef.current.set(foto.id, errores[0] ?? 'No se pudo preparar una foto.')
+          fallidasRef.current.set(foto.id, errores[0] ?? t.fallaPreparar)
         }
       }).finally(() => {
         enProcesoRef.current.delete(foto.id)
@@ -89,7 +91,7 @@ export function SelectorFotosFormulario({
             return preparada ? [preparada] : []
           }))
           const error = activas.map((id) => fallidasRef.current.get(id)).find(Boolean)
-          if (error) setAviso(`Una o más fotos no pudieron prepararse. Puede continuar con el reporte. ${error}`)
+          if (error) setAviso(t.avisoFallo(error))
         }
       })
       enProcesoRef.current.set(foto.id, tarea)
@@ -107,7 +109,7 @@ export function SelectorFotosFormulario({
   return (
     <>
       <SelectorFotos onChange={() => {}} fotos={fotos} onFotosChange={cambiarFotos} />
-      {procesando ? <p role="status">Preparando fotos en este dispositivo. Puede enviar el reporte mientras tanto.</p> : null}
+      {procesando ? <p role="status">{t.preparando}</p> : null}
       {aviso ? <p role="status">{aviso}</p> : null}
     </>
   )

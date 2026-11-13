@@ -1,4 +1,14 @@
 import type { Semaforo } from '@/lib/sobreoferta'
+import { shellHubPt } from './grupos/shellHub.pt'
+import { parteRecorridoPt } from './grupos/parteRecorrido.pt'
+import { parteReporteInicialPt } from './grupos/parteReporteInicial.pt'
+import { parteAlgoNuevoPt } from './grupos/parteAlgoNuevo.pt'
+import { parteVerificacionesPt } from './grupos/parteVerificaciones.pt'
+import { parteCamposPt } from './grupos/parteCampos.pt'
+import { parteGaleriaPt } from './grupos/parteGaleria.pt'
+import { parteRestoPt } from './grupos/parteResto.pt'
+import { parteComunTextosPt } from './grupos/parteComunTextos.pt'
+import { parteComunControlesPt } from './grupos/parteComunControles.pt'
 import { libTextos2Pt } from './grupos/libTextos2.pt'
 import { residuosPt } from './grupos/residuos.pt'
 import { fichaPanelPt } from './grupos/fichaPanel.pt'
@@ -294,4 +304,14 @@ export const pt: Diccionario = {
   fichaPagina: fichaPaginaPt,
   libTextos2: libTextos2Pt,
   residuos: residuosPt,
+  parteComunTextos: parteComunTextosPt,
+  parteComunControles: parteComunControlesPt,
+  shellHub: shellHubPt,
+  parteRecorrido: parteRecorridoPt,
+  parteReporteInicial: parteReporteInicialPt,
+  parteAlgoNuevo: parteAlgoNuevoPt,
+  parteVerificaciones: parteVerificacionesPt,
+  parteCampos: parteCamposPt,
+  parteGaleria: parteGaleriaPt,
+  parteResto: parteRestoPt,
 }
