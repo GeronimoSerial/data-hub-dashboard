@@ -1,4 +1,5 @@
 import { compararSnapshot } from './snapshot'
+import { proyectarSerieDiaria } from './serie-diaria'
 import { expect, test } from './base'
 import { cuentaPorClave } from '../cuentas-qa'
 import { CUE_ANEXO_OPERADOR, DEPARTAMENTOS_ESCUELAS, ESPERADOS, NIVEL_CON_ESCUELAS } from '../seed/esperados'
@@ -203,6 +204,18 @@ test.describe('GET /historial', () => {
   })
 })
 
+// The two daily series grow by one point per day (start of the period .. today), so their raw length depends on the
+// day the suite runs. They are projected by serie-diaria.ts, which also asserts they are contiguous and end today.
+function conSeriesDiariasProyectadas<T extends { serieEscuelasServicioCaido: Array<{ fecha: string }>; alumnosAcumulados: Array<{ fecha: string }> }>(
+  cuerpo: T,
+) {
+  return {
+    ...cuerpo,
+    serieEscuelasServicioCaido: proyectarSerieDiaria(cuerpo.serieEscuelasServicioCaido),
+    alumnosAcumulados: proyectarSerieDiaria(cuerpo.alumnosAcumulados),
+  }
+}
+
 test.describe('GET /evolucion', () => {
   test('admin recibe el ranking por departamento y las afectaciones vigentes del manifiesto', async ({ apiAdmin }) => {
     const respuesta = await apiAdmin.get(`${RUTA}/evolucion`)
@@ -210,22 +223,28 @@ test.describe('GET /evolucion', () => {
     const cuerpo = (await respuesta.json()) as {
       rankingDepartamentos: Array<{ departamento: string; escuelasAfectadas: number; alumnosAlcanzados: number }>
       distribucionMotivo: Array<{ afectacionesVigentes: number }>
+      serieEscuelasServicioCaido: Array<{ fecha: string; escuelas: number }>
+      alumnosAcumulados: Array<{ fecha: string; alumnosAcumulados: number }>
     }
 
     expect(cuerpo.rankingDepartamentos).toEqual(ESPERADOS.evolucion.rankingDepartamentos)
     const totalAfectaciones = cuerpo.distribucionMotivo.reduce((suma, fila) => suma + fila.afectacionesVigentes, 0)
     expect(totalAfectaciones).toBe(ESPERADOS.evolucion.afectacionesVigentes)
 
-    compararSnapshot('mapas-evolucion', cuerpo)
+    compararSnapshot('mapas-evolucion', conSeriesDiariasProyectadas(cuerpo))
   })
 
   test('filtro por departamento Goya deja solo Goya con sus 4 escuelas afectadas', async ({ apiAdmin }) => {
     const respuesta = await apiAdmin.get(`${RUTA}/evolucion`, { params: { departamento: 'Goya' } })
     expect(respuesta.status()).toBe(200)
-    const cuerpo = (await respuesta.json()) as { rankingDepartamentos: Array<{ departamento: string; escuelasAfectadas: number }> }
+    const cuerpo = (await respuesta.json()) as {
+      rankingDepartamentos: Array<{ departamento: string; escuelasAfectadas: number }>
+      serieEscuelasServicioCaido: Array<{ fecha: string; escuelas: number }>
+      alumnosAcumulados: Array<{ fecha: string; alumnosAcumulados: number }>
+    }
 
     expect(cuerpo.rankingDepartamentos).toEqual([ESPERADOS.evolucion.rankingDepartamentos[1]])
-    compararSnapshot('mapas-evolucion-goya', cuerpo)
+    compararSnapshot('mapas-evolucion-goya', conSeriesDiariasProyectadas(cuerpo))
   })
 })
 
