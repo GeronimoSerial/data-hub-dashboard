@@ -27,6 +27,7 @@ import { estadisticasEs } from './grupos/estadisticas.es'
 import { controlesEs } from './grupos/controles.es'
 import { panelesMapaEs } from './grupos/panelesMapa.es'
 import { situacionEs } from './grupos/situacion.es'
+import { auditoriaEs } from './grupos/auditoria.es'
 
 // Spanish (Corrientes) dictionary. The values are user-facing text and must
 // stay byte-for-byte as shipped: change them only with an explicit product request.
@@ -295,6 +296,7 @@ export const es = {
   controles: controlesEs,
   panelesMapa: panelesMapaEs,
   situacion: situacionEs,
+  auditoria: auditoriaEs,
   fichaPanorama: fichaPanoramaEs,
   fichaTerritorio: fichaTerritorioEs,
   fichaHistorial: fichaHistorialEs,
