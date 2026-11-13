@@ -1,4 +1,5 @@
 import { ensureSeeded } from '@/lib/db/seed'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import {
   crearEvidenciaFotografica,
   ErrorEvidenciaFotografica,
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 const MAX_BODY_BYTES = 16 * 1024
 
-async function handlePOST(request: Request): Promise<Response> {
+async function atenderPOST(request: Request): Promise<Response> {
   if (!getReportesOfflineFeatures().fotos) return reportesOfflineFlagDisabledResponse()
   let body: unknown
   try {
@@ -49,7 +50,7 @@ async function handlePOST(request: Request): Promise<Response> {
     }
     const result = await crearEvidenciaFotografica(request, {
       movimientoBaseId,
-      idempotencyKey: input.idempotencyKey,
+      idempotencyKey: input.idempotencyKey as string,
       fotos: input.fotos as DeclaracionFoto[],
     })
     return Response.json({ ok: true, ...result }, { status: 200, headers: NO_STORE })
@@ -61,4 +62,4 @@ async function handlePOST(request: Request): Promise<Response> {
   }
 }
 
-export const POST = ruta('parte.evidencia.post', handlePOST)
+export const POST = conAuditoria('evidencia.crear', '/api/problematicas/parte/evidencia', ruta('parte.evidencia.post', atenderPOST))

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getRawClient } from '@/lib/db'
+import { getRawClient, migrarDb } from '@/lib/db'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { GET } from './route'
@@ -40,6 +40,8 @@ beforeEach(async () => {
   process.env.DATA_DIR = dir
   process.env.PROBLEMATICAS_ACCESO_PASSWORD = CLAVE
   await resetGe()
+  // La ruta audita cada respuesta: la tabla de auditoría debe existir.
+  await migrarDb()
 })
 
 afterEach(() => {
