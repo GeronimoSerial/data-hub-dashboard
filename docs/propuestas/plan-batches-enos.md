@@ -736,6 +736,7 @@ La base es la PR #185 (`feat(infraestructura): auditoría obligatoria de reporte
 - A1–A3 van a dev por la regla vigente. A4 espera la aprobación del visor.
 - La auditoría completa es requisito de P2 (staging) y de M3 (Manaos en vivo).
 - La prueba de cobertura de A1 es un trinquete: queda en verde con una lista explícita `PENDIENTES` de rutas aún sin declarar (42 al abrir A1); un registro obsoleto la hace fallar y la lista solo puede achicarse. La auditoría estricta se declara cumplida únicamente cuando `PENDIENTES` está vacía (cierre de A3).
+- **Alcance final de A3 (decisión del dueño, 13/11/2026):** estricta significa todas las rutas mutadoras de `app/`, sin lista de exclusión. `PENDIENTES` quedó vacía y la prueba de cobertura falla si una ruta mutadora nueva no declara `conAuditoria`. Rutas de A3: acceso (`auth/[...all]`, `auth/ge-login`), usuarios (`usuarios`, `usuarios/[id]`, `usuarios/opciones`), cuadernillos (membresías, asignaciones, cabeceras, cuotas, solicitudes y su aprobación/rechazo/remanente, stock), recursos (alta, edición, baja, archivo, explicación), taxonomía, call center, idioma de usuario, miniapp de enlaces (contenido, sesión), exportaciones y PDF de ENOS/Centro de Situación, enlace compartido del veredicto (PDF y página) y lectura nominal del mapa. Jobs: `scripts/jobs.mjs` y el CLI de datasets dejan evento de intención y de resultado por corrida, con la región en los metadatos. Las escrituras de better-auth se unen a la transacción auditada (`lib/auth.ts`).
 
 ## Criterios comunes a todos los batches
 
