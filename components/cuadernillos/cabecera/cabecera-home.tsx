@@ -2,16 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import type { BookletCampaignOption } from '@/lib/cuadernillos/types'
-import { CabeceraStyles } from './cabecera-styles'
-import { ChoiceGroup } from './choice-group'
 import { Button } from '@/components/ui/button'
+import { EmptyState, KpiStrip, Note, PageHeader, Panel, Segmented, formatCount, shortProduct } from '../kit'
 import {
   isAssignmentsPage, isOverview, loadJson, scopedQuery,
-  type CabeceraChoice, type CriticalSchool, type Overview,
+  type CabeceraChoice, type Overview,
 } from './cabecera-api'
 import { MyRequests } from './my-requests'
-import { QuantitiesForm } from './quantities-form'
-import { SchoolSearch } from './school-search'
+import { NewRequestDrawer } from './new-request-drawer'
 
 export function CabeceraHome() {
   const [ownCabeceras, setOwnCabeceras] = useState<CabeceraChoice[] | null>(null)
@@ -20,7 +18,7 @@ export function CabeceraHome() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [overviewError, setOverviewError] = useState<string | null>(null)
   const [campaignId, setCampaignId] = useState('')
-  const [selected, setSelected] = useState<CriticalSchool | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [retryKey, setRetryKey] = useState(0)
@@ -79,13 +77,11 @@ export function CabeceraHome() {
 
   function pickCabecera(cue: string) {
     setPickedCue(cue)
-    setSelected(null)
     setNotice(null)
   }
 
   function pickCampaign(id: string) {
     setCampaignId(id)
-    setSelected(null)
   }
 
   function retryLoads() {
@@ -96,90 +92,89 @@ export function CabeceraHome() {
 
   function saved(message: string) {
     setNotice(message)
-    setSelected(null)
+    setDrawerOpen(false)
     setRefreshKey((value) => value + 1)
   }
 
+  const activeCabecera = cabeceraOptions.find((option) => option.cue === activeCue) ?? null
+  const quotas = (overview?.balances ?? []).filter((row) => row.cabeceraCueAnexo === activeCue)
+  const totalQuota = quotas.reduce((sum, row) => sum + (row.quotaAvailable ?? 0), 0)
+  const canRequest = Boolean(activeCue && overview && campaignId)
+
   return (
-    <section aria-labelledby="cabecera-home-title" className="cab-section" style={{ minWidth: 0 }}>
-      <CabeceraStyles />
-      <div className="cab-stack" style={{ minWidth: 0 }}>
-        <header style={{ display: 'grid', gap: '.25rem' }}>
-          <h2 id="cabecera-home-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: 'clamp(1.35rem, 3vw, 1.75rem)', lineHeight: 1.15 }}>
-            Nuevo pedido
-          </h2>
-          <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Buscá la escuela por CUE. Solo aparecen escuelas en severidad Crítica.</p>
-        </header>
+    <section aria-labelledby="cabecera-home-title" className="k-stack">
+      <PageHeader
+        id="cabecera-home-title"
+        title={activeCabecera ? activeCabecera.nombre : 'Pedidos de cuadernillos'}
+        description={activeCabecera ? `CUE ${activeCabecera.cue} · Pedí cuadernillos para las escuelas de tu zona.` : 'Pedí cuadernillos para las escuelas de tu zona.'}
+        action={<Button type="button" disabled={!canRequest} onClick={() => { setNotice(null); setDrawerOpen(true) }}>Nuevo pedido</Button>}
+      />
 
-        {cabeceraError ? (
-          <div className="cab-stack" style={{ gap: '.5rem', justifyItems: 'start' }}>
-            <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{cabeceraError}</p>
-            <Button type="button" variant="secondary" onClick={retryLoads}>Reintentar</Button>
-          </div>
-        ) : null}
-        {loadingCabeceras && !cabeceraError ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando cabeceras…</p> : null}
+      {cabeceraError ? (
+        <div className="k-stack" style={{ gap: '.5rem', justifyItems: 'start' }}>
+          <Note tone="danger">{cabeceraError}</Note>
+          <Button type="button" variant="secondary" onClick={retryLoads}>Reintentar</Button>
+        </div>
+      ) : null}
+      {loadingCabeceras && !cabeceraError ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando cabeceras…</p> : null}
 
-        {cabeceraOptions.length > 1 ? (
-          <div className="cab-stack" style={{ gap: '.5rem' }}>
-            <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Cabecera que pide</span>
-            <ChoiceGroup
-              label="Cabecera que pide"
-              value={activeCue ?? ''}
-              onPick={pickCabecera}
-              options={cabeceraOptions.map((option) => ({ value: option.cue, label: `${option.nombre} · CUE ${option.cue}` }))}
-            />
-          </div>
-        ) : null}
-        {noCabecera && ownCabeceras?.length === 0 ? (
-          <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Esta cuenta no tiene una cabecera asignada para pedir cuadernillos.</p>
-        ) : null}
+      {cabeceraOptions.length > 1 ? (
+        <Segmented
+          label="Cabecera que pide"
+          value={activeCue ?? ''}
+          onChange={pickCabecera}
+          options={cabeceraOptions.map((option) => ({ value: option.cue, label: `${option.nombre} · CUE ${option.cue}` }))}
+        />
+      ) : null}
+      {noCabecera && ownCabeceras?.length === 0 ? (
+        <EmptyState title="Sin cabecera asignada" description="Esta cuenta no tiene una cabecera asignada para pedir cuadernillos." />
+      ) : null}
 
-        {overviewError ? (
-          <div className="cab-stack" style={{ gap: '.5rem', justifyItems: 'start' }}>
-            <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{overviewError}</p>
-            <Button type="button" variant="secondary" onClick={retryLoads}>Reintentar</Button>
-          </div>
-        ) : null}
-        {campaignOptions.length > 1 ? (
-          <div style={{ display: 'grid', gap: '.5rem' }}>
-            <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Campaña</span>
-            <ChoiceGroup
-              label="Campaña"
-              value={campaignId}
-              onPick={pickCampaign}
-              options={campaignOptions.map((campaign) => ({ value: campaign.id, label: campaign.name }))}
-            />
-          </div>
-        ) : null}
+      {overviewError ? (
+        <div className="k-stack" style={{ gap: '.5rem', justifyItems: 'start' }}>
+          <Note tone="danger">{overviewError}</Note>
+          <Button type="button" variant="secondary" onClick={retryLoads}>Reintentar</Button>
+        </div>
+      ) : null}
+      {campaignOptions.length > 1 ? (
+        <Segmented
+          label="Campaña"
+          value={campaignId}
+          onChange={pickCampaign}
+          options={campaignOptions.map((campaign) => ({ value: campaign.id, label: campaign.name }))}
+        />
+      ) : null}
+      {!overview && !overviewError ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando campaña…</p> : null}
+      {overview && !campaignId ? <EmptyState title="Sin campaña activa" description="No hay una campaña activa para pedir cuadernillos." /> : null}
 
-        {activeCue ? (
-          <>
-            <SchoolSearch
-              selected={selected}
-              onChoose={(school) => { setSelected(school); setNotice(null) }}
-              onClear={() => setSelected(null)}
-            />
-            {selected && overview && campaignId ? (
-              <div className="cab-stack">
-                <QuantitiesForm
-                  key={`${selected.cueAnexo}:${activeCue}:${campaignId}`}
-                  school={selected}
-                  campaignId={campaignId}
-                  cabeceraCue={activeCue}
-                  balances={overview.balances}
-                  onSaved={saved}
-                />
-              </div>
-            ) : null}
-            {!overview && !overviewError ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando campaña…</p> : null}
-            {overview && !campaignId ? <p style={{ margin: 0, color: 'var(--ink-soft)' }}>No hay una campaña activa para pedir cuadernillos.</p> : null}
-          </>
-        ) : null}
+      {notice ? <Note tone="ok">{notice}</Note> : null}
 
-        {notice ? <p role="status" style={{ margin: 0, color: 'var(--ink)', fontWeight: 600 }}>{notice}</p> : null}
-      </div>
+      {activeCue && overview && campaignId ? (
+        <Panel title="Cupo disponible" aside={`${formatCount(totalQuota)} en total`}>
+          {quotas.length === 0 || totalQuota === 0 ? (
+            <EmptyState title="Todavía no tenés cupo asignado" description="Planeamiento define cuántos cuadernillos de cada grado podés pedir. Cuando lo asigne, lo ves acá." />
+          ) : (
+            <KpiStrip label="Cupo por grado" items={quotas.map((row) => ({
+              label: shortProduct(row.productLabel),
+              value: formatCount(row.quotaAvailable ?? 0),
+              tone: (row.quotaAvailable ?? 0) === 0 ? 'warn' : undefined,
+            }))} />
+          )}
+        </Panel>
+      ) : null}
 
       <MyRequests refreshKey={refreshKey} onRequested={saved} />
+
+      {activeCue && overview && campaignId ? (
+        <NewRequestDrawer
+          open={drawerOpen}
+          cabeceraCue={activeCue}
+          campaignId={campaignId}
+          balances={overview.balances}
+          onClose={() => setDrawerOpen(false)}
+          onSaved={saved}
+        />
+      ) : null}
     </section>
   )
 }

@@ -4,16 +4,31 @@ import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { readJson, isSchoolList, type CriticalSchool } from './cabecera-api'
+import { EmptyState, Note } from '../kit'
 import { SchoolCard } from './school-card'
 
 /** CUE search. Once a school is chosen, only that school stays on screen until "Cambiar escuela". */
-export function SchoolSearch({ selected, onChoose, onClear }: {
+export type SchoolSearchState = {
+  cueQuery: string
+  setCueQuery: (value: string) => void
+  results: CriticalSchool[] | null
+  setResults: (value: CriticalSchool[] | null) => void
+}
+
+/** Search state lives with the caller so the results survive choosing a school and then changing it. */
+export function useSchoolSearchState(): SchoolSearchState {
+  const [cueQuery, setCueQuery] = useState('')
+  const [results, setResults] = useState<CriticalSchool[] | null>(null)
+  return { cueQuery, setCueQuery, results, setResults }
+}
+
+export function SchoolSearch({ selected, onChoose, onClear, state }: {
   selected: CriticalSchool | null
   onChoose: (school: CriticalSchool) => void
   onClear: () => void
+  state: SchoolSearchState
 }) {
-  const [cueQuery, setCueQuery] = useState('')
-  const [results, setResults] = useState<CriticalSchool[] | null>(null)
+  const { cueQuery, setCueQuery, results, setResults } = state
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,43 +53,41 @@ export function SchoolSearch({ selected, onChoose, onClear }: {
 
   if (selected) {
     return (
-      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-        <li>
-          <SchoolCard school={selected} selected onChoose={onChoose} onClear={onClear} />
-        </li>
+      <ul className="k-list" style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+        <li><SchoolCard school={selected} selected onChoose={onChoose} onClear={onClear} /></li>
       </ul>
     )
   }
 
   return (
     <div style={{ display: 'grid', gap: '.75rem', minWidth: 0 }}>
-      <form onSubmit={(event) => void search(event)} className="cab-search-row">
-        <label className="cab-cue-field">
-          CUE de la escuela
+      <form onSubmit={(event) => void search(event)} className="k-field">
+        <label htmlFor="cab-cue">CUE de la escuela</label>
+        <div style={{ display: 'flex', gap: '.5rem' }}>
           <Input
+            id="cab-cue"
             className="cab-cue-input"
             inputMode="numeric"
             value={cueQuery}
             onChange={(event) => setCueQuery(event.target.value)}
             maxLength={9}
             placeholder="Ej. 180012300"
-            style={{ width: '100%' }}
+            style={{ flex: '1 1 auto', minWidth: 0 }}
           />
-        </label>
-        <Button type="submit" variant="secondary" disabled={searching} style={{ flex: '0 0 auto' }}>
-          {searching ? 'Buscando…' : 'Buscar escuela'}
-        </Button>
+          <Button type="submit" variant="secondary" disabled={searching} style={{ flex: '0 0 auto' }}>
+            {searching ? 'Buscando…' : 'Buscar escuela'}
+          </Button>
+        </div>
+        <span className="k-hint">Alcanza con los primeros dígitos. Solo aparecen escuelas en severidad Crítica.</span>
       </form>
-      {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}
+      {error ? <Note tone="danger">{error}</Note> : null}
       {results && results.length === 0 ? (
-        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>No hay escuelas en severidad Crítica con ese CUE.</p>
+        <EmptyState title="Sin resultados" description="No hay escuelas en severidad Crítica con ese CUE." />
       ) : null}
       {results && results.length ? (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '.5rem' }}>
+        <ul className="k-list">
           {results.map((school) => (
-            <li key={school.cueAnexo}>
-              <SchoolCard school={school} selected={false} onChoose={onChoose} />
-            </li>
+            <li key={school.cueAnexo}><SchoolCard school={school} selected={false} onChoose={onChoose} /></li>
           ))}
         </ul>
       ) : null}

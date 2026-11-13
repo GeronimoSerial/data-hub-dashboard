@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Note, Stepper } from '../kit'
 import type { BookletRequestSummary, QuantityLine, RequestChainView } from '@/lib/cuadernillos/types'
 import { REMAINDER_ERRORS, errorCode, readJson } from './cabecera-api'
 
@@ -18,7 +18,7 @@ export function RemainderAction({ request, onRequested }: {
   onRequested: (message: string) => void
 }) {
   const [available, setAvailable] = useState<QuantityLine[] | null>(null)
-  const [quantities, setQuantities] = useState<Record<string, string>>({})
+  const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [busy, setBusy] = useState<'check' | 'submit' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const intent = useRef<{ body: string; key: string } | null>(null)
@@ -34,7 +34,7 @@ export function RemainderAction({ request, onRequested }: {
       if (!response.ok) throw new Error(REMAINDER_ERRORS[errorCode(data)] ?? 'No se pudo verificar el remanente de este pedido.')
       if (!isChain(data) || data.rootRequestId !== request.rootRequestId) throw new Error('La respuesta del remanente no tiene un formato válido.')
       setAvailable(data.availableRemainder)
-      setQuantities(Object.fromEntries(data.availableRemainder.map((line) => [line.productId, String(line.quantity)])))
+      setQuantities(Object.fromEntries(data.availableRemainder.map((line) => [line.productId, line.quantity])))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'No se pudo verificar el remanente de este pedido.')
     } finally {
@@ -44,7 +44,7 @@ export function RemainderAction({ request, onRequested }: {
 
   async function submit() {
     const lines = (available ?? []).flatMap((line) => {
-      const quantity = Number(quantities[line.productId] ?? line.quantity)
+      const quantity = quantities[line.productId] ?? line.quantity
       return Number.isSafeInteger(quantity) && quantity > 0 && quantity <= line.quantity ? [{ productId: line.productId, quantity }] : []
     })
     if (!lines.length) { setError('Indicá al menos una cantidad entera positiva dentro del remanente disponible.'); return }
@@ -70,33 +70,39 @@ export function RemainderAction({ request, onRequested }: {
 
   if (available === null) {
     return (
-      <div style={{ display: 'grid', gap: '.5rem', justifySelf: 'end', justifyItems: 'end' }}>
-        <Button type="button" variant="secondary" size="sm" disabled={busy !== null} onClick={() => void check()}>
+      <div style={{ display: 'grid', gap: '.5rem' }}>
+        <Button type="button" variant="secondary" disabled={busy !== null} onClick={() => void check()}>
           {busy === 'check' ? 'Consultando…' : 'Pedir remanente'}
         </Button>
-        {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}
+        {error ? <Note tone="danger">{error}</Note> : null}
       </div>
     )
   }
 
   if (available.length === 0) {
-    return <p style={{ margin: 0, color: 'var(--ink-soft)' }}>No hay cantidades disponibles para pedir como remanente.</p>
+    return <Note>No hay cantidades disponibles para pedir como remanente.</Note>
   }
 
   return (
     <div style={{ display: 'grid', gap: '.75rem' }}>
-      {available.map((line) => (
-        <label key={line.productId} style={{ display: 'grid', gap: '.3rem', maxWidth: '18rem', color: 'var(--ink)', fontWeight: 600 }}>
-          Remanente · {labelOf(line.productId)}
-          <Input
-            type="number" min="1" step="1" inputMode="numeric" max={line.quantity}
-            value={quantities[line.productId] ?? String(line.quantity)}
-            onChange={(event) => setQuantities((current) => ({ ...current, [line.productId]: event.target.value }))}
-          />
-          <span style={{ color: 'var(--ink-soft)', fontSize: '.85rem', fontWeight: 400 }}>Disponible: {line.quantity}</span>
-        </label>
-      ))}
-      {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}
+      <ul className="k-qty-list" aria-label="Remanente disponible">
+        {available.map((line) => (
+          <li key={line.productId} className="k-qty-row">
+            <div className="k-row-main">
+              <span className="k-row-title">Remanente · {labelOf(line.productId)}</span>
+              <span className="k-row-meta">Disponible: {line.quantity}</span>
+            </div>
+            <Stepper
+              label={`Remanente · ${labelOf(line.productId)}`}
+              value={quantities[line.productId] ?? line.quantity}
+              max={line.quantity}
+              disabled={busy !== null}
+              onChange={(next) => setQuantities((current) => ({ ...current, [line.productId]: next }))}
+            />
+          </li>
+        ))}
+      </ul>
+      {error ? <Note tone="danger">{error}</Note> : null}
       <Button type="button" variant="default" disabled={busy !== null} onClick={() => void submit()}>
         {busy === 'submit' ? 'Enviando…' : 'Solicitar remanente'}
       </Button>
