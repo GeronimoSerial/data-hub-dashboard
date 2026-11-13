@@ -187,7 +187,7 @@ export type EstadoNivelRio = 'normal' | 'alerta' | 'evacuacion' | 'bajante'
 export interface EvidenciaRioPrefectura {
   cueAnexo: string
   estacionId: string
-  rio: 'parana' | 'uruguay'
+  rio: 'parana' | 'uruguay' | 'negro' | 'solimoes'
   lecturaM: number
   alertaM: number | null
   evacuacionM: number | null
@@ -212,7 +212,7 @@ export interface EvidenciaRioPrefectura {
 export interface EvidenciaRioNoDisponible {
   cueAnexo: string
   estacionId: string
-  rio: 'parana' | 'uruguay'
+  rio: 'parana' | 'uruguay' | 'negro' | 'solimoes'
   disponibilidad: 'sin_dato' | 'no_aplica'
   motivo: string
 }

@@ -53,6 +53,8 @@ const IDS_MANAOS = [
   'veredicto-diario',
   'veredicto-cierre',
   'importar-altimetria-v04',
+  'sync-ana-niveis',
+  'sync-sgb-niveis',
 ]
 
 describe('lista esperada por región: reglas de Motor v0.4 (smn, synop, capa DEM)', () => {

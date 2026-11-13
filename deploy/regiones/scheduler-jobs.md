@@ -6,6 +6,8 @@ rol productor) aplicando la regla de `aplicaJobARegion` (réplica en
 
 - `sync-prefectura-*` aplica sólo si `fuentesRio` incluye `prefectura`.
 - `sync-ina-*` aplica sólo si `fuentesRio` incluye `ina`.
+- `sync-ana-*` aplica sólo si `fuentesRio` incluye `ana`.
+- `sync-sgb-*` aplica sólo si `fuentesRio` incluye `sgb`.
 - `sync-smn-alertas` aplica sólo si `fuentesAlertas` incluye `smn`.
 - `sync-synop-lluvia` aplica sólo si `fuentesLluvia` incluye `synop`.
 - `importar-exposicion-rio-dem` aplica sólo si `capasEstaticas` incluye `exposicion-rio-dem`.
@@ -42,8 +44,10 @@ runbook: confirmarla en la configuración de Coolify de cada despliegue antes de
 | sync-prefectura-historico | `35 7 * * *` | sí | |
 | sync-ina-serie-diaria | `10 6 * * *` | sí | |
 | sync-ina-pronostico | `50 1,7,13,19 * * *` | sí | |
+| sync-ana-niveis | — | **no** | Excluido por regla (sin `ana` en `fuentesRio`) |
+| sync-sgb-niveis | — | **no** | Excluido por regla (sin `sgb` en `fuentesRio`) |
 
-## Manaos (`fuentesRio`: sin prefectura ni ina; ver B11 y B12)
+## Manaos (`fuentesRio`: ana, sgb; ver B11 y B12)
 
 | Job | Cron | Aplica | Nota |
 |---|---|---|---|
@@ -66,10 +70,13 @@ runbook: confirmarla en la configuración de Coolify de cada despliegue antes de
 | sync-prefectura-historico | — | **no** | Excluido por regla |
 | sync-ina-serie-diaria | — | **no** | Excluido por regla (sin `ina`) |
 | sync-ina-pronostico | — | **no** | Excluido por regla |
+| sync-ana-niveis | `12 * * * *` | sí | fuentesRio: ana; ventana de 48 h por estación telemétrica; pendiente de crear en Coolify |
+| sync-sgb-niveis | `27 * * * *` | sí | fuentesRio: sgb; SACE entrega ≈ 30 días de lecturas cada 15 min; pendiente de crear en Coolify |
 
-Jobs de Manaos que no existen hasta B12 (ANA, SGB, INMET): no aparecen en esta
-lista. Agregarlos sólo cuando su proveedor esté registrado y su job en
-`jobs-esperados.ts`.
+Los jobs de niveles del río de Manaos (ANA y SGB) ya existen y figuran arriba;
+sus tareas en Coolify están pendientes de crear. INMET (`fuentesAlertas`) sigue
+pendiente de B12: no aparece en esta lista hasta que su proveedor esté
+registrado y su job en `jobs-esperados.ts`.
 
 ## Fuera del scheduler (ambas regiones)
 
