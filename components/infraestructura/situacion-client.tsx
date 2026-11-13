@@ -13,6 +13,8 @@
 import { formatoFechaRegion, localeRegion } from '@/lib/infraestructura/formato-region'
 import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { EstadoDatos } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import type { CorridaLatido } from './estado-datos/latido'
 import { PanelEstadoDatos } from './estado-datos/panel-estado-datos'
 import { traducirMotivo } from './estado-datos/traducir-motivo'
 import { traducirPlantilla } from './estado-datos/traducir-plantillas'
@@ -179,7 +181,11 @@ function textoCobertura(cobertura: CoberturaSituacionCliente | null, t: Dicciona
   return t.situacion.cobertura(porcentaje)
 }
 
-function PanelPrioridades(props: { prioridades: PrioridadCliente[]; sinRun: boolean }): JSX.Element {
+function PanelPrioridades(props: {
+  prioridades: PrioridadCliente[]
+  sinRun: boolean
+  nombres: Record<string, string>
+}): JSX.Element {
   const t = useTextos()
   if (props.sinRun) {
     return <p role="status">{t.situacion.sinCalculo}</p>
@@ -187,16 +193,47 @@ function PanelPrioridades(props: { prioridades: PrioridadCliente[]; sinRun: bool
   if (props.prioridades.length === 0) {
     return <p role="status">{t.situacion.sinEscuelasRiesgo}</p>
   }
+  const col = t.situacion.prioridadesColumnas
   return (
-    <ul className="situacion-prioridades" data-testid="situacion-prioridades">
-      {props.prioridades.map((p) => (
-        <li key={p.cueAnexo}>
-          <a href={ENLACE_RADAR}>
-            {p.cueAnexo} — {p.departamento ?? t.situacion.sinDepartamento} — {etiquetaNivelRiesgo(p.nivelRiesgo, t)}
-          </a>
-        </li>
-      ))}
-    </ul>
+    <div className="situacion-tabla-envoltorio">
+      <table className="situacion-prioridades" data-testid="situacion-prioridades">
+        <thead>
+          <tr>
+            <th scope="col">{col.escuela}</th>
+            <th scope="col">{col.departamento}</th>
+            <th scope="col">{col.nivel}</th>
+            <th scope="col">
+              <span className="sr-only">{col.accion}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.prioridades.map((p) => {
+            const nombre = props.nombres[p.cueAnexo]
+            return (
+              <tr key={p.cueAnexo} data-testid="situacion-prioridad-fila">
+                <td data-label={col.escuela}>
+                  <span className="situacion-prioridades__nombre">{nombre ?? p.cueAnexo}</span>
+                  {nombre !== undefined && <span className="situacion-prioridades__cue">{p.cueAnexo}</span>}
+                </td>
+                <td data-label={col.departamento}>{p.departamento ?? t.situacion.sinDepartamento}</td>
+                <td data-label={col.nivel}>
+                  <span className="situacion-nivel" data-nivel={p.nivelRiesgo ?? 'sin_dato'}>
+                    {etiquetaNivelRiesgo(p.nivelRiesgo, t)}
+                  </span>
+                </td>
+                <td className="situacion-prioridades__accion">
+                  <a href={`/mapas/infraestructura/escuelas/${encodeURIComponent(p.cueAnexo)}`}>
+                    {t.situacion.verEscuela}
+                    <span className="sr-only"> {nombre ?? p.cueAnexo}</span>
+                  </a>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -219,9 +256,14 @@ function PanelTimeline(props: { cambios: CambioSituacionCliente[] }): JSX.Elemen
   )
 }
 
-export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }): JSX.Element {
+export function SituacionClient(props: {
+  estadoInicial: EstadoSituacionCliente
+  nombresEscuelas?: Record<string, string>
+  corridasIniciales?: Record<string, CorridaLatido[]>
+}): JSX.Element {
   const t = useTextos()
   const [estado, setEstado] = useState(props.estadoInicial)
+  const [corridas, setCorridas] = useState(props.corridasIniciales)
   const [modoCambios, setModoCambios] = useState<ModoCambios>('vigencia')
   const [rangoDesde, setRangoDesde] = useState<(typeof OPCIONES_DESDE)[number]['valor']>('24h')
   const [cambios, setCambios] = useState<{
@@ -274,12 +316,24 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
         .catch(() => {
           // Ídem: se conserva el último estado visto ante un error de red.
         })
+      // Historial de latidos: endpoint aparte (no cambia la respuesta de arriba).
+      fetch('/api/infraestructura/situacion/latidos')
+        .then(async (res) => (res.ok ? await res.json() : null))
+        .then((body) => {
+          if (body?.corridas) setCorridas(body.corridas)
+        })
+        .catch(() => {})
     }, REFRESCO_MS)
     return () => clearInterval(id)
   }, [])
 
   const listaCambios = modoCambios === 'registro' ? cambios.porRegistro : cambios.porVigencia
   const cadenaVerificada = textoCadenaVerificada(estado.estadoDatos)
+  const opcionesRango = OPCIONES_DESDE.map((o) => ({ value: o.valor, label: t.situacion.rango[o.clave] }))
+  const opcionesModo = [
+    { value: 'vigencia', label: t.situacion.modoVigencia },
+    { value: 'registro', label: t.situacion.modoRegistro },
+  ]
 
   return (
     <div className="situacion-page" data-testid="situacion-page">
@@ -320,8 +374,6 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
         )}
       </header>
 
-      <PanelEstadoDatos estado={estado.estadoDatos} />
-
       {estado.corte !== null && (
         <section aria-label={t.situacion.aria.indicadores} className="situacion-kpis">
           {kpiTile({
@@ -346,50 +398,68 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
         </section>
       )}
 
-      {estado.briefing.length > 0 && (
-        <section aria-label={t.situacion.aria.resumen} className="situacion-briefing">
-          {/* Nunca abierto por defecto ni largo: una lista corta de líneas
-              cortas, sin acordeón que el operador tenga que gestionar. */}
-          <ul>
-            {estado.briefing.map((linea, i) => (
-              <li key={i}>{traducirPlantilla(linea, t.situacion)}</li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <section aria-label={t.situacion.aria.prioridades} className="situacion-seccion">
+        <h2>{t.situacion.prioridadesTitulo}</h2>
+        <PanelPrioridades
+          prioridades={estado.prioridades}
+          sinRun={estado.sinRun}
+          nombres={props.nombresEscuelas ?? {}}
+        />
+      </section>
 
-      <section aria-label={t.situacion.aria.cambiosDesde}>
+      <section aria-label={t.situacion.aria.cambiosDesde} className="situacion-seccion">
+        {estado.briefing.length > 0 && (
+          <div aria-label={t.situacion.aria.resumen} role="group" className="situacion-briefing">
+            {/* Nunca abierto por defecto ni largo: una lista corta de líneas
+                cortas, sin acordeón que el operador tenga que gestionar. */}
+            <ul>
+              {estado.briefing.map((linea, i) => (
+                <li key={i}>{traducirPlantilla(linea, t.situacion)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="situacion-cambios__controles">
-          <label htmlFor="situacion-rango-desde">{t.situacion.rangoCambios}</label>
-          <select
-            id="situacion-rango-desde"
-            value={rangoDesde}
-            onChange={(e) => setRangoDesde(e.target.value as (typeof OPCIONES_DESDE)[number]['valor'])}
-          >
-            {OPCIONES_DESDE.map((o) => (
-              <option key={o.valor} value={o.valor}>
-                {t.situacion.rango[o.clave]}
-              </option>
-            ))}
-          </select>
+          <div className="situacion-cambios__campo">
+            <label htmlFor="situacion-rango-desde">{t.situacion.rangoCambios}</label>
+            <Select
+              value={rangoDesde}
+              items={opcionesRango}
+              onValueChange={(next) => next != null && setRangoDesde(next as (typeof OPCIONES_DESDE)[number]['valor'])}
+            >
+              <SelectTrigger id="situacion-rango-desde" />
+              <SelectContent>
+                {opcionesRango.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <label htmlFor="situacion-modo-cambios">{t.situacion.mostrarPor}</label>
-          <select
-            id="situacion-modo-cambios"
-            value={modoCambios}
-            onChange={(e) => setModoCambios(e.target.value as ModoCambios)}
-          >
-            <option value="vigencia">{t.situacion.modoVigencia}</option>
-            <option value="registro">{t.situacion.modoRegistro}</option>
-          </select>
+          <div className="situacion-cambios__campo">
+            <label htmlFor="situacion-modo-cambios">{t.situacion.mostrarPor}</label>
+            <Select
+              value={modoCambios}
+              items={opcionesModo}
+              onValueChange={(next) => next != null && setModoCambios(next as ModoCambios)}
+            >
+              <SelectTrigger id="situacion-modo-cambios" />
+              <SelectContent>
+                {opcionesModo.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <PanelTimeline cambios={listaCambios} />
       </section>
 
-      <section aria-label={t.situacion.aria.prioridades}>
-        <h2>{t.situacion.prioridadesTitulo}</h2>
-        <PanelPrioridades prioridades={estado.prioridades} sinRun={estado.sinRun} />
-      </section>
+      <PanelEstadoDatos estado={estado.estadoDatos} corridas={corridas} />
     </div>
   )
 }

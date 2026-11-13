@@ -142,6 +142,7 @@ export const ROUTE_MANIFEST: Record<string, RouteCapability | readonly RouteCapa
   'app/api/infraestructura/situacion/route.ts': 'staff',
   'app/api/infraestructura/situacion/cambios/route.ts': 'staff',
   'app/api/infraestructura/situacion/export/route.ts': 'staff',
+  'app/api/infraestructura/situacion/latidos/route.ts': 'staff',
   'app/api/infraestructura/tendencia-estacional/route.ts': 'staff',
   'app/api/infraestructura/veredictos/route.ts': 'staff',
   'app/api/infraestructura/veredictos/enlaces/route.ts': 'staff',
