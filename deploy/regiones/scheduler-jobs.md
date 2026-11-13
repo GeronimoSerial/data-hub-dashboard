@@ -6,6 +6,9 @@ rol productor) aplicando la regla de `aplicaJobARegion` (réplica en
 
 - `sync-prefectura-*` aplica sólo si `fuentesRio` incluye `prefectura`.
 - `sync-ina-*` aplica sólo si `fuentesRio` incluye `ina`.
+- `sync-smn-alertas` aplica sólo si `fuentesAlertas` incluye `smn`.
+- `sync-synop-lluvia` aplica sólo si `fuentesLluvia` incluye `synop`.
+- `importar-exposicion-rio-dem` aplica sólo si `capasEstaticas` incluye `exposicion-rio-dem`.
 - Los demás jobs aplican a todas las regiones.
 
 Un job que no aplica sale con código `2` y el mensaje
@@ -47,18 +50,18 @@ runbook: confirmarla en la configuración de Coolify de cada despliegue antes de
 | sync-radar-meteo | `27 3,9,15,21 * * *` | sí | |
 | sync-radar-ensemble | `55 3,9,15,21 * * *` | sí | |
 | verificar-radar-meteo | `30 11 * * *` | sí | |
-| sync-smn-alertas | `7-59/15 * * * *` | **revisar** | Corrientes usa `smn`. Manaos no declara fuente SMN; la regla de aplicabilidad no lo excluye. No programar hasta confirmar que aplica |
+| sync-smn-alertas | — | **no** | Excluido por regla (sin `smn` en `fuentesAlertas`; Manaos declara `inmet`) |
 | sync-imerg | `*/30 * * * *` | sí | Requiere `EARTHDATA_TOKEN` |
 | climatologia-imerg | `20 4 * * *` | sí | Requiere `EARTHDATA_TOKEN` |
 | calcular-riesgo | `15 2,8,14,20 * * *` | sí | Sin ANA, SGB ni INMET hasta B12 |
 | sync-pronostico-caudal | `0 2,8,14,20 * * *` | sí | Fuentes de caudal de Manaos: B12 |
 | sync-ensemble | `5,35 2,8,14,20 * * *` | sí | |
 | situacion-corte | `20 * * * *` | sí | |
-| sonda-cadena-datos | `41 * * * *` | sí | Verificar su comportamiento sin Prefectura (la comparación omitida hoy es la de consumidor con Prefectura) |
+| sonda-cadena-datos | `41 * * * *` | sí | Sin `sondaTestigos` ni fuente `prefectura`: no consulta Prefectura y publica `completado` con `sinTestigos: 1`; el Centro la muestra como `sin_datos` («no se verificó»), nunca como verificada |
 | veredicto-diario | `45 0,6,12,18 * * *` | sí | Requiere `AI_VEREDICTO_ENABLED=true` |
 | veredicto-cierre | `30 3 * * *` | sí | |
-| sync-synop-lluvia | `23 * * * *` | **revisar** | Confirmar que las estaciones SYNOP configuradas corresponden a Manaos antes de programar |
-| importar-exposicion-rio-dem | `50 7 * * *` | **no programar** | La capa DEM es la del río de Corrientes. Sin archivo de Manaos el job sale `fallido` cada día |
+| sync-synop-lluvia | — | **no** | Excluido por regla (sin `synop` en `fuentesLluvia`; las estaciones SYNOP son de Corrientes) |
+| importar-exposicion-rio-dem | — | **no** | Excluido por regla (sin `exposicion-rio-dem` en `capasEstaticas`; la capa DEM es la del río de Corrientes) |
 | sync-prefectura-alturas | — | **no** | Excluido por regla (sin `prefectura`) |
 | sync-prefectura-historico | — | **no** | Excluido por regla |
 | sync-ina-serie-diaria | — | **no** | Excluido por regla (sin `ina`) |

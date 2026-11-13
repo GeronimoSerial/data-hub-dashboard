@@ -102,6 +102,9 @@ export function regionDespacho(env = process.env) {
 export function aplicaJobARegionDespacho(nombre, region) {
   if (nombre.startsWith('sync-prefectura-')) return region.fuentesRio.includes('prefectura')
   if (nombre.startsWith('sync-ina-')) return region.fuentesRio.includes('ina')
+  if (nombre === 'sync-smn-alertas') return (region.fuentesAlertas ?? []).includes('smn')
+  if (nombre === 'sync-synop-lluvia') return (region.fuentesLluvia ?? []).includes('synop')
+  if (nombre === 'importar-exposicion-rio-dem') return (region.capasEstaticas ?? []).includes('exposicion-rio-dem')
   return true
 }
 

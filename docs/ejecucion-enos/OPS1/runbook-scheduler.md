@@ -417,7 +417,9 @@ en consumidores después de migrar.
   (`obtenerEstadoOperativo().jobsEsperados`) usan la región activa, así que
   `/admin/operacion` sólo muestra los jobs que aplican.
 - Regla de aplicabilidad: `sync-prefectura-*` requiere `prefectura` en `fuentesRio`;
-  `sync-ina-*` requiere `ina`. Los demás jobs aplican a todas las regiones.
+  `sync-ina-*` requiere `ina`; `sync-smn-alertas` requiere `smn` en `fuentesAlertas`;
+  `sync-synop-lluvia` requiere `synop` en `fuentesLluvia`; `importar-exposicion-rio-dem`
+  requiere `exposicion-rio-dem` en `capasEstaticas`. Los demás jobs aplican a todas las regiones.
 - **Código de salida `2`:** el job no aplica a la región (`job <id> does not apply to region <id>`,
   en stderr) o el nombre es desconocido. La comprobación va antes de `ENOS_JOBS_ENABLED`,
   así que también sale `2` con el interruptor apagado. Una tarea que devuelve `2` es un
@@ -426,5 +428,6 @@ en consumidores después de migrar.
   `2` invocación inválida o job que no aplica.
 - Tareas por región (Corrientes y Manaos): [deploy/regiones/scheduler-jobs.md](../../../deploy/regiones/scheduler-jobs.md).
   Manaos no programa `sync-prefectura-alturas`, `sync-prefectura-historico`,
-  `sync-ina-serie-diaria` ni `sync-ina-pronostico`.
+  `sync-ina-serie-diaria`, `sync-ina-pronostico`, `sync-smn-alertas`, `sync-synop-lluvia`
+  ni `importar-exposicion-rio-dem`.
 - Alta de una región nueva: [runbook-nueva-region.md](runbook-nueva-region.md).

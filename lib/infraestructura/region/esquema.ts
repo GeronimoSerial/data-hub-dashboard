@@ -12,6 +12,27 @@ const caja = z
   })
   .strict()
 
+// Institutional signature of the region. Text lines are shown as supplied;
+// `logo` names a bundled image, or null for text-only.
+export const MarcaConfigSchema = z
+  .object({
+    logo: z.enum(['educacion-corrientes']).nullable(),
+    reparticionesLineas: z.array(z.string().min(1)),
+    jurisdiccionLineas: z.array(z.string().min(1)),
+    pieLineas: z.array(z.string().min(1)),
+  })
+  .strict()
+
+export type MarcaRegion = z.infer<typeof MarcaConfigSchema>
+
+// Used when a region config omits `marca`: no logo and no brand text.
+export const MARCA_SIN_CONFIGURAR: MarcaRegion = {
+  logo: null,
+  reparticionesLineas: [],
+  jurisdiccionLineas: [],
+  pieLineas: [],
+}
+
 export const RegionConfigSchema = z
   .object({
     id: z.string().min(1),
@@ -48,15 +69,29 @@ export const RegionConfigSchema = z
       .optional(),
     fuentesRio: z.array(z.string().min(1)),
     fuentesAlertas: z.array(z.string().min(1)),
+    // Optional: fuentes de lluvia medida (synop = estaciones SYNOP) y capas estáticas
+    // (exposición DEM del río). Un job que las necesita sólo aplica si la región las declara.
+    fuentesLluvia: z.array(z.string().min(1)).optional(),
+    capasEstaticas: z.array(z.string().min(1)).optional(),
     // Optional: the upstream gauge used for the wave offset. Regions without a
     // river gauge in the motor (e.g. Manaos before B12) omit it.
     estacionAncla: z.string().min(1).optional(),
+    // Optional: CUEs and station ids the data-chain probe verifies. Regions without them omit it.
+    sondaTestigos: z
+      .object({
+        escuelas: z.array(z.string().min(1)),
+        estaciones: z.array(z.string().min(1)),
+      })
+      .strict()
+      .optional(),
     archivos: z
       .object({
         mascara: z.string().min(1),
         departamentos: z.string().min(1),
       })
       .strict(),
+    // Optional: header and footer brand. Omitted means no brand text and no logo.
+    marca: MarcaConfigSchema.optional(),
   })
   .strict()
 
@@ -77,7 +112,13 @@ export type RegionPublica = Pick<
   | 'mapaZoom'
   | 'regionesInteresLluvia'
   | 'archivos'
+  | 'fuentesRio'
 >
+
+// Kept apart from regionPublica so its key set stays unchanged; read via marcaActual.
+export function marcaPublica(config: RegionConfig): MarcaRegion {
+  return config.marca ?? MARCA_SIN_CONFIGURAR
+}
 
 export function regionPublica(config: RegionConfig): RegionPublica {
   return {
@@ -93,5 +134,6 @@ export function regionPublica(config: RegionConfig): RegionPublica {
     mapaZoom: config.mapaZoom,
     regionesInteresLluvia: config.regionesInteresLluvia,
     archivos: config.archivos,
+    fuentesRio: config.fuentesRio,
   }
 }

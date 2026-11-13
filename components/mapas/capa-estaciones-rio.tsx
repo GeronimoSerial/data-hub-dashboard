@@ -8,6 +8,7 @@ import { TarjetaEstacionRio } from './tarjeta-estacion-rio'
 import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
 import { textos, type Diccionario } from '@/lib/i18n'
 import { useTextos } from '@/lib/i18n/idioma-provider'
+import { regionTienePrefecturaPublica } from '@/lib/infraestructura/region/publica'
 
 type EstadoAltura = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 type Tendencia = 'crece' | 'baja' | 'estable' | 'sin_dato'
@@ -169,7 +170,7 @@ type PropsCapa = {
 }
 
 export function CapaEstacionesRio({ visible, beforeId, capasEncima }: PropsCapa) {
-  if (!visible) return null
+  if (!visible || !regionTienePrefecturaPublica()) return null
   return <CapaEstacionesRioActiva beforeId={beforeId} capasEncima={capasEncima} />
 }
 

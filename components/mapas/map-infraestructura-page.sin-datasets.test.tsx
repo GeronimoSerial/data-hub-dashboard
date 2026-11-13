@@ -158,7 +158,7 @@ describe('MapInfraestructuraPage sin datasets publicados', () => {
     await renderPagina()
 
     const vista = regionPublicaActual().vistaInicial
-    expect(MAPA_MOCK.viewState).toEqual({ center: vista.centro, zoom: vista.zoom })
+    expect(MAPA_MOCK.viewState).toEqual({ longitude: vista.centro[0], latitude: vista.centro[1], zoom: vista.zoom })
     expect(MAPA_MOCK.viewState).not.toHaveProperty('bounds')
   })
 })

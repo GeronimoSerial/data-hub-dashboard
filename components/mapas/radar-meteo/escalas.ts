@@ -164,7 +164,10 @@ export function rotacionFlecha(direccion: number | null): number | null {
 }
 
 const ROSA_ES = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO']
-// Portuguese uses L for leste (east); O (oeste) and the rest match Spanish.
+// pt-BR compass abbreviations: L = leste, O = oeste, and LNE/LSE for lés-nordeste/lés-sudeste
+// (N, S, SO, NO, NNE, SSO, OSO, ONO, NNO as in Spanish). pt.wikipedia.org/wiki/Rosa_dos_ventos
+// lists the English forms ENE/ESE; Brazilian school material uses LNE/LSE
+// (https://www.todamateria.com.br/rosa-dos-ventos/). Convention chosen: L/O letters.
 const ROSA_PT = ['N', 'NNE', 'NE', 'LNE', 'L', 'LSE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO']
 
 export function letraViento(direccion: number | null, idioma: Idioma = 'es'): string {

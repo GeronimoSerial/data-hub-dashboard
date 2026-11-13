@@ -3,7 +3,7 @@
 // hacen red ni leen credenciales— este job sí orquesta las dos llamadas HTTP
 // reales:
 //   1. CMR (metadata) para elegir el gránulo más reciente.
-//   2. OPeNDAP ASCII (subsetting server-side) del bbox de Corrientes.
+//   2. OPeNDAP ASCII (subsetting server-side) del bbox de la región activa.
 //
 // El token de NASA Earthdata NO se lee implícitamente de `process.env` dentro
 // de esta función: llega como parámetro `earthdataToken`. El proceso que invoca

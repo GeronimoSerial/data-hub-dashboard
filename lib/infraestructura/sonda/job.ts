@@ -4,8 +4,10 @@
 import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
 import { rolEntorno } from '../riesgo/providers/rol-entorno'
+import { regionTienePrefectura } from '../hidrometria/estaciones-prefectura'
 import { claveIdempotenteDeHora } from '../hidrometria/sync-prefectura-alturas'
 import { ejecutarSonda, type ResultadoSonda } from './cadena'
+import { escuelasTestigo, estacionesTestigo } from './testigos'
 
 const TIPO_JOB = 'sonda-cadena-datos'
 const VERSION_JOB = 'sonda-cadena-datos-v1'
@@ -54,9 +56,21 @@ export async function correrSondaCadenaDatos(
   if (!lease.adquirido) return { ejecutado: false, estado: 'omitido' }
 
   try {
+    // Sin testigos no hay nada que verificar: no se consulta nada y no se afirma cadena sana.
+    if (escuelasTestigo().length === 0 && estacionesTestigo().length === 0) {
+      const contadores = { sinTestigos: 1 }
+      await publicarResultado({
+        jobRunId: lease.jobRunId,
+        leaseOwner: lease.leaseOwner,
+        estado: 'completado',
+        contadores,
+        ahora,
+      })
+      return { ejecutado: true, estado: 'completo', contadores }
+    }
     const resultado = await ejecutarSonda({
       ahora,
-      consultarPrefectura: rolEntorno() === 'productor',
+      consultarPrefectura: rolEntorno() === 'productor' && regionTienePrefectura(),
       fetchImpl: opts.fetchImpl,
     })
     const contadores = contadoresDe(resultado)

@@ -27,5 +27,11 @@
   "archivos": {
     "mascara": "/data/mascara-manaos.geojson",
     "departamentos": "/data/municipios-manaos.geojson"
+  },
+  "marca": {
+    "logo": null,
+    "reparticionesLineas": ["[PENDIENTE M0.5] Nome do organismo"],
+    "jurisdiccionLineas": ["[PENDIENTE M0.5] Jurisdição", "[PENDIENTE M0.5] País"],
+    "pieLineas": ["[PENDIENTE M0.5] Nome do organismo", "[PENDIENTE M0.5] Jurisdição"]
   }
 }
