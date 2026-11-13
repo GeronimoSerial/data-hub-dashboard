@@ -44,6 +44,14 @@ function routeFetch(overrides: Record<string, () => unknown> = {}) {
   })
 }
 
+/** Opens the "Nuevo pedido" drawer once the cabecera and the campaign have loaded. */
+async function openNewRequest() {
+  const button = await screen.findByRole('button', { name: 'Nuevo pedido' })
+  await waitFor(() => expect(button).toBeEnabled())
+  fireEvent.click(button)
+  return screen.findByLabelText('CUE de la escuela')
+}
+
 describe('CabeceraHome request flow', () => {
   it('searches critical schools by CUE and only offers the ones the endpoint returns', async () => {
     const fetchMock = routeFetch()
@@ -51,7 +59,7 @@ describe('CabeceraHome request flow', () => {
 
     render(<CabeceraHome />)
 
-    fireEvent.change(await screen.findByLabelText('CUE de la escuela'), { target: { value: '180123' } })
+    fireEvent.change(await openNewRequest(), { target: { value: '180123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
 
     expect(await screen.findByText('Escuela Critica')).toBeInTheDocument()
@@ -64,11 +72,11 @@ describe('CabeceraHome request flow', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<CabeceraHome />)
-    fireEvent.change(await screen.findByLabelText('CUE de la escuela'), { target: { value: '180123' } })
+    fireEvent.change(await openNewRequest(), { target: { value: '180123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
     fireEvent.click(await screen.findByRole('button', { name: /Elegir Escuela Critica/ }))
 
-    await waitFor(() => expect(screen.getByLabelText(/Cantidad · Cuadernillo A/)).toHaveValue(12))
+    await waitFor(() => expect(screen.getByLabelText('Cantidad · Cuadernillo A')).toHaveValue(12))
     const recommendationUrl = fetchMock.mock.calls.map(([url]) => String(url)).find((url) => url.startsWith('/api/cuadernillos/recommendations'))
     expect(recommendationUrl).toContain('cueAnexo=180123457')
     expect(recommendationUrl).toContain('cabeceraCueAnexo=180123456')
@@ -79,10 +87,10 @@ describe('CabeceraHome request flow', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<CabeceraHome />)
-    fireEvent.change(await screen.findByLabelText('CUE de la escuela'), { target: { value: '180123' } })
+    fireEvent.change(await openNewRequest(), { target: { value: '180123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
     fireEvent.click(await screen.findByRole('button', { name: /Elegir Escuela Critica/ }))
-    await waitFor(() => expect(screen.getByLabelText(/Cantidad · Cuadernillo A/)).toHaveValue(12))
+    await waitFor(() => expect(screen.getByLabelText('Cantidad · Cuadernillo A')).toHaveValue(12))
     fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }))
 
     expect(await screen.findByText(/Pedido enviado a revisión para Escuela Critica/)).toBeInTheDocument()
@@ -120,7 +128,10 @@ describe('CabeceraHome request flow', () => {
     expect(screen.getByText('Aprobado')).toBeInTheDocument()
     expect(screen.getByText('Aprobado parcial')).toBeInTheDocument()
     expect(screen.getByText('Rechazado')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pedir remanente' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pedir remanente' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Aprobado parcial'))
+    expect(await screen.findByRole('button', { name: 'Pedir remanente' })).toBeInTheDocument()
   })
 
   it('shows the selected school only, and "Cambiar escuela" clears the selection', async () => {
@@ -131,7 +142,7 @@ describe('CabeceraHome request flow', () => {
     vi.stubGlobal('fetch', routeFetch({ '/api/cuadernillos/schools': () => json(schools) }))
 
     render(<CabeceraHome />)
-    fireEvent.change(await screen.findByLabelText('CUE de la escuela'), { target: { value: '180123' } })
+    fireEvent.change(await openNewRequest(), { target: { value: '180123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
     fireEvent.click(await screen.findByRole('button', { name: /Elegir Escuela Critica/ }))
 
@@ -144,29 +155,53 @@ describe('CabeceraHome request flow', () => {
     expect(await screen.findByText('Escuela Otra')).toBeInTheDocument()
   })
 
-  it('toggles the per-product detail of a request with "Ver detalle"', async () => {
+  it('opens the per-product detail of a request in a drawer', async () => {
     const request = {
       requestId: 'r2', rootRequestId: 'r2', recipientCueAnexo: '180123457', recipientName: 'Escuela Critica',
       cabeceraCueAnexo: '180123456', cabeceraName: 'Escuela Cabecera', status: 'approved',
       requested: [{ productId: 'product-1', productLabel: 'Cuadernillo A', quantity: 12 }],
-      approved: [{ productId: 'product-1', productLabel: 'Cuadernillo A', quantity: 12 }], remaining: [],
+      approved: [{ productId: 'product-1', productLabel: 'Cuadernillo A', quantity: 10 }], remaining: [],
       submittedAt: '2026-11-10T12:00:00.000Z', approvedAt: null, approvalIdentity: null,
     }
     vi.stubGlobal('fetch', routeFetch({ '/api/cuadernillos/requests': () => json({ ...emptyRequests, requests: [request] }) }))
 
     render(<CabeceraHome />)
-    const toggle = await screen.findByRole('button', { name: 'Ver detalle' })
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(toggle.getAttribute('aria-controls')).toBeTruthy()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /Escuela Critica/ }))
 
-    fireEvent.click(toggle)
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    const detail = document.getElementById(toggle.getAttribute('aria-controls') ?? '')
-    expect(detail).toHaveTextContent('Cuadernillo A: 12')
+    const drawer = await screen.findByRole('dialog')
+    expect(drawer).toHaveTextContent('Detalle del pedido')
+    expect(drawer).toHaveTextContent('Cuadernillo A')
+    expect(drawer).toHaveTextContent('10 de 12')
+  })
 
-    fireEvent.click(toggle)
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(document.getElementById(toggle.getAttribute('aria-controls') ?? '')).toBeNull()
+  it('shows the quota per grade assigned by planning', async () => {
+    vi.stubGlobal('fetch', routeFetch({
+      '/api/cuadernillos/overview': () => json({ campaignId: 'campaign-1', campaignOptions: [], balances: [
+        { productId: 'p1', productLabel: 'Cuadernillo para estudiantes de 1.er grado', globalAvailable: null, quotaAssigned: null, quotaAvailable: 100, cabeceraCueAnexo: '180123456', cabeceraName: 'Escuela Cabecera' },
+        { productId: 'p2', productLabel: 'Cuadernillo para estudiantes de 2.º grado', globalAvailable: null, quotaAssigned: null, quotaAvailable: 0, cabeceraCueAnexo: '180123456', cabeceraName: 'Escuela Cabecera' },
+      ] }),
+    }))
+
+    render(<CabeceraHome />)
+
+    const tiles = await screen.findByLabelText('Cupo por grado')
+    expect(tiles).toHaveTextContent('1.er grado')
+    expect(tiles).toHaveTextContent('100')
+    expect(tiles).toHaveTextContent('2.º grado')
+    expect(screen.getByText('100 en total')).toBeInTheDocument()
+  })
+
+  it('explains that planning has not assigned quota yet', async () => {
+    vi.stubGlobal('fetch', routeFetch({
+      '/api/cuadernillos/overview': () => json({ campaignId: 'campaign-1', campaignOptions: [], balances: [
+        { productId: 'p1', productLabel: 'Cuadernillo A', globalAvailable: null, quotaAssigned: null, quotaAvailable: 0, cabeceraCueAnexo: '180123456', cabeceraName: 'Escuela Cabecera' },
+      ] }),
+    }))
+
+    render(<CabeceraHome />)
+
+    expect(await screen.findByText('Todavía no tenés cupo asignado')).toBeInTheDocument()
   })
 
   it('shows a dash instead of "sin dato" when the recommendation or quota is missing', async () => {
@@ -178,12 +213,12 @@ describe('CabeceraHome request flow', () => {
     }))
 
     render(<CabeceraHome />)
-    fireEvent.change(await screen.findByLabelText('CUE de la escuela'), { target: { value: '180123' } })
+    fireEvent.change(await openNewRequest(), { target: { value: '180123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
     fireEvent.click(await screen.findByRole('button', { name: /Elegir Escuela Critica/ }))
 
-    expect(await screen.findByRole('table')).toBeInTheDocument()
-    expect(screen.getAllByText('—')).toHaveLength(2)
+    expect(await screen.findByText('Disponible —')).toBeInTheDocument()
+    expect(screen.queryByText(/Recomendado/)).not.toBeInTheDocument()
     expect(screen.queryByText(/sin dato/)).not.toBeInTheDocument()
   })
 })
@@ -206,7 +241,7 @@ describe('CabeceraHome loading', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
 
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
-    expect(screen.getByLabelText(/CUE/i)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Nuevo pedido' })).toBeEnabled())
     expect(calls).toBe(2)
   })
 
@@ -223,7 +258,7 @@ describe('CabeceraHome loading', () => {
       }))
 
       render(<CabeceraHome />)
-      expect(screen.getByRole('status')).toHaveTextContent('Cargando cabeceras…')
+      expect(screen.getByText('Cargando cabeceras…')).toBeInTheDocument()
 
       await act(async () => { vi.advanceTimersByTime(LOAD_TIMEOUT_MS) })
 

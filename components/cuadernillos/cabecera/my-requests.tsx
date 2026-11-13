@@ -1,72 +1,64 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { BookletRequestLineView, BookletRequestSummary, BookletRequestsPage } from '@/lib/cuadernillos/types'
 import { PAGE_SIZE, dashedCue, fichaEscuelaHref, isRequestsPage, readJson, requestLabel, scopedQuery } from './cabecera-api'
+import { Chip, Drawer, DrawerBody, EmptyState, Note, Panel } from '../kit'
 import { RemainderAction } from './remainder-action'
 
 function total(lines: BookletRequestLineView[]): number {
   return lines.reduce((sum, line) => sum + line.quantity, 0)
 }
 
-function StatusChip({ request }: { request: BookletRequestSummary }) {
-  const tone = request.status === 'rejected' ? 'var(--danger-ink)' : request.status === 'approved' ? 'var(--ink)' : 'var(--ink-soft)'
-  return (
-    <span className="cab-req-chip" style={{ justifySelf: 'end', padding: '.15rem .55rem', borderRadius: '999px', border: `1px solid ${tone}`, color: tone, fontSize: '.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
-      {requestLabel(request)}
-    </span>
-  )
+function statusTone(request: BookletRequestSummary) {
+  if (request.status === 'rejected') return 'danger' as const
+  if (request.status === 'approved') return request.remaining.length ? 'info' as const : 'ok' as const
+  if (request.status === 'pending') return 'warn' as const
+  return 'neutral' as const
 }
 
-function RequestRow({ request, onRequested }: {
-  request: BookletRequestSummary
+function RequestDrawer({ request, onClose, onRequested }: {
+  request: BookletRequestSummary | null
+  onClose: () => void
   onRequested: (message: string) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const detailId = `request-detail-${request.requestId}`
-  const ficha = fichaEscuelaHref(request.recipientCueAnexo)
-  const canRemainder = request.status === 'approved' && request.rootRequestId === request.requestId && request.remaining.length > 0
-  const submittedAt = request.submittedAt ? new Date(request.submittedAt).toLocaleDateString('es-AR') : null
+  const ficha = request ? fichaEscuelaHref(request.recipientCueAnexo) : null
+  const canRemainder = request !== null && request.status === 'approved' && request.rootRequestId === request.requestId && request.remaining.length > 0
   return (
-    <article className="cab-req">
-      <div className="cab-req-main">
-        <strong className="cab-req-name">{request.recipientName || 'Escuela destinataria'}</strong>
-        <div className="cab-req-meta">
-          <span className="cab-req-cue">CUE {dashedCue(request.recipientCueAnexo)}</span>
-          <span className="cab-req-date">{submittedAt ?? ''}</span>
-          <span className="cab-req-total">{total(request.requested)} solicitados</span>
-        </div>
-        <StatusChip request={request} />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="cab-req-button"
-          aria-expanded={open}
-          aria-controls={detailId}
-          onClick={() => setOpen((value) => !value)}
-        >
-          Ver detalle
-        </Button>
-      </div>
-      {open ? (
-        <div id={detailId} className="cab-req-detail">
-          <ul>
-            {request.requested.map((line) => <li key={line.productId}>{line.productLabel}: {line.quantity}</li>)}
+    <Drawer open={request !== null} title={request?.recipientName || 'Escuela destinataria'} description="Detalle del pedido" onClose={onClose}>
+      {request ? (
+        <DrawerBody>
+          <p style={{ margin: 0, color: 'var(--ink-soft)', display: 'flex', flexWrap: 'wrap', gap: '.5rem', alignItems: 'center' }}>
+            <Chip tone={statusTone(request)}>{requestLabel(request)}</Chip>
+            <span>CUE {dashedCue(request.recipientCueAnexo)}</span>
+            {ficha ? <a className="k-link" href={ficha} target="_blank" rel="noopener noreferrer">Ver ficha</a> : null}
+          </p>
+          <ul className="k-qty-list" aria-label="Cuadernillos pedidos">
+            {request.requested.map((line) => {
+              const approved = request.approved.find((row) => row.productId === line.productId)?.quantity
+              return (
+                <li key={line.productId} className="k-qty-row">
+                  <span className="k-row-title">{line.productLabel}</span>
+                  <span className="k-row-num">
+                    {request.status === 'approved' ? `${approved ?? 0} de ${line.quantity}` : line.quantity}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
-          {request.status === 'approved' ? (
-            <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
-              Aprobado {total(request.approved)} · Sin aprobar {total(request.remaining)}
-            </p>
+          <div className="k-total">
+            <span>{request.status === 'approved' ? 'Aprobado' : 'Solicitado'}</span>
+            <strong>{request.status === 'approved' ? total(request.approved) : total(request.requested)}</strong>
+          </div>
+          {request.status === 'approved' && request.remaining.length ? (
+            <Note>Quedaron {total(request.remaining)} cuadernillos sin aprobar.</Note>
           ) : null}
-          {ficha ? (
-            <a href={ficha} target="_blank" rel="noopener noreferrer" style={{ justifySelf: 'start' }}>Ver ficha</a>
-          ) : null}
-        </div>
+          {canRemainder ? <RemainderAction request={request} onRequested={onRequested} /> : null}
+        </DrawerBody>
       ) : null}
-      {canRemainder ? <RemainderAction request={request} onRequested={onRequested} /> : null}
-    </article>
+    </Drawer>
   )
 }
 
@@ -77,6 +69,7 @@ export function MyRequests({ refreshKey, onRequested }: {
   const [page, setPage] = useState<BookletRequestsPage | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -110,26 +103,36 @@ export function MyRequests({ refreshKey, onRequested }: {
     }
   }
 
+  const openRequest = page?.requests.find((request) => request.requestId === openId) ?? null
+
   return (
-    <section aria-labelledby="my-requests-title" className="cab-stack">
-      <h3 id="my-requests-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: '1.15rem' }}>
-        Mis pedidos
-      </h3>
-      {error ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{error}</p> : null}
+    <Panel title="Mis pedidos" aside={page ? `${page.requests.length}${page.hasMore ? '+' : ''}` : undefined}>
+      {error ? <Note tone="danger">{error}</Note> : null}
       {!page && !error ? (
         <div aria-hidden style={{ display: 'grid', gap: '.5rem' }}>
-          <div style={{ height: '3rem', borderRadius: '.75rem', background: 'var(--line)', opacity: 0.5 }} />
-          <div style={{ height: '3rem', borderRadius: '.75rem', background: 'var(--line)', opacity: 0.5 }} />
+          <div style={{ height: '3.5rem', borderRadius: 'var(--r-lg)', background: 'var(--line)', opacity: 0.5 }} />
+          <div style={{ height: '3.5rem', borderRadius: 'var(--r-lg)', background: 'var(--line)', opacity: 0.5 }} />
         </div>
       ) : null}
       {page && page.requests.length === 0 ? (
-        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Todavía no hay pedidos en esta campaña.</p>
+        <EmptyState title="Todavía no hay pedidos" description="Cuando envíes un pedido, aparece acá con su estado." />
       ) : null}
       {page?.requests.length ? (
-        <div className="cab-req-list">
-          {page.requests.map((request) => (
-            <RequestRow key={request.requestId} request={request} onRequested={onRequested} />
-          ))}
+        <div className="k-list">
+          {page.requests.map((request) => {
+            const submittedAt = request.submittedAt ? new Date(request.submittedAt).toLocaleDateString('es-AR') : null
+            return (
+              <button key={request.requestId} type="button" className="k-row" onClick={() => setOpenId(request.requestId)}>
+                <span className="k-row-main">
+                  <span className="k-row-title">{request.recipientName || 'Escuela destinataria'}</span>
+                  <span className="k-row-meta">
+                    CUE {dashedCue(request.recipientCueAnexo)} · {total(request.requested)} solicitados{submittedAt ? ` · ${submittedAt}` : ''}
+                  </span>
+                </span>
+                <span className="k-row-side"><Chip tone={statusTone(request)}>{requestLabel(request)}</Chip><ChevronRight aria-hidden size={20} /></span>
+              </button>
+            )
+          })}
         </div>
       ) : null}
       {page?.hasMore ? (
@@ -137,6 +140,7 @@ export function MyRequests({ refreshKey, onRequested }: {
           {loadingMore ? 'Cargando…' : 'Ver más pedidos'}
         </Button>
       ) : null}
-    </section>
+      <RequestDrawer request={openRequest} onClose={() => setOpenId(null)} onRequested={(message) => { setOpenId(null); onRequested(message) }} />
+    </Panel>
   )
 }
