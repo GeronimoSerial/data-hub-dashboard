@@ -4,6 +4,7 @@ import {
   crearPostVerificacion,
   MENSAJES_CREDENCIAL,
 } from '@/lib/infraestructura/verificacion-route'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { crearLimitador } from '@/lib/http/limitador'
 import { ruta } from '@/lib/http/ruta'
 
@@ -24,6 +25,7 @@ const handlePOST = crearPostVerificacion({
     respuesta_contradictoria: 'Ya se registró una respuesta distinta para esta solicitud.',
   },
   mensajeDefault: 'No se pudo registrar la respuesta.',
+  metadatosAuditoria: body => ({ movimientoId: body.movimientoId }),
   // A mismatched CUE returns 409 'movimiento_cue_no_coincide' without writing.
   ejecutar: (id, body) => responderPorEnlace({
     verificacionId: id,
@@ -33,4 +35,8 @@ const handlePOST = crearPostVerificacion({
   }),
 })
 
-export const POST = ruta('problematicas.verificaciones.id.vincular-movimiento.post', handlePOST, { limite: { limitador } })
+export const POST = conAuditoria(
+  'verificacion.vincular_movimiento',
+  '/api/problematicas/verificaciones/[id]/vincular-movimiento',
+  ruta('problematicas.verificaciones.id.vincular-movimiento.post', handlePOST, { limite: { limitador } }),
+)
