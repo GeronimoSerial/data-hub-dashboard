@@ -1,20 +1,21 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import type { BookletBalanceView, EnrollmentRecommendation } from '@/lib/cuadernillos/types'
+import { DrawerBody, DrawerFoot, EmptyState, Note, Stepper } from '../kit'
 import { ERROR_LABELS, errorCode, isRecommendationList, readJson, scopedQuery, type CriticalSchool } from './cabecera-api'
 
-export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, onSaved }: {
+export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, onSaved, top }: {
   school: CriticalSchool
   campaignId: string
   cabeceraCue: string
   balances: BookletBalanceView[]
   onSaved: (message: string) => void
+  top?: ReactNode
 }) {
   const [recommendations, setRecommendations] = useState<EnrollmentRecommendation[] | null>(null)
-  const [quantities, setQuantities] = useState<Record<string, string>>({})
+  const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<'submit' | 'draft' | null>(null)
@@ -29,7 +30,7 @@ export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, onSa
         if (!response.ok || !isRecommendationList(data)) throw new Error('No se pudo calcular la recomendación del corte vigente.')
         if (!active) return
         setRecommendations(data.recommendations)
-        setQuantities(Object.fromEntries(data.recommendations.map((row) => [row.productId, String(row.suggested ?? 0)])))
+        setQuantities(Object.fromEntries(data.recommendations.map((row) => [row.productId, row.suggested ?? 0])))
       })
       .catch((reason: unknown) => {
         if (active) setLoadError(reason instanceof Error ? reason.message : 'No se pudo calcular la recomendación.')
@@ -47,7 +48,7 @@ export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, onSa
 
   async function save(submit: boolean) {
     const lines = applicableProducts.flatMap(({ row, balance }) => {
-      const quantity = Number(quantities[row.productId] ?? 0)
+      const quantity = quantities[row.productId] ?? 0
       const max = balance.quotaAvailable ?? Number.MAX_SAFE_INTEGER
       return Number.isSafeInteger(quantity) && quantity > 0 && quantity <= max ? [{ productId: row.productId, quantity }] : []
     })
@@ -76,75 +77,59 @@ export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, onSa
   const busy = submitting !== null
   const canWrite = !busy && applicableProducts.length > 0 && Boolean(campaignId)
 
-  if (loadError) return <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{loadError}</p>
-  if (!recommendations) return <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Calculando recomendación…</p>
+  if (loadError) return <DrawerBody>{top}<Note tone="danger">{loadError}</Note></DrawerBody>
+  if (!recommendations) return <DrawerBody>{top}<p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Calculando recomendación…</p></DrawerBody>
 
-  const totalUnits = applicableProducts.reduce((sum, { row }) => {
-    const quantity = Number(quantities[row.productId] ?? 0)
-    return Number.isSafeInteger(quantity) && quantity > 0 ? sum + quantity : sum
+  const totalUnits = applicableProducts.reduce((sum, { row, balance }) => {
+    const quantity = quantities[row.productId] ?? 0
+    const max = balance.quotaAvailable ?? Number.MAX_SAFE_INTEGER
+    return quantity > 0 && quantity <= max ? sum + quantity : sum
   }, 0)
 
-  const actions = (
-    <div className="cab-qty-actions">
-      <Button type="button" variant="secondary" disabled={!canWrite} onClick={() => void save(false)}>
-        {submitting === 'draft' ? 'Guardando…' : 'Guardar borrador'}
-      </Button>
-      <Button type="button" variant="default" disabled={!canWrite} onClick={() => void save(true)}>
-        {submitting === 'submit' ? 'Enviando…' : 'Enviar pedido'}
-      </Button>
-    </div>
-  )
-
   return (
-    <div className="cab-stack">
-      {applicableProducts.length === 0 ? (
-        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>No hay productos con cupo para esta cabecera.</p>
-      ) : (
-        <div className="cab-qty-wrap">
-          <table className="cab-qty">
-            <caption className="sr-only">Cantidades para {school.nombre}</caption>
-            <thead>
-              <tr>
-                <th scope="col">Producto</th>
-                <th scope="col">Recomendado</th>
-                <th scope="col">Disponible</th>
-                <th scope="col">Cantidad</th>
-              </tr>
-            </thead>
-            <tbody>
-              {applicableProducts.map(({ row, balance }) => (
-                <tr key={row.productId}>
-                  <th scope="row" className="cab-qty-product">{balance.productLabel}</th>
-                  <td data-label="Recomendado">{row.suggested ?? '—'}</td>
-                  <td data-label="Disponible">{balance.quotaAvailable ?? '—'}</td>
-                  <td data-label="Cantidad">
-                    <Input
-                      aria-label={`Cantidad · ${balance.productLabel}`}
-                      className="cab-qty-input"
-                      type="number" min="1" step="1" inputMode="numeric"
+    <>
+      <DrawerBody>
+        {top}
+        {applicableProducts.length === 0 ? (
+          <EmptyState title="Sin cupo para esta cabecera" description="Planeamiento todavía no asignó cupo de cuadernillos a esta cabecera." />
+        ) : (
+          <>
+            <ul className="k-qty-list" aria-label={`Cantidades para ${school.nombre}`}>
+              {applicableProducts.map(({ row, balance }) => {
+                const quantity = quantities[row.productId] ?? 0
+                const noQuota = (balance.quotaAvailable ?? 0) <= 0
+                return (
+                  <li key={row.productId} className="k-qty-row" data-active={quantity > 0}>
+                    <div className="k-row-main">
+                      <span className="k-row-title">{balance.productLabel}</span>
+                      <span className="k-row-meta">
+                        Disponible {balance.quotaAvailable ?? '—'}{row.suggested ? ` · Recomendado ${row.suggested}` : ''}
+                      </span>
+                    </div>
+                    <Stepper
+                      label={`Cantidad · ${balance.productLabel}`}
+                      value={quantity}
                       max={balance.quotaAvailable ?? undefined}
-                      value={quantities[row.productId] ?? '0'}
-                      onChange={(event) => setQuantities((current) => ({ ...current, [row.productId]: event.target.value }))}
+                      disabled={busy || noQuota}
+                      onChange={(next) => setQuantities((current) => ({ ...current, [row.productId]: next }))}
                     />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={4}>
-                  <div className="cab-qty-foot">
-                    <span style={{ color: 'var(--ink)' }}>Total: <strong>{totalUnits}</strong></span>
-                    {actions}
-                  </div>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
-      {applicableProducts.length === 0 ? actions : null}
-      {formError ? <p role="alert" style={{ margin: 0, color: 'var(--danger-ink)' }}>{formError}</p> : null}
-    </div>
+                  </li>
+                )
+              })}
+            </ul>
+            <div className="k-total"><span>Total del pedido</span><strong>{totalUnits}</strong></div>
+          </>
+        )}
+        {formError ? <Note tone="danger">{formError}</Note> : null}
+      </DrawerBody>
+      <DrawerFoot>
+        <Button type="button" variant="secondary" disabled={!canWrite} onClick={() => void save(false)}>
+          {submitting === 'draft' ? 'Guardando…' : 'Guardar borrador'}
+        </Button>
+        <Button type="button" variant="default" disabled={!canWrite} onClick={() => void save(true)}>
+          {submitting === 'submit' ? 'Enviando…' : 'Enviar pedido'}
+        </Button>
+      </DrawerFoot>
+    </>
   )
 }

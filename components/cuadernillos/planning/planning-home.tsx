@@ -1,11 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import type { BookletBalanceView, BookletCampaignOption, BookletOverview, BookletRequestSummary } from '@/lib/cuadernillos/types'
 import { isRequestsPage } from '../supervisor/inbox-guards'
-import { PlanningSummary } from './planning-summary'
+import { Chip, EmptyState, KpiStrip, Meter, Note, PageHeader, Panel, Segmented, formatCount } from '../kit'
+import { QuotaDrawer, type QuotaChange } from './quota-drawer'
+import { StockDrawer } from './stock-drawer'
 
 const LOAD_ERROR = 'No se pudo cargar el catálogo y los saldos.'
 const REQUESTS_LOAD_ERROR = 'No se pudieron cargar las solicitudes para contar pendientes y aprobadas hoy.'
@@ -20,6 +22,10 @@ const errorMessages: Record<string, string> = {
   ineligible: 'La escuela no cumple actualmente el criterio de elegibilidad para enviar la solicitud.',
   forbidden: 'La cuenta no tiene autorización para esta operación.',
   product_not_found: 'El producto ya no está disponible en el catálogo.',
+  initial_stock_exists: 'Ese cuadernillo ya tiene stock inicial: registrá una reposición.',
+  initial_stock_missing: 'Ese cuadernillo todavía no tiene stock inicial.',
+  quota_exceeds_stock: 'El cupo supera el stock que queda sin asignar.',
+  invalid_quantity: 'Ingresá una cantidad entera válida.',
   idempotency_conflict: 'La clave de reintento quedó asociada a otra solicitud. Volvé a cargar la pantalla.',
 }
 
@@ -74,6 +80,10 @@ function actionEnabled(campaign: BookletCampaignOption | undefined) {
   return Boolean(campaign?.distributionEnabled && campaign.overassignmentAllowed === false)
 }
 
+function isToday(iso: string) {
+  return new Date(iso).toDateString() === new Date().toDateString()
+}
+
 export function PlanningHome() {
   const [overview, setOverview] = useState<BookletOverview | null>(null)
   const [selectedCampaign, setSelectedCampaign] = useState('')
@@ -82,12 +92,10 @@ export function PlanningHome() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [stockProduct, setStockProduct] = useState('')
-  const [stockQuantity, setStockQuantity] = useState('')
-  const [stockMovement, setStockMovement] = useState<'initial' | 'replenishment'>('initial')
-  const [quotaHead, setQuotaHead] = useState('')
-  const [quotaProduct, setQuotaProduct] = useState('')
-  const [quotaQuantity, setQuotaQuantity] = useState('')
+  const [stockProductId, setStockProductId] = useState<string | null>(null)
+  const [quotaHeadCue, setQuotaHeadCue] = useState<string | null>(null)
+  const [drawerError, setDrawerError] = useState<string | null>(null)
+  const [headFilter, setHeadFilter] = useState('')
 
   const loadRequests = useCallback(async (campaignId: string, signal?: AbortSignal) => {
     const rows: BookletRequestSummary[] = []
@@ -118,9 +126,6 @@ export function PlanningHome() {
     setRequests(requestRows)
     setOverview(data)
     setSelectedCampaign(data.campaignId ?? '')
-    setStockProduct(data.balances[0]?.productId ?? '')
-    setQuotaProduct(data.balances[0]?.productId ?? '')
-    setQuotaHead(data.balances.find((balance) => balance.cabeceraCueAnexo)?.cabeceraCueAnexo ?? '')
   }, [loadRequests])
 
   useEffect(() => {
@@ -133,15 +138,25 @@ export function PlanningHome() {
     return () => controller.abort()
   }, [loadOverview])
 
-  const products = useMemo(() => [...new Map((overview?.balances ?? []).map((row) => [row.productId, row])).values()], [overview])
-  const heads = useMemo(() => [...new Map((overview?.balances ?? []).flatMap((row) => row.cabeceraCueAnexo && row.cabeceraName
+  const balances = useMemo(() => overview?.balances ?? [], [overview])
+  const products = useMemo(() => [...new Map(balances.map((row) => [row.productId, row])).values()], [balances])
+  const heads = useMemo(() => [...new Map(balances.flatMap((row) => row.cabeceraCueAnexo && row.cabeceraName
     ? [[row.cabeceraCueAnexo, { cueAnexo: row.cabeceraCueAnexo, name: row.cabeceraName }] as const]
-    : [])).values()], [overview])
+    : [])).values()], [balances])
   const campaign = overview?.campaignOptions.find((option) => option.id === selectedCampaign)
   const writeEnabled = actionEnabled(campaign)
-  const productItems = products.map((row) => ({ value: row.productId, label: row.productLabel }))
-  const headItems = heads.map((head) => ({ value: head.cueAnexo, label: `${head.name} · ${head.cueAnexo}` }))
-  const campaignItems = (overview?.campaignOptions ?? []).map((option) => ({ value: option.id, label: option.name }))
+
+  const quotaOf = useCallback((cue: string, productId: string) =>
+    balances.find((row) => row.cabeceraCueAnexo === cue && row.productId === productId)?.quotaAvailable ?? 0, [balances])
+  const assignedTo = useCallback((productId: string) =>
+    heads.reduce((sum, head) => sum + quotaOf(head.cueAnexo, productId), 0), [heads, quotaOf])
+
+  const stockTotal = products.reduce((sum, row) => sum + (row.globalAvailable ?? 0), 0)
+  const assignedTotal = products.reduce((sum, row) => sum + assignedTo(row.productId), 0)
+  const pending = requests.filter((request) => request.status === 'pending')
+  const approvedToday = requests.filter((request) => request.status === 'approved' && request.approvedAt && isToday(request.approvedAt)).length
+  const pendingByHead = (cue: string) => pending.filter((request) => request.cabeceraCueAnexo === cue).length
+  const visibleHeads = heads.filter((head) => !headFilter.trim() || `${head.name} ${head.cueAnexo}`.toLowerCase().includes(headFilter.trim().toLowerCase()))
 
   async function selectCampaign(campaignId: string) {
     setSelectedCampaign(campaignId)
@@ -160,132 +175,156 @@ export function PlanningHome() {
     return data
   }
 
-  async function updateStock(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!selectedCampaign || !stockProduct || !writeEnabled ) return
-    const quantity = Number(stockQuantity)
-    if (!Number.isSafeInteger(quantity) || quantity <= 0) { setError('Ingresá una cantidad entera mayor que cero.'); return }
-    setSaving(true); setError(null); setNotice(null)
+  async function registerStock(productId: string, quantity: number, movement: 'initial' | 'replenishment') {
+    if (!selectedCampaign || !writeEnabled) return
+    setSaving(true); setDrawerError(null); setNotice(null)
     try {
-      await postJson('/api/cuadernillos/stock', {
-        campaignId: selectedCampaign, productId: stockProduct, quantity, movement: stockMovement,
-        idempotencyKey: crypto.randomUUID(),
-      })
-      setStockQuantity('')
+      await postJson('/api/cuadernillos/stock', { campaignId: selectedCampaign, productId, quantity, movement, idempotencyKey: crypto.randomUUID() })
       await loadOverview(selectedCampaign)
+      setStockProductId(null)
       setNotice('Movimiento de stock registrado.')
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'No se pudo registrar el movimiento de stock.') }
+    } catch (reason) { setDrawerError(reason instanceof Error ? reason.message : 'No se pudo registrar el movimiento de stock.') }
     finally { setSaving(false) }
   }
 
-  async function updateQuota(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!selectedCampaign || !quotaHead || !quotaProduct || !writeEnabled ) return
-    const quantity = Number(quotaQuantity)
-    if (!Number.isSafeInteger(quantity) || quantity < 0) { setError('Ingresá un cupo entero igual o mayor que cero.'); return }
-    setSaving(true); setError(null); setNotice(null)
+  async function saveQuotas(cabeceraCueAnexo: string, changes: QuotaChange[]) {
+    if (!selectedCampaign || !writeEnabled || changes.length === 0) return
+    setSaving(true); setDrawerError(null); setNotice(null)
     try {
-      await postJson('/api/cuadernillos/quotas', { campaignId: selectedCampaign, cabeceraCueAnexo: quotaHead, productId: quotaProduct, quantity })
-      setQuotaQuantity('')
+      for (const change of changes) {
+        await postJson('/api/cuadernillos/quotas', { campaignId: selectedCampaign, cabeceraCueAnexo, productId: change.productId, quantity: change.quantity })
+      }
       await loadOverview(selectedCampaign)
-      setNotice('Cupo disponible actualizado.')
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'No se pudo actualizar el cupo.') }
+      setQuotaHeadCue(null)
+      setNotice('Cupos actualizados.')
+    } catch (reason) {
+      // Earlier changes of this batch were already saved: refresh so the drawer shows the real state.
+      await loadOverview(selectedCampaign).catch(() => undefined)
+      setDrawerError(reason instanceof Error ? reason.message : 'No se pudo actualizar el cupo.')
+    }
     finally { setSaving(false) }
   }
+
+  const stockProduct = products.find((row) => row.productId === stockProductId) ?? null
+  const quotaHead = heads.find((head) => head.cueAnexo === quotaHeadCue) ?? null
 
   return (
-    <section aria-labelledby="planning-home-title" style={{ display: 'grid', gap: '1.5rem' }}>
-      <h2 id="planning-home-title" style={{ margin: 0, color: 'var(--ink)', fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.8rem)' }}>
-        Planeamiento
-      </h2>
+    <section aria-labelledby="planning-home-title" className="k-stack">
+      <PageHeader
+        id="planning-home-title"
+        title="Planeamiento"
+        description={campaign ? `${campaign.name}: cargá el stock de cada grado y repartilo entre las cabeceras.` : 'Cargá el stock de cada grado y repartilo entre las cabeceras.'}
+      />
 
-      <>
-          {loading && !overview ? <p role="status" style={{ color: 'var(--ink-soft)' }}>Cargando catálogo y saldos…</p> : null}
-          {error ? <p role="alert" style={{ color: 'var(--danger-ink)' }}>{error}</p> : null}
-          {notice ? <p role="status" style={{ color: 'var(--ink)' }}>{notice}</p> : null}
+      {loading && !overview ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando catálogo y saldos…</p> : null}
+      {error ? <Note tone="danger">{error}</Note> : null}
+      {notice ? <Note tone="ok">{notice}</Note> : null}
 
-          {overview && overview.campaignOptions.length === 0 ? <p style={{ color: 'var(--ink-soft)' }}>No hay campañas activas para consultar.</p> : null}
+      {overview && overview.campaignOptions.length === 0 ? (
+        <EmptyState title="No hay campañas activas para consultar." description="Cuando se active una campaña, acá cargás el stock y los cupos." />
+      ) : null}
 
-          {overview && overview.campaignOptions.length > 0 ? (
-            <div style={{ display: 'grid', gap: '.5rem', maxWidth: '28rem' }}>
-              <span id="planning-campaign-label" style={{ color: 'var(--ink-soft)' }}>Campaña</span>
-              {overview.campaignOptions.length > 1 ? (
-                <Select items={campaignItems} value={selectedCampaign || null} onValueChange={(value) => void selectCampaign(asText(value))} disabled={loading || saving}>
-                  <SelectTrigger aria-labelledby="planning-campaign-label">{campaignItems.find((item) => item.value === selectedCampaign)?.label ?? 'Seleccioná una campaña'}</SelectTrigger>
-                  <SelectContent>{campaignItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
-                </Select>
-              ) : <strong>{overview.campaignOptions[0].name}</strong>}
-              {selectedCampaign && !writeEnabled ? <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Esta campaña todavía no permite registrar movimientos.</p> : null}
+      {overview && overview.campaignOptions.length > 1 ? (
+        <Segmented
+          label="Campaña"
+          value={selectedCampaign}
+          options={overview.campaignOptions.map((option) => ({ value: option.id, label: option.name }))}
+          onChange={(id) => void selectCampaign(id)}
+        />
+      ) : null}
+      {overview && overview.campaignOptions.length > 1 && !selectedCampaign ? <EmptyState title="Elegí una campaña" description="Elegí una campaña para ver sus saldos." /> : null}
+      {selectedCampaign && !writeEnabled ? <Note>Esta campaña todavía no permite registrar movimientos.</Note> : null}
+
+      {overview?.campaignId ? (
+        <>
+          <KpiStrip label="Resumen de la campaña" items={[
+            { label: 'Stock total', value: formatCount(stockTotal) },
+            { label: 'Asignado a cabeceras', value: formatCount(assignedTotal) },
+            { label: 'Sin asignar', value: formatCount(Math.max(0, stockTotal - assignedTotal)), tone: stockTotal > 0 && stockTotal - assignedTotal <= 0 ? 'warn' : undefined },
+            { label: 'Pedidos pendientes', value: pending.length, tone: pending.length > 0 ? 'warn' : undefined },
+            { label: 'Aprobados hoy', value: approvedToday },
+          ]} />
+
+          <Panel title="Stock por grado" aside="Tocá un grado para cargar stock">
+            <div className="k-list">
+              {products.map((row) => {
+                const stock = row.globalAvailable
+                const assigned = assignedTo(row.productId)
+                return (
+                  <button key={row.productId} type="button" className="k-row" disabled={!writeEnabled}
+                    aria-label={`${row.productLabel}: ${stock === null ? 'sin stock' : `stock ${stock}`}`}
+                    onClick={() => { setDrawerError(null); setStockProductId(row.productId) }}>
+                    <span className="k-row-main">
+                      <span className="k-row-title">{row.productLabel}</span>
+                      {stock === null ? (
+                        <span className="k-row-meta">Todavía sin stock inicial</span>
+                      ) : (
+                        <>
+                          <Meter value={assigned} max={stock} label={`Asignado de ${row.productLabel}`} tone={assigned >= stock ? 'warn' : undefined} />
+                          <span className="k-row-meta">Asignado {formatCount(assigned)} · Sin asignar {formatCount(Math.max(0, stock - assigned))}</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="k-row-side">
+                      {stock === null ? <Chip tone="warn">Sin stock</Chip> : <span className="k-row-num">{formatCount(stock)}</span>}
+                      <ChevronRight aria-hidden size={20} />
+                    </span>
+                  </button>
+                )
+              })}
             </div>
-          ) : null}
+          </Panel>
 
-          {overview && overview.campaignOptions.length > 1 && !selectedCampaign ? <p style={{ color: 'var(--ink-soft)' }}>Elegí una campaña para ver sus saldos.</p> : null}
-
-          {overview?.campaignId ? (
-            <>
-              <PlanningSummary balances={overview.balances} requests={requests} />
-
-              {writeEnabled && products.length ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 18rem), 1fr))', gap: '1.25rem' }}>
-                  <form onSubmit={(event) => void updateStock(event)} style={formStyle}>
-                    <h3 style={formTitle}>Registrar stock global</h3>
-                    <div style={fieldStyle}>
-                      <span id="stock-product-label">Producto</span>
-                      <Select items={productItems} value={stockProduct || null} onValueChange={(value) => setStockProduct(asText(value))}>
-                        <SelectTrigger aria-labelledby="stock-product-label">{productItems.find((item) => item.value === stockProduct)?.label ?? 'Elegí un producto'}</SelectTrigger>
-                        <SelectContent>{productItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    <div style={fieldStyle}>
-                      <span id="stock-movement-label">Movimiento</span>
-                      <Select items={STOCK_MOVEMENTS} value={stockMovement} onValueChange={(value) => setStockMovement(value === 'replenishment' ? 'replenishment' : 'initial')}>
-                        <SelectTrigger aria-labelledby="stock-movement-label">{stockMovement === 'initial' ? 'Ingreso inicial' : 'Reposición'}</SelectTrigger>
-                        <SelectContent>{STOCK_MOVEMENTS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    <div style={fieldStyle}>
-                      <label htmlFor="stock-quantity">Cantidad</label>
-                      <Input id="stock-quantity" aria-label="Cantidad de stock" type="number" min="1" step="1" value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} />
-                    </div>
-                    <button type="submit" disabled={saving} className="ui-button ui-button--primary">{saving ? 'Guardando…' : 'Registrar movimiento'}</button>
-                  </form>
-
-                  <form onSubmit={(event) => void updateQuota(event)} style={formStyle}>
-                    <h3 style={formTitle}>Definir cupo disponible</h3>
-                    <div style={fieldStyle}>
-                      <span id="quota-head-label">Cabecera</span>
-                      <Select items={headItems} value={quotaHead || null} onValueChange={(value) => setQuotaHead(asText(value))}>
-                        <SelectTrigger aria-labelledby="quota-head-label">{headItems.find((item) => item.value === quotaHead)?.label ?? 'Elegí una cabecera'}</SelectTrigger>
-                        <SelectContent>{headItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    <div style={fieldStyle}>
-                      <span id="quota-product-label">Producto</span>
-                      <Select items={productItems} value={quotaProduct || null} onValueChange={(value) => setQuotaProduct(asText(value))}>
-                        <SelectTrigger aria-labelledby="quota-product-label">{productItems.find((item) => item.value === quotaProduct)?.label ?? 'Elegí un producto'}</SelectTrigger>
-                        <SelectContent>{productItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    <div style={fieldStyle}>
-                      <label htmlFor="quota-quantity">Cantidad disponible</label>
-                      <Input id="quota-quantity" aria-label="Cantidad de cupo disponible" type="number" min="0" step="1" value={quotaQuantity} onChange={(event) => setQuotaQuantity(event.target.value)} />
-                    </div>
-                    <button type="submit" disabled={saving || !heads.length} className="ui-button ui-button--secondary">{saving ? 'Guardando…' : 'Guardar cupo'}</button>
-                  </form>
+          <Panel title="Cupos por cabecera" aside={`${heads.length} cabecera${heads.length === 1 ? '' : 's'}`}>
+            {heads.length === 0 ? (
+              <EmptyState title="Sin cabeceras confirmadas" description="Cuando haya cabeceras con escuelas asignadas, les repartís el stock desde acá." />
+            ) : (
+              <>
+                {heads.length > 8 ? (
+                  <Input aria-label="Filtrar cabeceras" placeholder="Filtrar por nombre o CUE" value={headFilter} onChange={(event) => setHeadFilter(event.target.value)} />
+                ) : null}
+                <div className="k-list">
+                  {visibleHeads.map((head) => {
+                    const total = products.reduce((sum, row) => sum + quotaOf(head.cueAnexo, row.productId), 0)
+                    const waiting = pendingByHead(head.cueAnexo)
+                    return (
+                      <button key={head.cueAnexo} type="button" className="k-row" disabled={!writeEnabled}
+                        onClick={() => { setDrawerError(null); setQuotaHeadCue(head.cueAnexo) }}>
+                        <span className="k-row-main">
+                          <span className="k-row-title">{head.name}</span>
+                          <span className="k-row-meta">CUE {head.cueAnexo}{waiting ? ` · ${waiting} pedido${waiting === 1 ? '' : 's'} pendiente${waiting === 1 ? '' : 's'}` : ''}</span>
+                        </span>
+                        <span className="k-row-side">
+                          {total === 0 ? <Chip tone="warn">Sin cupo</Chip> : <span className="k-row-num">{formatCount(total)}</span>}
+                          <ChevronRight aria-hidden size={20} />
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
-              ) : null}
-            </>
-          ) : null}
-      </>
+              </>
+            )}
+          </Panel>
+        </>
+      ) : null}
+
+      <StockDrawer
+        product={stockProduct}
+        saving={saving}
+        error={drawerError}
+        onClose={() => setStockProductId(null)}
+        onSubmit={(quantity, movement) => void registerStock(stockProduct?.productId ?? '', quantity, movement)}
+      />
+      <QuotaDrawer
+        head={quotaHead}
+        products={products}
+        quotaOf={quotaOf}
+        assignedTo={assignedTo}
+        saving={saving}
+        error={drawerError}
+        onClose={() => setQuotaHeadCue(null)}
+        onSubmit={(changes) => void saveQuotas(quotaHead?.cueAnexo ?? '', changes)}
+      />
     </section>
   )
 }
-
-const STOCK_MOVEMENTS = [
-  { value: 'initial', label: 'Ingreso inicial' },
-  { value: 'replenishment', label: 'Reposición' },
-]
-
-const formStyle = { display: 'grid', alignContent: 'start', gap: '.75rem', borderTop: '1px solid var(--line)', paddingTop: '1rem' } as const
-const fieldStyle = { display: 'grid', gap: '.35rem' } as const
-const formTitle = { margin: 0, color: 'var(--ink)', fontSize: '1rem' } as const
