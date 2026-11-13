@@ -1,4 +1,11 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { migrarDb } from '@/lib/db'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+
+// Fixture: cada intento deja un evento en auditoria_evento, así que la ruta necesita una base migrada.
+usarDbTemporal('memberships-route-fixture-', { seed: false })
+beforeAll(async () => { await migrarDb() })
+
 import type * as Route from './route'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'

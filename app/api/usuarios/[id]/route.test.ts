@@ -12,7 +12,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/session', () => ({ getSessionUser: mocks.getSessionUser }))
 vi.mock('@/lib/db/seed', () => ({ ensureSeeded: mocks.ensureSeeded }))
 vi.mock('@/lib/db', () => ({ getDb: mocks.getDb }))
-vi.mock('@/lib/db/schema', () => ({ user: { id: 'user.id' } }))
+// Fixture: la auditoría escribe en auditoriaEvento a través del db mockeado.
+vi.mock('@/lib/db/schema', () => ({ user: { id: 'user.id' }, auditoriaEvento: {} }))
 vi.mock('drizzle-orm', () => ({ eq: (...args: unknown[]) => args }))
 vi.mock('@/lib/auth', () => ({ auth: { api: {
   setRole: mocks.setRole, banUser: mocks.ban, unbanUser: mocks.unban,
@@ -48,7 +49,11 @@ describe('/api/usuarios/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getSessionUser.mockResolvedValue(mocks.actor); mocks.denied.mockReturnValue(null); mocks.mutateDenied.mockReturnValue(null)
-    mocks.getDb.mockReturnValue({ select: mocks.select }); mocks.select.mockReturnValue({ from: mocks.from })
+    // Fixture: la auditoría abre una transacción y escribe su evento; el chain mockeado la acepta sin base real.
+    const db: { select: typeof mocks.select; transaction?: (fn: (tx: unknown) => unknown) => unknown; insert?: () => unknown } = { select: mocks.select }
+    db.transaction = async (fn) => fn(db)
+    db.insert = () => ({ values: async () => undefined })
+    mocks.getDb.mockReturnValue(db); mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where }); mocks.where.mockResolvedValue([{ id: 'target' }])
     mocks.getHubUserSession.mockResolvedValue(target); mocks.listHubUsers.mockResolvedValue([target])
     mocks.levels.mockResolvedValue([]); mocks.resources.mockResolvedValue([]); mocks.admins.mockResolvedValue(['admin', 'target'])
