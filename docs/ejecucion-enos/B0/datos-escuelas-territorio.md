@@ -6,7 +6,7 @@ Fecha de la investigación: 13/11/2026. Solo fuentes públicas. Los archivos des
 
 ## Resultado para el criterio CA1 (≥ 80 % de escuelas con coordenadas utilizables)
 
-**CA1 no se cumple con datos abiertos.** Ninguna fuente abierta encontrada entrega latitud y longitud con el código INEP de la escuela. La mejor ruta reproducible (cruce por nombre y dirección con el CNEFE 2022 del IBGE) alcanza **41 %** en los 16 municipios del área (805 de 1.968 escuelas en actividad) y **35 %** en Manaus. Con coincidencia exacta de nombre solo se llega a 18 % (354). Alcanzar 80 % exige un archivo con código INEP y coordenadas de la SEDUC-AM o de la SEMED (B0.6, a cargo del dueño) o el Catálogo de Escolas del INEP exportado por su portal.
+**CA1 no se cumple con datos abiertos.** Ninguna fuente abierta encontrada entrega latitud y longitud con el código INEP de la escuela. El cruce exploratorio por nombre, CEP y dirección con el CNEFE 2022 del IBGE llegó a 41 %, pero incluía coincidencias por CEP que en zona rural pueden quedar a decenas de kilómetros. Por decisión del dueño («ninguna escuela mal ubicada es mejor que más escuelas»), los datasets de B12.1 asignan coordenadas solo con coincidencias confiables y el resultado es **126 de 1.765 escuelas en actividad (7 %)** en los 12 municipios del área; las otras 1.639 quedan con coordenadas nulas. Alcanzar 80 % exige un archivo con código INEP y coordenadas de la SEDUC-AM o de la SEMED (B0.6, a cargo del dueño) o el Catálogo de Escolas del INEP exportado por su portal. El script acepta ese archivo y le da precedencia (ver sección 5).
 
 ## 1. Escuelas
 
@@ -31,35 +31,41 @@ Base: Censo Escolar 2024, `SG_UF=AM`, `TP_SITUACAO_FUNCIONAMENTO=1` (en activida
 - Manaus: 1.107 registros, 1.060 en actividad.
 - Registros CNEFE espécie 4: 7.052 en AM, 1.743 en Manaus, 2.138 dentro del área. Superan a las escuelas porque incluyen CMEI, centros de formación y refuerzo escolar.
 
-### 1.3 Cruce INEP y CNEFE: escuelas con coordenadas por municipio del área
+### 1.3 Resultado del cruce confiable por municipio (datasets de B12.1)
 
-Los 16 municipios cuyo contorno toca el área (sección 2). El conteo es de **todo** el municipio, no solo de la parte dentro del área; varios municipios (Nhamundá, Urucará, Novo Airão, Presidente Figueiredo, São Sebastião do Uatumã) se extienden mucho más allá.
+Los 12 municipios cuyo contorno interseca el área (sección 2). El conteo es de **todo** el municipio; las coordenadas que caen fuera del área provisional se anulan.
 
-Reglas, aplicadas en orden y solo a las escuelas aún sin resolver: (a) nombre normalizado idéntico dentro del municipio; (b) mismo CEP y similitud de nombre (Jaccard de palabras ≥ 0,6); (c) calle y número iguales. Si los candidatos distan más de 200 m entre sí, se descarta.
+Niveles de calidad (`geoCalidad`), de mayor a menor precedencia:
 
-| Municipio | Código IBGE | Escuelas en actividad | Con nombre idéntico (a) | Con coordenadas (a+b+c) | % |
-|---|---|---|---|---|---|
-| Manaus | 1302603 | 1.060 | 161 | 370 | 35 % |
-| Manacapuru | 1302504 | 166 | 39 | 82 | 49 % |
-| Itacoatiara | 1301902 | 144 | 19 | 57 | 40 % |
-| Nova Olinda do Norte | 1303106 | 71 | 22 | 34 | 48 % |
-| Iranduba | 1301852 | 69 | 8 | 29 | 42 % |
-| Nhamundá | 1303007 | 65 | 18 | 33 | 51 % |
-| Autazes | 1300300 | 58 | 5 | 28 | 48 % |
-| Careiro | 1301100 | 54 | 17 | 24 | 44 % |
-| Careiro da Várzea | 1301159 | 54 | 2 | 29 | 54 % |
-| Manaquiri | 1302553 | 45 | 13 | 25 | 56 % |
-| Urucará | 1304302 | 36 | 13 | 18 | 50 % |
-| Presidente Figueiredo | 1303536 | 34 | 10 | 19 | 56 % |
-| São Sebastião do Uatumã | 1303957 | 31 | 6 | 13 | 42 % |
-| Rio Preto da Eva | 1303569 | 29 | 9 | 19 | 66 % |
-| Novo Airão | 1303205 | 28 | 3 | 8 | 29 % |
-| Itapiranga | 1302009 | 24 | 9 | 17 | 71 % |
-| **Total** | | **1.968** | **354** | **805** | **41 %** |
+| Nivel | Regla |
+|---|---|
+| `seduc` | Archivo de la SEDUC-AM o la SEMED con código INEP y coordenadas (opcional; hoy no existe) |
+| `osm-ref-inep` | OpenStreetMap con `ref=INEP-<código>` igual al código de la escuela |
+| `cnefe-nombre-calle` | Nombre idéntico dentro del municipio y calle compatible, con candidatos a menos de 200 m entre sí |
+| `cnefe-nombre` | Nombre idéntico y sin calle comparable (hoy ninguna escuela cae aquí) |
+| `osm-calle` | Coincidencia por calle y número en CNEFE y un único nombre idéntico en OSM a menos de 500 m de ese punto |
 
-En todo AM: 5.542 en actividad, 751 por nombre idéntico (13,6 %), 1.972 con la regla (b) (35,6 %), 2.087 con la regla (c) (37,7 %).
+Nunca se usa el CEP. Un nombre idéntico con calle contradictoria o con candidatos dispersos no se acepta.
 
-**Precisión.** En una revisión visual de 20 pares, 12 son correctos o probables, 6 inciertos y 2 dudosos. La regla (b) es la más débil en zonas rurales: un CEP rural cubre un municipio entero y el punto puede quedar a decenas de kilómetros. Ese punto exige una decisión antes de publicar coordenadas aproximadas en el mapa (ver el informe a N1).
+| Municipio | Escuelas en actividad | Con coordenadas | % | Niveles |
+|---|---|---|---|---|
+| Manaus | 1.060 | 98 | 9 % | cnefe-nombre-calle 79, osm-calle 6, osm-ref-inep 13 |
+| Manacapuru | 166 | 9 | 5 % | cnefe-nombre-calle 8, osm-calle 1 |
+| Itacoatiara | 144 | 1 | 1 % | cnefe-nombre-calle 1 |
+| Iranduba | 69 | 3 | 4 % | cnefe-nombre-calle 3 |
+| Autazes | 58 | 0 | 0 % | |
+| Careiro | 54 | 6 | 11 % | cnefe-nombre-calle 6 |
+| Careiro da Várzea | 54 | 1 | 2 % | cnefe-nombre-calle 1 |
+| Manaquiri | 45 | 1 | 2 % | cnefe-nombre-calle 1 |
+| Presidente Figueiredo | 34 | 0 | 0 % | |
+| Rio Preto da Eva | 29 | 7 | 24 % | cnefe-nombre-calle 7 |
+| Novo Airão | 28 | 0 | 0 % | |
+| Itapiranga | 24 | 0 | 0 % | |
+| **Total** | **1.765** | **126** | **7 %** | cnefe-nombre-calle 106, osm-ref-inep 13, osm-calle 7 |
+
+Cifras de la corrida del 13/11/2026, guardadas también en `metadatos.resumen` del dataset `localizaciones`. Itacoatiara, Itapiranga, Novo Airão y Presidente Figueiredo se extienden mucho más allá del área, por eso aportan pocas coordenadas dentro de ella.
+
+**Cruce exploratorio previo (no usado).** Con las reglas más laxas (nombre idéntico, CEP más similitud de nombre, calle y número) se obtuvieron coordenadas para 41 % de las escuelas de 16 municipios (bbox de los polígonos). En una revisión visual de 20 pares, 12 eran correctos o probables, 6 inciertos y 2 dudosos, y la regla por CEP en zona rural puede errar por decenas de kilómetros. Por eso no se usa.
 
 ## 2. Límites municipales del IBGE (B0.4)
 
@@ -69,11 +75,11 @@ En todo AM: 5.542 en actividad, 751 por nombre idéntico (13,6 %), 1.972 con la 
 | Formato | Shapefile, 62 municipios |
 | Sistema de referencia | SIRGAS 2000 (EPSG:4674), prácticamente idéntico a WGS 84 para este uso |
 | Atributos | `CD_MUN` (7 dígitos), `NM_MUN`, `CD_UF`, `SIGLA_UF`, `AREA_KM2`, entre otros. Codificación declarada en el `.cpg`: UTF-8 |
-| Licencia | Datos abiertos del IBGE; texto de términos no verificado en esta sesión. Citar «Fonte: IBGE» |
+| Licencia | El índice del FTP dice «Todos os arquivos aqui disponíveis são públicos»; el `LEIA-ME.txt` condiciona el uso a la «Nota Metodológica» del IBGE, que el portal no sirvió a este cliente (403). No se encontró una licencia CC explícita: leer esa nota antes de redistribuir. Citar «Fonte: IBGE» |
 | Recuperación | 13/11/2026 |
-| Servicio de malhas (API) | `servicodados.ibge.gov.br` no respondió desde este entorno (tiempo de espera agotado), por eso se usa el FTP |
+| Servicio de malhas (API) | `servicodados.ibge.gov.br` no respondió desde este entorno (tiempo de espera agotado en el puerto 443), por eso se usa el FTP. SHA-256 del zip 2025: `6be84c61a9ad3c8510ea91b36a5da3b1860b580e5d3ddd29a6700c04a8e09b92`; edición 2022: https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/AM/AM_Municipios_2022.zip |
 
-Municipios cuya caja delimitadora toca el área (16): Manaus (1302603), Iranduba (1301852), Manacapuru (1302504), Manaquiri (1302553), Careiro (1301100), Careiro da Várzea (1301159), Autazes (1300300), Rio Preto da Eva (1303569), Presidente Figueiredo (1303536), Itacoatiara (1301902), Itapiranga (1302009), Nova Olinda do Norte (1303106), Nhamundá (1303007), Urucará (1304302), São Sebastião do Uatumã (1303957) y Novo Airão (1303205). Se comprobó con la caja delimitadora de cada polígono, no con la geometría, así que algunos podrían tocar el área solo por la esquina.
+Municipios cuyo contorno interseca el área (12, con prueba exacta de vértice, arista y esquina; el resultado es el mismo con las ediciones 2022 y 2025): Manaus (1302603), Iranduba (1301852), Manacapuru (1302504), Manaquiri (1302553), Careiro (1301100), Careiro da Várzea (1301159), Autazes (1300300), Rio Preto da Eva (1303569), Presidente Figueiredo (1303536), Itacoatiara (1301902), Itapiranga (1302009) y Novo Airão (1303205). Nhamundá, Urucará, São Sebastião do Uatumã y Nova Olinda do Norte tienen la caja delimitadora superpuesta con el área pero el polígono no la toca.
 
 Código de Manaus confirmado: 1302603.
 
@@ -100,16 +106,34 @@ Alternativas con licencia permisiva:
 | SRTM | Se describe como dominio público | https://www.earthdata.nasa.gov/learn/use-data/data-use-policy | Sin verificar |
 | MERIT Hydro | CC BY-NC 4.0 o ODbL (a elección), con registro; 3 arco-segundos | https://hydro.iis.u-tokyo.ac.jp/~yamadai/MERIT_DEM | Parcial |
 
-Conclusión: Copernicus GLO-30 es la base sin riesgo de licencia para uso del Estado, a costa de conservar la altura de bosques y edificios (menos precisión en profundidad de inundación). FABDEM mejora la precisión pero su uso depende de un criterio legal («no comercial» y «compartir igual» sobre la capa publicada) que debe confirmar el área legal del ministerio o por escrito Bristol/Fathom. El batch B12.4 queda sujeto a esa respuesta.
+**Decisión del dueño (13/11/2026): FABDEM aprobado para uso no comercial.** El uso es del Ministerio de Educación de Corrientes, educativo y sin fines de lucro, por lo que CC BY-NC-SA 4.0 es aceptable. Condiciones:
+
+- Atribución obligatoria donde se muestren capas derivadas de FABDEM: «FABDEM, University of Bristol / Fathom», con el enlace a la licencia (https://creativecommons.org/licenses/by-nc-sa/4.0/) y el aviso de Copernicus del readme, indicando que hubo modificaciones.
+- Compartir igual: cualquier derivado redistribuido (por ejemplo capas de elevación o terreno exportadas) debe llevar la misma licencia.
+- Queda pendiente confirmar el campo de licencia de la ficha de Bristol, que según la búsqueda podría mencionar además la «Non-Commercial Government Licence» del Reino Unido (sin verificar).
+
+Copernicus GLO-30 sigue siendo el modelo por defecto del perfil territorial de Manaos. El batch B12.4 (perfil con FABDEM) queda desbloqueado en lo legal; su implementación no forma parte de F3.
 
 ## 4. Fuentes adicionales (orden del dueño del 13/11/2026)
 
 | Fuente | Uso propuesto | Licencia | Fecha |
 |---|---|---|---|
-| CNEFE 2022, IBGE (espécie 4) | Coordenadas de escuelas por cruce con el INEP | Abierta del IBGE, citar | 13/11/2026 |
+| CNEFE 2022, IBGE (espécie 4) | Coordenadas de escuelas por cruce con el INEP | Datos abiertos del IBGE, citar la fuente | 13/11/2026 |
 | OpenStreetMap `amenity=school` | Complemento para escuelas que el CNEFE no resuelve | ODbL (exige atribución y compartir igual de la base de datos derivada) | 13/11/2026 |
 | Malha Municipal 2025, IBGE | Límites municipales y máscara | Abierta del IBGE, citar | 13/11/2026 |
 
 ## 5. Reproducción
 
-Descargas con `curl` a un directorio nuevo fuera del repositorio; lectura con `python3 -I`. Para el INEP: `curl -k` más verificación del MD5 publicado. El script del repositorio que reproduce los datasets se documenta en F3.
+El script `scripts/datasets-manaos.mjs` convierte las descargas públicas en los datasets:
+
+```bash
+# Directorio nuevo FUERA del repositorio; los archivos descargados son datos no confiables.
+node scripts/datasets-manaos.mjs descargar --dir /tmp/manaos-datos
+node scripts/datasets-manaos.mjs construir --dir /tmp/manaos-datos [--seduc archivo.csv]
+pnpm region:cargar manaos
+```
+
+- `descargar` baja la malla del IBGE, los microdatos del INEP (verifica el MD5 publicado; el servidor del INEP tiene la cadena de certificados incompleta y exige un agente de usuario de navegador), los 62 zips del CNEFE de AM y las escuelas de OSM por Overpass (que rechaza agentes de navegador con 406).
+- `construir` escribe `data/regiones/manaos/{localizaciones,departamentos,mascara}.json` (formato de `region:cargar`) y `public/data/{municipios-manaos,mascara-manaos}.geojson`. Las claves de los datasets son las fijas de la aplicación (`localizaciones`, `departamentos`, `mascara`).
+- `--seduc` acepta un CSV con `CO_ENTIDADE` y `LATITUDE`/`LONGITUDE` (o `lat`/`lon`); esas coordenadas tienen precedencia sobre todas las demás y se marcan `seduc`.
+- Las pruebas usan fragmentos reales grabados en `scripts/__fixtures__/manaos/`, nunca la red.

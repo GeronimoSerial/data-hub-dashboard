@@ -40,6 +40,14 @@ export default defineConfig({
       testMatch: ['specs/portugues.spec.ts', 'specs/portugues-hub.spec.ts'],
       use: { ...devices['Desktop Chrome'], baseURL: manaosURL },
     },
+    // Needs the database URL that run.mjs passes in standalone mode; it loads the datasets, so it runs after the empty-database specs.
+    ...(process.env.REGION_PROOF_MANAOS_DATABASE_URL
+      ? [{
+          name: 'manaos-escuelas',
+          testMatch: 'specs/manaos-escuelas.spec.ts',
+          use: { ...devices['Desktop Chrome'], baseURL: manaosURL },
+        }]
+      : []),
     {
       name: 'corrientes-vacio',
       testMatch: 'specs/corrientes-vacio.spec.ts',

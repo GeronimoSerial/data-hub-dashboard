@@ -402,6 +402,14 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 - CA3: suite e2e de Manaos verde en CI.
 - CA4: Corrientes sin cambios (snapshots idénticos).
 
+**Estado de implementación (B12.1, 13/11/2026):**
+
+- Hecho: `scripts/datasets-manaos.mjs` (`descargar` y `construir`) convierte las descargas públicas en `data/regiones/manaos/{localizaciones,departamentos,mascara}.json` y `public/data/{municipios-manaos,mascara-manaos}.geojson`; `config/regiones/manaos.json` declara `cargaDatasets` y deja pendiente solo `estacoes-ana`. Las claves son las fijas de la aplicación (`localizaciones`, `departamentos`, `mascara`), no los nombres provisionales anteriores. `region:cargar manaos` publica los tres datasets y el e2e de región (`manaos-escuelas`) prueba el mapa con ellos. Fuentes, fechas, licencias y cifras: `docs/ejecucion-enos/B0/datos-escuelas-territorio.md`.
+- Resultado y límite: 1.765 escuelas en actividad en los 12 municipios del área, 126 con coordenadas confiables (7 %) y 1.639 con coordenadas nulas. Ninguna fuente abierta trae coordenadas con código INEP, y el dueño decidió que ninguna escuela quede mal ubicada. Las escuelas sin coordenadas se cuentan en los totales del municipio y no se dibujan. **CA1 de B12 sigue abierto** hasta que la SEDUC-AM o la SEMED entregue un archivo con código INEP y coordenadas (B0.6): el script lo acepta con `--seduc` y le da precedencia.
+- FABDEM (B0.4): el dueño aprobó su uso no comercial (13/11/2026) con atribución obligatoria y compartir igual para derivados redistribuidos; B12.4 queda desbloqueado en lo legal, y Copernicus GLO-30 sigue como modelo por defecto.
+- `region:cargar` se ejecuta desde una copia del repositorio con acceso a la base: la imagen no incluye `data/`.
+- Abierto, fuera de este batch: la card de recursos "ENOS Corrientes" se siembra también en la base de Manaos (`lib/infraestructura/recurso-seed.ts`) y aparece en el pie del Centro de Situación de Manaos.
+
 ## B13 — Bajante y horizonte estacional
 
 | Subtarea | Acción |
@@ -649,7 +657,7 @@ Sigue `docs/ejecucion-enos/OPS1/runbook-nueva-region.md` y `deploy/regiones/`.
 |---|---|---|
 | M3.1 | Aplicación en el mismo Coolify que Corrientes (decisión M0.2), con la misma imagen y `REGION=manaos`, base Postgres propia y dominio `enos-manaos.sistemas.mec.gob.ar` (M0.3) | Dueño, o agente con acceso autorizado |
 | M3.2 | Secretos: los de B11.6 (`DATABASE_URL`, `OPEN_METEO_API_KEY`, `EARTHDATA_TOKEN`, `OPENROUTER_API_KEY`, `RIESGO_DATOS_ROL`) más `NOMINAL_ENCRYPTION_KEY`, `ADMIN_PASSWORD`, `MATRICULA_DNI_SECRET`, `DATASET_SALT_E7B`, `AI_API_KEY`, `OBS_*` y `GE_SSO_API_KEY`. Valores nuevos, nunca copiados de Corrientes | Dueño |
-| M3.3 | Carga de datos: `pnpm region:cargar manaos` con los datasets de B12 | Agente |
+| M3.3 | Carga de datos: `pnpm region:cargar manaos` con los datasets de B12 (desde una copia del repositorio con acceso a la base de Manaos: la imagen no incluye `data/`) | Agente |
 | M3.4 | Tareas programadas de la tabla "Manaos" de `deploy/regiones/scheduler-jobs.md`, más las de los proveedores de B12. Las marcadas "revisar" o "no programar" esperan a M2.5 | Dueño, o agente con acceso autorizado |
 | M3.5 | Monitoreo y backup de la base, igual que Corrientes | Dueño |
 | M3.6 | `ENOS_MANAOS_URL=https://enos-manaos.sistemas.mec.gob.ar` en Corrientes, solo cuando Manaos esté en vivo: hace visible la card "ENOS Manaos" en el hub | Dueño |

@@ -17,11 +17,16 @@
   "mapaCentro": [-60.02, -3.12],
   "mapaZoom": 9,
   "datasets": {
-    "unidadesAdministrativas": "municipios-ibge-am",
+    "unidadesAdministrativas": "departamentos",
     "estacionesRio": "estacoes-ana",
-    "localizaciones": "localizacoes-inep-am"
+    "localizaciones": "localizaciones"
   },
-  "datasetsPendientes": ["municipios-ibge-am", "estacoes-ana", "localizacoes-inep-am"],
+  "datasetsPendientes": ["estacoes-ana"],
+  "cargaDatasets": [
+    { "clave": "localizaciones", "archivo": "data/regiones/manaos/localizaciones.json" },
+    { "clave": "departamentos", "archivo": "data/regiones/manaos/departamentos.json" },
+    { "clave": "mascara", "archivo": "data/regiones/manaos/mascara.json" }
+  ],
   "fuentesRio": ["ana", "sgb"],
   "fuentesAlertas": ["inmet"],
   "archivos": {
