@@ -72,6 +72,16 @@ export async function resolverEnlace(
   }
 }
 
+/** Id del enlace para la auditoría. El token no sale de aquí; null si el enlace no existe. */
+export async function idEnlace(db: Db, token: string): Promise<string | null> {
+  const [fila] = await db
+    .select({ id: infraVeredictoEnlace.id })
+    .from(infraVeredictoEnlace)
+    .where(eq(infraVeredictoEnlace.tokenHash, hashToken(token)))
+    .limit(1)
+  return fila?.id ?? null
+}
+
 /** Revoca los enlaces vigentes que vencen al fin del día ART de `ahora`. */
 export async function revocarEnlacesDelDia(
   db: Db,

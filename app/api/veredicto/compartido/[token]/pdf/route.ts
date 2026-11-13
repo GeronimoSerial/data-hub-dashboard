@@ -1,11 +1,13 @@
 import { getDb } from '@/lib/db'
 import { aDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
-import { resolverEnlace } from '@/lib/infraestructura/veredicto/enlaces'
+import { idEnlace, resolverEnlace } from '@/lib/infraestructura/veredicto/enlaces'
 import { cargarEventosTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { generarPdfVeredictos } from '@/lib/infraestructura/veredicto/pdf'
 import { listarVigentes } from '@/lib/infraestructura/veredicto/repositorio'
 import { crearLimitador } from '@/lib/http/limitador'
 import { ruta } from '@/lib/http/ruta'
+import { actorAuditoria, describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 
 export const runtime = 'nodejs'
 
@@ -19,6 +21,11 @@ async function handleGET(
 ) {
   const { token } = await params
   const enlace = await resolverEnlace(getDb(), token)
+  // El actor es el enlace por su id; nunca el token ni la URL.
+  if (enlace.estado !== 'inexistente') {
+    actorAuditoria({ actorTipo: 'enlace', actorId: await idEnlace(getDb(), token), actorRol: null, viaAcceso: 'enlace' })
+  }
+  describirAuditoria({ objetoTipo: 'enlace_veredicto' })
 
   if (enlace.estado === 'inexistente') {
     return Response.json({ error: 'Enlace no encontrado' }, { status: 404 })
@@ -34,6 +41,7 @@ async function handleGET(
     generadoEn: new Date(),
     eventos,
   })
+  describirAuditoria({ metadatos: { formato: 'pdf', cantidad: filas.length } })
   return new Response(bytes.slice(), {
     headers: {
       'Content-Type': 'application/pdf',
@@ -44,4 +52,8 @@ async function handleGET(
   })
 }
 
-export const GET = ruta('veredicto.compartido.token.pdf.get', handleGET, { limite: { limitador } })
+export const GET = conAuditoria(
+  'enlace.pdf',
+  '/api/veredicto/compartido/[token]/pdf',
+  ruta('veredicto.compartido.token.pdf.get', handleGET, { limite: { limitador } }),
+)
