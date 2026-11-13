@@ -20,6 +20,10 @@ async function handlePOST(request: Request) {
   return manejarGeLogin(request)
 }
 
+// Excepción deliberada: esta ruta NO corre dentro de la transacción del evento porque hace llamadas
+// externas a GE y no conviene sostener una transacción abierta sobre red. Si la inserción del evento
+// falla, sí puede quedar una sesión creada, pero la respuesta 503 descarta Set-Cookie, así que esa
+// sesión no es alcanzable por el cliente.
 // Solo el status decide el resultado; el cuerpo (ticket, parámetros) nunca entra al evento.
 async function handlePOSTAuditado(request: Request) {
   const respuesta = await handlePOST(request)
