@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url'
 import {
   crearPlan, TABLAS_VACIAS, citarTabla, citarIdentificador,
   sqlExtraccion, sanearFila, ordenarPorDependencias, validarDestino,
+  TABLAS_IGNORADAS, tablasReconstruidas,
 } from './lib/reconstruir-staging-plan.mjs'
 
 const TABLAS_SQL = `SELECT table_schema || '.' || table_name AS tabla
@@ -40,7 +41,7 @@ function configuracion(url) {
 
 export function validarClasificacion(tablas, plan) {
   const clasificadas = new Set([...plan.map((p) => p.tabla), ...TABLAS_VACIAS])
-  const desconocidas = tablas.filter((t) => !clasificadas.has(t))
+  const desconocidas = tablas.filter((t) => !clasificadas.has(t) && !TABLAS_IGNORADAS.includes(t))
   const faltantes = [...clasificadas].filter((t) => !tablas.includes(t))
   if (desconocidas.length || faltantes.length) {
     throw new Error(`Esquema sin clasificar: nuevas=${desconocidas.join(',')}; faltantes=${faltantes.join(',')}`)
@@ -153,7 +154,7 @@ export async function reconstruirStaging({ sourceUrl, targetUrl, apply = false, 
     await destino.query("SET LOCAL lock_timeout = '10s'")
     await destino.query('SELECT pg_advisory_xact_lock(73261, 20261016)')
     // Sin CASCADE: si una tabla fuera del alcance depende de éstas, se aborta.
-    await destino.query(`TRUNCATE ${tablasDestino.map(citarTabla).join(', ')} RESTART IDENTITY`)
+    await destino.query(`TRUNCATE ${tablasReconstruidas(tablasDestino).map(citarTabla).join(', ')} RESTART IDENTITY`)
     for (const entrada of orden) {
       const total = await copiarTabla(origen, destino, entrada)
       if (total !== resumen.tablas[entrada.tabla]) throw new Error(`Conteo inconsistente en ${entrada.tabla}`)
@@ -164,7 +165,7 @@ export async function reconstruirStaging({ sourceUrl, targetUrl, apply = false, 
       const resultado = await destino.query(sql)
       if (Number(resultado.rows[0].n)) throw new Error(`Integridad: ${etiqueta}`)
     }
-    for (const tabla of tablasDestino) {
+    for (const tabla of tablasReconstruidas(tablasDestino)) {
       const { rows } = await destino.query(`SELECT count(*)::int AS n FROM ${citarTabla(tabla)}`)
       if (rows[0].n !== (resumen.tablas[tabla] ?? 0)) throw new Error(`Conteo final inconsistente en ${tabla}`)
     }

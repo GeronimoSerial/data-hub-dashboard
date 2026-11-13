@@ -33,6 +33,14 @@ export const TABLAS_VACIAS = [
   'public.om_cupo_contador', 'public.om_cupo_cooldown',
 ]
 
+// Historial append-only: staging conserva el suyo y nunca lo importa desde prod.
+// No se copia ni se trunca; el trigger de la migración impide además el TRUNCATE.
+export const TABLAS_IGNORADAS = ['public.auditoria_evento']
+
+export function tablasReconstruidas(tablas) {
+  return tablas.filter((tabla) => !TABLAS_IGNORADAS.includes(tabla))
+}
+
 export function crearPlan(ahora = new Date()) {
   if (!Number.isFinite(ahora.getTime())) throw new Error('Fecha de extracción inválida')
   const horas72 = new Date(ahora.getTime() - 72 * 3600_000).toISOString()

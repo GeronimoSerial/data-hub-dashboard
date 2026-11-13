@@ -104,6 +104,18 @@ describe('auditoria_evento es append-only', () => {
     expect(mensaje).toContain('code:23001')
   })
 
+  it('rechaza TRUNCATE con el mensaje de solo inserción y conserva las filas', async () => {
+    const db = getDb()
+    await db.insert(auditoriaEvento).values(eventoBase('trunc-1'))
+
+    const mensaje = await capturarError(() => db.execute(sql`TRUNCATE auditoria_evento`))
+    expect(mensaje).toContain(MENSAJE_SOLO_INSERCION)
+    expect(mensaje).toContain('code:23001')
+
+    const filas = await db.select().from(auditoriaEvento).where(eq(auditoriaEvento.id, ID('trunc-1')))
+    expect(filas).toHaveLength(1)
+  })
+
   it('deja la fila intacta tras un UPDATE y un DELETE rechazados', async () => {
     const db = getDb()
     await db.insert(auditoriaEvento).values(eventoBase('intacta-1'))
