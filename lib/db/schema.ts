@@ -1143,6 +1143,14 @@ export const hazardObservation = pgTable(
       t.observadoEn,
     ),
     index('hazard_observation_geometry_ref_idx').on(t.geometryRef),
+    // Consultas por rango de tiempo sin geometría (p. ej. el DISTINCT observado_en de
+    // sync-hazard-imerg): el único índice con provider+variable al frente tiene
+    // geometry_ref en el medio y obliga a recorrer todo el proveedor.
+    index('hazard_observation_provider_variable_observado_idx').on(
+      t.provider,
+      t.variable,
+      t.observadoEn,
+    ),
   ],
 )
 
