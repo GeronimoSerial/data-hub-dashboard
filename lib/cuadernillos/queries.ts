@@ -1,7 +1,7 @@
 import { and, eq, gt, isNotNull } from 'drizzle-orm'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
-import { bookletCampaign, bookletProduct, bookletProductMapping, bookletQuota, bookletSchoolAssignment, bookletStock } from '@/lib/db/schema'
+import { bookletCampaign, bookletProduct, bookletQuota, bookletSchoolAssignment, bookletStock } from '@/lib/db/schema'
 import { getBookletRequestPage, hasBookletCapability, isBookletAdmin } from './permissions'
 import type { BookletAssignmentView, BookletAssignmentsPage, BookletBalanceView, BookletCapability, BookletOverview, BookletRequestsPage } from './types'
 
@@ -131,7 +131,6 @@ const databaseOverviewRepository: BookletOverviewQueryRepository = {
     const [products, assignments, stockRows, quotaRows] = await Promise.all([
       db.select({ productId: bookletProduct.id, productLabel: bookletProduct.name })
         .from(bookletProduct)
-        .innerJoin(bookletProductMapping, eq(bookletProductMapping.productId, bookletProduct.id))
         .orderBy(bookletProduct.name, bookletProduct.id),
       (capability === 'planning'
         ? db.select({ cueAnexo: bookletSchoolAssignment.cueAnexo, schoolName: bookletSchoolAssignment.schoolName })
@@ -175,7 +174,7 @@ const databaseOverviewRepository: BookletOverviewQueryRepository = {
   },
 }
 
-/** Returns only explicitly mapped products and balances scoped by the requested module capability. */
+/** Returns every catalog product (a GE mapping only feeds enrollment suggestions) and balances scoped by the requested module capability. */
 export async function getBookletOverviewPage(
   actor: SessionUser | null,
   capability: BookletCapability,
