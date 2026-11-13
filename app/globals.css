@@ -2383,6 +2383,11 @@ time {
   .admin-layout .ui-table tr.admin-empty-row td { display: block; }
   .admin-motivos__acciones .ui-button--icon { min-width: 44px; min-height: 44px; }
 }
+
+/* Desktop table only: keep the timestamp on one line. On the card layout (<768px) it may wrap. */
+@media (min-width: 768px) {
+  .auditoria-fecha { white-space: nowrap; }
+}
 .is-danger { color: var(--danger); }
 
 .ui-messagebar {
