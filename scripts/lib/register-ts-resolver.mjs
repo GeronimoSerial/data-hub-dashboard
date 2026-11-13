@@ -20,7 +20,10 @@ export function registerTsResolver(
   registerHooks({
     resolve(specifier, context, nextResolve) {
       if (aliases && specifier.startsWith('@/')) {
-        const candidate = candidateFor(join(root, specifier.slice(2)))
+        const base = join(root, specifier.slice(2))
+        // A specifier that already names an existing JavaScript module keeps that file.
+        const exacto = /\.(mjs|cjs|js)$/.test(base) && existsSync(base) && statSync(base).isFile() ? base : null
+        const candidate = exacto ?? candidateFor(base)
         if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
       } else if (
         specifier.startsWith('./') ||
