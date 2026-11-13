@@ -6,6 +6,14 @@ import { pt } from './pt'
 // pt leaves that are identical to es on purpose: Portuguese cognates, codes and
 // proper nouns. Keyed by path, so a Spanish sentence copied into another slot still fails.
 const IGUALES_PERMITIDOS = new Set<string>([
+  'pt.shellHub.home.recursosPublicados',
+  'pt.shellHub.home.temas',
+  'pt.shellHub.home.recurso',
+  'pt.shellHub.home.recursos',
+  'pt.shellHub.home.porTema',
+  'pt.shellHub.home.porFormato',
+  'pt.shellHub.catalogo.formatos.mapa.label',
+  'pt.shellHub.catalogo.formatos.mapa.plural',
   'pt.residuos.veredicto.temporal.observado',
   'pt.residuos.veredicto.tipoDia.observado',
   'pt.residuos.veredicto.niveles.alerta',

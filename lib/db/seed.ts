@@ -154,7 +154,8 @@ async function seedHub() {
   await conReintentoPorBloqueo(async () => {
     const [row] = await db.select({ n: count() }).from(niveles)
     if ((row?.n ?? 0) === 0) {
-      const seeded = seedRecursos.map(withSeedFile)
+      // The initial catalog belongs to Corrientes; other regions start with only their ENOS cards.
+      const seeded = (regionActiva().id === 'corrientes' ? seedRecursos : []).map(withSeedFile)
       const tagJoins = seeded.flatMap((r) =>
         r.tagIds.map((tagId) => ({ recursoId: r.id, tagId })),
       )
@@ -164,12 +165,14 @@ async function seedHub() {
         await tx.insert(tipos).values(seedTipos)
         await tx.insert(categorias).values(seedCategorias)
         await tx.insert(tags).values(seedTags)
-        await tx.insert(recursos).values(
-          seeded.map(
-            ({ tagIds: _tagIds, audienciaNivelJurIds: _n, audienciaUserIds: _u, ...row }) =>
-              row,
-          ),
-        )
+        if (seeded.length > 0) {
+          await tx.insert(recursos).values(
+            seeded.map(
+              ({ tagIds: _tagIds, audienciaNivelJurIds: _n, audienciaUserIds: _u, ...row }) =>
+                row,
+            ),
+          )
+        }
         if (tagJoins.length > 0) {
           await tx.insert(recursoTags).values(tagJoins)
         }

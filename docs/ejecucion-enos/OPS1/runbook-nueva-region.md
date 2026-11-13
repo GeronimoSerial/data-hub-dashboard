@@ -129,6 +129,17 @@ Requiere autorización del owner; no realizado en B11.
 - Confirmar que el rol del entorno es explícito (`RIESGO_DATOS_ROL`) y que la
   región no comparte base con otra.
 
+## 10. Base de Manaos creada antes de F8: limpieza única del catálogo
+
+Desde F8 una región distinta de Corrientes siembra solo sus recursos ENOS: no carga el catálogo inicial de Corrientes ni las cards de natalidad y reorganización. Una base de Manaos que ya arrancó con una versión anterior conserva esas filas y **no se borran solas**: no hay migración destructiva a propósito.
+
+Limpieza única, manual y con respaldo previo (solo si el owner la autoriza para esa base):
+
+1. Respaldar la base y listar lo que se borraría: `SELECT id, titulo FROM recursos WHERE id <> 'recurso-infraestructura';`
+2. Revisar la lista. En una base de Manaos sin recursos propios cargados desde el admin, son `r1`, `r2`, `r3`, `r13` a `r17`, `recurso-natalidad` y `recurso-reorganizacion`.
+3. Borrar primero `recurso_tags` y las tablas de audiencia de esos ids, y después las filas de `recursos`. Cualquier recurso que el equipo de Manaos haya creado queda fuera de la lista.
+4. Verificar `/`, `/explorar` y `/admin/recursos`: solo debe quedar la card «ENOS Manaos».
+
 ## Qué no hace este runbook
 
 - No crea infraestructura, bases, tareas ni secretos reales.
