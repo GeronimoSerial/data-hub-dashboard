@@ -8,7 +8,6 @@ import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { CampoGravedad, gravedadCompleta, type ValorGravedad } from '@/components/infraestructura/campo-gravedad'
 import { CamposClasesEdificio, type ValorClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
-import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
 import { SelectorEstablecimiento, type ValorAlcanceEstablecimiento } from '@/components/infraestructura/selector-establecimiento'
 import { crearAfectacionVacia } from '@/components/infraestructura/afectacion-campos'
@@ -23,12 +22,8 @@ import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-ti
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import { VIGENCIA_AHORA, resolverVigencia, type EleccionVigencia } from '@/lib/infraestructura/vigencia-eleccion'
 import { respuestasDeSituacion } from '@/components/infraestructura/actualizar/consistencia-actualizacion'
-
-const ASPECTOS: Array<{ id: AspectoCambio; etiqueta: string }> = [
-  { id: 'gravedad', etiqueta: 'La gravedad' },
-  { id: 'alcance', etiqueta: 'A quién afecta (secciones / alumnos)' },
-  { id: 'clases-edificio', etiqueta: 'Las clases o el edificio' },
-]
+import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
 
 type Modo = 'eligiendo' | 'cambio' | 'solucion'
 
@@ -67,6 +62,14 @@ function seccionesDe(turnos: TurnoContexto[]): number[] {
 }
 
 export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
+  const diccionario = useTextos()
+  const t = diccionario.parteAlgoNuevo
+  const idioma = useIdioma()
+  const aspectosCambio: Array<{ id: AspectoCambio; etiqueta: string }> = [
+    { id: 'gravedad', etiqueta: t.revisar.aspectos.gravedad },
+    { id: 'alcance', etiqueta: t.revisar.aspectos.alcance },
+    { id: 'clases-edificio', etiqueta: t.revisar.aspectos.clases },
+  ]
   const cambioGuardado = p.respuesta?.tipo === 'cambio' ? p.respuesta.cambio : undefined
   const [modo, setModo] = useState<Modo>(cambioGuardado ? 'cambio' : 'eligiendo')
   const [preguntandoAspectos, setPreguntandoAspectos] = useState(false)
@@ -109,7 +112,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   function completarSolucion(eleccion: EleccionVigencia) {
     const solucionadaEn = resolverVigencia(eleccion)
     const anteriorAlInicio = solucionadaEn !== null && Date.parse(solucionadaEn) < Date.parse(p.situacion.rigeDesde)
-    setErrorSolucion(anteriorAlInicio ? 'La fecha de solución no puede ser anterior al inicio de la situación.' : null)
+    setErrorSolucion(anteriorAlInicio ? t.revisar.fechaAntesDeInicio : null)
     if (!solucionadaEn || anteriorAlInicio) {
       p.onResponder(null)
       setCascada(null)
@@ -198,11 +201,11 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
     ? alcance.carreras.length === 0 || carrerasSinAlumnoElegido.length > 0
     : alcance.secciones.length === 0 || (p.situacion.categoria === 'establecimiento' && alcance.alcanceEstablecimiento === '')
   const bloqueIncompleto = aspectos.includes('gravedad') && !gravedadCompleta(gravedad, p.sugerida)
-    ? { id: 'revisar-situacion-gravedad', mensaje: 'Complete la gravedad de esta situación.' }
+    ? { id: 'revisar-situacion-gravedad', mensaje: t.revisar.completeGravedad }
     : aspectos.includes('alcance') && alcanceIncompleto
-      ? { id: 'revisar-situacion-alcance', mensaje: p.carreras !== undefined ? (alcance.carreras.length === 0 ? 'Elija al menos una carrera para esta situación.' : 'Seleccione al menos un alumno afectado en cada carrera elegida.') : 'Elija a quién afecta esta situación.' }
+      ? { id: 'revisar-situacion-alcance', mensaje: p.carreras !== undefined ? (alcance.carreras.length === 0 ? t.revisar.elijaCarrera : t.revisar.alumnoCadaCarrera) : t.revisar.elijaAfectados }
       : aspectos.includes('clases-edificio') && (!clases.servicioEstado || !clases.estadoEstablecimiento)
-        ? { id: 'revisar-situacion-clases', mensaje: 'Indique cómo están las clases y el edificio.' }
+        ? { id: 'revisar-situacion-clases', mensaje: t.revisar.indiqueClases }
         : null
   const bloqueIncompletoId = bloqueIncompleto?.id
 
@@ -225,14 +228,14 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   }, [modo])
 
   return (
-    <section className="revisar-situacion" aria-label={`Situación ${p.posicion.actual} de ${p.posicion.total}`}>
-      <p className="asistente__contador">{`Lo que ya reportó · ${p.posicion.actual} de ${p.posicion.total}`}</p>
+    <section className="revisar-situacion" aria-label={t.revisar.posicion(p.posicion.actual, p.posicion.total)}>
+      <p className="asistente__contador">{t.revisar.contador(p.posicion.actual, p.posicion.total)}</p>
       <h3>{p.situacion.motivo} {!prioridadPorAlumnos && <EstadoActualSeveridad severidad={p.situacion.severidad} prefijo={false} />}</h3>
-      {prioridadPorAlumnos && <p aria-live="polite">{textoImpactoAlumnos(impactoAlumnosEnContexto(alcance.alumnos, p.turnos))}</p>}
-      <p className="revisar-situacion__fecha">{`Reportada ${formatearMomentoHistorial(p.situacion.creadaEn).replace(/^Hoy/, 'hoy').replace(/^(\d)/, 'el $1')}`}</p>
+      {prioridadPorAlumnos && <p aria-live="polite">{textoImpactoAlumnos(impactoAlumnosEnContexto(alcance.alumnos, p.turnos), diccionario)}</p>}
+      <p className="revisar-situacion__fecha">{t.revisar.reportada(desde(p.situacion.creadaEn, idioma))}</p>
 
       <fieldset className="afectacion-campos__grupo revisar-situacion__respuesta" aria-describedby={p.faltaRespuesta && modo !== 'solucion' ? 'revisar-situacion-error' : undefined}>
-        <legend className="afectacion-campos__legend">¿Cómo sigue?</legend>
+        <legend className="afectacion-campos__legend">{t.revisar.comoSigue}</legend>
         {(['sigue', 'cambio', 'solucionada'] as const).map((tipo) => (
           <Opcion
               key={tipo}
@@ -240,24 +243,24 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
               name={`revisar-${p.situacion.id}`}
               checked={tipoRespondido === tipo || (modo === 'solucion' && tipo === 'solucionada') || (modo === 'cambio' && tipo === 'cambio')}
               onChange={() => elegir(tipo)}
-              label={tipo === 'sigue' ? 'Sigue igual' : tipo === 'cambio' ? 'Cambió' : 'Se solucionó'}
+              label={t.revisar.opciones[tipo]}
               compacta
             />
         ))}
-        {p.faltaRespuesta && modo !== 'solucion' && modo !== 'cambio' ? <p id="revisar-situacion-error" className="reporte-inicial__error-campo" role="alert">Indique cómo sigue esta situación.</p> : null}
+        {p.faltaRespuesta && modo !== 'solucion' && modo !== 'cambio' ? <p id="revisar-situacion-error" className="reporte-inicial__error-campo" role="alert">{t.revisar.faltaRespuesta}</p> : null}
       </fieldset>
 
       {modo === 'cambio' && (
         <div className="revisar-situacion__bloques">
           {aspectos.includes('gravedad') && (
             <div id="revisar-situacion-gravedad" className="revisar-situacion__bloque" tabIndex={-1}>
-              <CampoGravedad idPrefijo={`rev-${p.situacion.id}`} categoria={p.situacion.categoria} esInstituto={p.esInstituto} sugerida={p.sugerida} severidadActual={p.situacion.severidad} pregunta="¿Qué tan grave es ahora?" valor={gravedad} onCambiar={(valor) => { setGravedad(valor); guardarCambio(aspectos, valor) }} />
+              <CampoGravedad idPrefijo={`rev-${p.situacion.id}`} categoria={p.situacion.categoria} esInstituto={p.esInstituto} sugerida={p.sugerida} severidadActual={p.situacion.severidad} pregunta={t.revisar.gravedadAhora}valor={gravedad} onCambiar={(valor) => { setGravedad(valor); guardarCambio(aspectos, valor) }} />
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-gravedad' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>
           )}
           {aspectos.includes('alcance') && (p.carreras !== undefined
             ? <div id="revisar-situacion-alcance" className="revisar-situacion__bloque" tabIndex={-1}>
-              <h4 className="afectacion-campos__legend">¿A quiénes afecta?</h4>
+              <h4 className="afectacion-campos__legend">{t.revisar.aQuienAfecta}</h4>
               <InstitutoCamposAQuienAfecta
                 cue={p.cue ?? ''}
                 idPrefijo={`rev-${p.situacion.id}`}
@@ -275,13 +278,13 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
             </div>
             : p.situacion.categoria === 'alumnos'
             ? <div id="revisar-situacion-alcance" className="revisar-situacion__bloque" tabIndex={-1}>
-              <h4 className="afectacion-campos__legend">¿A quiénes afecta?</h4>
+              <h4 className="afectacion-campos__legend">{t.revisar.aQuienAfecta}</h4>
               <SelectorAlumnos turnos={p.turnos} alumnosSeleccionados={alcance.alumnos} onCambiar={(secciones, alumnos) => { const siguiente = { ...alcance, secciones, alumnos }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>
             : <div id="revisar-situacion-alcance" className="revisar-situacion__bloque" tabIndex={-1}>
               <div className="afectacion-campos__grupo">
-                <p className="afectacion-campos__legend">¿A quiénes afecta?</p>
+                <p className="afectacion-campos__legend">{t.revisar.aQuienAfecta}</p>
                 <SelectorEstablecimiento turnos={p.turnos} valor={{ alcance: alcance.alcanceEstablecimiento, secciones: alcance.secciones }} onCambiar={(valor) => { const siguiente = { ...alcance, alcanceEstablecimiento: valor.alcance, secciones: valor.secciones }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
               </div>
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
@@ -308,24 +311,25 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
           <VigenciaChips
             value={cuando}
             onChange={(valor) => { setCuando(valor); completarSolucion(valor) }}
-            label="¿Cuándo se solucionó?"
-            etiquetaMomento="Se solucionó"
+            label={t.cuandoSolucionada}
+            etiquetaMomento={t.revisar.opciones.solucionada}
+            solucionada
             minimo={p.situacion.rigeDesde}
-            error={errorSolucion ?? (p.faltaRespuesta ? 'Falta indicar cuándo se solucionó.' : null)}
+            error={errorSolucion ?? (p.faltaRespuesta ? t.revisar.faltaCuando : null)}
           />
         </div>
       )}
 
       <ConfirmSheet
         open={preguntandoAspectos}
-        titulo={`¿Qué cambió en ${p.situacion.motivo}?`}
-        confirmarLabel="Continuar"
+        titulo={t.revisar.queCambio(p.situacion.motivo)}
+        confirmarLabel={t.continuar}
         confirmarDeshabilitado={aspectos.length === 0}
         onCancelar={() => setPreguntandoAspectos(false)}
         onConfirmar={() => { setPreguntandoAspectos(false); setModo('cambio'); guardarCambio() }}
       >
-        {ASPECTOS.filter((aspecto) => !prioridadPorAlumnos || aspecto.id === 'alcance').map((aspecto) => (
-          <Opcion key={aspecto.id} tipo="checkbox" label={aspecto.id === 'alcance' && p.esInstituto ? 'A quién afecta (carreras / alumnos)' : aspecto.etiqueta} checked={aspectos.includes(aspecto.id)} onChange={(event) => {
+        {aspectosCambio.filter((aspecto) => !prioridadPorAlumnos || aspecto.id === 'alcance').map((aspecto) => (
+          <Opcion key={aspecto.id} tipo="checkbox" label={aspecto.id === 'alcance' && p.esInstituto ? t.revisar.aspectos.alcanceInstituto : aspecto.etiqueta} checked={aspectos.includes(aspecto.id)} onChange={(event) => {
             const marcado = event.currentTarget.checked
             const siguientes = marcado ? [...aspectos, aspecto.id] : aspectos.filter((id) => id !== aspecto.id)
             setAspectos(siguientes)
@@ -336,9 +340,9 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
 
       <ConfirmSheet
         open={actual !== undefined}
-        titulo={`${p.situacion.motivo} se solucionó`}
-        confirmarLabel="Sí, también se solucionó"
-        cancelarLabel="No, sigue activo"
+        titulo={t.cascada.titulo(p.situacion.motivo)}
+        confirmarLabel={t.cascada.si}
+        cancelarLabel={t.cascada.no}
         confirmarDeshabilitado={cascadaAnteriorAlInicio}
         onCancelar={() => setCascada((actualCascada) => actualCascada ? { ...actualCascada, pendientes: actualCascada.pendientes.slice(1) } : null)}
         onConfirmar={() => {
@@ -347,8 +351,8 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
           setCascada((actualCascada) => actualCascada ? { ...actualCascada, pendientes: actualCascada.pendientes.slice(1) } : null)
         }}
       >
-        <p>{actual ? `${actual.motivo} (causado por ${p.situacion.motivo}), ¿también?` : null}</p>
-        {cascadaAnteriorAlInicio ? <p role="alert">La fecha de solución es anterior al inicio de esta consecuencia. Revísela por separado.</p> : null}
+        <p>{actual ? t.cascada.pregunta(actual.motivo, p.situacion.motivo) : null}</p>
+        {cascadaAnteriorAlInicio ? <p role="alert">{t.cascada.anteriorAlInicio}</p> : null}
       </ConfirmSheet>
     </section>
   )

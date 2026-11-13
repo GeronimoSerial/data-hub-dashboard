@@ -3,7 +3,7 @@
 // hacen red ni leen credenciales— este job sí orquesta las dos llamadas HTTP
 // reales:
 //   1. CMR (metadata) para elegir el gránulo más reciente.
-//   2. OPeNDAP ASCII (subsetting server-side) del bbox de Corrientes.
+//   2. OPeNDAP ASCII (subsetting server-side) del bbox de la región activa.
 //
 // El token de NASA Earthdata NO se lee implícitamente de `process.env` dentro
 // de esta función: llega como parámetro `earthdataToken`. El proceso que invoca
@@ -180,6 +180,7 @@ async function actualizarSalud(
   estado: EstadoSalud,
   ultimoErrorSaneado: string | null,
   ahoraIso: string,
+  filas?: { recibidas: number; yaSincronizado?: boolean },
 ): Promise<void> {
   // Upsert único: seguro de reintentar ante SQLITE_BUSY (job, no request
   // path), el statement no deja nada aplicado si no llega a correr.
@@ -190,6 +191,8 @@ async function actualizarSalud(
     estado,
     ultimoErrorSaneado,
     ahoraIso,
+    filasRecibidas: filas?.recibidas,
+    yaSincronizado: filas?.yaSincronizado,
   })
 }
 
@@ -473,7 +476,7 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
   if (aProcesar.length === 0) {
     // Ya está todo al día (incluido el gránulo más reciente): no hay red que
     // pedir además del listado de CMR ya hecho arriba.
-    await actualizarSalud(db, 'ok', null, ahoraIso)
+    await actualizarSalud(db, 'ok', null, ahoraIso, { recibidas: 0, yaSincronizado: true })
     await publicarResultado({
       jobRunId: lease.jobRunId,
       leaseOwner: lease.leaseOwner,
@@ -526,6 +529,9 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
     degradaFuente ? 'degradado' : 'ok',
     degradaFuente ? errorMasRecienteSaneado : null,
     ahoraIso,
+    // Filas recibidas del satélite en los gránulos procesados (upsert: cuenta
+    // lo recibido, no lo que cambió de valor).
+    { recibidas: celdasActualizadas },
   )
   const granulosNoPublicados = fallos.filter((fallo) => fallo.clase === 'no_publicado').length
   const granulosConError = fallos.length - granulosNoPublicados

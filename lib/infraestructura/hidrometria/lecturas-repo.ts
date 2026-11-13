@@ -3,7 +3,7 @@ import { and, asc, count, desc, eq, gte, lte, max, min } from 'drizzle-orm'
 import type { getDb } from '@/lib/db'
 import { hidroLectura } from '@/lib/db/schema'
 import {
-  obtenerEstacionesPrefectura,
+  obtenerEstacionesPrefecturaDeRegion,
   obtenerVersionCatalogoPrefectura,
   type EstacionPrefectura,
 } from './estaciones-prefectura'
@@ -15,6 +15,7 @@ import {
   type TendenciaAltura,
 } from './estado-altura'
 import type { FilaAlturaPrefectura } from './prefectura-parser'
+import { zonaHorariaRegion } from '../formato-region'
 
 // A parsed row already resolved to a catalogue station (`estacionId`).
 export type LecturaResuelta = Pick<
@@ -35,6 +36,9 @@ export type LecturaResuelta = Pick<
 export type OpcionesGuardarLecturas = {
   capturadaEn: string
   catalogoVersion: string
+  // Fuente de las lecturas (columna `fuente`). Sin valor se omite y rige el
+  // default de la columna ('prefectura'), igual que antes de B12.2.
+  fuente?: string
 }
 
 export type ResultadoGuardarLecturas = {
@@ -167,7 +171,7 @@ export type RespuestaHistoriaEstacion = {
     nombre: string
     tabla: 'hidro_lectura'
     unidadAltura: 'm'
-    zonaHorariaReferencia: 'America/Argentina/Buenos_Aires'
+    zonaHorariaReferencia: string
     edadMaximaVigenciaHoras: number
     notaReferenciaAnual: string
   }
@@ -206,7 +210,7 @@ function parsearIsoConZona(valor: unknown): number | null {
 }
 
 export function obtenerEstacionCatalogo(estacionId: string): EstacionPrefectura | null {
-  return obtenerEstacionesPrefectura().find((e) => e.estacionId === estacionId) ?? null
+  return obtenerEstacionesPrefecturaDeRegion().find((e) => e.estacionId === estacionId) ?? null
 }
 
 export function validarConsultaHistoriaEstacion(entrada: {
@@ -326,7 +330,7 @@ export function hashLecturaOriginal(lectura: LecturaResuelta): string {
 export async function guardarLecturasPrefectura(
   db: Db,
   lecturas: readonly LecturaResuelta[],
-  { capturadaEn, catalogoVersion }: OpcionesGuardarLecturas,
+  { capturadaEn, catalogoVersion, fuente }: OpcionesGuardarLecturas,
 ): Promise<ResultadoGuardarLecturas> {
   const conFecha = lecturas.filter(tieneFecha)
   const sinFecha = lecturas.length - conFecha.length
@@ -336,6 +340,7 @@ export async function guardarLecturasPrefectura(
     const lote = conFecha.slice(inicio, inicio + TAMANO_LOTE).map((lectura) => ({
       id: randomUUID(),
       estacionId: lectura.estacionId,
+      ...(fuente === undefined ? {} : { fuente }),
       lecturaM: lectura.lecturaM,
       variacionM: lectura.variacionM,
       periodoHoras: lectura.periodoHoras,
@@ -580,7 +585,7 @@ export async function consultarHistoriaEstacion(
       nombre: 'Prefectura Naval Argentina (PNA)',
       tabla: 'hidro_lectura',
       unidadAltura: 'm',
-      zonaHorariaReferencia: 'America/Argentina/Buenos_Aires',
+      zonaHorariaReferencia: zonaHorariaRegion(),
       edadMaximaVigenciaHoras: EDAD_MAXIMA_LECTURA_HORAS,
       notaReferenciaAnual:
         'Las estadísticas de hidro_referencia son agregados anuales (p10, mediana, p90) y nunca se interpolan como puntos de la serie.',

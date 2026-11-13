@@ -1,3 +1,5 @@
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
+
 export type ArchivoInfo = {
   id: string
   storageKey?: string | null
@@ -14,7 +16,8 @@ export function nombreArchivo(recurso: Pick<ArchivoInfo, 'nombreOriginal' | 'sto
 
 export function fechaArchivo(value?: string | null) {
   const date = value ? new Date(value) : null
+  const region = regionPublicaActual()
   return date && Number.isFinite(date.getTime())
-    ? new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }).format(date)
+    ? new Intl.DateTimeFormat(region.locale, { timeZone: region.zonaHoraria }).format(date)
     : 'Fecha no registrada'
 }

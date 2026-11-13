@@ -1,4 +1,4 @@
-import { obtenerEstacionesPrefectura } from '../hidrometria/estaciones-prefectura'
+import { obtenerEstacionesPrefecturaDeRegion } from '../hidrometria/estaciones-prefectura'
 // Forma pública del veredicto diario. No expone tokens, costo, modelo, hash de
 // entradas, id de job ni motivo de fallback: esos datos quedan en la fila.
 import type { FilaVeredicto } from './repositorio'
@@ -67,7 +67,7 @@ function aAguaArribaDto(item: unknown): AguaArribaDtoVeredicto {
 function aMetricaDto(item: unknown): MetricaDtoVeredicto {
   const m = registro(item)
   const estacionId = String(m.id ?? '').match(/^rio\.([^.]+)\./)?.[1]
-  const estacion = estacionId ? obtenerEstacionesPrefectura().find((e) => e.estacionId === estacionId) : undefined
+  const estacion = estacionId ? obtenerEstacionesPrefecturaDeRegion().find((e) => e.estacionId === estacionId) : undefined
   const persistida = registro(m.estacion)
   const identidad = typeof persistida.nombre === 'string' && typeof persistida.rio === 'string'
     ? { nombre: persistida.nombre, rio: persistida.rio }

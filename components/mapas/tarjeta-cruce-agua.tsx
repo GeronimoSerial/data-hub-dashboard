@@ -1,7 +1,9 @@
 import type { CruceAccesoOsm } from '@/lib/db/schema'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
 import { desgloseSuperficies, etiquetaSuperficie, superficieVia } from '@/lib/infraestructura/mapa/acceso'
-import { DESCRIPCIONES_CRUCE, ETIQUETAS_CRUCE, type ClasificacionCruce } from '@/lib/mapas/accesos-capas'
+import type { ClasificacionCruce } from '@/lib/mapas/accesos-capas'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
+import { localeNumero } from '@/lib/i18n/formato-numero'
 
 const RADIO_TIERRA_M = 6_371_000
 
@@ -84,9 +86,9 @@ export function contextoCruceEnRuta(
   }
 }
 
-function formatearKm(metros: number): string {
+function formatearKm(metros: number, locale: string): string {
   const km = metros / 1000
-  return km.toLocaleString('es-AR', { maximumFractionDigits: km < 10 ? 1 : 0 })
+  return km.toLocaleString(locale, { maximumFractionDigits: km < 10 ? 1 : 0 })
 }
 
 export type LluviaEnCruce = { mm: number; horas: number }
@@ -108,47 +110,50 @@ export function TarjetaCruceAgua({
   geometria?: GeometriaAccesoRespuesta | null
   lluvia?: LluviaEnCruce | null
 }) {
+  const dicionario = useTextos()
+  const t = dicionario.fichaCuerpo.cruceAgua
+  const locale = localeNumero(useIdioma())
   const contexto = indice === null || indice === undefined ? null : contextoCruceEnRuta(geometria ?? null, indice, escuela)
   const destino = geometria?.destino?.nombre
   const distanciaKm = geometria?.distanciaKm
   const via = geometria?.viaPrincipal
-  const desglose = desgloseSuperficies(geometria?.superficies)
+  const desglose = desgloseSuperficies(geometria?.superficies, dicionario)
   const superficie = desglose ? null : superficieVia(via)
 
   return (
     <div className="map-popup tarjeta-estacion tarjeta-cruce" data-clase={clasificacion}>
       <div className="tarjeta-estacion__cabecera">
         <div>
-          <h3 className="tarjeta-estacion__titulo">{nombreCurso || 'Cruce de agua'}</h3>
-          {nombreCurso && <p className="tarjeta-estacion__sub">Cruce de agua</p>}
+          <h3 className="tarjeta-estacion__titulo">{nombreCurso || t.cruceDeAgua}</h3>
+          {nombreCurso && <p className="tarjeta-estacion__sub">{t.cruceDeAgua}</p>}
         </div>
-        <span className="tarjeta-cruce__clase">{ETIQUETAS_CRUCE[clasificacion]}</span>
+        <span className="tarjeta-cruce__clase">{t.etiqueta[clasificacion]}</span>
       </div>
 
-      <p className="tarjeta-cruce__descripcion">{DESCRIPCIONES_CRUCE[clasificacion]}</p>
-      {nombrePuente && <p className="tarjeta-cruce__descripcion">Puente: {nombrePuente}</p>}
+      <p className="tarjeta-cruce__descripcion">{t.descripcion[clasificacion]}</p>
+      {nombrePuente && <p className="tarjeta-cruce__descripcion">{t.puente(nombrePuente)}</p>}
 
       {contexto && (
         <dl className="tarjeta-estacion__datos">
           <div>
-            <dt>Posición en el camino</dt>
-            <dd>Cruce {contexto.orden} de {contexto.total}</dd>
+            <dt>{t.posicion}</dt>
+            <dd>{t.cruce(contexto.orden, contexto.total)}</dd>
           </div>
           <div>
-            <dt>Desde la escuela</dt>
-            <dd>a {formatearKm(contexto.distanciaEscuelaM)} km</dd>
+            <dt>{t.desdeLaEscuela}</dt>
+            <dd>{t.aEscuela(formatearKm(contexto.distanciaEscuelaM, locale))}</dd>
           </div>
           {lluvia && (
             <div>
-              <dt>Lluvia observada ({lluvia.horas} h)</dt>
-              <dd>{lluvia.mm.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm</dd>
+              <dt>{t.lluviaObservada(lluvia.horas)}</dt>
+              <dd>{lluvia.mm.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm</dd>
             </div>
           )}
         </dl>
       )}
       {!contexto && lluvia && (
         <p className="tarjeta-estacion__hora">
-          Lluvia observada ({lluvia.horas} h): {lluvia.mm.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm
+          {t.lluviaObservada(lluvia.horas)}: {lluvia.mm.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm
         </p>
       )}
 
@@ -157,9 +162,9 @@ export function TarjetaCruceAgua({
           {escuela?.nombre && <p className="tarjeta-cruce__escuela">{escuela.nombre}</p>}
           {destino && (
             <p className="tarjeta-estacion__sub">
-              Camino a {destino}
-              {typeof distanciaKm === 'number' && ` · ${formatearKm(distanciaKm * 1000)} km`}
-              {typeof distanciaKm === 'number' && superficie && ` ${etiquetaSuperficie(superficie)}`}
+              {t.caminoA(destino)}
+              {typeof distanciaKm === 'number' && ` · ${formatearKm(distanciaKm * 1000, locale)} km`}
+              {typeof distanciaKm === 'number' && superficie && ` ${etiquetaSuperficie(superficie, dicionario)}`}
             </p>
           )}
           {desglose && (
@@ -167,7 +172,7 @@ export function TarjetaCruceAgua({
           )}
           {via && (
             <p className="tarjeta-estacion__sub">
-              {via.nombre ? `Vía principal: ${via.nombre}` : 'Vía principal sin nombre'}
+              {via.nombre ? t.viaPrincipal(via.nombre) : t.viaSinNombre}
             </p>
           )}
         </div>

@@ -15,20 +15,20 @@ import { EntradaActualizar } from '@/components/infraestructura/actualizar/entra
 import { RevisarSituacion } from '@/components/infraestructura/actualizar/revisar-situacion'
 import { AlgoNuevo } from '@/components/infraestructura/actualizar/algo-nuevo'
 import { MENSAJE_ACCESO_VENCIDO, MENSAJE_ERROR_LECTURA, MENSAJE_SIN_CORTE, MENSAJE_SIN_SITUACION, type EstadoActualRespuesta } from '@/components/infraestructura/estado-actual-textos'
-import { ETIQUETA_CLASES, ETIQUETA_ESTABLECIMIENTO, formatearMomento, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
+import { etiquetaClases, etiquetaEstablecimiento, formatearMomento, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from '@/components/infraestructura/verificacion-vinculo'
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 import { confirmarFormulario, eliminarBorradorFormulario, guardarBorradorFormulario, guardarClaveEnvioFormulario, leerBorradorFormulario, leerConfirmacionFormulario, limpiarFormularioConfirmado, olvidarClaveEnvioFormulario, type BorradorFormulario } from '@/lib/infraestructura/parte/borrador-formulario'
 import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
-import { claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
+import { claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, mensajesEstado, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
 import { alcanceDe, mensajesDeBloqueo, respuestasDeSituacion } from '@/components/infraestructura/actualizar/consistencia-actualizacion'
 import { evaluarCambioAHabitual } from '@/lib/infraestructura/consistencia-estado-activo'
-import { bloqueoOpcion } from '@/lib/infraestructura/consistencia-parte'
+import { bloqueoOpcion, mensajeConsistencia } from '@/lib/infraestructura/consistencia-parte'
 import { CamposClasesEdificio, type ValorClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { carrerasDelServicio, construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { alcanceInstituto, nombresDeCarreras, textoAlcanceInstitutoConNombres, type AlumnoElegido, type CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
-import { MENSAJE_GUARDADO_INSTITUTO } from '@/lib/copy/institutos'
+import { mensajeGuardadoInstituto } from '@/lib/copy/institutos'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import { MODALIDADES_ASISTENCIA_PEDAGOGICA, type EstadoServicioGeneral, type ModalidadAsistenciaPedagogica } from '@/lib/infraestructura/trayectoria-tipos'
@@ -37,6 +37,9 @@ import { declararFotosFormulario, type FotoPreparada } from '@/lib/infraestructu
 import { restaurarFotosPreparadas } from '@/lib/infraestructura/fotos/restaurar-fotos'
 import { descartarSubidaFotoNoDeclarada } from '@/lib/infraestructura/fotos/subida-cola'
 import type { FotoSeleccionada } from '@/components/infraestructura/fotos/selector-fotos'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n'
 
 export interface RecorridoActualizacionProps {
   cue: string
@@ -48,10 +51,7 @@ export interface RecorridoActualizacionProps {
   carreras?: CarreraElegible[]
 }
 
-const TITULO_GUARDADO = 'Parte actualizado'
-const MENSAJE_GUARDADO = 'Ya figura en el estado actual de su escuela.'
-const MENSAJE_ERROR_GUARDADO = 'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
-const MENSAJE_BORRADOR_INVALIDO = 'No se pudo recuperar la actualización guardada. Empezará una nueva.'
+type TextosRecorrido = Diccionario['parteRecorrido']
 type Carga = { fase: 'cargando' } | { fase: 'error'; mensaje: string } | { fase: 'listo'; datos: EstadoActualRespuesta; historial: MovimientoHistorial[] }
 type Etapa = EtapaActualizacion | 'enviado'
 type ModalidadAsistencia = ModalidadAsistenciaPedagogica
@@ -129,10 +129,10 @@ function contarAlumnos(secciones: number[], turnos: TurnoContexto[]): number {
     .reduce((total, seccion) => total + seccion.matricula, 0)
 }
 
-function etiquetaServicio(estado: EstadoServicioGeneral | 'normal' | 'suspendido'): string {
+function etiquetaServicio(estado: EstadoServicioGeneral | 'normal' | 'suspendido', t: TextosRecorrido = es.parteRecorrido): string {
   if (estado === 'normal') return 'habitual'
   if (estado === 'parcial') return 'parcial'
-  return 'interrumpido'
+  return t.servicio.interrumpido
 }
 
 function detalleAlcance(secciones: number[], alumnos: number): string {
@@ -146,6 +146,8 @@ function crearLineasResumen(
   estadoServicio: EstadoServicioGeneral,
   carreras: CarreraElegible[] = [],
   esInstituto = false,
+  t: TextosRecorrido = es.parteRecorrido,
+  diccionario: Diccionario = es,
 ): BloqueResumenActualizacion[] {
   const bloques: BloqueResumenActualizacion[] = []
   const sinCambios: string[] = []
@@ -160,13 +162,13 @@ function crearLineasResumen(
     }
     if (respuesta.tipo === 'solucionada') {
       const momento = formatearMomento(respuesta.solucionadaEn)
-      const fecha = momento && momento !== respuesta.solucionadaEn ? momento : 'fecha no disponible'
-      bloques.push({ titulo: situacion.motivo, filas: [{ etiqueta: 'Estado', valor: `Se solucionó · ${fecha}` }] })
+      const fecha = momento && momento !== respuesta.solucionadaEn ? momento : t.resumen.fechaNoDisponible
+      bloques.push({ titulo: situacion.motivo, filas: [{ etiqueta: 'Estado', valor: t.resumen.solucionada(fecha) }] })
       continue
     }
 
     const filas: FilaResumenActualizacion[] = []
-    if (respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: respuesta.cambio.severidad === situacion.severidad ? `${situacion.severidad} (sin cambios)` : `${situacion.severidad} → ${respuesta.cambio.severidad}` })
+    if (respuesta.cambio.severidad) filas.push({ etiqueta: t.resumen.gravedad, valor: respuesta.cambio.severidad === situacion.severidad ? t.resumen.sinCambiosDe(situacion.severidad) : `${situacion.severidad} → ${respuesta.cambio.severidad}` })
     if (respuesta.cambio.carreras) {
       const alcance = alcanceInstituto(respuesta.cambio.carreras, respuesta.cambio.alumnosElegidos ?? [], carreras)
       filas.push({ etiqueta: 'Alcance', valor: textoAlcanceInstitutoConNombres(nombresDeCarreras(respuesta.cambio.carreras, carreras), alcance.alumnos) })
@@ -175,16 +177,16 @@ function crearLineasResumen(
       filas.push({
         etiqueta: 'Alcance',
         valor: prioridadPorAlumnos
-          ? textoImpactoAlumnos(impactoAlumnosEnContexto(respuesta.cambio.alumnos ?? situacion.alumnos, turnos))
+          ? textoImpactoAlumnos(impactoAlumnosEnContexto(respuesta.cambio.alumnos ?? situacion.alumnos, turnos), diccionario)
           : detalleAlcance(respuesta.cambio.secciones, alumnos),
       })
     }
     if (respuesta.cambio.aspectos.includes('clases-edificio') && recorrido.clasesEdificio) {
-      filas.push({ etiqueta: 'Clases', valor: etiquetaServicio(estadoServicio) === etiquetaServicio(recorrido.clasesEdificio.servicioEstado) ? `${etiquetaServicio(estadoServicio)} (sin cambios)` : `${etiquetaServicio(estadoServicio)} → ${etiquetaServicio(recorrido.clasesEdificio.servicioEstado)}` })
+      filas.push({ etiqueta: t.resumen.clases, valor: etiquetaServicio(estadoServicio, t) === etiquetaServicio(recorrido.clasesEdificio.servicioEstado, t) ? t.resumen.sinCambiosDe(etiquetaServicio(estadoServicio, t)) : `${etiquetaServicio(estadoServicio, t)} → ${etiquetaServicio(recorrido.clasesEdificio.servicioEstado, t)}` })
     }
     if (filas.length) bloques.push({ titulo: situacion.motivo, filas })
   }
-  if (sinCambios.length) bloques.push({ titulo: 'Sin cambios', filas: [{ etiqueta: 'Situaciones', valor: sinCambios.join(', ') }] })
+  if (sinCambios.length) bloques.push({ titulo: t.resumen.sinCambios, filas: [{ etiqueta: t.resumen.situaciones, valor: sinCambios.join(', ') }] })
   if (recorrido.nueva) {
     const nueva = recorrido.nueva
     let alcance: string
@@ -199,18 +201,18 @@ function crearLineasResumen(
       const cantidadAlumnos = nueva.alumnos?.length ?? contarAlumnos(secciones, turnos)
       alcance = detalleAlcance(secciones, cantidadAlumnos)
       const todaLaEscuela = !nueva.alumnos && todasLasSecciones.length > 0 && secciones.length === todasLasSecciones.length
-      prefijoAlcance = nueva.alumnos ? 'Algunos alumnos' : todaLaEscuela ? 'Toda la escuela' : ''
+      prefijoAlcance = nueva.alumnos ? t.resumen.algunosAlumnos : todaLaEscuela ? t.resumen.todaLaEscuela : ''
     }
     // GE con alumnos: la prioridad reemplaza a la gravedad elegida a mano.
     const valor = nueva.alumnos && !nueva.carreras
-      ? `${nueva.motivo} · ${textoImpactoAlumnos(impactoAlumnosEnContexto(nueva.alumnos, turnos))}`
+      ? `${nueva.motivo} · ${textoImpactoAlumnos(impactoAlumnosEnContexto(nueva.alumnos, turnos), diccionario)}`
       : `${nueva.motivo} · ${nueva.severidad} · ${prefijoAlcance ? `${prefijoAlcance} (${alcance})` : alcance}`
     const causa = nueva.causadaPorId ? situaciones.find((situacion) => situacion.id === nueva.causadaPorId)?.motivo : null
     bloques.push({
-      titulo: 'Situación nueva',
+      titulo: t.resumen.situacionNueva,
       filas: [
-        { etiqueta: 'Detalle', valor: causa ? `${valor} · Consecuencia de ${causa}` : valor },
-        ...(nueva.descripcion ? [{ etiqueta: 'Descripción', valor: nueva.descripcion }] : []),
+        { etiqueta: t.resumen.detalle, valor: causa ? `${valor} · ${t.resumen.consecuenciaDe(causa)}` : valor },
+        ...(nueva.descripcion ? [{ etiqueta: t.resumen.descripcion, valor: nueva.descripcion }] : []),
       ],
     })
   }
@@ -220,6 +222,7 @@ function crearLineasResumen(
 export function RecorridoActualizacion({ cue, turnos, motivos, esInstituto = false, carreras }: RecorridoActualizacionProps): JSX.Element {
   const [carga, setCarga] = useState<{ cue: string; resultado: Carga }>(() => ({ cue, resultado: { fase: 'cargando' } }))
   const solicitudRef = useRef(0)
+  const t = useTextos().parteRecorrido
 
   const recargar = useCallback(() => {
     const solicitud = ++solicitudRef.current
@@ -244,7 +247,7 @@ export function RecorridoActualizacion({ cue, turnos, motivos, esInstituto = fal
   useEffect(() => { void registrarServiceWorkerParte() }, [])
 
   const resultado = carga.cue === cue ? carga.resultado : { fase: 'cargando' as const }
-  if (resultado.fase === 'cargando') return <p className="estado-actual-aviso" role="status">Buscando el estado actual del establecimiento…</p>
+  if (resultado.fase === 'cargando') return <p className="estado-actual-aviso" role="status">{t.cargando}</p>
   if (resultado.fase === 'error') return <p className="estado-actual-aviso__texto" role="alert">{resultado.mensaje}</p>
   if (!resultado.datos.parte) return <p className="estado-actual-aviso__texto" role="alert">{MENSAJE_SIN_SITUACION}</p>
 
@@ -252,6 +255,8 @@ export function RecorridoActualizacion({ cue, turnos, motivos, esInstituto = fal
 }
 
 function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras, datos, historial, onRecargar }: RecorridoActualizacionProps & { datos: EstadoActualRespuesta; historial: MovimientoHistorial[]; onRecargar: () => void }): JSX.Element {
+  const diccionario = useTextos()
+  const t = diccionario.parteRecorrido
   const almacenRef = useRef<Promise<AlmacenClaveValor> | null>(null)
   const almacen = useCallback(() => (almacenRef.current ??= crearAlmacenParte()), [])
   const situaciones = useMemo(() => mapearSituaciones(datos), [datos])
@@ -313,8 +318,8 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
   const asistenciaSeleccionada = crearAsistenciaSeleccionada(asistenciaPedagogica.brinda, asistenciaPedagogica.modalidades)
   const asistenciaCambiada = !asistenciaCoincide(asistenciaVigente, asistenciaSeleccionada)
   const lineasResumen = useMemo(() => {
-    return crearLineasResumen(situaciones, recorrido, turnos, datos.servicio?.estadoGeneral ?? 'normal', carreras, esInstituto)
-  }, [situaciones, recorrido, turnos, datos.servicio?.estadoGeneral, carreras, esInstituto])
+    return crearLineasResumen(situaciones, recorrido, turnos, datos.servicio?.estadoGeneral ?? 'normal', carreras, esInstituto, t, diccionario)
+  }, [situaciones, recorrido, turnos, datos.servicio?.estadoGeneral, carreras, esInstituto, t, diccionario])
 
   function moverEtapa(siguiente: EtapaActualizacion): void {
     setEtapa(siguiente)
@@ -345,7 +350,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
           const dato = guardado.datos
           if (!coincidenIdsSituaciones(dato.idsSituaciones, situaciones.map((situacion) => situacion.id))) {
             persistenciaBloqueadaRef.current = true
-            setAvisoBorrador('La situación cambió desde que empezó. El borrador anterior se conservó en este dispositivo y no se aplicó a esta actualización.')
+            setAvisoBorrador(t.borrador.situacionCambio)
           } else {
             setBorradorPendiente(dato)
             if (dato.referenciasFotos?.length) {
@@ -359,7 +364,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
               setFotosElegidas(fotos)
               setFotosPreparadas(fotos.map((foto) => foto.preparada))
               if (faltantes.length) {
-                setErrorFotos('Algunas fotos ya no están disponibles en este dispositivo y se quitaron del parte.')
+                setErrorFotos(t.fotos.faltantes)
                 setInteraccionIniciada(true)
               }
             }
@@ -368,11 +373,11 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       } catch (error) {
         if (!cancelado) {
           persistenciaBloqueadaRef.current = true
-          const mensaje = error instanceof Error ? error.message : 'No se pudo acceder al almacenamiento local.'
+          const mensaje = error instanceof Error ? error.message : t.borrador.sinAcceso
           if (mensaje.includes('IndexedDB')) {
-            setAvisoAlmacen(`${mensaje} Puede enviar las respuestas.`)
+            setAvisoAlmacen(`${mensaje} ${t.puedeEnviar}`)
           } else {
-            setAvisoBorrador(`${MENSAJE_BORRADOR_INVALIDO} ${mensaje} Puede enviar las respuestas.`)
+            setAvisoBorrador(`${t.borrador.invalido} ${mensaje} ${t.puedeEnviar}`)
           }
           try {
             const anterior: unknown = JSON.parse(localStorage.getItem(claveBorrador) ?? 'null')
@@ -393,7 +398,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       }
     })()
     return () => { cancelado = true }
-  }, [claveBorrador, cue, esInstituto, situaciones])
+  }, [claveBorrador, cue, esInstituto, situaciones, t])
 
   useEffect(() => {
     if (!borradorLeido || !interaccionIniciada || borradorPendiente || persistenciaBloqueadaRef.current) return
@@ -421,9 +426,9 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       setAvisoBorrador(null)
       try { localStorage.setItem(claveBorrador, JSON.stringify(datos)) } catch { /* IndexedDB sigue siendo el almacenamiento principal. */ }
     }).catch((error: unknown) => {
-      setAvisoAlmacen(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo guardar el borrador local. Puede enviar las respuestas.')
+      setAvisoAlmacen(error instanceof Error ? `${error.message} ${t.puedeEnviar}` : `${t.borrador.noGuardar} ${t.puedeEnviar}`)
     })
-  }, [borradorLeido, interaccionIniciada, borradorPendiente, claveBorrador, cue, etapa, recorrido, asistenciaPedagogica, situaciones, fotosElegidas])
+  }, [borradorLeido, interaccionIniciada, borradorPendiente, claveBorrador, cue, etapa, recorrido, asistenciaPedagogica, situaciones, fotosElegidas, t])
 
   useEffect(() => {
     const vistas = vistasRestauradasRef.current
@@ -483,9 +488,9 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       idempotencyKey: claveEvidenciaFotos,
       fotos: fotosPreparadas,
     }).catch((error: unknown) => {
-      setErrorFotos(error instanceof Error ? error.message : 'Las fotos quedaron guardadas en este dispositivo para reintentar.')
+      setErrorFotos(error instanceof Error ? error.message : t.fotos.quedaronGuardadas)
     })
-  }, [claveEvidenciaFotos, fotosDraftId, fotosPreparadas])
+  }, [claveEvidenciaFotos, fotosDraftId, fotosPreparadas, t])
 
   const alEnviarConExito = useCallback((movimientoId?: string) => {
     if (movimientoId) void confirmarFormulario(`${DRAFT_ID_PREFIX}${cue}`, movimientoId).catch(() => {})
@@ -499,7 +504,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
         borradorCompartidoRef.current = null
         localStorage.removeItem(claveBorrador)
       }).catch((error: unknown) => {
-        setAvisoBorrador(error instanceof Error ? `${error.message} Puede enviar las respuestas.` : 'No se pudo limpiar el borrador local.')
+        setAvisoBorrador(error instanceof Error ? `${error.message} ${t.puedeEnviar}` : t.borrador.noLimpiar)
       })
     }
     limpiarVinculoVerificacion()
@@ -507,7 +512,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
     setGuardado(true)
     setEnviando(false)
     enviandoRef.current = false
-  }, [claveBorrador, cue, vincularFotosPreparadas])
+  }, [claveBorrador, cue, vincularFotosPreparadas, t])
 
   useEffect(() => {
     const movimientoId = movimientoFotosConfirmadoRef.current
@@ -586,15 +591,15 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
   async function enviar(): Promise<void> {
     if (enviando || enviandoRef.current || bloqueos.length > 0) return
     if (asistenciaPedagogica.brinda === '') {
-      setError('Indique si se brinda asistencia pedagógica.')
+      setError(t.error.asistenciaRequerida)
       return
     }
     if (asistenciaPedagogica.brinda === 'si' && asistenciaPedagogica.modalidades.length === 0) {
-      setError('Elija al menos una modalidad de asistencia pedagógica.')
+      setError(t.error.modalidadRequerida)
       return
     }
     if (situacionesSinRespuesta(situaciones, recorrido).length > 0) {
-      setError('Indique cómo sigue cada situación antes de enviar.')
+      setError(t.error.situacionRequerida)
       return
     }
     enviandoRef.current = true
@@ -613,13 +618,13 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       if (resultado.ok) {
         const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string } | null
         if (cuerpo?.ok && typeof cuerpo.movimientoId === 'string') { exito = true; alEnviarConExito(cuerpo.movimientoId); return }
-        setError(MENSAJE_ERROR_GUARDADO)
+        setError(t.error.guardado)
       }
       // El resumen ya anuncia el error persistido junto al estado del envío.
     } catch {
       // Local storage or lock failure: never leave the button on "Guardando…".
       setEstadoEnvio((actual) => (actual === 'enviando' ? null : actual))
-      setError(MENSAJE_ERROR_GUARDADO)
+      setError(t.error.guardado)
     } finally {
       if (!exito) {
         enviandoRef.current = false
@@ -642,7 +647,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       })
       setGuardado(true)
     } catch (error) {
-      setErrorFotos(error instanceof Error ? error.message : 'No se pudieron guardar las fotos. Puede continuar con una actualización normal.')
+      setErrorFotos(error instanceof Error ? error.message : t.fotos.noGuardar)
     } finally {
       setEnviando(false)
     }
@@ -714,7 +719,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       clases: null,
       edificio: null,
     }), 'edificio', 'habitual')
-    return regla ? [[situacion.id, regla.mensaje] as const] : []
+    return regla ? [[situacion.id, mensajeConsistencia(regla.mensaje, diccionario)] as const] : []
   }))
   const afectacionesActivas = situaciones.map((situacion) => ({ id: situacion.id, motivo: situacion.motivo }))
   const idsCon = (tipo: 'solucionada' | 'sigue'): string[] => situaciones.filter((situacion) => recorrido.respuestas[situacion.id]?.tipo === tipo).map((situacion) => situacion.id)
@@ -742,7 +747,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
         alcance: respuesta.cambio.aspectos.includes('alcance') ? alcanceDe(respuesta.cambio.secciones, seccionesEscuela) : null,
         clases: conClases ? clasesEdificio.servicioEstado || null : null,
         edificio: conClases ? clasesEdificio.estadoEstablecimiento : null,
-      }), { descripcion: false })
+      }), { descripcion: false }, diccionario)
     }),
     ...(recorrido.nueva
       ? mensajesDeBloqueo(respuestasDeSituacion({
@@ -754,13 +759,13 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
         alcance: alcanceDe(recorrido.nueva.secciones, seccionesEscuela),
         clases: clasesEdificio.servicioEstado || null,
         edificio: clasesEdificio.estadoEstablecimiento,
-      }), { descripcion: true })
+      }), { descripcion: true }, diccionario)
       : []),
   ]
   const faltaServicio = restablecer && clasesEdificio.servicioEstado === ''
-    ? ['Indique cómo están las clases para restablecer el funcionamiento (hoy hay clases suspendidas en parte).']
+    ? [t.error.faltaServicio]
     : []
-  const bloqueos = [...new Set([...mensajesDeCambios, ...faltaServicio, ...habitual.bloqueos.map((regla) => regla.mensaje)])]
+  const bloqueos = [...new Set([...mensajesDeCambios, ...faltaServicio, ...habitual.bloqueos.map((regla) => mensajeConsistencia(regla.mensaje, diccionario))])]
   function decidirAfectacionesHabitual(decisiones: Record<string, 'solucionada' | 'sigue'>): void {
     const ahora = new Date().toISOString()
     setRecorrido((r) => Object.entries(decisiones).reduce(
@@ -801,22 +806,22 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
   // Otherwise a slow IndexedDB read can restore a draft after the user has
   // already started a new recorrido and move them to a different step.
   if (!borradorLeido) {
-    return <p className="estado-actual-aviso" role="status">Restaurando el borrador guardado…</p>
+    return <p className="estado-actual-aviso" role="status">{t.restaurando}</p>
   }
 
   return (
     <div className="reporte-inicial reporte-inicial--con-panel recorrido-actualizacion">
-      <p className="asistente__titulo asistente__titulo--paso" aria-hidden="true">Actualizar</p>
+      <p className="asistente__titulo asistente__titulo--paso" aria-hidden="true">{t.titulo}</p>
       <ConfirmSheet
         open={borradorPendiente !== null && !confirmarDescarte}
-        titulo="Tiene un parte sin enviar."
-        confirmarLabel="Continuar donde lo dejé"
+        titulo={t.borradorPendiente.titulo}
+        confirmarLabel={t.borradorPendiente.continuar}
         cancelarLabel="Descartar"
         onConfirmar={retomarBorrador}
         onCancelar={() => setConfirmarDescarte(true)}
         onCerrar={retomarBorrador}
       >
-        <p>Puede seguir donde lo dejó o descartarlo y empezar de nuevo.</p>
+        <p>{t.borradorPendiente.descripcion}</p>
       </ConfirmSheet>
       {avisoBorrador ? <p className="recorrido-actualizacion__aviso" role="alert">{avisoBorrador}</p> : null}
       {avisoAlmacen && !estadoAvisoEnvio ? <p className="recorrido-actualizacion__aviso" role="status">{avisoAlmacen}</p> : null}
@@ -841,7 +846,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
             disabled={enviando || fotosPreparadas.length !== cantidadFotosSeleccionadas}
             onClick={() => void enviarSoloFotos()}
           >
-            {enviando ? 'Guardando evidencia…' : 'Guardar solo fotos'}
+            {enviando ? t.fotos.guardandoEvidencia : t.fotos.soloFotos}
           </Button>
         </div>
       ) : null}
@@ -849,7 +854,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       {etapa !== 'entrada' ? <ProgresoActualizacion paso={pasoProgreso} total={totalPasos} /> : null}
       {actual && typeof etapa === 'object' ? (
         <section>
-          <p className="recorrido-actualizacion__descripcion">Revise lo informado hasta ahora y agregue o corrija lo que cambió.</p>
+          <p className="recorrido-actualizacion__descripcion">{t.revisar}</p>
           <RevisarSituacion
             key={actual.id}
             esInstituto={esInstituto}
@@ -908,7 +913,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
                 moverEtapa({ revisar: Math.max(0, etapa.revisar - 1) })
               }}
             >
-              Volver
+              {t.botones.volver}
             </Button>
             <Button type="button" onClick={siguiente}>Continuar</Button>
           </div>
@@ -916,9 +921,9 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       ) : null}
 
       {etapa === 'nuevo' && restablecer ? (
-        <section className="revisar-situacion" aria-label="Restablecer el funcionamiento">
-          <h3>Restablecer el funcionamiento</h3>
-          <p className="recorrido-actualizacion__descripcion">Ya no quedan afectaciones activas. Confirme si el edificio y las clases vuelven a la normalidad.</p>
+        <section className="revisar-situacion" aria-label={t.restablecer.titulo}>
+          <h3>{t.restablecer.titulo}</h3>
+          <p className="recorrido-actualizacion__descripcion">{t.restablecer.descripcion}</p>
           <CamposClasesEdificio
             esInstituto={esInstituto}
             valor={clasesEdificio}
@@ -970,7 +975,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
               variant="secondary"
               onClick={() => moverEtapa(ordenadas.length ? { revisar: ordenadas.length - 1 } : 'entrada')}
             >
-              Volver
+              {t.botones.volver}
             </Button>
           </div> : null}
         </>
@@ -978,8 +983,8 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
 
       {etapa === 'resumen' ? (
         <ResumenEnvio
-          lineasResumen={restablecer ? [...lineasResumen, { titulo: 'Edificio y clases', filas: [{ etiqueta: 'Edificio', valor: ETIQUETA_ESTABLECIMIENTO[clasesEdificio.estadoEstablecimiento] }, { etiqueta: 'Clases', valor: clasesEdificio.servicioEstado === '' ? 'Sin elegir' : ETIQUETA_CLASES[clasesEdificio.servicioEstado] }] }] : lineasResumen}
-          asistenciaVigente={asistenciaVigente.brinda ? 'Sí' : 'No'}
+          lineasResumen={restablecer ? [...lineasResumen, { titulo: t.restablecer.edificioYClases, filas: [{ etiqueta: t.restablecer.edificio, valor: etiquetaEstablecimiento(clasesEdificio.estadoEstablecimiento, diccionario) }, { etiqueta: t.resumen.clases, valor: clasesEdificio.servicioEstado === '' ? t.restablecer.sinElegir : etiquetaClases(clasesEdificio.servicioEstado, diccionario) }] }] : lineasResumen}
+          asistenciaVigente={asistenciaVigente.brinda}
           asistenciaPedagogica={asistenciaPedagogica}
           enviando={enviando}
           onCambiarAsistencia={(seleccion) => {
@@ -1020,8 +1025,8 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
       />
       <ConfirmSheet
         open={confirmarDescarte}
-        titulo="¿Descartar el parte sin enviar?"
-        confirmarLabel="Sí, descartar"
+        titulo={t.descarte.titulo}
+        confirmarLabel={t.descarte.confirmar}
         cancelarLabel="Cancelar"
         onCancelar={() => setConfirmarDescarte(false)}
         onConfirmar={() => {
@@ -1029,7 +1034,7 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
           void (async () => {
             try {
               if (actual && !(await eliminarBorradorFormulario(actual))) {
-                setAvisoBorrador('El borrador cambió en otra pestaña y se conservó. Puede enviar las respuestas.')
+                setAvisoBorrador(t.borrador.otraPestana)
                 setConfirmarDescarte(false)
                 return
               }
@@ -1049,21 +1054,22 @@ function RecorridoCargado({ cue, turnos, motivos, esInstituto = false, carreras,
               setAvisoBorrador(null)
               setConfirmarDescarte(false)
             } catch (error) {
-              setAvisoBorrador(error instanceof Error ? `${error.message} El borrador se conservó; puede enviar las respuestas.` : 'No se pudo descartar el borrador local. Puede enviar las respuestas.')
+              setAvisoBorrador(error instanceof Error ? `${error.message} ${t.borrador.conservado}` : `${t.borrador.noDescartar} ${t.puedeEnviar}`)
             }
           })()
         }}
       >
-        <p>Se pierde lo que cargó y no se envía nada.</p>
+        <p>{t.descarte.descripcion}</p>
       </ConfirmSheet>
     </div>
   )
 }
 
 function ProgresoActualizacion({ paso, total }: { paso: number; total: number }): JSX.Element {
+  const t = useTextos().parteRecorrido
   return (
-    <div className="asistente__progreso" aria-label={`Paso ${paso} de ${total}`}>
-      <p className="asistente__contador">Paso {paso} de {total}</p>
+    <div className="asistente__progreso" aria-label={t.progreso.paso(paso, total)}>
+      <p className="asistente__contador">{t.progreso.paso(paso, total)}</p>
       <ol className="asistente__pasos" aria-hidden="true">
         {Array.from({ length: total }, (_, indice) => (
           <li key={indice} className={`asistente__paso${indice < paso ? ' asistente__paso--hecho' : ''}${indice === paso - 1 ? ' asistente__paso--actual' : ''}`} />
@@ -1074,18 +1080,20 @@ function ProgresoActualizacion({ paso, total }: { paso: number; total: number })
 }
 
 function ConfirmacionEnviado({ cue, esInstituto, onRecargar }: { cue: string; esInstituto: boolean; onRecargar: () => void }): JSX.Element {
+  const diccionario = useTextos()
+  const t = diccionario.parteRecorrido
   return (
     <div className="reporte-inicial__confirmacion" role="status">
       <div className="reporte-inicial__confirmacion-mensaje">
         <CircleCheck aria-hidden="true" size={20} />
-        <div><h2>{TITULO_GUARDADO}</h2><p>{esInstituto ? MENSAJE_GUARDADO_INSTITUTO : MENSAJE_GUARDADO}</p></div>
+        <div><h2>{t.confirmacion.titulo}</h2><p>{esInstituto ? mensajeGuardadoInstituto(diccionario) : t.confirmacion.mensaje}</p></div>
       </div>
       <div className="reporte-inicial__confirmacion-acciones">
         <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
-          Ver estado actual
+          {t.confirmacion.verEstado}
         </a>
         <Button type="button" variant="secondary" onClick={onRecargar}>
-          Actualizar de nuevo
+          {t.confirmacion.actualizarDeNuevo}
         </Button>
       </div>
       <MaterialesTrasReporte />
@@ -1109,7 +1117,7 @@ function ResumenEnvio({
   onEnviar,
 }: {
   lineasResumen: BloqueResumenActualizacion[]
-  asistenciaVigente: 'Sí' | 'No'
+  asistenciaVigente: boolean
   asistenciaPedagogica: AsistenciaSeleccionada
   enviando: boolean
   onCambiarAsistencia: (seleccion: AsistenciaSeleccionada) => void
@@ -1122,10 +1130,12 @@ function ResumenEnvio({
   onVolver: () => void
   onEnviar: () => void
 }): JSX.Element {
+  const diccionario = useTextos()
+  const t = diccionario.parteRecorrido
   return (
     <section className="reporte-inicial__seccion actualizacion-resumen">
       <h2>Confirmar</h2>
-      <p className="asistente__resumen-intro">Esto es lo que va a quedar informado. Revíselo antes de guardar.</p>
+      <p className="asistente__resumen-intro">{t.resumen.intro}</p>
       <div className="actualizacion-resumen__lista">
         {lineasResumen.map((bloque) => (
           <section key={bloque.titulo} className="actualizacion-resumen__bloque">
@@ -1142,7 +1152,7 @@ function ResumenEnvio({
         ))}
       </div>
       <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-        <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
+        <legend className="afectacion-campos__legend">{t.asistencia.pregunta}</legend>
         {(['si', 'no'] as const).map((valor) => (
           <Opcion
               key={valor}
@@ -1153,24 +1163,24 @@ function ResumenEnvio({
                 brinda: valor,
                 modalidades: valor === 'si' ? asistenciaPedagogica.modalidades : [],
               })}
-              label={valor === 'si' ? 'Sí' : 'No'}
+              label={valor === 'si' ? t.si : t.no}
               compacta
           />
         ))}
         {asistenciaPedagogica.brinda === 'si' && (
           <div className="afectacion-campos__anidado">
-            <p className="afectacion-campos__subtitulo">¿De qué tipo?</p>
+            <p className="afectacion-campos__subtitulo">{t.asistencia.tipo}</p>
             <MultiSelect<ModalidadAsistencia>
               value={asistenciaPedagogica.modalidades}
               onChange={(modalidades) => onCambiarAsistencia({ brinda: 'si', modalidades })}
               options={MODALIDADES_ASISTENCIA}
-              placeholder="Seleccione una o más opciones"
-              ariaLabel="¿De qué tipo?"
+              placeholder={t.asistencia.placeholder}
+              ariaLabel={t.asistencia.tipo}
             />
           </div>
         )}
-      {asistenciaPedagogica.brinda !== (asistenciaVigente === 'Sí' ? 'si' : 'no') ? (
-        <p className="actualizacion-resumen__vigente">Actualmente: {asistenciaVigente}</p>
+      {asistenciaPedagogica.brinda !== (asistenciaVigente ? 'si' : 'no') ? (
+        <p className="actualizacion-resumen__vigente">{t.asistencia.actualmente(asistenciaVigente ? t.si : t.no)}</p>
       ) : null}
       </fieldset>
       {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) ? (
@@ -1178,8 +1188,8 @@ function ResumenEnvio({
           ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={onRetry} disabled={estadoEnvio === 'enviando' && estadoAvisoEnvio !== 'error-servidor'} />
           : <p role="status" aria-live="polite">
               {estadoEnvio === 'error' && motivoEnvio
-                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-                : MENSAJES_ESTADO[estadoEnvio]}
+                ? `${mensajesEstado(diccionario).error}: ${motivoEnvio}`
+                : mensajesEstado(diccionario)[estadoEnvio]}
             </p>
       ) : null}
       {bloqueos.length > 0 ? (
@@ -1190,10 +1200,10 @@ function ResumenEnvio({
       {error ? <p className="reporte-inicial__error" role="alert">{error}</p> : null}
       <div className="asistente__acciones asistente__acciones--pegada">
         <Button type="button" variant="secondary" onClick={onVolver}>
-          Volver
+          {t.botones.volver}
         </Button>
         <Button type="button" onClick={onEnviar} disabled={bloqueos.length > 0 || enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
-          {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? 'Reintentando…' : enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar actualización'}
+          {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? t.botones.reintentando : enviando || estadoEnvio === 'enviando' ? t.botones.guardando : estadoEnvio === 'pendiente-envio' ? t.botones.envioPendiente : t.botones.guardarActualizacion}
         </Button>
       </div>
     </section>
@@ -1209,16 +1219,17 @@ function CascadaPendiente({
   onCancelar: () => void
   onConfirmar: () => void
 }): JSX.Element {
+  const t = useTextos().parteRecorrido
   return (
     <ConfirmSheet
       open={pendiente !== undefined}
-      titulo={pendiente ? `${pendiente.situacion.motivo} se solucionó` : ''}
-      confirmarLabel="Sí, también se solucionó"
-      cancelarLabel="No, sigue activo"
+      titulo={pendiente ? t.cascada.titulo(pendiente.situacion.motivo) : ''}
+      confirmarLabel={t.cascada.confirmar}
+      cancelarLabel={t.cascada.cancelar}
       onCancelar={onCancelar}
       onConfirmar={onConfirmar}
     >
-      {pendiente ? <p>{`${pendiente.situacion.motivo} (consecuencia), ¿también se solucionó?`}</p> : null}
+      {pendiente ? <p>{t.cascada.pregunta(pendiente.situacion.motivo)}</p> : null}
     </ConfirmSheet>
   )
 }

@@ -18,6 +18,7 @@ import {
   type SobreofertaData,
 } from '@/lib/sobreoferta'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 type Props = {
   feature: SelectedFeature
@@ -260,6 +261,7 @@ export function FeaturePopup({
   sobreofertaOn = false,
 }: Props) {
   const styles = useOverlayStyles()
+  const tr = useTextos().residuos
 
   if (feature.kind === 'establishment') {
     const p = feature.properties
@@ -271,7 +273,7 @@ export function FeaturePopup({
 
     return (
       <div className={styles.popup}>
-        <h3 className={styles.popupTitle}>{p.name ?? 'Establecimiento'}</h3>
+        <h3 className={styles.popupTitle}>{p.name ?? tr.popup.sinNombre}</h3>
         <Fila className={styles.popupRow} etiqueta={COPY.popup.cue}>{p.cue ?? '—'}</Fila>
         <Fila className={styles.popupRow} etiqueta={COPY.popup.locality}>{p.locality ?? '—'}</Fila>
         <Fila className={styles.popupRow} etiqueta={COPY.popup.department}>{p.department ?? '—'}</Fila>

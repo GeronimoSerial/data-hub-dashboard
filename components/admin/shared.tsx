@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Dialog } from '@/components/ui/dialog'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
 export const COLORS: BadgeColor[] = [
   'brand',
@@ -50,10 +51,16 @@ export const SECTION_LABELS: Record<HubSection, string> = {
 
 export const DESTINATION_LABELS: Record<string, string> = {
   '/': 'Inicio', '/explorar': 'Exploración', '/reportes': 'Reportes',
-  '/mapas': 'Mapas', '/tableros': 'Tableros', '/mapas/infraestructura': 'ENOS 2026',
+  '/mapas': 'Mapas', '/tableros': 'Tableros', '/mapas/infraestructura': 'ENOS Corrientes',
   '/situacion': 'Situación', '/cuadernillos': 'Cuadernillos', '/mapas/matricula': 'Mapa de matrícula', '/mapas/natalidad': 'Mapa de natalidad', '/mapas/reorganizacion': 'Reorganización escolar',
   '/tablero': 'Tablero', '/mapa_interactivo': 'Mapa interactivo', '/mapa_sobreedad': 'Mapa de sobreedad',
   '/mapa_notas': 'Mapa de notas', '/problematicas/parte/nuevo': 'Nuevo parte de infraestructura',
+}
+
+// Destination label for the current region: only the infrastructure map carries the region name.
+export function etiquetaDestino(path: string): string | undefined {
+  if (path === '/mapas/infraestructura') return `ENOS ${regionPublicaActual().nombre}`
+  return DESTINATION_LABELS[path]
 }
 
 export const ROLES: Role[] = ['admin', 'editor', 'consulta', 'director_nivel', 'operador_establecimiento', 'admin_ge']

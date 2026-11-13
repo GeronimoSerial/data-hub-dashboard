@@ -2,7 +2,7 @@
 
 import { Fragment, useState, type JSX, type ReactNode } from 'react'
 import { Lock } from 'lucide-react'
-import { ETIQUETA_CLASES, ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
+import { ETIQUETA_ESTABLECIMIENTO, etiquetaClases, etiquetaEstablecimiento } from '@/components/infraestructura/estado-actual-textos'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { Opcion } from '@/components/ui/opcion'
 import { AvisosConsistencia } from '@/components/infraestructura/afectacion-campos'
@@ -10,10 +10,13 @@ import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-ti
 import { evaluarCambioAHabitual } from '@/lib/infraestructura/consistencia-estado-activo'
 import {
   bloqueoOpcion,
+  mensajeConsistencia,
   type Regla,
   type RespuestasConsistencia,
   type Sugerencia,
 } from '@/lib/infraestructura/consistencia-parte'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 export interface ValorClasesEdificio {
   servicioEstado: '' | 'normal' | 'suspendido'
@@ -50,9 +53,9 @@ function MotivoBloqueo({ id, mensaje }: { id: string; mensaje: string }): JSX.El
 }
 
 // Bloqueos del cambio a habitual (update) que no deshabilitan la opción pero sí frenan el envío.
-function mensajesPrevios(reglas: Regla[]): ReactNode {
+function mensajesPrevios(reglas: Regla[], diccionario: Diccionario): ReactNode {
   if (reglas.length === 0) return undefined
-  return reglas.map((regla) => <span key={regla.codigo} className="opcion__bloqueo">{regla.mensaje}</span>)
+  return reglas.map((regla) => <span key={regla.codigo} className="opcion__bloqueo">{mensajeConsistencia(regla.mensaje, diccionario)}</span>)
 }
 
 // Advertencias de un campo que no tienen opción a la cual asociarse (p. ej.
@@ -103,6 +106,8 @@ export function CamposClasesEdificio({
    */
   bloqueosHabitualPorAfectacion?: Record<string, string>
 }): JSX.Element {
+  const diccionario = useTextos()
+  const t = diccionario.parteCampos
   const [pendiente, setPendiente] = useState<EstadoEstablecimiento | null>(null)
   const [hojaHabitual, setHojaHabitual] = useState(false)
   const [decisiones, setDecisiones] = useState<Record<string, 'solucionada' | 'sigue'>>({})
@@ -168,20 +173,20 @@ export function CamposClasesEdificio({
 
   function ayudaEdificio(estado: EstadoEstablecimiento): ReactNode {
     const bloqueo = bloqueoEdificioVigente(estado)
-    if (bloqueo) return <MotivoBloqueo id={`bloqueo-edificio-${estado}`} mensaje={bloqueo.mensaje} />
-    return estado === 'habitual' ? mensajesPrevios(bloqueosEdificioPrevios) : undefined
+    if (bloqueo) return <MotivoBloqueo id={`bloqueo-edificio-${estado}`} mensaje={mensajeConsistencia(bloqueo.mensaje, diccionario)} />
+    return estado === 'habitual' ? mensajesPrevios(bloqueosEdificioPrevios, diccionario) : undefined
   }
 
   function ayudaClases(estado: 'normal' | 'suspendido'): ReactNode {
     const bloqueo = bloqueoClases(respuestas, estado)
-    if (bloqueo) return <MotivoBloqueo id={`bloqueo-clases-${estado}`} mensaje={bloqueo.mensaje} />
-    return estado === 'normal' ? mensajesPrevios(bloqueosClasesPrevios) : undefined
+    if (bloqueo) return <MotivoBloqueo id={`bloqueo-clases-${estado}`} mensaje={mensajeConsistencia(bloqueo.mensaje, diccionario)} />
+    return estado === 'normal' ? mensajesPrevios(bloqueosClasesPrevios, diccionario) : undefined
   }
 
   return (
     <>
-      <fieldset className="afectacion-campos__grupo" disabled={disabled} aria-label="¿Hay clases?">
-        <p className="afectacion-campos__legend">¿Hay clases?</p>
+      <fieldset className="afectacion-campos__grupo" disabled={disabled} aria-label={t.clases.hayClases}>
+        <p className="afectacion-campos__legend">{t.clases.hayClases}</p>
         <div className="afectacion-campos__opciones">
           {(['normal', 'suspendido'] as const).map((estado) => (
             <Fragment key={estado}>
@@ -196,7 +201,7 @@ export function CamposClasesEdificio({
                   disabled={disabled || evacuado || sinClases || bloqueoClases(respuestas, estado) !== null}
                   aria-labelledby={`etiqueta-clases-${estado}`}
                   aria-describedby={bloqueoClases(respuestas, estado) ? `bloqueo-clases-${estado}` : undefined}
-                  label={<span id={`etiqueta-clases-${estado}`}>{ETIQUETA_CLASES[estado]}</span>}
+                  label={<span id={`etiqueta-clases-${estado}`}>{etiquetaClases(estado, diccionario)}</span>}
                   ayuda={ayudaClases(estado)}
                   compacta
                 />
@@ -209,15 +214,15 @@ export function CamposClasesEdificio({
           ))}
           <AvisosConsistencia reglas={avisosClasesSueltos} campos={['clases']} onAplicar={aplicarSugerencia} />
         </div>
-        {evacuado ? <p className="afectacion-campos__espera">El edificio está evacuado</p> : null}
-        {sinClases ? <p className="afectacion-campos__espera">El edificio está sin clases</p> : null}
+        {evacuado ? <p className="afectacion-campos__espera">{t.clases.edificioEvacuado}</p> : null}
+        {sinClases ? <p className="afectacion-campos__espera">{t.clases.edificioSinClases}</p> : null}
         {alcanceAlgunas && valor.servicioEstado === 'suspendido' ? (
-          <p className="afectacion-campos__espera">Se suspenden las clases solo en las secciones seleccionadas</p>
+          <p className="afectacion-campos__espera">{t.clases.algunasSecciones}</p>
         ) : null}
       </fieldset>
 
-      <fieldset className="afectacion-campos__grupo" disabled={disabled} aria-label="¿Cómo está el edificio?">
-        <p className="afectacion-campos__legend">¿Cómo está el edificio?</p>
+      <fieldset className="afectacion-campos__grupo" disabled={disabled} aria-label={t.clases.comoEstaEdificio}>
+        <p className="afectacion-campos__legend">{t.clases.comoEstaEdificio}</p>
         <div className="afectacion-campos__opciones">
           {ESTADOS_EDIFICIO.map((estado) => (
             <Fragment key={estado}>
@@ -230,7 +235,7 @@ export function CamposClasesEdificio({
                   disabled={disabled || bloqueoEdificioVigente(estado) !== null}
                   aria-labelledby={`etiqueta-edificio-${estado}`}
                   aria-describedby={bloqueoEdificioVigente(estado) ? `bloqueo-edificio-${estado}` : undefined}
-                  label={<span id={`etiqueta-edificio-${estado}`}>{ETIQUETA_ESTABLECIMIENTO[estado]}</span>}
+                  label={<span id={`etiqueta-edificio-${estado}`}>{etiquetaEstablecimiento(estado, diccionario)}</span>}
                   ayuda={ayudaEdificio(estado)}
                   compacta
                 />
@@ -247,7 +252,7 @@ export function CamposClasesEdificio({
 
       <ConfirmSheet
         open={hojaHabitual}
-        titulo="¿Qué pasó con las afectaciones activas?"
+        titulo={t.clases.hojaHabitualTitulo}
         confirmarLabel="Confirmar"
         confirmarDeshabilitado={decididas < afectacionesActivas.length || seguiraSinHabitual}
         onCancelar={() => setHojaHabitual(false)}
@@ -257,7 +262,7 @@ export function CamposClasesEdificio({
           onConfirmarHabitual?.(decisiones)
         }}
       >
-        <p>Antes de figurar como habitual, indique qué pasa con cada afectación activa.</p>
+        <p>{t.clases.hojaHabitualAntes}</p>
         {afectacionesActivas.map((afectacion) => (
           <fieldset key={afectacion.id} className="afectacion-campos__grupo" aria-label={afectacion.motivo}>
             <p className="afectacion-campos__legend">{afectacion.motivo}</p>
@@ -270,7 +275,7 @@ export function CamposClasesEdificio({
                   value={decision}
                   checked={decisiones[afectacion.id] === decision}
                   onChange={() => setDecisiones((actual) => ({ ...actual, [afectacion.id]: decision }))}
-                  label={decision === 'solucionada' ? 'Solucionada' : 'Sigue activa'}
+                  label={decision === 'solucionada' ? t.clases.solucionada : t.clases.sigueActiva}
                   compacta
                 />
               ))}
@@ -285,8 +290,8 @@ export function CamposClasesEdificio({
 
       <ConfirmSheet
         open={pendiente !== null}
-        titulo={esInstituto ? '¿Pasamos el alcance a todo el instituto?' : '¿Pasamos el alcance a toda la escuela?'}
-        confirmarLabel={esInstituto ? 'Sí, todo el instituto' : 'Sí, toda la escuela'}
+        titulo={esInstituto ? t.clases.alcanceInstitutoTitulo : t.clases.alcanceEscuelaTitulo}
+        confirmarLabel={esInstituto ? t.clases.alcanceInstitutoConfirmar : t.clases.alcanceEscuelaConfirmar}
         onCancelar={() => setPendiente(null)}
         onConfirmar={() => {
           if (pendiente) {
@@ -298,8 +303,8 @@ export function CamposClasesEdificio({
       >
         <p>
           {esInstituto
-            ? 'Esto interrumpe todo el instituto, pero marcó sólo algunas carreras.'
-            : 'Esto interrumpe toda la escuela, pero marcó sólo algunas secciones.'}
+            ? t.clases.alcanceInstitutoCuerpo
+            : t.clases.alcanceEscuelaCuerpo}
         </p>
       </ConfirmSheet>
     </>

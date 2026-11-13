@@ -3,6 +3,7 @@
 // Módulo puro: sin dependencias de React ni de MapLibre.
 import { normalizarNombreDepartamento } from './normalizar-departamento'
 import type { FillLayerSpecification, LineLayerSpecification } from 'maplibre-gl'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
 /**
  * Ruta pública del GeoJSON con los polígonos de los 25 departamentos.
@@ -16,29 +17,38 @@ import type { FillLayerSpecification, LineLayerSpecification } from 'maplibre-gl
  */
 export const DEPARTAMENTOS_INFRA_URL = '/api/mapas/infraestructura/datasets/departamentos'
 export const MASCARA_INFRA_URL = '/api/mapas/infraestructura/datasets/mascara'
-export const DEPARTAMENTOS_URL = '/data/departamentos-corrientes-georef-2026-09-27.geojson'
+// Module-level export: a non-default region needs the provider/props path (B11), not this constant.
+export const DEPARTAMENTOS_URL = urlDepartamentos()
+
+/** GeoJSON de departamentos de la región activa; se lee al llamar, no al importar el módulo. */
+export function urlDepartamentos(): string {
+  return regionPublicaActual().archivos.departamentos
+}
 
 // Bounding box de la provincia de Corrientes, calculado recorriendo todas
 // las coordenadas de todos los polígonos de
 // public/data/departamentos-corrientes.geojson (ver lib/mapas/departamentos.test.ts,
 // que verifica que este valor efectivamente contiene todas las coordenadas).
-// Se hardcodea porque es un valor fijo del dataset: no vale la pena parsear
-// ~43 KB de GeoJSON en runtime sólo para obtener el bbox.
+// Viene de limitesMapa de config/regiones: fijo por región, no vale la pena
+// parsear ~43 KB de GeoJSON en runtime sólo para obtener el bbox.
 // Formato esperado por MapLibre: [[oesteLon, surLat], [esteLon, norteLat]]
-export const LIMITES_CORRIENTES: [[number, number], [number, number]] = [
-  [-59.710824, -30.730192],
-  [-55.620259, -27.253966],
-]
+export const LIMITES_CORRIENTES: [[number, number], [number, number]] = limitesRegion()
+
+/** Bbox de la región activa; se lee al llamar, no al importar el módulo. */
+export function limitesRegion(): [[number, number], [number, number]] {
+  return regionPublicaActual().limitesMapa
+}
 
 // Mismo bbox, aplanado a [oeste, sur, este, norte]. Se deriva de
 // LIMITES_CORRIENTES en vez de repetir los números para que no puedan
 // desincronizarse.
-export const LIMITES_CORRIENTES_BBOX: [number, number, number, number] = [
-  LIMITES_CORRIENTES[0][0],
-  LIMITES_CORRIENTES[0][1],
-  LIMITES_CORRIENTES[1][0],
-  LIMITES_CORRIENTES[1][1],
-]
+export const LIMITES_CORRIENTES_BBOX: [number, number, number, number] = limitesRegionBbox()
+
+/** Mismo bbox de la región activa, aplanado; se lee al llamar. */
+export function limitesRegionBbox(): [number, number, number, number] {
+  const limites = limitesRegion()
+  return [limites[0][0], limites[0][1], limites[1][0], limites[1][1]]
+}
 
 // Máscara: un rectángulo que cubre el mundo con la provincia recortada como
 // hueco. Se generó disolviendo los 25 departamentos en un solo contorno y
@@ -48,7 +58,13 @@ export const LIMITES_CORRIENTES_BBOX: [number, number, number, number] = [
 //
 // Reemplaza a encerrar la vista con `maxBounds`: el usuario puede alejarse
 // todo lo que quiera, pero fuera de Corrientes no hay nada que mirar.
-export const MASCARA_URL = '/data/mascara-corrientes.geojson'
+// Module-level export: a non-default region needs the provider/props path (B11), not this constant.
+export const MASCARA_URL = urlMascara()
+
+/** GeoJSON de la máscara de la región activa; se lee al llamar, no al importar el módulo. */
+export function urlMascara(): string {
+  return regionPublicaActual().archivos.mascara
+}
 
 // Blanco a propósito: los tres basemaps disponibles (liberty, bright,
 // positron) son estilos claros, así que el lienzo del mapa es claro sin

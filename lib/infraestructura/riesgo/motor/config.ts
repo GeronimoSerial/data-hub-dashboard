@@ -40,8 +40,8 @@ export const PESOS_AMENAZA = {
 // de los componentes (pronóstico "verde") ni la vulnerabilidad multiplicativa
 // (historial vacío) pueden borrarla. Evacuación => amenaza muy_alto y riesgo
 // >= alto; alerta => amenaza >= alto y riesgo >= moderado.
-export const PISO_AMENAZA_POR_ESTADO_RIO = { normal: null, alerta: 50, evacuacion: 75 } as const
-export const PISO_RIESGO_POR_ESTADO_RIO = { normal: null, alerta: 25, evacuacion: 50 } as const
+export const PISO_AMENAZA_POR_ESTADO_RIO = { normal: null, alerta: 50, evacuacion: 75, bajante: null } as const
+export const PISO_RIESGO_POR_ESTADO_RIO = { normal: null, alerta: 25, evacuacion: 50, bajante: null } as const
 
 // Vulnerabilidad = combinación ponderada de historial de partes confirmados y
 // susceptibilidad estática (physrisk). Misma regla de redistribución de pesos
@@ -196,8 +196,8 @@ export const MARGEN_ERROR_DEM_V04_M = 2
 export const BANDA_EXPOSICION_V04_M = 2
 // Piso un nivel menor (banda): evacuación → alerta (amenaza 50, riesgo 25);
 // alerta → sin piso.
-export const PISO_AMENAZA_REDUCIDO_V04 = { normal: null, alerta: null, evacuacion: 50 } as const
-export const PISO_RIESGO_REDUCIDO_V04 = { normal: null, alerta: null, evacuacion: 25 } as const
+export const PISO_AMENAZA_REDUCIDO_V04 = { normal: null, alerta: null, evacuacion: 50, bajante: null } as const
+export const PISO_RIESGO_REDUCIDO_V04 = { normal: null, alerta: null, evacuacion: 25, bajante: null } as const
 
 // T10c — Referencia estable del nivel (motor/referencia-nivel.ts): la anomalía
 // v0.4 se mide contra la mediana de la serie A5 en una ventana FIJA (no

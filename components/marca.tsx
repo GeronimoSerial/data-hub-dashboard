@@ -13,12 +13,16 @@
  * nothing on our side can recolour the mark by accident.
  */
 
+import { marcaActual } from '@/lib/infraestructura/region/publica'
+
 const ALT = 'Gobierno de Corrientes · Ministerio de Educación'
 
 /** Horizontal inverse signature for the dark map header band. At 44px it
  *  remains below the Manual's 60px minimum as the compact exception accepted
  *  by the user. */
 export function MarcaBanda() {
+  // Only regions with the Corrientes signature show it; others get no mark.
+  if (!marcaActual().logo) return null
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -33,6 +37,8 @@ export function MarcaBanda() {
 
 /** Horizontal signature, application 1. Colour on light surfaces. */
 export function MarcaHorizontal({ className = '' }: { className?: string }) {
+  // Only regions with the Corrientes signature show it; others get no mark.
+  if (!marcaActual().logo) return null
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -48,6 +54,8 @@ export function MarcaHorizontal({ className = '' }: { className?: string }) {
 /** The same signature prepared for dark surfaces (§2.1). Decorative: the
  *  light variant alongside it already carries the accessible name. */
 export function MarcaHorizontalInversa() {
+  // Only regions with the Corrientes signature show it; others get no mark.
+  if (!marcaActual().logo) return null
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -68,6 +76,8 @@ export function MarcaHorizontalInversa() {
  * a ministry name sitting with the Gobierno de Corrientes mark.
  */
 export function MarcaCompacta() {
+  // Only regions with the Corrientes signature show it; others get no mark.
+  if (!marcaActual().logo) return null
   return (
     <span className="app-signature__compact">
       {/* eslint-disable-next-line @next/next/no-img-element */}

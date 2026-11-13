@@ -9,6 +9,7 @@ const { limitMock, authMock, permissionMock } = vi.hoisted(() => ({
 
 vi.mock('@/lib/db', () => ({
   getDb: () => ({
+    insert: () => ({ values: async () => undefined }),
     select: () => ({
       from: () => ({
         innerJoin: () => ({
@@ -20,6 +21,7 @@ vi.mock('@/lib/db', () => ({
 }))
 vi.mock('@/lib/db/seed', () => ({ ensureSeeded: vi.fn(async () => undefined) }))
 vi.mock('@/lib/db/schema', () => ({
+  auditoriaEvento: { requestId: 'auditoria.requestId' },
   infraMovimiento: { id: 'movement.id', parteId: 'movement.parteId' },
   infraParte: { cueAnexo: 'parte.cueAnexo', id: 'parte.id' },
 }))

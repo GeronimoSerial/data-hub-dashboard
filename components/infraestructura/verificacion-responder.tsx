@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
+import type { parteVerificacionesEs } from '@/lib/i18n/diccionarios/grupos/parteVerificaciones.es'
 import { formatearCargaCorta } from './historial-formato'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 
@@ -25,6 +27,8 @@ interface VerificacionResponderProps {
 
 type AccionRespuesta = 'sin_afectacion'
 
+type Textos = (typeof parteVerificacionesEs)['responder']
+
 // Máquina de estados de la pantalla. Un discriminante único: cada render sabe
 // exactamente qué mostrar y qué acciones existen, sin banderas sueltas.
 type Maquina =
@@ -40,30 +44,23 @@ type Maquina =
   | { estado: 'comprobante'; verificacion: VerificacionEnlace }
   | { estado: 'ir_a_parte' }
 
-const PREGUNTA =
-  '¿Su escuela tiene actualmente alguna afectación por la situación hidrometeorológica?'
-const CONFIRMACION_SIN_AFECTACION =
-  '¿Confirma que la escuela NO tiene afectación en este momento?'
-const TEXTO_ERROR_SIN_SALIDA =
-  'Si cree que esto es un error, comuníquese con quien le compartió el enlace.'
-const NOTA_DISCREPANCIA =
-  "Se registró como 'sin afectación', pero el sistema tenía una afectación vigente para esta escuela. Un operador va a revisar esta diferencia."
-
-function nombreEscuela(escuelaNombre: string | undefined, cueAnexo: string): string {
-  return escuelaNombre ? `${escuelaNombre} (CUE ${cueAnexo})` : `Escuela ${cueAnexo}`
+function nombreEscuela(t: Textos, escuelaNombre: string | undefined, cueAnexo: string): string {
+  return escuelaNombre
+    ? t.escuelaConNombre(escuelaNombre, cueAnexo)
+    : t.escuelaSinNombre(cueAnexo)
 }
 
-function textoResultado(verificacion: VerificacionEnlace): string {
+function textoResultado(t: Textos, verificacion: VerificacionEnlace): string {
   if (verificacion.estado === 'cancelada') return 'Cancelada'
   switch (verificacion.resultado) {
     case 'sin_afectacion':
-      return 'Sin afectación'
+      return t.resultado.sinAfectacion
     case 'con_afectacion':
-      return 'Con afectación'
+      return t.resultado.conAfectacion
     case 'no_disponible':
-      return 'No disponible'
+      return t.resultado.noDisponible
     default:
-      return 'Sin respuesta'
+      return t.resultado.sinRespuesta
   }
 }
 
@@ -80,6 +77,8 @@ export function VerificacionResponder({
   escuelaNombre,
 }: VerificacionResponderProps) {
   const router = useRouter()
+  const t = useTextos().parteVerificaciones.responder
+  const idioma = useIdioma()
   const [maquina, setMaquina] = useState<Maquina>({ estado: 'cargando' })
 
   useEffect(() => {
@@ -102,7 +101,7 @@ export function VerificacionResponder({
         if (!respuesta.ok) {
           setMaquina({
             estado: 'error',
-            mensaje: await leerError(respuesta, 'No se pudo validar el enlace.'),
+            mensaje: await leerError(respuesta, t.noSePudoValidar),
           })
           return
         }
@@ -121,7 +120,7 @@ export function VerificacionResponder({
           if (typeof window !== 'undefined') {
             window.history.replaceState(null, '', window.location.pathname)
           }
-          setMaquina({ estado: 'error', mensaje: 'No se pudo validar el enlace.' })
+          setMaquina({ estado: 'error', mensaje: t.noSePudoValidar })
         }
       }
     }
@@ -130,7 +129,7 @@ export function VerificacionResponder({
     return () => {
       activo = false
     }
-  }, [verificacionId, token])
+  }, [verificacionId, token, t])
 
   async function responderSinAfectacion(verificacion: VerificacionEnlace) {
     setMaquina({ estado: 'enviando', verificacion, accion: 'sin_afectacion' })
@@ -144,7 +143,7 @@ export function VerificacionResponder({
         },
       )
       if (!respuesta.ok) {
-        const mensaje = await leerError(respuesta, 'No se pudo registrar la respuesta.')
+        const mensaje = await leerError(respuesta, t.noSePudoRegistrar)
         // Credencial dura (revocada/vencida/inexistente): no tiene sentido
         // volver a preguntar. El resto (por ejemplo un 409) sí vuelve a la
         // pantalla principal con el mensaje a la vista.
@@ -161,7 +160,7 @@ export function VerificacionResponder({
       setMaquina({
         estado: 'pendiente',
         verificacion,
-        mensaje: 'No se pudo registrar la respuesta.',
+        mensaje: t.noSePudoRegistrar,
       })
     }
   }
@@ -180,7 +179,7 @@ export function VerificacionResponder({
       if (!respuesta.ok) {
         setMaquina({
           estado: 'error',
-          mensaje: await leerError(respuesta, 'No se pudo validar el enlace.'),
+          mensaje: await leerError(respuesta, t.noSePudoValidar),
         })
         return
       }
@@ -192,7 +191,7 @@ export function VerificacionResponder({
       // Next la aprovecha en la misma navegación SPA.
       router.push(`/problematicas/parte?cue=${encodeURIComponent(verificacion.cueAnexo)}`)
     } catch {
-      setMaquina({ estado: 'error', mensaje: 'No se pudo validar el enlace.' })
+      setMaquina({ estado: 'error', mensaje: t.noSePudoValidar })
     }
   }
 
@@ -200,7 +199,7 @@ export function VerificacionResponder({
     return (
       <div className="verificacion-pantalla">
         <p className="estado-actual-aviso__texto" role="status">
-          Verificando el enlace…
+          {t.verificando}
         </p>
       </div>
     )
@@ -211,8 +210,8 @@ export function VerificacionResponder({
       <div className="verificacion-pantalla">
         <p className="estado-actual-aviso__texto" role="status">
           {maquina.accion === 'canjear_sesion'
-            ? 'Abriendo el formulario…'
-            : 'Registrando la respuesta…'}
+            ? t.abriendoFormulario
+            : t.registrandoRespuesta}
         </p>
       </div>
     )
@@ -222,7 +221,7 @@ export function VerificacionResponder({
     return (
       <div className="verificacion-pantalla">
         <p className="estado-actual-aviso__texto" role="status">
-          Abriendo el formulario…
+          {t.abriendoFormulario}
         </p>
       </div>
     )
@@ -235,7 +234,7 @@ export function VerificacionResponder({
           <p className="estado-actual-aviso__texto" role="alert">
             {maquina.mensaje}
           </p>
-          <p className="estado-actual-aviso__texto">{TEXTO_ERROR_SIN_SALIDA}</p>
+          <p className="estado-actual-aviso__texto">{t.errorSinSalida}</p>
         </div>
       </div>
     )
@@ -245,7 +244,7 @@ export function VerificacionResponder({
     return (
       <div className="verificacion-pantalla">
         <h1 className="publico-content__title">
-          {nombreEscuela(escuelaNombre, maquina.verificacion.cueAnexo)}
+          {nombreEscuela(t, escuelaNombre, maquina.verificacion.cueAnexo)}
         </h1>
 
         {maquina.mensaje && (
@@ -256,7 +255,7 @@ export function VerificacionResponder({
           </div>
         )}
 
-        <p className="verificacion-pregunta">{PREGUNTA}</p>
+        <p className="verificacion-pregunta">{t.pregunta}</p>
 
         <div className="verificacion-acciones">
           <Button
@@ -269,13 +268,13 @@ export function VerificacionResponder({
               })
             }
           >
-            Sin afectación
+            {t.sinAfectacion}
           </Button>
           <Button
             className="verificacion-boton"
             onClick={() => irAlParte(maquina.verificacion)}
           >
-            Hay afectación
+            {t.hayAfectacion}
           </Button>
         </div>
       </div>
@@ -285,7 +284,7 @@ export function VerificacionResponder({
   if (maquina.estado === 'confirmar') {
     return (
       <div className="verificacion-pantalla">
-        <p className="verificacion-pregunta">{CONFIRMACION_SIN_AFECTACION}</p>
+        <p className="verificacion-pregunta">{t.confirmacionSinAfectacion}</p>
 
         <div className="verificacion-acciones">
           <Button
@@ -301,7 +300,7 @@ export function VerificacionResponder({
               setMaquina({ estado: 'pendiente', verificacion: maquina.verificacion })
             }
           >
-            Volver
+            {t.volver}
           </Button>
         </div>
       </div>
@@ -310,28 +309,28 @@ export function VerificacionResponder({
 
   const { verificacion } = maquina
   const fecha = verificacion.respondidaEn
-    ? formatearCargaCorta(verificacion.respondidaEn)
+    ? formatearCargaCorta(verificacion.respondidaEn, idioma)
     : ''
 
   return (
     <div className="verificacion-pantalla">
       <section className="estado-actual-bloque verificacion-comprobante">
-        <h2 className="estado-actual-bloque__titulo">Respuesta registrada</h2>
-        <p className="estado-actual-bloque__valor">{textoResultado(verificacion)}</p>
+        <h2 className="estado-actual-bloque__titulo">{t.comprobanteTitulo}</h2>
+        <p className="estado-actual-bloque__valor">{textoResultado(t, verificacion)}</p>
         <p className="estado-actual-bloque__vigencia">
-          {nombreEscuela(escuelaNombre, verificacion.cueAnexo)}
+          {nombreEscuela(t, escuelaNombre, verificacion.cueAnexo)}
         </p>
 
         {verificacion.estado === 'cancelada' && (
-          <p className="estado-actual-bloque__vacio">Esta solicitud fue cancelada.</p>
+          <p className="estado-actual-bloque__vacio">{t.cancelada}</p>
         )}
 
         {fecha && (
-          <p className="estado-actual-bloque__vigencia">Respondida el {fecha}</p>
+          <p className="estado-actual-bloque__vigencia">{t.respondidaEl(fecha)}</p>
         )}
 
         {verificacion.discrepancia && (
-          <p className="estado-actual-bloque__vacio">{NOTA_DISCREPANCIA}</p>
+          <p className="estado-actual-bloque__vacio">{t.notaDiscrepancia}</p>
         )}
       </section>
     </div>

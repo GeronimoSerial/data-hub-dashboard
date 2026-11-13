@@ -71,6 +71,7 @@ ver [docs/motor-v0.4/promocion.md](../../motor-v0.4/promocion.md).
 | situacion-corte | `20 * * * *` | no registrado | `situacion-corte-v1` | cada hora |
 | climatologia-imerg | `20 4 * * *` | 3600 s | `calculo-climatologia-imerg` | diario; cursor resumable por mes, presupuesto `IMERG_CLIMATOLOGIA_DIAS_POR_CORRIDA` (default 1200 días ≈ 45 min). Requiere `EARTHDATA_TOKEN`. Salud: `hazard_source_health` `nasa-imerg-climatologia` (TTL 2 días). |
 | sync-prefectura-alturas | `17 * * * *` | 300 s | `sync-prefectura-alturas` | cada hora; creado 2026-10-13. Requiere `ENOS_JOBS_ENABLED` distinto de `false` en el contenedor. Exit `1` si devuelve `estado: fallido`. |
+| sonda-cadena-datos | `41 * * * *` | no registrado | `sonda-cadena-datos` | **pendiente de crear en Coolify** (la crea el owner; no está habilitada en dev, `ENOS_JOBS_ENABLED=false`). Comando `node scripts/jobs.mjs sonda-cadena-datos`. Cada hora, después de `sync-prefectura-alturas` (`:17`). Corre en producción y en consumidor: el consumidor omite sólo la comparación con Prefectura. Variables opcionales `SONDA_ESCUELAS_TESTIGO` y `SONDA_ESTACIONES_TESTIGO` (listas separadas por coma; sin setear rige el default del código). Exit `1` si devuelve `estado: fallido`. Resultado en `/admin/operacion` (batch OPS1, fila del job). |
 | veredicto-diario | `45 0,6,12,18 * * *` | 600 s | `veredicto-diario-v0` | **pendiente de crear**. Comando `node scripts/jobs.mjs veredicto-diario`. Requiere `AI_VEREDICTO_ENABLED=true` (y `OPENROUTER_API_KEY` para texto IA). |
 | veredicto-cierre | `30 3 * * *` | 300 s | `veredicto-cierre-v0` | **pendiente de crear**. Comando `node scripts/jobs.mjs veredicto-cierre`. Cierra el día ART anterior. |
 
@@ -191,6 +192,7 @@ campo `tipo` del código no coincide con el nombre de despacho para varios jobs
 | `RISK_ENGINE_ENABLED` | entorno del CONTENEDOR | apagado | Gobierna **sólo** la UI `/admin/riesgo`. NO afecta si los jobs corren (ver `lib/infraestructura/jobs/flags.ts`). |
 | `EPISODIOS_DERIVADOS_ENABLED` | entorno del CONTENEDOR | apagado | Gobierna **sólo** la UI `/admin/episodios-derivados`. NO afecta si el job corre. |
 | `EARTHDATA_TOKEN` | entorno del CONTENEDOR | sin default | Token de NASA Earthdata para `sync-imerg`. Sin él, el job marca `nasa-imerg` como `no_disponible` en `hazard_source_health` y sale con `0`. Ver "Renovación de la credencial de Earthdata". |
+| `REGION` | entorno del CONTENEDOR | `corrientes` si está vacía o ausente | Región del despliegue. Elige `config/regiones/<REGION>.json` y qué jobs aplican. Ver "Región (`REGION`) y tareas por región". |
 
 Todas estas variables son del entorno del **contenedor de la aplicación**, se
 setean según el mecanismo de despliegue (Coolify), **nunca** se commitean ni se
@@ -223,7 +225,7 @@ entorno del contenedor o deshabilitando la tarea en Coolify.
 `scripts/jobs.mjs` sigue el contrato de `scripts/job-diagnostico.mjs`, más un código propio:
 
 - **`0`** — corrió y publicó, **o** no hizo nada porque el job ya estaba `completado`, tenía un lease vigente, o `ENOS_JOBS_ENABLED=false`. Si el motivo fue el flag, revisar el `WARN` (¿pausa deliberada o apagado por error?).
-- **`1`** — excepción no manejada, resultado `fallido` de `sync-prefectura-alturas` (fallo real), o `cobertura_parcial` de `sync-ensemble` (quedaron celdas sin dato por red, cupo o 429; el reintento de `:35` pide sólo las faltantes). Revisar el log del scheduler (Coolify o `journalctl -u enos-ops1@<nombre>.service` en staging).
+- **`1`** — excepción no manejada, resultado `fallido` de `sync-prefectura-alturas` o `sonda-cadena-datos` (fallo real), o `cobertura_parcial` de `sync-ensemble` (quedaron celdas sin dato por red, cupo o 429; el reintento de `:35` pide sólo las faltantes). Revisar el log del scheduler (Coolify o `journalctl -u enos-ops1@<nombre>.service` en staging).
 - **`2`** — nombre de job desconocido. Error de la tarea o unidad (nombre mal escrito), no del job.
 - **`3`** — el job perdió el lease antes de publicar: otro proceso lo recuperó por vencimiento. Tratarlo como problema de **scheduling/solapamiento**. Causa típica: intervalo menor a la duración del lease o del job.
 
@@ -405,3 +407,29 @@ Hasta ejecutar manualmente `riesgo-om-operacion.yml` con `configurar`, los
 timers o tareas existentes quedan instalados pero no gastan cupo una vez
 desplegado el código (el rol se infiere de la base). No reinstalar esos timers
 en consumidores después de migrar.
+
+## Región (`REGION`) y tareas por región
+
+- `REGION` elige la región del contenedor: es el id de `config/regiones/<REGION>.json`.
+  Vacía o ausente = `corrientes`. Un id desconocido o un JSON inválido aborta el
+  arranque (`instrumentation.ts`), y cada job de `scripts/jobs.mjs` sale con código `1`.
+- El mismo valor decide qué jobs aplican. `scripts/jobs.mjs` y `JOBS_ESPERADOS`
+  (`obtenerEstadoOperativo().jobsEsperados`) usan la región activa, así que
+  `/admin/operacion` sólo muestra los jobs que aplican.
+- Regla de aplicabilidad: `sync-prefectura-*` requiere `prefectura` en `fuentesRio`;
+  `sync-ina-*` requiere `ina`; `sync-smn-alertas` requiere `smn` en `fuentesAlertas`;
+  `sync-synop-lluvia` requiere `synop` en `fuentesLluvia`; `importar-exposicion-rio-dem`
+  requiere `exposicion-rio-dem` en `capasEstaticas`. Los demás jobs aplican a todas las regiones.
+- **Código de salida `2`:** el job no aplica a la región (`job <id> does not apply to region <id>`,
+  en stderr) o el nombre es desconocido. La comprobación va antes de `ENOS_JOBS_ENABLED`,
+  así que también sale `2` con el interruptor apagado. Una tarea que devuelve `2` es un
+  error de configuración: borrar esa tarea en la región, no reintentar.
+- Códigos de salida completos: `0` ejecutado o no-op; `1` error o `estado: fallido`;
+  `2` invocación inválida o job que no aplica.
+- Tareas por región (Corrientes y Manaos): [deploy/regiones/scheduler-jobs.md](../../../deploy/regiones/scheduler-jobs.md).
+  Manaos no programa `sync-prefectura-alturas`, `sync-prefectura-historico`,
+  `sync-ina-serie-diaria`, `sync-ina-pronostico`, `sync-smn-alertas` ni `sync-synop-lluvia`.
+  Sí programa `importar-exposicion-rio-dem` (capa FABDEM), que necesita los archivos DEM de
+  Manaos generados con `descargar_fuentes_inundacion --region manaos` y
+  `calcular_exposicion_rio_dem --region manaos`.
+- Alta de una región nueva: [runbook-nueva-region.md](runbook-nueva-region.md).

@@ -1,0 +1,80 @@
+[
+  {
+    "coordenadasVerificadas": false,
+    "estacionId": "pna-corrientes",
+    "estado": "alerta",
+    "estadoUltimaLectura": "alerta",
+    "horasDesdeLectura": "<horas>",
+    "lat": -27.46,
+    "lectura": {
+      "alertaM": 6.5,
+      "capturadaEn": "<fecha>",
+      "estadoPublicado": "ALERTA",
+      "evacuacionM": 7,
+      "inconsistente": false,
+      "lecturaM": 6.8,
+      "medidaEn": "<fecha>",
+      "motivosInconsistencia": [],
+      "periodoHoras": 6,
+      "variacionM": 0.35
+    },
+    "lecturaVencida": false,
+    "lon": -58.84,
+    "nombre": "CORRIENTES",
+    "rio": "parana",
+    "rol": "corrientes",
+    "tendencia": "crece"
+  },
+  {
+    "coordenadasVerificadas": false,
+    "estacionId": "pna-itati",
+    "estado": "normal",
+    "estadoUltimaLectura": "normal",
+    "horasDesdeLectura": "<horas>",
+    "lat": -27.27,
+    "lectura": {
+      "alertaM": 6.8,
+      "capturadaEn": "<fecha>",
+      "estadoPublicado": "ESTAC.",
+      "evacuacionM": 7.5,
+      "inconsistente": false,
+      "lecturaM": 5.98,
+      "medidaEn": "<fecha>",
+      "motivosInconsistencia": [],
+      "periodoHoras": 6,
+      "variacionM": 0.08
+    },
+    "lecturaVencida": false,
+    "lon": -58.24,
+    "nombre": "ITATI",
+    "rio": "parana",
+    "rol": "corrientes",
+    "tendencia": "crece"
+  },
+  {
+    "coordenadasVerificadas": false,
+    "estacionId": "pna-paso-de-los-libres",
+    "estado": "normal",
+    "estadoUltimaLectura": "normal",
+    "horasDesdeLectura": "<horas>",
+    "lat": -29.721111,
+    "lectura": {
+      "alertaM": 7.5,
+      "capturadaEn": "<fecha>",
+      "estadoPublicado": "ESTAC.",
+      "evacuacionM": 8.5,
+      "inconsistente": false,
+      "lecturaM": 6.75,
+      "medidaEn": "<fecha>",
+      "motivosInconsistencia": [],
+      "periodoHoras": 6,
+      "variacionM": -0.15
+    },
+    "lecturaVencida": false,
+    "lon": -57.082222,
+    "nombre": "PASO DE LOS LIBRES",
+    "rio": "uruguay",
+    "rol": "corrientes",
+    "tendencia": "baja"
+  }
+]

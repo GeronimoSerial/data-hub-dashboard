@@ -15,6 +15,7 @@ export const DATASETS_REFERENCIA = {
   'cabeceras-departamentales': { nombre: 'Cabeceras departamentales', formato: 'cabeceras', clave: 'departamento' },
   'localidades-urbanas': { nombre: 'Localidades urbanas', formato: 'localidades', clave: '' },
   'estaciones-prefectura': { nombre: 'Estaciones hidrométricas', formato: 'array', clave: 'estacionId' },
+  'estacoes-ana': { nombre: 'Estações hidrométricas (ANA)', formato: 'array', clave: 'estacionId' },
   'estaciones-synop': { nombre: 'Estaciones de lluvia', formato: 'array', clave: 'wmo' },
 } as const
 

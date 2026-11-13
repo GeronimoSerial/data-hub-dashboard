@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type JSX } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 interface AlumnoAlcanzado {
   nombre: string
@@ -43,6 +44,7 @@ function nombreVisible(alumno: AlumnoAlcanzado): string {
  * un componente nuevo y no como un rerender con la misma instancia.
  */
 function AlcanceNominalContenido({ afectacionId }: { afectacionId: string }): JSX.Element {
+  const t = useTextos().parteResto.alcanceNominal
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
 
   useEffect(() => {
@@ -68,7 +70,7 @@ function AlcanceNominalContenido({ afectacionId }: { afectacionId: string }): JS
   if (estado.fase === 'cargando') {
     return (
       <p className="historial-estado" role="status">
-        Buscando los alumnos alcanzados…
+        {t.buscando}
       </p>
     )
   }
@@ -76,8 +78,7 @@ function AlcanceNominalContenido({ afectacionId }: { afectacionId: string }): JS
   if (estado.fase === 'error') {
     return (
       <p className="historial-estado__texto" role="alert">
-        No pudimos mostrar el alcance nominal. Puede que ya no tenga acceso o que la conexión haya
-        fallado; cierre este modal y vuelva a intentar.
+        {t.error}
       </p>
     )
   }
@@ -85,7 +86,7 @@ function AlcanceNominalContenido({ afectacionId }: { afectacionId: string }): JS
   if (estado.secciones.length === 0) {
     return (
       <p className="historial-estado__texto">
-        No hay alumnos identificados alcanzados por esta afectación.
+        {t.sinAlumnos}
       </p>
     )
   }
@@ -93,7 +94,7 @@ function AlcanceNominalContenido({ afectacionId }: { afectacionId: string }): JS
   return (
     <div className="alcance-nominal-modal__resultado">
       <p className="alcance-nominal-modal__cantidad">
-        {estado.cantidad === 1 ? '1 alumno alcanzado.' : `${estado.cantidad} alumnos alcanzados.`}
+        {estado.cantidad === 1 ? t.cantidadUno : t.cantidad(estado.cantidad)}
       </p>
       {estado.secciones.map((seccion) => (
         <section key={seccion.geSectionId} className="alcance-nominal-modal__seccion">
@@ -101,7 +102,7 @@ function AlcanceNominalContenido({ afectacionId }: { afectacionId: string }): JS
             {seccion.curso} {seccion.division} · {seccion.turno}
           </h3>
           {seccion.alumnos.length === 0 ? (
-            <p className="alcance-nominal-modal__vacio">Sin identidad importada para esta sección.</p>
+            <p className="alcance-nominal-modal__vacio">{t.sinIdentidad}</p>
           ) : (
             <ul className="alcance-nominal-modal__alumnos">
               {seccion.alumnos.map((alumno, indice) => (
@@ -130,10 +131,11 @@ export function AlcanceNominalModal({
   afectacionId: string | null
   onOpenChange: (open: boolean) => void
 }): JSX.Element {
+  const t = useTextos().parteResto.alcanceNominal
   return (
     <Dialog open={afectacionId !== null} onOpenChange={onOpenChange}>
       <DialogContent className="map-detail-dialog">
-        <DialogTitle>Alumnos alcanzados</DialogTitle>
+        <DialogTitle>{t.titulo}</DialogTitle>
         {afectacionId ? <AlcanceNominalContenido key={afectacionId} afectacionId={afectacionId} /> : null}
       </DialogContent>
     </Dialog>

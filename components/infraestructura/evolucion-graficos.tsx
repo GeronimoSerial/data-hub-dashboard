@@ -15,6 +15,8 @@ import {
   YAxis,
 } from 'recharts'
 import { useThemeMode } from '@/app/providers'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import type { Idioma } from '@/lib/i18n/idioma'
 // Frontera servidor/cliente: evolucion.ts importa getDb (libsql + node:fs).
 // De ese módulo sólo puede salir un TIPO — `import type` se elimina en
 // compilación y no arrastra un solo byte de libsql al bundle del navegador;
@@ -139,8 +141,10 @@ function etiquetaFechaCorta(label: ReactNode): ReactNode {
   return typeof label === 'string' ? fechaCorta(label) : label
 }
 
-function formatearMiles(valor: number): string {
-  return valor.toLocaleString('es-AR')
+const LOCALE_NUMERO: Record<Idioma, string> = { es: 'es-AR', pt: 'pt-BR' }
+
+function formatearMiles(valor: number, idioma: Idioma): string {
+  return valor.toLocaleString(LOCALE_NUMERO[idioma])
 }
 
 const CLASE_EJE = { fill: 'var(--ink-soft)', fontSize: 13 }
@@ -161,8 +165,10 @@ function GraficoContenedor(props: { etiqueta: string; children: React.ReactNode 
 // durante el período. El punto de la derecha es hoy.
 export function GraficoSerieServicioCaido(props: {
   puntos: PuntoEscuelasServicioCaido[]
+  idioma: Idioma
 }) {
   const paleta = usePaletaGraficos()
+  const t = useTextos().fichaHistorial.evolucion
   // Los datos son diarios: no existe un valor "entre días". Una curva suave
   // inventaría valores intermedios, así que la línea es ESCALONADA y cambia
   // una sola vez por día (stepAfter). El eje X fija un interval numérico
@@ -171,7 +177,7 @@ export function GraficoSerieServicioCaido(props: {
   // desde qué punto arrancó el recorte.
   const intervaloTicks = Math.max(0, Math.ceil(props.puntos.length / 8) - 1)
   return (
-    <GraficoContenedor etiqueta="Serie temporal de escuelas con servicio caído">
+    <GraficoContenedor etiqueta={t.grafico.serie}>
       <LineChart data={props.puntos} margin={{ top: 8, right: 12, bottom: 4, left: -4 }}>
         <CartesianGrid vertical={false} stroke={paleta.grilla} strokeWidth={1} />
         <XAxis
@@ -185,7 +191,7 @@ export function GraficoSerieServicioCaido(props: {
         <YAxis
           allowDecimals={false}
           width={36}
-          tickFormatter={formatearMiles}
+          tickFormatter={(valor: number) => formatearMiles(valor, props.idioma)}
           tick={{ ...CLASE_EJE, fill: paleta.texto }}
           tickLine={false}
           axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
@@ -196,12 +202,12 @@ export function GraficoSerieServicioCaido(props: {
           itemStyle={estiloDatoTooltip}
           cursor={{ stroke: paleta.grilla, strokeWidth: 1 }}
           labelFormatter={etiquetaFechaCorta}
-          formatter={(valor) => [`${formatearMiles(Number(valor))} escuelas`, null]}
+          formatter={(valor) => [t.escuelas(formatearMiles(Number(valor), props.idioma)), null]}
         />
         <Line
           type="stepAfter"
           dataKey="escuelas"
-          name="Escuelas con servicio caído"
+          name={t.serieEscuelas}
           stroke={paleta.serieServicio}
           strokeWidth={1}
           dot={(punto) => punto.index === punto.points.length - 1 ? (
@@ -218,10 +224,11 @@ export function GraficoSerieServicioCaido(props: {
 // Vista 3 — motivos, barras HORIZONTALES: los nombres de motivo son frases
 // ("Otro problema en el establecimiento") y en un eje X se pisarían entre sí;
 // en el eje Y cada uno tiene su fila y se lee completo.
-export function GraficoMotivos(props: { motivos: DistribucionMotivo[] }) {
+export function GraficoMotivos(props: { motivos: DistribucionMotivo[]; idioma: Idioma }) {
   const paleta = usePaletaGraficos()
+  const t = useTextos().fichaHistorial.evolucion
   return (
-    <GraficoContenedor etiqueta="Distribución de afectaciones vigentes por motivo">
+    <GraficoContenedor etiqueta={t.grafico.motivos}>
       <BarChart
         data={props.motivos}
         layout="vertical"
@@ -252,7 +259,7 @@ export function GraficoMotivos(props: { motivos: DistribucionMotivo[] }) {
         />
         <Bar
           dataKey="afectacionesVigentes"
-          name="Afectaciones vigentes"
+          name={t.afectacionesVigentes}
           fill={paleta.serieMotivos}
           isAnimationActive={false}
         />
@@ -265,10 +272,12 @@ export function GraficoMotivos(props: { motivos: DistribucionMotivo[] }) {
 // nada de <LinearGradient> (el manual prohíbe degradados) y nada de sombra.
 export function GraficoAlumnosAcumulados(props: {
   puntos: PuntoAlumnosAcumulados[]
+  idioma: Idioma
 }) {
   const paleta = usePaletaGraficos()
+  const t = useTextos().fichaHistorial.evolucion
   return (
-    <GraficoContenedor etiqueta="Alumnos acumulados alcanzados a lo largo del período">
+    <GraficoContenedor etiqueta={t.grafico.acumulados}>
       <AreaChart data={props.puntos} margin={{ top: 8, right: 12, bottom: 4, left: -4 }}>
         <CartesianGrid vertical={false} stroke={paleta.grilla} strokeWidth={1} />
         <XAxis
@@ -283,7 +292,7 @@ export function GraficoAlumnosAcumulados(props: {
         <YAxis
           allowDecimals={false}
           width={44}
-          tickFormatter={formatearMiles}
+          tickFormatter={(valor: number) => formatearMiles(valor, props.idioma)}
           tick={{ ...CLASE_EJE, fill: paleta.texto }}
           tickLine={false}
           axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
@@ -298,7 +307,7 @@ export function GraficoAlumnosAcumulados(props: {
         <Area
           type="monotone"
           dataKey="alumnosAcumulados"
-          name="Alumnos acumulados"
+          name={t.alumnosAcumulados}
           stroke={paleta.serieAcumulados}
           strokeWidth={1}
           fill={paleta.serieAcumulados}

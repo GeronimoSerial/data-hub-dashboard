@@ -1,0 +1,12 @@
+{
+  "version": 8,
+  "name": "mapa-e2e-base",
+  "sources": {},
+  "layers": [
+    {
+      "id": "fondo",
+      "type": "background",
+      "paint": { "background-color": "#dfe9e3" }
+    }
+  ]
+}

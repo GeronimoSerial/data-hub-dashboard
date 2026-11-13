@@ -6,6 +6,7 @@
 import { z } from 'zod'
 import { celdaDeCoordenada } from '../celda'
 import { CONFIG_FUENTES } from './config-fuentes'
+import { regionActiva } from '@/lib/infraestructura/region'
 
 // ---------------------------------------------------------------------------
 // Búsqueda de gránulos (CMR metadata, JSON)
@@ -77,12 +78,12 @@ export function elegirGranuloMasReciente(cmrJson: unknown): GranuloImerg | null 
 // Grilla global IMERG (0,1°) e índices del bbox
 // ---------------------------------------------------------------------------
 
-// Mismo bbox de Corrientes que usa geo-perfil.ts (LAT_MIN/-32, LAT_MAX/-26,
-// LON_MIN/-61, LON_MAX/-54), con margen para no cortar escuelas de borde.
-export const IMERG_LAT_MIN = -32
-export const IMERG_LAT_MAX = -26
-export const IMERG_LON_MIN = -61
-export const IMERG_LON_MAX = -54
+// Mismo bbox de la región activa que usa geo-perfil.ts (bboxPlausible de config/regiones),
+// con margen para no cortar escuelas de borde.
+export const IMERG_LAT_MIN = regionActiva().bboxPlausible.latMin
+export const IMERG_LAT_MAX = regionActiva().bboxPlausible.latMax
+export const IMERG_LON_MIN = regionActiva().bboxPlausible.lonMin
+export const IMERG_LON_MAX = regionActiva().bboxPlausible.lonMax
 
 // Grilla global verificada con datos reales: lat[i] = -89.95 + i*0.1 (1800
 // valores, -89.95..89.95) y lon[i] = -179.95 + i*0.1 (3600 valores). La

@@ -8,6 +8,7 @@ import { alertasSmnActivas, severidadCAPEnEspanol } from '@/lib/infraestructura/
 import { alertasAndEnsemble } from '@/lib/infraestructura/radar-meteo/ensemble'
 import { obtenerMetricasVerificacion } from '@/lib/infraestructura/radar-meteo/verificacion'
 import { ruta } from '@/lib/http/ruta'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,7 @@ async function handleGET(request: Request) {
   if (!riskRadarEnabled()) return Response.json({ error: 'Radar no habilitado' }, { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
   const run = await obtenerUltimoRunRadarMeteo()
   const [alertas, ensemble, verificacion] = await Promise.all([alertasSmnActivas(), alertasAndEnsemble(), obtenerMetricasVerificacion()])
-  const fechaLocal = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const fechaLocal = new Intl.DateTimeFormat('en-CA', { timeZone: regionPublicaActual().zonaHoraria, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const etag = `W/"${Buffer.from(`${run?.id ?? 'sin-run'}:${fechaLocal}:${ensemble?.runId ?? 'sin-ensemble'}:${alertas.map(a=>`${a.id}:${a.fetchedAt}`).join(',')}:${verificacion.estado}:${verificacion.nPares}:${verificacion.nEventos}:${verificacion.sesgoMm}:${verificacion.actualizadoEn ?? 'sin-verificacion'}:resumen-v4`).toString('base64url')}"`
   const headers = { 'Cache-Control': 'private, max-age=300', ETag: etag }
   if (request.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers })

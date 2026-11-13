@@ -4,9 +4,10 @@ import { getDb } from '@/lib/db'
 import { hazardObservation, radarMeteoRun, radarMeteoVerificacion } from '@/lib/db/schema'
 import { calcularResumen } from './resumen'
 import { departamentoQueContienePunto, listarDepartamentos } from './departamentos'
+import { formatoFechaRegion } from '../formato-region'
+import { regionActiva } from '../region/activa'
 
 export const VERSION_ALGORITMO_VERIFICACION = 'imerg-departamento-v1'
-const ZONA = 'America/Argentina/Buenos_Aires'
 const UMBRAL_MM = 10
 const UMBRAL_COBERTURA = 0.8
 type Db = ReturnType<typeof getDb>
@@ -62,7 +63,7 @@ function desplazarFecha(fecha: string, dias: number) {
   return date.toISOString().slice(0, 10)
 }
 function fechaLocal(date: Date) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
+  const parts = formatoFechaRegion('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
   const p = Object.fromEntries(parts.map((x) => [x.type, x.value]))
   return `${p.year}-${p.month}-${p.day}`
 }
@@ -70,8 +71,7 @@ function inicioLocal(fecha: string) {
   const [year, month, day] = fecha.split('-').map(Number)
   const objetivo = Date.UTC(year, month - 1, day)
   let instante = objetivo
-  const formato = new Intl.DateTimeFormat('en-CA', {
-    timeZone: ZONA,
+  const formato = formatoFechaRegion('en-CA', {
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
   })
@@ -155,8 +155,10 @@ export async function ejecutarVerificacionRadarMeteo(params: { ahora?: Date; des
     }
     const departamentos = listarDepartamentos()
     const celdasEsperadas = new Map(departamentos.map((d) => [d.id, 0]))
-    for (let lat = -31.95; lat <= -26.05; lat = Math.round((lat + 0.1) * 10) / 10) {
-      for (let lon = -60.95; lon <= -54.05; lon = Math.round((lon + 0.1) * 10) / 10) {
+    // Half a grid step (0.05) inside the plausible bbox, same as the former literals.
+    const caja = regionActiva().bboxPlausible
+    for (let lat = caja.latMin + 0.05; lat <= caja.latMax - 0.05; lat = Math.round((lat + 0.1) * 10) / 10) {
+      for (let lon = caja.lonMin + 0.05; lon <= caja.lonMax - 0.05; lon = Math.round((lon + 0.1) * 10) / 10) {
         const depto = departamentoQueContienePunto(lat, lon)
         if (depto) {
           const area = Math.cos(lat * Math.PI / 180)

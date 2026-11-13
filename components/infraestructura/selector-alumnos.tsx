@@ -4,6 +4,7 @@ import { useState, type JSX } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Opcion } from '@/components/ui/opcion'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 const colacionAlumnos = new Intl.Collator('es-AR')
 
@@ -14,10 +15,6 @@ export function seccionesDeAlumnos(turnos: TurnoContexto[], alumnos: number[]): 
       n.secciones.filter((s) => s.alumnos.some((a) => marcados.has(a.gePersonId))).map((s) => s.geSectionId),
     ),
   )
-}
-
-function plural(n: number, uno: string, varios: string): string {
-  return `${n} ${n === 1 ? uno : varios}`
 }
 
 // En la categoría alumnos se eligen personas; las secciones sólo agrupan la
@@ -35,6 +32,7 @@ export function SelectorAlumnos({
   disabled?: boolean
 }): JSX.Element {
   const marcados = new Set(alumnosSeleccionados)
+  const t = useTextos().parteGaleria.alumnos
   const [abiertas, setAbiertas] = useState<Set<number>>(() => new Set(seccionesDeAlumnos(turnos, alumnosSeleccionados)))
   const [busquedas, setBusquedas] = useState<Record<number, string>>({})
 
@@ -71,7 +69,7 @@ export function SelectorAlumnos({
         const elegidosTurno = alumnosTurno.filter((alumno) => marcados.has(alumno.gePersonId)).length
         return (
         <section key={turno.turno} className="secciones-selector__turno">
-          <h3>{turno.turno} · {elegidosTurno} de {alumnosTurno.length} alumnos</h3>
+          <h3>{t.turnoResumen(turno.turno, elegidosTurno, alumnosTurno.length)}</h3>
           {turno.niveles.map((nivel) => {
             return <div className="secciones-selector__nivel" key={nivel.nivel}>
             <h4>{nivel.nivel}</h4>
@@ -91,15 +89,15 @@ export function SelectorAlumnos({
                       onClick={() => alternarSeccion(seccion.geSectionId)}
                       disabled={disabled}
                     >
-                      <span className="selector-alumnos__titulo">{`${seccion.curso} "${seccion.division}" · ${elegidos} de ${seccion.alumnos.length}`}</span>
-                      <span className="selector-alumnos__accion">Elegir alumnos</span>
+                      <span className="selector-alumnos__titulo">{t.seccionTitulo(seccion.curso, seccion.division, elegidos, seccion.alumnos.length)}</span>
+                      <span className="selector-alumnos__accion">{t.elegir}</span>
                       <ChevronDown size={16} aria-hidden="true" />
                     </button>
                   </div>
                   <div id={panelId} hidden={!abierta} className="selector-alumnos__lista">
                     <Opcion
                       tipo="checkbox"
-                      label={completa ? 'Quitar toda la sección' : 'Marcar toda la sección'}
+                      label={completa ? t.quitarSeccion : t.marcarSeccion}
                       checked={completa}
                       indeterminate={elegidos > 0 && !completa}
                       onChange={(event) => alternarSeccionCompleta(seccion.alumnos.map((alumno) => alumno.gePersonId), event.currentTarget.checked)}
@@ -109,8 +107,8 @@ export function SelectorAlumnos({
                     {seccion.alumnos.length > 10 ? <input
                       className="secciones-selector__busqueda"
                       type="search"
-                      aria-label={`Buscar alumnos de ${seccion.curso} ${seccion.division}`}
-                      placeholder="Buscar alumno"
+                      aria-label={t.buscarDe(seccion.curso, seccion.division)}
+                      placeholder={t.buscar}
                       value={busquedas[seccion.geSectionId] ?? ''}
                       onChange={(event) => setBusquedas((actual) => ({ ...actual, [seccion.geSectionId]: event.target.value }))}
                     /> : null}
@@ -137,7 +135,7 @@ export function SelectorAlumnos({
         )
       })}
       <p className="afectacion-borrador__resumen" aria-live="polite">
-        {`${plural(alumnosSeleccionados.length, 'alumno afectado', 'alumnos afectados')} en ${plural(totalSecciones, 'sección', 'secciones')}`}
+        {t.resumenAfectados(alumnosSeleccionados.length, totalSecciones)}
       </p>
     </div>
   )

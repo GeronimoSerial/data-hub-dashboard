@@ -7,6 +7,7 @@ import { Segmentado } from '@/components/mapas/segmentado'
 import { AlertasSeccion } from '@/components/mapas/radar-meteo/alertas-seccion'
 import { PronosticoResumen } from '@/components/mapas/radar-meteo/pronostico-resumen'
 import { ETIQUETAS_VARIABLE_RADAR, VARIABLES_RADAR_UI, type VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { pronosticoPorHorizonte } from '@/lib/infraestructura/radar-meteo/pronostico-horizonte'
 import type { ResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
@@ -49,6 +50,13 @@ export interface PanelRadarProps {
 
 export function PanelRadar(props: PanelRadarProps): JSX.Element {
   const { horizonte, disponibles, onHorizonte, variable, onVariable, puntos, escuelas, cargando, error, onSeleccionar, alertas, pronostico } = props
+  const t = useTextos()
+  const etiquetaVariable = (valor: VariableRadarUI): string => {
+    if (valor === 'lluvia') return t.radarResto.panel.lluvia
+    if (valor === 'probabilidad') return t.radarResto.panel.probabilidad
+    // Viento and Granizo read the same in Portuguese.
+    return ETIQUETAS_VARIABLE_RADAR[valor]
+  }
   const hayMotor = disponibles.length > 0
   const hayPronostico = pronostico.resumen !== null && !pronostico.resumen.sinDatos && pronostico.resumen.departamentos.length > 0
   const pronosticoHorizonte = hayPronostico && pronostico.resumen ? pronosticoPorHorizonte(pronostico.resumen, horizonte) : null
@@ -58,8 +66,8 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
       <SelectorHorizonteMotor horizonte={horizonte} disponibles={disponibles} onHorizonte={onHorizonte} />
 
       <Segmentado
-        etiqueta="Variable meteorológica"
-        opciones={VARIABLES_RADAR_UI.map((valor) => ({ valor, etiqueta: ETIQUETAS_VARIABLE_RADAR[valor] }))}
+        etiqueta={t.radarResto.panel.variable}
+        opciones={VARIABLES_RADAR_UI.map((valor) => ({ valor, etiqueta: etiquetaVariable(valor) }))}
         valor={variable}
         onChange={onVariable}
         columnas={2}
@@ -77,11 +85,11 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
       {pronosticoHorizonte ? (
         <PronosticoResumen pronostico={pronosticoHorizonte} horizonte={horizonte} runAt={pronostico.resumen?.runAt ?? null} departamentoId={pronostico.departamentoId} onDepartamento={pronostico.onDepartamento} />
       ) : pronostico.cargando || (cargando && !hayMotor) ? (
-        <p role="status" className="map-sitact__vacio">Cargando pronóstico…</p>
+        <p role="status" className="map-sitact__vacio">{t.radarResto.pronostico.cargando}</p>
       ) : hayMotor ? null : error !== null && pronostico.error ? (
-        <p role="status" className="map-sitact__vacio">No se pudo cargar el pronóstico. Intente de nuevo más tarde.</p>
+        <p role="status" className="map-sitact__vacio">{t.radarResto.pronostico.error}</p>
       ) : (
-        <p className="map-sitact__vacio">Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.</p>
+        <p className="map-sitact__vacio">{t.radarResto.pronostico.vacio}</p>
       )}
     </section>
   )

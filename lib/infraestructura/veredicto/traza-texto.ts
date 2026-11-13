@@ -1,3 +1,5 @@
+import { formatoFechaRegion, localeRegion } from '../formato-region'
+
 // Textos legibles para la traza y el contexto aguas arriba del veredicto.
 // Sin React: lo usan la plantilla, el modal, la vista pública y el PDF.
 
@@ -25,7 +27,6 @@ export type AguaArribaLegible = {
   umbralM: number | null
 }
 
-const ZONA_ARGENTINA = 'America/Argentina/Buenos_Aires'
 const CONECTORES = new Set(['de', 'del', 'la', 'las', 'los', 'y'])
 
 // El catálogo guarda los nombres en mayúsculas sin tildes: estas son las que llevan tilde.
@@ -68,8 +69,7 @@ export function numeroEs(valor: number, decimales: number): string {
 }
 
 function partesArt(iso: string): Record<string, string> {
-  const partes = new Intl.DateTimeFormat('es-AR', {
-    timeZone: ZONA_ARGENTINA,
+  const partes = formatoFechaRegion(localeRegion(), {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',

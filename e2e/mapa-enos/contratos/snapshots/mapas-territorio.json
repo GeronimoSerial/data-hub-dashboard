@@ -1,0 +1,45 @@
+{
+  "aislamiento": {
+    "atribucion": "© OpenStreetMap contributors",
+    "escuelas": {
+      "1800893-00": {
+        "alternativaSinCruce": false,
+        "conPuente": 0,
+        "cruces": 2,
+        "destinoNombre": "Goya",
+        "distanciaLocalidadM": 42000,
+        "distanciaViaPavimentadaM": 9800,
+        "kmSinPavimentar": 12.4,
+        "nivel": 3,
+        "sinPuente": 2
+      },
+      "1800939-00": {
+        "alternativaSinCruce": false,
+        "conPuente": 0,
+        "cruces": 0,
+        "destinoNombre": "Goya",
+        "distanciaLocalidadM": 42000,
+        "distanciaViaPavimentadaM": 9800,
+        "kmSinPavimentar": 12.4,
+        "nivel": 1,
+        "sinPuente": 0
+      },
+      "1800953-00": {
+        "alternativaSinCruce": true,
+        "conPuente": 0,
+        "cruces": 1,
+        "destinoNombre": "Goya",
+        "distanciaLocalidadM": 42000,
+        "distanciaViaPavimentadaM": 9800,
+        "kmSinPavimentar": 12.4,
+        "nivel": 2,
+        "sinPuente": 1
+      }
+    },
+    "fechaExtractoOsm": "<fecha>",
+    "fuente": "OpenStreetMap",
+    "licencia": "ODbL (seed e2e)",
+    "versionJob": "seed-mapa-enos-1"
+  },
+  "susceptibilidad": null
+}

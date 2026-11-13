@@ -1,3 +1,4 @@
+import { textosActuales } from '@/lib/i18n'
 import styles from './observacion-reporte.module.css'
 
 export function ObservacionReporte({ texto }: { texto: string | null | undefined }) {
@@ -5,7 +6,7 @@ export function ObservacionReporte({ texto }: { texto: string | null | undefined
 
   return (
     <figure className={styles.observacion} data-testid="observacion-reporte">
-      <figcaption>Observación registrada en el reporte:</figcaption>
+      <figcaption>{textosActuales().controles.observacion.registrada}</figcaption>
       <blockquote>
         <p>{texto}</p>
       </blockquote>

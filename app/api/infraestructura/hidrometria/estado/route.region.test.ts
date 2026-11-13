@@ -1,0 +1,44 @@
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { USER } from '@/lib/infraestructura/riesgo/__fixtures__/motor-api'
+
+// seed: false: las migraciones se aplican explícitamente abajo.
+usarDbTemporal('hidro-estado-region-', { seed: false })
+
+const regionPrevia = process.env.REGION
+
+// Módulos con estado a nivel de import (región, acceso): se recargan para REGION=manaos.
+async function llamarEnRegion(region: string, query: string) {
+  vi.resetModules()
+  process.env.REGION = region
+  const { __reiniciarRegionActivaParaPruebas } = await import('@/lib/infraestructura/region/activa')
+  __reiniciarRegionActivaParaPruebas()
+  const { migrarDb } = await import('@/lib/db')
+  await migrarDb()
+  // Base sin datasets publicados: vitest.setup.ts precarga fixtures que en producción no existen.
+  const { estadoReferencias } = await import('@/lib/infraestructura/datasets/memoria')
+  estadoReferencias().referencias.clear()
+  const acceso = await import('@/lib/infraestructura/acceso-lectura')
+  vi.mocked(acceso.verificarAccesoLectura).mockResolvedValue({ ok: true, user: USER })
+  const { GET } = await import('./route')
+  return GET(new Request(`http://localhost/api/infraestructura/hidrometria/estado${query}`))
+}
+
+vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
+  verificarAccesoLectura: vi.fn(),
+}))
+
+beforeAll(() => {
+  return () => {
+    if (regionPrevia === undefined) delete process.env.REGION
+    else process.env.REGION = regionPrevia
+  }
+})
+
+describe('GET /api/infraestructura/hidrometria/estado en una región sin Prefectura', () => {
+  it('responde 200 con tramo y lectura nulos aunque la base no tenga datasets de tramos', async () => {
+    const res = await llamarEnRegion('manaos', '?localidad=ITUZAINGO')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ tramo: null, lectura: null })
+  }, 30_000)
+})

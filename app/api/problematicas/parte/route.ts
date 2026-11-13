@@ -8,6 +8,7 @@
 import { z } from 'zod'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getDb, getRawClient } from '@/lib/db'
+import { transaccionContextual } from '@/lib/db/contexto'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
@@ -82,6 +83,8 @@ import {
   responderPorEnlace,
 } from '@/lib/infraestructura/verificaciones'
 import { ruta } from '@/lib/http/ruta'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { cambioAuditado, conAuditoria, respuestaAuditada } from '@/lib/infraestructura/auditoria/servidor'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -416,21 +419,24 @@ async function respuestaExito(
   // Best-effort, igual que en el camino de transacción nueva: un replay
   // idempotente o la carrera de idempotencia también pueden traer el vínculo
   // de verificación (batch E1), y nunca deben bloquear esta respuesta.
-  const { vinculado, motivo } = await intentarVincularVerificacion(verificacionVinculo, movimientoId)
+  describirAuditoria({ objetoTipo: 'parte', objetoId: parteId, cueAnexo, resultado: 'repetido', metadatos: { parteId, movimientoId } })
+  return respuestaAuditada(async () => {
+    const { vinculado, motivo } = await intentarVincularVerificacion(verificacionVinculo, movimientoId)
 
-  return Response.json(
-    {
-      ok: true,
-      parteId,
-      movimientoId,
-      tipo,
-      cambios: describirMovimiento(resumen, { tipo }),
-      servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
-      verificacionVinculada: vinculado,
-      ...(motivo ? { verificacionVinculoMotivo: motivo } : {}),
-    },
-    { status },
-  )
+    return Response.json(
+      {
+        ok: true,
+        parteId,
+        movimientoId,
+        tipo,
+        cambios: describirMovimiento(resumen, { tipo }),
+        servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
+        verificacionVinculada: vinculado,
+        ...(motivo ? { verificacionVinculoMotivo: motivo } : {}),
+      },
+      { status },
+    )
+  })
 }
 
 // Best-effort: enlazar el movimiento con la verificación de origen NUNCA
@@ -447,15 +453,19 @@ async function intentarVincularVerificacion(
 ): Promise<{ vinculado: boolean; motivo?: string }> {
   if (!vinculo) return { vinculado: false }
   try {
-    const resultado = await responderPorEnlace({
-      verificacionId: vinculo.id,
-      token: vinculo.token,
-      resultado: 'con_afectacion',
-      movimientoId,
-    })
-    if (resultado.ok) return { vinculado: true }
-    await registrarIntentoVinculoFallido({ verificacionId: vinculo.id, motivo: resultado.motivo })
-    return { vinculado: false, motivo: resultado.motivo }
+    // Savepoint: un fallo del enlace revierte sólo su escritura y no aborta la
+    // transacción del parte ni su evento de auditoría.
+    return await getDb().transaction(tx => transaccionContextual.run(tx, async () => {
+      const resultado = await responderPorEnlace({
+        verificacionId: vinculo.id,
+        token: vinculo.token,
+        resultado: 'con_afectacion',
+        movimientoId,
+      })
+      if (resultado.ok) return { vinculado: true }
+      await registrarIntentoVinculoFallido({ verificacionId: vinculo.id, motivo: resultado.motivo })
+      return { vinculado: false, motivo: resultado.motivo }
+    }))
   } catch (err) {
     const motivo = err instanceof Error ? err.message : 'error_interno'
     await registrarIntentoVinculoFallido({ verificacionId: vinculo.id, motivo })
@@ -977,7 +987,11 @@ async function handlePOST(request: Request) {
   // o bien asigna `resultado` y hace `break`, o bien `return`-ea antes de
   // salir del bloque — TypeScript no puede seguir esa garantía a través del
   // `for` + `break`.
-  let resultado!: { status: number; body: unknown }
+  let resultado!: {
+    status: number
+    body: Record<string, unknown> & { parteId: string; movimientoId: string }
+    vinculo: { vinculado: boolean; motivo?: string }
+  }
 
   // Transacción real de Postgres vía db.transaction() de Drizzle
   // (drizzle-orm/node-postgres, o drizzle-orm/pglite en tests): a diferencia
@@ -998,8 +1012,7 @@ async function handlePOST(request: Request) {
   // fresco. Cada reintento vuelve a llamar a db.transaction() de cero, con
   // una conexión y un BEGIN nuevos.
   try {
-    resultado = await conReintentoPorBloqueo(async () => {
-      return await db.transaction(async (tx) => {
+    resultado = await conReintentoPorBloqueo(() => cambioAuditado(async (tx) => {
       if (draftId) {
         const [closure] = await tx.select().from(infraBorradorCierre)
           .where(eq(infraBorradorCierre.draftId, draftId)).limit(1)
@@ -1431,6 +1444,7 @@ async function handlePOST(request: Request) {
       }
 
       const estadoGeneral = estadoGeneralDelCue(despues.servicioAlcance, secciones, carrerasCue)
+      const vinculo = await intentarVincularVerificacion(verificacionVinculo, movimientoId)
       return {
         status: 201,
         body: {
@@ -1441,9 +1455,20 @@ async function handlePOST(request: Request) {
           cambios: describirMovimiento(diff, { tipo: tipoMovimiento }),
           servicio: { estadoGeneral, alcanceVigente: despues.servicioAlcance },
         },
+        vinculo,
       }
-      })
-    })
+    }, valor => ({
+      status: valor.status,
+      objetoTipo: 'parte',
+      objetoId: valor.body.parteId,
+      cueAnexo: cue.value,
+      metadatos: {
+        parteId: valor.body.parteId,
+        movimientoId: valor.body.movimientoId,
+        draftId,
+        verificacionId: verificacionVinculo?.id,
+      },
+    }), db))
   } catch (err) {
     if (err instanceof ErrorCierreBorrador) {
       return Response.json(
@@ -1452,6 +1477,7 @@ async function handlePOST(request: Request) {
       )
     }
     if (err instanceof RollbackDiffVacio) {
+      describirAuditoria({ resultado: 'sin_cambio' })
       return jsonError('Todavía no realizó cambios en el parte actual', 409)
     }
     // Violación del constraint único de idempotency_key. En SQLite (driver
@@ -1510,14 +1536,10 @@ async function handlePOST(request: Request) {
   // enlaza el movimiento con la verificación de origen, best-effort. Si no
   // vino `verificacion`, `verificacionVinculada` es false (no undefined) para
   // que la forma de la respuesta sea siempre la misma.
-  const bodyResultado = resultado.body as { movimientoId: string } & Record<string, unknown>
-  const { vinculado, motivo } = await intentarVincularVerificacion(
-    verificacionVinculo,
-    bodyResultado.movimientoId,
-  )
+  const { vinculado, motivo } = resultado.vinculo
   return Response.json(
     {
-      ...bodyResultado,
+      ...resultado.body,
       verificacionVinculada: vinculado,
       ...(motivo ? { verificacionVinculoMotivo: motivo } : {}),
     },
@@ -1525,5 +1547,5 @@ async function handlePOST(request: Request) {
   )
 }
 
-export const GET = ruta('parte.get', handleGET)
-export const POST = ruta('parte.post', handlePOST)
+export const GET = conAuditoria('parte.consultar', '/api/problematicas/parte', ruta('parte.get', handleGET))
+export const POST = conAuditoria('parte.guardar', '/api/problematicas/parte', ruta('parte.post', handlePOST))

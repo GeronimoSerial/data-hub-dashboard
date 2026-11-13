@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Ruta from './route'
 import { crearEnlace, revocarEnlacesDelDia } from '@/lib/infraestructura/veredicto/enlaces'
 import { getSessionUser } from '@/lib/session'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
 // Factory puro para no arrastrar @/lib/session -> @/lib/db antes de fijar DATA_DIR.
 vi.mock('@/lib/session', () => ({
@@ -19,18 +20,19 @@ vi.mock('@/lib/db/seed', () => ({
   ensureSeeded: vi.fn(),
 }))
 
-vi.mock('@/lib/db', () => ({
-  getDb: vi.fn(() => ({ fake: true })),
-}))
-
 vi.mock('@/lib/infraestructura/veredicto/enlaces', () => ({
   crearEnlace: vi.fn(),
   revocarEnlacesDelDia: vi.fn(),
 }))
 
+// Base temporal real: la envoltura de auditoría escribe su evento en la tabla auditoria_evento.
+usarDbTemporal('enlaces-veredicto-route-', { seed: false })
+
 let POST: typeof Ruta.POST
 let DELETE: typeof Ruta.DELETE
 beforeAll(async () => {
+  const { migrarDb } = await import('@/lib/db')
+  await migrarDb()
   const modulo = await import('./route')
   POST = modulo.POST
   DELETE = modulo.DELETE

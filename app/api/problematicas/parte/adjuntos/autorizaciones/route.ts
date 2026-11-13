@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { infraMovimiento, infraParte } from '@/lib/db/schema'
+import { tieneAccesoPublico } from '@/lib/infraestructura/acceso-publico'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import {
   authorizeAttachments,
@@ -9,6 +10,8 @@ import {
   validateAttachmentDeclarations,
   type AttachmentDeclaration,
 } from '@/lib/infraestructura/adjuntos/obs'
+import { actorAuditoria, describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 import { ruta } from '@/lib/http/ruta'
 
@@ -60,6 +63,13 @@ async function handlePOST(request: Request): Promise<Response> {
   if (!(await tieneAccesoAlParteParaCue(request, movement.cueAnexo))) {
     return Response.json({ code: 'session_expired', error: 'The part session is missing or expired.' }, { status: 401, headers: NO_STORE })
   }
+  if (tieneAccesoPublico(request)) actorAuditoria({ actorTipo: 'compartido', actorId: null, actorRol: null, viaAcceso: 'contrasena_compartida' })
+  describirAuditoria({
+    objetoTipo: 'movimiento',
+    objetoId: requestBody.movimientoId,
+    cueAnexo: movement.cueAnexo,
+    metadatos: { cantidad: requestBody.adjuntos.length },
+  })
 
   try {
     const autorizaciones = await authorizeAttachments(requestBody.movimientoId, movement.cueAnexo, requestBody.adjuntos)
@@ -72,4 +82,4 @@ async function handlePOST(request: Request): Promise<Response> {
   }
 }
 
-export const POST = ruta('parte.adjuntos.autorizaciones.post', handlePOST)
+export const POST = conAuditoria('foto.autorizar_carga', '/api/problematicas/parte/adjuntos/autorizaciones', ruta('parte.adjuntos.autorizaciones.post', handlePOST))

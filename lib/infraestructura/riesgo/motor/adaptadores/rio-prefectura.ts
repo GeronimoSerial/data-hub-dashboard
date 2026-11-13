@@ -1,5 +1,5 @@
 import { cargarReferencias } from '@/lib/infraestructura/datasets/repositorio'
-// Adapter real de PuertoRioPrefectura. Combina la localidad de la escuela
+// Adapter real de PuertoNivelRio (fuente Prefectura). Combina la localidad de la escuela
 // (ge_localizacion), el tramo aprobado de su localidad (tramos-prefectura),
 // la exposición física al río (susceptibilidad G1, distancia a punto de río
 // o proximidad a la estación del tramo, ver DISTANCIA_ESTACION_MAX_KM)
@@ -25,11 +25,12 @@ import {
 import { obtenerEstacionesPrefectura } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { estacionParaLocalidad } from '@/lib/infraestructura/hidrometria/tramos-prefectura'
 import {
+  TRADUCCION_ESTADO_PREFECTURA,
   estadoDeLectura,
   evaluarExposicionRio,
   lecturaVigente,
 } from '../rio-prefectura'
-import type { EvidenciaRioNoDisponible, EvidenciaRioPrefectura, PuertoRioPrefectura } from '../puertos'
+import type { EvidenciaRioNoDisponible, EvidenciaRioPrefectura, PuertoNivelRio } from '../puertos'
 import {
   anomaliaInterpolada,
   evaluarExposicionDinamica,
@@ -294,7 +295,14 @@ function lecturaOficial(datos: DatosRio, estacionId: string, asOf: string, asOfM
   const evacuacionM = num(ultima.evacuacionM)
   const estado = estadoDeLectura(lecturaM, alertaM, evacuacionM)
   if (estado === null) return { motivo: `${estacionId} sin umbrales oficiales` }
-  return { lecturaM, alertaM, evacuacionM, variacionM: num(ultima.variacionM), medidaEn: ultima.medidaEn, estado }
+  return {
+    lecturaM,
+    alertaM,
+    evacuacionM,
+    variacionM: num(ultima.variacionM),
+    medidaEn: ultima.medidaEn,
+    estado: TRADUCCION_ESTADO_PREFECTURA[estado],
+  }
 }
 
 // Reglas v0.4 (F3, motor/exposicion-v04.ts): el terreno contra el agua
@@ -517,7 +525,7 @@ export async function cargarDatosRioDesdeDb(): Promise<DatosRio> {
 
 export function crearAdapterRioPrefectura(
   deps: DependenciasAdapterRioPrefectura = {},
-): PuertoRioPrefectura {
+): PuertoNivelRio {
   const cargarDatos = deps.cargarDatos ?? cargarDatosRioDesdeDb
   const opciones: OpcionesEvidenciaRio = { reglas: deps.reglas, escenarios: deps.escenarios, referencias: deps.referencias, maximosEscala: deps.maximosEscala }
   let cache: Promise<DatosRio> | null = null

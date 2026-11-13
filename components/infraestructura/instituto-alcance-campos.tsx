@@ -21,22 +21,14 @@ import {
   type CarreraElegible,
   type SeleccionInstituto,
 } from '@/lib/infraestructura/parte/instituto-ui'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 // Espera antes de consultar: evita un pedido por cada tecla.
 const ESPERA_BUSQUEDA_MS = 300
 // Un DNI completo tiene entre 6 y 9 dígitos: con menos, no se consulta.
 const LARGO_MINIMO_DNI = 6
-const MENSAJE_SIN_CONEXION =
-  'Sin conexión: puede informar carreras completas y agregar alumnos después.'
-const MENSAJE_ERROR_BUSQUEDA = 'No pudimos buscar alumnos. Intente nuevamente.'
-const MENSAJE_LIMITADA =
-  'Hay muchas búsquedas seguidas. Espere unos segundos y vuelva a intentar.'
-const MENSAJE_SIN_RESULTADOS = 'No encontramos alumnos con esa búsqueda en las carreras elegidas.'
-const MENSAJE_TRUNCADO =
-  'Hay más coincidencias. Escriba más letras o el DNI completo para acotar la lista.'
-const MENSAJE_DNI_INCOMPLETO = 'Ingrese el DNI completo'
-const AYUDA_PREDETERMINADA = 'Elija al menos un alumno de cada carrera.'
-const MENSAJE_SIN_CARRERA = 'Elija primero una carrera para buscar alumnos.'
 
 interface RespuestaBusqueda {
   ok?: boolean
@@ -77,12 +69,12 @@ function nombreAlumno(alumno: AlumnoElegido): string {
 }
 
 /** Texto del disparador del selector de carreras con 2 o más elegidas. */
-export function resumenCarreras(cantidad: number): string {
-  return cantidad === 1 ? '1 carrera' : `${cantidad} carreras seleccionadas`
+export function resumenCarreras(cantidad: number, t: Diccionario = es): string {
+  return t.parteCampos.instituto.resumenCarreras(cantidad)
 }
 
-function textoCantidad(cantidad: number): string {
-  return cantidad === 1 ? '1 alumno encontrado' : `${cantidad} alumnos encontrados`
+function textoCantidad(cantidad: number, t: Diccionario): string {
+  return t.parteCampos.instituto.encontrados(cantidad)
 }
 
 export interface InstitutoCamposAQuienAfectaProps {
@@ -122,6 +114,8 @@ export function InstitutoCamposAQuienAfecta({
   onChange,
   disabled = false,
 }: InstitutoCamposAQuienAfectaProps): JSX.Element {
+  const dic = useTextos()
+  const t = dic.parteCampos.instituto
   const conexion = useSyncExternalStore(suscribirConexion, hayConexion, hayConexionEnServidor)
   const [consulta, setConsulta] = useState('')
   const [reintento, setReintento] = useState(0)
@@ -157,7 +151,7 @@ export function InstitutoCamposAQuienAfecta({
             cache: 'no-store',
           })
           if (respuesta.status === 429 || respuesta.status >= 500) {
-            responder({ clave, tipo: 'reintentable', mensaje: respuesta.status === 429 ? MENSAJE_LIMITADA : MENSAJE_ERROR_BUSQUEDA })
+            responder({ clave, tipo: 'reintentable', mensaje: respuesta.status === 429 ? t.limitada : t.errorBusqueda })
             return
           }
           const cuerpo = (await respuesta.json().catch(() => null)) as RespuestaBusqueda | null
@@ -165,13 +159,13 @@ export function InstitutoCamposAQuienAfecta({
             responder({
               clave,
               tipo: 'error',
-              mensaje: typeof cuerpo?.error === 'string' ? cuerpo.error : MENSAJE_ERROR_BUSQUEDA,
+              mensaje: typeof cuerpo?.error === 'string' ? cuerpo.error : t.errorBusqueda,
             })
             return
           }
           responder({ clave, tipo: 'lista', alumnos: cuerpo.alumnos ?? [], truncado: cuerpo.truncado === true })
         } catch {
-          if (!controlador.signal.aborted) responder({ clave, tipo: 'reintentable', mensaje: MENSAJE_ERROR_BUSQUEDA })
+          if (!controlador.signal.aborted) responder({ clave, tipo: 'reintentable', mensaje: t.errorBusqueda })
         }
       })()
     }, ESPERA_BUSQUEDA_MS)
@@ -179,7 +173,7 @@ export function InstitutoCamposAQuienAfecta({
       controlador.abort()
       window.clearTimeout(temporizador)
     }
-  }, [clave, consultable, cue, carrerasClave, termino])
+  }, [clave, consultable, cue, carrerasClave, termino, t])
 
   const resultado = busqueda?.clave === clave ? busqueda : null
   const buscando = consultable && resultado === null
@@ -189,18 +183,18 @@ export function InstitutoCamposAQuienAfecta({
 
   // Único texto de ayuda del buscador: también es la razón por la que está deshabilitado.
   const ayuda = !conexion
-    ? MENSAJE_SIN_CONEXION
+    ? t.sinConexion
     : seleccion.carreras.length === 0
-      ? MENSAJE_SIN_CARRERA
+      ? t.sinCarrera
       : dniIncompleto
-        ? MENSAJE_DNI_INCOMPLETO
-        : AYUDA_PREDETERMINADA
+        ? t.dniIncompleto
+        : t.ayudaPredeterminada
   const idAyuda = `${idPrefijo}-buscar-ayuda`
 
   // Una sola región viva para el buscador: sólo anuncia el estado de la lista.
   let anuncio = ''
-  if (buscando) anuncio = 'Buscando alumnos…'
-  else if (resultado?.tipo === 'lista') anuncio = resultado.alumnos.length === 0 ? MENSAJE_SIN_RESULTADOS : textoCantidad(resultado.alumnos.length)
+  if (buscando) anuncio = t.buscando
+  else if (resultado?.tipo === 'lista') anuncio = resultado.alumnos.length === 0 ? t.sinResultados : textoCantidad(resultado.alumnos.length, dic)
 
   function cambiarCarreras(valores: string[]) {
     onChange({ ...borrador, ...conCarrerasElegidas(seleccion, valores.map(Number)) })
@@ -213,17 +207,17 @@ export function InstitutoCamposAQuienAfecta({
   return (
     <>
       <div className="afectacion-campos__grupo">
-        <Label>Carreras afectadas</Label>
+        <Label>{t.carrerasAfectadas}</Label>
         <MultiSelect<string>
           value={seleccion.carreras.map(String)}
           onChange={cambiarCarreras}
           options={carreras.map((carrera) => ({ value: String(carrera.id), label: etiquetas.get(carrera.id) ?? carrera.nombre }))}
-          placeholder="Seleccione una o más carreras"
-          ariaLabel="Carreras afectadas"
-          resumen={resumenCarreras}
+          placeholder={t.seleccionePlaceholder}
+          ariaLabel={t.carrerasAfectadas}
+          resumen={(cantidad) => resumenCarreras(cantidad, dic)}
         />
         <p className="afectacion-borrador__resumen" aria-live="polite">
-          {seleccion.carreras.length === 0 ? 'Ninguna carrera seleccionada' : textoAlcanceInstituto(alcance.carreras, alcance.alumnos)}
+          {seleccion.carreras.length === 0 ? t.ninguna : textoAlcanceInstituto(alcance.carreras, alcance.alumnos)}
         </p>
       </div>
 
@@ -232,12 +226,12 @@ export function InstitutoCamposAQuienAfecta({
       <div className="afectacion-campos__grupo">
         {permiteAlumnos && (
           <>
-            <Label htmlFor={`${idPrefijo}-buscar-alumnos`}>Alumnos afectados</Label>
+            <Label htmlFor={`${idPrefijo}-buscar-alumnos`}>{dic.parteCampos.comun.alumnosAfectados}</Label>
             <Input
               id={`${idPrefijo}-buscar-alumnos`}
               type="search"
               autoComplete="off"
-              placeholder="Buscar por apellido, nombre o DNI completo"
+              placeholder={t.buscarPlaceholder}
               value={consulta}
               onChange={(evento) => setConsulta(evento.target.value)}
               disabled={!buscable}
@@ -251,11 +245,11 @@ export function InstitutoCamposAQuienAfecta({
               <p role="alert">
                 {resultado.mensaje}{' '}
                 <button type="button" className="aviso-badge__accion" onClick={() => setReintento((n) => n + 1)}>
-                  Reintentar
+                  {t.reintentar}
                 </button>
               </p>
             )}
-            {resultado?.tipo === 'lista' && resultado.truncado && <p>{MENSAJE_TRUNCADO}</p>}
+            {resultado?.tipo === 'lista' && resultado.truncado && <p>{t.truncado}</p>}
             {resultado?.tipo === 'lista' && resultado.alumnos.length > 0 && (
               <div className="afectacion-campos__opciones">
                 {resultado.alumnos.map((alumno) => (
@@ -281,11 +275,11 @@ export function InstitutoCamposAQuienAfecta({
             <div key={carrera.id} className={styles.carrera}>
               <p className="afectacion-campos__subtitulo">{etiquetas.get(carrera.id) ?? carrera.nombre}</p>
               {elegidos.length === 0 ? (
-                <p className={styles.completa}>Toda la carrera ({contar(carrera.totalAlumnos, 'alumno', 'alumnos')})</p>
+                <p className={styles.completa}>{t.todaLaCarrera(contar(carrera.totalAlumnos, t.alumno, t.alumnos))}</p>
               ) : (
                 <>
                   <p className={styles.completa}>
-                    {elegidos.length} de {carrera.totalAlumnos} alumnos
+                    {t.alumnosDeCarrera(elegidos.length, carrera.totalAlumnos)}
                   </p>
                   <ul className={styles.chips}>
                     {elegidos.map((alumno) => (
@@ -294,7 +288,7 @@ export function InstitutoCamposAQuienAfecta({
                         <button
                           type="button"
                           className={styles.quitar}
-                          aria-label={`Quitar a ${nombreAlumno(alumno)}`}
+                          aria-label={t.quitarA(nombreAlumno(alumno))}
                           disabled={disabled}
                           onClick={() => alternarAlumno(alumno)}
                         >
@@ -312,7 +306,7 @@ export function InstitutoCamposAQuienAfecta({
 
       {mostrarDescripcion && (
         <div className="afectacion-campos__grupo">
-          <Label htmlFor={`${idPrefijo}-descripcion`}>{descripcionObligatoria ? 'Descripción (obligatoria)' : 'Descripción (opcional)'}</Label>
+          <Label htmlFor={`${idPrefijo}-descripcion`}>{descripcionObligatoria ? dic.parteCampos.comun.descripcionObligatoria : dic.parteCampos.comun.descripcionOpcional}</Label>
           <Textarea
             id={`${idPrefijo}-descripcion`}
             maxLength={500}

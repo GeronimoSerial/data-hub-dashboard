@@ -7,6 +7,7 @@ import { alertasAndEnsemble } from '@/lib/infraestructura/radar-meteo/ensemble'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { ruta } from '@/lib/http/ruta'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,7 +35,7 @@ async function handleGET(request: Request, context: { params: Promise<{ cueAnexo
   if (request.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers })
   const pronostico = pronosticoEscuela(payload, { cueAnexo, nombre: escuela.nombre, lat: escuela.lat, lon: escuela.lon, departamento: escuela.departamento })
   const fechaLocal = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone: regionPublicaActual().zonaHoraria,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

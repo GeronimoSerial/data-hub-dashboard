@@ -24,6 +24,8 @@ import { isAllowedUpload } from '@/lib/upload'
 import { normalizeUploadedMapHtml } from '@/lib/html-map-tiles'
 import type { RecursoAccess } from '@/lib/acl'
 import { ruta } from '@/lib/http/ruta'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { puedeVerEnSeccion } from '@/lib/acl'
 import { nombreArchivo } from '@/lib/archivo-metadata'
 
@@ -120,6 +122,7 @@ async function handlePOST(request: Request, ctx: Ctx) {
   }
 
   const { id } = await ctx.params
+  describirAuditoria({ objetoTipo: 'recurso', objetoId: id })
   const db = getDb()
   const [row] = await db
     .select({ id: recursos.id, storageKey: recursos.storageKey })
@@ -169,17 +172,33 @@ async function handlePOST(request: Request, ctx: Ctx) {
 
   const previousKey = row.storageKey
   const cargadoEn = new Date().toISOString()
-  await db
-    .update(recursos)
-    .set({
-      storageKey,
-      mime: allowed.mime,
-      nombreOriginal: file.name,
-      cargadoEn,
-      size: storedBytes.length,
-      ruta: null,
-    })
-    .where(eq(recursos.id, id))
+  try {
+    await cambioAuditado(
+      async tx => {
+        await tx
+          .update(recursos)
+          .set({
+            storageKey,
+            mime: allowed.mime,
+            nombreOriginal: file.name,
+            cargadoEn,
+            size: storedBytes.length,
+            ruta: null,
+          })
+          .where(eq(recursos.id, id))
+      },
+      () => ({
+        status: 200,
+        objetoTipo: 'recurso',
+        objetoId: id,
+        metadatos: { formato: allowed.mime.split('/')[1], cantidad: storedBytes.length },
+      }),
+    )
+  } catch (error) {
+    // El archivo ya está escrito y la fila no apunta a él: se descarta para no dejar huérfanos.
+    await unlinkStoredFile(storageKey)
+    throw error
+  }
 
   if (previousKey && previousKey !== storageKey) {
     await unlinkStoredFile(previousKey)
@@ -196,4 +215,4 @@ async function handlePOST(request: Request, ctx: Ctx) {
 }
 
 export const GET = ruta('recursos.id.archivo.get', handleGET)
-export const POST = ruta('recursos.id.archivo.post', handlePOST)
+export const POST = conAuditoria('recurso.archivo', '/api/recursos/[id]/archivo', ruta('recursos.id.archivo.post', handlePOST))

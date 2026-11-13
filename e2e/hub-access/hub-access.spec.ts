@@ -39,6 +39,11 @@ async function isolateExternalCalls(context: BrowserContext) {
   await context.route('**/*', async (route) => {
     if (new URL(route.request().url()).origin !== origin) {
       blocked.push(route.request().url())
+      // The basemap style is parsed with response.json() by the map, so an empty 204 body throws in the page.
+      if (route.request().url().startsWith('https://tiles.openfreemap.org/styles/')) {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '{"version":8,"sources":{},"layers":[]}' })
+        return
+      }
       await route.fulfill({ status: 204, body: '' })
       return
     }
@@ -136,7 +141,7 @@ test('admin creates and edits an infrastructure-only account with an assigned pa
   const destination = adminPage.getByRole('combobox', { name: 'Destino inicial' })
   await expect(destination).toBeEnabled()
   await destination.click()
-  await adminPage.getByRole('option', { name: 'ENOS 2026' }).click()
+  await adminPage.getByRole('option', { name: 'ENOS Corrientes' }).click()
   const createResponsePromise = adminPage.waitForResponse((response) =>
     response.url().endsWith('/api/usuarios') && response.request().method() === 'POST',
   )
@@ -199,13 +204,16 @@ test('infrastructure-only login, route denial, password recovery, logout, and br
   for (const href of ['/', '/explorar', '/reportes', '/mapas', '/tableros', '/situacion']) {
     await expect(nav.locator(`a[href="${href}"]`)).toHaveCount(0)
   }
+  // Map pages render no primary navigation by design (components/app-shell.tsx: visibleNav is empty on map paths).
+  await expect(page.getByRole('main')).toBeVisible()
   if (test.info().project.name === 'mobile-chromium') {
-    // The main nav is collapsed behind the mobile menu on phone widths; the menu is covered by the section-only mobile test.
+    // The mobile trigger still opens the shell menu, which holds no navigation items on a map page.
     await page.getByRole('button', { name: 'Abrir navegación' }).click()
-    await expect(page.getByRole('menu').getByRole('menuitem', { name: 'ENOS 2026' })).toBeVisible()
+    await expect(page.getByRole('menu')).toBeVisible()
+    await expect(page.getByRole('menu').getByRole('menuitem')).toHaveCount(0)
     await page.keyboard.press('Escape')
   } else {
-    await expect(nav.locator('a[href="/mapas/infraestructura"]')).toBeVisible()
+    await expect(nav.locator('a')).toHaveCount(0)
   }
   const hubRead = await page.evaluate(async () => {
     const response = await fetch('/api/hub', { cache: 'no-store' })
@@ -271,18 +279,22 @@ test('section-only mobile navigation and keyboard controls stay within the allow
   expect(target!.height).toBeGreaterThanOrEqual(44)
   await mobileNavButton.focus()
   await page.keyboard.press('Enter')
+  // Map pages carry no primary navigation, so the shell menu opens with no items for a section-only user.
   const menu = page.getByRole('menu')
-  await expect(menu.getByRole('menuitem', { name: 'ENOS 2026' })).toBeVisible()
+  await expect(menu).toBeVisible()
+  await expect(menu.getByRole('menuitem')).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()
   await mobileNavButton.click()
-  await expect(menu.getByRole('menuitem', { name: 'ENOS 2026' })).toBeVisible()
+  await expect(menu).toBeVisible()
+  await expect(menu.getByRole('menuitem')).toHaveCount(0)
   for (const text of ['Inicio', 'Explorar', 'Reportes', 'Mapas', 'Tableros', 'Centro de Situación']) {
     await expect(menu.getByRole('menuitem', { name: text, exact: true })).toHaveCount(0)
   }
-  await menu.getByRole('menuitem', { name: 'ENOS 2026' }).click()
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeHidden()
   await expect(page).toHaveURL(/\/mapas\/infraestructura(?:\?|$)/)
-  // Closing the menu returns focus to its trigger once the menu item unmounts. A Tab sent before that
+  // Closing the menu returns focus to its trigger once the popup unmounts. A Tab sent before that
   // restore landed on BODY in the failing runs, so wait for the restore instead of racing it.
   await expect(mobileNavButton).toBeFocused()
   await page.keyboard.press('Tab')
@@ -302,6 +314,6 @@ test('section-only mobile navigation and keyboard controls stay within the allow
   const hasOutline = focused.outlineStyle !== 'none' && parseFloat(focused.outlineWidth) > 0
   expect(hasOutline || focused.boxShadow !== 'none', JSON.stringify(focused)).toBe(true)
   expect(pageErrors).toEqual([])
-  console.log(`T7b evidence: mobile 390x844 no horizontal overflow (${dimensions.scrollWidth}/${dimensions.width}); menu click showed only infrastructure, navigated successfully; keyboard focus ${JSON.stringify(focused)}; external requests stubbed=${blockedExternal.length}; no console/hydration errors.`)
+  console.log(`T7b evidence: mobile 390x844 no horizontal overflow (${dimensions.scrollWidth}/${dimensions.width}); map page shell menu opened with zero navigation items; keyboard focus ${JSON.stringify(focused)}; external requests stubbed=${blockedExternal.length}; no console/hydration errors.`)
   await context.close()
 })

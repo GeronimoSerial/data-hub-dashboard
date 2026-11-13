@@ -5,11 +5,13 @@ import type { FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 // Pantalla de ingreso para la contraseña temporal de acceso público (ver
 // lib/infraestructura/acceso-publico.ts). Simple a propósito: es lo único
 // que ve un director sin cuenta antes de llegar al formulario.
 export function AccesoForm() {
+  const t = useTextos().parteResto.acceso
   const router = useRouter()
   const [password, setPassword] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -28,7 +30,7 @@ export function AccesoForm() {
       })
       if (!respuesta.ok) {
         const cuerpo = await respuesta.json().catch(() => null)
-        setError(cuerpo?.error ?? 'No se pudo verificar la contraseña.')
+        setError(cuerpo?.error ?? t.noVerificada)
         setEnviando(false)
         return
       }
@@ -36,16 +38,16 @@ export function AccesoForm() {
       // a renderizar la página del servidor, que ahora la va a encontrar.
       router.refresh()
     } catch {
-      setError('No se pudo verificar la contraseña.')
+      setError(t.noVerificada)
       setEnviando(false)
     }
   }
 
   return (
     <form className="acceso-form" onSubmit={manejarEnvio}>
-      <p className="acceso-form__intro">Este formulario requiere una contraseña de acceso.</p>
+      <p className="acceso-form__intro">{t.intro}</p>
       <div className="acceso-form__campo">
-        <Label htmlFor="acceso-password">Contraseña</Label>
+        <Label htmlFor="acceso-password">{t.contrasena}</Label>
         <input
           id="acceso-password"
           type="password"
@@ -64,7 +66,7 @@ export function AccesoForm() {
       )}
 
       <Button type="submit" disabled={enviando || password.length === 0}>
-        Ingresar
+        {t.ingresar}
       </Button>
     </form>
   )

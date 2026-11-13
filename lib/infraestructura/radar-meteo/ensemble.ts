@@ -12,11 +12,11 @@ import {
   pesoLlamada,
 } from '../riesgo/providers/cupo-om'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
+import { formatoFechaRegion, zonaHorariaRegion } from '../formato-region'
 
 export const MODELO_ENSEMBLE = 'ecmwf_ifs025'
 export const PESO_ENSEMBLE = pesoLlamada({ ubicaciones: 25, variables: 51, dias: 7 })
 
-const ZONA = 'America/Argentina/Buenos_Aires'
 const TOPE_DIARIO = 600
 const MAXIMO_CORRIDAS_DIARIAS = 4
 const DURACION_LEASE_MS = 20 * 60 * 1000
@@ -51,8 +51,7 @@ export function radarEnsembleEnabled(): boolean {
 }
 
 function fechaLocal(iso: string): string {
-  const partes = new Intl.DateTimeFormat('en-CA', {
-    timeZone: ZONA,
+  const partes = formatoFechaRegion('en-CA', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -305,7 +304,7 @@ async function guardarEstadoRun(
     model: MODELO_ENSEMBLE,
     runAt: inicio.toISOString(),
     fetchedAt: ahora.toISOString(),
-    timezone: ZONA,
+    timezone: zonaHorariaRegion(),
     departmentGeoVersion: obtenerVersionGeografia(),
     forecastStart: forecast?.inicio ?? '',
     forecastEnd: forecast?.fin ?? '',

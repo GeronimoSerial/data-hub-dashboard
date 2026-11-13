@@ -1,9 +1,14 @@
 'use client'
 
+import { localeRegion } from '@/lib/infraestructura/formato-region'
 import { useEffect, useState, type JSX } from 'react'
 import { CloudRain, Sun } from 'lucide-react'
 import { cantidadLluvia } from '@/lib/infraestructura/riesgo/resumen-escuela'
 import { formatearLluviaMm } from '@/lib/infraestructura/radar-meteo/formato'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+
+type TextosPronostico = Diccionario['fichaPanorama']['pronostico']
 
 // Same payload the radar's point forecast reads, trimmed to the fields shown here.
 type PronosticoRadar = {
@@ -23,16 +28,16 @@ function capitalizar(texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
-function etiquetaDia(fecha: string, indice: number): string {
-  if (indice === 0) return 'Hoy'
-  if (indice === 1) return 'Mañana'
-  const dia = new Date(`${fecha}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'long' })
+function etiquetaDia(fecha: string, indice: number, t: TextosPronostico): string {
+  if (indice === 0) return t.hoy
+  if (indice === 1) return t.manana
+  const dia = new Date(`${fecha}T12:00:00-03:00`).toLocaleDateString(localeRegion(), { weekday: 'long' })
   return capitalizar(dia)
 }
 
-function notaLluvia(mm: number | null): string {
-  if (mm === null) return 'Sin datos'
-  if (mm < SIN_LLUVIA_MM) return 'Sin lluvia'
+function notaLluvia(mm: number | null, t: TextosPronostico): string {
+  if (mm === null) return t.sinDatos
+  if (mm < SIN_LLUVIA_MM) return t.sinLluvia
   return capitalizar(cantidadLluvia(mm).replace(/^.*\((.*)\)$/, '$1'))
 }
 
@@ -41,6 +46,7 @@ function notaLluvia(mm: number | null): string {
  * endpoint so the school sheet and the radar show the same numbers.
  */
 export function ResumenPronosticoEscuela({ cueAnexo }: { cueAnexo: string }): JSX.Element {
+  const t = useTextos().fichaPanorama.pronostico
   const [guardado, setEstado] = useState<Estado>({ fase: 'cargando', cue: cueAnexo })
   const estado: Estado = guardado.cue === cueAnexo ? guardado : { fase: 'cargando', cue: cueAnexo }
 
@@ -63,7 +69,7 @@ export function ResumenPronosticoEscuela({ cueAnexo }: { cueAnexo: string }): JS
   if (estado.fase === 'cargando') {
     return (
       <p className="ficha-territorial__estado" role="status">
-        Cargando pronóstico…
+        {t.cargando}
       </p>
     )
   }
@@ -88,10 +94,10 @@ export function ResumenPronosticoEscuela({ cueAnexo }: { cueAnexo: string }): JS
         </span>
         <div>
           <p className="ficha-territorial__titular-valor">
-            {lluvia24 === null ? 'Sin datos' : capitalizar(cantidadLluvia(lluvia24))}
+            {lluvia24 === null ? t.sinDatos : capitalizar(cantidadLluvia(lluvia24))}
           </p>
           <p className="ficha-territorial__titular-nota">
-            {estado.fase === 'error' ? 'No se pudo cargar el pronóstico' : 'Próximas 24 horas'}
+            {estado.fase === 'error' ? t.error : t.proximas24}
           </p>
         </div>
       </div>
@@ -102,11 +108,11 @@ export function ResumenPronosticoEscuela({ cueAnexo }: { cueAnexo: string }): JS
           const mm = dia?.lluviaMm ?? null
           return (
             <div key={dia?.fecha ?? indice}>
-              <dt>{dia ? etiquetaDia(dia.fecha, indice) : indice === 0 ? 'Hoy' : `+${(indice + 1) * 24} h`}</dt>
+              <dt>{dia ? etiquetaDia(dia.fecha, indice, t) : indice === 0 ? t.hoy : t.masHoras((indice + 1) * 24)}</dt>
               <dd className="ficha-territorial__tramo-valor">
                 {mm === null || mm < SIN_LLUVIA_MM ? '—' : formatearLluviaMm(mm)}
               </dd>
-              <dd className="ficha-territorial__tramo-nota">{notaLluvia(mm)}</dd>
+              <dd className="ficha-territorial__tramo-nota">{notaLluvia(mm, t)}</dd>
             </div>
           )
         })}

@@ -101,6 +101,13 @@ describe('estadoAtrasoJob', () => {
   })
 })
 
+describe('sonda-cadena-datos en CADENCIAS', () => {
+  it('se corre cada hora y se mapea desde su tipo de infra_job_run', () => {
+    expect(CADENCIAS['sonda-cadena-datos'].minutos).toBe(60)
+    expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['sonda-cadena-datos']).toBe('sonda-cadena-datos')
+  })
+})
+
 describe('TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB', () => {
   it('cubre exactamente todos los nombres de job de CADENCIAS, sin huecos ni duplicados', () => {
     const valores = Object.values(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB)

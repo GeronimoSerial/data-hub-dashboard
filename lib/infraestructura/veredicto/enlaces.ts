@@ -29,13 +29,13 @@ export function venceEnFinDelDiaArt(ahora: Date): string {
 
 export async function crearEnlace(
   db: Db,
-  params: { desde: string; hasta: string; creadoPor: string; ahora?: Date },
+  params: { id?: string; desde: string; hasta: string; creadoPor: string; ahora?: Date },
 ): Promise<{ token: string; venceEn: string }> {
   const ahora = params.ahora ?? new Date()
   const token = randomBytes(32).toString('base64url')
   const venceEn = venceEnFinDelDiaArt(ahora)
   await db.insert(infraVeredictoEnlace).values({
-    id: randomUUID(),
+    id: params.id ?? randomUUID(),
     tokenHash: hashToken(token),
     fechaDesde: params.desde,
     fechaHasta: params.hasta,
@@ -70,6 +70,16 @@ export async function resolverEnlace(
     hasta: fila.fechaHasta ?? '',
     venceEn,
   }
+}
+
+/** Id del enlace para la auditoría. El token no sale de aquí; null si el enlace no existe. */
+export async function idEnlace(db: Db, token: string): Promise<string | null> {
+  const [fila] = await db
+    .select({ id: infraVeredictoEnlace.id })
+    .from(infraVeredictoEnlace)
+    .where(eq(infraVeredictoEnlace.tokenHash, hashToken(token)))
+    .limit(1)
+  return fila?.id ?? null
 }
 
 /** Revoca los enlaces vigentes que vencen al fin del día ART de `ahora`. */

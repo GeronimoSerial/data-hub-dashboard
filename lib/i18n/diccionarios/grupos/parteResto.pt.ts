@@ -1,0 +1,98 @@
+import type { DeepStringify } from '../tipos'
+import type { parteRestoEs } from './parteResto.es'
+
+// Brazilian Portuguese texts of the `parteResto` group; must mirror parteResto.es.ts key for key.
+export const parteRestoPt: DeepStringify<typeof parteRestoEs> = {
+  abreEnOtraPestana: '(abre em outra aba)',
+  pantallas: {
+    estadoActual: 'Estado atual',
+    cargarSituacion: 'Registrar uma situação',
+    parteRegistrado: 'Parte registrada',
+    historial: 'Histórico',
+    actualizar: 'Atualizar',
+    reporteSinConexion: 'Relatório sem conexão',
+  },
+  encabezado: {
+    programa: 'Registro de Incidências ENOS 2026/2027',
+    glosa: 'El Niño – Oscilação do Sul',
+    programaCompleto: 'Registro de Incidências ENOS (El Niño – Oscilação do Sul) 2026/2027',
+    materiales: 'Manuais e cadernos',
+    cue: (cueAnexo: string) => `CUE ${cueAnexo}`,
+    cueConLugar: (cueAnexo: string, lugar: string) => `CUE ${cueAnexo} · ${lugar}`,
+  },
+  materiales: {
+    ariaLabel: 'Materiais de consulta',
+    titulo: 'Materiais para consultar sem conexão',
+    texto: 'Salve o manual de relatórios e os cadernos de apoio pedagógico para tê-los à mão.',
+    ver: 'Ver manuais e cadernos',
+  },
+  estadoEnvio: {
+    'pendiente-envio': 'Sem conexão. Seu parte fica guardado e é enviado sozinho quando a conexão voltar.',
+    'error-servidor': 'Não conseguimos enviar. Tentaremos de novo em alguns segundos.',
+    'sesion-vencida': 'A sessão expirou. Entre de novo pelo link da sua escola; o que foi preenchido fica guardado.',
+    reintentarAhora: 'Tentar novamente agora',
+  },
+  acceso: {
+    intro: 'Este formulário exige uma senha de acesso.',
+    contrasena: 'Senha',
+    ingresar: 'Entrar',
+    noVerificada: 'Não foi possível verificar a senha.',
+  },
+  errorContexto: {
+    cue_ausente: 'Este link não inclui o CUE da escola. Solicite o link novamente a quem o compartilhou.',
+    cue_invalido: 'O CUE incluído no link não tem um formato válido.',
+    sin_corte_vigente: 'No momento não há dados de escolas disponíveis. Tente novamente mais tarde.',
+    cue_inexistente: 'Não foi encontrada uma escola com esse CUE.',
+    sin_secciones: 'Esta escola ainda não tem seções carregadas.',
+  },
+  errorCarreras: 'Não conseguimos carregar os cursos deste instituto. Tente novamente mais tarde.',
+  historial: {
+    descripcion: 'As mudanças mais recentes aparecem primeiro.',
+    volverEstadoActual: 'Voltar ao estado atual',
+    cueInvalido: 'Este link não inclui um CUE válido. Solicite o link novamente a quem o compartilhou.',
+  },
+  alcanceNominal: {
+    titulo: 'Alunos alcançados',
+    buscando: 'Buscando os alunos alcançados…',
+    error: 'Não conseguimos mostrar o alcance nominal. Talvez você não tenha mais acesso ou a conexão tenha falhado; feche esta janela e tente novamente.',
+    sinAlumnos: 'Não há alunos identificados alcançados por esta afetação.',
+    cantidadUno: '1 aluno alcançado.',
+    cantidad: (cantidad: number) => `${cantidad} alunos alcançados.`,
+    sinIdentidad: 'Sem identidade importada para esta seção.',
+  },
+  nominal: {
+    ariaSeccion: 'Acesso às contagens nominais',
+    ayuda: 'Esta permissão habilita o acesso a contagens nominais (por estudante) até a data indicada.',
+    usuario: 'Usuário',
+    venceEl: 'Vence em',
+    cargandoUsuarios: 'Carregando usuários…',
+    seleccionarUsuario: 'Selecionar usuário',
+    otorgarAcceso: 'Conceder acesso',
+    tablaAria: 'Permissões nominais',
+    columnas: {
+      usuario: 'Usuário',
+      otorgado: 'Concedido',
+      vence: 'Validade',
+      estado: 'Status',
+      acciones: 'Ações',
+    },
+    estados: {
+      revocado: 'Revogado',
+      vencido: 'Expirado',
+      vigente: 'Em vigor',
+    },
+    revocarTitulo: 'Revogar acesso nominal?',
+    revocarDescripcion: 'O usuário deixará de acessar as contagens nominais.',
+    revocarAcceso: 'Revogar acesso',
+    sinPermisos: 'Não há permissões nominais concedidas.',
+    cargandoPermisos: 'Carregando permissões…',
+    errores: {
+      cargarPermisos: 'Não foi possível carregar as permissões.',
+      cargarUsuarios: 'Não foi possível carregar os usuários.',
+      fechaInvalida: 'Informe uma data de validade válida.',
+      fechaFutura: 'A data de validade deve ser futura.',
+      otorgar: 'Não foi possível conceder a permissão.',
+      revocar: 'Não foi possível revogar a permissão.',
+    },
+  },
+}

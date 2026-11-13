@@ -33,6 +33,7 @@ export async function limpiarDatosSituacion(db: Db): Promise<void> {
 export async function insertarRunVigente(
   db: Db,
   cobertura: Record<string, number> | null = { procesadas: 10, conEvidencia: 8, sinEvidencia: 2 },
+  publicadoEn: string | null = '2026-09-27T10:05:00.000Z',
 ): Promise<string> {
   const id = randomUUID()
   await db.insert(infraRiskRun).values({
@@ -40,7 +41,7 @@ export async function insertarRunVigente(
     periodoId: PERIODO_ENOS_2026_2027_ID,
     modeloVersion: MOTOR_VERSION,
     iniciadoEn: '2026-09-27T10:00:00.000Z',
-    publicadoEn: '2026-09-27T10:05:00.000Z',
+    publicadoEn,
     estado: 'vigente',
     cobertura,
     creadaEn: '2026-09-27T10:00:00.000Z',

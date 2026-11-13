@@ -3,10 +3,14 @@ import { getSessionUser } from '@/lib/session'
 import { adminPageGate } from '@/lib/acl'
 import { ensureSeeded } from '@/lib/db/seed'
 import { situacionEnabled } from '@/lib/infraestructura/riesgo/flags'
-import { obtenerEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
+import { obtenerEstadoSituacion, serializarEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
 import { obtenerEstadoDatosSeguro } from '@/lib/infraestructura/riesgo/estado-datos/consulta'
 import { SituacionClient } from '@/components/infraestructura/situacion-client'
 import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
+import { textos } from '@/lib/i18n'
+import { idiomaEfectivo } from '@/lib/i18n/idioma'
+import { IdiomaProvider } from '@/lib/i18n/idioma-provider'
+import { regionActiva } from '@/lib/infraestructura/region'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,12 +30,19 @@ export default async function SituacionPage() {
 
   // Con el flag apagado no se toca infra_situacion_corte ni nada del motor:
   // ni ensureSeeded() ni consultas (mismo criterio que episodios-derivados).
+  // Mismo cálculo que el layout de /mapas/infraestructura: el árbol cliente
+  // necesita el IdiomaProvider para que useTextos() coincida con el servidor.
+  const region = regionActiva()
+  const idioma = idiomaEfectivo({ preferencia: user?.idioma, region })
+  const t = textos(idioma)
   if (!situacionEnabled()) {
     return (
-      <div style={contenedor}>
-        <h1>Centro de Situación</h1>
-        <p>Centro de Situación deshabilitado (SITUACION_ENABLED=false)</p>
-      </div>
+      <IdiomaProvider idioma={idioma}>
+        <div style={contenedor}>
+          <h1>{t.situacion.centroTitulo}</h1>
+          <p>{t.situacion.deshabilitado}</p>
+        </div>
+      </IdiomaProvider>
     )
   }
 
@@ -39,26 +50,15 @@ export default async function SituacionPage() {
   const [estadoInicial, estadoDatos] = await Promise.all([obtenerEstadoSituacion(), obtenerEstadoDatosSeguro()])
 
   return (
-    <div style={contenedor}>
-      <SituacionClient
-        estadoInicial={{
-          corte: estadoInicial.corte
-            ? {
-                id: estadoInicial.corte.id,
-                generadoEn: estadoInicial.corte.generadoEn,
-                kpis: estadoInicial.corte.kpis,
-                conteosPorNivelRiesgo: estadoInicial.corte.conteosPorNivelRiesgo,
-                fuentesSalud: estadoInicial.corte.fuentesSalud,
-                episodiosAbiertos: estadoInicial.corte.episodiosAbiertos,
-                episodiosCerradosDesdeAnterior: estadoInicial.corte.episodiosCerradosDesdeAnterior,
-              }
-            : null,
-          briefing: estadoInicial.briefing,
-          atraso: estadoInicial.atraso,
-          prioridades: estadoInicial.prioridades,
-          estadoDatos,
-        }}
-      />
-    </div>
+    <IdiomaProvider idioma={idioma}>
+      <div style={contenedor}>
+        <SituacionClient
+          estadoInicial={{
+            ...serializarEstadoSituacion(estadoInicial),
+            estadoDatos,
+          }}
+        />
+      </div>
+    </IdiomaProvider>
   )
 }

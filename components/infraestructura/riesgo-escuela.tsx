@@ -7,9 +7,11 @@ import {
   type FactorMotor,
   type SnapshotMotor,
 } from '@/lib/infraestructura/riesgo/explicar-snapshot'
-import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
+import { colorRiesgo, etiquetaHorizonteMotor, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import type { PresentacionCrecida } from '@/lib/infraestructura/riesgo/presentacion-crecida'
 import { ReferenciaCrecida } from './referencia-crecida'
+import { AtribucionDemCompacta } from './atribucion-dem-compacta'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 type Planificacion = { etiquetaVista: string; etiquetaNivel: string }[]
 
@@ -27,6 +29,8 @@ type EstadoRiesgo =
   | { fase: 'listo'; clave: string; explicacion: ExplicacionSnapshot; crecidaRio: PresentacionCrecida | null }
 
 export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscuelaProps): JSX.Element {
+  const dic = useTextos()
+  const t = dic.fichaPanorama.riesgo
   const clave = `${cueAnexo}|${horizonte}`
   const [guardado, setEstado] = useState<EstadoRiesgo>({ fase: 'cargando' })
   // Un resultado de otra escuela u horizonte cuenta como "cargando" hasta que llegue el nuevo.
@@ -42,7 +46,7 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
         )
         if (!respuesta.ok) throw new Error('no se pudo obtener el riesgo')
         const cuerpo = (await respuesta.json()) as RespuestaRiesgo
-        const explicacion = explicarSnapshot(cuerpo.snapshot, cuerpo.factores ?? [])
+        const explicacion = explicarSnapshot(cuerpo.snapshot, cuerpo.factores ?? [], dic)
         if (vigente) setEstado({ fase: 'listo', clave: `${cueAnexo}|${horizonte}`, explicacion, crecidaRio: cuerpo.crecidaRio ?? null })
       } catch {
         if (vigente) setEstado({ fase: 'error', clave: `${cueAnexo}|${horizonte}` })
@@ -53,60 +57,50 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
     return () => {
       vigente = false
     }
-  }, [cueAnexo, horizonte])
+  }, [cueAnexo, horizonte, dic])
 
   return (
-    <section className="riesgo-escuela" aria-label="Riesgo de la escuela">
+    <section className="riesgo-escuela" aria-label={t.region}>
       {estado.fase === 'listo' && estado.crecidaRio && <ReferenciaCrecida crecida={estado.crecidaRio} horizonte={horizonte} />}
       <div className="riesgo-escuela__bloque" data-testid="riesgo-escuela-actual">
         <div className="riesgo-escuela__encabezado">
-          <h3 className="riesgo-escuela__titulo">Riesgo por el clima</h3>
-          <span className="riesgo-escuela__horizonte">Próximas {ETIQUETA_HORIZONTE_MOTOR[horizonte]}</span>
+          <h3 className="riesgo-escuela__titulo">{t.titulo}</h3>
+          <span className="riesgo-escuela__horizonte">{t.horizonte(etiquetaHorizonteMotor(horizonte, dic))}</span>
         </div>
-        <p className="riesgo-escuela__explicacion">
-          Estimación automática con el pronóstico de lluvia y la altura de los ríos. Indica lo que
-          podría pasar, no lo que la escuela ya reportó.
-        </p>
+        <p className="riesgo-escuela__explicacion">{t.explicacion}</p>
         {estado.fase === 'cargando' && (
-          <p role="status">Cargando riesgo actual…</p>
+          <p role="status">{t.cargando}</p>
         )}
         {estado.fase === 'error' && (
-          <p role="alert">No se pudo cargar el riesgo actual.</p>
+          <p role="alert">{t.error}</p>
         )}
         {estado.fase === 'listo' && <ContenidoRiesgo explicacion={estado.explicacion} />}
       </div>
 
       {planificacion && planificacion.some((fila) => !esSinValor(fila.etiquetaNivel)) && (
         <div className="riesgo-escuela__bloque" data-testid="riesgo-escuela-planificacion">
-          <h3 className="riesgo-escuela__titulo">Prioridad para obras y prevención</h3>
-          <p className="riesgo-escuela__explicacion">
-            Qué tan expuesta está la escuela por su ubicación y sus antecedentes. Depende de la
-            ubicación y los antecedentes, no del clima de hoy: sirve para planificar.
-          </p>
+          <h3 className="riesgo-escuela__titulo">{t.planificacionTitulo}</h3>
+          <p className="riesgo-escuela__explicacion">{t.planificacionExplicacion}</p>
           <dl className="riesgo-escuela__planificacion">
-            {planificacion.map((fila) => (
+            {planificacion.map((fila) => {
+              // Keys are the view titles from the data; values come from the dictionary.
+              const ayuda = (t.ayudaVista as Partial<Record<string, string>>)[fila.etiquetaVista]
+              return (
               <div key={fila.etiquetaVista}>
                 <dt>
                   {fila.etiquetaVista}
-                  {AYUDA_VISTA[fila.etiquetaVista] && (
-                    <span className="riesgo-escuela__ayuda-vista">{AYUDA_VISTA[fila.etiquetaVista]}</span>
-                  )}
+                  {ayuda && <span className="riesgo-escuela__ayuda-vista">{ayuda}</span>}
                 </dt>
                 <dd>{fila.etiquetaNivel}</dd>
               </div>
-            ))}
+              )
+            })}
           </dl>
         </div>
       )}
+      {estado.fase === 'listo' && <AtribucionDemCompacta />}
     </section>
   )
-}
-
-// Plain-language hint for each planning view, keyed by its legend title.
-const AYUDA_VISTA: Record<string, string> = {
-  Aislamiento: 'Si un corte de camino puede dejarla sin acceso',
-  'Exposición a inundación': 'Cercanía a ríos y zonas que se anegan',
-  'Veces con situaciones': 'Situaciones reportadas en ciclos anteriores',
 }
 
 // Un valor sin dato: vacío, "Nulo" (nivel 0) o "Nulo (0)" (historial sin situaciones).
@@ -116,13 +110,14 @@ function esSinValor(etiqueta: string | null | undefined): boolean {
 }
 
 function ContenidoRiesgo({ explicacion }: { explicacion: ExplicacionSnapshot }): JSX.Element {
+  const t = useTextos().fichaPanorama.riesgo
   const { nivel, etiquetaNivel, conclusion, zonaExpuesta, detalleTecnico } = explicacion
   // La primera evidencia ya está en la conclusión: no se repite en la lista.
   const situacionActual = explicacion.situacionActual.filter((linea) => !conclusion.includes(linea))
   return (
     <>
       <p className="riesgo-escuela__nivel-fila">
-        <span className="riesgo-escuela__nivel-etiqueta">Nivel estimado</span>
+        <span className="riesgo-escuela__nivel-etiqueta">{t.nivelEstimado}</span>
         <span
           className={`riesgo-escuela__nivel riesgo-escuela__nivel--${nivel ?? 'sin_dato'}`}
         // Mismo color que el marcador y la leyenda del Radar.
@@ -137,7 +132,7 @@ function ContenidoRiesgo({ explicacion }: { explicacion: ExplicacionSnapshot }):
       </p>
       {situacionActual.length > 0 && (
         <>
-          <h4 className="riesgo-escuela__subtitulo-seccion">Situación actual</h4>
+          <h4 className="riesgo-escuela__subtitulo-seccion">{t.situacionActual}</h4>
           <ul>
             {situacionActual.map((linea) => (
               <li key={linea}>{linea}</li>
@@ -147,13 +142,13 @@ function ContenidoRiesgo({ explicacion }: { explicacion: ExplicacionSnapshot }):
       )}
       {zonaExpuesta && (
         <>
-          <h4 className="riesgo-escuela__subtitulo-seccion">Zona expuesta a crecidas</h4>
+          <h4 className="riesgo-escuela__subtitulo-seccion">{t.zonaExpuesta}</h4>
           <p>{zonaExpuesta}</p>
         </>
       )}
       {detalleTecnico.length > 0 && (
         <details className="riesgo-escuela__tecnico">
-          <summary>Ver detalle técnico</summary>
+          <summary>{t.detalleTecnico}</summary>
           <dl>
             {detalleTecnico.map((item) => (
               <div key={item.titulo}>

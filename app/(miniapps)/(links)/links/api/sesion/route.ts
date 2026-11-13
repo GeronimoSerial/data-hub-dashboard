@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { crearLimitador } from '@/lib/http/limitador'
 import { COOKIE, DURACION_S, credencialesValidas, crearSesion, leerCredenciales, revocarSesion } from '@/miniapps/links/lib/sesion'
 import { contextoPedido, leerJsonLimitado, NO_STORE, origenPropio, rutaLinks } from '@/miniapps/links/lib/pedido'
+import { actorAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,7 +17,8 @@ function cookie(valor: string, maxAge: number, request: Request) {
   return `${COOKIE}=${valor}; Path=${basePath}; Max-Age=${maxAge}; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`
 }
 
-export const POST = rutaLinks(async (request) => {
+// El evento registra solo la cuenta validada: nunca el usuario ni la clave intentados, ni el token.
+export const POST = conAuditoria('links.sesion_iniciar', '/links/api/sesion', rutaLinks(async (request) => {
   const espera = limitador.consumir(contextoPedido(request).ip)
   if (espera !== null) return Response.json({ error: 'Demasiados intentos.' }, { status: 429, headers: { ...NO_STORE, 'Retry-After': String(espera) } })
   if (!origenPropio(request)) return Response.json({ error: 'Origen no permitido' }, { status: 403 })
@@ -26,13 +29,22 @@ export const POST = rutaLinks(async (request) => {
   if (!credencialesValidas(cred, body.data.usuario, body.data.clave)) {
     return Response.json({ error: 'Usuario o contraseña incorrectos.' }, { status: 401 })
   }
-  const token = await crearSesion(cred, body.data.usuario)
+  const usuario = body.data.usuario
+  actorAuditoria({ actorTipo: 'compartido', actorId: usuario, actorRol: null, viaAcceso: 'sesion_links' })
+  const token = await cambioAuditado(
+    () => crearSesion(cred, usuario),
+    () => ({ status: 200, objetoTipo: 'sesion_links', objetoId: null }),
+  )
   return Response.json({ ok: true }, { headers: { 'Set-Cookie': cookie(token, DURACION_S, request) } })
-})
+}))
 
-export const DELETE = rutaLinks(async (request) => {
+export const DELETE = conAuditoria('links.sesion_cerrar', '/links/api/sesion', rutaLinks(async (request) => {
   if (!origenPropio(request)) return Response.json({ error: 'Origen no permitido' }, { status: 403 })
   const token = request.headers.get('cookie')?.split(';').map((s) => s.trim()).find((s) => s.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1)
-  await revocarSesion(token)
+  actorAuditoria({ actorTipo: 'compartido', actorId: null, actorRol: null, viaAcceso: 'sesion_links' })
+  await cambioAuditado(
+    () => revocarSesion(token),
+    () => ({ status: 200, objetoTipo: 'sesion_links', objetoId: null }),
+  )
   return Response.json({ ok: true }, { headers: { 'Set-Cookie': cookie('', 0, request) } })
-})
+}))

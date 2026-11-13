@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import type { VerificacionRow } from '@/lib/infraestructura/verificaciones'
+import type { VerificacionListada } from '@/lib/infraestructura/verificaciones'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 // Cola de verificaciones del protocolo ENOS (batch E1). El monitoreo es
 // continuo, no episódico (se descartó el episodio administrado a mano):
@@ -13,11 +14,14 @@ import type { VerificacionRow } from '@/lib/infraestructura/verificaciones'
 //
 // `tokenHash` no forma parte de lo que la UI necesita ni debe mostrar: se
 // omite del tipo para que sea imposible renderizarlo por accidente.
-export type VerificacionVisible = Omit<VerificacionRow, 'tokenHash'>
+// `enlaceVencido` lo calcula el servidor (listarVerificaciones) contra la
+// credencial real; la UI no la recalcula.
+export type VerificacionVisible = Omit<VerificacionListada, 'tokenHash'>
 
 export type EstadoVisible =
   | 'pendiente'
   | 'pendiente_vencida'
+  | 'enlace_vencido'
   | 'respondida_sin_afectacion'
   | 'respondida_con_afectacion'
   | 'respondida_no_disponible'
@@ -25,7 +29,8 @@ export type EstadoVisible =
 
 // "Vencida" es una derivación de lectura (vencimientoEn vs. ahora), nunca un
 // estado persistido: el modelo sólo guarda 'pendiente' | 'respondida' |
-// 'cancelada'. Mismo criterio que el dominio.
+// 'cancelada'. Mismo criterio que el dominio. "Enlace vencido" gana sobre
+// "Vencida": una pendiente cuyo enlace ya no sirve se lee como tal.
 export function estadoVisible(
   v: VerificacionVisible,
   ahora: Date = new Date(),
@@ -36,24 +41,19 @@ export function estadoVisible(
     if (v.resultado === 'no_disponible') return 'respondida_no_disponible'
     return 'respondida_sin_afectacion'
   }
+  if (v.enlaceVencido) return 'enlace_vencido'
   if (v.vencimientoEn && new Date(v.vencimientoEn).getTime() < ahora.getTime()) {
     return 'pendiente_vencida'
   }
   return 'pendiente'
 }
 
-// El texto es la fuente de verdad del estado ("texto + forma, no sólo color").
-const ETIQUETA: Record<EstadoVisible, string> = {
-  pendiente: 'Pendiente',
-  pendiente_vencida: 'Vencida',
-  respondida_sin_afectacion: 'Sin afectación',
-  respondida_con_afectacion: 'Con afectación',
-  respondida_no_disponible: 'No disponible',
-  cancelada: 'Cancelada',
-}
-
 function colorEstado(estado: EstadoVisible): string {
-  if (estado === 'pendiente_vencida' || estado === 'respondida_con_afectacion') {
+  if (
+    estado === 'pendiente_vencida' ||
+    estado === 'enlace_vencido' ||
+    estado === 'respondida_con_afectacion'
+  ) {
     return 'var(--danger)'
   }
   if (estado === 'cancelada') return 'var(--ink-faint)'
@@ -115,6 +115,12 @@ type Props = {
 }
 
 export function VerificacionesCola({ verificacionesIniciales }: Props) {
+  const t = useTextos().parteVerificaciones.cola
+  const etiquetas: Record<EstadoVisible, string> = {
+    ...t.estados,
+    pendiente_vencida: 'Vencida',
+    cancelada: 'Cancelada',
+  }
   const [verificaciones, setVerificaciones] = useState(verificacionesIniciales)
   const [cue, setCue] = useState('')
   const [creando, setCreando] = useState(false)
@@ -153,7 +159,7 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
       })
       const cuerpo = await respuesta.json().catch(() => null)
       if (!respuesta.ok) {
-        setErrorCrear(cuerpo?.error ?? 'No se pudo crear la solicitud.')
+        setErrorCrear(cuerpo?.error ?? t.errorCrear)
         setCreando(false)
         return
       }
@@ -165,7 +171,7 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
       setCreando(false)
       await refrescar()
     } catch {
-      setErrorCrear('No se pudo crear la solicitud.')
+      setErrorCrear(t.errorCrear)
       setCreando(false)
     }
   }
@@ -182,7 +188,7 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
 
   async function cancelar(id: string) {
     if (cancelando) return
-    if (!window.confirm('¿Cancelar esta solicitud de verificación?')) return
+    if (!window.confirm(t.confirmarCancelacion)) return
     setCancelando(id)
     setAccionError((prev) => {
       const siguiente = { ...prev }
@@ -199,7 +205,7 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
       if (!respuesta.ok) {
         setAccionError((prev) => ({
           ...prev,
-          [id]: cuerpo?.error ?? 'No se pudo cancelar la solicitud.',
+          [id]: cuerpo?.error ?? t.errorCancelar,
         }))
         setCancelando(null)
         return
@@ -207,7 +213,7 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
       setCancelando(null)
       await refrescar()
     } catch {
-      setAccionError((prev) => ({ ...prev, [id]: 'No se pudo cancelar la solicitud.' }))
+      setAccionError((prev) => ({ ...prev, [id]: t.errorCancelar }))
       setCancelando(null)
     }
   }
@@ -218,7 +224,7 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
 
   return (
     <section style={panel}>
-      <h2 style={{ marginTop: 0 }}>Verificaciones</h2>
+      <h2 style={{ marginTop: 0 }}>{t.titulo}</h2>
 
       <form
         onSubmit={manejarCrear}
@@ -240,7 +246,7 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
           style={boton}
           disabled={creando || cue.trim().length === 0}
         >
-          Crear solicitud
+          {t.crear}
         </button>
       </form>
 
@@ -253,20 +259,20 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
       {enlaceCreado && (
         <div style={{ marginBottom: '1rem' }}>
           <p style={{ margin: '0 0 0.25rem', color: 'var(--ink-soft)', fontSize: 'var(--t-small)' }}>
-            Enlace público (se muestra una sola vez; copialo ahora):
+            {t.enlaceUnaVez}
           </p>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <input type="text" readOnly value={enlaceCreado} style={{ ...input, flex: 1 }} />
             <button type="button" style={botonSecundario} onClick={copiarEnlace}>
-              Copiar enlace
+              {t.copiarEnlace}
             </button>
           </div>
-          {copiado && <p style={{ margin: '0.25rem 0 0', color: 'var(--ink-soft)' }}>Enlace copiado.</p>}
+          {copiado && <p style={{ margin: '0.25rem 0 0', color: 'var(--ink-soft)' }}>{t.enlaceCopiado}</p>}
         </div>
       )}
 
       {verificaciones.length === 0 ? (
-        <p style={{ color: 'var(--ink-soft)' }}>Sin solicitudes de verificación todavía.</p>
+        <p style={{ color: 'var(--ink-soft)' }}>{t.sinSolicitudes}</p>
       ) : (
         <table style={tabla}>
           <thead>
@@ -275,13 +281,18 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
               <th style={celda}>Estado</th>
               <th style={celda}>Solicitada</th>
               <th style={celda}>Respondida</th>
-              <th style={celda}>Acciones</th>
+              <th style={celda}>{t.columnas.acciones}</th>
             </tr>
           </thead>
           <tbody>
             {verificaciones.map((v) => {
               const estado = estadoVisible(v)
-              const pendiente = estado === 'pendiente' || estado === 'pendiente_vencida'
+              // Un enlace vencido no cierra la solicitud: sigue pendiente y
+              // admite cancelar o responder de forma asistida.
+              const pendiente =
+                estado === 'pendiente' ||
+                estado === 'pendiente_vencida' ||
+                estado === 'enlace_vencido'
               return (
                 <tr key={v.id}>
                   <td style={celda}>{v.cueAnexo}</td>
@@ -297,10 +308,10 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
                         background: colorEstado(estado),
                       }}
                     />
-                    {ETIQUETA[estado]}
+                    {etiquetas[estado]}
                     {Boolean(v.discrepancia) && (
                       <span style={notaDiscrepancia}>
-                        ⚠ Discrepancia: había afectación vigente
+                        {t.discrepancia}
                       </span>
                     )}
                   </td>
@@ -323,9 +334,7 @@ export function VerificacionesCola({ verificacionesIniciales }: Props) {
                             style={botonSecundario}
                             onClick={() => setFilaAbierta(filaAbierta === v.id ? null : v.id)}
                           >
-                            {filaAbierta === v.id
-                              ? 'Ocultar respuesta asistida'
-                              : 'Registrar respuesta asistida'}
+                            {filaAbierta === v.id ? t.ocultarAsistida : t.registrarAsistida}
                           </button>
                         </div>
                         {filaAbierta === v.id && (
@@ -374,8 +383,10 @@ function RespuestaAsistidaForm({
   onEnviado: () => Promise<void> | void
   onError: (mensaje: string) => void
 }) {
+  const t = useTextos().parteVerificaciones.asistida
   const [canal, setCanal] = useState('telefono')
   const [resultado, setResultado] = useState('sin_afectacion')
+  const [observacion, setObservacion] = useState('')
   const [enviando, setEnviando] = useState(false)
 
   async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
@@ -388,19 +399,19 @@ function RespuestaAsistidaForm({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ canal, resultado }),
+          body: JSON.stringify({ canal, resultado, observacion }),
         },
       )
       const cuerpo = await respuesta.json().catch(() => null)
       if (!respuesta.ok) {
-        onError(cuerpo?.error ?? 'No se pudo registrar la respuesta.')
+        onError(cuerpo?.error ?? t.registrar)
         setEnviando(false)
         return
       }
       setEnviando(false)
       await onEnviado()
     } catch {
-      onError('No se pudo registrar la respuesta.')
+      onError(t.registrar)
       setEnviando(false)
     }
   }
@@ -427,10 +438,10 @@ function RespuestaAsistidaForm({
           onChange={(evento) => setCanal(evento.target.value)}
           disabled={enviando}
         >
-          <option value="telefono">Teléfono</option>
+          <option value="telefono">{t.canales.telefono}</option>
           <option value="whatsapp">WhatsApp</option>
           <option value="presencial">Presencial</option>
-          <option value="otro">Otro</option>
+          <option value="otro">{t.canales.otro}</option>
         </select>
       </div>
 
@@ -442,13 +453,25 @@ function RespuestaAsistidaForm({
           onChange={(evento) => setResultado(evento.target.value)}
           disabled={enviando}
         >
-          <option value="sin_afectacion">Sin afectación</option>
-          <option value="no_disponible">No disponible</option>
+          <option value="sin_afectacion">{t.sinAfectacion}</option>
+          <option value="no_disponible">{t.noDisponible}</option>
         </select>
       </div>
 
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: '1 1 14rem' }}>
+        <label htmlFor={`observacion-${verificacionId}`}>{t.observacion}</label>
+        <input
+          id={`observacion-${verificacionId}`}
+          type="text"
+          value={observacion}
+          onChange={(evento) => setObservacion(evento.target.value)}
+          disabled={enviando}
+          required
+        />
+      </div>
+
       <button type="submit" style={boton} disabled={enviando}>
-        Registrar respuesta
+        {t.registrar}
       </button>
     </form>
   )

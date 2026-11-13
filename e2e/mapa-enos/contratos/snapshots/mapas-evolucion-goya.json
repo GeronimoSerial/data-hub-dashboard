@@ -1,0 +1,35 @@
+{
+  "alumnosAcumulados": [
+    {
+      "dias": "hasta-hoy",
+      "valores": {
+        "alumnosAcumulados": 0
+      }
+    }
+  ],
+  "distribucionMotivo": [
+    {
+      "afectacionesVigentes": 2,
+      "motivo": "Corte de luz"
+    },
+    {
+      "afectacionesVigentes": 2,
+      "motivo": "Inundación"
+    }
+  ],
+  "rankingDepartamentos": [
+    {
+      "alumnosAlcanzados": 0,
+      "departamento": "Goya",
+      "escuelasAfectadas": 4
+    }
+  ],
+  "serieEscuelasServicioCaido": [
+    {
+      "dias": "hasta-hoy",
+      "valores": {
+        "escuelas": 0
+      }
+    }
+  ]
+}

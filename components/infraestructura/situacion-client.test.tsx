@@ -20,12 +20,14 @@ const ESTADO_CON_CORTE: EstadoSituacionCliente = {
     ],
     episodiosAbiertos: 1,
     episodiosCerradosDesdeAnterior: 0,
+    cobertura: null,
   },
   briefing: ['Línea 1 del briefing.', 'Línea 2 del briefing.'],
   atraso: { texto: 'al día', atrasado: false, desactivadoPorConfig: false },
   prioridades: [
     { cueAnexo: '1800001-00', departamento: 'PARANA', nivelRiesgo: 'alto', scoreRiesgo: 0.7 },
   ],
+  sinRun: false,
   estadoDatos: {
     items: [
       {
@@ -83,6 +85,7 @@ describe('SituacionClient', () => {
       briefing: [],
       atraso: { texto: '—', atrasado: true, desactivadoPorConfig: false },
       prioridades: [],
+      sinRun: true,
       estadoDatos: null,
     }
     unmount()
@@ -165,11 +168,49 @@ describe('SituacionClient', () => {
       briefing: [],
       atraso: { texto: '—', atrasado: true, desactivadoPorConfig: false },
       prioridades: [],
+      sinRun: true,
       estadoDatos: null,
     }
     render(<SituacionClient estadoInicial={estadoVacio} />)
     expect(screen.getByText('Todavía no se generó ningún corte.')).toBeInTheDocument()
     expect(document.querySelectorAll('.situacion-kpi')).toHaveLength(0)
+  })
+})
+
+describe('encabezado: frescura según la corrida de riesgo detrás del corte (I1)', () => {
+  it('con la corrida desactualizada muestra "Desactualizado"', () => {
+    render(
+      <SituacionClient
+        estadoInicial={{
+          ...ESTADO_CON_CORTE,
+          atraso: { texto: 'atrasado', atrasado: true, desactivadoPorConfig: false },
+        }}
+      />,
+    )
+    expect(document.querySelector('.situacion-page__generado')?.textContent).toBe(
+      'Corte generado el 27/09/2026, 09:00 — Desactualizado',
+    )
+  })
+
+  it('sin fecha verificable de la corrida muestra "No verificable" y nunca se lee como al día', () => {
+    render(
+      <SituacionClient
+        estadoInicial={{
+          ...ESTADO_CON_CORTE,
+          atraso: { texto: 'no verificable', atrasado: false, desactivadoPorConfig: false },
+        }}
+      />,
+    )
+    const texto = document.querySelector('.situacion-page__generado')?.textContent ?? ''
+    expect(texto).toBe('Corte generado el 27/09/2026, 09:00 — No verificable')
+    expect(texto).not.toMatch(/Desactualizado/)
+  })
+
+  it('con la corrida al día no muestra ningún estado de frescura (control sano)', () => {
+    render(<SituacionClient estadoInicial={ESTADO_CON_CORTE} />)
+    expect(document.querySelector('.situacion-page__generado')?.textContent).toBe(
+      'Corte generado el 27/09/2026, 09:00',
+    )
   })
 })
 
@@ -187,5 +228,104 @@ describe('formatearFecha — igual en servidor y navegador (sin error de hidrata
 
   it('devuelve el texto tal cual si no es una fecha válida', () => {
     expect(formatearFecha('no-es-fecha')).toBe('no-es-fecha')
+  })
+})
+
+function estadoConCobertura(
+  cobertura: { procesadas: number; conEvidencia: number; sinEvidencia: number } | null,
+): EstadoSituacionCliente {
+  const corte = ESTADO_CON_CORTE.corte
+  if (corte === null) throw new Error('el fixture necesita corte')
+  return { ...ESTADO_CON_CORTE, sinRun: false, corte: { ...corte, cobertura } }
+}
+
+const TILE_RIESGO_ALTO = 'situacion-kpi-Escuelas con riesgo alto o muy alto (24 h)'
+
+describe('cobertura junto al KPI de riesgo alto', () => {
+  it('muestra "Cobertura 20%" cuando 2 de 10 escuelas tienen evidencia', () => {
+    render(<SituacionClient estadoInicial={estadoConCobertura({ procesadas: 10, conEvidencia: 2, sinEvidencia: 8 })} />)
+    expect(screen.getByTestId(TILE_RIESGO_ALTO)).toHaveTextContent('Cobertura 20%')
+  })
+
+  it('muestra "Cobertura 100%" con cobertura completa', () => {
+    render(<SituacionClient estadoInicial={estadoConCobertura({ procesadas: 10, conEvidencia: 10, sinEvidencia: 0 })} />)
+    expect(screen.getByTestId(TILE_RIESGO_ALTO)).toHaveTextContent('Cobertura 100%')
+  })
+
+  it('sin dato de cobertura no muestra ninguna cifra de cobertura', () => {
+    render(<SituacionClient estadoInicial={estadoConCobertura(null)} />)
+    expect(screen.getByTestId(TILE_RIESGO_ALTO)).not.toHaveTextContent('Cobertura')
+    expect(screen.queryByText(/Cobertura \d+%/)).toBeNull()
+  })
+
+  it('con cero escuelas procesadas no inventa un porcentaje', () => {
+    render(<SituacionClient estadoInicial={estadoConCobertura({ procesadas: 0, conEvidencia: 0, sinEvidencia: 0 })} />)
+    expect(screen.getByTestId(TILE_RIESGO_ALTO)).not.toHaveTextContent('Cobertura')
+    expect(screen.getByTestId(TILE_RIESGO_ALTO)).not.toHaveTextContent('NaN')
+  })
+})
+
+describe('prioridades sin corrida de riesgo', () => {
+  it('sin corrida vigente dice "Sin cálculo de riesgo disponible" y no "Sin escuelas en riesgo alto"', () => {
+    render(<SituacionClient estadoInicial={{ ...ESTADO_CON_CORTE, prioridades: [], sinRun: true }} />)
+    expect(screen.getByText('Sin cálculo de riesgo disponible')).toBeInTheDocument()
+    expect(screen.queryByText(/Sin escuelas en riesgo alto/)).toBeNull()
+  })
+
+  it('con corrida y cero escuelas en riesgo alto sigue diciendo "Sin escuelas en riesgo alto"', () => {
+    render(<SituacionClient estadoInicial={{ ...ESTADO_CON_CORTE, prioridades: [], sinRun: false }} />)
+    expect(screen.getByText(/Sin escuelas en riesgo alto/)).toBeInTheDocument()
+    expect(screen.queryByText('Sin cálculo de riesgo disponible')).toBeNull()
+  })
+})
+
+describe('corte legado (sin el campo problema por fuente)', () => {
+  it('renderiza sin romper y muestra el KPI de fuentes vencidas tal como quedó persistido', () => {
+    const legado: EstadoSituacionCliente = {
+      ...ESTADO_CON_CORTE,
+      corte: {
+        ...ESTADO_CON_CORTE.corte!,
+        kpis: { ...ESTADO_CON_CORTE.corte!.kpis, fuentesVencidas: 2 },
+        fuentesSalud: [{ provider: 'open-meteo', estado: 'ok', frescuraMinutos: 30, vencida: true }],
+      },
+    }
+
+    render(<SituacionClient estadoInicial={legado} />)
+
+    expect(screen.getByTestId('situacion-kpi-Fuentes vencidas')).toHaveTextContent('2')
+  })
+})
+
+describe('situacion-cadena-verificada: línea de la sonda en el encabezado', () => {
+  const itemSonda = (estado: string, motivo: string) => ({
+    id: 'sonda:cadena', grupo: 'riesgo', nombre: 'Cadena de datos (sonda)', estado, motivo,
+    ultimoExitoEn: '2026-10-17T20:30:00.000Z', ultimoIntentoEn: '2026-10-17T20:30:00.000Z', ultimoError: null,
+    edadMinutos: 90, intervaloMinutos: 60,
+  })
+  const conSonda = (item: ReturnType<typeof itemSonda>): EstadoSituacionCliente => ({
+    ...ESTADO_CON_CORTE,
+    estadoDatos: { items: [item as never], problemas: 0, generadoEn: '2026-10-17T21:00:00.000Z' },
+  })
+
+  it('con la sonda ok muestra la línea sin punto final', () => {
+    render(<SituacionClient estadoInicial={conSonda(itemSonda('ok', 'Cadena de datos verificada a las 17:30.'))} />)
+    expect(screen.getByTestId('situacion-cadena-verificada').textContent).toBe(
+      'Cadena de datos verificada a las 17:30',
+    )
+  })
+
+  it('con la sonda fallida no muestra la línea en el encabezado', () => {
+    render(<SituacionClient estadoInicial={conSonda(itemSonda('fallido', 'La cadena de datos falló: x'))} />)
+    expect(screen.queryByTestId('situacion-cadena-verificada')).not.toBeInTheDocument()
+  })
+
+  it('con la sonda desactualizada no muestra la línea en el encabezado', () => {
+    render(<SituacionClient estadoInicial={conSonda(itemSonda('atrasado', 'Última verificación de la cadena de datos a las 15:30 (hace 3 h).'))} />)
+    expect(screen.queryByTestId('situacion-cadena-verificada')).not.toBeInTheDocument()
+  })
+
+  it('sin estado de datos no muestra la línea', () => {
+    render(<SituacionClient estadoInicial={{ ...ESTADO_CON_CORTE, estadoDatos: null }} />)
+    expect(screen.queryByTestId('situacion-cadena-verificada')).not.toBeInTheDocument()
   })
 })
