@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { crearAdapterRioPrefectura, type DatosRio } from '../motor/adaptadores/rio-prefectura'
+import { crearRegistroProveedoresRio } from '../motor/proveedores-rio'
 import { PROVEEDORES_RIO } from './compartido-riesgo'
 
 const datosVacios: DatosRio = {
@@ -29,7 +30,14 @@ describe('proveedores de río en el punto de armado', () => {
     expect(cargarDatos).toHaveBeenCalled()
   })
 
-  it('ana no está implementada todavía', () => {
-    expect(() => PROVEEDORES_RIO.obtener('ana')).toThrow('proveedor de río no implementado: ana')
+  it('ana y sgb están implementadas desde B12.2', () => {
+    expect(PROVEEDORES_RIO.obtener('ana').id).toBe('ana')
+    expect(PROVEEDORES_RIO.obtener('sgb').id).toBe('sgb')
+  })
+
+  it('un id planificado que no se registró sigue lanzando "no implementado"', () => {
+    const sinRegistrar = crearRegistroProveedoresRio<unknown>([])
+    expect(() => sinRegistrar.obtener('ana')).toThrow('proveedor de río no implementado: ana')
+    expect(() => sinRegistrar.obtener('sgb')).toThrow('proveedor de río no implementado: sgb')
   })
 })

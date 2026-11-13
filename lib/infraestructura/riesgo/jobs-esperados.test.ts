@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { filasRecibidas, JOBS_ESPERADOS, JOBS_ESPERADOS_PRODUCTOR, jobsEsperadosParaRol } from './jobs-esperados'
+import { aplicaJobARegion, filasRecibidas, JOBS_ESPERADOS, JOBS_ESPERADOS_PRODUCTOR, jobsEsperadosParaRol } from './jobs-esperados'
+import { regionActiva } from '../region/activa'
+import { cargarRegion } from '../region/registro'
 import { JOBS_OPEN_METEO } from './providers/rol-entorno'
 
 const porNombre = new Map(JOBS_ESPERADOS.map((job) => [job.nombre, job]))
@@ -53,7 +55,37 @@ describe('jobsEsperadosParaRol', () => {
     expect(consumidor.find((job) => job.nombre === 'sync-ina-pronostico')).toMatchObject({ habilitado: true })
     // La sonda corre también en consumidor (sólo omite la comparación con Prefectura).
     expect(consumidor.find((job) => job.nombre === 'sonda-cadena-datos')).toMatchObject({ habilitado: true })
-    expect(consumidor.map((job) => job.nombre)).toEqual(JOBS_ESPERADOS.map((job) => job.nombre))
+    // Los jobs de ANA y SGB (B12.2) no aplican a Corrientes: se compara la lista aplicable a la región activa.
+    expect(consumidor.filter((job) => aplicaJobARegion(job.nombre, regionActiva())).map((job) => job.nombre)).toEqual(
+      JOBS_ESPERADOS.map((job) => job.nombre),
+    )
+    // Guarda de Corrientes: la lista del consumidor aplicable a Corrientes es exactamente la de siempre.
+    expect(consumidor.filter((job) => aplicaJobARegion(job.nombre, cargarRegion('corrientes'))).map((job) => job.nombre)).toEqual([
+      'sync-radar-meteo',
+      'sync-radar-ensemble',
+      'sync-smn-alertas',
+      'verificar-radar-meteo',
+      'sync-imerg',
+      'climatologia-caudal',
+      'climatologia-precipitacion',
+      'climatologia-imerg',
+      'calcular-riesgo',
+      'sync-pronostico-caudal',
+      'sync-ensemble',
+      'situacion-corte',
+      'sonda-cadena-datos',
+      'episodios-derivados',
+      'sync-seasonal',
+      'sync-prefectura-alturas',
+      'veredicto-diario',
+      'veredicto-cierre',
+      'sync-synop-lluvia',
+      'sync-prefectura-historico',
+      'importar-exposicion-rio-dem',
+      'importar-altimetria-v04',
+      'sync-ina-serie-diaria',
+      'sync-ina-pronostico',
+    ])
   })
 
   it('en rol productor conserva la lista declarada', () => {

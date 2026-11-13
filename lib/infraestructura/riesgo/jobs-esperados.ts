@@ -138,6 +138,24 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
   // hidro_serie_diaria / hidro_ina_*: no están en JOBS_OPEN_METEO.
   { nombre: 'sync-ina-serie-diaria', tipo: null, intervaloMinutos: 1440, habilitado: true },
   { nombre: 'sync-ina-pronostico', tipo: null, intervaloMinutos: 360, habilitado: true },
+  // Niveles del río de Manaos (B12). ANA: Coolify `12 * * * *`; SGB/SACE: Coolify `27 * * * *`
+  // (pendiente de crear en Coolify). Sólo aplican con 'ana' / 'sgb' en fuentesRio.
+  {
+    nombre: 'sync-ana-niveis',
+    tipo: 'sync-ana-niveis',
+    intervaloMinutos: 60,
+    habilitado: true,
+    contadorFilas: 'filasRecibidas',
+    minimoFilas: 1,
+  },
+  {
+    nombre: 'sync-sgb-niveis',
+    tipo: 'sync-sgb-niveis',
+    intervaloMinutos: 60,
+    habilitado: true,
+    contadorFilas: 'filasRecibidas',
+    minimoFilas: 1,
+  },
 ]
 
 // En staging/dev (rol consumidor) los productores Open-Meteo no corren: sus
@@ -153,8 +171,9 @@ export function jobsEsperadosParaRol(rol: RolEntorno): readonly JobEsperado[] {
 // Aplicabilidad por región (B9.5). Un job sin regla aplica a todas las regiones.
 // La regla depende de los datos que declara la región, no de su id: sync-prefectura-*
 // requiere 'prefectura' en fuentesRio, sync-ina-* requiere 'ina', sync-smn-alertas
-// requiere 'smn' en fuentesAlertas, sync-synop-lluvia requiere 'synop' en fuentesLluvia
+// requiere 'smn' en fuentesAlertas, sync-synop-lluvia requiere 'synop' en fuentesLluvia,
 // e importar-exposicion-rio-dem requiere 'exposicion-rio-dem' en capasEstaticas.
+// sync-ana-* requiere 'ana' en fuentesRio y sync-sgb-* requiere 'sgb' en fuentesRio.
 // Se deriva del nombre del job y no de un campo por job para no alterar la forma de
 // los objetos de la lista. scripts/jobs.mjs replica esta misma regla (ver aplicaJobARegionDespacho).
 type RegionAplicable = Pick<RegionConfig, 'fuentesRio' | 'fuentesAlertas' | 'fuentesLluvia' | 'capasEstaticas'>
@@ -162,6 +181,8 @@ type RegionAplicable = Pick<RegionConfig, 'fuentesRio' | 'fuentesAlertas' | 'fue
 export function aplicaJobARegion(nombre: string, region: RegionAplicable): boolean {
   if (nombre.startsWith('sync-prefectura-')) return region.fuentesRio.includes('prefectura')
   if (nombre.startsWith('sync-ina-')) return region.fuentesRio.includes('ina')
+  if (nombre.startsWith('sync-ana-')) return region.fuentesRio.includes('ana')
+  if (nombre.startsWith('sync-sgb-')) return region.fuentesRio.includes('sgb')
   if (nombre === 'sync-smn-alertas') return (region.fuentesAlertas ?? []).includes('smn')
   if (nombre === 'sync-synop-lluvia') return (region.fuentesLluvia ?? []).includes('synop')
   if (nombre === 'importar-exposicion-rio-dem') return (region.capasEstaticas ?? []).includes('exposicion-rio-dem')
