@@ -9,33 +9,9 @@ const RAIZ = fileURLToPath(new URL('../../../', import.meta.url))
 const METODOS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 // Archivos route.ts con un método mutador que todavía no declara conAuditoria.
-// A2 y A3 las migran y las quitan de esta lista. Debe quedar vacía al cerrar A3.
-const PENDIENTES: string[] = [
-  'app/(miniapps)/(links)/links/api/contenido/route.ts',
-  'app/(miniapps)/(links)/links/api/sesion/route.ts',
-  'app/api/auth/[...all]/route.ts',
-  'app/api/auth/ge-login/route.ts',
-  'app/api/call-center/llamadas/route.ts',
-  'app/api/cuadernillos/assignments/route.ts',
-  'app/api/cuadernillos/cabeceras/route.ts',
-  'app/api/cuadernillos/memberships/[id]/route.ts',
-  'app/api/cuadernillos/memberships/route.ts',
-  'app/api/cuadernillos/quotas/route.ts',
-  'app/api/cuadernillos/requests/[id]/approve/route.ts',
-  'app/api/cuadernillos/requests/[id]/reject/route.ts',
-  'app/api/cuadernillos/requests/[id]/remainder/route.ts',
-  'app/api/cuadernillos/requests/route.ts',
-  'app/api/cuadernillos/stock/route.ts',
-  'app/api/recursos/[id]/archivo/route.ts',
-  'app/api/recursos/[id]/explain/route.ts',
-  'app/api/recursos/[id]/route.ts',
-  'app/api/recursos/route.ts',
-  'app/api/taxonomia/[kind]/route.ts',
-  'app/api/usuario/idioma/route.ts',
-  'app/api/usuarios/[id]/route.ts',
-  'app/api/usuarios/opciones/route.ts',
-  'app/api/usuarios/route.ts',
-]
+// Quedó vacía al cerrar A3: toda ruta mutadora de app/ declara conAuditoria.
+// Una ruta nueva debe declararla; no se admite volver a listar pendientes.
+const PENDIENTES: string[] = []
 
 type Lector = (archivo: string) => string | undefined
 type Origen =
@@ -249,5 +225,10 @@ describe('escáner de exportaciones mutadoras', () => {
   it.each(CASOS)('$nombre', ({ fuentes, esperado }) => {
     const lector: Lector = rel => fuentes[rel]
     expect(analizar('app/x/route.ts', lector).sinDeclarar).toEqual(esperado)
+  })
+
+  it('la auditoría estricta cubre todas las rutas mutadoras: PENDIENTES está vacía', () => {
+    expect(PENDIENTES).toEqual([])
+    expect(real.sinDeclarar).toEqual([])
   })
 })
