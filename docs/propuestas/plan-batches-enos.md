@@ -495,12 +495,14 @@ Dev:         P1, P4, M1, M2 ─► P2 (staging) ─► P3 (Coolify) ─► P5 (p
 Manaos:      M0 (decisiones y datos, dueño) ─┬─► M1 (interfaz pt) ─┐
                                               ├─► M2 (región limpia) ─┼─► B12 ─► M3 (infraestructura) ─► M4 (salida en vivo)
                                               └───────────────────────┘          B13–B16 después de M4
+
+Auditoría:   A1 (base, PR #185 adaptada) ─► A2 (reportes y verificaciones) ─► A3 (ENOS, admin y acceso) ─► A4 (visor y operación) ─► P2 / M3
 ```
 
 | Batch | Nombre | Depende de | Responsable | Riesgo |
 |---|---|---|---|---|
 | P1 | Correcciones previas a staging | B11 | Agente | Alto (seguridad) |
-| P2 | Promoción a staging de B1–B11 y de todo lo de este plan que ya esté en dev | P1, P4, M1, M2 en dev | Agente; el dueño aprueba los cambios visibles | Alto (entrega, migraciones) |
+| P2 | Promoción a staging de B1–B11 y de todo lo de este plan que ya esté en dev | P1, P4, M1, M2 y A1–A4 en dev | Agente; el dueño aprueba los cambios visibles | Alto (entrega, migraciones) |
 | P3 | Tareas programadas en Coolify | P2 | Dueño, o agente con acceso autorizado | Medio (entrega) |
 | P4 | Pendientes del repositorio | — | Agente y dueño | Bajo |
 | P5 | Promoción a prod | P2, P3; aprobación explícita | Agente | Alto (entrega, migraciones) |
@@ -508,8 +510,9 @@ Manaos:      M0 (decisiones y datos, dueño) ─┬─► M1 (interfaz pt) ─�
 | M0 | Decisiones y datos de Manaos (B0) | — | Dueño | — |
 | M1 | Interfaz en portugués completa (B10b ampliado) | B10 | Agente | Bajo |
 | M2 | Región sin supuestos de Corrientes | B11 | Agente | Medio |
-| M3 | Infraestructura de Manaos | M0, M1, M2, B12 | Dueño y agente | Alto (entrega, secretos) |
+| M3 | Infraestructura de Manaos | M0, M1, M2, B12, A1–A4 | Dueño y agente | Alto (entrega, secretos) |
 | M4 | Salida en vivo de Manaos | M3 | Dueño | Alto |
+| A1–A4 | Auditoría estricta (PR #185 adaptada a este plan) | — (requisito de P2 y M3) | Agente; el dueño aprueba el visor | Alto (migración, seguridad, rendimiento) |
 
 ---
 
@@ -692,6 +695,47 @@ Sigue `docs/ejecucion-enos/OPS1/runbook-nueva-region.md` y `deploy/regiones/`.
 - Aprobación explícita del dueño.
 
 ---
+
+### A — Auditoría estricta (agregado 13/11/2026)
+
+Pedido del dueño: "Quiero que, adaptes la pr de auditoria que esta abierta, a este. Necesito que haya una auditoría estricta sin afectar el rendimiento del sistema."
+
+La base es la PR #185 (`feat(infraestructura): auditoría obligatoria de reportes y mapa`, 19/10/2026), con su diseño en `docs/2026-10-18-plan-auditoria-liviana.md` y `docs/2026-10-19-implementacion-auditoria.md`. Quedó 613 commits detrás de dev y su migración 0030 choca con la numeración actual (dev llega a 0058). Se rehace sobre dev, se conserva el diseño y se extiende a lo que este plan agregó después: ENOS, verificaciones B6, veredicto, Centro de Situación, cuentas de cuadernillos y la región Manaos. La PR #185 se cierra con referencia a las PR nuevas.
+
+**Qué significa "estricta":**
+- Ningún cambio de base dentro del alcance se confirma sin su evento: el evento y el efecto van en la misma transacción. Si el evento no se puede guardar, se revierte el cambio y la API responde 503.
+- Los rechazos, validaciones fallidas, 401/403/409/429 y excepciones también dejan evento, guardado fuera de la transacción revertida.
+- La tabla es solo de inserción. La base rechaza `UPDATE` y `DELETE` sobre `auditoria_evento` con un trigger; la aplicación no tiene camino de borrado. Sin cascadas desde objetos de negocio.
+- La identidad sale de la vía real de autorización: sesión, enlace referenciado, acceso compartido, sistema o anónimo. Nunca se inventa una persona.
+- No se guardan secretos ni datos personales: sin tokens, cookies, cuerpos completos, contraseñas ni nombres de alumnos. Los metadatos van por lista permitida y tienen hasta 4 KiB. Aplica igual en Manaos (LGPD).
+- Hay una prueba de cobertura que falla si una ruta mutadora del alcance no declara su acción de auditoría.
+
+**Qué significa "sin afectar el rendimiento":**
+- Cero pedidos extra desde el navegador. La captura ocurre en el servidor y reutiliza la identidad que la ruta ya resolvió; no repite `getSessionUser()`.
+- Una sola inserción pequeña por solicitud auditada, sin lecturas adicionales y sin colas en memoria como única copia.
+- Los GET automáticos del mapa, los tiles y la navegación no se auditan. Solo se auditan las lecturas sensibles: nominal, exportaciones, PDF, enlaces y fotos.
+- Índices mínimos: (fecha, id) y (actor, fecha). Se agrega (objeto, fecha) solo si el visor lo justifica medido. Sin índices sobre el JSON.
+- Los jobs registran un evento de intención y otro de resultado por corrida, nunca uno por fila procesada.
+- **Presupuesto medido con PostgreSQL:**
+  - el p95 de cada recorrido de escritura sube como máximo 5 ms;
+  - las rutas no auditadas no cambian;
+  - el visor responde una página en menos de 300 ms con 1 millón de eventos sembrados.
+
+  La medición de la PR #185 queda como referencia: +0,9 a +3,7 ms de p95.
+- Crecimiento: la proyección de filas por mes queda documentada. El particionado mensual y la retención se activan solo con un número medido, y la retención la decide el dueño.
+
+| Batch | Trabajo | Criterio de aceptación |
+|---|---|---|
+| A1 | Base: rehacer sobre dev el contrato, el catálogo de acciones, el escritor transaccional, la envoltura de Route Handlers, la migración aditiva con el número siguiente (0059 o el que corresponda), el trigger de solo inserción y la prueba de cobertura. Debe funcionar en PostgreSQL y PGlite. | La migración aplica sobre una copia de dev. Una falla forzada de inserción revierte el efecto. El trigger rechaza `UPDATE` y `DELETE`. La prueba de cobertura está en rojo hasta que A2 y A3 completan el alcance. |
+| A2 | Reportes y verificaciones: las rutas de la PR #185 (parte, borradores, fotos, evidencia, verificaciones, motivos, permisos nominales y enlaces) adaptadas al código actual, incluida la cola de verificaciones de B6 (`Enlace vencido`, respuesta asistida). | Cada intento deja su evento. Un reenvío idempotente deja un evento "repetido" sin duplicar el movimiento. No hay autores falsos. |
+| A3 | ENOS, administración y acceso: veredicto y enlaces compartidos, Centro de Situación y sus exportaciones, gestión de usuarios y roles (incluidas las cuentas de cuadernillos), inicio y cierre de sesión con éxito y falla, y jobs ENOS (sonda, veredicto, sincronizaciones) con disparador y resultado. | Cobertura en verde. Un login fallido queda registrado sin la contraseña. Un job deja dos eventos por corrida. En Manaos se audita igual y los textos del visor salen en pt. |
+| A4 | Visor y operación: `/admin/auditoria` exclusivo para admin, con carga al abrirlo, filtros y paginación por (fecha, id). Medición de rendimiento reproducible y runbook de despliegue con permisos del rol SQL y reversión. | El presupuesto de rendimiento se cumple medido. Un usuario sin permiso no accede. **Cambio visible: el visor espera la aprobación explícita del dueño antes de ir a dev.** |
+
+**Reglas:**
+- Corrientes sin regresiones: snapshots B2 idénticos, e2e completa en verde y ningún test existente cambiado sin aprobación.
+- La migración es aditiva y su reversión conserva la tabla.
+- A1–A3 van a dev por la regla vigente. A4 espera la aprobación del visor.
+- La auditoría completa es requisito de P2 (staging) y de M3 (Manaos en vivo).
 
 ## Criterios comunes a todos los batches
 
