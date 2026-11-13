@@ -735,6 +735,7 @@ La base es la PR #185 (`feat(infraestructura): auditoría obligatoria de reporte
 - La migración es aditiva y su reversión conserva la tabla.
 - A1–A3 van a dev por la regla vigente. A4 espera la aprobación del visor.
 - La auditoría completa es requisito de P2 (staging) y de M3 (Manaos en vivo).
+- La prueba de cobertura de A1 es un trinquete: queda en verde con una lista explícita `PENDIENTES` de rutas aún sin declarar (42 al abrir A1); un registro obsoleto la hace fallar y la lista solo puede achicarse. La auditoría estricta se declara cumplida únicamente cuando `PENDIENTES` está vacía (cierre de A3).
 
 ## Criterios comunes a todos los batches
 
