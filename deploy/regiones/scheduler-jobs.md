@@ -9,6 +9,7 @@ rol productor) aplicando la regla de `aplicaJobARegion` (réplica en
 - `sync-ana-*` aplica sólo si `fuentesRio` incluye `ana`.
 - `sync-sgb-*` aplica sólo si `fuentesRio` incluye `sgb`.
 - `sync-smn-alertas` aplica sólo si `fuentesAlertas` incluye `smn`.
+- `sync-inmet-alertas` aplica sólo si `fuentesAlertas` incluye `inmet`.
 - `sync-synop-lluvia` aplica sólo si `fuentesLluvia` incluye `synop`.
 - `importar-exposicion-rio-dem` aplica sólo si `capasEstaticas` incluye `exposicion-rio-dem`.
 - Los demás jobs aplican a todas las regiones.
@@ -29,6 +30,7 @@ runbook: confirmarla en la configuración de Coolify de cada despliegue antes de
 | sync-radar-ensemble | `55 3,9,15,21 * * *` | sí | Salvo `RADAR_SYNC_ENABLED=false` |
 | verificar-radar-meteo | `30 11 * * *` | sí | No escribe `infra_job_run` |
 | sync-smn-alertas | `7-59/15 * * * *` | sí | `fuentesAlertas`: smn |
+| sync-inmet-alertas | `9-59/15 * * * *` | no | Excluido por regla (sin `inmet` en `fuentesAlertas`; Corrientes declara `smn`) |
 | sync-imerg | `*/30 * * * *` | sí | Requiere `EARTHDATA_TOKEN` |
 | climatologia-imerg | `20 4 * * *` | sí | Requiere `EARTHDATA_TOKEN`; timeout 3600 s |
 | calcular-riesgo | `15 2,8,14,20 * * *` | sí | |
@@ -55,9 +57,10 @@ runbook: confirmarla en la configuración de Coolify de cada despliegue antes de
 | sync-radar-ensemble | `55 3,9,15,21 * * *` | sí | |
 | verificar-radar-meteo | `30 11 * * *` | sí | |
 | sync-smn-alertas | — | **no** | Excluido por regla (sin `smn` en `fuentesAlertas`; Manaos declara `inmet`) |
+| sync-inmet-alertas | `9-59/15 * * * *` | sí | fuentesAlertas: inmet; API no documentada de INMET; pendiente de crear en Coolify |
 | sync-imerg | `*/30 * * * *` | sí | Requiere `EARTHDATA_TOKEN` |
 | climatologia-imerg | `20 4 * * *` | sí | Requiere `EARTHDATA_TOKEN` |
-| calcular-riesgo | `15 2,8,14,20 * * *` | sí | Sin ANA, SGB ni INMET hasta B12 |
+| calcular-riesgo | `15 2,8,14,20 * * *` | sí | ANA/SGB niveles disponibles desde B12.2, sin exposición de río hasta que haya datos de ribera (B12.4/B14) |
 | sync-pronostico-caudal | `0 2,8,14,20 * * *` | sí | Fuentes de caudal de Manaos: B12 |
 | sync-ensemble | `5,35 2,8,14,20 * * *` | sí | |
 | situacion-corte | `20 * * * *` | sí | |
@@ -73,10 +76,9 @@ runbook: confirmarla en la configuración de Coolify de cada despliegue antes de
 | sync-ana-niveis | `12 * * * *` | sí | fuentesRio: ana; ventana de 48 h por estación telemétrica; pendiente de crear en Coolify |
 | sync-sgb-niveis | `27 * * * *` | sí | fuentesRio: sgb; SACE entrega ≈ 30 días de lecturas cada 15 min; pendiente de crear en Coolify |
 
-Los jobs de niveles del río de Manaos (ANA y SGB) ya existen y figuran arriba;
-sus tareas en Coolify están pendientes de crear. INMET (`fuentesAlertas`) sigue
-pendiente de B12: no aparece en esta lista hasta que su proveedor esté
-registrado y su job en `jobs-esperados.ts`.
+Los jobs de ANA, SGB e INMET ya existen en el código: los de niveles del río de
+Manaos (ANA y SGB) y `sync-inmet-alertas` (avisos de INMET, `fuentesAlertas`)
+figuran arriba; sus tareas en Coolify están pendientes de crear.
 
 ## Fuera del scheduler (ambas regiones)
 

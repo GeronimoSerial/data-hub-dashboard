@@ -69,6 +69,7 @@ const NOMBRE_JOB: Record<string, { nombre: string; grupo: GrupoDato }> = {
   'sync-ensemble': { nombre: 'Ensamble de lluvia', grupo: 'lluvia' },
   'sync-seasonal': { nombre: 'Pronóstico estacional', grupo: 'lluvia' },
   'sync-smn-alertas': { nombre: 'Avisos meteorológicos', grupo: 'lluvia' },
+  'sync-inmet-alertas': { nombre: 'Avisos meteorológicos (INMET)', grupo: 'lluvia' },
   'climatologia-caudal': { nombre: 'Climatología de caudal', grupo: 'climatologias' },
   'climatologia-precipitacion': { nombre: 'Climatología de precipitación', grupo: 'climatologias' },
   'climatologia-imerg': { nombre: 'Climatología IMERG', grupo: 'climatologias' },

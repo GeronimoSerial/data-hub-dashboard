@@ -38,6 +38,7 @@ const IDS_CORRIENTES = [
 const IDS_MANAOS = [
   'sync-radar-meteo',
   'sync-radar-ensemble',
+  'sync-inmet-alertas',
   'verificar-radar-meteo',
   'sync-imerg',
   'climatologia-caudal',
