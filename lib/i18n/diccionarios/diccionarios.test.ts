@@ -7,6 +7,7 @@ import { pt } from './pt'
 // proper nouns. Keyed by path, so a Spanish sentence copied into another slot still fails.
 const IGUALES_PERMITIDOS = new Set<string>([
   'pt.situacion.prioridadesColumnas.departamento',
+  'pt.situacion.cue',
   'pt.shellHub.home.recursosPublicados',
   'pt.shellHub.home.temas',
   'pt.shellHub.home.recurso',

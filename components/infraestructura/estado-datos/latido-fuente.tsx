@@ -7,8 +7,8 @@ import type { JSX } from 'react'
 import type { Diccionario } from '@/lib/i18n'
 import { construirLatido, trazoLatido, type CorridaLatido, type EtiquetaLatido } from './latido'
 
-const ANCHO = 144
-const ALTO = 24
+const ANCHO = 224
+const ALTO = 30
 
 export function textoEtiquetaLatido(etiqueta: EtiquetaLatido, t: Diccionario): string {
   const d = t.situacion.estadoDatos.latido
@@ -19,12 +19,14 @@ export function LatidoFuente(props: {
   corridas: CorridaLatido[] | null
   ahora: string
   ultimoExitoEn: string | null
+  ultimoIntentoEn: string | null
+  estado: string
   intervaloMinutos: number | null
   t: Diccionario
 }): JSX.Element {
   const latido = construirLatido(props)
   const texto = textoEtiquetaLatido(latido.etiqueta, props.t)
-  const trazo = trazoLatido(latido.marcas, ANCHO)
+  const trazo = trazoLatido(latido.marcas, ANCHO, ALTO)
   return (
     <span className="situacion-latido" data-testid="estado-datos-latido" data-latido={latido.etiqueta.clave}>
       <svg
@@ -33,6 +35,7 @@ export function LatidoFuente(props: {
         role="img"
         aria-label={props.t.situacion.estadoDatos.latido.aria(texto, latido.completadas, latido.fallidas)}
         preserveAspectRatio="none"
+        data-latido={latido.etiqueta.clave}
       >
         <path className="situacion-latido__base" d={trazo.base} pathLength={1} />
         {trazo.latidos !== '' && <path className="situacion-latido__pulso" d={trazo.latidos} />}

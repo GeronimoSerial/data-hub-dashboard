@@ -51,6 +51,8 @@ export const situacionPt: DeepStringify<typeof situacionEs> = {
   prioridadesTitulo: 'Prioridades (risco alto ou muito alto)',
   prioridadesColumnas: { escuela: 'Escola', departamento: 'Departamento', nivel: 'Nível de risco', accion: 'Detalhes' },
   verEscuela: 'Ver escola',
+  cue: 'CUE',
+  escuelasCantidad: (n) => `${n} escolas`,
   cadenaVerificada: (hora) => `Cadeia de dados verificada às ${hora}`,
   motivos: {
     noProgramado: 'Não programado em produção',
@@ -129,6 +131,7 @@ export const situacionPt: DeepStringify<typeof situacionEs> = {
     latido: {
       viva: 'ativa',
       intermitente: 'intermitente',
+      falla: 'falha',
       sinLatido: (dias) => `sem batimento há ${dias} d`,
       nunca: 'nunca executou',
       aria: (estado, completadas, fallidas) =>

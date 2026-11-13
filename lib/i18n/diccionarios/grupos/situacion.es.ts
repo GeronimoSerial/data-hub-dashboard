@@ -48,6 +48,8 @@ export const situacionEs = {
   prioridadesTitulo: 'Prioridades (riesgo alto o muy alto)',
   prioridadesColumnas: { escuela: 'Escuela', departamento: 'Departamento', nivel: 'Nivel de riesgo', accion: 'Ficha' },
   verEscuela: 'Ver escuela',
+  cue: 'CUE',
+  escuelasCantidad: (n: number) => `${n} escuelas`,
   cadenaVerificada: (hora: string) => `Cadena de datos verificada a las ${hora}`,
   motivos: {
     noProgramado: 'No programado en producción',
@@ -131,6 +133,7 @@ export const situacionEs = {
     latido: {
       viva: 'viva',
       intermitente: 'intermitente',
+      falla: 'falla',
       sinLatido: (dias: number) => `sin latido ${dias} d`,
       nunca: 'nunca corrió',
       aria: (estado: string, completadas: number, fallidas: number) =>
