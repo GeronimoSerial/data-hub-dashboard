@@ -383,7 +383,7 @@ export async function ejecutarSyncImerg(params?: {
       jobRunId: lease.jobRunId,
       leaseOwner: lease.leaseOwner,
       estado: 'fallido',
-      errorSaneado: 'fallo al ejecutar sync-hazard-imerg',
+      errorSaneado: sanearError(error, token),
       ahora,
     })
     throw error
