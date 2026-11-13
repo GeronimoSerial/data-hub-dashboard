@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, lt, sql, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db'
-import { auditoriaEvento } from '@/lib/db/schema'
+import { auditoriaEvento, user } from '@/lib/db/schema'
 
 // Misma regla que referencia() en servidor.ts: lo que el escritor no puede guardar no se puede filtrar.
 const REFERENCIA = /^[\p{L}\p{N}_.:-]{1,128}$/u
@@ -39,7 +39,9 @@ export const consultaAuditoriaSchema = z.object({
 
 export type FiltrosAuditoria = z.output<typeof consultaAuditoriaSchema>
 export type EventoAuditoria = typeof auditoriaEvento.$inferSelect
-export type PaginaAuditoria = { items: EventoAuditoria[]; nextCursor: string | null }
+/** Nombre y correo del usuario cuyo id es actor_id; null si el actor no es un usuario. Solo esas dos columnas salen de la tabla user. */
+export type EventoAuditoriaConActor = EventoAuditoria & { actorNombre: string | null; actorCorreo: string | null }
+export type PaginaAuditoria = { items: EventoAuditoriaConActor[]; nextCursor: string | null }
 
 function codificarCursor(evento: EventoAuditoria): string {
   return Buffer.from(JSON.stringify({ fecha: evento.ocurridoEn.toISOString(), id: evento.id })).toString('base64url')
@@ -65,9 +67,16 @@ export async function consultarAuditoria(filtros: FiltrosAuditoria): Promise<Pag
     condiciones.push(sql`(${auditoriaEvento.ocurridoEn}, ${auditoriaEvento.id}) < (${cursor.fecha}::timestamptz, ${cursor.id}::text)`)
   }
 
-  const filas = await getDb().select().from(auditoriaEvento).where(and(...condiciones))
+  // El LIMIT va en la subconsulta: el join con user solo toca las filas de la página.
+  const pagina = getDb().select().from(auditoriaEvento).where(and(...condiciones))
     .orderBy(desc(auditoriaEvento.ocurridoEn), desc(auditoriaEvento.id))
     .limit(filtros.limite + 1)
+    .as('pagina')
+  const filas: EventoAuditoriaConActor[] = await getDb()
+    .select({ ...pagina._.selectedFields, actorNombre: user.name, actorCorreo: user.email })
+    .from(pagina)
+    .leftJoin(user, eq(user.id, pagina.actorId))
+    .orderBy(desc(pagina.ocurridoEn), desc(pagina.id))
   const items = filas.slice(0, filtros.limite)
   const ultimo = items.at(-1)
   const nextCursor = filas.length > filtros.limite && ultimo ? codificarCursor(ultimo) : null
