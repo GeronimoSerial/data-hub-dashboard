@@ -5,6 +5,8 @@ import { validateAssignments } from '@/lib/cuadernillos/assignment-import'
 import { hasBookletCapability } from '@/lib/cuadernillos/permissions'
 import { getBookletAssignmentsPage } from '@/lib/cuadernillos/queries'
 import { resolveViewAsActor } from '@/lib/cuadernillos/view-as'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -97,12 +99,15 @@ async function handlePOST(request: Request) {
   }
   const parsed = importSchema.safeParse(body)
   if (!parsed.success) return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: NO_STORE })
+  // Sin cambio de datos: la vista previa no escribe; el evento registra solo la cantidad de filas.
+  describirAuditoria({ objetoTipo: 'cuadernillo_asignacion', metadatos: { cantidad: parsed.data.rows.length } })
 
   try {
     if (parsed.data.mode === 'confirm') {
       return Response.json({ error: 'assignment_confirmation_unavailable' }, { status: 503, headers: NO_STORE })
     }
     const preview = validateAssignments(parsed.data.rows)
+    describirAuditoria({ resultado: 'sin_cambio' })
     return Response.json({ preview }, { status: 200, headers: NO_STORE })
   } catch {
     return Response.json({ error: 'assignment_preview_failed' }, { status: 503, headers: NO_STORE })
@@ -110,4 +115,4 @@ async function handlePOST(request: Request) {
 }
 
 export const GET = ruta('cuadernillos.assignments.get', handleGET)
-export const POST = ruta('cuadernillos.assignments.post', handlePOST)
+export const POST = conAuditoria('cuadernillo.asignacion_guardar', '/api/cuadernillos/assignments', ruta('cuadernillos.assignments.post', handlePOST))

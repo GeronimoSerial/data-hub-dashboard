@@ -22,12 +22,19 @@ import {
   unknownRecursoIds,
   wouldRemoveLastAdmin,
 } from '@/lib/usuarios'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type Ctx = { params: Promise<{ id: string }> }
+
+// Solo nombres de los campos que cambian: nunca valores (rol, contraseña, correo).
+function camposCambiados(parsed: object): string[] {
+  return Object.entries(parsed).filter(([, valor]) => valor !== undefined).map(([campo]) => campo)
+}
 
 async function handleGET(_request: Request, ctx: Ctx) {
   await ensureSeeded()
@@ -47,6 +54,7 @@ async function handlePATCH(request: Request, ctx: Ctx) {
   }
 
   const { id } = await ctx.params
+  describirAuditoria({ objetoTipo: 'usuario', objetoId: id })
   let body: unknown
   try {
     body = await request.json()
@@ -117,42 +125,45 @@ async function handlePATCH(request: Request, ctx: Ctx) {
 
   const headers = request.headers
   try {
-    if (parsed.role) {
-      await auth.api.setRole({
-        body: { userId: id, role: parsed.role },
-        headers,
-      })
-    }
-    if (parsed.banned === true) {
-      await auth.api.banUser({ body: { userId: id }, headers })
-    } else if (parsed.banned === false) {
-      await auth.api.unbanUser({ body: { userId: id }, headers })
-    }
-    if (parsed.password) {
-      await auth.api.setUserPassword({
-        body: { userId: id, newPassword: parsed.password },
-        headers,
-      })
-    }
-    if (parsed.name) {
-      await auth.api.adminUpdateUser({
-        body: { userId: id, data: { name: parsed.name } },
-        headers,
-      })
-    }
-    if (parsed.nivelJurIds !== undefined || parsed.accesoRecursos !== undefined || parsed.recursoIds !== undefined || parsed.hubPolicy || parsed.hubDestination !== undefined) {
-      await persistUserAccessConfiguration(id, {
-        nivelJurIds: parsed.nivelJurIds,
-        accesoRecursos: parsed.accesoRecursos,
-        recursoIds: parsed.recursoIds,
-        ...(parsed.hubPolicy || parsed.hubDestination !== undefined ? {
-          hubAccess: {
-            hubPolicy: parsed.hubPolicy ?? (await getHubUserSession(id))?.hubPolicy ?? {},
-            hubDestination: parsed.hubDestination !== undefined ? parsed.hubDestination : (await getHubUserSession(id))?.hubDestination ?? null,
-          },
-        } : {}),
-      })
-    }
+    // Better Auth cambia rol, baneo, contraseña y nombre por su propio adaptador; los niveles, recursos y permisos de destino sí entran en la transacción del evento.
+    await cambioAuditado(async () => {
+      if (parsed.role) {
+        await auth.api.setRole({
+          body: { userId: id, role: parsed.role },
+          headers,
+        })
+      }
+      if (parsed.banned === true) {
+        await auth.api.banUser({ body: { userId: id }, headers })
+      } else if (parsed.banned === false) {
+        await auth.api.unbanUser({ body: { userId: id }, headers })
+      }
+      if (parsed.password) {
+        await auth.api.setUserPassword({
+          body: { userId: id, newPassword: parsed.password },
+          headers,
+        })
+      }
+      if (parsed.name) {
+        await auth.api.adminUpdateUser({
+          body: { userId: id, data: { name: parsed.name } },
+          headers,
+        })
+      }
+      if (parsed.nivelJurIds !== undefined || parsed.accesoRecursos !== undefined || parsed.recursoIds !== undefined || parsed.hubPolicy || parsed.hubDestination !== undefined) {
+        await persistUserAccessConfiguration(id, {
+          nivelJurIds: parsed.nivelJurIds,
+          accesoRecursos: parsed.accesoRecursos,
+          recursoIds: parsed.recursoIds,
+          ...(parsed.hubPolicy || parsed.hubDestination !== undefined ? {
+            hubAccess: {
+              hubPolicy: parsed.hubPolicy ?? (await getHubUserSession(id))?.hubPolicy ?? {},
+              hubDestination: parsed.hubDestination !== undefined ? parsed.hubDestination : (await getHubUserSession(id))?.hubDestination ?? null,
+            },
+          } : {}),
+        })
+      }
+    }, () => ({ status: 200, objetoTipo: 'usuario', objetoId: id, metadatos: { campos: camposCambiados(parsed) } }))
   } catch (err) {
     const mapped = authApiError(err)
     return Response.json({ error: mapped.error }, { status: mapped.status })
@@ -162,4 +173,4 @@ async function handlePATCH(request: Request, ctx: Ctx) {
 }
 
 export const GET = ruta('usuarios.id.get', handleGET)
-export const PATCH = ruta('usuarios.id.patch', handlePATCH)
+export const PATCH = conAuditoria('usuario.modificar', '/api/usuarios/[id]', ruta('usuarios.id.patch', handlePATCH))

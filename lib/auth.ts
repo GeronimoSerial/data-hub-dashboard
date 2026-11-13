@@ -15,6 +15,22 @@ import {
 } from '@/lib/auth-permissions'
 import { geSsoPlugin } from '@/lib/ge-sso/plugin'
 
+type Db = ReturnType<typeof getDb>
+
+// El adaptador de better-auth conserva el `db` que recibe. Si se le pasa la base
+// vigente al construir la instancia, cualquier alta, rol, ban o sesión de
+// better-auth escribe fuera de la transacción auditada (o, si la instancia se
+// construyó dentro de una, usa una transacción ya cerrada). El proxy resuelve
+// `getDb()` en cada acceso: dentro de cambioAuditado usa `tx`; fuera, la misma
+// instancia de siempre.
+const dbDelegada = new Proxy({} as Db, {
+  get(_target, prop) {
+    const real = getDb() as object
+    const valor = Reflect.get(real, prop, real)
+    return typeof valor === 'function' ? valor.bind(real) : valor
+  },
+})
+
 // Función real, sin invocar todavía: se usa tanto para construir la
 // instancia (una sola vez, ver construirAuth) como para que TypeScript infiera
 // el tipo exacto de `Auth` a partir de ESTA MISMA llamada a `betterAuth`
@@ -23,9 +39,11 @@ import { geSsoPlugin } from '@/lib/ge-sso/plugin'
 // antes. `ReturnType<typeof betterAuth>` a secas perdería esa especificidad
 // (caería al genérico `BetterAuthOptions`).
 function crearInstanciaAuth() {
+  // Pide la conexión al construir, como antes; el adaptador usa `dbDelegada`, no este valor.
+  void getDb()
   return betterAuth({
     baseURL: process.env.BETTER_AUTH_URL,
-    database: drizzleAdapter(getDb(), {
+    database: drizzleAdapter(dbDelegada, {
       provider: 'pg',
       schema,
     }),

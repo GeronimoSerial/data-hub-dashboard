@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { ACCIONES_AUDITORIA, type AccionAuditoria } from './catalogo'
 
 export type ActorAuditoria = {
   actorTipo: 'usuario' | 'enlace' | 'compartido' | 'anonimo' | 'sistema'
@@ -8,13 +9,15 @@ export type ActorAuditoria = {
 }
 export type ResultadoAuditoria = 'pendiente' | 'exito' | 'rechazado' | 'invalido' | 'conflicto' | 'repetido' | 'sin_cambio' | 'error'
 export type DatosAuditoria = {
+  /** Refina la acción declarada por la ruta; solo se acepta si está en el catálogo. */
+  accion?: AccionAuditoria
   objetoTipo?: string
   objetoId?: string | null
   cueAnexo?: string | null
   resultado?: ResultadoAuditoria
   metadatos?: Record<string, unknown>
 }
-export type ContextoAuditoria = DatosAuditoria & ActorAuditoria & {
+export type ContextoAuditoria = Omit<DatosAuditoria, 'accion'> & ActorAuditoria & {
   id: string
   requestId: string
   ocurridoEn: Date
@@ -32,7 +35,9 @@ export const contextoAuditoria = globalContext[key] ??= new AsyncLocalStorage<Co
 export function describirAuditoria(datos: DatosAuditoria) {
   const contexto = contextoAuditoria.getStore()
   if (!contexto) return
-  Object.assign(contexto, { ...datos, metadatos: { ...contexto.metadatos, ...datos.metadatos } })
+  const { accion, ...resto } = datos
+  const aceptada = accion && (ACCIONES_AUDITORIA as readonly string[]).includes(accion) ? { accion } : {}
+  Object.assign(contexto, { ...resto, ...aceptada, metadatos: { ...contexto.metadatos, ...datos.metadatos } })
 }
 
 export function actorAuditoria(actor: ActorAuditoria) {

@@ -25,6 +25,14 @@ vi.mock('@/lib/usuarios', async () => {
   }
 })
 
+import { beforeAll } from 'vitest'
+import { migrarDb } from '@/lib/db'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+
+// Fixture: cada intento deja un evento en auditoria_evento, así que la ruta necesita una base migrada.
+usarDbTemporal('usuarios-route-fixture-', { seed: false })
+beforeAll(async () => { await migrarDb() })
+
 import { GET, POST } from './route'
 
 const createRequest = (body: unknown) => new Request('http://localhost/api/usuarios', {

@@ -1,8 +1,11 @@
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Route from './route'
 import { createRemainderRequest, getRequestChain } from '@/lib/cuadernillos/remainders'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+
+usarDbTemporal('cuadernillos-remainder-rutas-')
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/lib/hub-entry-server', () => ({ hubApiAccessResponse: vi.fn() }))

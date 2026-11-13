@@ -12,6 +12,8 @@ import { crearLimitador } from '@/lib/http/limitador'
 import { ruta } from '@/lib/http/ruta'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -61,6 +63,7 @@ async function handleGET(request: Request) {
     generadoEn: new Date(),
     eventos,
   })
+  describirAuditoria({ metadatos: { formato: 'pdf', cantidad: filas.length } })
   return new Response(bytes.slice(), {
     headers: {
       'Content-Type': 'application/pdf',
@@ -70,4 +73,8 @@ async function handleGET(request: Request) {
   })
 }
 
-export const GET = ruta('infraestructura.veredictos.pdf.get', handleGET, { limite: { limitador } })
+export const GET = conAuditoria(
+  'veredicto.pdf',
+  '/api/infraestructura/veredictos/pdf',
+  ruta('infraestructura.veredictos.pdf.get', handleGET, { limite: { limitador } }),
+)

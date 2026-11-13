@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { getDb } from '@/lib/db'
 import { user } from '@/lib/db/schema'
 import { ruta } from '@/lib/http/ruta'
 import { regionActiva } from '@/lib/infraestructura/region'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { type Idioma } from '@/lib/i18n/idioma'
 import { getSessionUser } from '@/lib/session'
 
@@ -35,8 +35,13 @@ async function handlePATCH(request: Request) {
     return Response.json({ error: 'El idioma no está disponible en la región' }, { status: 400 })
   }
 
-  await getDb().update(user).set({ idioma }).where(eq(user.id, sesion.id))
+  await cambioAuditado(
+    async tx => {
+      await tx.update(user).set({ idioma }).where(eq(user.id, sesion.id))
+    },
+    () => ({ status: 200, objetoTipo: 'usuario', objetoId: sesion.id, metadatos: { campos: ['idioma'] } }),
+  )
   return Response.json({ idioma })
 }
 
-export const PATCH = ruta('usuario.idioma.patch', handlePATCH)
+export const PATCH = conAuditoria('usuario.idioma', '/api/usuario/idioma', ruta('usuario.idioma.patch', handlePATCH))
