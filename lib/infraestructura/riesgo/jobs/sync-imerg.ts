@@ -44,6 +44,7 @@ import { hazardObservation } from '@/lib/db/schema'
 import { adquirirLease, publicarResultado } from '../job-run'
 import { CONFIG_FUENTES } from '../providers/config-fuentes'
 import { crearAdaptadorImerg } from '../adaptadores-ingesta/imerg'
+import { purgarImergAntiguo } from '../retencion-imerg'
 import { actualizarSaludFuente } from './salud-fuente'
 import type {
   GranuloSatelital,
@@ -333,6 +334,19 @@ export function seleccionarGranulosAProcesar<T extends { inicioEn: string }>(
   return [masReciente, ...resto].slice(0, presupuesto)
 }
 
+async function purgarRetencionSegura(
+  db: Db,
+  ahora: Date,
+  purgar: typeof purgarImergAntiguo,
+): Promise<void> {
+  try {
+    await purgar(db, { ahora })
+  } catch (error) {
+    const mensaje = error instanceof Error ? error.message : String(error)
+    console.warn(`[sync-hazard-imerg] purga de retención falló: ${mensaje}`)
+  }
+}
+
 export async function ejecutarSyncImerg(params?: {
   ahora?: Date
   fetchImpl?: typeof fetch
@@ -341,6 +355,8 @@ export async function ejecutarSyncImerg(params?: {
   // construcción del adaptador real. Demuestra la inyección por puerto (ver
   // sync-imerg.test.ts).
   puerto?: PuertoObservacionSatelital
+  // Seam de test: reemplaza la purga de retención de 90 días (ver retencion-imerg.ts).
+  purgarImerg?: typeof purgarImergAntiguo
 }): Promise<ResultadoEjecucionSyncImerg> {
   const db = getDb()
   const ahora = params?.ahora ?? new Date()
@@ -380,7 +396,11 @@ export async function ejecutarSyncImerg(params?: {
   // lease venza solo. Se envuelve todo el cuerpo para que un fallo siempre
   // marque 'fallido' antes de relanzar la excepción original.
   try {
-    return await ejecutarCuerpoDelJobImerg({ db, ahora, ahoraIso, token, lease, params })
+    const resultado = await ejecutarCuerpoDelJobImerg({ db, ahora, ahoraIso, token, lease, params })
+    // Retención: tras publicar el resultado (el lease ya se liberó) y sin poder
+    // fallar el job; un error de purga sólo se avisa.
+    await purgarRetencionSegura(db, ahora, params?.purgarImerg ?? purgarImergAntiguo)
+    return resultado
   } catch (error) {
     await publicarResultado({
       jobRunId: lease.jobRunId,
