@@ -187,6 +187,58 @@ describe('auditoría durable', () => {
     const actualizar = await getDb().update(auditoriaEvento).set({ accion: 'alterada' }).where(eq(auditoriaEvento.id, fila.id)).catch((e: unknown) => e)
     expect(mensajeCompleto(actualizar)).toContain('auditoria_evento es de solo inserción')
   })
+
+  it('no fija la transacción contextual cuando no hay contexto de auditoría', async () => {
+    let tx: unknown
+    let dentro: unknown
+    await cambioAuditado(async t => {
+      tx = t
+      dentro = getDb()
+      return null
+    })
+    expect(dentro).not.toBe(tx)
+    expect(dentro).toBe(getDb())
+  })
+
+  it('fija la transacción contextual cuando hay contexto de auditoría', async () => {
+    let tx: unknown
+    let dentro: unknown
+    const handler = conAuditoria('verificacion.responder', RUTA, async (_request: Request) => {
+      await cambioAuditado(async t => {
+        tx = t
+        dentro = getDb()
+        return null
+      }, () => ({ status: 204 }))
+      return new Response(null, { status: 204 })
+    })
+    await handler(solicitud())
+    expect(dentro).toBe(tx)
+  })
+
+  it('no convierte en 500 una respuesta con cabeceras inmutables y conserva estado, Location y un evento', async () => {
+    const handler = conAuditoria('verificacion.responder', RUTA, async (_request: Request) => Response.redirect('https://example.test/x', 302))
+    const response = await handler(solicitud())
+    expect(response.status).toBe(302)
+    expect(response.headers.get('Location')).toBe('https://example.test/x')
+    const requestId = response.headers.get('X-Request-Id')
+    expect(requestId).toBeTruthy()
+    const filas = await filasDe(requestId!)
+    expect(filas).toHaveLength(1)
+    expect(filas[0]).toMatchObject({ httpStatus: 302, resultado: 'exito' })
+  })
+
+  it('devuelve Response.error() sin lanzar ni convertirla en 500', async () => {
+    const handler = conAuditoria('verificacion.responder', RUTA, async (_request: Request) => Response.error())
+    const response = await handler(solicitud())
+    expect(response.type).toBe('error')
+    expect(response.status).toBe(0)
+  })
+
+  it('descarta revision cuando no es un número finito', () => {
+    expect(metadatosPermitidos({ revision: 'abc.def.ghi' })).toEqual({})
+    expect(metadatosPermitidos({ revision: '3' })).toEqual({})
+    expect(metadatosPermitidos({ revision: Number.NaN })).toEqual({})
+  })
 })
 
 function mensajeCompleto(error: unknown): string {

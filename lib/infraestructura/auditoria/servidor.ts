@@ -18,6 +18,10 @@ export function metadatosPermitidos(datos: Record<string, unknown> = {}) {
   const salida: Record<string, unknown> = {}
   for (const [clave, valor] of Object.entries(datos)) {
     if (!CLAVES.has(clave)) continue
+    if (clave === 'revision') {
+      if (Number.isFinite(valor)) salida[clave] = valor
+      continue
+    }
     if (typeof valor === 'number' && Number.isFinite(valor)) salida[clave] = valor
     if (typeof valor === 'string' && /^[\p{L}\p{N}_.:-]{1,128}$/u.test(valor)) salida[clave] = valor
     if (Array.isArray(valor) && valor.length <= 30 && valor.every(v => typeof v === 'string' && /^[a-zA-Z0-9_.-]{1,64}$/.test(v))) salida[clave] = valor
@@ -76,15 +80,19 @@ export async function cambioAuditado<T>(
 ): Promise<T> {
   const contexto = contextoAuditoria.getStore()
   if (contexto?.persistido) throw new Error('La solicitud ya confirmó su auditoría')
-  const valor = await db.transaction(async tx => transaccionContextual.run(tx, async () => {
-    const resultado = await ejecutar(tx)
-    if (contexto) {
-      const datos = describir(resultado)
-      describirAuditoria(datos)
-      await escribir(tx, contexto, datos.status)
+  const valor = await db.transaction(async tx => {
+    const cuerpo = async () => {
+      const resultado = await ejecutar(tx)
+      if (contexto) {
+        const datos = describir(resultado)
+        describirAuditoria(datos)
+        await escribir(tx, contexto, datos.status)
+      }
+      return resultado
     }
-    return resultado
-  }))
+    // Sin contexto no hay evento que escribir: no se expone la transacción a getDb().
+    return contexto ? transaccionContextual.run(tx, cuerpo) : cuerpo()
+  })
   if (contexto) contexto.persistido = true
   return valor
 }
@@ -194,8 +202,21 @@ export function conAuditoria<A extends unknown[]>(accion: AccionAuditoria, rutaP
       }
       if (!contexto.fallo && !contexto.persistido) await escribirFuera(contexto, response.status)
       if (contexto.fallo) return respuestaNoDisponible(contexto)
-      response.headers.set('X-Request-Id', contexto.requestId)
-      return response
+      return conRequestId(response, contexto.requestId)
     })
+  }
+}
+
+/** Respuestas como Response.redirect() tienen cabeceras inmutables: se reconstruyen con el id. */
+function conRequestId(response: Response, requestId: string): Response {
+  try {
+    response.headers.set('X-Request-Id', requestId)
+    return response
+  } catch {
+    // Response.error() tiene estado 0, que el constructor no admite: se devuelve tal cual.
+    if (response.status < 200 || response.status > 599) return response
+    const headers = new Headers(response.headers)
+    headers.set('X-Request-Id', requestId)
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
   }
 }

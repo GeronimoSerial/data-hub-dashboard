@@ -25,3 +25,5 @@ CREATE INDEX "auditoria_evento_actor_fecha_idx" ON "auditoria_evento" USING btre
 CREATE FUNCTION auditoria_evento_solo_insercion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'auditoria_evento es de solo inserción' USING ERRCODE = 'restrict_violation'; END $$;
 --> statement-breakpoint
 CREATE TRIGGER auditoria_evento_solo_insercion BEFORE UPDATE OR DELETE ON auditoria_evento FOR EACH ROW EXECUTE FUNCTION auditoria_evento_solo_insercion();
+--> statement-breakpoint
+CREATE TRIGGER auditoria_evento_sin_truncate BEFORE TRUNCATE ON auditoria_evento FOR EACH STATEMENT EXECUTE FUNCTION auditoria_evento_solo_insercion();
