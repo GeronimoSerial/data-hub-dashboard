@@ -46,7 +46,7 @@ async function escribir(db: Pick<Db, 'insert'>, contexto: ContextoAuditoria, sta
   try {
     await db.insert(auditoriaEvento).values({
       id: contexto.id, requestId: contexto.requestId, ocurridoEn: contexto.ocurridoEn,
-      actorTipo: contexto.actorTipo, actorId: contexto.actorId, actorRol: contexto.actorRol,
+      actorTipo: contexto.actorTipo, actorId: referencia(contexto.actorId), actorRol: referencia(contexto.actorRol),
       viaAcceso: contexto.viaAcceso, accion: contexto.accion, metodo: contexto.metodo,
       rutaPlantilla: contexto.rutaPlantilla, objetoTipo: contexto.objetoTipo,
       objetoId: referencia(contexto.objetoId), cueAnexo: referencia(contexto.cueAnexo),
