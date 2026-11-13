@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/session'
 import { ruta } from '@/lib/http/ruta'
 import { listarLlamadasPorCue, registrarLlamada, validarEntradaLlamada } from '@/lib/call-center/llamadas'
 import { normalizeCue } from '@/lib/infraestructura/cue'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,10 @@ async function handlePOST(request: Request) {
   if (!validated.ok) return Response.json({ error: validated.error }, { status: 400 })
 
   // El autor es siempre la sesión: un usuarioId del body se ignora.
-  const llamada = await registrarLlamada({ ...validated.value, usuarioId: user!.id })
+  const llamada = await cambioAuditado(
+    () => registrarLlamada({ ...validated.value, usuarioId: user!.id }),
+    registrada => ({ status: 201, objetoTipo: 'llamada', objetoId: registrada.id, cueAnexo: registrada.cueAnexo }),
+  )
   return jsonNoStore({ llamada }, 201)
 }
 
@@ -42,5 +46,5 @@ async function handleGET(request: Request) {
   return jsonNoStore({ llamadas })
 }
 
-export const POST = ruta('call-center.llamadas.post', handlePOST)
+export const POST = conAuditoria('call_center.llamada_crear', '/api/call-center/llamadas', ruta('call-center.llamadas.post', handlePOST))
 export const GET = ruta('call-center.llamadas.get', handleGET)

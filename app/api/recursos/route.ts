@@ -8,6 +8,7 @@ import {
 } from '@/lib/recurso-write'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { ruta } from '@/lib/http/ruta'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -38,11 +39,14 @@ async function handlePOST(request: Request) {
   }
 
   try {
-    await insertRecurso(recurso)
+    await cambioAuditado(
+      () => insertRecurso(recurso),
+      () => ({ status: 201, objetoTipo: 'recurso', objetoId: recurso.id, metadatos: { formato: recurso.formato } }),
+    )
   } catch {
     return Response.json({ error: 'No se pudo guardar el recurso' }, { status: 400 })
   }
   return Response.json({ ok: true, id: recurso.id }, { status: 201 })
 }
 
-export const POST = ruta('recursos.post', handlePOST)
+export const POST = conAuditoria('recurso.crear', '/api/recursos', ruta('recursos.post', handlePOST))
