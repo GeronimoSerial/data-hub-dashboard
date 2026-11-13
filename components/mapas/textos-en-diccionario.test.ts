@@ -54,7 +54,6 @@ const IDENTICOS_EN_PT = new Set<string>([
   'components/mapas/panel-estadisticas.tsx|Agrupar por',
   'components/mapas/panel-situacion-actual.tsx|de',
   'components/mapas/tarjeta-cruce-agua.tsx|Mapa colaborativo OpenStreetMap',
-  'components/infraestructura/vigencia-chips.tsx|Hora',
 ])
 
 type Hit = { file: string; line: number; text: string }
