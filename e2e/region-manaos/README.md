@@ -70,10 +70,17 @@ Common to both modes:
    `GET /api/mapas/infraestructura`. The route runs `ensureSeeded()` before its ACL check (`lib/infraestructura/mapa-ruta.ts`).
    That creates the admin from `ADMIN_EMAIL`/`ADMIN_PASSWORD` and the app's catalog (resources, reasons, ENOS period,
    jurisdiction levels). It inserts no schools and no jobs.
-2. Runs Playwright (`playwright.config.ts`, projects `manaos` and `corrientes-vacio`, 1 worker).
+2. Runs Playwright (`playwright.config.ts`, projects `manaos`, `manaos-pt`, `manaos-escuelas` (standalone mode only) and `corrientes-vacio`, 1 worker).
+   `manaos-escuelas` runs after the empty-database specs: it publishes the Manaos datasets with `region:cargar` against
+   `REGION_PROOF_MANAOS_DATABASE_URL` (set by `run.mjs` in standalone mode, where Postgres has a published loopback port).
 
 ## What it proves
 
+- `manaos-escuelas.spec.ts` (standalone mode): the database starts without schools; `region:cargar manaos` publishes
+  `localizaciones`, `departamentos` and `mascara` and a second run repeats the same versions; the school API lists
+  every school (`totalPadron`), draws only those with coordinates and puts the rest in `sinUbicacion`; the totals count
+  the schools without coordinates in their municipality; the municipality layer has 12 features; the map draws and the
+  statistics table shows the drawn schools of Manaus; the Situation Center still reports the missing river data.
 - `manaos.spec.ts`: health; map in Portuguese with the `selector-idioma` set to Português; switching to Español
   persists across reload and switches back (stored in `user.idioma`); the school API returns zero schools with
   status 200; the Situation Center shows "Sin datos" and never the "chain verified" line; the Corrientes name does
