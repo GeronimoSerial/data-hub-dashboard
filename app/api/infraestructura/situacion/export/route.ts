@@ -8,6 +8,8 @@ import { crearLimitador } from '@/lib/http/limitador'
 import { ruta } from '@/lib/http/ruta'
 import { verificarAccesoSeccion } from '@/lib/infraestructura/acceso-lectura'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -73,6 +75,9 @@ async function handleGET(request: Request) {
     return jsonError('Todavía no hay ningún corte generado', 404, { 'Cache-Control': 'private, no-store' })
   }
 
+  const niveles = Object.keys(corte.conteosPorNivelRiesgo).length
+  describirAuditoria({ objetoTipo: 'corte_situacion', objetoId: corte.id, metadatos: { formato: parsed.data.formato, cantidad: niveles } })
+
   if (parsed.data.formato === 'csv') {
     const cuerpo = aCsv(filasCsv(corte))
     return new Response(cuerpo, {
@@ -94,4 +99,8 @@ async function handleGET(request: Request) {
   })
 }
 
-export const GET = ruta('infraestructura.situacion.export.get', handleGET, { limite: { limitador } })
+export const GET = conAuditoria(
+  'situacion.exportar',
+  '/api/infraestructura/situacion/export',
+  ruta('infraestructura.situacion.export.get', handleGET, { limite: { limitador } }),
+)
