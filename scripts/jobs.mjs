@@ -55,6 +55,8 @@ const NOMBRES_VALIDOS = [
   'sync-prefectura-alturas',
   'sync-synop-lluvia',
   'sync-prefectura-historico',
+  'sync-ana-niveis',
+  'sync-sgb-niveis',
   'importar-exposicion-rio-dem',
   'importar-altimetria-v04',
   'sync-ina-serie-diaria',
@@ -102,6 +104,8 @@ export function regionDespacho(env = process.env) {
 export function aplicaJobARegionDespacho(nombre, region) {
   if (nombre.startsWith('sync-prefectura-')) return region.fuentesRio.includes('prefectura')
   if (nombre.startsWith('sync-ina-')) return region.fuentesRio.includes('ina')
+  if (nombre.startsWith('sync-ana-')) return region.fuentesRio.includes('ana')
+  if (nombre.startsWith('sync-sgb-')) return region.fuentesRio.includes('sgb')
   if (nombre === 'sync-smn-alertas') return (region.fuentesAlertas ?? []).includes('smn')
   if (nombre === 'sync-synop-lluvia') return (region.fuentesLluvia ?? []).includes('synop')
   if (nombre === 'importar-exposicion-rio-dem') return (region.capasEstaticas ?? []).includes('exposicion-rio-dem')
@@ -403,6 +407,20 @@ async function correrSyncPrefecturaHistorico() {
   return syncPrefecturaHistorico()
 }
 
+// Niveles del río ANA (Manaos): lease propio por hora UTC, ventana de 48 h por estación.
+async function correrSyncAnaNiveis() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-ana-niveis')
+  const { syncAnaNiveis } = await import('../lib/infraestructura/hidrometria/sync-ana-niveis.ts')
+  return syncAnaNiveis()
+}
+
+// Niveles del río SGB/SACE (Manaos): lease propio por hora UTC; SACE entrega ≈ 30 días de lecturas.
+async function correrSyncSgbNiveis() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-sgb-niveis')
+  const { syncSgbNiveis } = await import('../lib/infraestructura/hidrometria/sync-sgb-niveis.ts')
+  return syncSgbNiveis()
+}
+
 // Sonda de la cadena de datos reales (hourly, Coolify). Devuelve resultado, no lanza.
 async function correrSondaCadenaDatos(opts) {
   if (!(await jobsActivos())) return flagDeshabilitado('sonda-cadena-datos')
@@ -637,6 +655,10 @@ export async function correrJob(nombre, opts) {
       return correrSyncSynopLluvia()
     case 'sync-prefectura-historico':
       return correrSyncPrefecturaHistorico()
+    case 'sync-ana-niveis':
+      return correrSyncAnaNiveis()
+    case 'sync-sgb-niveis':
+      return correrSyncSgbNiveis()
     case 'importar-exposicion-rio-dem':
       return correrImportarExposicionRioDem()
     case 'importar-altimetria-v04':

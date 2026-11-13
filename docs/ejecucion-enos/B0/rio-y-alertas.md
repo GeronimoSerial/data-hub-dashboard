@@ -110,6 +110,15 @@ Campos de cada aviso: `id`, `id_aviso`, `codigo` (OID estilo CAP, p. ej. `urn:oi
 Fixture: `lib/infraestructura/radar-meteo/__fixtures__/inmet/avisos-ativos-2026-11-13.json`
 (respuesta real recortada: `geocodes`/`municipios` limitados a los 46 de AM + 2, `poligono` a 6 vértices, `icone` vacío, `micro/mesorregioes` truncadas a 80 caracteres).
 
+## Husos horarios de las marcas de tiempo (inferido, 13/11/2026)
+
+A las 04:29 UTC (01:29 en Brasília, 00:29 en Manaus) se leyó:
+
+- ANA `DadosHidrometeorologicos`: última marca `00:45`, cota 1 628 cm.
+- SACE CSV: última marca `01:45`, misma cota 1 628 cm; sin fila nueva 15 min antes (rezago).
+
+Una marca de ANA en hora de Manaus (UTC−4) quedaría en el futuro; en Brasília (UTC−3) da un rezago de ≈ 44 min. SACE muestra la misma lectura con una hora de diferencia, coherente con un servidor que etiqueta en UTC−2 (tzdata desactualizado con horario de verano). Por eso los clientes asumen **ANA = UTC−3** y **SACE = UTC−2**, como constantes (`ANA_OFFSET_HORAS`, `SACE_OFFSET_HORAS`) fáciles de corregir. **No confirmado**: debe validarse con varios días de datos (el ciclo diario de nivel es demasiado lento para fijar el huso con una sola muestra). El job descarta como inconsistente toda lectura con marca posterior a «ahora + 15 min».
+
 ## Qué cambiar en el plan y la configuración (a cargo de N1/N2-F)
 
 - `plan-batches-enos.md`, B0.2/B0.3/B0.7: marcar resueltos con este documento. B0.5: «no verificado, no bloquea».
@@ -121,3 +130,13 @@ Fixture: `lib/infraestructura/radar-meteo/__fixtures__/inmet/avisos-ativos-2026-
 - Cadencia real de actualización y desfase ANA/SGB; zona horaria de `DataHora`.
 - Flujo con credenciales de HidroWeb REST (no se necesita mientras el servicio heredado siga abierto).
 - Términos de uso de los tres servicios para consumo programático (B0.6).
+
+## Estado de implementación G2 (B12.2, 13/11/2026)
+
+- Dataset `estacoes-ana`: `scripts/estacoes-ana.mjs` (reproducible; lee `HidroInventario` de ANA y filtra por `bboxPlausible`) genera `data/regiones/manaos/estacoes-ana.json` (75 estaciones). Entrada nueva en `DATASETS_REFERENCIA` (`lib/infraestructura/datasets/catalogo.ts`). Falta la carga con `region:cargar manaos`: requiere `cargaDatasets: [{ "clave": "estacoes-ana", "archivo": "data/regiones/manaos/estacoes-ana.json" }]` en `config/regiones/manaos.json` y quitar `estacoes-ana` de `datasetsPendientes` (a cargo de N1/N2-F).
+- Clientes: `hidrometria/ana/cliente-ana.ts` (XML de ServiceANA) y `hidrometria/sgb/cliente-sace.ts` (CSV de SACE), probados contra los fixtures grabados.
+- Jobs: `sync-ana-niveis` (`12 * * * *`, ventana de 48 h por estación telemétrica) y `sync-sgb-niveis` (`27 * * * *`). Escriben en `hidro_lectura` con `fuente` `ana` / `sgb` mediante `guardarLecturasPrefectura` (opción nueva `fuente`; sin ella rige el default `prefectura`, Corrientes igual que antes). Aplican por `fuentesRio` (`sync-ana-*` requiere `ana`, `sync-sgb-*` requiere `sgb`), sin campo `aplicaA`. Filas en `deploy/regiones/scheduler-jobs.md` («pendiente de crear en Coolify»).
+- Proveedores `ana` y `sgb` en `PuertoNivelRio` (`motor/adaptadores/rio-ana-sgb.ts`), registrados en `jobs/compartido-riesgo.ts`; varias fuentes de una región se combinan (`combinarProveedoresRio`: gana la evidencia, luego el primer «sin dato»). Con el registro genérico sin `combinar`, varios proveedores siguen lanzando el error de antes.
+- Umbrales (decisión técnica, a confirmar con el dueño): Manaus alerta = 27,00 m y `evacuacion` = 29,00 m (inundación severa de SACE); la cota de «inundación» de 27,50 m de SACE queda sin uso. Otras estaciones no tienen umbrales: devuelven «sin dato».
+- **Limitación consciente:** un colegio sólo recibe evidencia de río si tiene `distanciaKm` al río ≤ 1 km (`infra_geo_rio`) y una estación a ≤ 60 km. Mientras Manaos no tenga datos de ribera (B12.4/B14), el motor no recibe exposición de río: no se inventó ninguna. Los niveles sí se sincronizan y alimentan frescura y volumen en el Centro de Situación.
+- `periodo_horas` es entera: las lecturas de 15 min lo guardan en `null`.

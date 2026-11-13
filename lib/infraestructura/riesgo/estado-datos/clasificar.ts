@@ -59,6 +59,8 @@ const NOMBRE_JOB: Record<string, { nombre: string; grupo: GrupoDato }> = {
   'veredicto-cierre': { nombre: 'Cierre del veredicto', grupo: 'riesgo' },
   'sync-prefectura-alturas': { nombre: 'Alturas de Prefectura', grupo: 'hidrometria' },
   'sync-prefectura-historico': { nombre: 'Histórico de Prefectura', grupo: 'hidrometria' },
+  'sync-ana-niveis': { nombre: 'Niveles del río (ANA)', grupo: 'hidrometria' },
+  'sync-sgb-niveis': { nombre: 'Niveles del río (SGB)', grupo: 'hidrometria' },
   'sync-pronostico-caudal': { nombre: 'Pronóstico de caudal', grupo: 'hidrometria' },
   'sync-imerg': { nombre: 'Lluvia observada IMERG', grupo: 'lluvia' },
   'sync-synop-lluvia': { nombre: 'Lluvia SYNOP', grupo: 'lluvia' },
