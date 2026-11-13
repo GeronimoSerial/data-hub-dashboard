@@ -6,6 +6,11 @@ import { pt } from './pt'
 // pt leaves that are identical to es on purpose: Portuguese cognates, codes and
 // proper nouns. Keyed by path, so a Spanish sentence copied into another slot still fails.
 const IGUALES_PERMITIDOS = new Set<string>([
+  'pt.residuos.veredicto.temporal.observado',
+  'pt.residuos.veredicto.tipoDia.observado',
+  'pt.residuos.veredicto.niveles.alerta',
+  'pt.residuos.veredicto.niveles.severo',
+  'pt.residuos.veredicto.acciones.pdf',
   'pt.didactica.legend.enrollment2023',
   'pt.didactica.legend.enrollment2026',
   'pt.didactica.popup.enrollmentSection',
