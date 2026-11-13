@@ -2246,3 +2246,27 @@ export const bookletAssignmentConflict = pgTable('booklet_assignment_conflict', 
   check('booklet_assignment_conflict_cue_check', sql`${t.cueAnexo} ~ '^[0-9]{9}$'`),
   check('booklet_assignment_conflict_rows_check', sql`jsonb_array_length(${t.rows}) > 1`),
 ])
+
+export const auditoriaEvento = pgTable('auditoria_evento', {
+  id: text('id').primaryKey(),
+  requestId: text('request_id').notNull(),
+  ocurridoEn: timestamp('ocurrido_en', { withTimezone: true }).notNull(),
+  actorTipo: text('actor_tipo').notNull(),
+  actorId: text('actor_id'),
+  actorRol: text('actor_rol'),
+  viaAcceso: text('via_acceso').notNull(),
+  accion: text('accion').notNull(),
+  metodo: text('metodo').notNull(),
+  rutaPlantilla: text('ruta_plantilla').notNull(),
+  objetoTipo: text('objeto_tipo'),
+  objetoId: text('objeto_id'),
+  cueAnexo: text('cue_anexo'),
+  resultado: text('resultado').notNull(),
+  httpStatus: integer('http_status'),
+  duracionMs: integer('duracion_ms').notNull(),
+  metadatos: jsonb('metadatos').$type<Record<string, unknown>>().notNull().default({}),
+}, (t) => [
+  index('auditoria_evento_fecha_idx').on(t.ocurridoEn, t.id),
+  index('auditoria_evento_actor_fecha_idx').on(t.actorId, t.ocurridoEn, t.id),
+  check('auditoria_evento_metadatos_limite', sql`octet_length(${t.metadatos}::text) <= 4096`),
+])
