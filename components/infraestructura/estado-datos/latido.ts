@@ -31,12 +31,16 @@ export function construirLatido(params: {
   const ahoraMs = Date.parse(params.ahora)
   const desdeMs = ahoraMs - VENTANA_LATIDO_HORAS * HORA_MS
   const ventanaMs = ahoraMs - desdeMs
-  const corridas: CorridaLatido[] = params.corridas ?? (params.ultimoExitoEn ? [{ en: params.ultimoExitoEn, ok: true }] : [])
-
-  const enVentana = corridas
-    .map((c) => ({ ...c, ms: Date.parse(c.en) }))
-    .filter((c) => Number.isFinite(c.ms) && c.ms >= desdeMs && c.ms <= ahoraMs)
-    .sort((a, b) => a.ms - b.ms)
+  const enRango = (lista: CorridaLatido[]) =>
+    lista
+      .map((c) => ({ ...c, ms: Date.parse(c.en) }))
+      .filter((c) => Number.isFinite(c.ms) && c.ms >= desdeMs && c.ms <= ahoraMs)
+      .sort((a, b) => a.ms - b.ms)
+  let enVentana = enRango(params.corridas ?? [])
+  // Sin historial en la ventana, el único dato es el último éxito: un solo
+  // latido, y la etiqueta sale de su frescura (no hay huecos que medir).
+  const soloUltimoExito = enVentana.length === 0 && params.ultimoExitoEn !== null
+  if (soloUltimoExito) enVentana = enRango([{ en: params.ultimoExitoEn as string, ok: true }])
 
   const marcas = enVentana.map((c) => ({ pos: (c.ms - desdeMs) / ventanaMs, tipo: c.ok ? ('latido' as const) : ('falla' as const) }))
   const latidosMs = enVentana.filter((c) => c.ok).map((c) => c.ms)
@@ -51,7 +55,7 @@ export function construirLatido(params: {
       : { clave: 'nunca' }
   } else {
     const tolerancia = 2 * (params.intervaloMinutos ?? 24 * 60) * 60_000
-    const puntos = [desdeMs, ...latidosMs, ahoraMs]
+    const puntos = soloUltimoExito ? [latidosMs[0]!, ahoraMs] : [desdeMs, ...latidosMs, ahoraMs]
     const hayHueco = puntos.some((p, i) => i > 0 && p - puntos[i - 1]! > tolerancia)
     etiqueta = hayHueco ? { clave: 'intermitente' } : { clave: 'viva' }
   }
