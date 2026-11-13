@@ -34,7 +34,7 @@ const IDS_CORRIENTES = [
   'sync-ina-pronostico',
 ]
 
-// Manaos: sin prefectura ni ina (fuentesRio), fuentesAlertas inmet, sin synop ni capa DEM de Corrientes.
+// Manaos: sin prefectura ni ina (fuentesRio), fuentesAlertas inmet, sin synop, con capa DEM exposicion-rio-dem (FABDEM).
 const IDS_MANAOS = [
   'sync-radar-meteo',
   'sync-radar-ensemble',
@@ -53,6 +53,7 @@ const IDS_MANAOS = [
   'sync-seasonal',
   'veredicto-diario',
   'veredicto-cierre',
+  'importar-exposicion-rio-dem',
   'importar-altimetria-v04',
   'sync-ana-niveis',
   'sync-sgb-niveis',
@@ -64,15 +65,15 @@ describe('lista esperada por región: reglas de Motor v0.4 (smn, synop, capa DEM
     expect(nombres).toEqual(IDS_CORRIENTES)
   })
 
-  it('Manaos real excluye sync-smn-alertas, sync-synop-lluvia e importar-exposicion-rio-dem', () => {
+  it('Manaos real excluye sync-smn-alertas y sync-synop-lluvia, e incluye importar-exposicion-rio-dem', () => {
     const nombres = jobsEsperadosParaRegion(manaos, 'productor').map((job) => job.nombre)
     expect(nombres).toEqual(IDS_MANAOS)
   })
 
-  it('aplicaJobARegion: los tres jobs no aplican a Manaos', () => {
+  it('aplicaJobARegion: sync-smn-alertas y sync-synop-lluvia no aplican a Manaos; importar-exposicion-rio-dem sí', () => {
     expect(aplicaJobARegion('sync-smn-alertas', manaos)).toBe(false)
     expect(aplicaJobARegion('sync-synop-lluvia', manaos)).toBe(false)
-    expect(aplicaJobARegion('importar-exposicion-rio-dem', manaos)).toBe(false)
+    expect(aplicaJobARegion('importar-exposicion-rio-dem', manaos)).toBe(true)
   })
 
   it('sync-smn-alertas aplica sólo si fuentesAlertas incluye smn', () => {
