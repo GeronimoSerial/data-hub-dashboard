@@ -293,7 +293,7 @@ describe('columna Quién, filtro Resultado y columna Fecha', () => {
     const { container } = renderVisor()
     expect(await screen.findByText('Guardado de parte')).toBeInTheDocument()
     const celdaFecha = container.querySelector('td[data-label="Fecha"]')
-    expect(celdaFecha).toHaveStyle({ whiteSpace: 'nowrap' })
+    expect(celdaFecha).toHaveClass('auditoria-fecha')
     expect(celdaFecha?.querySelector('time')).not.toBeNull()
   })
 })
