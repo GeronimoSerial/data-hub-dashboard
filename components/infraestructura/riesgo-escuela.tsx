@@ -10,6 +10,7 @@ import {
 import { colorRiesgo, etiquetaHorizonteMotor, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import type { PresentacionCrecida } from '@/lib/infraestructura/riesgo/presentacion-crecida'
 import { ReferenciaCrecida } from './referencia-crecida'
+import { AtribucionDemCompacta } from './atribucion-dem-compacta'
 import { useTextos } from '@/lib/i18n/idioma-provider'
 
 type Planificacion = { etiquetaVista: string; etiquetaNivel: string }[]
@@ -97,6 +98,7 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
           </dl>
         </div>
       )}
+      {estado.fase === 'listo' && <AtribucionDemCompacta />}
     </section>
   )
 }
