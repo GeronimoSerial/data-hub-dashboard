@@ -39,6 +39,7 @@ const NOMBRES_VALIDOS = [
   'sync-radar-meteo',
   'verificar-radar-meteo',
   'sync-smn-alertas',
+  'sync-inmet-alertas',
   'sync-radar-ensemble',
   'sync-ensemble',
   'sync-imerg',
@@ -107,6 +108,7 @@ export function aplicaJobARegionDespacho(nombre, region) {
   if (nombre.startsWith('sync-ana-')) return region.fuentesRio.includes('ana')
   if (nombre.startsWith('sync-sgb-')) return region.fuentesRio.includes('sgb')
   if (nombre === 'sync-smn-alertas') return (region.fuentesAlertas ?? []).includes('smn')
+  if (nombre === 'sync-inmet-alertas') return (region.fuentesAlertas ?? []).includes('inmet')
   if (nombre === 'sync-synop-lluvia') return (region.fuentesLluvia ?? []).includes('synop')
   if (nombre === 'importar-exposicion-rio-dem') return (region.capasEstaticas ?? []).includes('exposicion-rio-dem')
   return true
@@ -381,6 +383,12 @@ async function correrSyncSmnAlertas() {
   return syncSmnAlertas()
 }
 
+async function correrSyncInmetAlertas() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-inmet-alertas')
+  const { syncInmetAlertas } = await import('../lib/infraestructura/radar-meteo/inmet-alertas.ts')
+  return syncInmetAlertas()
+}
+
 // El job gestiona su propio lease por hora UTC y devuelve un resultado en lugar
 // de lanzar en fallas controladas: codigoSalida traduce `fallido` a exit 1.
 async function correrSyncPrefecturaAlturas() {
@@ -621,6 +629,8 @@ export async function correrJob(nombre, opts) {
       return correrVerificarRadarMeteo(opts)
     case 'sync-smn-alertas':
       return correrSyncSmnAlertas()
+    case 'sync-inmet-alertas':
+      return correrSyncInmetAlertas()
     case 'sync-radar-ensemble':
       return correrSyncRadarEnsemble(opts)
     case 'sync-ensemble':

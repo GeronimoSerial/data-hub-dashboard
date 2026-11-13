@@ -48,6 +48,8 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
   { nombre: 'sync-radar-meteo', tipo: 'sync-radar-meteo', intervaloMinutos: 360, habilitado: true },
   { nombre: 'sync-radar-ensemble', tipo: 'sync-radar-ensemble', intervaloMinutos: 360, habilitado: true },
   { nombre: 'sync-smn-alertas', tipo: 'sync-smn-alertas', intervaloMinutos: 15, habilitado: true },
+  // Coolify `9-59/15 * * * *`.
+  { nombre: 'sync-inmet-alertas', tipo: 'sync-inmet-alertas', intervaloMinutos: 15, habilitado: true },
   // verificar-radar-meteo no llama a adquirirLease: no escribe infra_job_run.
   { nombre: 'verificar-radar-meteo', tipo: null, intervaloMinutos: 1440, habilitado: true },
   // Coolify `*/30 * * * *`.
@@ -171,7 +173,8 @@ export function jobsEsperadosParaRol(rol: RolEntorno): readonly JobEsperado[] {
 // Aplicabilidad por región (B9.5). Un job sin regla aplica a todas las regiones.
 // La regla depende de los datos que declara la región, no de su id: sync-prefectura-*
 // requiere 'prefectura' en fuentesRio, sync-ina-* requiere 'ina', sync-smn-alertas
-// requiere 'smn' en fuentesAlertas, sync-synop-lluvia requiere 'synop' en fuentesLluvia,
+// requiere 'smn' en fuentesAlertas, sync-inmet-alertas requiere 'inmet' en fuentesAlertas,
+// sync-synop-lluvia requiere 'synop' en fuentesLluvia,
 // e importar-exposicion-rio-dem requiere 'exposicion-rio-dem' en capasEstaticas.
 // sync-ana-* requiere 'ana' en fuentesRio y sync-sgb-* requiere 'sgb' en fuentesRio.
 // Se deriva del nombre del job y no de un campo por job para no alterar la forma de
@@ -184,6 +187,7 @@ export function aplicaJobARegion(nombre: string, region: RegionAplicable): boole
   if (nombre.startsWith('sync-ana-')) return region.fuentesRio.includes('ana')
   if (nombre.startsWith('sync-sgb-')) return region.fuentesRio.includes('sgb')
   if (nombre === 'sync-smn-alertas') return (region.fuentesAlertas ?? []).includes('smn')
+  if (nombre === 'sync-inmet-alertas') return (region.fuentesAlertas ?? []).includes('inmet')
   if (nombre === 'sync-synop-lluvia') return (region.fuentesLluvia ?? []).includes('synop')
   if (nombre === 'importar-exposicion-rio-dem') return (region.capasEstaticas ?? []).includes('exposicion-rio-dem')
   return true
