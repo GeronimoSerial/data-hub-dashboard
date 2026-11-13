@@ -89,12 +89,12 @@ B1 ─► B2 ─┬─► B3a ─┐                                            
 | Subtarea | Acción | Entregable |
 |---|---|---|
 | B0.1 | Descargar el Catálogo de Escolas del INEP para Manaos y municipios ribereños; medir % con coordenadas utilizables | Planilla con conteo por municipio |
-| B0.2 | Listar estaciones ANA (SNIRH/HidroWeb) en ríos Negro y Solimões con series disponibles | Lista de estaciones con id, coordenadas y período |
-| B0.3 | Confirmar sistema y acceso a niveles del puerto de Manaos del Servicio Geológico de Brasil | Endpoint o contacto confirmado |
+| B0.2 | Listar estaciones ANA (SNIRH/HidroWeb) en ríos Negro y Solimões con series disponibles | Lista de estaciones con id, coordenadas y período. **Resuelto (13/11/2026):** 75 estaciones en `data/regiones/manaos/estacoes-ana.json`; detalle en `docs/ejecucion-enos/B0/rio-y-alertas.md` |
+| B0.3 | Confirmar sistema y acceso a niveles del puerto de Manaos del Servicio Geológico de Brasil | Endpoint o contacto confirmado. **Resuelto (13/11/2026):** CSV de SACE para `sgb`; ver `rio-y-alertas.md` |
 | B0.4 | Confirmar licencia de FABDEM para uso gubernamental | Licencia documentada |
-| B0.5 | Verificar cobertura de estaciones virtuales (Hydroweb, SWOT) en la zona | Lista de estaciones virtuales |
+| B0.5 | Verificar cobertura de estaciones virtuales (Hydroweb, SWOT) en la zona | Lista de estaciones virtuales. **No verificado, no bloquea** (13/11/2026) |
 | B0.6 | Contactar SEDUC-AM y SEMED: padrón de escuelas ribereñas, transporte fluvial, alojamiento de datos (LGPD) | Minuta de reunión |
-| B0.7 | Verificar si INMET publica alertas en formato CAP | Endpoint confirmado o descartado |
+| B0.7 | Verificar si INMET publica alertas en formato CAP | Endpoint confirmado o descartado. **Resuelto (13/11/2026):** CAP descartado; la fuente es el JSON `avisos/ativos` (API no documentada) |
 
 **CA:**
 - CA1: al menos un padrón de escuelas con coordenadas para ≥ 80% de las escuelas del área piloto.
@@ -391,9 +391,9 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 | Subtarea | Acción |
 |---|---|
 | B12.1 | Datasets de Manaos: padrón INEP, municipios IBGE, estaciones ANA; carga con `region:cargar manaos` |
-| B12.2 | Adaptador ANA/SGB al puerto `PuertoNivelRio` y su job de sincronización (aplicable a Manaos por `fuentesRio`, sin campo `aplicaA`). Hasta este batch, `ana` y `sgb` lanzan `proveedor de río no implementado` (ver B9, desviación b) |
-| B12.3 | Adaptador de alertas INMET (CAP si B0.7 lo confirma) |
-| B12.4 | Perfil territorial con FABDEM en lugar de Copernicus DEM para la región |
+| B12.2 | **Hecho en dev (PR #295).** Adaptador ANA/SGB al puerto `PuertoNivelRio` y su job de sincronización (aplicable a Manaos por `fuentesRio`, sin campo `aplicaA`). Hasta este batch, `ana` y `sgb` lanzan `proveedor de río no implementado` (ver B9, desviación b) |
+| B12.3 | **Hecho en dev (PR #307).** Adaptador de alertas INMET sobre el JSON `avisos/ativos` (no CAP: B0.7 lo descartó) y job `sync-inmet-alertas` |
+| B12.4 | **Hecho en dev (PR #306 y su seguimiento).** Perfil territorial con FABDEM en lugar de Copernicus DEM para la región (`fuenteDem`), con atribución en el panel de riesgo de escuela y en Metodología |
 | B12.5 | Seed e2e de Manaos, manifiesto de esperados y snapshots propios; correr la suite e2e con `REGION=manaos` |
 
 **CA:**
@@ -408,7 +408,16 @@ Orden: B8.1 → (B8.2, B8.6, B8.7, B8.8 en paralelo) → B8.3, B8.4, B8.5 → B8
 - Resultado y límite: 1.765 escuelas en actividad en los 12 municipios del área, 126 con coordenadas confiables (7 %) y 1.639 con coordenadas nulas. Ninguna fuente abierta trae coordenadas con código INEP, y el dueño decidió que ninguna escuela quede mal ubicada. Las escuelas sin coordenadas se cuentan en los totales del municipio y no se dibujan. **CA1 de B12 sigue abierto** hasta que la SEDUC-AM o la SEMED entregue un archivo con código INEP y coordenadas (B0.6): el script lo acepta con `--seduc` y le da precedencia.
 - FABDEM (B0.4): el dueño aprobó su uso no comercial (13/11/2026) con atribución obligatoria y compartir igual para derivados redistribuidos; B12.4 queda desbloqueado en lo legal, y Copernicus GLO-30 sigue como modelo por defecto.
 - `region:cargar` se ejecuta desde una copia del repositorio con acceso a la base: la imagen no incluye `data/`.
-- Abierto, fuera de este batch: la card de recursos "ENOS Corrientes" se siembra también en la base de Manaos (`lib/infraestructura/recurso-seed.ts`) y aparece en el pie del Centro de Situación de Manaos.
+- Resuelto en F4 (PR #308): la card de recursos del mapa y el enlace del pie ya usan el nombre de la región; Corrientes queda idéntico. Las cards de natalidad y reorganización de `lib/db/seed.ts` y la etiqueta del migas de `components/admin/shared.tsx` conservan texto de Corrientes y no se tocaron.
+
+**Estado de B12.2 a B12.4 y pendientes del dueño (13/11/2026):**
+
+- B12.2, B12.3 y B12.4 están en dev (PR #295, #307 y #306 con su seguimiento). El detalle técnico está en `docs/ejecucion-enos/B0/rio-y-alertas.md`.
+- Abierto, a confirmar con el dueño: umbrales de Manaus de 27 m (alerta) y 29 m (`evacuacion`), y los husos horarios inferidos de ANA, SACE e INMET.
+- Abierto: licencias de ANA, SACE e IBGE sin confirmar.
+- Abierto, decisión de producto: cómo entran los avisos de INMET en el veredicto.
+- Abierto, operación: crear en Coolify las tareas `sync-ana-niveis`, `sync-sgb-niveis` y `sync-inmet-alertas`.
+- Abierto: CA1 de B12 en 7 % de escuelas ubicadas, a la espera del archivo de SEDUC-AM o SEMED.
 
 ## B13 — Bajante y horizonte estacional
 
