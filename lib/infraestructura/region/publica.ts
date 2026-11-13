@@ -36,3 +36,9 @@ export function __reiniciarRegionPublicaClienteParaPruebas(): void {
   publicaCliente = undefined
   marcaCliente = undefined
 }
+
+// Short jurisdiction label for text such as "Capital, Corrientes": the first jurisdiction
+// line of the brand without its "Provincia de " prefix (Corrientes -> "Corrientes", Manaos -> "Amazonas").
+export function jurisdiccionCorta(): string {
+  return (marcaActual().jurisdiccionLineas[0] ?? '').replace(/^Provincia de /, '')
+}
