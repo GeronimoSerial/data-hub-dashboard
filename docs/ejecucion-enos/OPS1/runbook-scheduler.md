@@ -428,6 +428,8 @@ en consumidores después de migrar.
   `2` invocación inválida o job que no aplica.
 - Tareas por región (Corrientes y Manaos): [deploy/regiones/scheduler-jobs.md](../../../deploy/regiones/scheduler-jobs.md).
   Manaos no programa `sync-prefectura-alturas`, `sync-prefectura-historico`,
-  `sync-ina-serie-diaria`, `sync-ina-pronostico`, `sync-smn-alertas`, `sync-synop-lluvia`
-  ni `importar-exposicion-rio-dem`.
+  `sync-ina-serie-diaria`, `sync-ina-pronostico`, `sync-smn-alertas` ni `sync-synop-lluvia`.
+  Sí programa `importar-exposicion-rio-dem` (capa FABDEM), que necesita los archivos DEM de
+  Manaos generados con `descargar_fuentes_inundacion --region manaos` y
+  `calcular_exposicion_rio_dem --region manaos`.
 - Alta de una región nueva: [runbook-nueva-region.md](runbook-nueva-region.md).
