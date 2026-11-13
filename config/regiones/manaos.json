@@ -21,11 +21,11 @@
     "estacionesRio": "estacoes-ana",
     "localizaciones": "localizaciones"
   },
-  "datasetsPendientes": ["estacoes-ana"],
   "cargaDatasets": [
     { "clave": "localizaciones", "archivo": "data/regiones/manaos/localizaciones.json" },
     { "clave": "departamentos", "archivo": "data/regiones/manaos/departamentos.json" },
-    { "clave": "mascara", "archivo": "data/regiones/manaos/mascara.json" }
+    { "clave": "mascara", "archivo": "data/regiones/manaos/mascara.json" },
+    { "clave": "estacoes-ana", "archivo": "data/regiones/manaos/estacoes-ana.json" }
   ],
   "fuentesRio": ["ana", "sgb"],
   "fuentesAlertas": ["inmet"],

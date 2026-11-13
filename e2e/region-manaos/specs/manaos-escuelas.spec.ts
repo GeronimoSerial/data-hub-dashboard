@@ -35,7 +35,7 @@ test('(1) the Manaos database starts without schools', async ({ browser, baseURL
   })
 })
 
-test('(2) region:cargar publishes the Manaos datasets and repeating it creates no new version', () => {
+test('(2) region:cargar publishes the Manaos datasets (schools, municipalities, mask, river stations) and repeating it creates no new version', () => {
   const url = process.env.REGION_PROOF_MANAOS_DATABASE_URL
   expect(url, 'REGION_PROOF_MANAOS_DATABASE_URL is set by run.mjs').toBeTruthy()
   const cargar = () => spawnSync(process.execPath, ['scripts/region-cargar.mjs', 'manaos'], {
@@ -47,7 +47,7 @@ test('(2) region:cargar publishes the Manaos datasets and repeating it creates n
   const primera = cargar()
   expect(primera.status, primera.stderr).toBe(0)
   const lineas = primera.stdout.trim().split('\n')
-  expect(lineas.map((l) => l.replace(/ version [0-9a-f]{64}$/, ''))).toEqual(['dataset localizaciones:', 'dataset departamentos:', 'dataset mascara:'])
+  expect(lineas.map((l) => l.replace(/ version [0-9a-f]{64}$/, ''))).toEqual(['dataset localizaciones:', 'dataset departamentos:', 'dataset mascara:', 'dataset estacoes-ana:'])
   expect(cargar().stdout).toBe(primera.stdout)
 })
 

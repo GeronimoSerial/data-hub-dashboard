@@ -77,7 +77,7 @@ Common to both modes:
 ## What it proves
 
 - `manaos-escuelas.spec.ts` (standalone mode): the database starts without schools; `region:cargar manaos` publishes
-  `localizaciones`, `departamentos` and `mascara` and a second run repeats the same versions; the school API lists
+  `localizaciones`, `departamentos`, `mascara` and `estacoes-ana` and a second run repeats the same versions; the school API lists
   every school (`totalPadron`), draws only those with coordinates and puts the rest in `sinUbicacion`; the totals count
   the schools without coordinates in their municipality; the municipality layer has 12 features; the map draws and the
   statistics table shows the drawn schools of Manaus; the Situation Center still reports the missing river data.
