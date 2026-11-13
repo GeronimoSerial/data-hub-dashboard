@@ -78,10 +78,10 @@ describe('PanelEstadoDatos', () => {
     expect(screen.getByText('Desactualizado')).toBeInTheDocument()
   })
 
-  it('agrupa por área con encabezados', () => {
+  it('lista sólo las fuentes con problema y deja el resto tras "Ver todas las fuentes"', () => {
     render(<PanelEstadoDatos estado={CON_FALLA} />)
-    expect(screen.getByRole('heading', { name: 'Climatologías' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Hidrometría' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Fuentes con problemas' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver todas las fuentes' })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('pausa operativa: abierto, con problema y sin "Todos los datos al día"', () => {
