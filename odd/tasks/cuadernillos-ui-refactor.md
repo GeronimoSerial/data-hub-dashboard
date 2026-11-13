@@ -19,3 +19,4 @@ Objective: rework the three cuadernillos screens (planning, cabecera, supervisor
 ## Log
 - L1: "ok voy a necesitar que te enfoques a mejorar la ui, se ve pesimo, listas, kpis, cards, drawers en vez de modals, etc. Un desastre, voy a necesitar un refactor completo para mejorar muchisimo la experiencia de usuario, analiza cada pantalla vos mismo y encargate de mejorarlo vos mismo según corresponda para que cada uno de los users tenga una experiencia sencilla y fluida"
 - L2 (2026-11-13): user said planning shows "no hay campañas activas" and cabecera "me permite buscar la escuela pero no realizar una solicitud ... ni x stock"; and "dice disponible 0, cuando deberia tener un seed". Catalog, campaign and demo stock/quota already loaded in staging (#293/#294).
+- L3 (2026-11-13): "podes reemplazar los drawers por modals?" Overlays are centered modals now (Drawer renamed Modal in the kit); the earlier "drawers en vez de modals" spec is superseded.

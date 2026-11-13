@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import type { BookletBalanceView, EnrollmentRecommendation } from '@/lib/cuadernillos/types'
-import { DrawerBody, DrawerFoot, EmptyState, Note, Stepper } from '../kit'
+import { ModalBody, ModalFoot, EmptyState, Note, Stepper } from '../kit'
 import { ERROR_LABELS, errorCode, isRecommendationList, readJson, scopedQuery, type CriticalSchool } from './cabecera-api'
 
 export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, onSaved, top }: {
@@ -77,8 +77,8 @@ export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, onSa
   const busy = submitting !== null
   const canWrite = !busy && applicableProducts.length > 0 && Boolean(campaignId)
 
-  if (loadError) return <DrawerBody>{top}<Note tone="danger">{loadError}</Note></DrawerBody>
-  if (!recommendations) return <DrawerBody>{top}<p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Calculando recomendación…</p></DrawerBody>
+  if (loadError) return <ModalBody>{top}<Note tone="danger">{loadError}</Note></ModalBody>
+  if (!recommendations) return <ModalBody>{top}<p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Calculando recomendación…</p></ModalBody>
 
   const totalUnits = applicableProducts.reduce((sum, { row, balance }) => {
     const quantity = quantities[row.productId] ?? 0
@@ -88,7 +88,7 @@ export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, onSa
 
   return (
     <>
-      <DrawerBody>
+      <ModalBody>
         {top}
         {applicableProducts.length === 0 ? (
           <EmptyState title="Sin cupo para esta cabecera" description="Planeamiento todavía no asignó cupo de cuadernillos a esta cabecera." />
@@ -121,15 +121,15 @@ export function QuantitiesForm({ school, campaignId, cabeceraCue, balances, onSa
           </>
         )}
         {formError ? <Note tone="danger">{formError}</Note> : null}
-      </DrawerBody>
-      <DrawerFoot>
+      </ModalBody>
+      <ModalFoot>
         <Button type="button" variant="secondary" disabled={!canWrite} onClick={() => void save(false)}>
           {submitting === 'draft' ? 'Guardando…' : 'Guardar borrador'}
         </Button>
         <Button type="button" variant="default" disabled={!canWrite} onClick={() => void save(true)}>
           {submitting === 'submit' ? 'Enviando…' : 'Enviar pedido'}
         </Button>
-      </DrawerFoot>
+      </ModalFoot>
     </>
   )
 }
