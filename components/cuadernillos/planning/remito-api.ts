@@ -1,7 +1,10 @@
 export type ProductOption = { productId: string; productLabel: string; available: number }
 
+export type RemitoSigner = { userId: string; name: string }
+
 export type RemitoItemRow = {
   productId: string
+  productName?: string
   dispatchedQuantity: number
   cabeceraReceivedQuantity: number | null
   schoolReceivedQuantity: number | null
@@ -11,6 +14,10 @@ export type RemitoLineRow = {
   recipientCueAnexo: string
   recipientName: string | null
   status: 'in_transit' | 'at_cabecera' | 'received' | 'closed_empty'
+  cabeceraShortfallReason?: string | null
+  schoolShortfallReason?: string | null
+  schoolReceivedBy?: RemitoSigner | null
+  schoolReceivedAt?: string | null
   items: RemitoItemRow[]
 }
 
@@ -21,6 +28,7 @@ export type RemitoSummary = {
   status: 'dispatched' | 'received'
   dispatchedAt: string
   cabeceraReceivedAt: string | null
+  cabeceraReceivedBy?: RemitoSigner | null
   lines: RemitoLineRow[]
 }
 

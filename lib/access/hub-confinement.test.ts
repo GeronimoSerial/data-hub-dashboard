@@ -67,6 +67,12 @@ describe('recepción escolar de remitos en el confinamiento', () => {
     }
   })
 
+  it('un CUE en blanco no cuenta como CUE', () => {
+    for (const path of receiptPaths) {
+      expect(confinedPathAllowed(user('operador_establecimiento', { cueAnexo: ' ' }), path)).toBe(false)
+    }
+  })
+
   it('director_nivel y admin_ge siguen sin acceso', () => {
     for (const path of receiptPaths) {
       expect(confinedPathAllowed(user('director_nivel', { nivelJurIds: [1] }), path)).toBe(false)

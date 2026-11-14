@@ -198,7 +198,7 @@ describe('listRemitosForPlanning', () => {
   it('pages newest first and returns a cursor only when more rows exist', async () => {
     const rows = ['r3', 'r2', 'r1'].map((id, index) => ({
       remitoId: id, campaignId: 'campaign-1', cabeceraCueAnexo: '180000100', status: 'dispatched' as const,
-      dispatchedByUserId: 'planner-1', dispatchedAt: new Date(Date.UTC(2026, 10, 14, 12 - index)), cabeceraReceivedAt: null, lines: [],
+      dispatchedByUserId: 'planner-1', dispatchedAt: new Date(Date.UTC(2026, 10, 14, 12 - index)), cabeceraReceivedAt: null, cabeceraReceivedBy: null, lines: [],
     }))
     const seen: unknown[] = []
     const paged: RemitoRepository = { ...repository, async listRemitos(query) { seen.push(query); return rows.slice(0, query.limit) } }
@@ -269,9 +269,24 @@ describe('dispatchRemito against PGlite', () => {
       expect(page.remitos).toHaveLength(1)
       expect(page.remitos[0]).toMatchObject({ remitoId: result.remitoId, status: 'dispatched', cabeceraCueAnexo: '180000100' })
       expect(page.remitos[0].lines.map((l) => ({ cue: l.recipientCueAnexo, status: l.status, items: l.items }))).toEqual([
-        { cue: '180000200', status: 'in_transit', items: [{ productId: 'product-1', dispatchedQuantity: 30, cabeceraReceivedQuantity: null, schoolReceivedQuantity: null }] },
-        { cue: '180000300', status: 'in_transit', items: [{ productId: 'product-1', dispatchedQuantity: 18, cabeceraReceivedQuantity: null, schoolReceivedQuantity: null }] },
+        { cue: '180000200', status: 'in_transit', items: [{ productId: 'product-1', productName: 'Primero', dispatchedQuantity: 30, cabeceraReceivedQuantity: null, schoolReceivedQuantity: null }] },
+        { cue: '180000300', status: 'in_transit', items: [{ productId: 'product-1', productName: 'Primero', dispatchedQuantity: 18, cabeceraReceivedQuantity: null, schoolReceivedQuantity: null }] },
       ])
+
+      await client.exec(`
+        UPDATE booklet_remito SET status = 'received', cabecera_received_by_user_id = 'planner-1', cabecera_received_at = '2026-11-14T15:00:00Z';
+        UPDATE booklet_remito_item SET cabecera_received_quantity = 25, school_received_quantity = 20 WHERE dispatched_quantity = 30;
+        UPDATE booklet_remito_line SET status = 'received', cabecera_shortfall_reason = 'Cajas dañadas', school_shortfall_reason = 'Faltaron cajas',
+          school_received_by_user_id = 'planner-1', school_received_at = '2026-11-14T16:00:00Z' WHERE recipient_cue_anexo = '180000200';
+      `)
+      const signed = await listRemitosForPlanning(planner, { campaignId: 'campaign-1' }, repo)
+      expect(signed.remitos[0].cabeceraReceivedBy).toEqual({ userId: 'planner-1', name: 'Planner' })
+      const [shortLine, openLine] = signed.remitos[0].lines
+      expect(shortLine).toMatchObject({
+        cabeceraShortfallReason: 'Cajas dañadas', schoolShortfallReason: 'Faltaron cajas',
+        schoolReceivedBy: { userId: 'planner-1', name: 'Planner' }, schoolReceivedAt: '2026-11-14T16:00:00.000Z',
+      })
+      expect(openLine).toMatchObject({ cabeceraShortfallReason: null, schoolShortfallReason: null, schoolReceivedBy: null, schoolReceivedAt: null })
     } finally {
       await client.close()
       await rm(scratch, { recursive: true, force: true })

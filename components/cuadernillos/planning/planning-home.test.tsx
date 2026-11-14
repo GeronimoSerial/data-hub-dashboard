@@ -130,6 +130,32 @@ describe('PlanningHome', () => {
     expect(within(screen.getByRole('region', { name: 'Escuela B' })).queryByText(/faltan/)).not.toBeInTheDocument()
   })
 
+  it('shows shortfall reasons, signers and the product name fallback for each leg', async () => {
+    const detailed = {
+      ...remito,
+      cabeceraReceivedBy: { userId: 'u-cab', name: 'Cabecera Norte' },
+      lines: [{
+        recipientCueAnexo: '180123457', recipientName: 'Escuela A', status: 'received',
+        cabeceraShortfallReason: 'Cajas dañadas en el traslado', schoolShortfallReason: 'Faltaron dos cajas',
+        schoolReceivedBy: { userId: 'u-school', name: 'Directora A' }, schoolReceivedAt: '2026-11-12T12:00:00.000Z',
+        items: [{ productId: 'unknown-book', productName: 'Matemática 2°', dispatchedQuantity: 30, cabeceraReceivedQuantity: 25, schoolReceivedQuantity: 20 }],
+      }],
+    }
+    vi.stubGlobal('fetch', routedFetch(overview, [detailed]))
+
+    render(<PlanningHome />)
+    fireEvent.click(await screen.findByRole('button', { name: /Remito a Cabecera Norte/ }))
+
+    const line = await screen.findByRole('region', { name: 'Escuela A' })
+    expect(line).toHaveTextContent('Matemática 2°')
+    expect(line).toHaveTextContent('Planeamiento → Cabecera: faltan 5')
+    expect(line).toHaveTextContent('Cabecera → Escuela: faltan 5')
+    expect(line).toHaveTextContent('Motivo de la diferencia (Planeamiento → Cabecera): Cajas dañadas en el traslado')
+    expect(line).toHaveTextContent('Motivo de la diferencia (Cabecera → Escuela): Faltaron dos cajas')
+    expect(line).toHaveTextContent('Recibido por la escuela: Directora A')
+    expect(screen.getByText(/Recibido por la cabecera: Cabecera Norte/)).toBeInTheDocument()
+  })
+
   it('flags a remito the cabecera has not received yet', async () => {
     vi.stubGlobal('fetch', routedFetch(overview, [{ ...remito, cabeceraReceivedAt: null, lines: [] }]))
 

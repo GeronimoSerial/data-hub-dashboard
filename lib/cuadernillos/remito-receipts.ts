@@ -74,10 +74,20 @@ const iso = (value: Date | string | null): string | null => value === null ? nul
 const forbidden = () => new BookletServiceError('forbidden', 403)
 const isQuantity = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 
-/** The signature must come from the responsible, active, non-banned account. */
-async function assertActiveAccount(tx: Tx, actor: SessionUser): Promise<void> {
-  if (actor.banned) throw forbidden()
+type AccountLock = { banned: boolean | null } | undefined
+
+/**
+ * Global lock order for every receipt transaction: the signer's user row first, then the
+ * remito and its lines. Both signing paths follow it, so they cannot wait on each other in a cycle.
+ */
+async function lockAccount(tx: Tx, actor: SessionUser): Promise<AccountLock> {
   const [account] = await tx.select({ banned: user.banned }).from(user).where(eq(user.id, actor.id)).limit(1).for('update')
+  return account
+}
+
+/** The signature must come from the responsible, active, non-banned account. */
+function assertActiveAccount(actor: SessionUser, account: AccountLock): void {
+  if (actor.banned) throw forbidden()
   if (!account || account.banned === true) throw forbidden()
 }
 
@@ -122,11 +132,12 @@ function checkItems(items: ReceivedItemInput[], expected: Map<string, number>, s
 
 export async function receiveRemitoAtCabecera(actor: SessionUser, remitoId: string, input: CabeceraReceiptInput, db: ReceiptDb = getDb()): Promise<CabeceraReceiptResult> {
   return db.transaction(async (tx) => {
+    const account = await lockAccount(tx, actor)
     const [remito] = await tx.select().from(bookletRemito).where(eq(bookletRemito.id, remitoId)).limit(1).for('update')
     if (!remito) throw new BookletServiceError('remito_not_found', 404)
 
     // Admins cannot sign: only the cabecera account bound to this remito, with an active cabecera capability.
-    await assertActiveAccount(tx, actor)
+    assertActiveAccount(actor, account)
     const [assignment] = await tx.select({ cabeceraUserId: bookletSchoolAssignment.cabeceraUserId, relationship: bookletSchoolAssignment.relationship })
       .from(bookletSchoolAssignment).where(eq(bookletSchoolAssignment.cueAnexo, remito.cabeceraCueAnexo)).limit(1).for('update')
     const [membership] = await tx.select({ id: bookletMembership.id }).from(bookletMembership)
@@ -182,12 +193,13 @@ export async function receiveRemitoAtCabecera(actor: SessionUser, remitoId: stri
 
 export async function receiveRemitoLineAtSchool(actor: SessionUser, lineId: string, input: SchoolReceiptInput, db: ReceiptDb = getDb()): Promise<SchoolReceiptResult> {
   return db.transaction(async (tx) => {
+    const account = await lockAccount(tx, actor)
     const [line] = await tx.select().from(bookletRemitoLine).where(eq(bookletRemitoLine.id, lineId)).limit(1).for('update')
     if (!line) throw new BookletServiceError('line_not_found', 404)
 
     // Schools sign with their GE SSO account, scoped by the session CUE; booklet memberships do not apply.
     if (actor.role !== 'operador_establecimiento') throw forbidden()
-    await assertActiveAccount(tx, actor)
+    assertActiveAccount(actor, account)
     const sessionCue = normalizeCue(actor.cueAnexo ?? '')
     if (!sessionCue || sessionCue.kind !== 'anexo' || sessionCue.value !== toDashedCue(line.recipientCueAnexo)) throw forbidden()
 

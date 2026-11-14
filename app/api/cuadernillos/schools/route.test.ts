@@ -69,6 +69,24 @@ describe('GET /api/cuadernillos/schools', () => {
     expect(searchCriticalConsejoSchools).not.toHaveBeenCalled()
   })
 
+  it('allows planning accounts that lack the cabecera capability', async () => {
+    vi.mocked(hasBookletCapability).mockImplementation(async (_actor, capability) => capability === 'planning')
+
+    const response = await GET(request('cue=18000'))
+
+    expect(response.status).toBe(200)
+    expect(searchCriticalConsejoSchools).toHaveBeenCalledWith('18000')
+  })
+
+  it('still denies accounts holding only the supervisor capability', async () => {
+    vi.mocked(hasBookletCapability).mockImplementation(async (_actor, capability) => capability === 'supervisor')
+
+    const response = await GET(request('cue=18000'))
+
+    expect(response.status).toBe(403)
+    expect(searchCriticalConsejoSchools).not.toHaveBeenCalled()
+  })
+
   it('reports a read failure without leaking details', async () => {
     vi.mocked(searchCriticalConsejoSchools).mockRejectedValue(new Error('db down'))
 
