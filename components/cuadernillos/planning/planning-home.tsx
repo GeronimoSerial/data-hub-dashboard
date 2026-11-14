@@ -2,29 +2,26 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import type { BookletBalanceView, BookletCampaignOption, BookletOverview, BookletRequestSummary } from '@/lib/cuadernillos/types'
-import { isRequestsPage } from '../supervisor/inbox-guards'
-import { Chip, EmptyState, KpiStrip, Meter, Note, PageHeader, Panel, Segmented, formatCount } from '../kit'
-import { QuotaModal, type QuotaChange } from './quota-modal'
+import { Button } from '@/components/ui/button'
+import type { BookletBalanceView, BookletCampaignOption, BookletOverview } from '@/lib/cuadernillos/types'
+import { Chip, EmptyState, KpiStrip, Note, PageHeader, Panel, Segmented, formatCount } from '../kit'
+import { isCabeceraList, isRemitosPage, type RemitoSummary } from './remito-api'
+import { RemitoBuilder } from './remito-builder'
+import { RemitosList } from './remitos-list'
 import { StockModal } from './stock-modal'
 
 const LOAD_ERROR = 'No se pudo cargar el catálogo y los saldos.'
-const REQUESTS_LOAD_ERROR = 'No se pudieron cargar las solicitudes para contar pendientes y aprobadas hoy.'
-// Same endpoint and page size as the supervisor inbox; pages are followed so the counts are not capped at one page.
-const REQUEST_PAGE_SIZE = 50
-const MAX_REQUEST_PAGES = 10
+const REMITOS_LOAD_ERROR = 'No se pudieron cargar los remitos.'
+const REMITOS_PAGE_SIZE = 20
 
 const errorMessages: Record<string, string> = {
   campaign_inactive: 'La campaña ya no está activa.',
   policy_unresolved: 'La campaña no tiene una política de distribución habilitada.',
-  quota_exceeded: 'La cantidad supera el cupo disponible.',
   ineligible: 'La escuela no cumple actualmente el criterio de elegibilidad para enviar la solicitud.',
   forbidden: 'La cuenta no tiene autorización para esta operación.',
   product_not_found: 'El producto ya no está disponible en el catálogo.',
   initial_stock_exists: 'Ese cuadernillo ya tiene stock inicial: registrá una reposición.',
   initial_stock_missing: 'Ese cuadernillo todavía no tiene stock inicial.',
-  quota_exceeds_stock: 'El cupo supera el stock que queda sin asignar.',
   invalid_quantity: 'Ingresá una cantidad entera válida.',
   idempotency_conflict: 'La clave de reintento quedó asociada a otra solicitud. Volvé a cargar la pantalla.',
 }
@@ -49,10 +46,6 @@ function isBalance(value: unknown): value is BookletBalanceView {
   const row = value as Record<string, unknown>
   return typeof row.productId === 'string' && typeof row.productLabel === 'string'
     && (Number.isSafeInteger(row.globalAvailable) || row.globalAvailable === null)
-    && (Number.isSafeInteger(row.quotaAssigned) || row.quotaAssigned === null)
-    && (Number.isSafeInteger(row.quotaAvailable) || row.quotaAvailable === null)
-    && (typeof row.cabeceraCueAnexo === 'string' || row.cabeceraCueAnexo === null)
-    && (typeof row.cabeceraName === 'string' || row.cabeceraName === null)
 }
 
 function isOverview(value: unknown): value is BookletOverview {
@@ -62,14 +55,6 @@ function isOverview(value: unknown): value is BookletOverview {
     && (row.campaignId === null || typeof row.campaignId === 'string')
     && Array.isArray(row.campaignOptions) && row.campaignOptions.every(isCampaign)
     && Array.isArray(row.balances) && row.balances.every(isBalance)
-    && Array.isArray(row.requests)
-    && (row.eligibility === null || typeof row.eligibility === 'object')
-    && typeof row.hasMore === 'boolean'
-    && (row.nextCursor === null || typeof row.nextCursor === 'string')
-}
-
-function asText(value: unknown) {
-  return typeof value === 'string' ? value : ''
 }
 
 async function readJson(response: Response) {
@@ -80,39 +65,42 @@ function actionEnabled(campaign: BookletCampaignOption | undefined) {
   return Boolean(campaign?.distributionEnabled && campaign.overassignmentAllowed === false)
 }
 
-function isToday(iso: string) {
-  return new Date(iso).toDateString() === new Date().toDateString()
-}
-
 export function PlanningHome() {
   const [overview, setOverview] = useState<BookletOverview | null>(null)
   const [selectedCampaign, setSelectedCampaign] = useState('')
-  const [requests, setRequests] = useState<BookletRequestSummary[]>([])
+  const [remitos, setRemitos] = useState<RemitoSummary[]>([])
+  const [remitosCursor, setRemitosCursor] = useState<string | null>(null)
+  const [remitosError, setRemitosError] = useState<string | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [cabeceraNames, setCabeceraNames] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [stockProductId, setStockProductId] = useState<string | null>(null)
-  const [quotaHeadCue, setQuotaHeadCue] = useState<string | null>(null)
+  const [builderOpen, setBuilderOpen] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
-  const [headFilter, setHeadFilter] = useState('')
 
-  const loadRequests = useCallback(async (campaignId: string, signal?: AbortSignal) => {
-    const rows: BookletRequestSummary[] = []
-    let cursor: string | null = null
-    for (let page = 0; page < MAX_REQUEST_PAGES; page += 1) {
-      const query = new URLSearchParams({ campaignId, limit: String(REQUEST_PAGE_SIZE) })
-      if (cursor) query.set('cursor', cursor)
-      const response = await fetch(`/api/cuadernillos/requests?${query}`, { signal, cache: 'no-store' })
-      const data = await readJson(response)
-      if (!response.ok) throw new Error(errorText(data, REQUESTS_LOAD_ERROR))
-      if (!isRequestsPage(data)) throw new Error(REQUESTS_LOAD_ERROR)
-      rows.push(...data.requests)
-      if (!data.hasMore || !data.nextCursor) break
-      cursor = data.nextCursor
-    }
-    return rows
+  const loadRemitos = useCallback(async (campaignId: string, cursor: string | null, signal?: AbortSignal) => {
+    const query = new URLSearchParams({ campaignId, limit: String(REMITOS_PAGE_SIZE) })
+    if (cursor) query.set('cursor', cursor)
+    const response = await fetch(`/api/cuadernillos/remitos?${query}`, { signal, cache: 'no-store' })
+    const data = await readJson(response)
+    if (!response.ok || !isRemitosPage(data)) throw new Error(REMITOS_LOAD_ERROR)
+    return data
   }, [])
+
+  // The remitos read never blocks the stock view: its failure shows next to the list only.
+  const refreshRemitos = useCallback(async (campaignId: string, signal?: AbortSignal) => {
+    try {
+      const page = await loadRemitos(campaignId, null, signal)
+      setRemitos(page.remitos)
+      setRemitosCursor(page.hasMore ? page.nextCursor : null)
+      setRemitosError(null)
+    } catch (reason) {
+      if (!signal?.aborted) setRemitosError(reason instanceof Error ? reason.message : REMITOS_LOAD_ERROR)
+    }
+  }, [loadRemitos])
 
   const loadOverview = useCallback(async (campaignId?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ capability: 'planning' })
@@ -121,65 +109,77 @@ export function PlanningHome() {
     const data = await readJson(response)
     if (!response.ok) throw new Error(errorText(data, LOAD_ERROR))
     if (!isOverview(data) || data.capability !== 'planning') throw new Error('La respuesta del resumen no tiene un formato válido.')
-    // The overview carries no request rows; the counts come from the requests endpoint the supervisor inbox uses.
-    const requestRows = data.campaignId ? await loadRequests(data.campaignId, signal) : []
-    setRequests(requestRows)
     setOverview(data)
     setSelectedCampaign(data.campaignId ?? '')
-  }, [loadRequests])
+    return data.campaignId
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
-    void Promise.resolve().then(() => loadOverview(undefined, controller.signal)).catch((reason) => {
+    void Promise.resolve().then(async () => {
+      const campaignId = await loadOverview(undefined, controller.signal)
+      if (campaignId) await refreshRemitos(campaignId, controller.signal)
+    }).catch((reason) => {
       if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : LOAD_ERROR)
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false)
     })
+    // Names for the remitos list; a failure only leaves the CUE as the label.
+    void fetch('/api/cuadernillos/cabeceras', { cache: 'no-store', signal: controller.signal })
+      .then((response) => readJson(response).then((data) => ({ response, data })))
+      .then(({ response, data }) => {
+        if (response.ok && isCabeceraList(data)) setCabeceraNames(new Map(data.cabeceras.map((row) => [row.cue, row.nombre])))
+      })
+      .catch(() => undefined)
     return () => controller.abort()
-  }, [loadOverview])
+  }, [loadOverview, refreshRemitos])
 
   const balances = useMemo(() => overview?.balances ?? [], [overview])
   const products = useMemo(() => [...new Map(balances.map((row) => [row.productId, row])).values()], [balances])
-  const heads = useMemo(() => [...new Map(balances.flatMap((row) => row.cabeceraCueAnexo && row.cabeceraName
-    ? [[row.cabeceraCueAnexo, { cueAnexo: row.cabeceraCueAnexo, name: row.cabeceraName }] as const]
-    : [])).values()], [balances])
+  const productOptions = useMemo(() => products.map((row) => ({ productId: row.productId, productLabel: row.productLabel, available: row.globalAvailable ?? 0 })), [products])
+  const productLabels = useMemo(() => new Map(products.map((row) => [row.productId, row.productLabel])), [products])
   const campaign = overview?.campaignOptions.find((option) => option.id === selectedCampaign)
   const writeEnabled = actionEnabled(campaign)
-
-  const quotaOf = useCallback((cue: string, productId: string) =>
-    balances.find((row) => row.cabeceraCueAnexo === cue && row.productId === productId)?.quotaAvailable ?? 0, [balances])
-  const assignedTo = useCallback((productId: string) =>
-    heads.reduce((sum, head) => sum + quotaOf(head.cueAnexo, productId), 0), [heads, quotaOf])
-
   const stockTotal = products.reduce((sum, row) => sum + (row.globalAvailable ?? 0), 0)
-  const assignedTotal = products.reduce((sum, row) => sum + assignedTo(row.productId), 0)
-  const pending = requests.filter((request) => request.status === 'pending')
-  const approvedToday = requests.filter((request) => request.status === 'approved' && request.approvedAt && isToday(request.approvedAt)).length
-  const pendingByHead = (cue: string) => pending.filter((request) => request.cabeceraCueAnexo === cue).length
-  const visibleHeads = heads.filter((head) => !headFilter.trim() || `${head.name} ${head.cueAnexo}`.toLowerCase().includes(headFilter.trim().toLowerCase()))
+  const pendingCabecera = remitos.filter((remito) => !remito.cabeceraReceivedAt).length
 
   async function selectCampaign(campaignId: string) {
     setSelectedCampaign(campaignId)
     setLoading(true)
     setError(null)
     setNotice(null)
-    try { await loadOverview(campaignId) }
+    setRemitos([])
+    setRemitosCursor(null)
+    try {
+      await loadOverview(campaignId)
+      await refreshRemitos(campaignId)
+    }
     catch (reason) { setOverview(null); setError(reason instanceof Error ? reason.message : LOAD_ERROR) }
     finally { setLoading(false) }
   }
 
-  async function postJson(url: string, body: unknown) {
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const data = await readJson(response)
-    if (!response.ok) throw new Error(errorText(data, 'No se pudo completar la operación.'))
-    return data
+  async function loadMoreRemitos() {
+    if (!selectedCampaign || !remitosCursor) return
+    setLoadingMore(true)
+    try {
+      const page = await loadRemitos(selectedCampaign, remitosCursor)
+      setRemitos((current) => [...current, ...page.remitos])
+      setRemitosCursor(page.hasMore ? page.nextCursor : null)
+    } catch (reason) {
+      setRemitosError(reason instanceof Error ? reason.message : REMITOS_LOAD_ERROR)
+    } finally { setLoadingMore(false) }
   }
 
   async function registerStock(productId: string, quantity: number, movement: 'initial' | 'replenishment') {
     if (!selectedCampaign || !writeEnabled) return
     setSaving(true); setModalError(null); setNotice(null)
     try {
-      await postJson('/api/cuadernillos/stock', { campaignId: selectedCampaign, productId, quantity, movement, idempotencyKey: crypto.randomUUID() })
+      const response = await fetch('/api/cuadernillos/stock', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId: selectedCampaign, productId, quantity, movement, idempotencyKey: crypto.randomUUID() }),
+      })
+      const data = await readJson(response)
+      if (!response.ok) throw new Error(errorText(data, 'No se pudo completar la operación.'))
       await loadOverview(selectedCampaign)
       setStockProductId(null)
       setNotice('Movimiento de stock registrado.')
@@ -187,33 +187,26 @@ export function PlanningHome() {
     finally { setSaving(false) }
   }
 
-  async function saveQuotas(cabeceraCueAnexo: string, changes: QuotaChange[]) {
-    if (!selectedCampaign || !writeEnabled || changes.length === 0) return
-    setSaving(true); setModalError(null); setNotice(null)
-    try {
-      for (const change of changes) {
-        await postJson('/api/cuadernillos/quotas', { campaignId: selectedCampaign, cabeceraCueAnexo, productId: change.productId, quantity: change.quantity })
-      }
-      await loadOverview(selectedCampaign)
-      setQuotaHeadCue(null)
-      setNotice('Cupos actualizados.')
-    } catch (reason) {
-      // Earlier changes of this batch were already saved: refresh so the modal shows the real state.
-      await loadOverview(selectedCampaign).catch(() => undefined)
-      setModalError(reason instanceof Error ? reason.message : 'No se pudo actualizar el cupo.')
-    }
-    finally { setSaving(false) }
+  async function remitoDispatched() {
+    setBuilderOpen(false)
+    setNotice('Remito despachado. El stock ya se descontó.')
+    await Promise.all([
+      loadOverview(selectedCampaign).catch(() => undefined),
+      refreshRemitos(selectedCampaign),
+    ])
   }
 
   const stockProduct = products.find((row) => row.productId === stockProductId) ?? null
-  const quotaHead = heads.find((head) => head.cueAnexo === quotaHeadCue) ?? null
 
   return (
     <section aria-labelledby="planning-home-title" className="k-stack">
       <PageHeader
         id="planning-home-title"
         title="Planeamiento"
-        description={campaign ? `${campaign.name}: cargá el stock de cada grado y repartilo entre las cabeceras.` : 'Cargá el stock de cada grado y repartilo entre las cabeceras.'}
+        description={campaign ? `${campaign.name}: cargá el stock de cada grado y enviá remitos a las escuelas.` : 'Cargá el stock de cada grado y enviá remitos a las escuelas.'}
+        action={overview?.campaignId ? (
+          <Button type="button" disabled={!writeEnabled || products.length === 0} onClick={() => { setNotice(null); setBuilderOpen(true) }}>Nuevo remito</Button>
+        ) : undefined}
       />
 
       {loading && !overview ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando catálogo y saldos…</p> : null}
@@ -221,7 +214,7 @@ export function PlanningHome() {
       {notice ? <Note tone="ok">{notice}</Note> : null}
 
       {overview && overview.campaignOptions.length === 0 ? (
-        <EmptyState title="No hay campañas activas para consultar." description="Cuando se active una campaña, acá cargás el stock y los cupos." />
+        <EmptyState title="No hay campañas activas para consultar." description="Cuando se active una campaña, acá cargás el stock y despachás remitos." />
       ) : null}
 
       {overview && overview.campaignOptions.length > 1 ? (
@@ -239,31 +232,21 @@ export function PlanningHome() {
         <>
           <KpiStrip label="Resumen de la campaña" items={[
             { label: 'Stock total', value: formatCount(stockTotal) },
-            { label: 'Asignado a cabeceras', value: formatCount(assignedTotal) },
-            { label: 'Sin asignar', value: formatCount(Math.max(0, stockTotal - assignedTotal)), tone: stockTotal > 0 && stockTotal - assignedTotal <= 0 ? 'warn' : undefined },
-            { label: 'Pedidos pendientes', value: pending.length, tone: pending.length > 0 ? 'warn' : undefined },
-            { label: 'Aprobados hoy', value: approvedToday },
+            { label: 'Remitos despachados', value: `${remitos.length}${remitosCursor ? '+' : ''}` },
+            { label: 'Pendientes en cabecera', value: pendingCabecera, tone: pendingCabecera > 0 ? 'warn' : undefined },
           ]} />
 
           <Panel title="Stock por grado" aside="Tocá un grado para cargar stock">
             <div className="k-list">
               {products.map((row) => {
                 const stock = row.globalAvailable
-                const assigned = assignedTo(row.productId)
                 return (
                   <button key={row.productId} type="button" className="k-row" disabled={!writeEnabled}
                     aria-label={`${row.productLabel}: ${stock === null ? 'sin stock' : `stock ${stock}`}`}
                     onClick={() => { setModalError(null); setStockProductId(row.productId) }}>
                     <span className="k-row-main">
                       <span className="k-row-title">{row.productLabel}</span>
-                      {stock === null ? (
-                        <span className="k-row-meta">Todavía sin stock inicial</span>
-                      ) : (
-                        <>
-                          <Meter value={assigned} max={stock} label={`Asignado de ${row.productLabel}`} tone={assigned >= stock ? 'warn' : undefined} />
-                          <span className="k-row-meta">Asignado {formatCount(assigned)} · Sin asignar {formatCount(Math.max(0, stock - assigned))}</span>
-                        </>
-                      )}
+                      {stock === null ? <span className="k-row-meta">Todavía sin stock inicial</span> : null}
                     </span>
                     <span className="k-row-side">
                       {stock === null ? <Chip tone="warn">Sin stock</Chip> : <span className="k-row-num">{formatCount(stock)}</span>}
@@ -275,35 +258,18 @@ export function PlanningHome() {
             </div>
           </Panel>
 
-          <Panel title="Cupos por cabecera" aside={`${heads.length} cabecera${heads.length === 1 ? '' : 's'}`}>
-            {heads.length === 0 ? (
-              <EmptyState title="Sin cabeceras confirmadas" description="Cuando haya cabeceras con escuelas asignadas, les repartís el stock desde acá." />
-            ) : (
-              <>
-                {heads.length > 8 ? (
-                  <Input aria-label="Filtrar cabeceras" placeholder="Filtrar por nombre o CUE" value={headFilter} onChange={(event) => setHeadFilter(event.target.value)} />
-                ) : null}
-                <div className="k-list">
-                  {visibleHeads.map((head) => {
-                    const total = products.reduce((sum, row) => sum + quotaOf(head.cueAnexo, row.productId), 0)
-                    const waiting = pendingByHead(head.cueAnexo)
-                    return (
-                      <button key={head.cueAnexo} type="button" className="k-row" disabled={!writeEnabled}
-                        onClick={() => { setModalError(null); setQuotaHeadCue(head.cueAnexo) }}>
-                        <span className="k-row-main">
-                          <span className="k-row-title">{head.name}</span>
-                          <span className="k-row-meta">CUE {head.cueAnexo}{waiting ? ` · ${waiting} pedido${waiting === 1 ? '' : 's'} pendiente${waiting === 1 ? '' : 's'}` : ''}</span>
-                        </span>
-                        <span className="k-row-side">
-                          {total === 0 ? <Chip tone="warn">Sin cupo</Chip> : <span className="k-row-num">{formatCount(total)}</span>}
-                          <ChevronRight aria-hidden size={20} />
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
+          <Panel title="Remitos" aside="Del más reciente al más antiguo">
+            {remitosError ? <Note tone="danger">{remitosError}</Note> : null}
+            {!remitosError || remitos.length > 0 ? (
+              <RemitosList
+                remitos={remitos}
+                cabeceraNames={cabeceraNames}
+                productLabels={productLabels}
+                hasMore={remitosCursor !== null}
+                loadingMore={loadingMore}
+                onLoadMore={() => void loadMoreRemitos()}
+              />
+            ) : null}
           </Panel>
         </>
       ) : null}
@@ -315,15 +281,12 @@ export function PlanningHome() {
         onClose={() => setStockProductId(null)}
         onSubmit={(quantity, movement) => void registerStock(stockProduct?.productId ?? '', quantity, movement)}
       />
-      <QuotaModal
-        head={quotaHead}
-        products={products}
-        quotaOf={quotaOf}
-        assignedTo={assignedTo}
-        saving={saving}
-        error={modalError}
-        onClose={() => setQuotaHeadCue(null)}
-        onSubmit={(changes) => void saveQuotas(quotaHead?.cueAnexo ?? '', changes)}
+      <RemitoBuilder
+        open={builderOpen}
+        campaignId={selectedCampaign}
+        products={productOptions}
+        onClose={() => setBuilderOpen(false)}
+        onDispatched={() => void remitoDispatched()}
       />
     </section>
   )
