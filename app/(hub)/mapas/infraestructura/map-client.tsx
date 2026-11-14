@@ -323,12 +323,6 @@ export function InfraestructuraMapClient(props: {
           <Link href="/cuadernillos" className={styles.callCenterLink}>
             {t.modos.cuadernillos}
             <ArrowUpRight size={14} aria-hidden="true" />
-          </a>
-        )}
-        {props.mostrarCuadernillos && (
-          <Link href="/cuadernillos" className={styles.callCenterLink}>
-            Cuadernillos
-            <ArrowUpRight size={14} aria-hidden="true" />
           </Link>
         )}
         <FiltrosChips
