@@ -129,6 +129,7 @@ jobs:
           --health-retries 20
     env:
       E2E_DATABASE_URL: postgres://postgres@127.0.0.1:5432/mapa_e2e
+      NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - name: Checkout
         if: needs.changes.outputs.mapa == 'true'
@@ -179,6 +180,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     continue-on-error: true
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - name: Checkout
         if: needs.changes.outputs.hub == 'true'
