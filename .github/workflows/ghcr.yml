@@ -5,7 +5,6 @@ on:
     branches:
       - prod
       - staging
-      - dev
     # No required checks in branch protection; exclusive links changes may skip this workflow.
     paths-ignore:
       - 'miniapps/links/**'
@@ -36,16 +35,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
-      - name: Verify DEV target and database isolation before release
-        if: github.ref == 'refs/heads/dev'
-        env:
-          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-          COOLIFY_DEV_APP_UUID: ${{ secrets.COOLIFY_DEV_APP_UUID }}
-          DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
-        run: |
-          python3 scripts/test_dev_release_guard.py
-          python3 scripts/verify_dev_release.py
 
       - name: Verify STAGING target and data isolation before release
         if: github.ref == 'refs/heads/staging'
@@ -82,7 +71,6 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/prod' }}
             type=raw,value=staging,enable=${{ github.ref == 'refs/heads/staging' }}
-            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=sha,prefix=,format=short
 
       - name: Build and push
@@ -106,14 +94,12 @@ jobs:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_PROD_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
           COOLIFY_STAGING_APP_UUID: ${{ secrets.COOLIFY_STAGING_APP_UUID }}
-          COOLIFY_DEV_APP_UUID: ${{ secrets.COOLIFY_DEV_APP_UUID }}
         run: |
           # Resolved in shell on purpose: an `&& ||` expression would silently fall
           # back to production when the staging secret is empty.
           case "$GITHUB_REF" in
             refs/heads/prod) COOLIFY_APP_UUID="$COOLIFY_PROD_APP_UUID" ;;
             refs/heads/staging) COOLIFY_APP_UUID="$COOLIFY_STAGING_APP_UUID" ;;
-            refs/heads/dev) COOLIFY_APP_UUID="$COOLIFY_DEV_APP_UUID" ;;
             *) echo "Unexpected ref ${GITHUB_REF}: no deploy target"; exit 1 ;;
           esac
 
