@@ -1,15 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { conFalloAuditoria } from '@/lib/test-utils/fallo-auditoria'
 import { getDb } from '@/lib/db'
-import {
-  auditoriaEvento, bookletCampaign, bookletProduct, bookletQuota, bookletRequest, bookletRequestLine, bookletSchoolAssignment, bookletStock, user,
-} from '@/lib/db/schema'
+import { auditoriaEvento, bookletQuota, bookletRequest, bookletRequestLine, bookletStock, bookletStockMovement, user } from '@/lib/db/schema'
 import { POST } from './route'
-import type * as GeDb from '@/lib/infraestructura/ge-db'
-import type * as Elegibilidad from '@/lib/cuadernillos/eligibility'
 
 vi.mock('@/lib/session', async () => {
   const { observarUsuarioAuditoria } = await import('@/lib/infraestructura/auditoria/contexto')
@@ -22,76 +18,21 @@ vi.mock('@/lib/session', async () => {
   }
 })
 vi.mock('@/lib/hub-entry-server', () => ({ hubApiAccessResponse: vi.fn(async () => null) }))
-// Sin parte GE en el test: la elegibilidad Crítica se fija aquí, no se consulta.
-vi.mock('@/lib/cuadernillos/eligibility', async (importOriginal) => ({
-  ...(await importOriginal<typeof Elegibilidad>()),
-  getSchoolEligibility: vi.fn(async () => ({ eligible: true, severity: 'Crítica', evaluatedAt: new Date().toISOString() })),
-  lockCurrentEligibilitySources: vi.fn(async () => undefined),
-}))
-
-// Guardia: registra cualquier consulta por el cliente crudo que corra con la auditoría abierta.
-const guardia = vi.hoisted(() => ({ violaciones: [] as string[] }))
-vi.mock('@/lib/infraestructura/ge-db', async (importOriginal) => {
-  const real = await importOriginal<typeof GeDb>()
-  const { getRawClient } = await import('@/lib/db')
-  const { transaccionContextual } = await import('@/lib/db/contexto')
-  return {
-    ...real,
-    crearEjecutorSql: (raw: Parameters<typeof real.crearEjecutorSql>[0]) => {
-      const ejecutor = real.crearEjecutorSql(raw)
-      const original = ejecutor.execute
-      ejecutor.execute = (query) => {
-        if (raw === getRawClient() && transaccionContextual.getStore()) {
-          guardia.violaciones.push(typeof query === 'string' ? query : query.sql)
-        }
-        return original(query)
-      }
-      return ejecutor
-    },
-  }
-})
 
 const sesionDePrueba: { user: { id: string; role: string; banned: boolean; nivelJurIds: string[]; accesoRecursos: string; recursoIds: string[] } | null } = { user: null }
 
-usarDbTemporal('cuadernillos-approve-auditoria-')
+usarDbTemporal('cuadernillos-retirada-requests-id-approve-auditoria-')
 
-const sesion = (id: string, role = 'admin') => ({ id, role, banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] })
-const cueAleatorio = () => String(100_000_000 + Math.floor(Math.random() * 899_999_999))
+const productId = 'prod-retirada'
+const sesion = (id: string) => ({ id, role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] })
+const requestId = `sol-${randomUUID()}`
 
-async function sembrarAdmin(id: string) {
-  await getDb().insert(user).values({ id, name: id, email: `${id}@test.local`, emailVerified: true }).onConflictDoNothing()
-}
-
-async function sembrarSolicitudPendiente() {
-  const adminId = `admin-${randomUUID()}`
-  await sembrarAdmin(adminId)
-  const cue = cueAleatorio()
-  await getDb().insert(bookletSchoolAssignment).values({
-    cueAnexo: cue, schoolName: `Cabecera ${cue}`, relationship: 'cabecera', supervisorName: 'Supervisor',
-    supervisorUserId: adminId, cabeceraCue: cue, cabeceraUserId: adminId,
-    provenance: [{ sourceId: 'fuente', location: 'fila 1' }], confirmedByUserId: adminId, confirmedAt: new Date(),
-  })
-  const campaignId = `camp-${randomUUID()}`
-  const productId = `prod-${randomUUID()}`
-  const requestId = `sol-${randomUUID()}`
-  await getDb().insert(bookletCampaign).values({ id: campaignId, name: campaignId, status: 'active', distributionEnabled: true, overassignmentAllowed: false })
-  await getDb().insert(bookletProduct).values({ id: productId, name: productId, levelCode: '1', gradeCode: '1' })
-  await getDb().insert(bookletStock).values({ campaignId, productId, quantity: 10 })
-  await getDb().insert(bookletQuota).values({ campaignId, cabeceraCueAnexo: cue, productId, quantity: 5, updatedByUserId: adminId })
-  await getDb().insert(bookletRequest).values({
-    id: requestId, campaignId, recipientCueAnexo: cueAleatorio(), cabeceraCueAnexo: cue, rootRequestId: requestId,
-    status: 'pending', createdByUserId: adminId, submittedAt: new Date(),
-  })
-  await getDb().insert(bookletRequestLine).values({ requestId, productId, quantity: 2 })
-  return { adminId, campaignId, productId, requestId, cue }
-}
-
-function postReq(id: string, body: unknown): [Request, { params: Promise<{ id: string }> }] {
+function postReq(id: string): [Request, { params: Promise<{ id: string }> }] {
   return [
-    new Request(`http://localhost/api/cuadernillos/requests/${id}/approve`, {
+    new Request(`http://localhost/api/cuadernillos/requests/[id]/approve`.replace('[id]', id), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ lines: [{ productId, quantity: 1 }], reason: 'x', idempotencyKey: 'k-retirada' }),
     }),
     { params: Promise.resolve({ id }) },
   ]
@@ -105,32 +46,37 @@ async function eventoDe(res: Response) {
   return filas[0]!
 }
 
-async function estadoDe(requestId: string) {
-  const [fila] = await getDb().select({ status: bookletRequest.status }).from(bookletRequest).where(eq(bookletRequest.id, requestId))
-  return fila?.status
+/** Row counts of every table the retired flow used to write. */
+async function filasDeCuadernillos() {
+  const db = getDb()
+  return {
+    solicitudes: (await db.select().from(bookletRequest)).length,
+    lineas: (await db.select().from(bookletRequestLine)).length,
+    cuotas: (await db.select().from(bookletQuota)).length,
+    stock: (await db.select().from(bookletStock)).length,
+    movimientos: (await db.select().from(bookletStockMovement)).length,
+  }
+}
+
+async function sembrarAdmin() {
+  const id = `admin-${randomUUID()}`
+  await getDb().insert(user).values({ id, name: id, email: `${id}@test.local`, emailVerified: true }).onConflictDoNothing()
+  return id
 }
 
 beforeEach(() => {
   sesionDePrueba.user = null
 })
 
-describe('auditoría de aprobación de solicitudes', () => {
-  it('ninguna lectura cruda corre con la auditoría abierta', async () => {
-    const { adminId, productId, requestId } = await sembrarSolicitudPendiente()
+describe('auditoría de aprobación de solicitudes (flujo retirado)', () => {
+  it('un POST autorizado responde 410 flow_retired, deja un evento cuadernillo.solicitud_aprobar con status 410 y no escribe cuadernillos', async () => {
+    const adminId = await sembrarAdmin()
     sesionDePrueba.user = sesion(adminId)
-    guardia.violaciones.length = 0
+    const antes = await filasDeCuadernillos()
 
-    const res = await POST(...postReq(requestId, { lines: [{ productId, quantity: 1 }], idempotencyKey: 'k-aprueba-guardia' }))
-    expect(res.status).toBe(200)
-    expect(guardia.violaciones).toEqual([])
-  })
-
-  it('aprobar una solicitud deja un evento cuadernillo.solicitud_aprobar con su cantidad', async () => {
-    const { adminId, campaignId, productId, requestId } = await sembrarSolicitudPendiente()
-    sesionDePrueba.user = sesion(adminId)
-
-    const res = await POST(...postReq(requestId, { lines: [{ productId, quantity: 2 }], idempotencyKey: 'k-aprueba-1' }))
-    expect(res.status).toBe(200)
+    const res = await POST(...postReq(requestId))
+    expect(res.status).toBe(410)
+    expect(await res.json()).toMatchObject({ error: 'flow_retired' })
 
     expect(await eventoDe(res)).toMatchObject({
       accion: 'cuadernillo.solicitud_aprobar',
@@ -138,49 +84,20 @@ describe('auditoría de aprobación de solicitudes', () => {
       rutaPlantilla: '/api/cuadernillos/requests/[id]/approve',
       actorTipo: 'usuario',
       actorId: adminId,
-      objetoTipo: 'cuadernillo_solicitud',
-      objetoId: requestId,
-      resultado: 'exito',
-      httpStatus: 200,
-      metadatos: { cantidad: 2 },
+      resultado: 'invalido',
+      httpStatus: 410,
     })
-    expect(await estadoDe(requestId)).toBe('approved')
-    const [stock] = await getDb().select().from(bookletStock).where(and(eq(bookletStock.campaignId, campaignId), eq(bookletStock.productId, productId)))
-    expect(stock?.quantity).toBe(8)
+    expect(await filasDeCuadernillos()).toEqual(antes)
   })
 
-  it('aprobar una solicitud inexistente deja un evento invalido', async () => {
-    const adminId = `admin-${randomUUID()}`
-    await sembrarAdmin(adminId)
+  it('si no se puede registrar la auditoría responde 503 y tampoco escribe cuadernillos', async () => {
+    const adminId = await sembrarAdmin()
     sesionDePrueba.user = sesion(adminId)
+    const antes = await filasDeCuadernillos()
 
-    const res = await POST(...postReq(`no-existe-${randomUUID()}`, { lines: [{ productId: 'x', quantity: 1 }], idempotencyKey: 'k-aprueba-2' }))
-    expect(res.status).toBe(404)
-    expect(await eventoDe(res)).toMatchObject({ resultado: 'invalido', httpStatus: 404 })
-  })
-
-  it('si no se puede registrar la auditoría responde 503 y la solicitud queda pendiente con stock intacto', async () => {
-    const { adminId, campaignId, productId, requestId } = await sembrarSolicitudPendiente()
-    sesionDePrueba.user = sesion(adminId)
-
-    const res = await conFalloAuditoria(() => POST(...postReq(requestId, { lines: [{ productId, quantity: 2 }], idempotencyKey: 'k-aprueba-3' })))
+    const res = await conFalloAuditoria(() => POST(...postReq(requestId)))
     expect(res.status).toBe(503)
     expect(await res.json()).toMatchObject({ code: 'auditoria_no_disponible' })
-    expect(await estadoDe(requestId)).toBe('pending')
-    const [stock] = await getDb().select().from(bookletStock).where(and(eq(bookletStock.campaignId, campaignId), eq(bookletStock.productId, productId)))
-    expect(stock?.quantity).toBe(10)
-  })
-
-  it('repetir la misma aprobación deja un evento repetido y no vuelve a descontar', async () => {
-    const { adminId, campaignId, productId, requestId } = await sembrarSolicitudPendiente()
-    sesionDePrueba.user = sesion(adminId)
-    const cuerpo = { lines: [{ productId, quantity: 2 }], idempotencyKey: 'k-aprueba-repite' }
-    expect(await POST(...postReq(requestId, cuerpo))).toMatchObject({ status: 200 })
-
-    const res = await POST(...postReq(requestId, cuerpo))
-    expect(res.status).toBe(200)
-    expect(await eventoDe(res)).toMatchObject({ resultado: 'repetido', httpStatus: 200 })
-    const [stock] = await getDb().select().from(bookletStock).where(and(eq(bookletStock.campaignId, campaignId), eq(bookletStock.productId, productId)))
-    expect(stock?.quantity).toBe(8)
+    expect(await filasDeCuadernillos()).toEqual(antes)
   })
 })

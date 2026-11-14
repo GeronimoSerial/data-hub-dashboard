@@ -142,6 +142,29 @@ describe('AppShell for confined roles', () => {
   })
 })
 
+describe('AppShell school receipt entry', () => {
+  const entry = 'Recepción de cuadernillos'
+  const links = () => within(screen.getByRole('navigation', { name: 'Navegación principal' })).queryAllByRole('link')
+
+  it('muestra la recepción a un operador de establecimiento con CUE', () => {
+    render(<AppShell initialUser={{ name: 'Operador', role: 'operador_establecimiento', cueAnexo: '180000100' }}>Contenido</AppShell>)
+    const link = links().find((item) => item.textContent === entry)
+    expect(link).toHaveAttribute('href', '/cuadernillos/recepcion')
+  })
+
+  it.each([
+    ['operador sin CUE', { name: 'Operador', role: 'operador_establecimiento' as const }],
+    ['operador con CUE en blanco', { name: 'Operador', role: 'operador_establecimiento' as const, cueAnexo: ' ' }],
+    ['director de nivel', { name: 'Director', role: 'director_nivel' as const, cueAnexo: '180000100' }],
+    ['admin_ge', { name: 'GE', role: 'admin_ge' as const, cueAnexo: '180000100' }],
+    ['admin', { name: 'Admin', role: 'admin' as const, cueAnexo: '180000100' }],
+    ['consulta', { name: 'Consulta', role: 'consulta' as const, cueAnexo: '180000100' }],
+  ])('no muestra la recepción a %s', (_label, user) => {
+    render(<AppShell initialUser={user}>Contenido</AppShell>)
+    expect(links().map((item) => item.textContent)).not.toContain(entry)
+  })
+})
+
 describe('AppShell primary navigation', () => {
   const navLinks = () => within(screen.getByRole('navigation', { name: 'Navegación principal' }))
     .queryAllByRole('link')
