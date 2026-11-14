@@ -22,13 +22,16 @@ Delivery: ask-on-risk → feature-branch-chain (unit PRs target feat/cuadernillo
 
 | ID | Specs | Route | Status | Commit |
 |---|---|---|---|---|
-| T1 | S3, S4, S11, S12 | inline | pending — migration 0057: remito, line, item, observation; dispatch movement kind + remito FK keeping approval history valid (Risk item 1) | — |
-| T2 | S3, S4, S12 | delegated (parallel with T3) | pending — dispatch service + planning API (create/list remitos, recommendations) | — |
-| T3 | S2, S5–S8, S12 | delegated (parallel with T2) | pending — receipt services + API for cabecera and school | — |
-| T4 | S7 | inline | pending — school access: confined area + CUE check for operador_establecimiento, route manifest (Risk item 2) | — |
-| T5 | S9 | inline | pending — supervisor chain view + observations API | — |
-| T6 | S1, S3, S5–S11 | delegated | pending — UI: remito builder, cabecera/school receipt, supervisor control; hide quota/request UI; retire old write routes | — |
-| T7 | all | inline | pending — e2e seed/spec on remitos; docs | — |
+| T1 | S3, S4, S11, S12 | inline | done — 3 PGlite tests (upgrade with history, dispatch binding, leg limits) passed; migration 0057: remito, line, item, observation; dispatch movement kind + remito FK keeping approval history valid (Risk item 1) | edee282b |
+| T2 | S3, S4, S12 | delegated (sonnet medium, parallel) | done — 18 tests incl. PGlite success/replay; 409 recipients_not_critical / insufficient_stock; 503 authority_unavailable for unconfirmed cabecera | a7e95ced |
+| T3 | S2, S5–S8, S12 | delegated (sonnet medium, parallel) | done — 22 PGlite service tests + real hub guard route tests; reason_not_allowed when no shortfall | 3082945c |
+| T4 | S7 | delegated (sonnet medium, parallel) | done — exact-path confinement exception (Risk item 2); access suites 83 passed | d35b3f7c |
+| T5 | S9 | delegated (sonnet medium, parallel) | done — 23 tests (PGlite); admins read-only, cannot observe | 74856e30 |
+| T6a | S1, S3, S9, S11 | delegated (sonnet medium, parallel) | done — 35 component tests; blocker found: planning gets 403 on /schools and /recommendations (fix in correction batch) | 8b900206 |
+| T6b | S5–S8 | delegated (sonnet medium, parallel) | done — 91 tests; idempotency key bound to payload fingerprint | e3e78fb1 |
+| T6c | S1, S11 | delegated (sonnet medium, parallel) | done — 99 tests; authorized POSTs → 410 flow_retired, GET history unchanged | bf5c5fd1 |
+| F1 | S3, S7, S9 | delegated (sonnet medium) | done — planning access to schools/recommendations, reasons in planning list, receipt lock order user→rows, predicate-aware school nav link (+ cueAnexo in getShellUser, parent inline), blank CUE; 162 focused tests | 5c703a98 |
+| T7 | all | delegated (sonnet medium) | done — PGlite e2e 2/2 (smoke + full chain incl. 409 before cabecera, 403 other CUE, 410 old POST, history GET), screens 8 captures; docs/cuadernillos-remitos.md. Postgres mode not run (no disposable cluster) | ca86b840 |
 
 ## Log
 
@@ -41,4 +44,9 @@ Delivery: ask-on-risk → feature-branch-chain (unit PRs target feat/cuadernillo
 - L7: Grouping: "Remito por cabecera". Old flow: "Reemplazarlo". Stock intake: "No, carga simple".
 - L8: Discovery: the old flow is live on main/staging/prod (migrations 0043–0056); previous branch was 290 commits behind. Work restarted on feat/cuadernillos-remitos from origin/main. Data decision: "Conservar como histórico".
 - L9: Cabecera as destination: "Un solo recibido".
-- L10: Next: T1 inline.
+- L10: T1 done (edee282b on feat/cuadernillos-remitos-t1). Assumption: admins may dispatch as Planeamiento but may not sign receipts or author observations (responsibility stays on role accounts).
+- L11 (2026-11-14): "por que no dlegas sonnet medium para la implementacion? como subagente" → T2–T5 launched in parallel as sonnet medium writers with disjoint surfaces; parent owns git, route-manifest goes to T4.
+- L12: T2–T5 integrated: combined suite 403 passed/17 skipped, tsc 0. Units committed stacked: t2 a7e95ced → t4 d35b3f7c → t3 3082945c → t5 74856e30 (each carries its own manifest entries; the recepcion page entry moves to T6b). Independent verifier launched for T1 (item 1) and T3/T4 (item 2).
+- L13: Independent verifier (T1 item 1, T3/T4 item 2): no blockers. Upgrade digest of every pre-existing table unchanged; drizzle-kit check clean; 8 roles × 33 paths confinement matrix only lets operador+CUE through 3 paths; suite 405 passed/17 skipped; tsc 0. Advisories: immutability enforced in service only (no DB trigger — follow-up), receipt lock-order deadlock, blank CUE, nav ignores predicate, eligibility checked per line. One correction batch F1 launched; T7 in parallel.
+- L14: F1 and T7 committed. Stack: t1 edee282b → t2 a7e95ced → t4 d35b3f7c → t3 3082945c → t5 74856e30 → t6c bf5c5fd1 → t6b e3e78fb1 → t6a 8b900206 → f1 5c703a98 → t7 ca86b840. Pending/follow-ups: DB-level immutability trigger for signed receipts (advisory), PostgreSQL concurrency run of dispatch vs receipts, e2e for S8/idempotent replay/dispatch rejections (covered by unit/PGlite tests only). No push (user decision).
+- L15: Seam check: full repo vitest hung >30 min under machine load (another worktree's suite running); stopped. Affected scope (lib/cuadernillos, app/api/cuadernillos, components/cuadernillos, app-shell, lib/access, hub-entry, app/(hub)): 552 passed/17 skipped, 2 failed in app/(hub)/mapas/natalidad/map-client.test.tsx (untouched; 12/12 pass when run alone → load timeout).
