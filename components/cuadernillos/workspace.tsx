@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { BookletCapability } from '@/lib/cuadernillos/types'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { CabeceraHome } from './cabecera/cabecera-home'
-import { SupervisorInbox } from './supervisor/supervisor-inbox'
+import { ControlView } from './control/control-view'
 import { PlanningHome } from './planning/planning-home'
 import { KitStyles } from './kit'
 
@@ -52,7 +52,7 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
 
           {activeSection === 'planning' ? <PlanningHome /> : null}
           {activeSection === 'cabecera' ? <CabeceraHome /> : null}
-          {activeSection === 'supervisor' ? <SupervisorInbox /> : null}
+          {activeSection === 'supervisor' ? <ControlView /> : null}
         </Tabs>
       )}
     </div>
