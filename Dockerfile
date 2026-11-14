@@ -13,6 +13,8 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# next build exceeds the default ~2 GB heap; same limit the CI builds use.
+ENV NODE_OPTIONS=--max-old-space-size=6144
 RUN pnpm build
 
 # drizzle-orm lo usa el servidor (bundleado por webpack dentro de .next/server,
