@@ -4,9 +4,16 @@ import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { dashedCue } from '../cabecera/cabecera-api'
 import { Chip, EmptyState, formatCount } from '../kit'
-import type { RemitoItemRow, RemitoLineRow, RemitoSummary } from './remito-api'
+import type { RemitoItemRow, RemitoLineRow, RemitoSigner, RemitoSummary } from './remito-api'
 
 const dateFormat = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium' })
+const dateTimeFormat = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' })
+
+function signature(signer: RemitoSigner | null | undefined, at: string | null | undefined) {
+  if (!signer) return null
+  const name = signer.name || 'cuenta sin nombre'
+  return at ? `${name}, ${dateTimeFormat.format(new Date(at))}` : name
+}
 
 function lineDone(line: RemitoLineRow) {
   return line.status === 'received' || line.status === 'closed_empty'
@@ -72,12 +79,20 @@ export function RemitosList({ remitos, cabeceraNames, productLabels, hasMore, lo
               </button>
               {open ? (
                 <div style={{ display: 'grid', gap: '.75rem', paddingLeft: '.5rem' }}>
+                  {signature(remito.cabeceraReceivedBy, remito.cabeceraReceivedAt) ? (
+                    <span className="k-row-meta">Recibido por la cabecera: {signature(remito.cabeceraReceivedBy, remito.cabeceraReceivedAt)}</span>
+                  ) : null}
                   {remito.lines.map((line) => (
                     <section key={line.recipientCueAnexo} aria-label={line.recipientName ?? line.recipientCueAnexo} style={{ display: 'grid', gap: '.4rem' }}>
                       <span className="k-row-title">{line.recipientName ?? 'Escuela'} <span className="k-row-meta">CUE {dashedCue(line.recipientCueAnexo)}</span></span>
                       <ul className="k-qty-list">
-                        {line.items.map((item) => <ItemRow key={item.productId} item={item} label={productLabels.get(item.productId) ?? item.productId} />)}
+                        {line.items.map((item) => <ItemRow key={item.productId} item={item} label={productLabels.get(item.productId) ?? item.productName ?? item.productId} />)}
                       </ul>
+                      {line.cabeceraShortfallReason ? <span className="k-row-meta">Motivo de la diferencia (Planeamiento → Cabecera): {line.cabeceraShortfallReason}</span> : null}
+                      {line.schoolShortfallReason ? <span className="k-row-meta">Motivo de la diferencia (Cabecera → Escuela): {line.schoolShortfallReason}</span> : null}
+                      {signature(line.schoolReceivedBy, line.schoolReceivedAt) ? (
+                        <span className="k-row-meta">Recibido por la escuela: {signature(line.schoolReceivedBy, line.schoolReceivedAt)}</span>
+                      ) : null}
                     </section>
                   ))}
                 </div>

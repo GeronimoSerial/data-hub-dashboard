@@ -68,6 +68,16 @@ describe('GET /api/cuadernillos/recommendations', () => {
     expect(JSON.stringify(body)).not.toMatch(/student|alumno|dni|nombre/i)
   })
 
+  it('allows a planning account that is not the cabecera of the school', async () => {
+    vi.mocked(canAccessSchool).mockImplementation(async (_actor, _cue, capability) => capability === 'planning')
+
+    const response = await GET(request())
+
+    expect(response.status).toBe(200)
+    expect(canAccessSchool).toHaveBeenCalledWith(expect.objectContaining({ id: 'cabecera-1' }), '180123456', 'planning')
+    expect(getEnrollmentRecommendations).toHaveBeenCalled()
+  })
+
   it('also requires the dedicated hub section before checking module assignment', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'cabecera-1', role: 'consulta', banned: false,
