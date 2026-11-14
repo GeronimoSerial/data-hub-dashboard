@@ -89,7 +89,9 @@ export const ROUTE_MANIFEST: Record<string, RouteCapability | readonly RouteCapa
   'app/api/cuadernillos/requests/route.ts': 'hub.section.cuadernillos',
   'app/api/cuadernillos/stock/route.ts': 'hub.section.cuadernillos',
   'app/api/cuadernillos/remitos/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/remitos/[id]/observaciones/route.ts': 'hub.section.cuadernillos',
   'app/api/cuadernillos/remitos/[id]/recibir/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/control/route.ts': 'hub.section.cuadernillos',
   // Also reachable by operador_establecimiento with a CUE: lib/access/hub-confinement.ts opens these exact paths for that role only (parte.access alone is also held by director_nivel).
   'app/api/cuadernillos/recepciones/route.ts': ['hub.section.cuadernillos', 'parte.access'],
   'app/api/cuadernillos/remito-lineas/[id]/recibir/route.ts': ['hub.section.cuadernillos', 'parte.access'],
