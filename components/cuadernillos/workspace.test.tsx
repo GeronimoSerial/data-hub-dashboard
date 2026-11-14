@@ -8,9 +8,8 @@ vi.mock('./cabecera/cabecera-home', () => ({
     `Inicio de cabecera (readOnly=${props.readOnly}, viewAs=${props.viewAsUserId ?? 'none'}, admin=${props.isAdmin})`,
 }))
 
-vi.mock('./supervisor/supervisor-inbox', () => ({
-  SupervisorInbox: (props: { isAdmin: boolean; readOnly: boolean; viewAsUserId?: string | null }) =>
-    `Bandeja de supervisión (readOnly=${props.readOnly}, viewAs=${props.viewAsUserId ?? 'none'})`,
+vi.mock('./control/control-view', () => ({
+  ControlView: () => 'Control de remitos',
 }))
 
 afterEach(() => {
@@ -33,12 +32,11 @@ function fetchOverview() {
     if (url.startsWith('/api/cuadernillos/overview')) {
       return Promise.resolve(jsonResponse({
         capability: 'planning', campaignId: 'campaign-1', campaignOptions: [activeCampaign],
-        balances: [{ productId: 'book-a', productLabel: 'Cuadernillo A', globalAvailable: 10, quotaAssigned: null, quotaAvailable: 4, cabeceraCueAnexo: '180123000', cabeceraName: 'Cabecera' }],
-        requests: [], eligibility: null, hasMore: false, nextCursor: null,
+        balances: [{ productId: 'book-a', productLabel: 'Cuadernillo A', globalAvailable: 10 }],
       }))
     }
-    if (url.startsWith('/api/cuadernillos/requests')) {
-      return Promise.resolve(jsonResponse({ campaignId: 'campaign-1', campaignOptions: [activeCampaign], requests: [], hasMore: false, nextCursor: null }))
+    if (url.startsWith('/api/cuadernillos/remitos')) {
+      return Promise.resolve(jsonResponse({ remitos: [], hasMore: false, nextCursor: null }))
     }
     if (url.startsWith('/api/cuadernillos/memberships')) return Promise.resolve(jsonResponse({ memberships: [] }))
     if (url.startsWith('/api/cuadernillos/cabeceras')) return Promise.resolve(jsonResponse({ cabeceras: [] }))
@@ -86,7 +84,7 @@ describe('CuadernillosWorkspace roles', () => {
 
     expect(screen.getByRole('tab', { name: 'Supervisión' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByRole('tab', { name: 'Cabecera' })).not.toBeInTheDocument()
-    expect(screen.getByText(/Bandeja de supervisión/)).toBeInTheDocument()
+    expect(screen.getByText(/Control de remitos/)).toBeInTheDocument()
   })
 
   it('switches between the roles the server supplied', async () => {
@@ -96,7 +94,7 @@ describe('CuadernillosWorkspace roles', () => {
     render(<CuadernillosWorkspace capabilities={['cabecera', 'supervisor']} />)
     fireEvent.click(screen.getByRole('tab', { name: 'Supervisión' }))
 
-    expect(await screen.findByText(/Bandeja de supervisión/)).toBeInTheDocument()
+    expect(await screen.findByText(/Control de remitos/)).toBeInTheDocument()
     expect(screen.queryByText(/Inicio de cabecera/)).not.toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/cuadernillos/overview'), expect.anything())
   })
