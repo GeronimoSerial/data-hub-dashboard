@@ -328,6 +328,26 @@ describe('sync-prefectura-alturas — despacho y códigos de salida', () => {
   })
 })
 
+describe('sonda-cadena-datos — registro y código de salida', () => {
+  it('está en la lista de nombres válidos del despacho', async () => {
+    const { correrJob } = await import('./jobs.mjs')
+    await expect(correrJob('nombre-invalido')).rejects.toThrow(/sonda-cadena-datos/)
+  })
+
+  it('un resultado fallido sale con exit 1 y un omitido con exit 0', async () => {
+    const { codigoSalida } = await import('./jobs.mjs')
+    expect(codigoSalida('sonda-cadena-datos', { ejecutado: false, estado: 'fallido', mensaje: 'x' })).toBe(1)
+    expect(codigoSalida('sonda-cadena-datos', { ejecutado: false, estado: 'omitido' })).toBe(0)
+  })
+
+  it('con ENOS_JOBS_ENABLED=false no adquiere lease ni despacha', async () => {
+    mocks.enosJobsEnabled.mockReturnValue(false)
+    const { correrJob } = await import('./jobs.mjs')
+    await expect(correrJob('sonda-cadena-datos')).resolves.toEqual({ ejecutado: false, motivo: 'flag_deshabilitado' })
+    expect(mocks.adquirirLease).not.toHaveBeenCalled()
+  })
+})
+
 describe('ensureSeeded — migración antes de despachar', () => {
   it('corre ensureSeeded una sola vez antes de despachar el job (proceso propio sin la migración web)', async () => {
     mocks.ejecutarSyncImerg.mockResolvedValue({ ok: true, resultado: {} })

@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { migrarDb } from '@/lib/db'
 import { NOMBRE_COOKIE, tokenSesionValido } from '@/lib/infraestructura/acceso-publico'
 import { POST } from './route'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
@@ -8,6 +9,11 @@ const CLAVE = claveDePrueba()
 const CLAVE_MALA = claveDePrueba()
 
 let prevPassword: string | undefined
+
+// La ruta audita cada respuesta: la tabla de auditoría debe existir.
+beforeAll(async () => {
+  await migrarDb()
+})
 
 beforeEach(() => {
   _resetLimitesParaTests()

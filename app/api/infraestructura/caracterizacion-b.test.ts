@@ -777,17 +777,29 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
   it('registra la respuesta asistida y rechaza una segunda respuesta', async () => {
     const id = await crearVerificacion('1000000-05')
     const ruta = `/verificaciones/${id}/responder-asistida`
-    const cuerpo = { canal: 'telefono', resultado: 'sin_afectacion' }
+    const cuerpo = { canal: 'telefono', resultado: 'sin_afectacion', observacion: 'Llamó la directora a las 10' }
     const res = await rutas.verificacionResponder.POST(enviar(ruta, 'POST', cuerpo), ctx(id))
     expect(normalizar(await capturar(res))).toMatchSnapshot('autenticado')
     const repetida = await rutas.verificacionResponder.POST(enviar(ruta, 'POST', cuerpo), ctx(id))
     expect(normalizar(await capturar(repetida))).toMatchSnapshot('ya respondida')
   })
 
+  it('exige la observación en la respuesta asistida', async () => {
+    autenticarStaff()
+    const id = await crearVerificacion('1000000-05')
+    const res = await rutas.verificacionResponder.POST(
+      enviar(`/verificaciones/${id}/responder-asistida`, 'POST', { canal: 'telefono', resultado: 'sin_afectacion' }),
+      ctx(id),
+    )
+    const capturada = await capturar(res)
+    expect(capturada.status).toBe(400)
+    expect(capturada.body).toEqual({ error: 'La observación es obligatoria' })
+  })
+
   it('informa una verificación inexistente', async () => {
     autenticarStaff()
     const res = await rutas.verificacionResponder.POST(
-      enviar('/verificaciones/no-existe/responder-asistida', 'POST', { canal: 'telefono', resultado: 'sin_afectacion' }),
+      enviar('/verificaciones/no-existe/responder-asistida', 'POST', { canal: 'telefono', resultado: 'sin_afectacion', observacion: 'Llamó la directora a las 10' }),
       ctx('no-existe'),
     )
     expect(normalizar(await capturar(res))).toMatchSnapshot('inexistente')

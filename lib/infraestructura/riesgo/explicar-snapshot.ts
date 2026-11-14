@@ -1,3 +1,7 @@
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+
 export type NivelMotor = 'bajo' | 'moderado' | 'alto' | 'muy_alto'
 
 export type FactorMotor = {
@@ -27,31 +31,23 @@ export type ExplicacionSnapshot = {
   detalleTecnico: { titulo: string; texto: string }[]
 }
 
-const SIN_EVALUAR = 'El motor de riesgo todavía no evaluó esta escuela.'
-const ZONA_EXPUESTA = 'La escuela está en zona expuesta a crecidas del río.'
-const SIN_SENALES = 'Riesgo actual bajo: sin señales de lluvia ni de río para hoy.'
+// 'Alto' and 'Moderado' are spelled the same in Portuguese, so they stay literal.
+const ETIQUETA_NIVEL_IGUAL: Partial<Record<NivelMotor, string>> = { alto: 'Alto', moderado: 'Moderado' }
 
-const ETIQUETA_NIVEL: Record<NivelMotor, string> = {
-  bajo: 'Bajo',
-  moderado: 'Moderado',
-  alto: 'Alto',
-  muy_alto: 'Muy alto',
+function etiquetaNivel(nivel: NivelMotor, t: Diccionario): string {
+  const igual = ETIQUETA_NIVEL_IGUAL[nivel]
+  if (igual !== undefined) return igual
+  return nivel === 'muy_alto' ? t.libTextos2.riesgoActual.nivel.muyAlto : t.libTextos2.riesgoActual.nivel.bajo
 }
 
-const CONCLUSION_NIVEL: Record<NivelMotor, string> = {
-  muy_alto: 'Riesgo actual muy alto.',
-  alto: 'Riesgo actual alto.',
-  moderado: 'Riesgo actual moderado: conviene seguir la evolución.',
-  bajo: 'Riesgo actual bajo.',
+function conclusionNivel(nivel: NivelMotor, t: Diccionario): string {
+  const c = t.libTextos2.riesgoActual.conclusion
+  if (nivel === 'muy_alto') return c.muyAlto
+  if (nivel === 'alto') return c.alto
+  return nivel === 'moderado' ? c.moderado : c.bajo
 }
 
-const ETIQUETA_TIPO: Record<string, string> = {
-  amenaza: 'Amenaza',
-  vulnerabilidad: 'Vulnerabilidad',
-  exposicion: 'Exposición',
-  urgencia: 'Urgencia',
-  acceso: 'Acceso',
-}
+type TablasRegion = { estaciones: Record<string, string>; rios: Record<string, string> }
 
 const NOMBRE_ESTACION: Record<string, string> = {
   ituzaingo: 'Ituzaingó',
@@ -71,6 +67,15 @@ const NOMBRE_RIO: Record<string, string> = {
   paraguay: 'Paraguay',
 }
 
+const TABLAS_POR_REGION: Record<string, TablasRegion> = {
+  corrientes: { estaciones: NOMBRE_ESTACION, rios: NOMBRE_RIO },
+}
+
+// A region without its own tables gets no river or station names and uses the generic fallback.
+function tablasDeRegion(regionId: string): TablasRegion {
+  return Object.hasOwn(TABLAS_POR_REGION, regionId) ? TABLAS_POR_REGION[regionId] : { estaciones: {}, rios: {} }
+}
+
 const COLORES_PELIGRO = ['verde', 'amarillo', 'naranja', 'rojo']
 
 const REGEX_RIO =
@@ -79,16 +84,26 @@ const REGEX_PELIGRO = /Peligro estimado (\w+) a (\d+)h/i
 
 type EvidenciaFactor = { contribucion: number; texto: string | null }
 
-export function explicarSnapshot(snapshot: SnapshotMotor | null, factores: FactorMotor[]): ExplicacionSnapshot {
+export function explicarSnapshot(snapshot: SnapshotMotor | null, factores: FactorMotor[], t: Diccionario = es): ExplicacionSnapshot {
+  return explicarSnapshotDeRegion(regionPublicaActual().id, snapshot, factores, t)
+}
+
+export function explicarSnapshotDeRegion(
+  regionId: string,
+  snapshot: SnapshotMotor | null,
+  factores: FactorMotor[],
+  t: Diccionario = es,
+): ExplicacionSnapshot {
+  const tablas = tablasDeRegion(regionId)
   const detalleTecnico = [...factores]
     .sort((a, b) => (b.contribucion ?? 0) - (a.contribucion ?? 0))
-    .map((factor) => ({ titulo: tituloTecnico(factor), texto: factor.explicacion ?? '—' }))
+    .map((factor) => ({ titulo: tituloTecnico(factor, t), texto: factor.explicacion ?? '—' }))
 
   if (snapshot === null || snapshot.nivelRiesgo === null) {
     return {
       nivel: null,
-      etiquetaNivel: 'Sin datos',
-      conclusion: SIN_EVALUAR,
+      etiquetaNivel: t.libTextos2.riesgoActual.sinDatos,
+      conclusion: t.libTextos2.riesgoActual.sinEvaluar,
       situacionActual: [],
       zonaExpuesta: null,
       detalleTecnico: snapshot === null ? [] : detalleTecnico,
@@ -96,38 +111,38 @@ export function explicarSnapshot(snapshot: SnapshotMotor | null, factores: Facto
   }
 
   const nivel = snapshot.nivelRiesgo
-  const situacionActual = evidenciaActual(factores)
+  const situacionActual = evidenciaActual(factores, tablas, t)
   const conclusion =
     nivel === 'bajo' && situacionActual.length === 0
-      ? SIN_SENALES
-      : [CONCLUSION_NIVEL[nivel], situacionActual[0]].filter(Boolean).join(' ')
+      ? t.libTextos2.riesgoActual.sinSenales
+      : [conclusionNivel(nivel, t), situacionActual[0]].filter(Boolean).join(' ')
 
   return {
     nivel,
-    etiquetaNivel: ETIQUETA_NIVEL[nivel],
+    etiquetaNivel: etiquetaNivel(nivel, t),
     conclusion,
     situacionActual,
-    zonaExpuesta: factores.some(esRioExpuesto) ? ZONA_EXPUESTA : null,
+    zonaExpuesta: factores.some(esRioExpuesto) ? t.libTextos2.riesgoActual.zonaExpuesta : null,
     detalleTecnico,
   }
 }
 
-function evidenciaActual(factores: FactorMotor[]): string[] {
+function evidenciaActual(factores: FactorMotor[], tablas: TablasRegion, t: Diccionario): string[] {
   return factores
     .filter((f) => (f.contribucion ?? 0) > 0 && f.tipo === 'amenaza')
     .filter((f) => !(f.explicacion ?? '').startsWith('No implementado'))
-    .map((f): EvidenciaFactor => ({ contribucion: f.contribucion ?? 0, texto: textoEvidencia(f) }))
+    .map((f): EvidenciaFactor => ({ contribucion: f.contribucion ?? 0, texto: textoEvidencia(f, tablas, t) }))
     .sort((a, b) => b.contribucion - a.contribucion)
     .flatMap((e) => (e.texto === null ? [] : [e.texto]))
 }
 
-function textoEvidencia(factor: FactorMotor): string | null {
-  if (esRio(factor)) return textoRio(factor)
-  if (factor.variable === 'superacion_terreno' && factor.valor !== null) return textoRioV04(factor)
-  if (factor.fuente === 'lluvia-observada') return textoLluvia(factor)
-  if (factor.fuente === 'peligro-celda') return textoPeligro(factor)
+function textoEvidencia(factor: FactorMotor, tablas: TablasRegion, t: Diccionario): string | null {
+  if (esRio(factor)) return textoRio(factor, tablas, t)
+  if (factor.variable === 'superacion_terreno' && factor.valor !== null) return textoRioV04(factor, t)
+  if (factor.fuente === 'lluvia-observada') return textoLluvia(factor, t)
+  if (factor.fuente === 'peligro-celda') return textoPeligro(factor, t)
   if (factor.explicacion === null) return null
-  return `Otra señal: ${factor.explicacion.replace(/_/g, ' ')}.`
+  return t.libTextos2.evidencia.otraSenal(factor.explicacion.replace(/_/g, ' '))
 }
 
 function esRio(factor: FactorMotor): boolean {
@@ -138,9 +153,9 @@ function esRioExpuesto(factor: FactorMotor): boolean {
   return esRio(factor) && (factor.explicacion ?? '').includes('escuela expuesta')
 }
 
-function textoRio(factor: FactorMotor): string {
+function textoRio(factor: FactorMotor, tablas: TablasRegion, t: Diccionario): string {
   const valor = factor.valor ?? 0
-  const fallback = `Altura del río: ${numero(valor, 2)} m.`
+  const fallback = t.libTextos2.evidencia.alturaRioSimple(numero(valor, 2))
   const partes = REGEX_RIO.exec(factor.explicacion ?? '')
   if (partes === null) return fallback
 
@@ -149,60 +164,68 @@ function textoRio(factor: FactorMotor): string {
   // Altura explícita, estado al lado y umbrales como dato secundario.
   const textoEstado =
     clave === 'evacuacion'
-      ? `Evacuación (evacuación ${numero(Number(evacuacion), 2)} m)`
+      ? t.libTextos2.evidencia.estadoEvacuacion(numero(Number(evacuacion), 2))
       : clave === 'alerta'
-        ? `Alerta (alerta ${numero(Number(alerta), 2)} m)`
-        : `Normal (alerta ${numero(Number(alerta), 2)} m)`
-  const clausulaTendencia = TENDENCIA[tendencia.toLowerCase()] ?? ''
+        ? t.libTextos2.evidencia.estadoAlerta(numero(Number(alerta), 2))
+        : t.libTextos2.evidencia.estadoNormal(numero(Number(alerta), 2))
+  const clausulaTendencia = tendenciaTexto(tendencia.toLowerCase(), t)
 
-  return `Río ${nombreRio(rio)} en ${nombreEstacion(estacion)} — Altura del río: ${numero(valor, 2)} m${clausulaTendencia} · ${textoEstado}.`
+  return t.libTextos2.evidencia.alturaRio(
+    nombreRio(rio, tablas.rios),
+    nombreEstacion(estacion, tablas.estaciones),
+    `${numero(valor, 2)} m`,
+    clausulaTendencia,
+    textoEstado,
+  )
 }
 
 // Factor río del motor v0.4: probabilidad de superación del terreno.
-function textoRioV04(factor: FactorMotor): string {
+function textoRioV04(factor: FactorMotor, t: Diccionario): string {
   const pct = (p: number) => `${Math.round(p * 100)} %`
   const partes = /a (\d+)h; conservador ([\d.]+)/.exec(factor.explicacion ?? '')
-  const plazo = partes === null ? '' : ` en las próximas ${partes[1]} h`
-  const conservador = partes === null ? '' : ` (escenario conservador ${pct(Number(partes[2]))})`
-  return `Río: probabilidad ${pct(factor.valor ?? 0)} de que el agua supere el terreno de la escuela${plazo}${conservador}.`
+  const plazo = partes === null ? '' : t.libTextos2.evidencia.plazoHoras(partes[1])
+  const conservador = partes === null ? '' : t.libTextos2.evidencia.conservador(pct(Number(partes[2])))
+  return t.libTextos2.evidencia.probabilidadRio(pct(factor.valor ?? 0), plazo, conservador)
 }
 
-const TENDENCIA: Record<string, string> = {
-  crece: ' y creciendo',
-  baja: ' y bajando',
+function tendenciaTexto(tendencia: string, t: Diccionario): string {
+  if (tendencia === 'crece') return t.libTextos2.evidencia.tendenciaCrece
+  if (tendencia === 'baja') return t.libTextos2.evidencia.tendenciaBaja
+  return ''
 }
 
-function textoLluvia(factor: FactorMotor): string | null {
+function textoLluvia(factor: FactorMotor, t: Diccionario): string | null {
   const valor = factor.valor ?? 0
   if (valor < 1) return null
   const ventana = factor.variable === 'acumulado_24h' ? '24 h' : factor.variable === 'acumulado_72h' ? '72 h' : null
   if (ventana === null) return null
-  return `Lluvia de las últimas ${ventana}: ${numeroMm(valor)} mm.`
+  return t.libTextos2.evidencia.lluvia(ventana, numeroMm(valor))
 }
 
-function textoPeligro(factor: FactorMotor): string | null {
+function textoPeligro(factor: FactorMotor, t: Diccionario): string | null {
   const partes = REGEX_PELIGRO.exec(factor.explicacion ?? '')
   if (partes === null) return null
   const color = partes[1].toLowerCase()
   const horas = Number(partes[2])
   if (!COLORES_PELIGRO.includes(color)) return null
-  const plazo = horas > 72 && horas % 24 === 0 ? `en los próximos ${horas / 24} días` : `en las próximas ${horas} h`
-  return `Pronóstico de lluvia: peligro ${color} ${plazo}.`
+  const plazo =
+    horas > 72 && horas % 24 === 0 ? t.libTextos2.evidencia.plazoDias(String(horas / 24)) : t.libTextos2.evidencia.plazoPeligroHoras(String(horas))
+  return t.libTextos2.evidencia.pronosticoPeligro(color, plazo)
 }
 
-function tituloTecnico(factor: FactorMotor): string {
-  const tipo = ETIQUETA_TIPO[factor.tipo] ?? factor.tipo
+function tituloTecnico(factor: FactorMotor, t: Diccionario): string {
+  const tipo = t.libTextos2.tipoFactor[factor.tipo as keyof typeof t.libTextos2.tipoFactor] ?? factor.tipo
   return `${tipo} · ${factor.variable.replace(/_/g, ' ')}`
 }
 
-function nombreEstacion(slug: string): string {
+function nombreEstacion(slug: string, nombres: Record<string, string>): string {
   const clave = slug.replace(/^pna-/, '').replace(/-/g, ' ').toLowerCase()
-  return NOMBRE_ESTACION[clave] ?? capitalizar(clave)
+  return nombres[clave] ?? capitalizar(clave)
 }
 
-function nombreRio(nombre: string): string {
+function nombreRio(nombre: string, nombres: Record<string, string>): string {
   const clave = nombre.toLowerCase()
-  return NOMBRE_RIO[clave] ?? capitalizar(clave)
+  return nombres[clave] ?? capitalizar(clave)
 }
 
 function capitalizar(texto: string): string {

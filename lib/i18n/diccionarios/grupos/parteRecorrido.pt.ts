@@ -1,0 +1,101 @@
+import type { DeepStringify } from '../tipos'
+import type { parteRecorridoEs } from './parteRecorrido.es'
+
+// Brazilian Portuguese texts of the `parteRecorrido` group; must mirror parteRecorrido.es.ts key for key.
+export const parteRecorridoPt: DeepStringify<typeof parteRecorridoEs> = {
+  titulo: 'Atualizar',
+  cargando: 'Buscando o estado atual do estabelecimento…',
+  restaurando: 'Restaurando o rascunho salvo…',
+  puedeEnviar: 'Pode enviar as respostas.',
+  si: 'Sim',
+  no: 'Não',
+  confirmacion: {
+    titulo: 'Parte atualizado',
+    mensaje: 'Já consta no estado atual da sua escola.',
+    verEstado: 'Ver estado atual',
+    actualizarDeNuevo: 'Atualizar de novo',
+  },
+  borradorPendiente: {
+    titulo: 'Você tem um parte não enviado.',
+    descripcion: 'Pode continuar de onde parou ou descartá-lo e começar de novo.',
+    continuar: 'Continuar de onde parei',
+  },
+  descarte: {
+    titulo: 'Descartar o parte não enviado?',
+    confirmar: 'Sim, descartar',
+    descripcion: 'Perde-se o que foi preenchido e nada é enviado.',
+  },
+  borrador: {
+    invalido: 'Não foi possível recuperar a atualização salva. Uma nova será iniciada.',
+    sinAcceso: 'Não foi possível acessar o armazenamento local.',
+    situacionCambio: 'A situação mudou desde que começou. O rascunho anterior foi mantido neste dispositivo e não foi aplicado a esta atualização.',
+    noGuardar: 'Não foi possível salvar o rascunho local.',
+    noLimpiar: 'Não foi possível apagar o rascunho local.',
+    noDescartar: 'Não foi possível descartar o rascunho local.',
+    conservado: 'O rascunho foi mantido; pode enviar as respostas.',
+    otraPestana: 'O rascunho mudou em outra aba e foi mantido. Pode enviar as respostas.',
+  },
+  fotos: {
+    faltantes: 'Algumas fotos não estão mais disponíveis neste dispositivo e foram retiradas do parte.',
+    quedaronGuardadas: 'As fotos ficaram salvas neste dispositivo para tentar de novo.',
+    noGuardar: 'Não foi possível salvar as fotos. Pode continuar com uma atualização normal.',
+    soloFotos: 'Salvar apenas as fotos',
+    guardandoEvidencia: 'Salvando evidência…',
+  },
+  error: {
+    guardado: 'Não conseguimos salvar o parte. As informações preenchidas são mantidas para que possa tentar de novo.',
+    asistenciaRequerida: 'Informe se é oferecida assistência pedagógica.',
+    modalidadRequerida: 'Escolha pelo menos uma modalidade de assistência pedagógica.',
+    situacionRequerida: 'Informe como segue cada situação antes de enviar.',
+    faltaServicio: 'Informe como estão as aulas para restabelecer o funcionamento (hoje há aulas suspensas em parte).',
+  },
+  revisar: 'Revise o informado até agora e acrescente ou corrija o que mudou.',
+  botones: {
+    volver: 'Voltar',
+    reintentando: 'Tentando de novo…',
+    guardando: 'Salvando…',
+    envioPendiente: 'Envio pendente',
+    guardarActualizacion: 'Salvar atualização',
+  },
+  progreso: {
+    paso: (paso: number, total: number) => `Passo ${paso} de ${total}`,
+  },
+  cascada: {
+    titulo: (motivo: string) => `${motivo} foi resolvida`,
+    confirmar: 'Sim, também foi resolvida',
+    cancelar: 'Não, continua ativa',
+    pregunta: (motivo: string) => `${motivo} (consequência), também foi resolvida?`,
+  },
+  restablecer: {
+    titulo: 'Restabelecer o funcionamento',
+    descripcion: 'Já não restam afetações ativas. Confirme se o edifício e as aulas voltam ao normal.',
+    edificio: 'Edifício',
+    edificioYClases: 'Edifício e aulas',
+    sinElegir: 'Sem escolha',
+  },
+  asistencia: {
+    pregunta: 'Oferece-se assistência pedagógica?',
+    tipo: 'De que tipo?',
+    placeholder: 'Selecione uma ou mais opções',
+    actualmente: (valor: string) => `Atualmente: ${valor}`,
+  },
+  resumen: {
+    intro: 'Isto é o que vai ficar informado. Revise antes de salvar.',
+    sinCambios: 'Sem alterações',
+    situaciones: 'Situações',
+    solucionada: (fecha: string) => `Resolvida · ${fecha}`,
+    fechaNoDisponible: 'data não disponível',
+    gravedad: 'Gravidade',
+    sinCambiosDe: (valor: string) => `${valor} (sem alterações)`,
+    algunosAlumnos: 'Alguns alunos',
+    todaLaEscuela: 'Toda a escola',
+    clases: 'Aulas',
+    situacionNueva: 'Situação nova',
+    detalle: 'Detalhe',
+    consecuenciaDe: (causa: string) => `Consequência de ${causa}`,
+    descripcion: 'Descrição',
+  },
+  servicio: {
+    interrumpido: 'interrompido',
+  },
+}

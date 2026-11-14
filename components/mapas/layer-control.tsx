@@ -4,8 +4,10 @@ import { COPY } from '@/lib/copy/didactica'
 import { OVERLAY_LABELS, type OverlayKey } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { Checkbox } from '@/components/ui/checkbox'
-import { TEXTOS_ACCESOS } from '@/lib/mapas/accesos-capas'
+import { tituloAcceso, tituloInundacion } from '@/lib/mapas/accesos-capas'
 import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
+import { textos, type Diccionario } from '@/lib/i18n'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 type Props = {
   overlays: Record<OverlayKey, boolean>
@@ -24,10 +26,11 @@ const ORDER: OverlayKey[] = [
 
 export function LayerControl({ overlays, onChange }: Props) {
   const styles = useOverlayStyles()
+  const t = useTextos()
 
   return (
     <div className={styles.controlCard}>
-      <h2 className={styles.controlHeading}>Capas</h2>
+      <h2 className={styles.controlHeading}>{t.controlesCapas.capas}</h2>
       {ORDER.map((key) => (
         <div key={key}>
           <Checkbox
@@ -53,14 +56,10 @@ export function LayerControl({ overlays, onChange }: Props) {
 // `controlsStack` y el radar sólo se monta si el flag está prendido.
 export type CapaRadar = 'peligro' | 'riesgo' | 'riesgo-acceso'
 
-export const CAPAS_RADAR_LABELS: Record<CapaRadar, string> = {
-  peligro: 'Peligro por clima estimado (por departamento)',
-  riesgo: 'Riesgo pronosticado por escuela',
-  // Dimensión SEPARADA del riesgo compuesto: el acceso no es una severidad ni
-  // un estado del edificio, por eso es una capa propia y no una codificación
-  // de color de una capa existente.
-  'riesgo-acceso': 'Riesgo pronosticado de llegar a la escuela',
-}
+// Dimensión SEPARADA del riesgo compuesto: el acceso no es una severidad ni
+// un estado del edificio, por eso es una capa propia y no una codificación
+// de color de una capa existente.
+export const CAPAS_RADAR_LABELS: Record<CapaRadar, string> = textos('es').controlesCapas.radar
 
 const ORDEN_CAPAS_RADAR: CapaRadar[] = ['peligro', 'riesgo', 'riesgo-acceso']
 
@@ -72,6 +71,7 @@ export function RadarLayerControl({
   onChange: (capa: CapaRadar, value: boolean) => void
 }) {
   const styles = useOverlayStyles()
+  const t = useTextos()
 
   return (
     <div
@@ -80,12 +80,12 @@ export function RadarLayerControl({
       aria-labelledby="radar-layer-control-heading"
     >
       <h2 className={styles.controlHeading} id="radar-layer-control-heading">
-        Capas del radar (pronóstico)
+        {t.controlesCapas.capasRadar}
       </h2>
       {ORDEN_CAPAS_RADAR.map((capa) => (
         <Checkbox
           key={capa}
-          label={CAPAS_RADAR_LABELS[capa]}
+          label={t.controlesCapas.radar[capa]}
           checked={capas[capa]}
           onCheckedChange={(checked) => onChange(capa, checked)}
         />
@@ -103,10 +103,17 @@ export function RadarLayerControl({
 // componente hermano para no acoplar el acotamiento de los dominios previos.
 export type CapaAccesos = 'aislamiento' | 'inundacion'
 
-export const CAPAS_ACCESOS_LABELS: Record<CapaAccesos, string> = {
-  aislamiento: `${TEXTOS_ACCESOS.tituloAcceso} (0 a 3)`,
-  inundacion: TEXTOS_ACCESOS.tituloInundacion,
+export function etiquetasCapasAccesos(
+  d: Diccionario['controlesCapas'],
+  t: Diccionario = textos('es'),
+): Record<CapaAccesos, string> {
+  return {
+    aislamiento: d.accesoAislamiento(tituloAcceso(t)),
+    inundacion: tituloInundacion(t),
+  }
 }
+
+export const CAPAS_ACCESOS_LABELS: Record<CapaAccesos, string> = etiquetasCapasAccesos(textos('es').controlesCapas)
 
 const ORDEN_CAPAS_ACCESOS: CapaAccesos[] = [
   'aislamiento',
@@ -121,6 +128,8 @@ export function AccesosLayerControl({
   onChange: (capa: CapaAccesos, value: boolean) => void
 }) {
   const styles = useOverlayStyles()
+  const t = useTextos()
+  const etiquetas = etiquetasCapasAccesos(t.controlesCapas, t)
 
   return (
     <div
@@ -129,12 +138,12 @@ export function AccesosLayerControl({
       aria-labelledby="accesos-layer-control-heading"
     >
       <h2 className={styles.controlHeading} id="accesos-layer-control-heading">
-        Capas territoriales
+        {t.controlesCapas.capasTerritoriales}
       </h2>
       {ORDEN_CAPAS_ACCESOS.map((capa) => (
         <Checkbox
           key={capa}
-          label={CAPAS_ACCESOS_LABELS[capa]}
+          label={etiquetas[capa]}
           checked={capas[capa]}
           onCheckedChange={(checked) => onChange(capa, checked)}
         />

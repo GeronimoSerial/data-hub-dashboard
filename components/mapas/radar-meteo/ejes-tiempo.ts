@@ -1,3 +1,5 @@
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
+
 export type MarcaEje = {
   time: string
   left: number
@@ -19,7 +21,7 @@ function horaLocal(ms: number, zona: string): { hora: number; minuto: number } {
 }
 
 function etiquetaDia(ms: number, zona: string): string {
-  return new Intl.DateTimeFormat('es-AR', { timeZone: zona, weekday: 'short', day: 'numeric' })
+  return new Intl.DateTimeFormat(regionPublicaActual().locale, { timeZone: zona, weekday: 'short', day: 'numeric' })
     .format(new Date(ms))
     .replaceAll(',', '')
 }

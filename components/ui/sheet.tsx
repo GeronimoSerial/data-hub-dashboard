@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { useFullscreenElement } from './use-fullscreen-element'
 
 export const SheetRoot = DialogPrimitive.Root
@@ -26,6 +27,7 @@ export function SheetContent({
   side?: 'top' | 'bottom' | 'left' | 'right'
 }) {
   const container = useFullscreenElement()
+  const cerrar = useTextos().parteComunControles.cerrar
   return (
     <DialogPrimitive.Portal container={container ?? undefined}>
       <DialogPrimitive.Backdrop className="ui-sheet-backdrop" />
@@ -35,7 +37,7 @@ export function SheetContent({
           {...props}
         >
           {children}
-          <DialogPrimitive.Close className="ui-sheet-close" aria-label="Cerrar">
+          <DialogPrimitive.Close className="ui-sheet-close" aria-label={cerrar}>
             <X size={18} />
           </DialogPrimitive.Close>
         </DialogPrimitive.Popup>

@@ -4,6 +4,7 @@ import {
   crearPostVerificacion,
   MENSAJES_CREDENCIAL,
 } from '@/lib/infraestructura/verificacion-route'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { crearLimitador } from '@/lib/http/limitador'
 import { ruta } from '@/lib/http/ruta'
 
@@ -34,4 +35,8 @@ const handlePOST = crearPostVerificacion({
   }),
 })
 
-export const POST = ruta('problematicas.verificaciones.id.responder.post', handlePOST, { limite: { limitador } })
+export const POST = conAuditoria(
+  'verificacion.responder',
+  '/api/problematicas/verificaciones/[id]/responder',
+  ruta('problematicas.verificaciones.id.responder.post', handlePOST, { limite: { limitador } }),
+)

@@ -10,6 +10,7 @@ import { getSchoolEligibilityWithName } from './eligibility'
 import { BookletServiceError, type CampaignPolicy, type IdempotencyRecord } from './inventory'
 import { hasBookletCapability, isBookletAdmin, type BookletPermissionRepository } from './permissions'
 import { getEnrollmentRecommendations } from './enrollment'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import type { CreateRequestInput as BaseCreateRequestInput, EnrollmentRecommendation, Eligibility, QuantityLine, RequestView } from './types'
 
 /** The cabecera cue is a scope selector validated against the session actor; identity never comes from the body. */
@@ -92,7 +93,10 @@ const makeDatabaseRepository = (db: Awaited<ReturnType<typeof getDb>>): RequestR
   getEnrollmentRecommendations,
 })
 
-const databaseRepository = makeDatabaseRepository(getDb())
+// Se resuelve en cada acceso: dentro de cambioAuditado, getDb() devuelve la transacción del evento.
+const databaseRepository: RequestRepository = new Proxy({} as RequestRepository, {
+  get: (_objetivo, clave) => Reflect.get(makeDatabaseRepository(getDb()), clave),
+})
 const digest = (input: unknown) => createHash('sha256').update(JSON.stringify(input)).digest('hex')
 const validCue = (cue: string) => /^\d{9}$/.test(cue)
 
@@ -118,6 +122,7 @@ export async function createRequest(
     const prior = await tx.getRequestByIdempotency(actor.id, input.idempotencyKey)
     if (prior) {
       if (prior.payloadHash !== payloadHash) throw new BookletServiceError('idempotency_conflict', 409)
+      describirAuditoria({ resultado: 'repetido' })
       return prior.response as RequestView
     }
 

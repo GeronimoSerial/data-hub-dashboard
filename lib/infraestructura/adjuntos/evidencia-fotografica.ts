@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { and, desc, eq, ne, sql } from 'drizzle-orm'
+import { transaccionContextual } from '@/lib/db/contexto'
 import { getDb } from '@/lib/db'
 import { infraAdjunto, infraMovimiento, infraParte } from '@/lib/db/schema'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
+import { cambioAuditado } from '@/lib/infraestructura/auditoria/servidor'
 import { auth } from '@/lib/auth'
 
 const LIMITE_FOTOS = 3
@@ -44,16 +46,26 @@ export class ErrorEvidenciaFotografica extends Error {
   }
 }
 
+type Db = ReturnType<typeof getDb>
+
+/** Lecturas y controles previos a cualquier escritura: se hacen fuera de la transacción auditada. */
+export interface EvidenciaPreparada {
+  input: CrearEvidenciaFotograficaInput
+  base: { id: string; tipo: string; parteId: string; rigeDesde: string; cueAnexo: string }
+  creadaPor: string
+  dbTime: string
+  movimientoId: string
+}
+
 /**
- * Creates an evidence-only movement and reserves its OBS keys. Image bytes
- * never pass through this service. The parent movement lock and DB trigger
- * keep the three-photo limit valid under concurrent requests.
+ * Valida, resuelve el movimiento base, verifica el acceso y la sesión. No escribe.
+ * Sus errores de negocio llegan como ErrorEvidenciaFotografica antes de abrir ninguna transacción.
  */
-export async function crearEvidenciaFotografica(
+async function prepararEvidenciaFotografica(
   request: Request,
   input: CrearEvidenciaFotograficaInput,
   ahora = new Date(),
-): Promise<ResultadoEvidenciaFotografica> {
+): Promise<EvidenciaPreparada> {
   validarEntrada(input)
 
   const db = getDb()
@@ -78,9 +90,24 @@ export async function crearEvidenciaFotografica(
   }
 
   const session = await auth.api.getSession({ headers: request.headers })
-  const creadaPor = session?.user.id ?? 'public-parte'
-  const dbTime = ahora.toISOString()
-  const movimientoId = randomUUID()
+  return {
+    input,
+    base,
+    creadaPor: session?.user.id ?? 'public-parte',
+    dbTime: ahora.toISOString(),
+    movimientoId: randomUUID(),
+  }
+}
+
+/**
+ * Escribe el movimiento de evidencia y reserva sus claves OBS. Con `db` = transacción
+ * auditada se anida como savepoint; sin ella abre su propia transacción.
+ */
+async function escribirEvidenciaFotografica(
+  db: Pick<Db, 'transaction'>,
+  preparada: EvidenciaPreparada,
+): Promise<ResultadoEvidenciaFotografica> {
+  const { input, base, creadaPor, dbTime, movimientoId } = preparada
   const extensionPorTipo = (contentType: string) => contentType === 'image/webp' ? 'webp' : 'jpg'
 
   return db.transaction(async (tx) => {
@@ -176,6 +203,29 @@ export async function crearEvidenciaFotografica(
       repetido: false,
     }
   })
+}
+
+/**
+ * Crea un movimiento de evidencia solo fotográfica y reserva sus claves OBS. Los bytes de
+ * imagen nunca pasan por este servicio. El bloqueo del movimiento padre y el trigger de la
+ * base mantienen el límite de tres fotos bajo solicitudes concurrentes.
+ */
+export async function crearEvidenciaFotografica(
+  request: Request,
+  input: CrearEvidenciaFotograficaInput,
+  ahora = new Date(),
+): Promise<ResultadoEvidenciaFotografica> {
+  // Lecturas y permisos primero, fuera de cualquier transacción; luego sólo la escritura y su evento.
+  const preparada = await prepararEvidenciaFotografica(request, input, ahora)
+  const descripcion = (valor: ResultadoEvidenciaFotografica) => ({
+    status: 200,
+    resultado: valor.repetido ? 'repetido' as const : 'exito' as const,
+    objetoTipo: 'movimiento',
+    objetoId: valor.movimientoId,
+  })
+  // Dentro de una transacción auditada ajena (el evento lo escribe su dueño), la escritura se anida.
+  if (transaccionContextual.getStore()) return escribirEvidenciaFotografica(getDb(), preparada)
+  return cambioAuditado(tx => escribirEvidenciaFotografica(tx, preparada), descripcion)
 }
 
 /**

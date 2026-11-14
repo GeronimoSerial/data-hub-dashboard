@@ -12,6 +12,8 @@ import {
 } from '@/lib/recurso-write'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { ruta } from '@/lib/http/ruta'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,6 +36,7 @@ async function handlePUT(request: Request, ctx: Ctx) {
   }
 
   const { id } = await ctx.params
+  describirAuditoria({ objetoTipo: 'recurso', objetoId: id })
   let body: unknown
   try {
     body = await request.json()
@@ -67,7 +70,12 @@ async function handlePUT(request: Request, ctx: Ctx) {
   }
 
   try {
-    const updated = await updateRecurso(recurso)
+    const updated = await cambioAuditado(
+      () => updateRecurso(recurso),
+      actualizado => actualizado
+        ? { status: 200, objetoTipo: 'recurso', objetoId: id, metadatos: { formato: recurso.formato } }
+        : { status: 404, objetoTipo: 'recurso', objetoId: id },
+    )
     if (!updated) {
       return Response.json({ error: 'Recurso no encontrado' }, { status: 404 })
     }
@@ -88,8 +96,14 @@ async function handleDELETE(_request: Request, ctx: Ctx) {
   }
 
   const { id } = await ctx.params
+  describirAuditoria({ objetoTipo: 'recurso', objetoId: id })
   const previousKey = await existingStorageKey(id)
-  const deleted = await deleteRecurso(id)
+  const deleted = await cambioAuditado(
+    () => deleteRecurso(id),
+    eliminado => eliminado
+      ? { status: 200, objetoTipo: 'recurso', objetoId: id }
+      : { status: 404, objetoTipo: 'recurso', objetoId: id },
+  )
   if (!deleted) {
     return Response.json({ error: 'Recurso no encontrado' }, { status: 404 })
   }
@@ -97,5 +111,5 @@ async function handleDELETE(_request: Request, ctx: Ctx) {
   return Response.json({ ok: true, id })
 }
 
-export const PUT = ruta('recursos.id.put', handlePUT)
-export const DELETE = ruta('recursos.id.delete', handleDELETE)
+export const PUT = conAuditoria('recurso.modificar', '/api/recursos/[id]', ruta('recursos.id.put', handlePUT))
+export const DELETE = conAuditoria('recurso.eliminar', '/api/recursos/[id]', ruta('recursos.id.delete', handleDELETE))

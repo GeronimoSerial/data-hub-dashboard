@@ -1,3 +1,4 @@
+import { formatoFechaRegion, localeRegion } from '@/lib/infraestructura/formato-region'
 import type { ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 // Textos y formatos de la pantalla "estado actual" del director (spec §6 y
 // §17). Puro: sin React, sin fetch, sin base — así los tres componentes de
@@ -17,6 +18,10 @@ import type {
   SituacionReciente,
 } from '@/lib/infraestructura/trayectoria-tipos'
 import { textoAlcanceInstituto } from '@/lib/infraestructura/parte/instituto-ui'
+import { fichaPanoramaEs } from '@/lib/i18n/diccionarios/grupos/fichaPanorama.es'
+import { parteComunTextosEs } from '@/lib/i18n/diccionarios/grupos/parteComunTextos.es'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 export type { SituacionReciente } from '@/lib/infraestructura/trayectoria-tipos'
 
@@ -95,61 +100,50 @@ export interface EstadoActualRespuesta {
 // --- Cadenas textuales de la especificación ---
 
 // spec §17, "Sin situación en seguimiento". Palabra por palabra.
-export const MENSAJE_SIN_SITUACION =
-  'No hay una situación hidrometeorológica en seguimiento para este establecimiento.'
+// Textos en español (diccionario `fichaPanorama`). La pantalla pt los toma del
+// diccionario directamente; estas constantes se conservan para quien las usa en es.
+export const MENSAJE_SIN_SITUACION = fichaPanoramaEs.parte.sinSituacion
 
 // No hay cadena de especificación para una lectura fallida (§17 cubre el
 // guardado). Se mantiene la promesa funcional de N9: decir qué pasó y ofrecer
 // volver a intentar, sin culpar al director.
-export const MENSAJE_ERROR_LECTURA =
-  'No pudimos mostrar el estado actual del establecimiento. Intente nuevamente.'
+export const MENSAJE_ERROR_LECTURA = fichaPanoramaEs.parte.errorLectura
 
-export const MENSAJE_ACCESO_VENCIDO =
-  'Su acceso ya no está vigente. Vuelva a ingresar la contraseña para ver el estado actual.'
+export const MENSAJE_ACCESO_VENCIDO = fichaPanoramaEs.parte.accesoVencido
 
-export const MENSAJE_SIN_CORTE =
-  'No hay datos de escuelas disponibles en este momento. Intente nuevamente más tarde.'
+export const MENSAJE_SIN_CORTE = fichaPanoramaEs.parte.sinCorte
 
 // spec §3.4 y §10. El funcionamiento parcialmente interrumpido es un resultado
 // informativo: se muestra, nunca se ofrece como opción de carga.
-export const ETIQUETA_SERVICIO: Record<EstadoServicioGeneral, string> = {
-  normal: 'Funcionamiento habitual',
-  parcial: 'Funcionamiento parcialmente interrumpido',
-  suspendido: 'Funcionamiento interrumpido',
-}
+export const ETIQUETA_SERVICIO: Record<EstadoServicioGeneral, string> = parteComunTextosEs.etiquetaServicio
 
 // Respuestas de la pregunta de carga "¿Hay clases?" (spec rediseño §5.6).
-export const ETIQUETA_CLASES: Record<'normal' | 'suspendido', string> = {
-  normal: 'Sí, con normalidad',
-  suspendido: 'No, se suspendieron',
-}
+export const ETIQUETA_CLASES: Record<'normal' | 'suspendido', string> = parteComunTextosEs.etiquetaClases
 
 // spec §3.5.
-export const ETIQUETA_ESTABLECIMIENTO: Record<EstadoEstablecimiento, string> = {
-  habitual: 'Sin daños / en uso normal',
-  parcial: 'Uso parcial',
-  evacuado: 'Evacuado',
-  centro_evacuados: 'Usado como centro de evacuados',
-  // Todo el edificio sin clases sin estar evacuado (p. ej. sin agua ni energía).
-  sin_clases: 'Sin clases',
+// Todo el edificio sin clases sin estar evacuado (p. ej. sin agua ni energía).
+export const ETIQUETA_ESTABLECIMIENTO: Record<EstadoEstablecimiento, string> = fichaPanoramaEs.establecimiento
+
+/** Etiquetas de la pantalla "estado actual" en el idioma `t` (por defecto español). */
+export function etiquetaServicio(estado: EstadoServicioGeneral, t: Diccionario = es): string {
+  return t.parteComunTextos.etiquetaServicio[estado]
 }
 
-// La provincia entera trabaja en un solo huso; fijarlo evita que el parte se
-// lea con la hora del dispositivo cuando alguien lo abre desde otro lado.
-const ZONA_HORARIA = 'America/Argentina/Buenos_Aires'
+export function etiquetaClases(estado: 'normal' | 'suspendido', t: Diccionario = es): string {
+  return t.parteComunTextos.etiquetaClases[estado]
+}
 
-const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
-  day: 'numeric',
-  month: 'long',
-  timeZone: ZONA_HORARIA,
-})
+export function etiquetaEstablecimiento(estado: EstadoEstablecimiento, t: Diccionario = es): string {
+  return t.fichaPanorama.establecimiento[estado]
+}
 
-const FORMATO_HORA = new Intl.DateTimeFormat('es-AR', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZone: ZONA_HORARIA,
-})
+function formatoFecha(): Intl.DateTimeFormat {
+  return formatoFechaRegion(localeRegion(), { day: 'numeric', month: 'long' })
+}
+
+function formatoHora(): Intl.DateTimeFormat {
+  return formatoFechaRegion(localeRegion(), { hour: '2-digit', minute: '2-digit', hour12: false })
+}
 
 /**
  * "18 de septiembre, 10:30" — el formato de los ejemplos de spec §6 y §15.
@@ -160,7 +154,7 @@ export function formatearMomento(iso: string | null | undefined): string | null 
   if (!iso) return null
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return iso
-  return `${FORMATO_FECHA.format(fecha)}, ${FORMATO_HORA.format(fecha)}`
+  return `${formatoFecha().format(fecha)}, ${formatoHora().format(fecha)}`
 }
 
 /**
@@ -169,16 +163,16 @@ export function formatearMomento(iso: string | null | undefined): string | null 
  * ninguno alcanzado en vez de escribir "0 alumnos", que se lee como un error
  * de carga.
  */
-export function resumirAlcance(totales: TotalesAfectacion): string {
-  if ((totales.carreras ?? 0) > 0) return textoAlcanceInstituto(totales.carreras ?? 0, totales.alumnos)
+export function resumirAlcance(
+  totales: TotalesAfectacion,
+  textos: Diccionario['fichaPanorama']['alcance'] = fichaPanoramaEs.alcance,
+  t: Diccionario = es,
+): string {
+  if ((totales.carreras ?? 0) > 0) return textoAlcanceInstituto(totales.carreras ?? 0, totales.alumnos, t)
   const partes: string[] = []
-  if (totales.secciones > 0) {
-    partes.push(totales.secciones === 1 ? '1 sección' : `${totales.secciones} secciones`)
-  }
-  if (totales.alumnos > 0) {
-    partes.push(totales.alumnos === 1 ? '1 alumno' : `${totales.alumnos} alumnos`)
-  }
-  return partes.length > 0 ? partes.join(' · ') : 'Sin secciones ni alumnos informados'
+  if (totales.secciones > 0) partes.push(textos.secciones(totales.secciones))
+  if (totales.alumnos > 0) partes.push(textos.alumnos(totales.alumnos))
+  return partes.length > 0 ? partes.join(' · ') : textos.sinSecciones
 }
 
 /**

@@ -5,6 +5,9 @@ import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { formatearFechaLocal } from '@/components/mapas/capa-estaciones-rio'
 import { LogoNasa } from '@/components/mapas/logo-nasa'
 import { haceCuanto } from '@/components/mapas/tarjeta-estacion-rio'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import type { RegionPublica } from '@/lib/infraestructura/region/esquema'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
 export type HorasLluvia = 24 | 72
 
@@ -49,10 +52,6 @@ export const CLASES_LLUVIA: ReadonlyArray<{ desde: number; color: string; etique
 const PASO_CELDA = 0.1
 const MEDIO_PASO = PASO_CELDA / 2
 const ALFA_BASE = 0.75 * 255
-const REGIONES_INTERES: ReadonlyArray<{ lon: [number, number]; lat: [number, number] }> = [
-  { lon: [-59.8, -55.6], lat: [-30.8, -27.2] },
-  { lon: [-56.1, -53.6], lat: [-28.2, -25.4] },
-]
 const ANCHO_TRANSICION = 0.4
 
 // Exported so other map handlers can read the cell under a click (e.g. the water crossing card).
@@ -60,9 +59,9 @@ export const ID_CAPA_LLUVIA_HIT = 'lluvia-observada-hit'
 const ID_HIT = ID_CAPA_LLUVIA_HIT
 
 /** 1 dentro de las regiones de interés; cae linealmente a 0 a 0,4° fuera de ellas. */
-function factorRegion(lon: number, lat: number): number {
+function factorRegion(lon: number, lat: number, regiones: RegionPublica['regionesInteresLluvia']): number {
   let mejor = 0
-  for (const region of REGIONES_INTERES) {
+  for (const region of regiones) {
     const dx = Math.max(region.lon[0] - lon, 0, lon - region.lon[1])
     const dy = Math.max(region.lat[0] - lat, 0, lat - region.lat[1])
     const distancia = Math.hypot(dx, dy)
@@ -94,6 +93,7 @@ function centroDe(geometryRef: string): [number, number] | null {
  * Las esquinas son los bordes exteriores de las celdas extremas.
  */
 export function pintarGrillaLluvia(celdas: ReadonlyArray<{ geometryRef: string; acumuladoMm: number }>): GrillaLluvia {
+  const regionesInteres = regionPublicaActual().regionesInteresLluvia
   const centros = celdas.flatMap((celda) => {
     const centro = centroDe(celda.geometryRef)
     return centro ? [{ lon: centro[0], lat: centro[1], mm: celda.acumuladoMm }] : []
@@ -113,7 +113,7 @@ export function pintarGrillaLluvia(celdas: ReadonlyArray<{ geometryRef: string; 
     if (!clase) continue
     const columna = Math.round((celda.lon - lonMin) / PASO_CELDA)
     const fila = Math.round((latMax - celda.lat) / PASO_CELDA)
-    const alfa = Math.round(ALFA_BASE * factorRegion(celda.lon, celda.lat))
+    const alfa = Math.round(ALFA_BASE * factorRegion(celda.lon, celda.lat, regionesInteres))
     const indice = (fila * ancho + columna) * 4
     const [r, g, b] = colorRgb(clase.color)
     datos[indice] = r
@@ -274,19 +274,23 @@ function TarjetaLluvia({
   hasta: string | null
   celda: PropiedadesCelda
 }) {
+  const t = useTextos()
+  const l = t.radarResto.lluvia
   const clase = celda.acumuladoMm >= 1 ? claseDe(celda.acumuladoMm) : null
   const indice = clase ? CLASES_LLUVIA.indexOf(clase) : -1
   const [entero, decimal] = celda.acumuladoMm.toFixed(1).split('.')
+  // CLASES_LLUVIA labels are numeric ranges (same in both languages) except the open top class.
+  const etiquetaClase = clase ? (clase.desde === 150 ? l.masDe150 : clase.etiqueta) : 'Menos de 1 mm'
 
   return (
-    <div className="map-popup tarjeta-lluvia">
+    <div className="map-popup tarjeta-lluvia" data-testid="capa-lluvia-observada">
       <div className="tarjeta-estacion__cabecera">
         <div>
-          <h3 className="tarjeta-estacion__titulo">Lluvia observada</h3>
-          <p className="tarjeta-estacion__sub">Acumulado de las últimas {horas} h</p>
+          <h3 className="tarjeta-estacion__titulo">{l.titulo}</h3>
+          <p className="tarjeta-estacion__sub">{l.acumulado(horas)}</p>
         </div>
         <span className="tarjeta-lluvia__clase" style={clase ? { background: clase.color, color: indice >= 3 ? '#fff' : '#0b2540' } : undefined}>
-          {clase ? clase.etiqueta : 'Menos de 1 mm'}
+          {etiquetaClase}
         </span>
       </div>
 
@@ -307,7 +311,7 @@ function TarjetaLluvia({
 
       {desde && hasta && (
         <p className="tarjeta-estacion__hora">
-          <time dateTime={hasta}>Actualizado {haceCuanto(hasta, new Date())}</time>
+          <time dateTime={hasta}>{t.radarResto.pronostico.actualizado(haceCuanto(hasta, new Date(), t.fichaCuerpo.estacionRio.hace))}</time>
           {' · '}
           {formatearFechaLocal(desde)} – {formatearFechaLocal(hasta)}
         </p>
@@ -315,7 +319,7 @@ function TarjetaLluvia({
 
       {celda.parcial && (
         <p className="tarjeta-lluvia__aviso">
-          Faltan pasadas del satélite en esta ventana ({Math.round(celda.cobertura * 100)} % cubierto): la lluvia real puede ser mayor.
+          {l.satelite(Math.round(celda.cobertura * 100))}
         </p>
       )}
 
@@ -323,7 +327,7 @@ function TarjetaLluvia({
         <LogoNasa size={26} />
         <div>
           <p className="tarjeta-lluvia__fuente-nombre">NASA IMERG</p>
-          <p className="tarjeta-estacion__sub">Constelación de satélites NASA · JAXA</p>
+          <p className="tarjeta-estacion__sub">{l.constelacion}</p>
         </div>
       </div>
     </div>

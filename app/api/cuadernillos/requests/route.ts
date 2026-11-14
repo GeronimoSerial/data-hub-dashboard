@@ -4,6 +4,8 @@ import { BookletRequestReadError, getBookletRequestPage } from '@/lib/cuadernill
 import { createRequest } from '@/lib/cuadernillos/requests'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+import { prepararEsquemaGe } from '@/lib/cuadernillos/ge-conexion'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -61,7 +63,15 @@ async function handlePOST(request: Request) {
   const parsed = schema.safeParse(body)
   if (!parsed.success) return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: noStore })
   try {
-    const result = await createRequest(actor!, parsed.data)
+    // Esquema GE antes de abrir la auditoría; si falla, el servicio lo reintenta y responde como antes.
+    await prepararEsquemaGe().catch(() => undefined)
+    const result = await cambioAuditado(() => createRequest(actor!, parsed.data), (creada) => ({
+      status: creada.status === 'pending' ? 201 : 200,
+      objetoTipo: 'cuadernillo_solicitud',
+      objetoId: creada.requestId,
+      cueAnexo: creada.recipientCueAnexo,
+      metadatos: { cantidad: parsed.data.lines.reduce((total, line) => total + line.quantity, 0) },
+    }))
     return Response.json({ request: result }, { status: result.status === 'pending' ? 201 : 200, headers: noStore })
   } catch (error) {
     if (error instanceof BookletServiceError) return Response.json({ error: error.code }, { status: error.status, headers: noStore })
@@ -69,5 +79,5 @@ async function handlePOST(request: Request) {
   }
 }
 
-export const POST = ruta('cuadernillos.requests.post', handlePOST)
+export const POST = conAuditoria('cuadernillo.solicitud_crear', '/api/cuadernillos/requests', ruta('cuadernillos.requests.post', handlePOST))
 export const GET = ruta('cuadernillos.requests.get', handleGET)

@@ -15,7 +15,10 @@ import { formatearMomentoHistorial } from '@/components/infraestructura/historia
 import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
 import { presentarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { ObservacionReporte } from './observacion-reporte'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
+import { localeNumero } from '@/lib/i18n/formato-numero'
 import { contar } from '@/lib/infraestructura/parte/instituto-ui'
+import { jurisdiccionCorta } from '@/lib/infraestructura/region/publica'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { valorComedor } from '@/lib/infraestructura/comedores/estado'
@@ -38,9 +41,9 @@ import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
 import { claseInundacion } from '@/lib/mapas/accesos-capas'
 import {
-  ETIQUETA_NIVEL_PLAN,
+  etiquetaNivelPlan,
   nivelPlanificacion,
-  TITULO_LEYENDA_VISTA,
+  tituloLeyendaVista,
   VISTAS_ESTRUCTURALES,
 } from '@/lib/infraestructura/mapa/planificacion'
 import type { EscuelaFichaEnriquecida } from '@/lib/infraestructura/parte-mapa'
@@ -61,8 +64,6 @@ export interface FichaEscuelaPaginaProps {
   llamadasCallCenter?: LlamadaFicha[]
   searchParams?: Record<string, string | string[] | undefined>
 }
-
-const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 
 
 export function FichaEscuelaPagina({
@@ -254,16 +255,19 @@ export function FichaEscuelaPagina({
     ? null
     : (borradoresMapa.counts.get(escuela.cueAnexo) ?? (borradoresMapa.loading ? null : 0))
 
+  const diccionario = useTextos()
+  const idioma = useIdioma()
+  const FORMATO_NUMERO = useMemo(() => new Intl.NumberFormat(localeNumero(idioma)), [idioma])
   const planificacion = useMemo(
     () =>
       VISTAS_ESTRUCTURALES.map((vista) => ({
-        etiquetaVista: TITULO_LEYENDA_VISTA[vista],
+        etiquetaVista: tituloLeyendaVista(diccionario, vista),
         etiquetaNivel:
           vista === 'historial'
-            ? `${ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuela, vista, { territorio })]} (${escuela.situacionesHistoricas})`
-            : ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuela, vista, { territorio })],
+            ? `${etiquetaNivelPlan(diccionario, nivelPlanificacion(escuela, vista, { territorio }))} (${escuela.situacionesHistoricas})`
+            : etiquetaNivelPlan(diccionario, nivelPlanificacion(escuela, vista, { territorio })),
       })),
-    [escuela, territorio],
+    [diccionario, escuela, territorio],
   )
 
   const ubicacionTexto = [
@@ -290,11 +294,12 @@ export function FichaEscuelaPagina({
   const clasesInformadas = datos
     ? tieneServicioInformado(datos.servicio?.alcanceVigente ?? [], datos.secciones ?? [], carrerasActuales) || ['sin_clases', 'evacuado', 'centro_evacuados'].includes(edificioActual)
     : escuela.clasesInformadas === true
+  const tp = useTextos().fichaPagina
   const estadoEdificio = tieneParteRegistrado
     ? ETIQUETA_ESTABLECIMIENTO[
         datos?.parte?.estadoEstablecimiento ?? escuela.parte?.estadoEstablecimiento ?? 'habitual'
       ]
-    : 'Sin parte registrado'
+    : tp.sinParte
   // Photos attach to the latest report movement; evidence-only movements cannot be a base.
   const movimientoBaseEvidencia =
     historial.fase === 'listo'
@@ -302,7 +307,7 @@ export function FichaEscuelaPagina({
           .filter((movimiento) => (movimiento.tipo as string) !== 'evidencia_fotografica')
           .sort((a, b) => b.creadaEn.localeCompare(a.creadaEn))[0]?.id ?? null)
       : null
-  const etiquetaAlumnos = escuela.alumnos === 1 ? 'alumno' : 'alumnos'
+  const etiquetaAlumnos = escuela.alumnos === 1 ? tp.alumno : tp.alumnos
   // Institutos superiores: la ficha cuenta carreras y no muestra nombres de alumnos.
   const esInstituto = escuela.carreras !== undefined
 
@@ -314,33 +319,34 @@ export function FichaEscuelaPagina({
         data-testid={`ver-alumnos-${afectacionId}`}
         onClick={() => setNominalAfectacionId(afectacionId)}
       >
-        Ver alumnos alcanzados
+        {tp.verAlumnos}
         <ArrowUpRight size={13} aria-hidden="true" />
       </button>
     ) : null
 
+  const t = useTextos().ficha
   const pestanas = [
-    { id: 'panorama', etiqueta: 'Panorama' },
+    { id: 'panorama', etiqueta: t.pestanas.panorama },
     {
       id: 'situaciones',
-      etiqueta: estado.fase === 'listo' ? `Situaciones (${afectaciones.length})` : 'Situaciones',
+      etiqueta: estado.fase === 'listo' ? t.pestanas.situacionesConteo(afectaciones.length) : t.pestanas.situaciones,
     },
-    { id: 'territorio', etiqueta: 'Territorio y clima' },
-    { id: 'historial', etiqueta: 'Historial' },
+    { id: 'territorio', etiqueta: t.pestanas.territorio },
+    { id: 'historial', etiqueta: t.pestanas.historial },
   ]
 
   return (
     <main
       className={styles.page}
-      aria-label={`Ficha completa de ${escuela.nombre}`}
+      aria-label={tp.fichaCompleta(escuela.nombre)}
       style={{ '--ficha-cabecera-h': `${altoCabecera}px` } as CSSProperties}
     >
-      <nav className={styles.topBar} aria-label="Navegación superior">
+      <nav className={styles.topBar} aria-label={t.navegacionSuperior}>
         <Link href={urlRetornoMapa} className={styles.backLink} data-testid="volver-al-mapa">
           <ArrowLeft size={14} aria-hidden="true" />
-          <span>{vieneDelMapa ? 'Volver al mapa' : 'Ir al mapa'}</span>
+          <span>{vieneDelMapa ? t.volverAlMapa : t.irAlMapa}</span>
         </Link>
-        <span className={styles.topBarLabel}>Detalle del establecimiento</span>
+        <span className={styles.topBarLabel}>{t.detalleEstablecimiento}</span>
       </nav>
 
       <div ref={cabeceraRef} className={styles.cabecera}>
@@ -356,7 +362,7 @@ export function FichaEscuelaPagina({
                   esInstituto
                     ? contar(escuela.carreras ?? 0, 'carrera', 'carreras')
                     : escuela.niveles.length > 0 ? escuela.niveles.join(', ') : null,
-                  `${FORMATO_NUMERO.format(escuela.alumnos)} ${etiquetaAlumnos} matriculados`,
+                  t.matriculados(FORMATO_NUMERO.format(escuela.alumnos), etiquetaAlumnos),
                 ]
                   .filter(Boolean)
                   .join(' · ')}
@@ -365,7 +371,7 @@ export function FichaEscuelaPagina({
             {sinUbicacion && (
               <div className={styles.sinUbicacionBanner} data-testid="ficha-sin-ubicacion">
                 <MapPinOff size={14} aria-hidden="true" />
-                <span>Ubicación no disponible en el mapa</span>
+                <span>{t.sinUbicacion}</span>
               </div>
             )}
           </div>
@@ -374,12 +380,12 @@ export function FichaEscuelaPagina({
             className={styles.primaryAction}
             data-testid="accion-actualizar-parte"
           >
-            {tieneSituacionActiva ? 'Actualizar el parte' : 'Cargar una situación'}
+            {tieneSituacionActiva ? t.actualizarParte : t.cargarSituacion}
             <ArrowUpRight size={14} aria-hidden="true" className={styles.primaryActionIcono} />
           </Link>
         </header>
 
-        <nav className={styles.tabs} aria-label="Secciones de la ficha">
+        <nav className={styles.tabs} aria-label={t.seccionesFicha}>
           {pestanas.map((pestana) => (
             <a
               key={pestana.id}
@@ -404,14 +410,14 @@ export function FichaEscuelaPagina({
             />
           )}
 
-          <section id="situaciones" className={styles.situaciones} aria-label="Situaciones">
+          <section id="situaciones" className={styles.situaciones} aria-label={t.situacionesSeccion}>
             {estado.fase === 'cargando' ? (
               <p role="status" className={styles.emptyState}>
-                Cargando situaciones del parte…
+                {t.cargandoSituaciones}
               </p>
             ) : estado.fase === 'error' ? (
               <p role="alert" className={styles.emptyState}>
-                No se pudo cargar la información operativa de la escuela.
+                {t.errorSituaciones}
               </p>
             ) : incidente ? (
               <article className={styles.incidente} data-testid="ficha-incidente">
@@ -420,7 +426,7 @@ export function FichaEscuelaPagina({
                     className={styles.incidenteDot}
                     aria-hidden="true"
                   />
-                  Situación activa · {incidente.impactoAlumnos ? 'Prioridad' : 'Gravedad'} {prioridadEfectiva(incidente)?.toLowerCase() ?? 'sin datos'}
+                  {t.vistaPrevia.situacionActiva} · {incidente.impactoAlumnos ? t.vistaPrevia.prioridad : t.vistaPrevia.gravedad} {prioridadEfectiva(incidente)?.toLowerCase() ?? tp.sinDatos}
                 </span>
                 <h2 className={styles.incidenteTitulo}>{incidente.motivo}</h2>
                 {!incidente.descripcion && (
@@ -432,7 +438,7 @@ export function FichaEscuelaPagina({
                 {incidente.impactoAlumnos && <p><ImpactoAlumnosResumen impacto={incidente.impactoAlumnos} /></p>}
                 {justificacionIncidente && (
                   <p className={styles.incidenteTexto}>
-                    <strong>Justificación de gravedad:</strong> {justificacionIncidente.etiqueta}
+                    <strong>{t.justificacionGravedad}</strong> {justificacionIncidente.etiqueta}
                     {justificacionIncidente.detalle && ` · ${justificacionIncidente.detalle}`}
                   </p>
                 )}
@@ -444,18 +450,16 @@ export function FichaEscuelaPagina({
                       </span>{' '}
                       / {FORMATO_NUMERO.format(escuela.alumnos)} {etiquetaAlumnos}
                     </p>
-                    <p className={styles.metricaCaption}>Alcanzados por la situación</p>
+                    <p className={styles.metricaCaption}>{tp.alcanzadosSituacion}</p>
                     <BarraAlumnos afectados={incidente.totales.alumnos} total={escuela.alumnos} />
                   </div>
                   <div className={styles.incidenteDetalle}>
                     <p className={styles.incidenteDetalleFuerte}>
                       {esInstituto
                         ? contar(incidente.totales.carreras ?? 0, 'carrera', 'carreras')
-                        : incidente.totales.secciones === 1
-                          ? '1 sección'
-                          : `${incidente.totales.secciones} secciones`}
+                        : tp.secciones(incidente.totales.secciones)}
                     </p>
-                    <p>Desde {desde(incidente.rigeDesde)}</p>
+                    <p>{tp.desdeFecha(desde(incidente.rigeDesde))}</p>
                     {verAlumnos(incidente.id, styles.linkSubrayado)}
                   </div>
                 </div>
@@ -463,10 +467,10 @@ export function FichaEscuelaPagina({
             ) : (
               <div className={styles.emptyState}>
                 {tieneParteRegistrado ? (
-                  <p data-testid="ficha-sin-situaciones">Sin situaciones abiertas reportadas</p>
+                  <p data-testid="ficha-sin-situaciones">{t.vistaPrevia.sinSituacionesAbiertas}</p>
                 ) : (
                   <p data-testid="ficha-sin-reporte">
-                    Sin reporte activo (la ausencia de reporte no confirma normalidad)
+                    {t.vistaPrevia.sinReporte}
                   </p>
                 )}
               </div>
@@ -475,7 +479,7 @@ export function FichaEscuelaPagina({
             {otrasAfectaciones.length > 0 && (
               <div className={styles.listaSecundaria}>
                 <h3 className={styles.sectionTitleSmall}>
-                  Otras situaciones abiertas ({otrasAfectaciones.length})
+                  {tp.otrasSituaciones(otrasAfectaciones.length)}
                 </h3>
                 {otrasAfectaciones.map((afectacion) => {
                   const causadaPor = afectaciones.find((otra) => otra.id === afectacion.causadaPorId)
@@ -489,15 +493,15 @@ export function FichaEscuelaPagina({
                       <p className={styles.itemSecundarioTexto}>
                         {[
                           resumirAlcance(afectacion.totales),
-                          `desde ${desde(afectacion.rigeDesde)}`,
-                          causadaPor ? `causada por ${causadaPor.motivo}` : null,
+                          t.vistaPrevia.desde(desde(afectacion.rigeDesde)),
+                          causadaPor ? tp.causadaPor(causadaPor.motivo) : null,
                         ]
                           .filter(Boolean)
                           .join(' · ')}
                       </p>
                       {justificacion && (
                         <p className={styles.itemSecundarioTexto}>
-                          <strong>Justificación de gravedad:</strong> {justificacion.etiqueta}
+                          <strong>{t.justificacionGravedad}</strong> {justificacion.etiqueta}
                           {justificacion.detalle && ` · ${justificacion.detalle}`}
                         </p>
                       )}
@@ -513,7 +517,7 @@ export function FichaEscuelaPagina({
             {recientes.length > 0 && (
               <div className={styles.listaSecundaria}>
                 <h3 className={styles.sectionTitleSmall}>
-                  Solucionadas recientemente ({recientes.length})
+                  {tp.solucionadasRecientes(recientes.length)}
                 </h3>
                 {recientes.map((solucionada) => (
                   <article className={styles.itemSecundario} key={solucionada.id}>
@@ -522,7 +526,7 @@ export function FichaEscuelaPagina({
                       <EstadoActualSeveridad severidad={solucionada.severidad} prefijo={false} />
                     </div>
                     <p className={styles.itemSecundarioTexto}>
-                      Solucionada {formatearMomentoHistorial(solucionada.retiradaEn).replace(/^Hoy/, 'hoy')}
+                      {tp.solucionada} {formatearMomentoHistorial(solucionada.retiradaEn).replace(/^Hoy/, 'hoy')}
                     </p>
                   </article>
                 ))}
@@ -532,35 +536,35 @@ export function FichaEscuelaPagina({
 
           <section className={styles.section} aria-labelledby="titulo-continuidad">
             <h3 id="titulo-continuidad" className={styles.sectionTitle}>
-              Continuidad educativa
+              {tp.continuidad}
             </h3>
             <dl className={styles.continuidad}>
               <div>
-                <dt>Funcionamiento</dt>
-                <dd>{etiquetaFuncionamiento(situacionesFuncionamiento)}</dd>
+                <dt>{t.vistaPrevia.funcionamiento}</dt>
+                <dd>{etiquetaFuncionamiento(situacionesFuncionamiento, diccionario)}</dd>
               </div>
               <div>
-                <dt>Clases</dt>
-                <dd>{etiquetaClases(clasesActuales, clasesInformadas)}</dd>
+                <dt>{t.vistaPrevia.clases}</dt>
+                <dd>{etiquetaClases(clasesActuales, clasesInformadas, diccionario)}</dd>
               </div>
               <div>
-                <dt>Edificio</dt>
+                <dt>{t.vistaPrevia.edificio}</dt>
                 <dd>{estadoEdificio}</dd>
               </div>
               <div>
-                <dt>Asistencia</dt>
-                <dd>{valorApoyoMapa(clasesActuales, escuela.apoyo) ?? 'No corresponde'}</dd>
+                <dt>{t.vistaPrevia.asistencia}</dt>
+                <dd>{valorApoyoMapa(clasesActuales, escuela.apoyo) ?? tp.noCorresponde}</dd>
               </div>
               {escuela.comedor !== undefined && (
                 <div>
-                  <dt>Comedor</dt>
+                  <dt>{t.vistaPrevia.comedor}</dt>
                   <dd>{valorComedor(escuela.comedor)}</dd>
                 </div>
               )}
               {escuela.posibleCentroEvacuados === true && (
                 <div>
                   <dt>{ETIQUETA_POSIBLE_CENTRO}</dt>
-                  <dd>{escuela.posibleCentroSinAntecedentes === true ? 'Sí (sin antecedentes de riesgo)' : 'Sí'}</dd>
+                  <dd>{escuela.posibleCentroSinAntecedentes === true ? tp.siSinAntecedentes : tp.si}</dd>
                 </div>
               )}
             </dl>
@@ -583,29 +587,25 @@ export function FichaEscuelaPagina({
           >
             <div className={styles.sectionHeader}>
               <h3 id="titulo-historial" className={styles.sectionTitle}>
-                Actividad reciente
+                {tp.actividadReciente}
               </h3>
               <span className={styles.sectionMeta}>
                 {escuela.situacionesHistoricas === 0
-                  ? 'Sin situaciones históricas'
-                  : `${FORMATO_NUMERO.format(escuela.situacionesHistoricas)} ${
-                      escuela.situacionesHistoricas === 1
-                        ? 'situación registrada'
-                        : 'situaciones registradas'
-                    }`}
+                  ? t.vistaPrevia.sinHistoricas
+                  : `${FORMATO_NUMERO.format(escuela.situacionesHistoricas)} ${tp.registradas(escuela.situacionesHistoricas)}`}
               </span>
             </div>
             {historial.fase === 'cargando' ? (
               <p role="status" className={styles.emptyState}>
-                Cargando historial…
+                {tp.cargandoHistorial}
               </p>
             ) : historial.fase === 'error' ? (
               <p role="alert" className={styles.emptyState}>
-                No se pudo cargar el historial de movimientos.
+                {tp.errorHistorial}
               </p>
             ) : historial.movimientos.length === 0 ? (
               <p className={styles.emptyState}>
-                No hay movimientos registrados para este establecimiento.
+                {tp.sinMovimientos}
               </p>
             ) : (
               <div className={styles.historial}>
@@ -617,41 +617,41 @@ export function FichaEscuelaPagina({
           {llamadasCallCenter && <LlamadasFicha llamadas={llamadasCallCenter} />}
         </div>
 
-        <aside id="territorio" className={styles.column} aria-label="Territorio y clima">
+        <aside id="territorio" className={styles.column} aria-label={t.pestanas.territorio}>
           <section className={styles.section} aria-labelledby="titulo-riesgo">
             <h3 id="titulo-riesgo" className={styles.sectionTitleSmall}>
-              Riesgo de la escuela
+              {tp.riesgoEscuela}
             </h3>
             <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={72} planificacion={planificacion} />
           </section>
           <section className={styles.climaCard} aria-labelledby="titulo-clima">
             <div className={styles.sectionHeader}>
               <h3 id="titulo-clima" className={styles.sectionTitleSmall}>
-                Pronóstico en la escuela
+                {tp.pronosticoEscuela}
               </h3>
               <Cloud size={20} strokeWidth={1.6} aria-hidden="true" className={styles.climaIcono} />
             </div>
-            <p className={styles.sectionMeta}>Condiciones previstas · 72 horas</p>
+            <p className={styles.sectionMeta}>{tp.condicionesPrevistas}</p>
             <FichaTerritorial cueAnexo={escuela.cueAnexo} localidad={escuela.localidad} />
           </section>
 
           <section className={styles.section} aria-labelledby="titulo-ubicacion">
             <div className={styles.sectionHeader}>
               <h3 id="titulo-ubicacion" className={styles.sectionTitleSmall}>
-                Ubicación
+                {tp.ubicacion}
               </h3>
               <Link
                 href={`/mapas/infraestructura?cue=${encodeURIComponent(escuela.cueAnexo)}&enfocar=1#actual`}
                 className={styles.linkAccion}
                 data-testid="abrir-mapa"
               >
-                Abrir mapa
+                {tp.abrirMapa}
                 <ArrowUpRight size={13} aria-hidden="true" />
               </Link>
             </div>
             <div className={styles.direccion}>
-              <p className={styles.direccionFuerte}>{escuela.localidad?.trim() || 'Sin localidad'}</p>
-              <p>{etiquetaDepartamento(escuela.departamento)}, Corrientes</p>
+              <p className={styles.direccionFuerte}>{escuela.localidad?.trim() || tp.sinLocalidad}</p>
+              <p>{etiquetaDepartamento(escuela.departamento)}, {jurisdiccionCorta()}</p>
               {!sinUbicacion && (
                 <p className={styles.coordenadas}>
                   {escuela.lat?.toFixed(4)}, {escuela.lon?.toFixed(4)}
@@ -674,37 +674,35 @@ export function FichaEscuelaPagina({
 
           <section className={styles.section} aria-labelledby="titulo-entorno">
             <h3 id="titulo-entorno" className={styles.sectionTitleSmall}>
-              Entorno y accesibilidad
+              {tp.entorno}
             </h3>
             <dl className={styles.filas}>
               <div>
-                <dt>Antecedentes</dt>
+                <dt>{t.vistaPrevia.antecedentes}</dt>
                 <dd>
                   {escuela.situacionesHistoricas === 0
-                    ? 'Sin situaciones históricas'
-                    : `${FORMATO_NUMERO.format(escuela.situacionesHistoricas)} ${
-                        escuela.situacionesHistoricas === 1 ? 'evento registrado' : 'eventos registrados'
-                      }`}
+                    ? t.vistaPrevia.sinHistoricas
+                    : `${FORMATO_NUMERO.format(escuela.situacionesHistoricas)} ${tp.eventosRegistrados(escuela.situacionesHistoricas)}`}
                 </dd>
               </div>
               <div>
-                <dt>Vigencia del parte</dt>
+                <dt>{tp.vigenciaParte}</dt>
                 <dd>
                   {escuela.sinActualizar ? (
                     <span className={styles.chipAviso} data-testid="ficha-chip-sin-actualizar">
                       <Clock size={12} aria-hidden="true" />
-                      Sin actualizar (&gt;72 h)
+                      {t.vistaPrevia.sinActualizar}
                     </span>
                   ) : tieneParteRegistrado ? (
-                    <span data-testid="ficha-chip-vigente">Vigente</span>
+                    <span data-testid="ficha-chip-vigente">{t.vistaPrevia.vigente}</span>
                   ) : (
-                    'Sin parte registrado'
+                    tp.sinParte
                   )}
                 </dd>
               </div>
               <div>
-                <dt>Última novedad</dt>
-                <dd>{novedadRelativa ?? 'Sin datos'}</dd>
+                <dt>{tp.ultimaNovedad}</dt>
+                <dd>{novedadRelativa ?? tp.sinDatos}</dd>
               </div>
             </dl>
           </section>
@@ -724,6 +722,7 @@ export function FichaEscuelaPagina({
 const MAX_BARRAS = 30
 
 function BarraAlumnos({ afectados, total }: { afectados: number; total: number }) {
+  const tp = useTextos().fichaPagina
   if (total <= 0) return null
   const barras = Math.min(total, MAX_BARRAS)
   const marcadas = Math.min(
@@ -734,7 +733,7 @@ function BarraAlumnos({ afectados, total }: { afectados: number; total: number }
     <div
       className={styles.barra}
       role="img"
-      aria-label={`${afectados} de ${total} alumnos alcanzados`}
+      aria-label={tp.barraAlumnos(afectados, total)}
     >
       {Array.from({ length: barras }, (_, indice) => (
         <span

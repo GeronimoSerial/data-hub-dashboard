@@ -8,6 +8,8 @@ import { alcanceMapa } from '@/lib/infraestructura/alcance-mapa'
 import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
 import { ruta } from '@/lib/http/ruta'
 import { crearLimitador } from '@/lib/http/limitador'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,6 +47,7 @@ async function handleGET(request: Request) {
     )
   }
   const { filas, columnas, opciones, direcciones, totalAlumnos } = consulta
+  describirAuditoria({ metadatos: { formato: solicitud.formato, cantidad: filas.length } })
 
   if (solicitud.formato === 'json') {
     const { tamanoPagina } = solicitud
@@ -87,4 +90,8 @@ async function handleGET(request: Request) {
   })
 }
 
-export const GET = ruta('infraestructura.exportar.get', handleGET, { limite: { limitador } })
+export const GET = conAuditoria(
+  'mapa.exportar',
+  '/api/infraestructura/exportar',
+  ruta('infraestructura.exportar.get', handleGET, { limite: { limitador } }),
+)

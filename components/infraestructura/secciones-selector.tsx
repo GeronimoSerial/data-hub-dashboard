@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { SeccionContexto, TurnoContexto } from '@/lib/infraestructura/contexto'
 import { Opcion } from '@/components/ui/opcion'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export interface SeccionesSelectorProps {
   turnos: TurnoContexto[]
@@ -102,6 +103,7 @@ export function SeccionesSelector({
     seccionesAbiertasAlMontar(turnos, alumnosSeleccionados),
   )
   const [busquedas, setBusquedas] = useState<Record<number, string>>({})
+  const t = useTextos().parteGaleria
 
   function alternarExpansion(geSectionId: number) {
     setExpandidas((actuales) => {
@@ -183,7 +185,7 @@ export function SeccionesSelector({
     <div className="secciones-selector">
       <Opcion
         tipo="checkbox"
-        label={`Todas las secciones · ${seleccionadas.length} de ${todosLosIds.length} (${matriculaTotal} alumnos)`}
+        label={t.secciones.todas(seleccionadas.length, todosLosIds.length, matriculaTotal)}
         checked={todasSeleccionadas}
         onChange={(event) => onCambiar(event.currentTarget.checked ? todosLosIds : [], [])}
         disabled={disabled}
@@ -202,17 +204,17 @@ export function SeccionesSelector({
           <Opcion
             tipo="checkbox"
             className="secciones-selector__turno-opcion"
-            label={`Todo el turno ${turno.turno}`}
+            label={t.secciones.todoTurno(turno.turno)}
             checked={todasDelTurno}
             onChange={(event) => alternarTurno(turno, event.currentTarget.checked)}
             disabled={disabled}
             compacta
           />
-          <h3>{turno.turno} · {turno.niveles.reduce((n, nivel) => n + nivel.secciones.filter((s) => setSeleccionadas.has(s.geSectionId)).length, 0)} de {turno.niveles.reduce((n, nivel) => n + nivel.secciones.length, 0)} secciones</h3>
+          <h3>{t.secciones.resumenTurno(turno.turno, turno.niveles.reduce((n, nivel) => n + nivel.secciones.filter((s) => setSeleccionadas.has(s.geSectionId)).length, 0), turno.niveles.reduce((n, nivel) => n + nivel.secciones.length, 0))}</h3>
 
           {turno.niveles.map((nivel) => (
             <div className="secciones-selector__nivel" key={nivel.nivel}>
-              <h4>{nivel.nivel} · {nivel.secciones.filter((s) => setSeleccionadas.has(s.geSectionId)).length} de {nivel.secciones.length}</h4>
+              <h4>{t.secciones.resumenNivel(nivel.nivel, nivel.secciones.filter((s) => setSeleccionadas.has(s.geSectionId)).length, nivel.secciones.length)}</h4>
 
               {nivel.secciones.map((seccion) => {
                 const efectivo = efectivoDeSeccion(seccion, seleccionadas, alumnosSeleccionados)
@@ -233,7 +235,7 @@ export function SeccionesSelector({
                       <Opcion
                         tipo="checkbox"
                         label={`${seccion.curso} "${seccion.division}"`}
-                        ayuda={`${seccion.matricula} alumnos`}
+                        ayuda={t.secciones.matricula(seccion.matricula)}
                         checked={seccionSeleccionada && !esParcial}
                         indeterminate={esParcial}
                         onChange={(event) => alternarSeccion(seccion, event.currentTarget.checked)}
@@ -247,10 +249,10 @@ export function SeccionesSelector({
                           className="secciones-selector__toggle"
                           aria-expanded={expandida}
                           aria-controls={panelId}
-                          aria-label={`Elegir alumnos (${efectivo.size} de ${seccion.alumnos.length})`}
+                          aria-label={t.secciones.elegirAria(efectivo.size, seccion.alumnos.length)}
                           onClick={() => alternarExpansion(seccion.geSectionId)}
                         >
-                          {efectivo.size === 0 ? 'Elegir alumnos' : `${efectivo.size} de ${seccion.alumnos.length}`}
+                          {efectivo.size === 0 ? t.alumnos.elegir : t.secciones.elegidosDe(efectivo.size, seccion.alumnos.length)}
                           <ChevronDown size={14} aria-hidden="true" />
                         </button>
                       )}
@@ -262,8 +264,8 @@ export function SeccionesSelector({
                           <input
                             className="secciones-selector__busqueda"
                             type="search"
-                            aria-label={`Buscar alumnos de ${seccion.curso} ${seccion.division}`}
-                            placeholder="Buscar alumno"
+                            aria-label={t.alumnos.buscarDe(seccion.curso, seccion.division)}
+                            placeholder={t.alumnos.buscar}
                             value={busquedas[seccion.geSectionId] ?? ''}
                             onChange={(event) => setBusquedas((actual) => ({ ...actual, [seccion.geSectionId]: event.target.value }))}
                           />

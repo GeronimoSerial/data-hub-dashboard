@@ -1,4 +1,7 @@
 import type { Severidad } from './validacion'
+import { parteComunTextosEs } from '@/lib/i18n/diccionarios/grupos/parteComunTextos.es'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 // Spec rediseño §4.3: Crítica es la excepción y se justifica cuando el motivo
 // no la sugería. Lista cerrada para poder clasificar; 'otro' admite detalle
@@ -10,12 +13,11 @@ export function esJustificacionCritica(valor: unknown): valor is JustificacionCr
   return typeof valor === 'string' && (JUSTIFICACIONES_CRITICA as readonly string[]).includes(valor)
 }
 
-export const ETIQUETA_JUSTIFICACION_CRITICA: Record<JustificacionCritica, string> = {
-  mas_personas: 'Afecta a más personas o secciones de lo habitual',
-  riesgo_fisico: 'Hay riesgo eléctrico, estructural o sanitario',
-  se_prolonga: 'Se prolonga en el tiempo o no tiene fecha de solución',
-  combinado: 'Se combina con otra situación activa',
-  otro: 'Otro',
+export const ETIQUETA_JUSTIFICACION_CRITICA: Record<JustificacionCritica, string> = parteComunTextosEs.justificacionCritica
+
+/** Etiqueta de la justificación crítica en el idioma `t` (por defecto español). */
+export function etiquetaJustificacionCritica(justificacion: JustificacionCritica, t: Diccionario = es): string {
+  return t.parteComunTextos.justificacionCritica[justificacion]
 }
 
 export function presentarJustificacionCritica(input: {

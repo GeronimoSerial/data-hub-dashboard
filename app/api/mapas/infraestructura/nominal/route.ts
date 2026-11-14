@@ -8,6 +8,8 @@ import { afectacionDentroDeNiveles, consultarYRegistrarAfectados } from '@/lib/i
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { ruta } from '@/lib/http/ruta'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -59,7 +61,10 @@ async function handleGET(request: Request) {
     return Response.json({ error: 'Afectación no encontrada' }, { status: 404 })
   }
 
+  describirAuditoria({ objetoTipo: 'establecimiento', metadatos: { cantidad: resultado.cantidad } })
   return jsonNoStore(resultado)
 }
 
-export const GET = ruta('mapas.infraestructura.nominal.get', handleGET)
+// Lectura sensible: un evento por solicitud con la cantidad. El registro en infra_acceso_nominal_log
+// lo sigue escribiendo consultarYRegistrarAfectados; el evento no lo reemplaza.
+export const GET = conAuditoria('nominal.consultar', '/api/mapas/infraestructura/nominal', ruta('mapas.infraestructura.nominal.get', handleGET))

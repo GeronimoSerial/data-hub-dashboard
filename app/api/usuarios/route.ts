@@ -15,10 +15,20 @@ import {
   unknownNivelJurIds,
   unknownRecursoIds,
 } from '@/lib/usuarios'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const CAMPOS_ALTA = ['email', 'name', 'password', 'role', 'nivelJurIds', 'accesoRecursos', 'recursoIds', 'hubAccess'] as const
+
+// Solo nombres de campos presentes en el pedido: nunca valores (contraseña, correo, rol).
+function camposPresentes(cuerpo: unknown, candidatos: readonly string[]): string[] {
+  if (!cuerpo || typeof cuerpo !== 'object') return []
+  return candidatos.filter((campo) => campo in cuerpo)
+}
 
 async function handleGET() {
   await ensureSeeded()
@@ -31,6 +41,7 @@ async function handleGET() {
 
 async function handlePOST(request: Request) {
   await ensureSeeded()
+  describirAuditoria({ objetoTipo: 'usuario' })
   const denied = mutateUsuariosDenied(await getSessionUser())
   if (denied) {
     return Response.json({ error: denied.error }, { status: denied.status })
@@ -71,29 +82,32 @@ async function handlePOST(request: Request) {
 
   let createdId: string | undefined
   try {
-    const created = await auth.api.createUser({
-      body: {
-        email: parsed.email,
-        password: parsed.password,
-        name: parsed.name,
-        role: parsed.role,
-        // Better Auth's admin createUser accepts custom user fields via `data`;
-        // banned is persisted before the credential account can be used.
-        data: { banned: true, banReason: 'Provisioning' },
-      },
-      headers: request.headers,
-    })
-    const id = created.user.id
-    createdId = id
-    await persistUserAccessConfiguration(id, {
-      nivelJurIds: parsed.nivelJurIds,
-      accesoRecursos: parsed.accesoRecursos,
-      recursoIds: parsed.recursoIds,
-      hubAccess: { hubPolicy: parsed.hubPolicy, hubDestination: parsed.hubDestination },
-      // ACL rows and the enabled state commit together; a failure leaves the
-      // user banned, including when best-effort deletion also fails.
-      activateProvisionedUser: true,
-    })
+    // Better Auth escribe la cuenta por su propio adaptador; la configuración de acceso sí entra en la transacción del evento.
+    const id = await cambioAuditado(async () => {
+      const created = await auth.api.createUser({
+        body: {
+          email: parsed.email,
+          password: parsed.password,
+          name: parsed.name,
+          role: parsed.role,
+          // Better Auth's admin createUser accepts custom user fields via `data`;
+          // banned is persisted before the credential account can be used.
+          data: { banned: true, banReason: 'Provisioning' },
+        },
+        headers: request.headers,
+      })
+      createdId = created.user.id
+      await persistUserAccessConfiguration(createdId, {
+        nivelJurIds: parsed.nivelJurIds,
+        accesoRecursos: parsed.accesoRecursos,
+        recursoIds: parsed.recursoIds,
+        hubAccess: { hubPolicy: parsed.hubPolicy, hubDestination: parsed.hubDestination },
+        // ACL rows and the enabled state commit together; a failure leaves the
+        // user banned, including when best-effort deletion also fails.
+        activateProvisionedUser: true,
+      })
+      return createdId
+    }, (userId) => ({ status: 201, objetoTipo: 'usuario', objetoId: userId, metadatos: { campos: camposPresentes(body, CAMPOS_ALTA) } }))
     return Response.json({ ok: true, id }, { status: 201 })
   } catch (err) {
     if (createdId) {
@@ -109,4 +123,4 @@ async function handlePOST(request: Request) {
 }
 
 export const GET = ruta('usuarios.get', handleGET)
-export const POST = ruta('usuarios.post', handlePOST)
+export const POST = conAuditoria('usuario.crear', '/api/usuarios', ruta('usuarios.post', handlePOST))

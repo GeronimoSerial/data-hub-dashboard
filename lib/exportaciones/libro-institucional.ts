@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import ExcelJS from 'exceljs'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 
 const FUENTE = 'Arial'
 const COLOR_TEXTO = 'FF2E2D2C'
@@ -9,7 +10,6 @@ const COLOR_BLANCO = 'FFFFFFFF'
 const COLOR_BORDE = 'FFE0DFDE'
 const COLOR_ZEBRA = 'FFF5F5F4'
 const COLOR_ACENTO = 'FFFACD05'
-const ZONA_HORARIA = 'America/Argentina/Buenos_Aires'
 const LADO_LOGO_PX = 56
 const ANCHO_MINIMO_COLUMNA_LOGO = 12
 const COLUMNA_TEXTO = 2
@@ -52,7 +52,7 @@ function fuente(extra: Partial<ExcelJS.Font> = {}): Partial<ExcelJS.Font> {
 function formatearFechaHora(fecha: Date): string {
   const partes = Object.fromEntries(
     new Intl.DateTimeFormat('en-GB', {
-      timeZone: ZONA_HORARIA,
+      timeZone: regionPublicaActual().zonaHoraria,
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

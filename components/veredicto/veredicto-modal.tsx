@@ -1,13 +1,16 @@
 'use client'
 
+import { zonaHorariaRegion } from '@/lib/infraestructura/formato-region'
 import * as React from 'react'
 import { Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { DtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import type { EventoTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
-import { etiquetaNivel, nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
+import { nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
 import { lecturaDelDia } from '@/lib/infraestructura/veredicto/resumen'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import type { Diccionario } from '@/lib/i18n'
 import { NivelChip } from './nivel-chip'
 import { contarPalabras, pasoEscritura, TextoIA, useEscribiendo } from './texto-ia'
 import { VeredictoAcciones } from './veredicto-acciones'
@@ -29,31 +32,37 @@ function fechaCorta(fecha: string): string {
   return `${d}/${m}`
 }
 
-function diaSemana(fecha: string): string {
+function diaSemana(fecha: string, locale: string): string {
   const [y, m, d] = fecha.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('es', { weekday: 'long' })
+  return new Date(y, m - 1, d).toLocaleDateString(locale, { weekday: 'long' })
 }
 
 // The label comes from the stored `tipoDia` (computed in Argentina time by the
 // job), not from the browser clock.
 function fechaHoyArgentina(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+  return new Date().toLocaleDateString('en-CA', { timeZone: zonaHorariaRegion() })
 }
 
-function diaSemanaCorto(fecha: string): string {
-  const dia = diaSemana(fecha).slice(0, 3)
+function diaSemanaCorto(fecha: string, locale: string): string {
+  const dia = diaSemana(fecha, locale).slice(0, 3)
   return `${dia.charAt(0).toUpperCase()}${dia.slice(1)}`
 }
 
-function etiquetaTemporal(tipoDia: DtoVeredicto['tipoDia']): string {
-  if (tipoDia === 'hoy') return 'hoy'
-  return tipoDia === 'observado' ? 'observado' : 'pronóstico'
+type TextosVeredicto = Diccionario['residuos']['veredicto']
+
+function etiquetaTemporal(tv: TextosVeredicto, tipoDia: DtoVeredicto['tipoDia']): string {
+  if (tipoDia === 'hoy') return tv.temporal.hoy
+  return tipoDia === 'observado' ? tv.temporal.observado : tv.temporal.pronostico
 }
 
-function etiquetaDia(tipoDia: string, fecha: string): string {
-  if (tipoDia === 'hoy') return 'Hoy'
-  const dia = diaSemana(fecha)
-  return `${dia.charAt(0).toUpperCase()}${dia.slice(1)} ${fechaCorta(fecha)} · ${etiquetaTemporal(tipoDia)}`
+function etiquetaDia(tv: TextosVeredicto, tipoDia: string, fecha: string): string {
+  if (tipoDia === 'hoy') return tv.hoy
+  const dia = diaSemana(fecha, tv.localeFecha)
+  return `${dia.charAt(0).toUpperCase()}${dia.slice(1)} ${fechaCorta(fecha)} · ${etiquetaTemporal(tv, tipoDia as DtoVeredicto['tipoDia'])}`
+}
+
+function textoConfianza(tv: TextosVeredicto, e: EventoTerreno): string {
+  return tv.confianza[e.confianza] ?? e.confianzaTexto
 }
 
 function extraerVeredictos(body: unknown): DtoVeredicto[] {
@@ -81,6 +90,7 @@ function VeredictoDelDia({
   onSeleccionarDepartamento?(departamentoId: string): void
 }): JSX.Element {
   const lectura = lecturaDelDia(delDia)
+  const tr = useTextos().residuos
   const { provincia, titular, lineas, sinNovedad, conIa } = lectura
   const tipoDia = fecha === fechaHoy ? 'hoy' : fecha < fechaHoy ? 'observado' : 'pronostico'
   // The headline and every line type in as one sequence within one time budget.
@@ -92,28 +102,28 @@ function VeredictoDelDia({
 
   return (
     <section
-      aria-label="Veredicto del día"
+      aria-label={tr.veredicto.ariaDia}
       className="veredicto-dia"
       data-escribiendo={conIa && escribiendo ? 'true' : undefined}
     >
       <header className="veredicto-dia__encabezado">
-        <h3>{etiquetaDia(tipoDia, fecha)}</h3>
+        <h3>{etiquetaDia(tr.veredicto, tipoDia, fecha)}</h3>
         {provincia ? <NivelChip nivel={provincia.nivel} /> : null}
-        {provincia?.enCalibracion ? <span className="veredicto-calibracion">En calibración</span> : null}
+        {provincia?.enCalibracion ? <span className="veredicto-calibracion">{tr.veredicto.calibracion}</span> : null}
       </header>
 
-      {delDia.length === 0 ? <p className="veredicto-modal__estado">El veredicto de este día todavía no se generó.</p> : null}
+      {delDia.length === 0 ? <p className="veredicto-modal__estado">{tr.veredicto.sinGenerar}</p> : null}
 
       {titular ? (
         <p className="veredicto-dia__titular">
           <Texto texto={titular} ia={provincia?.fuente === 'ia'} inicio={0} paso={paso} />
         </p>
       ) : (
-        <p className="veredicto-dia__vacio">Sin veredicto de provincia para este día.</p>
+        <p className="veredicto-dia__vacio">{tr.veredicto.sinVeredictoProvincia}</p>
       )}
 
       {lineas.length > 0 ? (
-        <ul aria-label="Departamentos" className="veredicto-lineas">
+        <ul aria-label={tr.veredicto.departamentos} className="veredicto-lineas">
           {lineas.map((linea, i) => (
             <li key={linea.veredicto.id} className="veredicto-linea" data-nivel={linea.veredicto.nivel}>
               <div className="veredicto-linea__cabeza">
@@ -123,10 +133,10 @@ function VeredictoDelDia({
                   <button
                     type="button"
                     className="veredicto-linea__mapa"
-                    aria-label={`Ver ${linea.nombre} en el mapa`}
+                    aria-label={tr.veredicto.ariaVerEnMapa(linea.nombre)}
                     onClick={() => onSeleccionarDepartamento(linea.id)}
                   >
-                    Ver en el mapa
+                    {tr.veredicto.verEnMapa}
                   </button>
                 ) : null}
               </div>
@@ -140,7 +150,7 @@ function VeredictoDelDia({
 
       {sinNovedad.length > 0 ? (
         <p className="veredicto-dia__quietos">
-          {lineas.length === 0 ? 'Sin novedades en ningún departamento.' : `Sin novedades: ${sinNovedad.join(', ')}.`}
+          {lineas.length === 0 ? tr.veredicto.sinNovedadesNinguno : tr.veredicto.sinNovedades(sinNovedad.join(', '))}
         </p>
       ) : null}
 
@@ -148,10 +158,10 @@ function VeredictoDelDia({
         {conIa ? (
           <>
             <Sparkles aria-hidden="true" className="veredicto-ia-icono" size={14} strokeWidth={2} />
-            Generado con IA · puede contener errores
+            {tr.veredicto.generadoIa}
           </>
         ) : (
-          'Generado por reglas automáticas'
+          tr.veredicto.generadoReglas
         )}
       </p>
     </section>
@@ -169,6 +179,7 @@ export function VeredictoModal({
   const [veredictos, setVeredictos] = useState<DtoVeredicto[]>([])
   const [seleccion, setSeleccion] = useState<string | null>(null)
   const [eventosCargados, setEventosCargados] = useState<EventoTerreno[]>([])
+  const tr = useTextos().residuos
   // Every opening starts on the current day.
   const [abiertoAntes, setAbiertoAntes] = useState(open)
   if (open !== abiertoAntes) {
@@ -245,23 +256,23 @@ export function VeredictoModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="veredicto-modal">
         <div className="veredicto-modal__cabecera">
-          <DialogTitle>Veredicto diario</DialogTitle>
+          <DialogTitle>{tr.veredicto.titulo}</DialogTitle>
           {acciones ? <div>{acciones}</div> : null}
         </div>
 
-        {estado === 'cargando' ? <p className="veredicto-modal__estado">Cargando veredictos…</p> : null}
+        {estado === 'cargando' ? <p className="veredicto-modal__estado">{tr.veredicto.cargando}</p> : null}
         {estado === 'error' ? (
           <p role="alert" className="veredicto-modal__estado veredicto-modal__estado--error">
-            No se pudieron cargar los veredictos.
+            {tr.veredicto.errorCarga}
           </p>
         ) : null}
         {estado === 'ok' && fechas.length === 0 ? (
-          <p className="veredicto-modal__estado">Sin veredictos todavía para este período.</p>
+          <p className="veredicto-modal__estado">{tr.veredicto.sinPeriodo}</p>
         ) : null}
 
         {estado === 'ok' && fechas.length > 0 ? (
           <div className="veredicto-modal__cuerpo">
-            <div role="group" aria-label="Línea de tiempo" className="veredicto-timeline">
+            <div role="group" aria-label={tr.veredicto.lineaTiempo} className="veredicto-timeline">
               {fechas.map((fecha) => {
                 const prov = (porFecha.get(fecha) ?? []).find((v) => v.ambito === 'provincia')
                 const activa = fecha === fechaActiva
@@ -270,13 +281,13 @@ export function VeredictoModal({
                     key={fecha}
                     type="button"
                     aria-pressed={activa}
-                    aria-label={[fechaCorta(fecha), prov ? etiquetaNivel(prov.nivel) : null, prov ? etiquetaTemporal(prov.tipoDia) : null].filter(Boolean).join(' · ')}
+                    aria-label={[fechaCorta(fecha), prov ? ((tr.veredicto.niveles as Record<string, string>)[prov.nivel] ?? prov.nivel) : null, prov ? etiquetaTemporal(tr.veredicto, prov.tipoDia) : null].filter(Boolean).join(' · ')}
                     onClick={() => setSeleccion(fecha)}
                     className="veredicto-timeline__dia"
                     data-tipo={fecha === fechaHoy ? 'hoy' : fecha < fechaHoy ? 'observado' : 'pronostico'}
                     data-nivel={prov?.nivel}
                   >
-                    <span className="veredicto-timeline__semana">{fecha === fechaHoy ? 'Hoy' : diaSemanaCorto(fecha)}</span>
+                    <span className="veredicto-timeline__semana">{fecha === fechaHoy ? tr.veredicto.hoy : diaSemanaCorto(fecha, tr.veredicto.localeFecha)}</span>
                     <span className="veredicto-timeline__fecha">{fecha.slice(8)}</span>
                     <span className="veredicto-timeline__nivel" aria-hidden="true" />
                   </button>
@@ -296,14 +307,14 @@ export function VeredictoModal({
             ) : null}
 
             {eventosDelDia.length > 0 ? (
-              <section aria-label="Confirmado en terreno" className="veredicto-seccion">
-                <h3>Confirmado en terreno</h3>
+              <section aria-label={tr.veredicto.confirmadoTerreno} className="veredicto-seccion">
+                <h3>{tr.veredicto.confirmadoTerreno}</h3>
                 <ul>
                   {eventosDelDia.map((e) => (
                     <li key={e.id} className="veredicto-evento">
                       <strong>{e.titulo}</strong>
                       <span>
-                        {e.lugar} ({nombreDepartamento(e.departamento)}) · {e.fechaTexto} · {e.confianzaTexto}
+                        {e.lugar} ({nombreDepartamento(e.departamento)}) · {e.fechaTexto} · {textoConfianza(tr.veredicto, e)}
                       </span>
                       <a href={e.fuente.url} target="_blank" rel="noopener noreferrer">
                         {e.fuente.medio}

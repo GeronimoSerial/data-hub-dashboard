@@ -4,6 +4,7 @@ import { confirmCabeceras, listCabeceras } from '@/lib/cuadernillos/cabeceras'
 import { BookletServiceError } from '@/lib/cuadernillos/inventory'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -48,7 +49,12 @@ async function handlePOST(request: Request) {
   const parsed = postSchema.safeParse(body)
   if (!parsed.success) return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: noStore })
   try {
-    const result = await confirmCabeceras(actor, parsed.data.mapping)
+    const result = await cambioAuditado(() => confirmCabeceras(actor, parsed.data.mapping), (confirmacion) => ({
+      status: 200,
+      objetoTipo: 'cuadernillo_cabecera',
+      resultado: confirmacion.confirmed.length === 0 ? 'sin_cambio' : 'exito',
+      metadatos: { cantidad: confirmacion.confirmed.length },
+    }))
     return Response.json(result, { status: 200, headers: noStore })
   } catch (error) {
     return errorResponse(error) ?? Response.json({ error: 'cabeceras_failed' }, { status: 503, headers: noStore })
@@ -56,4 +62,4 @@ async function handlePOST(request: Request) {
 }
 
 export const GET = ruta('cuadernillos.cabeceras.get', handleGET)
-export const POST = ruta('cuadernillos.cabeceras.post', handlePOST)
+export const POST = conAuditoria('cuadernillo.cabecera_guardar', '/api/cuadernillos/cabeceras', ruta('cuadernillos.cabeceras.post', handlePOST))

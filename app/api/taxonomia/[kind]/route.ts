@@ -16,6 +16,8 @@ import {
   type TaxonomyKind,
 } from '@/lib/taxonomia'
 import { ruta } from '@/lib/http/ruta'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -54,6 +56,7 @@ async function handlePOST(request: Request, ctx: Ctx) {
   if (!isTaxonomyKind(kind)) {
     return Response.json({ error: 'kind inválido' }, { status: 400 })
   }
+  describirAuditoria({ objetoTipo: 'taxonomia', objetoId: kind })
 
   let body: unknown
   try {
@@ -63,7 +66,10 @@ async function handlePOST(request: Request, ctx: Ctx) {
   }
 
   try {
-    await upsertKind(kind, body)
+    await cambioAuditado(
+      () => upsertKind(kind, body),
+      () => ({ status: 200, objetoTipo: 'taxonomia', objetoId: kind }),
+    )
   } catch {
     return Response.json({ error: 'Cuerpo inválido' }, { status: 400 })
   }
@@ -92,13 +98,17 @@ async function handleDELETE(request: Request, ctx: Ctx) {
     return jsonError('No se puede eliminar: hay recursos asociados', 400)
   }
 
-  const db = getDb()
   try {
-    if (kind === 'niveles') await db.delete(niveles).where(eq(niveles.id, id))
-    else if (kind === 'tipos') await db.delete(tipos).where(eq(tipos.id, id))
-    else if (kind === 'categorias')
-      await db.delete(categorias).where(eq(categorias.id, id))
-    else await db.delete(tags).where(eq(tags.id, id))
+    await cambioAuditado(
+      async tx => {
+        if (kind === 'niveles') await tx.delete(niveles).where(eq(niveles.id, id))
+        else if (kind === 'tipos') await tx.delete(tipos).where(eq(tipos.id, id))
+        else if (kind === 'categorias')
+          await tx.delete(categorias).where(eq(categorias.id, id))
+        else await tx.delete(tags).where(eq(tags.id, id))
+      },
+      () => ({ status: 200, objetoTipo: 'taxonomia', objetoId: kind }),
+    )
   } catch {
     return jsonError('No se puede eliminar: hay recursos asociados', 400)
   }
@@ -167,5 +177,5 @@ async function upsertKind(kind: TaxonomyKind, body: unknown) {
     })
 }
 
-export const POST = ruta('taxonomia.kind.post', handlePOST)
-export const DELETE = ruta('taxonomia.kind.delete', handleDELETE)
+export const POST = conAuditoria('taxonomia.crear', '/api/taxonomia/[kind]', ruta('taxonomia.kind.post', handlePOST))
+export const DELETE = conAuditoria('taxonomia.eliminar', '/api/taxonomia/[kind]', ruta('taxonomia.kind.delete', handleDELETE))

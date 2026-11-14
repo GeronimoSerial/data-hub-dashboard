@@ -1,4 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { migrarDb } from '@/lib/db'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+
+// Fixture: la ruta ahora registra cada intento en auditoria_evento, así que necesita una base migrada.
+usarDbTemporal('auth-ban-guard-', { seed: false })
+beforeAll(async () => { await migrarDb() })
 
 const mocks = vi.hoisted(() => ({ getSessionUser: vi.fn(), ensureSeeded: vi.fn(), post: vi.fn(), get: vi.fn() }))
 vi.mock('@/lib/session', () => ({ getSessionUser: mocks.getSessionUser }))

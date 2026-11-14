@@ -78,10 +78,28 @@ describe('PanelEstadoDatos', () => {
     expect(screen.getByText('Desactualizado')).toBeInTheDocument()
   })
 
-  it('agrupa por área con encabezados', () => {
+  it('lista sólo las fuentes con problema y deja el resto tras "Ver todas las fuentes"', () => {
     render(<PanelEstadoDatos estado={CON_FALLA} />)
-    expect(screen.getByRole('heading', { name: 'Climatologías' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Hidrometría' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Fuentes con problemas' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver todas las fuentes' })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('pausa operativa: abierto, con problema y sin "Todos los datos al día"', () => {
+    const PAUSADO: EstadoDatos = {
+      items: [
+        item({ id: 'clima', grupo: 'climatologias', nombre: 'Climatología de caudal', estado: 'pausado', motivo: 'Jobs batch detenidos por pausa operativa (ENOS_JOBS_ENABLED=false).' }),
+        item({ id: 'seas', grupo: 'lluvia', nombre: 'Pronóstico estacional', estado: 'deshabilitado', ultimoExitoEn: null, edadMinutos: null }),
+      ],
+      problemas: 1,
+      generadoEn: GENERADO,
+    }
+    render(<PanelEstadoDatos estado={PAUSADO} />)
+    expect(screen.getByTestId('estado-datos')).toHaveAttribute('open')
+    expect(screen.getByText('1 fuente con problemas')).toBeInTheDocument()
+    expect(screen.queryByText('Todos los datos al día')).not.toBeInTheDocument()
+    const [primera] = screen.getAllByTestId('estado-datos-item')
+    expect(within(primera).getByText('Pausado')).toBeInTheDocument()
+    expect(screen.getByText('No programado')).toBeInTheDocument()
   })
 
   it('sin lectura del estado: abierto y avisando, nunca "al día"', () => {

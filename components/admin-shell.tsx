@@ -7,13 +7,15 @@ import { ArrowLeft, ChevronDown, Activity, FolderKanban, Tags, Users, Layers3, L
 import { isStaff, type Role } from '@/lib/acl'
 import { adminSection, adminSectionHref, type AdminSectionSlug } from '@/components/admin/sections'
 import { canUseLanding, effectiveSections, type SectionPolicy } from '@/lib/hub-sections'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 type AdminFlags = {
   riskEngineEnabled: boolean
   episodiosDerivadosEnabled: boolean
 }
 
-type AdminLink = { label: string; href: string; icon: typeof FolderKanban }
+// `prefetch: false` keeps the audit viewer out of the automatic prefetch; other links keep Next's default.
+type AdminLink = { label: string; href: string; icon: typeof FolderKanban; prefetch?: false }
 
 const EMPTY_FLAGS: AdminFlags = { riskEngineEnabled: false, episodiosDerivadosEnabled: false }
 
@@ -35,13 +37,13 @@ const ICONS: Record<AdminSectionSlug, typeof FolderKanban> = {
   nominal: UserCheck,
 }
 
-function buildSections(role: Role, flags: AdminFlags) {
+function buildSections(role: Role, flags: AdminFlags, etiquetaAuditoria: string) {
   const sections = GROUPS.map((group) => ({
     label: group.label,
     items: group.slugs
       .map((slug) => adminSection(slug)!)
       .filter((meta) => role === 'admin' || !meta.adminOnly)
-      .map((meta) => ({ label: meta.label, href: adminSectionHref(meta.slug), icon: ICONS[meta.slug] })),
+      .map((meta): AdminLink => ({ label: meta.label, href: adminSectionHref(meta.slug), icon: ICONS[meta.slug] })),
   }))
   const operacion: AdminLink[] = isStaff(role)
     ? [{ label: 'Verificaciones', href: '/admin/verificaciones', icon: ClipboardCheck }]
@@ -50,13 +52,15 @@ function buildSections(role: Role, flags: AdminFlags) {
   if (isStaff(role) && flags.episodiosDerivadosEnabled) operacion.push({ label: 'Episodios derivados', href: '/admin/episodios-derivados', icon: Waves })
   if (role === 'admin') {
     operacion.push({ label: 'Salud', href: '/admin/operacion', icon: Activity })
+    operacion.push({ label: etiquetaAuditoria, href: '/admin/auditoria', icon: ListTree, prefetch: false })
   }
   sections.push({ label: 'Operación', items: operacion })
   return sections
 }
 
 export function AdminShell({ children, role, hubPolicy, flags = EMPTY_FLAGS }: { children: React.ReactNode; role: Role; hubPolicy: SectionPolicy; flags?: AdminFlags }) {
-  const visibleSections = buildSections(role, flags).map((section) => ({
+  const t = useTextos()
+  const visibleSections = buildSections(role, flags, t.auditoria.navegacion).map((section) => ({
     ...section,
     items: section.label === 'Operación' && !effectiveSections(hubPolicy).has('infrastructure')
       ? []
@@ -95,8 +99,8 @@ export function AdminShell({ children, role, hubPolicy, flags = EMPTY_FLAGS }: {
           {visibleSections.map((section) => (
             <div className="admin-sidebar__section" key={section.label}>
               <span className="admin-sidebar__group">{section.label}</span>
-              {section.items.map(({ label, href, icon: Icon }) => (
-                <Link href={href} key={href} aria-current={isCurrent(href) ? 'page' : undefined}>
+              {section.items.map(({ label, href, icon: Icon, prefetch }) => (
+                <Link href={href} key={href} prefetch={prefetch} aria-current={isCurrent(href) ? 'page' : undefined}>
                   <Icon size={16} aria-hidden /> {label}
                 </Link>
               ))}

@@ -12,7 +12,7 @@
 // que gane una sola. El select posterior al UPDATE fallido sirve para
 // *clasificar* el conflicto (404/409), no para decidir la escritura.
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import {
   infraAfectacion,
@@ -41,7 +41,7 @@ type CanalAsistido = 'telefono' | 'whatsapp' | 'presencial' | 'otro'
 
 type OrigenRespuesta =
   | { tipo: 'enlace'; token: string }
-  | { tipo: 'asistida'; actorUserId: string; canal: CanalAsistido }
+  | { tipo: 'asistida'; actorUserId: string; canal: CanalAsistido; observacion: string }
 
 type CrearVerificacionInput = {
   cueAnexo: string
@@ -67,8 +67,17 @@ type ResponderAsistidaInput = {
   actorUserId: string
   canal: CanalAsistido
   resultado: ResultadoRespuesta
+  // Obligatoria: el registro asistido debe dejar constancia de qué se acordó.
+  // La validación de presencia vive en la ruta (400); acá sólo se persiste.
+  observacion: string
   movimientoId?: string | null
 }
+
+// Valor de `respondida_por` cuando la respuesta llega por enlace público. El
+// flujo de enlace no pide e-mail ni identidad: se registra el canal, no un
+// usuario inventado. La respuesta asistida se atribuye por
+// `respondidaPorUserId`, así que `respondidaPor` queda en null.
+export const RESPONDIDA_POR_ENLACE = 'enlace'
 
 // Emite un pedido de verificación. El `token` en claro viaja en la respuesta
 // SÓLO acá: es el único momento en que existe fuera del proceso. La base
@@ -326,6 +335,8 @@ async function transicionarARespondida(
         respondidaEn: ahoraIso,
         respondidaCanal: canal,
         respondidaPorUserId: origen.tipo === 'asistida' ? origen.actorUserId : null,
+        respondidaPor: origen.tipo === 'enlace' ? RESPONDIDA_POR_ENLACE : null,
+        observacion: origen.tipo === 'asistida' ? origen.observacion : null,
         movimientoId,
         discrepancia,
         // La credencial se consume sólo cuando la respuesta vino por enlace.
@@ -398,7 +409,12 @@ export async function responderAsistida(
   return transicionarARespondida(
     input.verificacionId,
     input.resultado,
-    { tipo: 'asistida', actorUserId: input.actorUserId, canal: input.canal },
+    {
+      tipo: 'asistida',
+      actorUserId: input.actorUserId,
+      canal: input.canal,
+      observacion: input.observacion,
+    },
     input.movimientoId ?? null,
     ahora,
   )
@@ -459,20 +475,37 @@ export async function verificacionHabilitaSesionEscritura(
   return true
 }
 
+// Proyección sin `tokenHash`: lo que cualquier caller de lectura recibe. El
+// hash sólo lo consultan las transiciones (con su propio select), nunca esta
+// función.
+const COLUMNAS_PUBLICAS = (() => {
+  const { tokenHash: _tokenHash, ...columnas } = getTableColumns(infraVerificacion)
+  return columnas
+})()
+
+export type VerificacionPublica = Omit<VerificacionRow, 'tokenHash'>
+
 export async function obtenerVerificacion(
   verificacionId: string,
-): Promise<VerificacionRow | null> {
+): Promise<VerificacionPublica | null> {
   const db = getDb()
   const [fila] = await db
-    .select()
+    .select(COLUMNAS_PUBLICAS)
     .from(infraVerificacion)
     .where(eq(infraVerificacion.id, verificacionId))
   return fila ?? null
 }
 
+// `enlaceVencido` se calcula acá, en el servidor, contra la credencial real
+// (tokenExpiraEn). La UI sólo lo lee: no importa verificacion-token.ts (usa
+// node:crypto) desde un componente cliente. `tokenHash` se quita acá porque la
+// lista se serializa al cliente de /admin/verificaciones.
+export type VerificacionListada = Omit<VerificacionRow, 'tokenHash'> & { enlaceVencido: boolean }
+
 export async function listarVerificaciones(
   input?: { periodoId?: string; cueAnexo?: string; estado?: 'pendiente' | 'respondida' | 'cancelada' },
-): Promise<VerificacionRow[]> {
+  ahora: Date = new Date(),
+): Promise<VerificacionListada[]> {
   const db = getDb()
   const condiciones = []
   if (input?.periodoId) condiciones.push(eq(infraVerificacion.periodoId, input.periodoId))
@@ -481,7 +514,11 @@ export async function listarVerificaciones(
 
   const base = db.select().from(infraVerificacion)
   const conFiltro = condiciones.length > 0 ? base.where(and(...condiciones)) : base
-  return conFiltro.orderBy(desc(infraVerificacion.solicitadaEn))
+  const filas = await conFiltro.orderBy(desc(infraVerificacion.solicitadaEn))
+  return filas.map(({ tokenHash: _tokenHash, ...fila }) => ({
+    ...fila,
+    enlaceVencido: tokenExpirado(fila.tokenExpiraEn, ahora),
+  }))
 }
 
 // Auditoría de un intento de vínculo fallido (batch E1): quien llama a esto ya

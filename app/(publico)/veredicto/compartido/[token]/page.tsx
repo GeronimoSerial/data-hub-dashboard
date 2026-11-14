@@ -2,10 +2,12 @@ import type { Metadata } from 'next'
 import { VeredictoPublico } from '@/components/veredicto/veredicto-publico'
 import { getDb } from '@/lib/db'
 import { aDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
-import { resolverEnlace } from '@/lib/infraestructura/veredicto/enlaces'
+import { idEnlace, resolverEnlace } from '@/lib/infraestructura/veredicto/enlaces'
 import { cargarEventosTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { fechaArt } from '@/lib/infraestructura/veredicto/dia'
 import { listarVigentes } from '@/lib/infraestructura/veredicto/repositorio'
+import { actorAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { lecturaAuditada } from '@/lib/infraestructura/auditoria/servidor'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { robots: { index: false, follow: false } }
@@ -17,7 +19,22 @@ function ddMm(venceEn: string): string {
 
 export default async function PaginaVeredictoCompartido({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const enlace = await resolverEnlace(getDb(), token)
+  const enlace = await lecturaAuditada(
+    'enlace.consultar',
+    '/veredicto/compartido/[token]',
+    async () => {
+      const resultado = await resolverEnlace(getDb(), token)
+      if (resultado.estado !== 'inexistente') {
+        actorAuditoria({ actorTipo: 'enlace', actorId: await idEnlace(getDb(), token), actorRol: null, viaAcceso: 'enlace' })
+      }
+      return resultado
+    },
+    resultado => ({
+      status: 200,
+      objetoTipo: 'enlace_veredicto',
+      resultado: resultado.estado === 'valido' ? 'exito' : 'rechazado',
+    }),
+  )
 
   if (enlace.estado === 'inexistente') {
     return (

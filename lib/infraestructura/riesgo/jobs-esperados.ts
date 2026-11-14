@@ -8,6 +8,8 @@
 // `nombre` para la mayoría de los jobs (ver TIPO_JOB en cada job). `tipo: null`
 // marca un job que no escribe `infra_job_run` (no es verificable por esa vía).
 
+import type { RegionConfig } from '../region/esquema'
+import { regionActiva } from '../region/activa'
 import { JOBS_OPEN_METEO, rolEntorno, type RolEntorno } from './providers/rol-entorno'
 
 export const TOLERANCIA_ATRASO_JOB = 2
@@ -19,6 +21,26 @@ export type JobEsperado = {
   // false = no programado en producción todavía (pendiente P-5): se reporta
   // como `no_programado`, no como alarma.
   habilitado: boolean
+  // Clave de `contadores` (de la última corrida completada) con las filas
+  // RECIBIDAS por el job, antes de deduplicar o insertar. Sin clave, el job no
+  // tiene mínimo.
+  contadorFilas?: string
+  // Mínimo de filas recibidas para que una corrida completada no sea
+  // `sin_datos` (I2). Sin mínimo (IMERG, alarmas, conteos de celdas) cero es
+  // un estado legítimo. Un job sin contadores registrados (corridas anteriores)
+  // se trata como ok: ver clasificarJob.
+  minimoFilas?: number
+}
+
+// Filas recibidas de una corrida según el contador declarado del job. Devuelve
+// null si el job no declara contador o la corrida no lo registró.
+export function filasRecibidas(
+  job: JobEsperado,
+  contadores: Record<string, number> | null | undefined,
+): number | null {
+  if (job.contadorFilas === undefined || contadores == null) return null
+  const valor = contadores[job.contadorFilas]
+  return typeof valor === 'number' ? valor : null
 }
 
 export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
@@ -26,6 +48,8 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
   { nombre: 'sync-radar-meteo', tipo: 'sync-radar-meteo', intervaloMinutos: 360, habilitado: true },
   { nombre: 'sync-radar-ensemble', tipo: 'sync-radar-ensemble', intervaloMinutos: 360, habilitado: true },
   { nombre: 'sync-smn-alertas', tipo: 'sync-smn-alertas', intervaloMinutos: 15, habilitado: true },
+  // Coolify `9-59/15 * * * *`.
+  { nombre: 'sync-inmet-alertas', tipo: 'sync-inmet-alertas', intervaloMinutos: 15, habilitado: true },
   // verificar-radar-meteo no llama a adquirirLease: no escribe infra_job_run.
   { nombre: 'verificar-radar-meteo', tipo: null, intervaloMinutos: 1440, habilitado: true },
   // Coolify `*/30 * * * *`.
@@ -63,9 +87,13 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
     tipo: 'sync-hazard-pronostico-caudal',
     intervaloMinutos: 360,
     habilitado: true,
+    contadorFilas: 'filas',
+    minimoFilas: 1,
   },
-  { nombre: 'sync-ensemble', tipo: 'sync-hazard-ensemble', intervaloMinutos: 360, habilitado: true },
+  { nombre: 'sync-ensemble', tipo: 'sync-hazard-ensemble', intervaloMinutos: 360, habilitado: true, contadorFilas: 'filas', minimoFilas: 1 },
   { nombre: 'situacion-corte', tipo: 'situacion-corte-v1', intervaloMinutos: 60, habilitado: true },
+  // Coolify Scheduled Task `41 * * * *` (ver runbook-scheduler.md): corre en producción y en consumidor.
+  { nombre: 'sonda-cadena-datos', tipo: 'sonda-cadena-datos', intervaloMinutos: 60, habilitado: true },
   { nombre: 'episodios-derivados', tipo: 'episodios-derivados-v0', intervaloMinutos: 60, habilitado: false },
   { nombre: 'sync-seasonal', tipo: 'sync-hazard-seasonal', intervaloMinutos: 1440, habilitado: false },
   // Coolify Scheduled Task `17 * * * *` in production since 2026-10-13.
@@ -74,6 +102,8 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
     tipo: 'sync-prefectura-alturas',
     intervaloMinutos: 60,
     habilitado: true,
+    contadorFilas: 'filasPublicadas',
+    minimoFilas: 1,
   },
   // Scheduled at this deploy (docs/DEPLOY.md, runbook-scheduler.md):
   // veredicto `45 0,6,12,18 * * *` and `30 3 * * *`; synop `23 * * * *`;
@@ -92,6 +122,8 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
     tipo: 'importar-exposicion-rio-dem',
     intervaloMinutos: 1440,
     habilitado: true,
+    contadorFilas: 'filas',
+    minimoFilas: 1,
   },
   // Motor v0.4 (T2): importación manual del CSV de altimetría; no programada.
   {
@@ -108,6 +140,24 @@ export const JOBS_ESPERADOS_PRODUCTOR: readonly JobEsperado[] = [
   // hidro_serie_diaria / hidro_ina_*: no están en JOBS_OPEN_METEO.
   { nombre: 'sync-ina-serie-diaria', tipo: null, intervaloMinutos: 1440, habilitado: true },
   { nombre: 'sync-ina-pronostico', tipo: null, intervaloMinutos: 360, habilitado: true },
+  // Niveles del río de Manaos (B12). ANA: Coolify `12 * * * *`; SGB/SACE: Coolify `27 * * * *`
+  // (pendiente de crear en Coolify). Sólo aplican con 'ana' / 'sgb' en fuentesRio.
+  {
+    nombre: 'sync-ana-niveis',
+    tipo: 'sync-ana-niveis',
+    intervaloMinutos: 60,
+    habilitado: true,
+    contadorFilas: 'filasRecibidas',
+    minimoFilas: 1,
+  },
+  {
+    nombre: 'sync-sgb-niveis',
+    tipo: 'sync-sgb-niveis',
+    intervaloMinutos: 60,
+    habilitado: true,
+    contadorFilas: 'filasRecibidas',
+    minimoFilas: 1,
+  },
 ]
 
 // En staging/dev (rol consumidor) los productores Open-Meteo no corren: sus
@@ -120,5 +170,37 @@ export function jobsEsperadosParaRol(rol: RolEntorno): readonly JobEsperado[] {
   )
 }
 
+// Aplicabilidad por región (B9.5). Un job sin regla aplica a todas las regiones.
+// La regla depende de los datos que declara la región, no de su id: sync-prefectura-*
+// requiere 'prefectura' en fuentesRio, sync-ina-* requiere 'ina', sync-smn-alertas
+// requiere 'smn' en fuentesAlertas, sync-inmet-alertas requiere 'inmet' en fuentesAlertas,
+// sync-synop-lluvia requiere 'synop' en fuentesLluvia,
+// e importar-exposicion-rio-dem requiere 'exposicion-rio-dem' en capasEstaticas.
+// sync-ana-* requiere 'ana' en fuentesRio y sync-sgb-* requiere 'sgb' en fuentesRio.
+// Se deriva del nombre del job y no de un campo por job para no alterar la forma de
+// los objetos de la lista. scripts/jobs.mjs replica esta misma regla (ver aplicaJobARegionDespacho).
+type RegionAplicable = Pick<RegionConfig, 'fuentesRio' | 'fuentesAlertas' | 'fuentesLluvia' | 'capasEstaticas'>
+
+export function aplicaJobARegion(nombre: string, region: RegionAplicable): boolean {
+  if (nombre.startsWith('sync-prefectura-')) return region.fuentesRio.includes('prefectura')
+  if (nombre.startsWith('sync-ina-')) return region.fuentesRio.includes('ina')
+  if (nombre.startsWith('sync-ana-')) return region.fuentesRio.includes('ana')
+  if (nombre.startsWith('sync-sgb-')) return region.fuentesRio.includes('sgb')
+  if (nombre === 'sync-smn-alertas') return (region.fuentesAlertas ?? []).includes('smn')
+  if (nombre === 'sync-inmet-alertas') return (region.fuentesAlertas ?? []).includes('inmet')
+  if (nombre === 'sync-synop-lluvia') return (region.fuentesLluvia ?? []).includes('synop')
+  if (nombre === 'importar-exposicion-rio-dem') return (region.capasEstaticas ?? []).includes('exposicion-rio-dem')
+  return true
+}
+
+// Lista esperada para una región y un rol. Sólo filtra: no cambia los objetos.
+export function jobsEsperadosParaRegion(
+  region: RegionConfig,
+  rol: RolEntorno = rolEntorno(),
+): readonly JobEsperado[] {
+  return jobsEsperadosParaRol(rol).filter((job) => aplicaJobARegion(job.nombre, region))
+}
+
 // Rol leído al cargar el módulo: el entorno del proceso no cambia en ejecución.
-export const JOBS_ESPERADOS: readonly JobEsperado[] = jobsEsperadosParaRol(rolEntorno())
+// Región leída al cargar el módulo: REGION (o corrientes) no cambia en ejecución.
+export const JOBS_ESPERADOS: readonly JobEsperado[] = jobsEsperadosParaRegion(regionActiva(), rolEntorno())

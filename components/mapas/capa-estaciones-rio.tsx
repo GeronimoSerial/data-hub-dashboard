@@ -5,6 +5,10 @@ import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { ESTILO_PASTILLA_ESTACION, idMarcadorEstacion, idPastillaEstacion, registrarSimbolosEstacion } from '@/lib/mapas/insignias-mapa'
 import { PALETA_ESTADO_ALTURA } from '@/lib/mapas/paleta-tonal'
 import { TarjetaEstacionRio } from './tarjeta-estacion-rio'
+import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
+import { textos, type Diccionario } from '@/lib/i18n'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import { regionTienePrefecturaPublica } from '@/lib/infraestructura/region/publica'
 
 type EstadoAltura = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 type Tendencia = 'crece' | 'baja' | 'estable' | 'sin_dato'
@@ -51,27 +55,27 @@ const FLECHA_TENDENCIA: Record<Tendencia, string> = { crece: '↑ ', baja: '↓ 
 
 export const COLOR_ESTADO_ALTURA: Record<EstadoAltura, string> = PALETA_ESTADO_ALTURA
 
-const ETIQUETA_ESTADO: Record<EstadoAltura, string> = {
-  evacuacion: 'Evacuación',
-  alerta: 'Alerta',
-  normal: 'Normal',
-  sin_dato: 'Sin dato',
+type TextosControlesCapas = Diccionario['controlesCapas']
+
+// Spanish default keeps existing callers and exports unchanged.
+export function etiquetaEstadoAltura(estado: EstadoAltura, d: TextosControlesCapas = textos('es').controlesCapas): string {
+  const etiquetas: Record<EstadoAltura, string> = {
+    evacuacion: d.estadoAltura.evacuacion,
+    // Same word in both languages: kept as literal.
+    alerta: 'Alerta',
+    normal: 'Normal',
+    sin_dato: d.estadoAltura.sinDato,
+  }
+  return etiquetas[estado]
 }
 
-
-
-export function etiquetaEstadoAltura(estado: EstadoAltura): string {
-  return ETIQUETA_ESTADO[estado]
-}
-
-const FORMATO_FECHA_LOCAL = new Intl.DateTimeFormat('es-AR', {
+const OPCIONES_FECHA_LOCAL: Intl.DateTimeFormatOptions = {
   day: '2-digit',
   month: '2-digit',
   hour: '2-digit',
   minute: '2-digit',
   hour12: false,
-  timeZone: 'America/Argentina/Buenos_Aires',
-})
+}
 
 /**
  * Formats ISO-8601 timestamps as local Buenos Aires time ("13/10 14:00").
@@ -81,12 +85,12 @@ export function formatearFechaLocal(valor: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(valor)) return valor
   const fecha = new Date(valor)
   if (Number.isNaN(fecha.getTime())) return valor
-  const partes = Object.fromEntries(FORMATO_FECHA_LOCAL.formatToParts(fecha).map((p) => [p.type, p.value]))
+  const partes = Object.fromEntries(formatoFechaRegion(OPCIONES_FECHA_LOCAL).formatToParts(fecha).map((p) => [p.type, p.value]))
   return `${partes.day}/${partes.month} ${partes.hour}:${partes.minute}`
 }
 
-function formatoMetros(valor: number | null | undefined): string {
-  return valor == null ? 'Sin dato' : `${valor.toFixed(2).replace('.', ',')} m`
+function formatoMetros(valor: number | null | undefined, sinDato: string): string {
+  return valor == null ? sinDato : `${valor.toFixed(2).replace('.', ',')} m`
 }
 
 
@@ -127,18 +131,19 @@ export function estadoEnMapa(estacion: EstacionRio): { estado: EstadoAltura; ven
 
 // Chips show only the level; a stale reading keeps its last level and the click
 // card carries its age.
-function textoPastilla(estacion: EstacionRio): string {
+function textoPastilla(estacion: EstacionRio, d: TextosControlesCapas): string {
+  // 's/d' is the same abbreviation in both languages: kept as literal.
   if (!estacion.lectura) return 's/d'
-  return `${FLECHA_TENDENCIA[estacion.tendencia]}${formatoMetros(estacion.lectura.lecturaM)}`
+  return `${FLECHA_TENDENCIA[estacion.tendencia]}${formatoMetros(estacion.lectura.lecturaM, d.estadoAltura.sinDato)}`
 }
 
-function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; features: PuntoEstacion[] } {
+function puntosDe(estaciones: EstacionRio[], d: TextosControlesCapas): { type: 'FeatureCollection'; features: PuntoEstacion[] } {
   const lados = ladosPastilla(estaciones)
   return {
     type: 'FeatureCollection',
     features: estaciones.map((estacion) => {
       const { estado, vencida } = estadoEnMapa(estacion)
-      const nivel = textoPastilla(estacion)
+      const nivel = textoPastilla(estacion, d)
       return {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [estacion.lon, estacion.lat] },
@@ -165,7 +170,7 @@ type PropsCapa = {
 }
 
 export function CapaEstacionesRio({ visible, beforeId, capasEncima }: PropsCapa) {
-  if (!visible) return null
+  if (!visible || !regionTienePrefecturaPublica()) return null
   return <CapaEstacionesRioActiva beforeId={beforeId} capasEncima={capasEncima} />
 }
 
@@ -176,6 +181,7 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
   const [listo, setListo] = useState(false)
   const [seleccionada, setSeleccionada] = useState<string | null>(null)
   const { current: mapa } = useMap()
+  const t = useTextos()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -267,7 +273,7 @@ function CapaEstacionesRioActiva({ beforeId, capasEncima = SIN_CAPAS }: Omit<Pro
     }
   }, [mapa, listo])
 
-  const datos = useMemo(() => puntosDe(estaciones), [estaciones])
+  const datos = useMemo(() => puntosDe(estaciones, t.controlesCapas), [estaciones, t])
   const activa = estaciones.find((estacion) => estacion.estacionId === seleccionada) ?? null
   const cerrar = useCallback(() => {
     setSeleccionada(null)

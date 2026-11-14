@@ -3,6 +3,7 @@
 import { useState, type JSX } from 'react'
 import Link from 'next/link'
 import { declararFotosFormulario, SinParteError, type FotoPreparada } from '@/lib/infraestructura/fotos/flujo-formulario'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { SelectorFotosFormulario } from './selector-fotos-formulario'
 import styles from './galeria-evidencia.module.css'
 
@@ -25,6 +26,7 @@ export function CargaEvidencia({
   onCancelar: () => void
 }): JSX.Element {
   const draftId = `${DRAFT_ID_PREFIX}${cue}`
+  const t = useTextos().parteGaleria.carga
   const [clave] = useState(() => crypto.randomUUID())
   const [preparadas, setPreparadas] = useState<readonly FotoPreparada[]>([])
   const [cantidad, setCantidad] = useState(0)
@@ -50,7 +52,7 @@ export function CargaEvidencia({
       onGuardado()
     } catch (reason) {
       setSinParte(reason instanceof SinParteError)
-      setError(reason instanceof Error ? reason.message : 'No se pudieron guardar las fotos.')
+      setError(reason instanceof Error ? reason.message : t.noGuardadas)
       setEnviando(false)
     }
   }
@@ -58,7 +60,7 @@ export function CargaEvidencia({
   return (
     <div className={styles.upload} data-testid="carga-evidencia">
       <SelectorFotosFormulario draftId={draftId} onPreparadasChange={setPreparadas} onCountChange={setCantidad} />
-      <p className={styles.uploadNote}>Hasta 3 fotos por actualización del parte.</p>
+      <p className={styles.uploadNote}>{t.ayuda}</p>
       {error ? (
         <p role="alert">
           {error}
@@ -66,7 +68,7 @@ export function CargaEvidencia({
             <>
               {' '}
               <Link href={urlCargarParte} className={styles.attach}>
-                Cargar el reporte
+                {t.cargarReporte}
               </Link>
             </>
           ) : null}
@@ -77,7 +79,7 @@ export function CargaEvidencia({
           Cancelar
         </button>
         <button type="button" className={styles.save} onClick={() => void guardar()} disabled={!listas || enviando}>
-          {enviando ? 'Guardando…' : cantidad > 1 ? `Guardar ${cantidad} fotos` : 'Guardar foto'}
+          {enviando ? t.guardando : cantidad > 1 ? t.guardarFotos(cantidad) : t.guardarFoto}
         </button>
       </div>
     </div>

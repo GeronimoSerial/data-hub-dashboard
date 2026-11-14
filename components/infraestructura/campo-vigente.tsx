@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { JSX, ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export interface CampoVigenteProps {
   /** La pregunta, en la lengua del director. */
@@ -44,6 +45,7 @@ export function CampoVigente({
   disabled = false,
 }: CampoVigenteProps): JSX.Element {
   const [abierto, setAbierto] = useState(false)
+  const t = useTextos().parteCampos.campoVigente
 
   function cerrar() {
     onDejarComoEsta()
@@ -57,16 +59,16 @@ export function CampoVigente({
           <span className="campo-vigente__etiqueta">{etiqueta}</span>
           <span className="campo-vigente__actual">{valorVigente}</span>
           {valorNuevo && (
-            <span className="campo-vigente__nuevo">Va a quedar: {valorNuevo}</span>
+            <span className="campo-vigente__nuevo">{t.vaAQuedar(valorNuevo)}</span>
           )}
         </div>
         {abierto ? (
           <Button type="button" variant="ghost" onClick={cerrar} disabled={disabled}>
-            Dejar como está
+            {t.dejarComoEsta}
           </Button>
         ) : (
           <Button type="button" variant="secondary" onClick={() => setAbierto(true)} disabled={disabled}>
-            Cambiar
+            {t.cambiar}
           </Button>
         )}
       </div>

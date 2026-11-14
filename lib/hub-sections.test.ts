@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { puedeVerEnSeccion, type SessionUser } from './acl'
-import { effectiveSections, HUB_DESTINATIONS, HUB_SECTIONS, LEGACY_SECTION_POLICY, normalizeSectionPolicy, resourceInSections, safeDestination, sectionForPath, type SectionPolicy } from './hub-sections'
+import { effectiveSections, HUB_DESTINATIONS, HUB_SECTIONS, LEGACY_SECTION_POLICY, normalizeSectionPolicy, resourceInSections, safeDestination, sectionsForResource, sectionForPath, type SectionPolicy } from './hub-sections'
 
 const user: SessionUser = { id: 'u', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] }
 const resource = { id: 'r', estado: 'publicado' as const, audienciaNivelJurIds: [], audienciaUserIds: [], formato: 'mapa' as const }
@@ -100,5 +100,20 @@ describe('hub section registry', () => {
   it('allows reports-only destination and registered GE special destination without a hub section grant', () => {
     expect(safeDestination({ policy: { enabledSections: ['reports'], landing: false }, destination: '/reportes?formato=mapa', allowedByExistingAcl: () => true })?.path).toBe('/reportes')
     expect(safeDestination({ policy: { enabledSections: [], landing: false }, destination: '/problematicas/parte/nuevo', allowedByExistingAcl: () => true })?.kind).toBe('special')
+  })
+})
+
+describe('Manaos external card classification', () => {
+  const manaos = { id: 'recurso-enos-manaos', formato: 'mapa' as const, ruta: 'https://manaos.example/mapas/infraestructura' }
+
+  it('classifies the external Manaos card in the infrastructure section only', () => {
+    expect([...sectionsForResource(manaos)]).toEqual(['infrastructure'])
+    expect(resourceInSections(manaos, new Set(['infrastructure']))).toBe(true)
+    expect(resourceInSections(manaos, new Set(['maps']))).toBe(false)
+  })
+
+  it('keeps other external rutas on the format-based classification', () => {
+    const otro = { id: 'recurso-otro', formato: 'mapa' as const, ruta: 'https://otro.example/' }
+    expect([...sectionsForResource(otro)]).toEqual(['maps'])
   })
 })

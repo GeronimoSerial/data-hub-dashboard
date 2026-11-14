@@ -52,6 +52,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # `docker exec <contenedor> node scripts/job-diagnostico.mjs`. Sin esto,
 # scripts/ y lib/ no existen en la imagen y ningún job puede correr.
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/config ./config
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
 COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle

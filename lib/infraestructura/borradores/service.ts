@@ -259,7 +259,8 @@ export async function createDraft(value: unknown) {
 
   const now = new Date().toISOString()
   try {
-    const [row] = await db.insert(infraBorrador).values({
+    // Savepoint: dentro de una transacción auditada, un 23505 aborta la transacción externa.
+    const [row] = await db.transaction(tx => tx.insert(infraBorrador).values({
       id: input.draftId,
       generacion: input.generacion,
       cueAnexo: input.contexto.cue as string,
@@ -271,7 +272,7 @@ export async function createDraft(value: unknown) {
       creadoEn: now,
       actividadEn: input.actividadEn,
       sincronizadoEn: now,
-    }).returning()
+    }).returning())
     return { draft: publicDraft(row), created: true }
   } catch (error) {
     if (!error || typeof error !== 'object' || !('code' in error) || error.code !== '23505') throw error

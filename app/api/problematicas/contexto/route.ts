@@ -7,6 +7,8 @@ import {
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { ruta } from '@/lib/http/ruta'
 
@@ -54,6 +56,7 @@ async function handleGET(request: Request) {
   // sola desde el JSON versionado en una instalacion nueva.
   await ensureLocalizacionesSeeded()
 
+  describirAuditoria({ cueAnexo: cue })
   const client = crearEjecutorSql(getRawClient())
   await ensureGeSchema(client)
   const resultado = await resolverContextoPorCue(client, cue)
@@ -65,4 +68,4 @@ async function handleGET(request: Request) {
   return Response.json(resultado.contexto)
 }
 
-export const GET = ruta('problematicas.contexto.get', handleGET)
+export const GET = conAuditoria('contexto.consultar', '/api/problematicas/contexto', ruta('problematicas.contexto.get', handleGET))

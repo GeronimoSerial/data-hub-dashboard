@@ -1,0 +1,33 @@
+{
+  "version": 8,
+  "name": "mapa-e2e-base",
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "tiles": [
+        "https://tiles.openfreemap.org/e2e-agua/{z}/{x}/{y}.pbf"
+      ],
+      "minzoom": 0,
+      "maxzoom": 14
+    }
+  },
+  "layers": [
+    {
+      "id": "fondo",
+      "type": "background",
+      "paint": {
+        "background-color": "#dfe9e3"
+      }
+    },
+    {
+      "id": "waterway",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "waterway",
+      "paint": {
+        "line-color": "#4a90d9",
+        "line-width": 3
+      }
+    }
+  ]
+}

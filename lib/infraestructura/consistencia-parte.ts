@@ -2,6 +2,8 @@ import type { CategoriaAfectacion } from './categorias'
 import type { JustificacionCritica } from './justificacion-critica'
 import { resolverVigencia, type EleccionVigencia } from './vigencia-eleccion'
 import { SEVERIDADES, type Severidad } from './validacion'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 // Reglas de consistencia del parte. Módulo puro (sin React ni base de datos):
 // lo usan el asistente de carga (para deshabilitar opciones y mostrar avisos)
@@ -353,4 +355,35 @@ export function alcanceDeSecciones(seccionIds: number[], todasLasSecciones: numb
   const elegidas = new Set(seccionIds)
   if (todasLasSecciones.length > 0 && todasLasSecciones.every((id) => elegidas.has(id))) return { tipo: 'toda' }
   return { tipo: 'algunas', secciones: seccionIds.length }
+}
+
+// Textos traducidos. Las reglas guardan el mensaje en español (la API lo
+// devuelve así): se traduce por el texto español, y lo desconocido queda igual.
+type Consistencia = Diccionario['parteComunTextos']['consistencia']
+type ClaveMensaje = keyof Consistencia['mensajes']
+type ClaveSugerencia = keyof Consistencia['sugerencias']
+
+const CLAVE_MENSAJE = new Map<string, ClaveMensaje>(
+  (Object.keys(es.parteComunTextos.consistencia.mensajes) as ClaveMensaje[]).map((clave) => [
+    es.parteComunTextos.consistencia.mensajes[clave],
+    clave,
+  ]),
+)
+
+const CLAVE_SUGERENCIA: Record<string, ClaveSugerencia> = {
+  'edificio:parcial': 'usoParcial',
+  'edificio:habitual': 'sinDanos',
+  'edificio:sin_clases': 'sinClases',
+  'clases:suspendido': 'clasesSuspendidas',
+  'clases:normal': 'clasesNormales',
+}
+
+export function mensajeConsistencia(mensaje: string, t: Diccionario = es): string {
+  const clave = CLAVE_MENSAJE.get(mensaje)
+  return clave ? t.parteComunTextos.consistencia.mensajes[clave] : mensaje
+}
+
+export function etiquetaSugerencia(sugerencia: Sugerencia, t: Diccionario = es): string {
+  const clave = CLAVE_SUGERENCIA[`${sugerencia.campo}:${sugerencia.valor}`]
+  return clave ? t.parteComunTextos.consistencia.sugerencias[clave] : sugerencia.etiqueta
 }

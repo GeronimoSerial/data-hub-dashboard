@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getDb } from '@/lib/db'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { fechasVentana } from '@/lib/infraestructura/veredicto/entradas'
 import { crearEnlace, revocarEnlacesDelDia } from '@/lib/infraestructura/veredicto/enlaces'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
@@ -55,12 +57,12 @@ async function handlePOST(request: Request) {
     return jsonError(`El rango no puede superar ${MAX_DIAS} días`, 400, CABECERAS_ERROR)
   }
 
-  const { token, venceEn } = await crearEnlace(getDb(), {
-    desde,
-    hasta,
-    creadoPor: user!.id,
-    ahora,
-  })
+  const enlaceId = randomUUID()
+  // El token y la URL viajan solo en la respuesta: el evento guarda únicamente el id del enlace.
+  const { token, venceEn } = await cambioAuditado(
+    () => crearEnlace(getDb(), { id: enlaceId, desde, hasta, creadoPor: user!.id, ahora }),
+    () => ({ status: 201, objetoTipo: 'enlace_veredicto', objetoId: enlaceId, metadatos: { enlaceId } }),
+  )
   return jsonNoStore({ url: `/veredicto/compartido/${token}`, venceEn }, 201)
 }
 
@@ -71,9 +73,20 @@ async function handleDELETE() {
   const guard = staffGuard(user)
   if (guard) return respuestaGuard(guard)
 
-  const revocados = await revocarEnlacesDelDia(getDb(), { revocadoPor: user!.id })
+  const revocados = await cambioAuditado(
+    () => revocarEnlacesDelDia(getDb(), { revocadoPor: user!.id }),
+    cantidad => ({ status: 200, objetoTipo: 'enlace_veredicto', metadatos: { cantidad } }),
+  )
   return jsonNoStore({ revocados })
 }
 
-export const POST = ruta('infraestructura.veredictos.enlaces.post', handlePOST)
-export const DELETE = ruta('infraestructura.veredictos.enlaces.delete', handleDELETE)
+export const POST = conAuditoria(
+  'enlace.crear',
+  '/api/infraestructura/veredictos/enlaces',
+  ruta('infraestructura.veredictos.enlaces.post', handlePOST),
+)
+export const DELETE = conAuditoria(
+  'enlace.revocar',
+  '/api/infraestructura/veredictos/enlaces',
+  ruta('infraestructura.veredictos.enlaces.delete', handleDELETE),
+)

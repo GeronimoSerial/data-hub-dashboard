@@ -1,6 +1,9 @@
 import type { Severidad } from './validacion'
 import type { CategoriaAfectacion } from './categorias'
 import { PALETA_TONAL_SEVERIDAD } from '@/lib/mapas/paleta-tonal'
+import { parteComunTextosEs } from '@/lib/i18n/diccionarios/grupos/parteComunTextos.es'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 // Escala tonal de una sola gama para la severidad (claro→oscuro, rojo). Única
 // fuente para el mapa, la lista y la ficha: no se redefinen por componente.
@@ -26,28 +29,18 @@ export const SEVERIDAD_COLOR_DEFECTO = PALETA_TONAL_SEVERIDAD.Baja
 export const SEVERIDAD_CRITERIOS_POR_CATEGORIA: Record<
   CategoriaAfectacion,
   Record<Severidad, string>
-> = {
-  establecimiento: {
-    Baja: 'Molesta, pero se dicta clase normalmente.',
-    Media: 'Condiciona el dictado: algunas secciones o turnos funcionan a medias.',
-    Alta: 'Impide dictar clase en parte del establecimiento.',
-    Crítica: 'Impide el funcionamiento o hay riesgo para las personas.',
-  },
-  alumnos: {
-    Baja: 'Llegan con demora o dificultad, pero asisten.',
-    Media: 'Algunos alumnos faltan algunos días por el acceso.',
-    Alta: 'Los alumnos afectados no pueden llegar de forma sostenida.',
-    Crítica: 'Llegar implica riesgo para los alumnos (cruzar un arroyo crecido, un camino anegado).',
-  },
-}
+> = parteComunTextosEs.criterioSeveridad
 
 export const SEVERIDAD_CRITERIOS = SEVERIDAD_CRITERIOS_POR_CATEGORIA.establecimiento
 
+/** Criterio de severidad en el idioma `t` (por defecto español). */
 export function criterioSeveridad(
   severidad: string,
   categoria: CategoriaAfectacion = 'establecimiento',
+  t: Diccionario = es,
 ): string | null {
-  return SEVERIDAD_CRITERIOS_POR_CATEGORIA[categoria][severidad as Severidad] ?? null
+  const criterios = t.parteComunTextos.criterioSeveridad[categoria]
+  return (criterios as Partial<Record<Severidad, string>>)[severidad as Severidad] ?? null
 }
 
 export function colorSeveridad(severidad: string): string {

@@ -1,0 +1,14 @@
+{
+  "atribucion": "© OpenStreetMap contributors",
+  "cruces": {
+    "conPuente": 0,
+    "conVado": 1,
+    "total": 1
+  },
+  "cueAnexo": "1800953-00",
+  "disponible": true,
+  "fechaExtractoOsm": "<fecha>",
+  "indice": 2,
+  "licencia": "ODbL (seed e2e)",
+  "rutaAlternativaSinCruce": true
+}

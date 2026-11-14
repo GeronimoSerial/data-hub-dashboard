@@ -4,12 +4,15 @@
 // cada CUE, la mayor altura de la escala de su tramo (A5 del mismo día) con la
 // que la escuela quedó SECA (agua a >= 30 m del punto) y la fecha de esa
 // escena. Uso: la altura crítica nunca baja de h_seco (si con h_seco no llegó
-// el agua, no puede alcanzarla con menos). Escuelas sin fila: sin efecto.
+// el agua, no puede alcanzarla con menos). Escuelas sin fila, o región sin
+// tabla (sólo Corrientes la tiene): sin efecto.
 // Fecha null = escena sin fecha recuperable (estaciones sin ajuste: Bompland,
 // Mocoreta). Para regenerar: rehacer el estudio y reemplazar la tabla entera
 // subiendo EVIDENCIA_SECO_S2_VERSION.
 
-export const EVIDENCIA_SECO_S2_VERSION = 'seco-s2-2026-10-18.1'
+import { regionActiva } from '@/lib/infraestructura/region'
+
+export const EVIDENCIA_SECO_S2_VERSION ='seco-s2-2026-10-18.1'
 
 export type EvidenciaSecoS2 = { estacionId: string; hSecoM: number; fecha: string | null }
 
@@ -670,9 +673,15 @@ const FILAS: ReadonlyArray<readonly [string, string, number, string | null]> = [
   ['1890001-00', 'pna-corrientes', 7.06, '2023-11-12'],
 ]
 
-const POR_CUE: ReadonlyMap<string, EvidenciaSecoS2> = new Map(FILAS.map(([cue, estacionId, hSecoM, fecha]) => [cue, { estacionId, hSecoM, fecha }]))
+const POR_CUE_CORRIENTES: ReadonlyMap<string, EvidenciaSecoS2> = new Map(FILAS.map(([cue, estacionId, hSecoM, fecha]) => [cue, { estacionId, hSecoM, fecha }]))
+const TABLAS_POR_REGION: ReadonlyMap<string, ReadonlyMap<string, EvidenciaSecoS2>> = new Map([['corrientes', POR_CUE_CORRIENTES]])
+
+/** Tabla de evidencia de seco S2 de una región; undefined = la región no tiene tabla. */
+export function evidenciaSecoDeRegion(regionId: string): ReadonlyMap<string, EvidenciaSecoS2> | undefined {
+  return TABLAS_POR_REGION.get(regionId)
+}
 
 /** Evidencia de seco S2 de una escuela; null = sin evidencia (sin efecto). */
-export function evidenciaSecoS2(cueAnexo: string): EvidenciaSecoS2 | null {
-  return POR_CUE.get(cueAnexo) ?? null
+export function evidenciaSecoS2(cueAnexo: string, regionId: string = regionActiva().id): EvidenciaSecoS2 | null {
+  return evidenciaSecoDeRegion(regionId)?.get(cueAnexo) ?? null
 }

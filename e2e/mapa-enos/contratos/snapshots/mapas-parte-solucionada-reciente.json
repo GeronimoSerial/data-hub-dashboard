@@ -1,0 +1,32 @@
+{
+  "afectaciones": [],
+  "alumnosUnicos": 0,
+  "datosPadron": null,
+  "ok": true,
+  "parte": {
+    "actualizadaEn": "<fecha>",
+    "asistenciaPedagogica": null,
+    "cueAnexo": "1801644-00",
+    "estadoEstablecimiento": "habitual",
+    "estadoEstablecimientoRigeDesde": "<fecha>",
+    "id": "<uuid:1>"
+  },
+  "periodo": {
+    "id": "periodo-enos-2026-2027",
+    "nombre": "Protocolo ENOS 2026/2027"
+  },
+  "recientes": [
+    {
+      "id": "<uuid:2>",
+      "motivo": "Inundación",
+      "retiradaEn": "<fecha>",
+      "severidad": "Media"
+    }
+  ],
+  "secciones": [],
+  "servicio": {
+    "alcanceVigente": [],
+    "estadoGeneral": "normal"
+  },
+  "ultimaActualizacion": "<fecha>"
+}

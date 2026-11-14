@@ -1,5 +1,8 @@
 import { ensureSeeded } from '@/lib/db/seed'
+import { tieneAccesoPublico } from '@/lib/infraestructura/acceso-publico'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
+import { actorAuditoria, describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { BorradorError, createDraft, readJsonBody } from '@/lib/infraestructura/borradores/service'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 import { ruta } from '@/lib/http/ruta'
@@ -34,12 +37,18 @@ async function handlePOST(request: Request) {
     if (!(await tieneAccesoAlParteParaCue(request, cue))) {
       return Response.json({ error: 'No autorizado' }, { status: 401, headers: NO_STORE })
     }
+    if (tieneAccesoPublico(request)) actorAuditoria({ actorTipo: 'compartido', actorId: null, actorRol: null, viaAcceso: 'contrasena_compartida' })
+    describirAuditoria({ objetoTipo: 'borrador', cueAnexo: cue })
     await ensureSeeded()
-    const result = await createDraft(body)
+    const result = await cambioAuditado(() => createDraft(body), ({ draft, created }) => ({
+      status: created ? 201 : 200,
+      resultado: created ? 'exito' : 'repetido',
+      objetoId: draft.draftId,
+    }))
     return Response.json(result.draft, { status: result.created ? 201 : 200, headers: NO_STORE })
   } catch (error) {
     return errorResponse(error)
   }
 }
 
-export const POST = ruta('parte.borradores.post', handlePOST)
+export const POST = conAuditoria('borrador.crear', '/api/problematicas/parte/borradores', ruta('parte.borradores.post', handlePOST))

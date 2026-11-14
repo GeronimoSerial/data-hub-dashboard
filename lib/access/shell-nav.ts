@@ -1,5 +1,6 @@
 import type { Role, SessionUser } from '@/lib/acl'
 import type { SectionPolicy } from '@/lib/hub-sections'
+import { moduloDeRutaHabilitado } from '@/lib/infraestructura/region/modulos'
 import { can, type Capability } from './capabilities'
 
 /** Capability behind each hub destination the app shell lists in its primary navigation. */
@@ -16,6 +17,7 @@ export function shellUserFor(role: Role, hubPolicy: SectionPolicy | undefined): 
 
 /** Whether the shell may list this destination in its primary navigation for the user. */
 export function shellNavAllowed(user: SessionUser | null, href: string): boolean {
+  if (!moduloDeRutaHabilitado(href)) return false
   const capability = Object.hasOwn(SHELL_NAV_CAPABILITY, href) ? SHELL_NAV_CAPABILITY[href] : undefined
   return capability !== undefined && can(user, capability)
 }
