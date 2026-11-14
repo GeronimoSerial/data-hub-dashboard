@@ -20,6 +20,7 @@ export type NombreJob =
   | 'sync-synop-lluvia'
   | 'sync-prefectura-historico'
   | 'importar-exposicion-rio-dem'
+  | 'sonda-cadena-datos'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
   // Cada 6h para alinearse con las corridas ECMWF 00/06/12/18 UTC.
@@ -100,6 +101,11 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
     minutos: 1440,
     descripcion: 'Importa la exposición estática escuela-río del DEM (geo-static, diario e idempotente)',
   },
+  // Sonda end-to-end: verifica que el dato real recorre toda la cadena.
+  'sonda-cadena-datos': {
+    minutos: 60,
+    descripcion: 'Verifica que el dato real recorre toda la cadena (cada hora)',
+  },
 }
 
 // El `tipo` que cada job persiste en infra_job_run (TIPO_JOB interno) no es el
@@ -128,6 +134,7 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'sync-synop-lluvia': 'sync-synop-lluvia',
   'sync-prefectura-historico': 'sync-prefectura-historico',
   'importar-exposicion-rio-dem': 'importar-exposicion-rio-dem',
+  'sonda-cadena-datos': 'sonda-cadena-datos',
 }
 
 // Un job está atrasado cuando pasaron más de dos cadencias completas desde su
@@ -165,11 +172,11 @@ export type EstadoAtrasoJob = {
 }
 
 // Texto/estado a mostrar en /admin/operacion para la columna "atrasado".
-// Centraliza la regla que evita el falso positivo del hallazgo bloqueante
-// del review de N1: con ENOS_JOBS_ENABLED=false (pausa operativa deliberada)
-// ningún job corre, y eso NO es lo mismo que un job atrasado por un problema
-// real — mostrar "atrasado" ahí habría hecho perder tiempo a un operador
-// investigando un incidente inexistente.
+// Con ENOS_JOBS_ENABLED=false (pausa operativa deliberada) esta columna no
+// marca "atrasado": no es un incidente de cadencia. Sin embargo el panel
+// "Estado de los datos" (clasificar.ts) lo informa como `pausado`, que SÍ
+// cuenta como problema del resumen, y reserva `deshabilitado` (neutral, sin
+// contar) para los jobs que no se programan por diseño (habilitado: false).
 export function estadoAtrasoJob(params: {
   nombre: NombreJob | undefined
   ultimaCorridaExitosaEn: Date | null

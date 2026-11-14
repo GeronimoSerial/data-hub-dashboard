@@ -242,6 +242,7 @@ async function actualizarSalud(
   provider: string,
   erroresPorCelda: Record<string, string>,
   ahoraIso: string,
+  filasRecibidas: number,
 ): Promise<void> {
   // Upsert único: mismo motivo de reintento que persistirPuntos.
   await actualizarSaludFuente(db, {
@@ -250,6 +251,7 @@ async function actualizarSalud(
     licencia: LICENCIA,
     ...resumirErrores(erroresPorCelda, LARGO_MAX_ERROR),
     ahoraIso,
+    filasRecibidas,
   })
 }
 
@@ -392,6 +394,9 @@ async function ejecutarCuerpoDelJob(ctx: {
   let celdasConsultadas = 0
   let puntosRioConsultados = 0
   let filasInsertadas = 0
+  // Filas recibidas por proveedor (la salud de cada uno depende de lo suyo).
+  let filasRecibidasEcmwf = 0
+  let filasRecibidasFlood = 0
   // Corrección de revisión (hallazgo B): desde que ecmwf.ts batchea varias
   // celdas en una sola request HTTP, "una llamada por celda/punto consultado"
   // ya no es el conteo real. Se suma lo que cada provider reporta haber
@@ -404,6 +409,8 @@ async function ejecutarCuerpoDelJob(ctx: {
     const tanda = tandas[indice]
     const diagnostico = await consultarProveedor(tanda.provider, tanda.refs, inicioBloque)
     Object.assign(tanda.esCeldas ? erroresEcmwf : erroresFlood, diagnostico.erroresPorCelda)
+    if (tanda.esCeldas) filasRecibidasEcmwf += diagnostico.puntos.length
+    else filasRecibidasFlood += diagnostico.puntos.length
     filasInsertadas += await persistirPuntos(
       db,
       tanda.provider.nombreProveedor,
@@ -458,8 +465,8 @@ async function ejecutarCuerpoDelJob(ctx: {
     return { ok: false, motivo: 'lease_perdido_durante_ejecucion', resultado }
   }
 
-  await actualizarSalud(db, ecmwfProvider.nombreProveedor, erroresEcmwf, ahoraIso)
-  await actualizarSalud(db, floodProvider.nombreProveedor, erroresFlood, ahoraIso)
+  await actualizarSalud(db, ecmwfProvider.nombreProveedor, erroresEcmwf, ahoraIso, filasRecibidasEcmwf)
+  await actualizarSalud(db, floodProvider.nombreProveedor, erroresFlood, ahoraIso, filasRecibidasFlood)
 
   const puntosSinDato = Object.keys(erroresEcmwf).length + Object.keys(erroresFlood).length
   if (puntosSinDato > 0) {

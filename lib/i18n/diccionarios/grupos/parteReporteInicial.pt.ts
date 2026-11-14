@@ -1,0 +1,93 @@
+import type { DeepStringify } from '../tipos'
+import type { parteReporteInicialEs } from './parteReporteInicial.es'
+
+// Brazilian Portuguese texts of the `parteReporteInicial` group; must mirror parteReporteInicial.es.ts key for key.
+export const parteReporteInicialPt: DeepStringify<typeof parteReporteInicialEs> = {
+  mensajes: {
+    faltaCarrera: 'Escolha pelo menos um curso para esta situação.',
+    faltaAlumnoCadaCarrera: 'Selecione pelo menos um aluno afetado em cada curso escolhido.',
+    errorGuardado: 'Não conseguimos salvar o parte. As informações preenchidas foram mantidas para que possa tentar novamente.',
+    yaGuardado: 'Já consta na situação atual da sua escola.',
+    faltaQuePaso: 'Escolha o tipo de situação, o motivo e a gravidade para continuar.',
+    faltaAlcanceAfectacion: 'Escolha pelo menos uma seção para esta situação.',
+    faltaEstadoEstablecimiento: 'Informe como está o edifício.',
+    fechaFutura: 'A data não pode ser posterior a hoje.',
+    fechaAntigua: 'A data não pode ser anterior a 12 meses atrás.',
+    motivoEstablecimiento: 'Escolha o motivo da situação do estabelecimento.',
+    faltaAlumno: 'Selecione pelo menos um aluno afetado.',
+    faltaClases: 'Informe se há aulas.',
+    faltaModalidad: 'Escolha pelo menos uma modalidade de assistência pedagógica.',
+    faltaJustificacion: 'Informe por que a situação é crítica.',
+    faltaMotivoInaccesibilidad: 'Escolha o motivo da inacessibilidade.',
+    fotosLocales: 'As fotos ficaram salvas neste dispositivo e podem ser reenviadas.',
+    almacenNoAccesible: 'Não foi possível acessar o armazenamento local. Pode enviar suas respostas.',
+    borradorNoGuardado: 'Não foi possível salvar o rascunho local. Pode enviar suas respostas.',
+    borradorNoDescartado: 'Não foi possível descartar o rascunho local. Pode enviar as respostas.',
+    borradorCambiadoOtraPestana: 'O rascunho mudou em outra aba e foi mantido. Pode enviar as respostas.',
+    puedeEnviar: 'Pode continuar e enviar as respostas.',
+  },
+  pasos: {
+    queSucedio: 'O que aconteceu?',
+    aQuienesAfecta: 'A quem afeta?',
+    clasesEdificio: 'Aulas e edifício',
+    desdeCuando: 'Desde quando?',
+    asistenciaPedagogica: 'Assistência pedagógica',
+  },
+  contador: (actual: number, total: number) => `Passo ${actual} de ${total}`,
+  asistencia: {
+    pregunta: 'A escola oferece assistência pedagógica?',
+    tipo: 'De que tipo?',
+    seleccione: 'Selecione uma ou mais opções',
+  },
+  opciones: {
+    si: 'Sim',
+    no: 'Não',
+  },
+  confirmacion: {
+    titulo: 'Situação salva',
+    verEstado: 'Ver situação atual',
+    cargarOtra: 'Registrar outra situação',
+  },
+  recomendacionFoto: {
+    texto: 'Recomendamos anexar uma foto: ela ajuda a avaliar situações críticas.',
+  },
+  resumenIntro: 'Isto é o que será informado. Revise antes de salvar.',
+  acciones: {
+    volver: 'Voltar',
+    guardar: 'Salvar situação',
+    guardando: 'Salvando…',
+    reintentando: 'Tentando novamente…',
+    envioPendiente: 'Envio pendente',
+  },
+  borrador: {
+    titulo: 'Há um parte não enviado.',
+    continuarDonde: 'Continuar de onde parou',
+    descripcion: 'Pode continuar de onde parou ou descartá-lo e começar de novo.',
+  },
+  descarte: {
+    titulo: 'Descartar o parte não enviado?',
+    confirmar: 'Sim, descartar',
+    descripcion: 'Perde-se o que foi preenchido e nada é enviado.',
+  },
+  resumen: {
+    situacion: 'Situação',
+    afectaA: 'Afeta',
+    carreras: 'Cursos',
+    detalle: 'Detalhe',
+    clases: 'Aulas',
+    edificio: 'Edifício',
+    asistenciaPedagogica: 'Assistência pedagógica',
+    fotosAdjuntas: 'Fotos anexadas',
+    conNormalidad: 'Com normalidade',
+    suspendidas: 'Suspensas',
+  },
+  servicio: {
+    habitual: 'Funcionamento normal',
+    interrumpido: 'Funcionamento interrompido',
+    sinAlcance: 'sem alcance indicado',
+    enEstablecimiento: 'em todo o estabelecimento',
+    enTurno: (turnos: string) => `no turno ${turnos}`,
+    enSecciones: (cantidad: number) => (cantidad === 1 ? 'em 1 seção' : `em ${cantidad} seções`),
+    enCarreras: (cantidad: number) => (cantidad === 1 ? 'em 1 curso' : `em ${cantidad} cursos`),
+  },
+}

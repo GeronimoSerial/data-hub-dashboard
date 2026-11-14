@@ -22,6 +22,7 @@ import {
 } from '@/lib/db/schema'
 import { PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
+import { clasificarFuente, esProblema } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
 import type { getDb as GetDb } from '@/lib/db'
 import type {
   generarCorte as GenerarCorte,
@@ -118,13 +119,14 @@ async function insertarSalud(
   provider: string,
   ultimoExitoEn: string | null,
   ttlMinutos: number,
+  opciones: { estado?: string; error?: string | null } = {},
 ): Promise<void> {
   await db.insert(hazardSourceHealth).values({
     provider,
     ultimoExitoEn,
     ultimoIntentoEn: ultimoExitoEn,
-    estado: 'ok',
-    ultimoErrorSaneado: null,
+    estado: opciones.estado ?? 'ok',
+    ultimoErrorSaneado: opciones.error ?? null,
     ttlMinutos,
     licencia: 'test',
     actualizadaEn: ultimoExitoEn ?? '2026-09-27T00:00:00.000Z',
@@ -192,7 +194,7 @@ describe('generarCorte', () => {
     expect(resultado.kpis).toEqual({
       escuelasAfectacionConfirmadaVigente: 1,
       escuelasRiesgoAlto24h: 3,
-      fuentesVencidas: 1,
+      fuentesVencidas: 2,
     })
     expect(resultado.episodiosAbiertos).toBe(1)
     expect(resultado.episodiosCerradosDesdeAnterior).toBe(0)
@@ -211,13 +213,35 @@ describe('generarCorte', () => {
     expect(persistido.fuentesSalud).toHaveLength(3)
     expect(
       persistido.fuentesSalud.find((f) => f.provider === 'open-meteo'),
-    ).toEqual({ provider: 'open-meteo', estado: 'ok', frescuraMinutos: 30, vencida: true })
+    ).toEqual({ provider: 'open-meteo', estado: 'ok', frescuraMinutos: 30, vencida: true, problema: true })
     expect(
       persistido.fuentesSalud.find((f) => f.provider === 'nasa-gpm'),
-    ).toEqual({ provider: 'nasa-gpm', estado: 'ok', frescuraMinutos: 5, vencida: false })
+    ).toEqual({ provider: 'nasa-gpm', estado: 'ok', frescuraMinutos: 5, vencida: false, problema: false })
     expect(
       persistido.fuentesSalud.find((f) => f.provider === 'sin-dato'),
-    ).toEqual({ provider: 'sin-dato', estado: 'ok', frescuraMinutos: null, vencida: false })
+    ).toEqual({ provider: 'sin-dato', estado: 'ok', frescuraMinutos: null, vencida: false, problema: true })
+  })
+
+  it('fuente degradada dentro del TTL cuenta en el KPI igual que en el panel de estado de datos', async () => {
+    await sembrarBase()
+    await insertarSalud('open-degradado', '2026-09-27T11:55:00.000Z', 60, { estado: 'degradado', error: 'timeout' })
+
+    const resultado = await generarCorte({ ahora: new Date(AHORA), jobRunId: null })
+
+    const filas = await db.select().from(hazardSourceHealth)
+    const problemasPanel = filas
+      .map((f) => clasificarFuente({ ...f, datoMasRecienteImerg: null, ahora: new Date(AHORA) }))
+      .filter((item) => esProblema(item.estado)).length
+    expect(problemasPanel).toBe(3)
+    expect(resultado.kpis.fuentesVencidas).toBe(problemasPanel)
+
+    const [persistido] = await db
+      .select()
+      .from(infraSituacionCorte)
+      .where(eq(infraSituacionCorte.id, resultado.corteId))
+    expect(
+      persistido.fuentesSalud.find((f) => f.provider === 'open-degradado'),
+    ).toEqual({ provider: 'open-degradado', estado: 'degradado', frescuraMinutos: 5, vencida: false, problema: true })
   })
 
   it('cuenta ESCUELAS con afectación confirmada, no alumnos ni matrícula expuesta', async () => {
@@ -313,6 +337,33 @@ describe('generarCorte', () => {
 describe('obtenerUltimoCorte / obtenerCorteAnterior', () => {
   it('sin cortes persistidos devuelve null', async () => {
     expect(await obtenerUltimoCorte()).toBeNull()
+  })
+
+  it('un corte legado sin el campo problema reporta el KPI persistido y deriva problema de vencida', async () => {
+    await db.insert(infraSituacionCorte).values({
+      id: randomUUID(),
+      generadoEn: '2026-09-27T10:00:00.000Z',
+      riskRunId: null,
+      cobertura: null,
+      conteosPorNivelRiesgo: {},
+      kpis: { escuelasAfectacionConfirmadaVigente: 0, escuelasRiesgoAlto24h: 0, fuentesVencidas: 2 },
+      fuentesSalud: [
+        { provider: 'open-meteo', estado: 'ok', frescuraMinutos: 30, vencida: true },
+        { provider: 'nasa-gpm', estado: 'ok', frescuraMinutos: 5, vencida: false },
+      ],
+      episodiosAbiertos: 0,
+      episodiosCerradosDesdeAnterior: 0,
+      generadoPorJobRunId: null,
+      creadaEn: '2026-09-27T10:00:00.000Z',
+    })
+
+    const corte = await obtenerUltimoCorte()
+
+    expect(corte?.kpis.fuentesVencidas).toBe(2)
+    expect(corte?.fuentesSalud).toEqual([
+      { provider: 'open-meteo', estado: 'ok', frescuraMinutos: 30, vencida: true, problema: true },
+      { provider: 'nasa-gpm', estado: 'ok', frescuraMinutos: 5, vencida: false, problema: false },
+    ])
   })
 
   it('devuelve el corte más reciente y su anterior por generadoEn', async () => {

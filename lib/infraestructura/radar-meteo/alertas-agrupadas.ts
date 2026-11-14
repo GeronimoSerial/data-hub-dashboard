@@ -1,3 +1,7 @@
+import { formatoFechaRegion, localeRegion } from '../formato-region'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+
 export type AlertaRadar = {
   id: string
   nivelSat: string | null
@@ -86,8 +90,7 @@ export interface ResumenAlertasRadar {
 }
 
 export function fechaCorta(fecha: string): string {
-  const partes = new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+  const partes = formatoFechaRegion(localeRegion(), {
     weekday: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -103,19 +106,19 @@ export function formatearVentanaAlerta(onset: string, expires: string): string {
   return `${fechaCorta(onset)} – ${fechaCorta(expires)}`
 }
 
-export function resumirAlertas(grupos: GrupoAlertaRadar[]): ResumenAlertasRadar {
+export function resumirAlertas(grupos: GrupoAlertaRadar[], t: Diccionario = es): ResumenAlertasRadar {
   const vigentes = grupos.filter((grupo) => !grupo.proxima).length
   const proximas = grupos.length - vigentes
   const nivel = grupos.map((grupo) => nivelNormalizado(grupo.nivelSat)).filter((valor): valor is 'red' | 'orange' | 'yellow' => valor !== null)
     .sort((a, b) => gravedadNivel[b] - gravedadNivel[a])[0] ?? null
   let texto = ''
   if (vigentes && proximas) {
-    texto = `${vigentes} vigente${vigentes === 1 ? '' : 's'} · ${proximas} próxima${proximas === 1 ? '' : 's'}`
+    texto = t.libTextos2.alertas.vigentesYProximas(vigentes, proximas)
   } else if (proximas) {
     const onset = grupos.filter((grupo) => grupo.proxima).sort((a, b) => Date.parse(a.onset) - Date.parse(b.onset))[0].onset
-    texto = `${proximas} alerta${proximas === 1 ? '' : 's'} del SMN · próxima${proximas === 1 ? '' : 's'} desde ${fechaCorta(onset)}`
+    texto = t.libTextos2.alertas.soloProximas(proximas, fechaCorta(onset))
   } else if (vigentes) {
-    texto = `${vigentes} alerta${vigentes === 1 ? '' : 's'} vigente${vigentes === 1 ? '' : 's'} del SMN`
+    texto = t.libTextos2.alertas.soloVigentes(vigentes)
   }
   return { total: grupos.length, vigentes, proximas, texto, nivel }
 }

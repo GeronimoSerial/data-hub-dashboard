@@ -7,6 +7,7 @@ import {
 } from '@/lib/db/schema'
 import type { SessionUser } from '@/lib/acl'
 import { hasBookletCapability, type BookletPermissionRepository } from './permissions'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import type { QuotaInput, QuotaView, StockInput, StockView } from './types'
 
 export class BookletServiceError extends Error {
@@ -116,7 +117,10 @@ const makeDatabaseRepository = (db: Awaited<ReturnType<typeof getDb>>): Inventor
   },
 })
 
-const databaseRepository: InventoryRepository = makeDatabaseRepository(getDb())
+// Se resuelve en cada acceso: dentro de cambioAuditado, getDb() devuelve la transacción del evento.
+const databaseRepository: InventoryRepository = new Proxy({} as InventoryRepository, {
+  get: (_objetivo, clave) => Reflect.get(makeDatabaseRepository(getDb()), clave),
+})
 
 const digest = (input: unknown) => createHash('sha256').update(JSON.stringify(input)).digest('hex')
 const positiveInteger = (value: number) => Number.isSafeInteger(value) && value > 0
@@ -146,7 +150,10 @@ export async function addStock(actor: SessionUser, input: StockInput, repository
     if (!await tx.productExists(input.productId)) throw new BookletServiceError('product_not_found', 404)
     await tx.lockProduct?.(input.campaignId, input.productId)
     const prior = await getReplay<StockView>(tx, actor.id, 'stock.add', input.idempotencyKey, input)
-    if (prior) return prior
+    if (prior) {
+      describirAuditoria({ resultado: 'repetido' })
+      return prior
+    }
     const initialized = await tx.hasStock(input.campaignId, input.productId)
     const stock = await tx.getStock(input.campaignId, input.productId)
     if (input.movement === 'initial' && initialized) throw new BookletServiceError('initial_stock_exists', 409)

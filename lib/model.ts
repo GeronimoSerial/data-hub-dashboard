@@ -1,3 +1,5 @@
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
+
 // ─────────────────────────────────────────────────────────────────────────
 // Modelo de información del Hub de Datos
 // Fuente única de verdad: el Hub, las vistas por formato y la Administración
@@ -292,7 +294,7 @@ export function formatearFecha(iso: string) {
         Number(dateOnly[3]),
       )
     : new Date(iso)
-  return d.toLocaleDateString('es-AR', {
+  return d.toLocaleDateString(regionPublicaActual().locale, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',

@@ -2,9 +2,10 @@ import { z } from 'zod'
 import { BookletServiceError } from '@/lib/cuadernillos/inventory'
 import { BookletRequestReadError, getBookletRequestPage } from '@/lib/cuadernillos/permissions'
 import { createRequest } from '@/lib/cuadernillos/requests'
-import { resolveViewAsActor } from '@/lib/cuadernillos/view-as'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+import { prepararEsquemaGe } from '@/lib/cuadernillos/ge-conexion'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -29,14 +30,12 @@ async function handleGET(request: Request) {
   const hubDenied = await hubApiAccessResponse(actor, '/cuadernillos')
   if (hubDenied) return hubDenied
   const params = new URL(request.url).searchParams
-  if ([...params.keys()].some((key) => !['campaignId', 'cursor', 'limit', 'viewAs'].includes(key))) {
+  if ([...params.keys()].some((key) => !['campaignId', 'cursor', 'limit'].includes(key))) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: noStore })
   }
   const campaignIds = params.getAll('campaignId')
   const cursors = params.getAll('cursor')
   const limits = params.getAll('limit')
-  const viewAsValues = params.getAll('viewAs')
-  if (viewAsValues.length > 1) return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: noStore })
   const parsed = getSchema.safeParse({
     campaignId: campaignIds.length === 1 ? campaignIds[0] : campaignIds.length === 0 ? undefined : null,
     cursor: cursors.length === 1 ? cursors[0] : cursors.length === 0 ? undefined : null,
@@ -44,9 +43,7 @@ async function handleGET(request: Request) {
   })
   if (!parsed.success) return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: noStore })
   try {
-    const readActor = await resolveViewAsActor(actor, viewAsValues[0])
-    if (readActor.status === 'unavailable') return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403, headers: noStore })
-    const page = await getBookletRequestPage(readActor.actor, {
+    const page = await getBookletRequestPage(actor, {
       ...parsed.data,
       limit: parsed.data.limit === undefined ? undefined : Number(parsed.data.limit),
     })
@@ -66,7 +63,15 @@ async function handlePOST(request: Request) {
   const parsed = schema.safeParse(body)
   if (!parsed.success) return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: noStore })
   try {
-    const result = await createRequest(actor!, parsed.data)
+    // Esquema GE antes de abrir la auditoría; si falla, el servicio lo reintenta y responde como antes.
+    await prepararEsquemaGe().catch(() => undefined)
+    const result = await cambioAuditado(() => createRequest(actor!, parsed.data), (creada) => ({
+      status: creada.status === 'pending' ? 201 : 200,
+      objetoTipo: 'cuadernillo_solicitud',
+      objetoId: creada.requestId,
+      cueAnexo: creada.recipientCueAnexo,
+      metadatos: { cantidad: parsed.data.lines.reduce((total, line) => total + line.quantity, 0) },
+    }))
     return Response.json({ request: result }, { status: result.status === 'pending' ? 201 : 200, headers: noStore })
   } catch (error) {
     if (error instanceof BookletServiceError) return Response.json({ error: error.code }, { status: error.status, headers: noStore })
@@ -74,5 +79,5 @@ async function handlePOST(request: Request) {
   }
 }
 
-export const POST = ruta('cuadernillos.requests.post', handlePOST)
+export const POST = conAuditoria('cuadernillo.solicitud_crear', '/api/cuadernillos/requests', ruta('cuadernillos.requests.post', handlePOST))
 export const GET = ruta('cuadernillos.requests.get', handleGET)

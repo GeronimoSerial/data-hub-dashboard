@@ -9,6 +9,7 @@ import { normalizeCue } from '@/lib/infraestructura/cue'
 import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { listarMovimientosDescritos } from '@/lib/infraestructura/parte-consulta'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -49,4 +50,4 @@ async function handleGET(request: Request) {
   return Response.json({ ok: true, movimientos }, { status: 200, headers: CACHE_HEADERS })
 }
 
-export const GET = ruta('parte.historial.get', handleGET)
+export const GET = conAuditoria('parte.historial', '/api/problematicas/parte/historial', ruta('parte.historial.get', handleGET))

@@ -1,11 +1,13 @@
 import type { Metadata } from 'next'
 import { PantallaParteOffline } from '@/components/infraestructura/offline/pantalla-parte-offline'
-import { TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
+import { textosActuales } from '@/lib/i18n'
 
 export const dynamic = 'force-static'
 
+const t = textosActuales().parteResto
+
 export const metadata: Metadata = {
-  title: `Reporte sin conexión · ${TITULO_PROGRAMA_COMPLETO}`,
+  title: `${t.pantallas.reporteSinConexion} · ${t.encabezado.programaCompleto}`,
 }
 
 /** Static shell only. Flow data is read by the client from the shared IndexedDB database. */

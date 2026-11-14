@@ -1,13 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { and, eq, gte, or, sql } from 'drizzle-orm'
-import { getDb, getRawClient } from '@/lib/db'
+import { getDb } from '@/lib/db'
 import { bookletAssignmentSourceRevision, bookletCampaign, bookletIdempotency, bookletMembership, bookletProduct, bookletQuota, bookletRequest, bookletRequestLine, bookletSchoolAssignment, bookletStock, bookletStockMovement, user } from '@/lib/db/schema'
 import { hashAssignmentSourceRow, hashConfirmedAssignment, verifyAssignmentSourceRevision } from './assignment-source'
 import type { AssignmentSourceRow, AssignmentValidationResult } from './types'
 import type { SessionUser } from '@/lib/acl'
 import type { BookletCapability } from './types'
 import { getSchoolEligibility, lockCurrentEligibilitySources, toDashedCue } from './eligibility'
-import { crearEjecutorSql, ensureGeSchema, type GeSchemaReady } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, type GeSchemaReady } from '@/lib/infraestructura/ge-db'
+import { prepararEsquemaGe } from './ge-conexion'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { listarPartesVigentes } from '@/lib/infraestructura/parte-mapa'
 import { BookletServiceError, type CampaignPolicy, type IdempotencyRecord } from './inventory'
 import { isBookletAdmin } from './permissions'
@@ -58,7 +60,7 @@ export type ApprovalRepository = {
 
 export const createApprovalRepository = (db: Awaited<ReturnType<typeof getDb>>): ApprovalRepository => ({
   async prepareCurrentEligibilityProjection() {
-    return ensureGeSchema(crearEjecutorSql(getRawClient()))
+    return prepararEsquemaGe()
   },
   async transaction(operation) { return db.transaction((tx) => operation(createApprovalRepository(tx))) },
   async lockEligibilitySources() { await lockCurrentEligibilitySources(crearEjecutorSql(db)) },
@@ -245,7 +247,10 @@ export const createApprovalRepository = (db: Awaited<ReturnType<typeof getDb>>):
   },
 })
 
-const databaseRepository = createApprovalRepository(getDb())
+// Se resuelve en cada acceso: dentro de cambioAuditado, getDb() devuelve la transacción del evento.
+const databaseRepository: ApprovalRepository = new Proxy({} as ApprovalRepository, {
+  get: (_objetivo, clave) => Reflect.get(createApprovalRepository(getDb()), clave),
+})
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const positiveLines = (lines: QuantityLine[]) => Array.isArray(lines) && lines.length > 0
   && lines.every((line) => Number.isSafeInteger(line.quantity) && line.quantity > 0 && line.productId.trim() !== '')
@@ -296,7 +301,10 @@ export async function approveRequest(actor: SessionUser, input: ApprovalInput, r
     await tx.lockChain(request.rootRequestId)
     const admin = await authorize(actor, request, tx)
     const replayed = await replay<ApprovalResult>(tx, actor.id, 'request.approve', input.idempotencyKey, input)
-    if (replayed) return replayed
+    if (replayed) {
+      describirAuditoria({ resultado: 'repetido' })
+      return replayed
+    }
     assertCampaign(await tx.getCampaign(request.campaignId))
     assertPending(request)
     if (!admin && !await tx.approvalAuthorityReady(request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
@@ -347,7 +355,10 @@ export async function rejectRequest(actor: SessionUser, input: RejectInput, repo
     await tx.lockChain(request.rootRequestId)
     const admin = await authorize(actor, request, tx)
     const replayed = await replay<RequestView>(tx, actor.id, 'request.reject', input.idempotencyKey, input)
-    if (replayed) return replayed
+    if (replayed) {
+      describirAuditoria({ resultado: 'repetido' })
+      return replayed
+    }
     assertCampaign(await tx.getCampaign(request.campaignId))
     assertPending(request)
     if (!admin && !await tx.approvalAuthorityReady(request.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)

@@ -3,6 +3,7 @@ import type { SessionUser } from '@/lib/acl'
 import { BookletServiceError, type CampaignPolicy, type IdempotencyRecord } from './inventory'
 import { approvalRepository, type ApprovalRequestRecord, type ApprovalRepository } from './approvals'
 import { isBookletAdmin } from './permissions'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import type { Eligibility, QuantityLine, RemainderInput, RequestChainView, RequestView } from './types'
 
 export type RemainderRepository = Omit<Pick<ApprovalRepository,
@@ -107,6 +108,7 @@ export async function createRemainderRequest(
     const prior: IdempotencyRecord | null = await tx.getIdempotency(actor.id, 'request.remainder', input.idempotencyKey)
     if (prior) {
       if (prior.payloadHash !== payloadHash) throw new BookletServiceError('idempotency_conflict', 409)
+      describirAuditoria({ resultado: 'repetido' })
       return prior.response as RequestView
     }
 

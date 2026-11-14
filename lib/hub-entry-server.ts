@@ -9,8 +9,10 @@ import { pathAllowedByHubPolicy, resolveHubEntry } from '@/lib/hub-entry'
 import { hubConfined } from '@/lib/access/hub-confinement'
 import { sectionsForUser, type HubSection } from '@/lib/hub-sections'
 import { legacyRecursoRedirect } from '@/lib/nav'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { moduloDeRutaHabilitado } from '@/lib/infraestructura/region/modulos'
 import { getSessionUser } from '@/lib/session'
+import { RUTA_MAPA_INFRAESTRUCTURA } from '@/lib/infraestructura/rutas-hub'
 
 async function resourceEntryAllowed(user: SessionUser, id: string) {
   const [row] = await getDb().select({ id: recursos.id, formato: recursos.formato, ruta: recursos.ruta })
@@ -35,6 +37,7 @@ export async function serverHubPathAllowedByPolicy(user: SessionUser, path: stri
 /** API denial response for a protected hub path; never redirects API clients to HTML. */
 export async function hubApiAccessResponse(user: SessionUser | null, path: string) {
   const headers = { 'Cache-Control': 'private, no-store' }
+  if (!moduloDeRutaHabilitado(path)) return Response.json({ error: 'No encontrado' }, { status: 404, headers })
   if (!user) return Response.json({ error: 'No autenticado' }, { status: 401, headers })
   if (!(await serverHubPathAllowedByPolicy(user, path))) {
     return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403, headers })
@@ -54,10 +57,10 @@ export async function serverHubPathAllowedByExistingAcl(user: SessionUser, path:
   const resourcePath = canonicalPath.match(/^\/recursos\/([^/]+)$/)
   if (resourcePath) return resourceEntryAllowed(user, decodeURIComponent(resourcePath[1]))
 
-  const infrastructurePath = path === '/mapas/infraestructura' || path.startsWith('/mapas/infraestructura/')
+  const infrastructurePath = path === RUTA_MAPA_INFRAESTRUCTURA || path.startsWith(`${RUTA_MAPA_INFRAESTRUCTURA}/`)
   if (infrastructurePath) {
     // Same decision as the infra map pages and APIs; exempt from the allow-list (S8).
-    const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
+    const found = await loadRecursoAccessByRuta(RUTA_MAPA_INFRAESTRUCTURA)
     return Boolean(found && puedeLeerMapaInfraestructura(user, found.access))
   }
   const resourceRoute = ['/mapas/matricula', '/mapas/natalidad', '/mapas/reorganizacion'].find((route) => path === route)
@@ -82,6 +85,7 @@ export async function resolveServerHubEntry(
 
 /** Page-level authorization. Shared layouts may be reused during client navigation. */
 export async function requireServerHubPageAccess(path: string, requiredSection?: HubSection) {
+  if (!moduloDeRutaHabilitado(path)) notFound()
   const user = await getSessionUser()
   if (!user) redirect(`/login?callbackUrl=${encodeURIComponent(path)}`)
   if (user.banned) redirect('/forbidden')

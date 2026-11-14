@@ -34,6 +34,9 @@ export type EstadoJobRun = {
   errorSaneado: string | null
   leaseVencido: boolean
   ultimaCompletadaEn: string | null
+  // `contadores` de la última corrida completada del tipo (ver
+  // `ultimaCompletadaEn`). Null/ausente si esa corrida no los registró.
+  contadoresUltimaCompletada?: Record<string, number> | null
 }
 
 export type EstadoOperativo = {
@@ -205,11 +208,11 @@ export async function obtenerEstadoOperativo(): Promise<EstadoOperativo> {
   // Última fila COMPLETADA por tipo: `ordenadas` ya está desc por actualizadaEn,
   // así que la primera fila completada que se ve por tipo es la más reciente. No
   // reusa `vistos` (ese cubre la última fila cualquiera sea su estado).
-  const completadasPorTipo = new Map<string, string>()
+  const completadasPorTipo = new Map<string, { actualizadaEn: string; contadores: Record<string, number> | null }>()
   for (const fila of ordenadas) {
     if (fila.estado !== 'completado') continue
     if (completadasPorTipo.has(fila.tipo)) continue
-    completadasPorTipo.set(fila.tipo, fila.actualizadaEn)
+    completadasPorTipo.set(fila.tipo, { actualizadaEn: fila.actualizadaEn, contadores: fila.contadores ?? null })
   }
 
   const vistos = new Set<string>()
@@ -230,7 +233,8 @@ export async function obtenerEstadoOperativo(): Promise<EstadoOperativo> {
       actualizadaEn: fila.actualizadaEn,
       errorSaneado: fila.errorSaneado,
       leaseVencido,
-      ultimaCompletadaEn: completadasPorTipo.get(fila.tipo) ?? null,
+      ultimaCompletadaEn: completadasPorTipo.get(fila.tipo)?.actualizadaEn ?? null,
+      contadoresUltimaCompletada: completadasPorTipo.get(fila.tipo)?.contadores ?? null,
     })
   }
 

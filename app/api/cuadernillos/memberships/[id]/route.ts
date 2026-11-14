@@ -2,6 +2,8 @@ import { BookletServiceError } from '@/lib/cuadernillos/inventory'
 import { revoke } from '@/lib/cuadernillos/memberships'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -14,9 +16,13 @@ async function handleDELETE(_request: Request, context: { params: Promise<{ id: 
   const hubDenied = await hubApiAccessResponse(actor, '/cuadernillos')
   if (hubDenied) return hubDenied
   const { id } = await context.params
+  describirAuditoria({ objetoTipo: 'membresia', objetoId: id })
   if (!id.trim() || id.length > 128) return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: noStore })
   try {
-    const membership = await revoke(actor!, id)
+    const membership = await cambioAuditado(
+      () => revoke(actor!, id),
+      (revocada) => ({ status: 200, objetoTipo: 'membresia', objetoId: revocada.id, metadatos: { campos: ['revokedAt'] } }),
+    )
     return Response.json({ membership }, { status: 200, headers: noStore })
   } catch (error) {
     if (error instanceof BookletServiceError) return Response.json({ error: error.code }, { status: error.status, headers: noStore })
@@ -24,4 +30,4 @@ async function handleDELETE(_request: Request, context: { params: Promise<{ id: 
   }
 }
 
-export const DELETE = ruta('cuadernillos.memberships.delete', handleDELETE)
+export const DELETE = conAuditoria('cuadernillo.membresia_revocar', '/api/cuadernillos/memberships/[id]', ruta('cuadernillos.memberships.delete', handleDELETE))

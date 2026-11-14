@@ -62,6 +62,8 @@ describe('POST /api/problematicas/verificaciones/[id]/responder', () => {
 
     const fila = await obtenerVerificacion(verificacion.id)
     expect(fila?.estado).toBe('respondida')
+    expect(fila?.respondidaPor).toBe('enlace')
+    expect(body.verificacion.respondidaPor).toBe('enlace')
   })
 
   it("'con_afectacion' en el body: 400 rechazado por el schema, sin escritura", async () => {

@@ -30,6 +30,8 @@ function verificacion(overrides: Partial<VerificacionVisible> = {}): Verificacio
     respondidaEn: null,
     respondidaCanal: null,
     respondidaPorUserId: null,
+    respondidaPor: null,
+    observacion: null,
     movimientoId: null,
     canceladaEn: null,
     canceladaPorUserId: null,
@@ -39,6 +41,7 @@ function verificacion(overrides: Partial<VerificacionVisible> = {}): Verificacio
     tokenConsumidoEn: null,
     creadaEn: '2026-09-01T12:00:00.000Z',
     actualizadaEn: '2026-09-01T12:00:00.000Z',
+    enlaceVencido: false,
     ...overrides,
   }
 }
@@ -94,6 +97,61 @@ describe('estadoVisible', () => {
 
   it('cancelada', () => {
     expect(estadoVisible(verificacion({ estado: 'cancelada' }), ahora)).toBe('cancelada')
+  })
+
+  it('una pendiente con enlace vencido (dato del servidor) es "enlace_vencido"', () => {
+    expect(
+      estadoVisible(verificacion({ enlaceVencido: true }), ahora),
+    ).toBe('enlace_vencido')
+  })
+
+  it('una pendiente con enlace vigente sigue siendo "pendiente"', () => {
+    expect(
+      estadoVisible(verificacion({ enlaceVencido: false }), ahora),
+    ).toBe('pendiente')
+  })
+})
+
+describe('VerificacionesCola: estado del enlace', () => {
+  it('una fila pendiente con enlace vencido muestra "Enlace vencido", no "Pendiente"', () => {
+    render(
+      <VerificacionesCola
+        verificacionesIniciales={[verificacion({ id: 'v1', enlaceVencido: true })]}
+      />,
+    )
+    const fila = screen.getByText('Enlace vencido').closest('tr') as HTMLElement
+    expect(fila).not.toBeNull()
+    expect(screen.queryByText('Pendiente')).toBeNull()
+  })
+})
+
+describe('VerificacionesCola: respuesta asistida con observación', () => {
+  it('envía la observación escrita en el formulario', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ ok: true, verificacion: verificacion({ estado: 'respondida' }) }, 200),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true, verificaciones: [] }, 200))
+
+    render(<VerificacionesCola verificacionesIniciales={[verificacion({ id: 'v1' })]} />)
+    fireEvent.click(screen.getByRole('button', { name: /registrar respuesta asistida/i }))
+    fireEvent.change(screen.getByLabelText(/observación/i), {
+      target: { value: 'Confirmó por teléfono' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /registrar respuesta$/i }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/infraestructura/verificaciones/v1/responder-asistida',
+        expect.objectContaining({
+          body: JSON.stringify({
+            canal: 'telefono',
+            resultado: 'sin_afectacion',
+            observacion: 'Confirmó por teléfono',
+          }),
+        }),
+      ),
+    )
   })
 })
 

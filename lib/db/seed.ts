@@ -27,7 +27,8 @@ import {
   tipos,
   user,
 } from './schema'
-import { RECURSO_INFRAESTRUCTURA_ID, upsertRecursoInfraestructura } from '@/lib/infraestructura/recurso-seed'
+import { RECURSO_INFRAESTRUCTURA_ID, upsertRecursoInfraestructura, upsertRecursoManaos } from '@/lib/infraestructura/recurso-seed'
+import { regionActiva } from '@/lib/infraestructura/region/activa'
 import { upsertRecursoNatalidad } from '@/lib/mapas/recurso-seed-natalidad'
 import { upsertRecursoReorganizacion } from '@/lib/mapas/recurso-seed-reorganizacion'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
@@ -153,7 +154,8 @@ async function seedHub() {
   await conReintentoPorBloqueo(async () => {
     const [row] = await db.select({ n: count() }).from(niveles)
     if ((row?.n ?? 0) === 0) {
-      const seeded = seedRecursos.map(withSeedFile)
+      // The initial catalog belongs to Corrientes; other regions start with only their ENOS cards.
+      const seeded = (regionActiva().id === 'corrientes' ? seedRecursos : []).map(withSeedFile)
       const tagJoins = seeded.flatMap((r) =>
         r.tagIds.map((tagId) => ({ recursoId: r.id, tagId })),
       )
@@ -163,12 +165,14 @@ async function seedHub() {
         await tx.insert(tipos).values(seedTipos)
         await tx.insert(categorias).values(seedCategorias)
         await tx.insert(tags).values(seedTags)
-        await tx.insert(recursos).values(
-          seeded.map(
-            ({ tagIds: _tagIds, audienciaNivelJurIds: _n, audienciaUserIds: _u, ...row }) =>
-              row,
-          ),
-        )
+        if (seeded.length > 0) {
+          await tx.insert(recursos).values(
+            seeded.map(
+              ({ tagIds: _tagIds, audienciaNivelJurIds: _n, audienciaUserIds: _u, ...row }) =>
+                row,
+            ),
+          )
+        }
         if (tagJoins.length > 0) {
           await tx.insert(recursoTags).values(tagJoins)
         }
@@ -181,11 +185,13 @@ async function seedHub() {
   // Fuera del if: corre siempre, también sobre una base ya poblada, y nunca
   // toca la audiencia configurada del recurso (ver recurso-seed.ts).
   await upsertRecursoInfraestructura()
+  await upsertRecursoManaos()
   // Una base reconstruida sólo para infraestructura conserva ese alcance.
   // El catálogo completo de instalaciones nuevas y bases existentes sigue
   // recibiendo natalidad; no se agregan otros módulos a un catálogo exclusivo.
   const catalogo = await db.select({ id: recursos.id }).from(recursos)
-  if (catalogo.some((recurso) => recurso.id !== RECURSO_INFRAESTRUCTURA_ID)) {
+  // Natalidad y reorganización son módulos exclusivos de Corrientes.
+  if (regionActiva().id === 'corrientes' && catalogo.some((recurso) => recurso.id !== RECURSO_INFRAESTRUCTURA_ID)) {
     await upsertRecursoNatalidad()
     await upsertRecursoReorganizacion()
   }

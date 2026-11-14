@@ -6,12 +6,9 @@
 //
 // Vocabulario prohibido por spec §5.4 ("versión", "entidad", "registro
 // histórico", "persistencia"): no aparece acá a propósito.
-import {
-  ETIQUETA_ESTABLECIMIENTO,
-  ETIQUETA_SERVICIO,
-  formatearMomento,
-  resumirAlcance,
-} from '@/components/infraestructura/estado-actual-textos'
+import { formatearMomento, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import { textoImpactoAlumnos, type ImpactoAlumnos } from '@/lib/infraestructura/prioridad-alumnos'
 
@@ -52,37 +49,35 @@ export interface FilaResumen {
   severidad?: string
 }
 
-function contar(cantidad: number, singular: string, plural: string): string {
-  return cantidad === 1 ? `1 ${singular}` : `${cantidad} ${plural}`
+// Alcance de un servicio interrumpido, sin la etiqueta de estado. Null cuando
+// no hay ningún turno, sección o carrera elegido.
+function alcanceDelServicio(servicio: ServicioResumen, t: Diccionario): string | null {
+  const textos = t.parteReporteInicial.servicio
+  if (servicio.alcanceTipo === 'establecimiento') return textos.enEstablecimiento
+  if (servicio.alcanceTipo === 'turno') return servicio.turnos.length > 0 ? textos.enTurno(servicio.turnos.join(', ')) : null
+  if (servicio.alcanceTipo === 'seccion') return servicio.secciones > 0 ? textos.enSecciones(servicio.secciones) : null
+  if (servicio.alcanceTipo === 'carrera') return (servicio.carreras ?? 0) > 0 ? textos.enCarreras(servicio.carreras ?? 0) : null
+  return null
 }
 
-/**
- * Cómo se lee el alcance de una interrupción. Un alcance de turnos o secciones
- * sin ninguno elegido se informa como "sin alcance indicado" en vez de
- * inventar "todo el establecimiento": el director tiene que poder ver que le
- * falta un dato antes de guardar, no después.
- */
-export function describirAlcanceServicio(servicio: ServicioResumen): string {
-  if (servicio.estado === 'normal') return ETIQUETA_SERVICIO.normal
+// Un alcance elegido pero vacío se informa como faltante en vez de inventar
+// "todo el establecimiento": el director tiene que ver que le falta un dato
+// antes de guardar, no después.
+function textoServicio(
+  servicio: ServicioResumen,
+  t: Diccionario,
+  etiquetas: { habitual: string; suspendido: string },
+): string {
+  if (servicio.estado === 'normal') return etiquetas.habitual
+  const alcance = alcanceDelServicio(servicio, t)
+  return alcance
+    ? `${etiquetas.suspendido} ${alcance}`
+    : `${etiquetas.suspendido}, ${t.parteReporteInicial.servicio.sinAlcance}`
+}
 
-  const etiqueta = ETIQUETA_SERVICIO.suspendido
-  if (servicio.alcanceTipo === 'establecimiento') return `${etiqueta} en todo el establecimiento`
-  if (servicio.alcanceTipo === 'turno') {
-    return servicio.turnos.length > 0
-      ? `${etiqueta} en el turno ${servicio.turnos.join(', ')}`
-      : `${etiqueta}, sin alcance indicado`
-  }
-  if (servicio.alcanceTipo === 'seccion') {
-    return servicio.secciones > 0
-      ? `${etiqueta} en ${contar(servicio.secciones, 'sección', 'secciones')}`
-      : `${etiqueta}, sin alcance indicado`
-  }
-  if (servicio.alcanceTipo === 'carrera') {
-    return (servicio.carreras ?? 0) > 0
-      ? `${etiqueta} en ${contar(servicio.carreras ?? 0, 'carrera', 'carreras')}`
-      : `${etiqueta}, sin alcance indicado`
-  }
-  return `${etiqueta}, sin alcance indicado`
+export function describirAlcanceServicio(servicio: ServicioResumen, t: Diccionario = es): string {
+  const textos = t.parteReporteInicial.servicio
+  return textoServicio(servicio, t, { habitual: textos.habitual, suspendido: textos.interrumpido })
 }
 
 /**
@@ -90,40 +85,49 @@ export function describirAlcanceServicio(servicio: ServicioResumen): string {
  * La descripción libre se incluye sólo si la escribió: una línea vacía
  * "Descripción: —" es ruido que no ayuda a confirmar nada.
  */
-export function armarResumen(entrada: EntradaResumen): FilaResumen[] {
+export function armarResumen(entrada: EntradaResumen, t: Diccionario = es): FilaResumen[] {
   const { afectacion, servicio, estadoEstablecimiento, rigeDesde, asistenciaPedagogica, fotosAdjuntas } = entrada
+  const textos = t.parteReporteInicial
+  const etiquetas = textos.resumen
 
   const lineas: FilaResumen[] = [
-    { etiqueta: 'Situación', valor: afectacion.motivo, severidad: afectacion.impactoAlumnos ? undefined : afectacion.severidad },
-    ...(afectacion.impactoAlumnos ? [{ etiqueta: 'Impacto', valor: textoImpactoAlumnos(afectacion.impactoAlumnos) }] : []),
-    { etiqueta: 'Afecta a', valor: resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos, carreras: afectacion.carreras }) },
+    { etiqueta: etiquetas.situacion, valor: afectacion.motivo, severidad: afectacion.impactoAlumnos ? undefined : afectacion.severidad },
+    ...(afectacion.impactoAlumnos ? [{ etiqueta: 'Impacto', valor: textoImpactoAlumnos(afectacion.impactoAlumnos, t) }] : []),
+    {
+      etiqueta: etiquetas.afectaA,
+      valor: resumirAlcance(
+        { secciones: afectacion.secciones, alumnos: afectacion.alumnos, carreras: afectacion.carreras },
+        t.fichaPanorama.alcance,
+        t,
+      ),
+    },
   ]
   if (afectacion.carrerasNombres && afectacion.carrerasNombres.length > 0) {
-    lineas.push({ etiqueta: 'Carreras', valor: afectacion.carrerasNombres.join(', ') })
+    lineas.push({ etiqueta: etiquetas.carreras, valor: afectacion.carrerasNombres.join(', ') })
   }
 
   const descripcion = afectacion.descripcion.trim()
-  if (descripcion !== '') lineas.push({ etiqueta: 'Detalle', valor: descripcion })
+  if (descripcion !== '') lineas.push({ etiqueta: etiquetas.detalle, valor: descripcion })
 
   if (servicio) {
-    const valor = describirAlcanceServicio(servicio)
-      .replace(/^Funcionamiento habitual$/, 'Con normalidad')
-      .replace(/^Funcionamiento interrumpido/, 'Suspendidas')
-    lineas.push({ etiqueta: 'Clases', valor })
+    const valor = textoServicio(servicio, t, { habitual: etiquetas.conNormalidad, suspendido: etiquetas.suspendidas })
+    lineas.push({ etiqueta: etiquetas.clases, valor })
   }
-  if (estadoEstablecimiento !== '') lineas.push({ etiqueta: 'Edificio', valor: ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento] })
+  if (estadoEstablecimiento !== '') {
+    lineas.push({ etiqueta: etiquetas.edificio, valor: t.fichaPanorama.establecimiento[estadoEstablecimiento] })
+  }
 
   const momento = formatearMomento(rigeDesde)
   if (momento) lineas.push({ etiqueta: 'Desde', valor: momento })
 
   if (asistenciaPedagogica) {
     const valor = asistenciaPedagogica.brinda
-      ? `Sí${asistenciaPedagogica.modalidades.length ? ` (${asistenciaPedagogica.modalidades.join(', ')})` : ''}`
-      : 'No'
-    lineas.push({ etiqueta: 'Asistencia pedagógica', valor })
+      ? `${textos.opciones.si}${asistenciaPedagogica.modalidades.length ? ` (${asistenciaPedagogica.modalidades.join(', ')})` : ''}`
+      : textos.opciones.no
+    lineas.push({ etiqueta: etiquetas.asistenciaPedagogica, valor })
   }
 
-  if (fotosAdjuntas !== undefined) lineas.push({ etiqueta: 'Fotos adjuntas', valor: String(fotosAdjuntas) })
+  if (fotosAdjuntas !== undefined) lineas.push({ etiqueta: etiquetas.fotosAdjuntas, valor: String(fotosAdjuntas) })
 
   return lineas
 }

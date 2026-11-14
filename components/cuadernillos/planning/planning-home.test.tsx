@@ -3,10 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PlanningHome } from './planning-home'
 
-vi.mock('../config/configuracion', () => ({
-  Configuracion: () => 'Área de configuración',
-}))
-
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -44,19 +40,24 @@ function routedFetch(overviewBody: unknown, requests: unknown[] = []) {
   })
 }
 
+const noStock = { ...overview, balances: [{ ...overview.balances[0], globalAvailable: null, quotaAvailable: 0 }] }
+
 describe('PlanningHome', () => {
-  it('renders current global stock and head-specific remaining quota without inventing original quota', async () => {
+  it('shows stock per grade and quota per cabecera as rows without inventing original quota', async () => {
     const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome />)
 
-    expect(await screen.findByRole('row', { name: /Cuadernillo A.*Cabecera.*4/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Cuadernillo A: stock 10' })).toHaveTextContent(/Asignado 4 · Sin asignar 6/)
+    const head = screen.getByRole('button', { name: /Cabecera/ })
+    expect(head).toHaveTextContent('CUE 180000000')
+    expect(head).toHaveTextContent('4')
     expect(screen.queryByText(/cupo originalmente asignado/i)).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/overview?capability=planning', expect.anything())
   })
 
-  it('shows summary cards with stock per product and pending and approved counts', async () => {
+  it('summarizes stock, assigned and unassigned units with the pending and approved counts', async () => {
     const requests = [
       requestRow('r1', 'pending'),
       requestRow('r2', 'approved', new Date().toISOString()),
@@ -65,14 +66,14 @@ describe('PlanningHome', () => {
     const fetchMock = routedFetch(overview, requests)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome />)
 
-    const stock = await screen.findByRole('region', { name: 'Stock global' })
-    expect(stock).toHaveTextContent('Cuadernillo A')
-    expect(stock).toHaveTextContent('10')
-    const counts = screen.getByRole('region', { name: 'Solicitudes' })
-    expect(counts).toHaveTextContent(/Pendientes\s*1/)
-    expect(counts).toHaveTextContent(/Aprobadas hoy\s*1/)
+    const summary = await screen.findByLabelText('Resumen de la campaña')
+    expect(summary).toHaveTextContent(/Stock total\s*10/)
+    expect(summary).toHaveTextContent(/Asignado a cabeceras\s*4/)
+    expect(summary).toHaveTextContent(/Sin asignar\s*6/)
+    expect(summary).toHaveTextContent(/Pedidos pendientes\s*1/)
+    expect(summary).toHaveTextContent(/Aprobados hoy\s*1/)
     expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/requests?campaignId=campaign-1&limit=50', expect.anything())
   })
 
@@ -86,76 +87,112 @@ describe('PlanningHome', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome />)
 
-    expect(await screen.findByRole('region', { name: 'Solicitudes' })).toHaveTextContent(/Pendientes\s*2/)
+    expect(await screen.findByLabelText('Resumen de la campaña')).toHaveTextContent(/Pedidos pendientes\s*2/)
   })
 
   it('shows a pending count of zero only when the requests read has no pending rows', async () => {
     vi.stubGlobal('fetch', routedFetch(overview, [requestRow('r1', 'rejected')]))
 
-    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome />)
 
-    expect(await screen.findByRole('region', { name: 'Solicitudes' })).toHaveTextContent(/Pendientes\s*0/)
+    expect(await screen.findByLabelText('Resumen de la campaña')).toHaveTextContent(/Pedidos pendientes\s*0/)
   })
 
-  it('keeps the stock and quota forms for planning', async () => {
-    vi.stubGlobal('fetch', routedFetch(overview))
+  it('says so when there is no active campaign', async () => {
+    vi.stubGlobal('fetch', routedFetch({ ...overview, campaignId: null, campaignOptions: [], balances: [] }))
 
-    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
+    render(<PlanningHome />)
 
-    expect(await screen.findByRole('heading', { name: 'Registrar stock global' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Definir cupo disponible' })).toBeInTheDocument()
+    expect(await screen.findByText('No hay campañas activas para consultar.')).toBeInTheDocument()
   })
 
-  it('posts a stock movement with the prefilled product and the typed quantity', async () => {
+  it('registers a replenishment when the grade already has stock', async () => {
     const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
-    fireEvent.change(await screen.findByLabelText('Cantidad de stock'), { target: { value: '25' } })
+    render(<PlanningHome />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Cuadernillo A: stock 10' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Stock actual: 10')
+    fireEvent.change(screen.getByLabelText('Cantidad de stock'), { target: { value: '25' } })
     fireEvent.click(screen.getByRole('button', { name: 'Registrar movimiento' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/stock', expect.objectContaining({ method: 'POST' })))
     const post = fetchMock.mock.calls.find(([url]) => url === '/api/cuadernillos/stock')!
     const body = JSON.parse(String(post[1].body))
-    expect(body).toEqual(expect.objectContaining({ campaignId: 'campaign-1', productId: 'book-a', quantity: 25, movement: 'initial' }))
+    expect(body).toEqual(expect.objectContaining({ campaignId: 'campaign-1', productId: 'book-a', quantity: 25, movement: 'replenishment' }))
     expect(typeof body.idempotencyKey).toBe('string')
+    expect(await screen.findByText('Movimiento de stock registrado.')).toBeInTheDocument()
   })
 
-  it('posts a cabecera quota with the head, product and quantity', async () => {
+  it('registers the initial stock when the grade has none yet', async () => {
+    const fetchMock = routedFetch(noStock)
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<PlanningHome />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Cuadernillo A: sin stock' }))
+    fireEvent.change(await screen.findByLabelText('Cantidad de stock'), { target: { value: '40' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar movimiento' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/stock', expect.objectContaining({ method: 'POST' })))
+    const post = fetchMock.mock.calls.find(([url]) => url === '/api/cuadernillos/stock')!
+    expect(JSON.parse(String(post[1].body))).toEqual(expect.objectContaining({ productId: 'book-a', quantity: 40, movement: 'initial' }))
+  })
+
+  it('does not allow registering a stock movement of zero', async () => {
     const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
-    fireEvent.change(await screen.findByLabelText('Cantidad de cupo disponible'), { target: { value: '0' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar cupo' }))
+    render(<PlanningHome />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Cuadernillo A: stock 10' }))
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/quotas', expect.objectContaining({ method: 'POST' })))
-    const post = fetchMock.mock.calls.find(([url]) => url === '/api/cuadernillos/quotas')!
-    expect(JSON.parse(String(post[1].body))).toEqual({ campaignId: 'campaign-1', cabeceraCueAnexo: '180000000', productId: 'book-a', quantity: 0 })
-  })
-
-  it('rejects a stock quantity that is not a positive integer without calling the API', async () => {
-    const fetchMock = routedFetch(overview)
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<PlanningHome readOnly={false} viewAsUserId={null} />)
-    fireEvent.change(await screen.findByLabelText('Cantidad de stock'), { target: { value: '0' } })
-    fireEvent.submit(screen.getByRole('button', { name: 'Registrar movimiento' }).closest('form')!)
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Ingresá una cantidad entera mayor que cero.')
+    expect(await screen.findByRole('button', { name: 'Registrar movimiento' })).toBeDisabled()
     expect(fetchMock).not.toHaveBeenCalledWith('/api/cuadernillos/stock', expect.anything())
   })
 
-  it('disables write controls in read-only mode and sends viewAs with the read', async () => {
+  it('saves only the changed quotas of a cabecera, one per grade', async () => {
     const fetchMock = routedFetch(overview)
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<PlanningHome readOnly viewAsUserId="supervisor-1" />)
-
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Registrar movimiento' })).toBeDisabled())
+    render(<PlanningHome />)
+    fireEvent.click(await screen.findByRole('button', { name: /Cabecera/ }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Podés asignar hasta 10')
     expect(screen.getByRole('button', { name: 'Guardar cupo' })).toBeDisabled()
-    expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/overview?capability=planning&viewAs=supervisor-1', expect.anything())
+    fireEvent.change(screen.getByLabelText('Cupo · Cuadernillo A'), { target: { value: '7' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cupo' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/quotas', expect.objectContaining({ method: 'POST' })))
+    const posts = fetchMock.mock.calls.filter(([url]) => url === '/api/cuadernillos/quotas')
+    expect(posts).toHaveLength(1)
+    expect(JSON.parse(String(posts[0][1].body))).toEqual({ campaignId: 'campaign-1', cabeceraCueAnexo: '180000000', productId: 'book-a', quantity: 7 })
+    expect(await screen.findByText('Cupos actualizados.')).toBeInTheDocument()
+  })
+
+  it('never lets a quota go above the stock that is left unassigned', async () => {
+    vi.stubGlobal('fetch', routedFetch(overview))
+
+    render(<PlanningHome />)
+    fireEvent.click(await screen.findByRole('button', { name: /Cabecera/ }))
+    const input = await screen.findByLabelText('Cupo · Cuadernillo A')
+    fireEvent.change(input, { target: { value: '50' } })
+
+    expect(input).toHaveValue(10)
+  })
+
+  it('shows the server reason when a quota is refused', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.startsWith('/api/cuadernillos/overview')) return Promise.resolve(response(overview))
+      if (url.startsWith('/api/cuadernillos/requests')) return Promise.resolve(response({ campaignId: 'campaign-1', campaignOptions: [campaign], requests: [], hasMore: false, nextCursor: null }))
+      return Promise.resolve(response({ error: 'quota_exceeds_stock' }, 409))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<PlanningHome />)
+    fireEvent.click(await screen.findByRole('button', { name: /Cabecera/ }))
+    fireEvent.change(await screen.findByLabelText('Cupo · Cuadernillo A'), { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cupo' }))
+
+    expect(await screen.findByText('El cupo supera el stock que queda sin asignar.')).toBeInTheDocument()
   })
 })

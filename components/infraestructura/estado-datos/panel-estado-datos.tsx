@@ -1,176 +1,237 @@
 'use client'
 
-// Panel "Estado de los datos" del Centro de Situación: resumen en una línea y,
-// al abrirlo, la lista de jobs y fuentes agrupada por área con los problemas
-// primero. Cerrado cuando todo está al día; abierto y resaltado si algo falla.
-// El estado siempre es ícono + texto (el color sólo refuerza).
-import { useState, type CSSProperties, type JSX } from 'react'
-import { CircleCheck, CircleDashed, CircleMinus, CircleX, Clock, TriangleAlert } from 'lucide-react'
+// Panel "Estado de los datos" del Centro de Situación: una línea de resumen
+// neutra con los conteos por estado y, al abrirlo, sólo las fuentes con
+// problema. Cerrado por defecto; se abre solo si una fuente falló, los jobs
+// están en pausa, no se pudo leer el estado o hay más fuentes sin datos que al día. Las
+// fuentes al día y las no programadas quedan detrás de "Ver todas las
+// fuentes". Rojo sólo para "Falló", ámbar para "Desactualizado"; el estado
+// siempre es ícono + texto (el color sólo refuerza).
+import { formatoFechaRegion, localeRegion } from '@/lib/infraestructura/formato-region'
+import { useState, type JSX } from 'react'
+import { CircleCheck, CircleDashed, CircleMinus, CirclePause, CircleX, ChevronDown, Clock, TriangleAlert } from 'lucide-react'
 import { DatoFechado } from '@/components/ui/dato-fechado'
-import type { EstadoDato, EstadoDatos, GrupoDato, ItemEstadoDato } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
+import type { EstadoDato, EstadoDatos, ItemEstadoDato } from '@/lib/infraestructura/riesgo/estado-datos/clasificar'
+import type { Diccionario } from '@/lib/i18n'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import { LatidoFuente } from './latido-fuente'
+import type { CorridaLatido } from './latido'
+import { traducirMotivo } from './traducir-motivo'
+import { traducirNombre } from './traducir-nombre'
 
-const ESTADO_VISUAL: Record<EstadoDato, { texto: string; clase: string; Icono: typeof CircleCheck }> = {
-  fallido: { texto: 'Falló', clase: 'badge--danger', Icono: CircleX },
-  sin_datos: { texto: 'Sin datos', clase: 'badge--danger', Icono: CircleDashed },
-  atrasado: { texto: 'Desactualizado', clase: 'badge--warning', Icono: Clock },
-  ok: { texto: 'Al día', clase: 'badge--success', Icono: CircleCheck },
-  deshabilitado: { texto: 'No programado', clase: 'badge--neutral', Icono: CircleMinus },
+const ESTADO_VISUAL: Record<EstadoDato, { clase: string; Icono: typeof CircleCheck }> = {
+  fallido: { clase: 'badge--danger', Icono: CircleX },
+  sin_datos: { clase: 'badge--neutral', Icono: CircleDashed },
+  pausado: { clase: 'badge--warning', Icono: CirclePause },
+  atrasado: { clase: 'badge--warning', Icono: Clock },
+  ok: { clase: 'badge--success', Icono: CircleCheck },
+  deshabilitado: { clase: 'badge--neutral', Icono: CircleMinus },
 }
 
-const NOMBRE_GRUPO: Record<GrupoDato, string> = {
-  riesgo: 'Riesgo',
-  hidrometria: 'Hidrometría',
-  lluvia: 'Lluvia y pronóstico',
-  climatologias: 'Climatologías',
-  geo: 'Geográficos y estáticos',
+type ClaveEstado = 'fallido' | 'sinDatos' | 'pausado' | 'atrasado' | 'ok' | 'deshabilitado'
+
+const CLAVE_ESTADO: Record<EstadoDato, ClaveEstado> = {
+  fallido: 'fallido',
+  sin_datos: 'sinDatos',
+  pausado: 'pausado',
+  atrasado: 'atrasado',
+  ok: 'ok',
+  deshabilitado: 'deshabilitado',
 }
 
-const ORDEN_ESTADO: EstadoDato[] = ['fallido', 'sin_datos', 'atrasado', 'ok', 'deshabilitado']
+const ORDEN_ESTADO: EstadoDato[] = ['fallido', 'sin_datos', 'pausado', 'atrasado', 'ok', 'deshabilitado']
 
-const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
-  timeZone: 'America/Argentina/Buenos_Aires',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
+function formatoFecha(): Intl.DateTimeFormat {
+  return formatoFechaRegion(localeRegion(), {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+}
 
 function fechaAbsoluta(iso: string): string {
-  const p = Object.fromEntries(FORMATO_FECHA.formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
+  const p = Object.fromEntries(formatoFecha().formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
   return `${p.day}/${p.month}/${p.year}, ${p.hour}:${p.minute}`
 }
 
 // Relativa al momento en que se generó el estado (no a Date.now()): el texto
 // coincide entre servidor y cliente y no cambia sin datos nuevos.
-function haceCuanto(iso: string, referencia: string): string {
+function haceCuanto(iso: string, referencia: string, t: Diccionario): string {
+  const d = t.situacion.estadoDatos
   const minutos = Math.max(0, Math.round((Date.parse(referencia) - Date.parse(iso)) / 60_000))
-  if (minutos < 1) return 'recién'
-  if (minutos < 60) return `hace ${minutos} min`
-  if (minutos < 48 * 60) return `hace ${Math.round(minutos / 60)} h`
-  return `hace ${Math.round(minutos / 1440)} días`
+  if (minutos < 1) return d.recien
+  if (minutos < 60) return d.haceMinutos(minutos)
+  if (minutos < 48 * 60) return d.haceHoras(Math.round(minutos / 60))
+  return d.haceDias(Math.round(minutos / 1440))
 }
 
-const estilos = {
-  panel: (problemas: boolean): CSSProperties => ({
-    border: '1px solid var(--line)',
-    borderLeft: `4px solid ${problemas ? 'var(--danger-mark)' : 'var(--line)'}`,
-    borderRadius: 'var(--r-md)',
-    background: problemas ? 'var(--danger-tint)' : 'var(--fill)',
-    margin: 'var(--s-5) 0',
-  }),
-  resumen: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 'var(--s-2) var(--s-3)',
-    padding: 'var(--s-3) var(--s-4)',
-    cursor: 'pointer',
-  } satisfies CSSProperties,
-  cuerpo: { padding: '0 var(--s-4) var(--s-4)' } satisfies CSSProperties,
-  lista: { listStyle: 'none', margin: 0, padding: 0 } satisfies CSSProperties,
-  fila: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'baseline',
-    gap: 'var(--s-1) var(--s-3)',
-    padding: 'var(--s-2) 0',
-    borderTop: '1px solid var(--line)',
-    minWidth: 0,
-  } satisfies CSSProperties,
-  texto: { flex: '1 1 16rem', minWidth: 0 } satisfies CSSProperties,
-  secundario: { color: 'var(--ink-soft)', fontSize: '0.875rem', margin: 0 } satisfies CSSProperties,
-  error: {
-    fontFamily: 'var(--font-mono, monospace)',
-    fontSize: '0.8125rem',
-    color: 'var(--danger-ink)',
-    overflowWrap: 'anywhere',
-    margin: 'var(--s-1) 0 0',
-  } satisfies CSSProperties,
-}
-
-function Insignia({ estado }: { estado: EstadoDato }): JSX.Element {
-  const { texto, clase, Icono } = ESTADO_VISUAL[estado]
+function Insignia({ estado, t }: { estado: EstadoDato; t: Diccionario }): JSX.Element {
+  const { clase, Icono } = ESTADO_VISUAL[estado]
   return (
     <span className={`badge ${clase}`}>
       <Icono aria-hidden="true" size={14} />
-      {texto}
+      {t.situacion.estadoDatos[CLAVE_ESTADO[estado]]}
     </span>
   )
 }
 
-function Fila({ item, generadoEn }: { item: ItemEstadoDato; generadoEn: string }): JSX.Element {
+function Fila({
+  item,
+  generadoEn,
+  corridas,
+  t,
+}: {
+  item: ItemEstadoDato
+  generadoEn: string
+  corridas: CorridaLatido[] | null
+  t: Diccionario
+}): JSX.Element {
   return (
-    <li style={estilos.fila} data-testid="estado-datos-item">
-      <Insignia estado={item.estado} />
-      <div style={estilos.texto}>
-        <strong>{item.nombre}</strong>
-        <p style={estilos.secundario}>{item.motivo}</p>
-        {item.ultimoError && <p style={estilos.error}>{item.ultimoError}</p>}
+    <li className="situacion-datos__fila" data-testid="estado-datos-item">
+      <Insignia estado={item.estado} t={t} />
+      <div className="situacion-datos__texto">
+        <strong>{traducirNombre(item.nombre, t)}</strong>
+        <p className="situacion-datos__secundario">{traducirMotivo(item.motivo, t.situacion)}</p>
+        {item.ultimoError && <p className="situacion-datos__error">{item.ultimoError}</p>}
       </div>
-      <span style={estilos.secundario}>
-        {item.ultimoExitoEn ? (
-          <DatoFechado actualizado={`Último éxito ${fechaAbsoluta(item.ultimoExitoEn)}`}>
-            {haceCuanto(item.ultimoExitoEn, generadoEn)}
-          </DatoFechado>
-        ) : (
-          'Sin éxito registrado'
-        )}
-      </span>
+      <div className="situacion-datos__latido">
+        <LatidoFuente
+          corridas={corridas}
+          ahora={generadoEn}
+          ultimoExitoEn={item.ultimoExitoEn}
+          ultimoIntentoEn={item.ultimoIntentoEn}
+          estado={item.estado}
+          intervaloMinutos={item.intervaloMinutos}
+          t={t}
+        />
+        <span className="situacion-datos__secundario">
+          {item.ultimoExitoEn ? (
+            <DatoFechado actualizado={t.situacion.estadoDatos.ultimoExito(fechaAbsoluta(item.ultimoExitoEn))}>
+              {haceCuanto(item.ultimoExitoEn, generadoEn, t)}
+            </DatoFechado>
+          ) : (
+            t.situacion.estadoDatos.sinExito
+          )}
+        </span>
+      </div>
     </li>
   )
 }
 
-function textoResumen(estado: EstadoDatos | null): string {
-  if (estado === null) return 'No se pudo leer el estado de los datos'
-  if (estado.problemas === 0) return 'Todos los datos al día'
-  return estado.problemas === 1 ? '1 fuente con problemas' : `${estado.problemas} fuentes con problemas`
+function textoResumen(estado: EstadoDatos | null, t: Diccionario): string {
+  const d = t.situacion.estadoDatos
+  if (estado === null) return d.noLeer
+  if (estado.problemas === 0) return d.todosAlDia
+  return estado.problemas === 1 ? d.problemaUno : d.problemasVarios(estado.problemas)
 }
 
-export function PanelEstadoDatos({ estado }: { estado: EstadoDatos | null }): JSX.Element {
-  const hayProblemas = estado === null || estado.problemas > 0
-  // La elección del usuario (abrir/cerrar) se respeta en los refrescos.
-  const [abierto, setAbierto] = useState(hayProblemas)
+// Orden de lectura del conteo: de lo sano a lo grave, sin estados en cero.
+const ORDEN_CONTEO: EstadoDato[] = ['ok', 'atrasado', 'sin_datos', 'pausado', 'fallido', 'deshabilitado']
 
-  const grupos = new Map<GrupoDato, ItemEstadoDato[]>()
-  for (const item of estado?.items ?? []) grupos.set(item.grupo, [...(grupos.get(item.grupo) ?? []), item])
-  const peor = (items: ItemEstadoDato[]) => Math.min(...items.map((i) => ORDEN_ESTADO.indexOf(i.estado)))
-  const gruposOrdenados = [...grupos.entries()].sort(([, a], [, b]) => peor(a) - peor(b))
+function textoConteos(items: ItemEstadoDato[], t: Diccionario): string {
+  const d = t.situacion.estadoDatos
+  return ORDEN_CONTEO.map((estado) => ({ estado, n: items.filter((i) => i.estado === estado).length }))
+    .filter(({ n }) => n > 0)
+    .map(({ estado, n }) => d.conteo[CLAVE_ESTADO[estado]](n))
+    .join(' · ')
+}
+
+const ES_PROBLEMA = (estado: EstadoDato): boolean => estado !== 'ok' && estado !== 'deshabilitado'
+
+function ordenarPorGravedad(items: ItemEstadoDato[]): ItemEstadoDato[] {
+  return [...items].sort((a, b) => ORDEN_ESTADO.indexOf(a.estado) - ORDEN_ESTADO.indexOf(b.estado))
+}
+
+export function PanelEstadoDatos({
+  estado,
+  corridas,
+}: {
+  estado: EstadoDatos | null
+  // Historial 72 h por id de item; sin entrada, el latido se arma con el último éxito.
+  corridas?: Record<string, CorridaLatido[]>
+}): JSX.Element {
+  const t = useTextos()
+  const d = t.situacion.estadoDatos
+  const items = estado?.items ?? []
+  const hayProblemas = estado === null || estado.problemas > 0
+  const hayFallo = items.some((i) => i.estado === 'fallido')
+  const hayAtraso = items.some((i) => i.estado === 'atrasado')
+  // La elección del usuario (abrir/cerrar) se respeta en los refrescos.
+  const hayPausa = items.some((i) => i.estado === 'pausado')
+  // Alarmas que el operador debe ver sin hacer clic: fuente caída, jobs en
+  // pausa operativa, estado ilegible o más fuentes sin datos que sanas (región sin datos).
+  const sinDatos = items.filter((i) => i.estado === 'sin_datos').length
+  const ningunaSana = items.length > 0 && sinDatos > items.filter((i) => i.estado === 'ok').length
+  const [abierto, setAbierto] = useState(hayFallo || hayPausa || estado === null || ningunaSana)
+  const [verTodas, setVerTodas] = useState(false)
+
+  const problemas = ordenarPorGravedad(items.filter((i) => ES_PROBLEMA(i.estado)))
+  const resto = ordenarPorGravedad(items.filter((i) => !ES_PROBLEMA(i.estado)))
+  const tono = hayFallo ? 'fallo' : hayAtraso ? 'atraso' : 'neutro'
 
   return (
     <details
-      style={estilos.panel(hayProblemas)}
+      className="situacion-datos"
+      data-tono={tono}
       open={abierto}
       onToggle={(e) => setAbierto(e.currentTarget.open)}
       data-testid="estado-datos"
       data-problemas={hayProblemas}
     >
-      <summary style={estilos.resumen}>
-        <strong>Estado de los datos</strong>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--s-1)' }}>
-          {hayProblemas ? (
-            <TriangleAlert aria-hidden="true" size={16} color="var(--danger-mark)" />
-          ) : (
-            <CircleCheck aria-hidden="true" size={16} color="var(--ok)" />
-          )}
-          {textoResumen(estado)}
+      <summary className="situacion-datos__resumen">
+        <span className="situacion-datos__titulo">
+          <strong>{d.titulo}</strong>
+          <span className="situacion-datos__estado">
+            {hayProblemas ? (
+              <TriangleAlert aria-hidden="true" size={16} className="situacion-datos__icono" />
+            ) : (
+              <CircleCheck aria-hidden="true" size={16} color="var(--ok)" />
+            )}
+            {textoResumen(estado, t)}
+          </span>
         </span>
+        {estado !== null && items.length > 0 && (
+          <span className="situacion-datos__conteos" data-testid="estado-datos-conteos">
+            {textoConteos(items, t)}
+          </span>
+        )}
       </summary>
       {estado !== null && (
-        <div style={estilos.cuerpo}>
-          {gruposOrdenados.map(([grupo, items]) => (
-            <section key={grupo} aria-labelledby={`estado-datos-${grupo}`}>
-              <h3 id={`estado-datos-${grupo}`} style={{ fontSize: '0.9375rem', margin: 'var(--s-4) 0 var(--s-1)' }}>
-                {NOMBRE_GRUPO[grupo]}
-              </h3>
-              <ul style={estilos.lista}>
-                {items.map((item) => (
-                  <Fila key={item.id} item={item} generadoEn={estado.generadoEn} />
+        <div className="situacion-datos__cuerpo">
+          {problemas.length > 0 && (
+            <section aria-label={d.fuentesConProblemas}>
+              <h3 className="situacion-datos__subtitulo">{d.fuentesConProblemas}</h3>
+              <ul className="situacion-datos__lista">
+                {problemas.map((item) => (
+                  <Fila key={item.id} item={item} generadoEn={estado.generadoEn} corridas={corridas?.[item.id] ?? null} t={t} />
                 ))}
               </ul>
             </section>
-          ))}
+          )}
+          {items.length > 0 && (
+            <>
+              <button
+                type="button"
+                className="situacion-datos__ver-todas"
+                aria-expanded={verTodas}
+                aria-controls="estado-datos-todas"
+                onClick={() => setVerTodas((v) => !v)}
+              >
+                <ChevronDown aria-hidden="true" size={16} data-abierto={verTodas} />
+                {d.verTodas}
+              </button>
+              <div id="estado-datos-todas" hidden={!verTodas}>
+                <ul className="situacion-datos__lista">
+                  {resto.map((item) => (
+                    <Fila key={item.id} item={item} generadoEn={estado.generadoEn} corridas={corridas?.[item.id] ?? null} t={t} />
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
         </div>
       )}
     </details>

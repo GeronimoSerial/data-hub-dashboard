@@ -163,6 +163,8 @@ export const user = pgTable('user', {
   hubSecciones: jsonb('hub_secciones').$type<string[] | null>(),
   hubLanding: boolean('hub_landing'),
   hubDestino: text('hub_destino'),
+  // Idioma elegido por el usuario ('es' | 'pt'); NULL = idioma por defecto de la región (D4).
+  idioma: text('idioma'),
 })
 
 export const session = pgTable(
@@ -691,6 +693,8 @@ export const infraVerificacion = pgTable(
     respondidaEn: text('respondida_en'),
     respondidaCanal: text('respondida_canal'), // 'enlace' | 'telefono' | 'whatsapp' | 'presencial' | 'otro'
     respondidaPorUserId: text('respondida_por_user_id'),
+    respondidaPor: text('respondida_por'),
+    observacion: text('observacion'),
     movimientoId: text('movimiento_id').references(() => infraMovimiento.id),
     canceladaEn: text('cancelada_en'),
     canceladaPorUserId: text('cancelada_por_user_id'),
@@ -1139,6 +1143,14 @@ export const hazardObservation = pgTable(
       t.observadoEn,
     ),
     index('hazard_observation_geometry_ref_idx').on(t.geometryRef),
+    // Consultas por rango de tiempo sin geometría (p. ej. el DISTINCT observado_en de
+    // sync-hazard-imerg): el único índice con provider+variable al frente tiene
+    // geometry_ref en el medio y obliga a recorrer todo el proveedor.
+    index('hazard_observation_provider_variable_observado_idx').on(
+      t.provider,
+      t.variable,
+      t.observadoEn,
+    ),
   ],
 )
 
@@ -1208,6 +1220,8 @@ export const hidroReferencia = pgTable(
     medianaM: doublePrecision('mediana_m').notNull(),
     p10M: doublePrecision('p10_m').notNull(),
     p90M: doublePrecision('p90_m').notNull(),
+    minM: doublePrecision('min_m'),
+    maxM: doublePrecision('max_m'),
     desde: text('desde').notNull(),
     hasta: text('hasta').notNull(),
     fuente: text('fuente').notNull().default('prefectura-historico'),
@@ -1521,7 +1535,7 @@ export const infraSituacionCorte = pgTable(
     // Salud de fuentes congelada en el instante del corte (frescura ya
     // calculada, no recalculada al leer).
     fuentesSalud: jsonb('fuentes_salud')
-      .$type<Array<{ provider: string; estado: string; frescuraMinutos: number | null; vencida: boolean }>>()
+      .$type<Array<{ provider: string; estado: string; frescuraMinutos: number | null; vencida: boolean; problema?: boolean }>>()
       .notNull(),
     episodiosAbiertos: integer('episodios_abiertos').notNull().default(0),
     // Episodios que pasaron a cerrado entre el corte anterior y este.
@@ -2239,4 +2253,28 @@ export const bookletAssignmentConflict = pgTable('booklet_assignment_conflict', 
 }, (t) => [
   check('booklet_assignment_conflict_cue_check', sql`${t.cueAnexo} ~ '^[0-9]{9}$'`),
   check('booklet_assignment_conflict_rows_check', sql`jsonb_array_length(${t.rows}) > 1`),
+])
+
+export const auditoriaEvento = pgTable('auditoria_evento', {
+  id: text('id').primaryKey(),
+  requestId: text('request_id').notNull(),
+  ocurridoEn: timestamp('ocurrido_en', { withTimezone: true }).notNull(),
+  actorTipo: text('actor_tipo').notNull(),
+  actorId: text('actor_id'),
+  actorRol: text('actor_rol'),
+  viaAcceso: text('via_acceso').notNull(),
+  accion: text('accion').notNull(),
+  metodo: text('metodo').notNull(),
+  rutaPlantilla: text('ruta_plantilla').notNull(),
+  objetoTipo: text('objeto_tipo'),
+  objetoId: text('objeto_id'),
+  cueAnexo: text('cue_anexo'),
+  resultado: text('resultado').notNull(),
+  httpStatus: integer('http_status'),
+  duracionMs: integer('duracion_ms').notNull(),
+  metadatos: jsonb('metadatos').$type<Record<string, unknown>>().notNull().default({}),
+}, (t) => [
+  index('auditoria_evento_fecha_idx').on(t.ocurridoEn, t.id),
+  index('auditoria_evento_actor_fecha_idx').on(t.actorId, t.ocurridoEn, t.id),
+  check('auditoria_evento_metadatos_limite', sql`octet_length(${t.metadatos}::text) <= 4096`),
 ])

@@ -1,0 +1,67 @@
+{
+  "movimientos": [
+    {
+      "cambios": [
+        "Funcionamiento: habitual → parcial"
+      ],
+      "creadaEn": "<fecha>",
+      "id": "<uuid:1>",
+      "rigeDesde": "<fecha>",
+      "rol": "director",
+      "severidad": null,
+      "tipo": "actualizacion",
+      "titulo": "Cambió el estado del edificio"
+    },
+    {
+      "cambios": [
+        "Se dejó de informar Corte de luz"
+      ],
+      "creadaEn": "<fecha>",
+      "id": "<uuid:2>",
+      "rigeDesde": "<fecha>",
+      "rol": "director",
+      "severidad": null,
+      "tipo": "actualizacion",
+      "titulo": "Se dejó de informar Corte de luz"
+    },
+    {
+      "cambios": [
+        "Se informó Corte de luz",
+        "Gravedad Alta"
+      ],
+      "creadaEn": "<fecha>",
+      "id": "<uuid:3>",
+      "rigeDesde": "<fecha>",
+      "rol": "director",
+      "severidad": "Alta",
+      "tipo": "actualizacion",
+      "titulo": "Se informó Corte de luz"
+    },
+    {
+      "cambios": [
+        "Situación: Inundación"
+      ],
+      "creadaEn": "<fecha>",
+      "id": "<uuid:4>",
+      "rigeDesde": "<fecha>",
+      "rol": "director",
+      "severidad": "Media",
+      "tipo": "actualizacion",
+      "titulo": "Cambió la gravedad: Baja → Media"
+    },
+    {
+      "cambios": [
+        "Se informó Inundación",
+        "Gravedad Baja"
+      ],
+      "creadaEn": "<fecha>",
+      "id": "<uuid:5>",
+      "rigeDesde": "<fecha>",
+      "rol": "director",
+      "severidad": "Baja",
+      "tipo": "reporte_inicial",
+      "titulo": "Se informó Inundación"
+    }
+  ],
+  "ok": true
+}

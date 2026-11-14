@@ -11,6 +11,7 @@ import { FichaEscuelaPagina } from '@/components/mapas/ficha-escuela-pagina'
 import { can } from '@/lib/access/capabilities'
 import { listarLlamadasPorCue } from '@/lib/call-center/llamadas'
 import { requireServerHubPageAccess } from '@/lib/hub-entry-server'
+import { RUTA_MAPA_INFRAESTRUCTURA } from '@/lib/infraestructura/rutas-hub'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,19 +27,19 @@ export default async function EscuelaFichaRoute({
 }: EscuelaFichaRouteProps) {
   const { cue: cueParam } = await params
   const cueDecoded = decodeURIComponent(cueParam)
-  await requireServerHubPageAccess(`/mapas/infraestructura/escuelas/${encodeURIComponent(cueDecoded)}`)
+  await requireServerHubPageAccess(`${RUTA_MAPA_INFRAESTRUCTURA}/escuelas/${encodeURIComponent(cueDecoded)}`)
   await ensureSeeded()
 
   const user = await getSessionUser()
   if (!user) {
     redirect(
       `/login?callbackUrl=${encodeURIComponent(
-        `/mapas/infraestructura/escuelas/${encodeURIComponent(cueDecoded)}`,
+        `${RUTA_MAPA_INFRAESTRUCTURA}/escuelas/${encodeURIComponent(cueDecoded)}`,
       )}`,
     )
   }
 
-  const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
+  const found = await loadRecursoAccessByRuta(RUTA_MAPA_INFRAESTRUCTURA)
   const alcance = alcanceMapa(user)
   if (!puedeLeerMapaInfraestructura(user, found?.access ?? null)) {
     redirect('/forbidden')

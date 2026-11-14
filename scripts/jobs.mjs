@@ -7,7 +7,7 @@
  * se invoca con `docker exec <contenedor> node scripts/jobs.mjs <nombre>`.
  * Ver docs/ejecucion-enos/OPS1/runbook-scheduler.md.
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -39,6 +39,7 @@ const NOMBRES_VALIDOS = [
   'sync-radar-meteo',
   'verificar-radar-meteo',
   'sync-smn-alertas',
+  'sync-inmet-alertas',
   'sync-radar-ensemble',
   'sync-ensemble',
   'sync-imerg',
@@ -55,11 +56,14 @@ const NOMBRES_VALIDOS = [
   'sync-prefectura-alturas',
   'sync-synop-lluvia',
   'sync-prefectura-historico',
+  'sync-ana-niveis',
+  'sync-sgb-niveis',
   'importar-exposicion-rio-dem',
   'importar-altimetria-v04',
   'sync-ina-serie-diaria',
   'sync-ina-pronostico',
   'limpiar-adjuntos-huerfanos',
+  'sonda-cadena-datos',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -67,6 +71,47 @@ export class JobDesconocidoError extends Error {
     super(`Job desconocido: "${nombre}". Jobs válidos: ${NOMBRES_VALIDOS.join(', ')}`)
     this.name = 'JobDesconocidoError'
   }
+}
+
+// Un job que no aplica a la región activa (B9.5): sale con código 2, el mismo
+// que un job desconocido (error de invocación, no de ejecución).
+export class JobNoAplicaError extends Error {
+  constructor(nombre, regionId) {
+    super(`job ${nombre} does not apply to region ${regionId}`)
+    this.name = 'JobNoAplicaError'
+  }
+}
+
+const DIRECTORIO_REGIONES = join(root, 'config', 'regiones')
+
+// Lee config/regiones/<REGION>.json (por defecto corrientes), igual que el
+// registro TS de lib/infraestructura/region. ENOS_REGION_CONFIG_DIR permite
+// apuntar a otro directorio (pruebas). Valida sólo lo que usa la aplicabilidad.
+export function regionDespacho(env = process.env) {
+  const id = env.REGION?.trim() || 'corrientes'
+  if (!/^[a-z0-9-]+$/.test(id)) throw new Error(`REGION inválida: "${id}"`)
+  const directorio = env.ENOS_REGION_CONFIG_DIR?.trim() || DIRECTORIO_REGIONES
+  const archivo = join(directorio, `${id}.json`)
+  if (!existsSync(archivo)) throw new Error(`REGION desconocida: "${id}" (no existe ${archivo})`)
+  const region = JSON.parse(readFileSync(archivo, 'utf8'))
+  if (region?.id !== id || !Array.isArray(region.fuentesRio)) {
+    throw new Error(`Región inválida en ${id}.json: se requieren "id" y "fuentesRio"`)
+  }
+  return region
+}
+
+// Réplica de aplicaJobARegion (lib/infraestructura/riesgo/jobs-esperados.ts):
+// la regla vive allí; scripts/jobs.mjs no puede importar TS. Un test compara ambas.
+export function aplicaJobARegionDespacho(nombre, region) {
+  if (nombre.startsWith('sync-prefectura-')) return region.fuentesRio.includes('prefectura')
+  if (nombre.startsWith('sync-ina-')) return region.fuentesRio.includes('ina')
+  if (nombre.startsWith('sync-ana-')) return region.fuentesRio.includes('ana')
+  if (nombre.startsWith('sync-sgb-')) return region.fuentesRio.includes('sgb')
+  if (nombre === 'sync-smn-alertas') return (region.fuentesAlertas ?? []).includes('smn')
+  if (nombre === 'sync-inmet-alertas') return (region.fuentesAlertas ?? []).includes('inmet')
+  if (nombre === 'sync-synop-lluvia') return (region.fuentesLluvia ?? []).includes('synop')
+  if (nombre === 'importar-exposicion-rio-dem') return (region.capasEstaticas ?? []).includes('exposicion-rio-dem')
+  return true
 }
 
 // El motivo de gating es siempre el mismo, gatee lo que gatee: se imprime un
@@ -338,6 +383,12 @@ async function correrSyncSmnAlertas() {
   return syncSmnAlertas()
 }
 
+async function correrSyncInmetAlertas() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-inmet-alertas')
+  const { syncInmetAlertas } = await import('../lib/infraestructura/radar-meteo/inmet-alertas.ts')
+  return syncInmetAlertas()
+}
+
 // El job gestiona su propio lease por hora UTC y devuelve un resultado en lugar
 // de lanzar en fallas controladas: codigoSalida traduce `fallido` a exit 1.
 async function correrSyncPrefecturaAlturas() {
@@ -362,6 +413,27 @@ async function correrSyncPrefecturaHistorico() {
     '../lib/infraestructura/hidrometria/sync-prefectura-historico.ts'
   )
   return syncPrefecturaHistorico()
+}
+
+// Niveles del río ANA (Manaos): lease propio por hora UTC, ventana de 48 h por estación.
+async function correrSyncAnaNiveis() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-ana-niveis')
+  const { syncAnaNiveis } = await import('../lib/infraestructura/hidrometria/sync-ana-niveis.ts')
+  return syncAnaNiveis()
+}
+
+// Niveles del río SGB/SACE (Manaos): lease propio por hora UTC; SACE entrega ≈ 30 días de lecturas.
+async function correrSyncSgbNiveis() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-sgb-niveis')
+  const { syncSgbNiveis } = await import('../lib/infraestructura/hidrometria/sync-sgb-niveis.ts')
+  return syncSgbNiveis()
+}
+
+// Sonda de la cadena de datos reales (hourly, Coolify). Devuelve resultado, no lanza.
+async function correrSondaCadenaDatos(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('sonda-cadena-datos')
+  const { correrSondaCadenaDatos: correr } = await import('../lib/infraestructura/sonda/job.ts')
+  return correr(opts)
 }
 
 // Capa estática DEM escuela-río (CSV versionado de geo-static): idempotente.
@@ -508,6 +580,11 @@ export async function correrJob(nombre, opts) {
     throw new JobDesconocidoError(nombre)
   }
 
+  const region = regionDespacho()
+  if (!aplicaJobARegionDespacho(nombre, region)) {
+    throw new JobNoAplicaError(nombre, region.id)
+  }
+
   if (!(await jobsActivos())) {
     return flagDeshabilitado(nombre)
   }
@@ -552,6 +629,8 @@ export async function correrJob(nombre, opts) {
       return correrVerificarRadarMeteo(opts)
     case 'sync-smn-alertas':
       return correrSyncSmnAlertas()
+    case 'sync-inmet-alertas':
+      return correrSyncInmetAlertas()
     case 'sync-radar-ensemble':
       return correrSyncRadarEnsemble(opts)
     case 'sync-ensemble':
@@ -586,6 +665,10 @@ export async function correrJob(nombre, opts) {
       return correrSyncSynopLluvia()
     case 'sync-prefectura-historico':
       return correrSyncPrefecturaHistorico()
+    case 'sync-ana-niveis':
+      return correrSyncAnaNiveis()
+    case 'sync-sgb-niveis':
+      return correrSyncSgbNiveis()
     case 'importar-exposicion-rio-dem':
       return correrImportarExposicionRioDem()
     case 'importar-altimetria-v04':
@@ -594,15 +677,42 @@ export async function correrJob(nombre, opts) {
       return correrSyncInaSerieDiaria()
     case 'sync-ina-pronostico':
       return correrSyncInaPronostico()
+    case 'sonda-cadena-datos':
+      return correrSondaCadenaDatos(opts)
     default:
       throw new JobDesconocidoError(nombre)
   }
 }
 
+// Intención antes del despacho y resultado después, con el mismo requestId (dos eventos por corrida,
+// nunca por fila). Un nombre desconocido se rechaza antes de auditar: no se registra un nombre arbitrario.
+// Un rechazo de región sí llega a la envoltura y deja el par intención + error.
+export async function ejecutarJobAuditado(nombre, opts) {
+  if (!NOMBRES_VALIDOS.includes(nombre)) throw new JobDesconocidoError(nombre)
+  const { jobAuditado } = await import('../lib/infraestructura/auditoria/servidor.ts')
+  return jobAuditado(nombre, () => correrJob(nombre, opts), resultado => codigoSalida(nombre, resultado) === 0, regionAuditada())
+}
+
+// Si la región no resuelve, correrJob falla igual después y ese error es el que queda registrado.
+function regionAuditada() {
+  try {
+    return { region: regionDespacho().id }
+  } catch {
+    return {}
+  }
+}
+
+export function mensajeFalloDespacho(nombre, error) {
+  const mensaje = error instanceof Error ? error.message : error
+  if (mensaje !== 'auditoria_no_disponible') return mensaje
+  return `[jobs] "${nombre}": auditoria_no_disponible. Si la intención no se guardó, el job no se ejecutó; ` +
+    'si solo falló el resultado, revisar los efectos del job antes de reintentar.'
+}
+
 // Coolify no conserva stderr de los jobs programados: el fallo (mensaje + stack) también va por
 // stdout. Se redacta EARTHDATA_TOKEN por si una excepción de red lo embebiera.
 export function reportarFalloDespacho(nombre, error) {
-  const mensaje = error instanceof Error ? error.message : error
+  const mensaje = mensajeFalloDespacho(nombre, error)
   console.error(mensaje)
   const stack = error instanceof Error && error.stack ? `\n${error.stack}` : ''
   let detalle = `[jobs] "${nombre}" fallo: ${mensaje}${stack}`
@@ -627,6 +737,7 @@ export function codigoSalida(nombreJob, resultado) {
   if (nombreJob === 'importar-altimetria-v04' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'sync-ina-serie-diaria' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'sync-ina-pronostico' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'sonda-cadena-datos' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3
@@ -657,11 +768,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? { ...(desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : {}), apply: true }
     : desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : undefined
   try {
-    const resultado = await correrJob(nombre, opts)
+    const resultado = await ejecutarJobAuditado(nombre, opts)
     console.log(JSON.stringify(resultado))
     process.exit(codigoSalida(nombre, resultado))
   } catch (error) {
-    if (error instanceof JobDesconocidoError) {
+    if (error instanceof JobDesconocidoError || error instanceof JobNoAplicaError) {
       console.error(error.message)
       process.exit(2)
     }

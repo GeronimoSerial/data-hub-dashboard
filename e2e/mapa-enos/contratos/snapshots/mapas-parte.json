@@ -1,0 +1,40 @@
+{
+  "afectaciones": [
+    {
+      "categoria": "establecimiento",
+      "causadaPorId": null,
+      "creadaEn": "<fecha>",
+      "descripcion": null,
+      "id": "<uuid:1>",
+      "motivo": "Inundación",
+      "rigeDesde": "<fecha>",
+      "severidad": "Media",
+      "totales": {
+        "alumnos": 0,
+        "secciones": 0
+      }
+    }
+  ],
+  "alumnosUnicos": 0,
+  "datosPadron": null,
+  "ok": true,
+  "parte": {
+    "actualizadaEn": "<fecha>",
+    "asistenciaPedagogica": null,
+    "cueAnexo": "1800554-00",
+    "estadoEstablecimiento": "habitual",
+    "estadoEstablecimientoRigeDesde": "<fecha>",
+    "id": "<uuid:2>"
+  },
+  "periodo": {
+    "id": "periodo-enos-2026-2027",
+    "nombre": "Protocolo ENOS 2026/2027"
+  },
+  "recientes": [],
+  "secciones": [],
+  "servicio": {
+    "alcanceVigente": [],
+    "estadoGeneral": "normal"
+  },
+  "ultimaActualizacion": "<fecha>"
+}

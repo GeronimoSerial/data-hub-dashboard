@@ -8,21 +8,20 @@ import { EstadoActualAfectacion } from './estado-actual-afectacion'
 import { etiquetaClases, etiquetaFuncionamiento, tieneServicioInformado } from '@/lib/infraestructura/funcionamiento'
 import { derivarClases } from '@/lib/infraestructura/mapa/enriquecer'
 import {
-  ETIQUETA_ESTABLECIMIENTO,
-  MENSAJE_ACCESO_VENCIDO,
-  MENSAJE_ERROR_LECTURA,
-  MENSAJE_SIN_CORTE,
-  MENSAJE_SIN_SITUACION,
   formatearMomento,
   rigeDesdeDelServicio,
   sinSituacionEnSeguimiento,
   type EstadoActualRespuesta,
 } from './estado-actual-textos'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+
+type TextosParte = Diccionario['fichaPanorama']['parte']
 
 type Estado =
   | { fase: 'cargando' }
   | { fase: 'listo'; datos: EstadoActualRespuesta }
-  | { fase: 'error'; mensaje: string; reintentable: boolean }
+  | { fase: 'error'; mensaje: string; reintentable: boolean; vencido?: boolean }
 
 function enlaceCon(ruta: string, cue: string, foco?: string): string {
   const base = `${ruta}?cue=${encodeURIComponent(cue)}`
@@ -32,7 +31,7 @@ function enlaceCon(ruta: string, cue: string, foco?: string): string {
 // Pide el estado actual y lo traduce a la fase que corresponde. Nunca lanza y
 // nunca toca estado de React: así el efecto de abajo sólo tiene que aplicar el
 // resultado en un callback, sin encadenar renders.
-async function obtenerEstado(cue: string): Promise<Estado> {
+async function obtenerEstado(cue: string, t: TextosParte): Promise<Estado> {
   try {
     const respuesta = await fetch(`/api/problematicas/parte?cue=${encodeURIComponent(cue)}`)
     if (!respuesta.ok) {
@@ -40,16 +39,16 @@ async function obtenerEstado(cue: string): Promise<Estado> {
       // ingresar la contraseña. Ofrecer "Reintentar" ahí sería mentirle al
       // director (Nielsen #9).
       if (respuesta.status === 401) {
-        return { fase: 'error', mensaje: MENSAJE_ACCESO_VENCIDO, reintentable: false }
+        return { fase: 'error', mensaje: t.accesoVencido, reintentable: false, vencido: true }
       }
       if (respuesta.status === 503) {
-        return { fase: 'error', mensaje: MENSAJE_SIN_CORTE, reintentable: true }
+        return { fase: 'error', mensaje: t.sinCorte, reintentable: true }
       }
-      return { fase: 'error', mensaje: MENSAJE_ERROR_LECTURA, reintentable: true }
+      return { fase: 'error', mensaje: t.errorLectura, reintentable: true }
     }
     return { fase: 'listo', datos: (await respuesta.json()) as EstadoActualRespuesta }
   } catch {
-    return { fase: 'error', mensaje: MENSAJE_ERROR_LECTURA, reintentable: true }
+    return { fase: 'error', mensaje: t.errorLectura, reintentable: true }
   }
 }
 
@@ -70,19 +69,21 @@ async function obtenerEstado(cue: string): Promise<Estado> {
  *    existe ninguna acción de ese tipo en esta pantalla, ni deshabilitada.
  */
 export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
+  const dic = useTextos()
+  const { parte: t, establecimiento } = dic.fichaPanorama
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
   const [historialAbierto, setHistorialAbierto] = useState(false)
 
   useEffect(() => {
     let vigente = true
-    void obtenerEstado(cue).then((siguiente) => {
+    void obtenerEstado(cue, t).then((siguiente) => {
       if (vigente) setEstado(siguiente)
     })
     return () => {
       vigente = false
     }
-  }, [cue, intento])
+  }, [cue, intento, t])
 
   function reintentar() {
     setEstado({ fase: 'cargando' })
@@ -93,7 +94,7 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
     // Nielsen #1: la espera se anuncia en vez de dejar la pantalla en blanco.
     return (
       <p className="estado-actual-aviso" role="status">
-        Buscando el estado actual del establecimiento…
+        {t.buscando}
       </p>
     )
   }
@@ -104,15 +105,15 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
         <p className="estado-actual-aviso__texto">{estado.mensaje}</p>
         {estado.reintentable && (
           <Button type="button" onClick={reintentar}>
-            Reintentar
+            {t.reintentar}
           </Button>
         )}
-        {estado.mensaje === MENSAJE_ACCESO_VENCIDO && (
+        {estado.vencido && (
           <a
             className="ui-button ui-button--default"
             href={enlaceCon('/problematicas/parte', cue)}
           >
-            Volver a ingresar la contraseña
+            {t.volverContrasena}
           </a>
         )}
       </div>
@@ -138,26 +139,26 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
     <div className="estado-actual">
       <section className="estado-actual-bloque" aria-labelledby="estado-actual-servicio">
           <h2 className="estado-actual-bloque__titulo" id="estado-actual-servicio">
-            Funcionamiento
+            {t.funcionamiento}
           </h2>
-          <p className="estado-actual-bloque__valor">{etiquetaFuncionamiento(afectaciones)}</p>
+          <p className="estado-actual-bloque__valor">{etiquetaFuncionamiento(afectaciones, dic)}</p>
       </section>
       <section className="estado-actual-bloque" aria-labelledby="estado-actual-clases">
-        <h2 className="estado-actual-bloque__titulo" id="estado-actual-clases">Clases</h2>
-        <p className="estado-actual-bloque__valor">{etiquetaClases(clases, clasesInformadas)}</p>
-        {clasesInformadas && rigeServicio && <p className="estado-actual-bloque__vigencia">Rige desde el {rigeServicio}</p>}
+        <h2 className="estado-actual-bloque__titulo" id="estado-actual-clases">{t.clases}</h2>
+        <p className="estado-actual-bloque__valor">{etiquetaClases(clases, clasesInformadas, dic)}</p>
+        {clasesInformadas && rigeServicio && <p className="estado-actual-bloque__vigencia">{t.rigeDesde(rigeServicio)}</p>}
       </section>
 
       {datos.parte && (
         <section className="estado-actual-bloque" aria-labelledby="estado-actual-establecimiento">
           <h2 className="estado-actual-bloque__titulo" id="estado-actual-establecimiento">
-            Edificio
+            {t.edificio}
           </h2>
           <p className="estado-actual-bloque__valor">
-            {ETIQUETA_ESTABLECIMIENTO[datos.parte.estadoEstablecimiento]}
+            {establecimiento[datos.parte.estadoEstablecimiento]}
           </p>
           {rigeEstablecimiento && (
-            <p className="estado-actual-bloque__vigencia">Rige desde el {rigeEstablecimiento}</p>
+            <p className="estado-actual-bloque__vigencia">{t.rigeDesde(rigeEstablecimiento)}</p>
           )}
         </section>
       )}
@@ -167,17 +168,17 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
         aria-labelledby="estado-actual-situacion"
       >
         <h2 className="estado-actual-bloque__titulo" id="estado-actual-situacion">
-          En seguimiento
+          {t.enSeguimiento}
         </h2>
 
         {sinSituacion ? (
           <>
-            <p className="estado-actual-bloque__vacio">{MENSAJE_SIN_SITUACION}</p>
+            <p className="estado-actual-bloque__vacio">{t.sinSituacion}</p>
             <a
               className="ui-button ui-button--default estado-actual-acciones__principal"
               href={enlaceCon('/problematicas/parte/nuevo', cue)}
             >
-              Cargar una situación
+              {t.cargarSituacion}
             </a>
           </>
         ) : (
@@ -192,7 +193,7 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
       {(ultimaActualizacion || !sinSituacion || hayParte) && (
         <footer className="estado-actual-pie">
           {ultimaActualizacion && (
-            <p className="estado-actual-pie__actualizacion">Última actualización: {ultimaActualizacion}</p>
+            <p className="estado-actual-pie__actualizacion">{t.ultimaActualizacion(ultimaActualizacion)}</p>
           )}
           {(!sinSituacion || hayParte) && (
             <div className="estado-actual-acciones">
@@ -201,19 +202,19 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
                   className="ui-button ui-button--default estado-actual-acciones__principal"
                   href={enlaceCon('/problematicas/parte/actualizar', cue)}
                 >
-                  Actualizar el parte
+                  {t.actualizarParte}
                 </a>
               )}
               {hayParte && (
                 <Button type="button" variant="secondary" aria-haspopup="dialog" onClick={() => setHistorialAbierto(true)}>
-                  Ver historial
+                  {t.verHistorial}
                 </Button>
               )}
             </div>
           )}
         </footer>
       )}
-      <BottomSheet open={historialAbierto} titulo="Historial" onCerrar={() => setHistorialAbierto(false)}>
+      <BottomSheet open={historialAbierto} titulo={t.historial} onCerrar={() => setHistorialAbierto(false)}>
         {historialAbierto ? (
           <HistorialParte cue={cue} endpoint={`/api/problematicas/parte/historial?cue=${encodeURIComponent(cue)}`} />
         ) : null}

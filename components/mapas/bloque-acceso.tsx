@@ -1,10 +1,16 @@
 'use client'
 
 import { Check, Info, Route, School, TriangleAlert } from 'lucide-react'
-import { lineasAcceso, type EtiquetaRiesgoAcceso } from '@/lib/infraestructura/mapa/acceso'
+import { lineasAcceso, type LineasAcceso } from '@/lib/infraestructura/mapa/acceso'
 import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
-import { ETIQUETAS_INUNDACION, type ClaseInundacion } from '@/lib/mapas/accesos-capas'
+import type { ClaseInundacion } from '@/lib/mapas/accesos-capas'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+
+type TextosRiesgo = ReturnType<typeof useTextos>['fichaCuerpo']['acceso']['riesgo']
+
+// Niveles por clave (no por etiqueta): la etiqueta cambia con el idioma.
+type NivelRiesgoTexto = 'alto' | 'medio' | 'bajo' | 'sin_riesgo' | 'sin_dato' | 'sin_ruta'
 
 interface BloqueAccesoProps {
   geometria: GeometriaAccesoRespuesta | null
@@ -16,29 +22,38 @@ interface BloqueAccesoProps {
   error?: boolean
 }
 
-function textoRiesgo(sujeto: string, etiqueta: string): string {
-  if (etiqueta === 'Sin ruta') return 'Sin camino calculado'
-  if (etiqueta === 'Sin riesgo' || etiqueta === 'Sin dato') return `${etiqueta} de inundación en ${sujeto}`
-  return `Riesgo ${etiqueta.toLowerCase()} de inundación en ${sujeto}`
+function textoRiesgo(riesgo: TextosRiesgo, sujeto: string, nivel: NivelRiesgoTexto): string {
+  if (nivel === 'sin_ruta') return riesgo.sinCamino
+  if (nivel === 'sin_riesgo') return riesgo.sinRiesgo(sujeto)
+  if (nivel === 'sin_dato') return riesgo.sinDato(sujeto)
+  if (nivel === 'alto') return riesgo.alto(sujeto)
+  if (nivel === 'medio') return riesgo.medio(sujeto)
+  return riesgo.bajo(sujeto)
+}
+
+// Mismo criterio que `lineasAcceso`: sin ruta → 'sin_ruta'; sin exposición o
+// sin clase → 'sin_dato'.
+function nivelCamino(lineas: LineasAcceso | null, exposicion: ExposicionRutaRespuesta | null): NivelRiesgoTexto {
+  if (lineas === null) return 'sin_ruta'
+  return exposicion?.claseRuta ?? 'sin_dato'
 }
 
 function LinkMetodologia({ seccion }: { seccion: string }) {
+  const t = useTextos().fichaCuerpo.acceso
   return (
     <a
       className="map-bloque-acceso__ayuda"
       href={`/mapas/infraestructura#metodologia/${seccion}`}
-      aria-label="Cómo se calcula"
-      title="Cómo se calcula"
+      aria-label={t.comoSeCalcula}
+      title={t.comoSeCalcula}
     >
       <Info aria-hidden="true" />
     </a>
   )
 }
 
-function claseCss(etiqueta: string): string {
-  return ['Alto', 'Medio', 'Bajo'].includes(etiqueta)
-    ? `map-bloque-acceso__riesgo--${etiqueta.toLowerCase()}`
-    : ''
+function claseCss(nivel: NivelRiesgoTexto): string {
+  return ['alto', 'medio', 'bajo'].includes(nivel) ? `map-bloque-acceso__riesgo--${nivel}` : ''
 }
 
 export function BloqueAcceso({
@@ -49,17 +64,18 @@ export function BloqueAcceso({
   cargando = false,
   error = false,
 }: BloqueAccesoProps) {
-  if (cargando) return <p className="map-bloque-acceso__estado">Calculando el acceso…</p>
-  if (error) return <p className="map-bloque-acceso__estado">No se pudo calcular el acceso.</p>
+  const diccionario = useTextos()
+  const t = diccionario.fichaCuerpo.acceso
+  if (cargando) return <p className="map-bloque-acceso__estado">{t.calculando}</p>
+  if (error) return <p className="map-bloque-acceso__estado">{t.error}</p>
 
-  const lineas = lineasAcceso(geometria, exposicion)
-  const etiquetaEscuela = ETIQUETAS_INUNDACION[claseEscuela]
-  const etiquetaCamino: EtiquetaRiesgoAcceso = lineas === null ? 'Sin ruta' : (lineas.riesgo ?? 'Sin dato')
+  const lineas = lineasAcceso(geometria, exposicion, diccionario)
+  const nivelCaminoTexto = nivelCamino(lineas, exposicion)
 
   return (
-    <div className="map-bloque-acceso" aria-label="Acceso">
+    <div className="map-bloque-acceso" aria-label={t.etiqueta}>
       {lineas === null ? (
-        <p className="map-bloque-acceso__estado">Sin acceso calculado</p>
+        <p className="map-bloque-acceso__estado">{t.sinAcceso}</p>
       ) : (
         <>
           {lineas.via && (
@@ -82,13 +98,13 @@ export function BloqueAcceso({
       <div className="map-bloque-acceso__inundacion" data-testid="bloque-acceso-inundacion">
         <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-escuela">
           <School aria-hidden="true" />
-          <span className={claseCss(etiquetaEscuela)}>{textoRiesgo('la escuela', etiquetaEscuela)}</span>
+          <span className={claseCss(claseEscuela)}>{textoRiesgo(t.riesgo, t.sujetos.escuela, claseEscuela)}</span>
           <LinkMetodologia seccion="inundacion-clases-rio" />
-          {juntoLaguna && <span className="badge badge--neutral" data-testid="bloque-acceso-laguna">Junto a laguna</span>}
+          {juntoLaguna && <span className="badge badge--neutral" data-testid="bloque-acceso-laguna">{t.junto}</span>}
         </div>
         <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-riesgo">
           <Route aria-hidden="true" />
-          <span className={claseCss(etiquetaCamino)}>{textoRiesgo('el camino', etiquetaCamino)}</span>
+          <span className={claseCss(nivelCaminoTexto)}>{textoRiesgo(t.riesgo, t.sujetos.camino, nivelCaminoTexto)}</span>
           <LinkMetodologia seccion="inundacion-ruta-acceso" />
         </div>
       </div>

@@ -1,3 +1,6 @@
+import { formatoFechaRegion } from '@/components/mapas/formato-fecha-region'
+import type { Idioma } from '@/lib/i18n/idioma'
+
 export type Rgba = readonly [number, number, number, number]
 
 type RGB = readonly [number, number, number]
@@ -91,13 +94,16 @@ export function pixelAGrilla(
   }
 }
 
-export function formatearAntiguedad(minutos: number | null | undefined): string {
+export function formatearAntiguedad(minutos: number | null | undefined, idioma: Idioma = 'es'): string {
   if (minutos === null || minutos === undefined) {
     return '—'
   }
 
   const horas = Math.floor(minutos / 60)
   const resto = minutos % 60
+  if (idioma === 'pt') {
+    return horas ? `há ${horas} h ${resto} min` : `há ${resto} min`
+  }
   return horas ? `hace ${horas} h ${resto} min` : `hace ${resto} min`
 }
 
@@ -157,20 +163,24 @@ export function rotacionFlecha(direccion: number | null): number | null {
   return direccion === null ? null : (direccion + 180) % 360
 }
 
-export function letraViento(direccion: number | null): string {
+const ROSA_ES = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO']
+// pt-BR compass abbreviations: L = leste, O = oeste, and LNE/LSE for lés-nordeste/lés-sudeste
+// (N, S, SO, NO, NNE, SSO, OSO, ONO, NNO as in Spanish). pt.wikipedia.org/wiki/Rosa_dos_ventos
+// lists the English forms ENE/ESE; Brazilian school material uses LNE/LSE
+// (https://www.todamateria.com.br/rosa-dos-ventos/). Convention chosen: L/O letters.
+const ROSA_PT = ['N', 'NNE', 'NE', 'LNE', 'L', 'LSE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO']
+
+export function letraViento(direccion: number | null, idioma: Idioma = 'es'): string {
   if (direccion === null) {
     return '—'
   }
 
   const index = Math.round((((direccion % 360) + 360) % 360) / 22.5) % 16
-  return ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'][index]
+  return (idioma === 'pt' ? ROSA_PT : ROSA_ES)[index]
 }
 
 export function fechaRadar(value: string, options: Intl.DateTimeFormatOptions = {}): string {
-  return new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    ...options,
-  }).format(new Date(value))
+  return formatoFechaRegion(options).format(new Date(value))
 }
 
 export function indiceCercano(times: string[], now = Date.now()): number {

@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { moduloDeRutaHabilitado } from '@/lib/infraestructura/region/modulos'
 import { obtenerBasePath } from '@/miniapps/links/lib/base-path'
 import { LINKS_URL } from '@/miniapps/links/lib/host'
 import { LinksPagina } from '@/miniapps/links/components/links-pagina'
@@ -20,5 +22,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function LinksPage() {
+  if (!moduloDeRutaHabilitado('/links')) notFound()
   return <LinksPagina config={await cargarConfig()} basePath={await obtenerBasePath()} />
 }

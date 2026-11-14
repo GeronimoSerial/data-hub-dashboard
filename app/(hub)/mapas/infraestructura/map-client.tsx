@@ -19,14 +19,21 @@ import {
   leerSnapshotRetornoMapa,
   parsearContextoMapaDeQuery,
 } from '@/lib/infraestructura/mapa/estado-retorno'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 import { cn } from '@/lib/utils'
 import styles from './map-header.module.css'
 
 const cargarMapa = () => import('@/components/mapas/map-infraestructura-page')
 
+function CargandoMapa() {
+  const t = useTextos()
+  return <p>{t.modos.cargandoMapa}</p>
+}
+
 const MapInfraestructuraPage = dynamic(cargarMapa, {
   ssr: false,
-  loading: () => <p>Cargando mapa…</p>,
+  loading: () => <CargandoMapa />,
 })
 
 // Arranca la descarga del chunk apenas se evalúa este módulo, en paralelo con
@@ -47,6 +54,7 @@ export function InfraestructuraMapClient(props: {
   pantallaCompletaRef?: React.RefObject<HTMLDivElement | null>
 }) {
   const rutaActiva = props.rutaActiva ?? true
+  const t = useTextos()
   const [tab, setTab] = React.useState<PestanaMapa>('actual')
   const contenedorLocal = React.useRef<HTMLDivElement>(null)
   const contenedorPantallaCompleta = props.pantallaCompletaRef ?? contenedorLocal
@@ -246,7 +254,7 @@ export function InfraestructuraMapClient(props: {
             <TabsList
               ref={tabsListRef}
               className={styles.tabsList}
-              aria-label="Modos y vistas de ENOS 2026"
+              aria-label={t.modos.ariaBarra(regionPublicaActual().nombre)}
               onFocusCapture={(event) => {
                 const target = (event.target as HTMLElement | null)?.closest<HTMLElement>('[role="tab"]')
                 if (target) revealTab(target)
@@ -255,11 +263,12 @@ export function InfraestructuraMapClient(props: {
               <TabsTab
                 value="actual"
                 className={styles.tabTrigger}
+                data-testid="tab-actual"
                 aria-label={cantidadConReporte > 0
-                  ? `Situación actual, ${cantidadConReporte} ${cantidadConReporte === 1 ? 'escuela' : 'escuelas'} con situaciones abiertas`
+                  ? t.modos.situacionActualAria(cantidadConReporte)
                   : undefined}
               >
-                Situación actual
+                {t.modos.situacionActual}
                 {cantidadConReporte > 0 && (
                   <span
                     className={cn(
@@ -273,29 +282,31 @@ export function InfraestructuraMapClient(props: {
                 )}
               </TabsTab>
               {props.riskRadarEnabled && (
-                <TabsTab value="radar" className={styles.tabTrigger}>
-                  Radar
+                <TabsTab value="radar" className={styles.tabTrigger} data-testid="tab-radar">
+                  {t.modos.radar}
                 </TabsTab>
               )}
-              <TabsTab value="planificacion" className={styles.tabTrigger}>
-                Planificación
+              <TabsTab value="planificacion" className={styles.tabTrigger} data-testid="tab-planificacion">
+                {t.modos.planificacion}
               </TabsTab>
               <TabsTab
                 value="capas"
                 className={styles.tabTrigger}
+                data-testid="tab-capas"
                 data-cluster-start="true"
               >
-                Capas
+                {t.modos.capas}
               </TabsTab>
               <TabsTab
                 value="estadisticas"
                 className={styles.tabTrigger}
+                data-testid="tab-estadisticas"
                 data-cluster-start="true"
               >
-                Estadísticas
+                {t.modos.estadisticas}
               </TabsTab>
-              <TabsTab value="exportar" className={styles.tabTrigger}>
-                Exportar
+              <TabsTab value="exportar" className={styles.tabTrigger} data-testid="tab-exportar">
+                {t.modos.exportar}
               </TabsTab>
             </TabsList>
           </div>
@@ -304,13 +315,13 @@ export function InfraestructuraMapClient(props: {
           // Plain anchor on purpose: a soft navigation away from the map and back
           // left it mounted without the schools until a reload.
           <a href="/call-center" className={styles.callCenterLink}>
-            Call center
+            {t.modos.callCenter}
             <ArrowUpRight size={14} aria-hidden="true" />
           </a>
         )}
         {props.mostrarCuadernillos && (
           <Link href="/cuadernillos" className={styles.callCenterLink}>
-            Cuadernillos
+            {t.modos.cuadernillos}
             <ArrowUpRight size={14} aria-hidden="true" />
           </Link>
         )}

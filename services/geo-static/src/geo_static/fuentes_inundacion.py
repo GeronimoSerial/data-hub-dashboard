@@ -5,6 +5,8 @@ Capas (todas bajo services/geo-static/.data/, gitignored):
   de retorno, ~90 m -> jrc_flood/rp{N}_depth.tif
 - JRC Global Surface Water occurrence v1.4 (2021), ~30 m -> gsw/occurrence.tif
 - Copernicus DEM GLO-30 (tiles COG de 1 grado), ~30 m -> dem/glo30.tif
+- Alternativa opcional: FABDEM V1-2 (CC BY-NC-SA 4.0), ~30 m -> dem/fabdem.tif
+  (fuente_dem="fabdem"; ver fabdem.py)
 
 Las lecturas van por ventanas GDAL (/vsicurl/): solo se transfieren los pixeles
 dentro del bbox, nunca los tiles completos. Cada salida se escribe por franjas
@@ -31,6 +33,15 @@ from rasterio.enums import Resampling
 from rasterio.transform import from_origin
 from rasterio.warp import reproject
 from rasterio.windows import Window
+
+from geo_static.fabdem import (
+    LICENCIA_FABDEM,
+    VERSION as VERSION_FABDEM,
+    urls_vsi_fabdem,
+    zips_fabdem_para_bbox,
+)
+
+FUENTES_DEM = ("copernicus", "fabdem")
 
 # (oeste, sur, este, norte) en grados WGS84.
 BBOX_CORRIENTES = (-59.8, -31.2, -55.5, -27.1)
@@ -246,11 +257,13 @@ def recortar_mosaico(
     *,
     nodata: float | int,
     dtype: str,
+    prefijo_vsi: str = "/vsicurl/",
 ) -> tuple[int, int]:
     """Mosaico de los tiles remotos recortado al bbox, escrito en `destino` (GeoTIFF deflate, tiled).
 
-    Devuelve (ancho, alto) de la salida. Las lecturas son ventanas remotas; la
-    escritura va por franjas de STRIPE_ROWS filas para acotar la memoria.
+    Cada ruta se abre como `prefijo_vsi + url`. Devuelve (ancho, alto) de la salida.
+    Las lecturas son ventanas remotas; la escritura va por franjas de STRIPE_ROWS
+    filas para acotar la memoria.
     """
     destino.parent.mkdir(parents=True, exist_ok=True)
     parcial = destino.with_name(destino.name + ".part")
@@ -263,7 +276,7 @@ def recortar_mosaico(
         GDAL_HTTP_MAX_RETRY=5,
         GDAL_HTTP_RETRY_DELAY=2,
     ):
-        fuentes = [rasterio.open(f"/vsicurl/{url}") for url in urls]
+        fuentes = [rasterio.open(f"{prefijo_vsi}{url}") for url in urls]
         try:
             transform, ancho, alto = grilla_salida(bbox, fuentes[0].res)
             perfil = {
@@ -328,10 +341,11 @@ def _entrada_manifest(
     alto: int,
     dtype: str,
     nodata: float | int,
+    extra: dict | None = None,
 ) -> dict:
     nodata_manifest: float | int | str
     nodata_manifest = "NaN" if isinstance(nodata, float) and math.isnan(nodata) else nodata
-    return {
+    entrada = {
         "archivo": archivo_rel,
         "fuente": fuente,
         "urls": urls,
@@ -347,6 +361,8 @@ def _entrada_manifest(
         "fecha_descarga": _fecha_hoy_utc(),
         "licencia": licencia,
     }
+    entrada.update(extra or {})
+    return entrada
 
 
 def _resolver_urls(urls: list[str], requeridas: bool) -> tuple[list[str], list[str]]:
@@ -371,36 +387,47 @@ def descargar_fuentes(
     *,
     data_dir: Path = DATA_DIR,
     bbox: tuple[float, float, float, float] = BBOX_CORRIENTES,
+    fuente_dem: str = "copernicus",
+    incluir_jrc_flood: bool = True,
 ) -> dict:
-    """Descarga y recorta todas las capas fuente. Idempotente salvo `force`. Devuelve el manifest."""
+    """Descarga y recorta las capas fuente. Idempotente salvo `force`. Devuelve el manifest.
+
+    `fuente_dem` elige el DEM: "copernicus" (GLO-30, por defecto) o "fabdem"
+    (FABDEM V1-2, dem/fabdem.tif). `incluir_jrc_flood=False` omite el indice JRC
+    y las capas de profundidad rp*; GSW y DEM se descargan igual.
+    """
+    if fuente_dem not in FUENTES_DEM:
+        raise ValueError(f"fuente_dem desconocida: {fuente_dem!r}; use uno de {FUENTES_DEM}")
+
     manifest_path = data_dir / "manifest.json"
     manifest = leer_manifest(manifest_path)
     entradas = manifest.setdefault("entradas", {})
 
-    # Indice de tiles JRC: se guarda como archivo auxiliar y tambien va al manifest.
+    capas: list[dict] = []
     indice_rel = "jrc_flood/tile_extents.geojson"
     indice = data_dir / indice_rel
-    if debe_descargar(manifest, indice_rel, indice, force):
-        indice.parent.mkdir(parents=True, exist_ok=True)
-        with urllib.request.urlopen(JRC_EXTENTS_URL, timeout=120) as respuesta:
-            indice.write_bytes(respuesta.read())
-        progreso(f"indice JRC descargado: {indice_rel}")
-    extents = cargar_extents_jrc(json.loads(indice.read_text(encoding="utf-8")))
+    if incluir_jrc_flood:
+        # Indice de tiles JRC: se guarda como archivo auxiliar y tambien va al manifest.
+        if debe_descargar(manifest, indice_rel, indice, force):
+            indice.parent.mkdir(parents=True, exist_ok=True)
+            with urllib.request.urlopen(JRC_EXTENTS_URL, timeout=120) as respuesta:
+                indice.write_bytes(respuesta.read())
+            progreso(f"indice JRC descargado: {indice_rel}")
+        extents = cargar_extents_jrc(json.loads(indice.read_text(encoding="utf-8")))
 
-    tiles_jrc = tiles_jrc_para_bbox(extents, bbox)
-    capas: list[dict] = []
-    for periodo in PERIODOS_RETORNO:
-        capas.append(
-            {
-                "clave": f"jrc_flood/rp{periodo}_depth.tif",
-                "fuente": f"JRC Global River Flood Hazard Maps v2.1, RP{periodo}",
-                "urls": [url_jrc_profundidad(t, periodo) for t in tiles_jrc],
-                "requeridas": True,
-                "licencia": LICENCIA_JRC,
-                "dtype": "float32",
-                "nodata": NODATA_JRC,
-            }
-        )
+        tiles_jrc = tiles_jrc_para_bbox(extents, bbox)
+        for periodo in PERIODOS_RETORNO:
+            capas.append(
+                {
+                    "clave": f"jrc_flood/rp{periodo}_depth.tif",
+                    "fuente": f"JRC Global River Flood Hazard Maps v2.1, RP{periodo}",
+                    "urls": [url_jrc_profundidad(t, periodo) for t in tiles_jrc],
+                    "requeridas": True,
+                    "licencia": LICENCIA_JRC,
+                    "dtype": "float32",
+                    "nodata": NODATA_JRC,
+                }
+            )
     capas.append(
         {
             "clave": "gsw/occurrence.tif",
@@ -412,18 +439,37 @@ def descargar_fuentes(
             "nodata": NODATA_GSW,
         }
     )
-    capas.append(
-        {
-            "clave": "dem/glo30.tif",
-            "fuente": "Copernicus DEM GLO-30",
-            "urls": [url_dem(n) for n in tiles_dem_para_bbox(bbox)],
-            # Tiles DEM 404 son celdas de oceano/sin cobertura: se omiten y se registran.
-            "requeridas": False,
-            "licencia": LICENCIA_DEM,
-            "dtype": "float32",
-            "nodata": NODATA_DEM,
-        }
-    )
+    if fuente_dem == "fabdem":
+        capas.append(
+            {
+                "clave": "dem/fabdem.tif",
+                "fuente": f"FABDEM {VERSION_FABDEM}",
+                # Rutas /vsizip/ dentro de zips remotos: no hay HEAD por tile; un tile
+                # ausente dentro del zip falla al abrirse en recortar_mosaico.
+                "urls": urls_vsi_fabdem(bbox),
+                "verificar_http": False,
+                "requeridas": True,
+                "licencia": LICENCIA_FABDEM,
+                "dtype": "float32",
+                # Salida con NaN; el nodata -9999 de la fuente lo mapea reproject (src_nodata).
+                "nodata": NODATA_DEM,
+                "recorte": {"prefijo_vsi": ""},
+                "extra": {"version": VERSION_FABDEM, "zips": zips_fabdem_para_bbox(bbox)},
+            }
+        )
+    else:
+        capas.append(
+            {
+                "clave": "dem/glo30.tif",
+                "fuente": "Copernicus DEM GLO-30",
+                "urls": [url_dem(n) for n in tiles_dem_para_bbox(bbox)],
+                # Tiles DEM 404 son celdas de oceano/sin cobertura: se omiten y se registran.
+                "requeridas": False,
+                "licencia": LICENCIA_DEM,
+                "dtype": "float32",
+                "nodata": NODATA_DEM,
+            }
+        )
 
     for capa in capas:
         clave = capa["clave"]
@@ -431,10 +477,13 @@ def descargar_fuentes(
         if not debe_descargar(manifest, clave, archivo, force):
             progreso(f"omitida (ya existe): {clave}")
             continue
-        disponibles, omitidas = _resolver_urls(capa["urls"], capa["requeridas"])
+        if capa.get("verificar_http", True):
+            disponibles, omitidas = _resolver_urls(capa["urls"], capa["requeridas"])
+        else:
+            disponibles, omitidas = list(capa["urls"]), []
         progreso(f"{clave}: {len(disponibles)} tiles" + (f", {len(omitidas)} omitidos (404)" if omitidas else ""))
         ancho, alto = recortar_mosaico(
-            disponibles, bbox, archivo, nodata=capa["nodata"], dtype=capa["dtype"]
+            disponibles, bbox, archivo, nodata=capa["nodata"], dtype=capa["dtype"], **capa.get("recorte", {})
         )
         entradas[clave] = _entrada_manifest(
             clave,
@@ -448,19 +497,21 @@ def descargar_fuentes(
             alto=alto,
             dtype=capa["dtype"],
             nodata=capa["nodata"],
+            extra=capa.get("extra"),
         )
         escribir_manifest(manifest, manifest_path)
         progreso(f"escrita: {clave} ({ancho}x{alto})")
 
-    entradas[indice_rel] = {
-        "archivo": indice_rel,
-        "fuente": "JRC tile_extents.geojson (indice de tiles)",
-        "urls": [JRC_EXTENTS_URL],
-        "urls_omitidas_404": [],
-        "bytes": indice.stat().st_size,
-        "sha256": sha256_archivo(indice),
-        "fecha_descarga": _fecha_hoy_utc(),
-        "licencia": LICENCIA_JRC,
-    }
+    if incluir_jrc_flood:
+        entradas[indice_rel] = {
+            "archivo": indice_rel,
+            "fuente": "JRC tile_extents.geojson (indice de tiles)",
+            "urls": [JRC_EXTENTS_URL],
+            "urls_omitidas_404": [],
+            "bytes": indice.stat().st_size,
+            "sha256": sha256_archivo(indice),
+            "fecha_descarga": _fecha_hoy_utc(),
+            "licencia": LICENCIA_JRC,
+        }
     escribir_manifest(manifest, manifest_path)
     return manifest

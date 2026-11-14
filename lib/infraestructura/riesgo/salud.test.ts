@@ -313,3 +313,33 @@ describe('obtenerDatoMasRecienteImerg', () => {
     expect(await obtenerDatoMasRecienteImerg()).toBe('2026-10-14T06:30:00.000Z')
   })
 })
+
+describe('obtenerEstadoOperativo — contadoresUltimaCompletada (I2)', () => {
+  it('lleva los contadores de la última corrida completada aunque la más reciente haya fallado', async () => {
+    const db = getDb()
+    await db.insert(infraJobRun).values([
+      fila({
+        id: 'alturas-completado',
+        tipo: 'sync-prefectura-alturas',
+        estado: 'completado',
+        actualizadaEn: '2026-01-01T00:00:00.000Z',
+        contadores: { filasPublicadas: 0, insertadas: 0 },
+      }),
+      fila({ id: 'alturas-fallido', tipo: 'sync-prefectura-alturas', estado: 'fallido', actualizadaEn: '2026-01-02T00:00:00.000Z' }),
+    ])
+
+    const job = await buscarJob('sync-prefectura-alturas')
+    expect(job?.estado).toBe('fallido')
+    expect(job?.contadoresUltimaCompletada).toEqual({ filasPublicadas: 0, insertadas: 0 })
+  })
+
+  it('es null cuando la corrida completada no registró contadores (corridas anteriores)', async () => {
+    const db = getDb()
+    await db.insert(infraJobRun).values([
+      fila({ id: 'synop-viejo', tipo: 'sync-synop-lluvia', estado: 'completado', actualizadaEn: '2026-01-01T00:00:00.000Z' }),
+    ])
+
+    const job = await buscarJob('sync-synop-lluvia')
+    expect(job?.contadoresUltimaCompletada).toBeNull()
+  })
+})

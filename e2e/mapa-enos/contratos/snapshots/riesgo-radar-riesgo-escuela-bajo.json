@@ -1,0 +1,27 @@
+{
+  "crecidaRio": {
+    "alturaActualM": null,
+    "alturaCriticaM": 17.38,
+    "antecedente": {
+      "distanciaAguaM": 954,
+      "fecha": "<fecha>",
+      "nivelM": 7.06,
+      "subidaHastaUmbralM": 10.32
+    },
+    "defensaCostera": true,
+    "estacion": "Corrientes",
+    "origen": "estudio_v04",
+    "subidaDesdeActualM": null
+  },
+  "factores": [],
+  "snapshot": {
+    "calculadoEn": "<fecha>",
+    "cueAnexo": "1801899-00",
+    "horizonteHoras": 72,
+    "id": "<uuid:1>-1801899-00-72",
+    "nivelAmenaza": "bajo",
+    "nivelRiesgo": "bajo",
+    "scoreRiesgo": 12,
+    "validoHasta": "<fecha>"
+  }
+}

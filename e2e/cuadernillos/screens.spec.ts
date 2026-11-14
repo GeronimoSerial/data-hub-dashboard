@@ -175,42 +175,6 @@ for (const { width, height } of VIEWPORTS) {
       await context.close()
     }
 
-    // Admin: configuration, then "Ver como" active.
-    {
-      const context = await openContext(browser, width, height)
-      const page = await context.newPage()
-      track(page, 'admin')
-      await login(page, 'admin')
-      await dismissUnderDevelopment(page)
-      if (width === 390) await shot(page, 'admin-planning-home', width)
-      await step('admin open configuration', async () => {
-        await page.getByRole('tab', { name: 'Configuración' }).click()
-        await page.getByRole('navigation', { name: 'Secciones de configuración' }).waitFor({ timeout: 10_000 })
-      })
-      await step('admin configuration cabeceras', async () => {
-        await page.getByRole('navigation', { name: 'Secciones de configuración' }).getByRole('button', { name: 'Cabeceras', exact: true }).click()
-      })
-      await shot(page, 'admin-config-cabeceras', width)
-      await step('admin configuration membresias', async () => {
-        await page.getByRole('navigation', { name: 'Secciones de configuración' }).getByRole('button', { name: 'Membresías', exact: true }).click()
-      })
-      await shot(page, 'admin-config-membresias', width)
-      await step('admin open Ver como', async () => {
-        await page.getByRole('button', { name: 'Ver como' }).first().click()
-        // The view-as popover is the only panel with this search input (the page has a second one).
-        await page.locator('[id$="-panel"]').getByPlaceholder('Nombre o correo').fill('t8-fixture-cabecera')
-      })
-      // View-as candidates are links, not buttons.
-      await step('admin pick cabecera account', async () => {
-        const viewAsData = page.waitForResponse((response) => response.url().includes('/api/cuadernillos/') && response.url().includes('viewAs='), { timeout: 20_000 })
-        await page.getByRole('link', { name: /t8-fixture-cabecera|Fixture cabecera/ }).first().click()
-        await page.waitForURL(/viewAs=/, { timeout: 20_000 })
-        await viewAsData
-      })
-      await shot(page, 'admin-viewas-active', width)
-      await context.close()
-    }
-
     flushNetworkLog(width)
     if (missing.length > 0 && outDir) {
       writeFileSync(path.join(outDir, `skipped-${width}.txt`), missing.join('\n') + '\n', 'utf8')

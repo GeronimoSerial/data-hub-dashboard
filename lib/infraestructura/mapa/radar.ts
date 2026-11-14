@@ -1,6 +1,8 @@
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { EscuelaMapaEnriquecida } from './tipos'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 export type HorizonteMotor = 24 | 72 | 240
 export type NivelRiesgo = 'muy_alto' | 'alto' | 'moderado' | 'bajo'
@@ -32,6 +34,10 @@ export const ETIQUETA_HORIZONTE_MOTOR: Record<HorizonteMotor, string> = {
   24: '24 h',
   72: '72 h',
   240: '10 días',
+}
+
+export function etiquetaHorizonteMotor(horizonte: HorizonteMotor, t: Diccionario = es): string {
+  return horizonte === 240 ? t.libTextos2.horizonte.diez : ETIQUETA_HORIZONTE_MOTOR[horizonte]
 }
 
 const ORDEN_RIESGO: Record<NivelRiesgo, number> = {
@@ -162,4 +168,9 @@ export function coloresRadar(
 ): Map<string, string> {
   return new Map(escuelasEnRadar(puntos, escuelas, horizonte)
     .map(({ escuela, nivel }) => [escuela.cueAnexo, colorRiesgo(nivel)]))
+}
+
+export function etiquetaNivelRiesgo(t: Diccionario, nivel: NivelRiesgo): string {
+  const tabla = t.etiquetas.nivelRiesgo
+  return nivel in tabla ? tabla[nivel as keyof typeof tabla] : ETIQUETA_NIVEL_RIESGO[nivel]
 }

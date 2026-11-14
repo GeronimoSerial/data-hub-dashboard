@@ -4,7 +4,8 @@ import { hubApiAccessResponse } from '@/lib/hub-entry-server'
 import { validateAssignments } from '@/lib/cuadernillos/assignment-import'
 import { hasBookletCapability } from '@/lib/cuadernillos/permissions'
 import { getBookletAssignmentsPage } from '@/lib/cuadernillos/queries'
-import { resolveViewAsActor } from '@/lib/cuadernillos/view-as'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -51,26 +52,21 @@ async function handleGET(request: Request) {
   if (hubDenied) return privateResponse(hubDenied)
 
   const searchParams = new URL(request.url).searchParams
-  if ([...searchParams.keys()].some((key) => !['capability', 'cursor', 'viewAs'].includes(key))) {
+  if ([...searchParams.keys()].some((key) => !['capability', 'cursor'].includes(key))) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: NO_STORE })
   }
   const capabilityValues = searchParams.getAll('capability')
   const cursorValues = searchParams.getAll('cursor')
-  const viewAsValues = searchParams.getAll('viewAs')
   const parsed = querySchema.safeParse({
     capability: capabilityValues.length === 1 ? capabilityValues[0] : undefined,
     cursor: cursorValues.length === 0 ? undefined : cursorValues.length === 1 ? cursorValues[0] : null,
   })
-  if (!parsed.success || viewAsValues.length > 1) {
+  if (!parsed.success) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: NO_STORE })
   }
 
   try {
-    const readActor = await resolveViewAsActor(actor, viewAsValues[0])
-    if (readActor.status === 'unavailable') {
-      return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403, headers: NO_STORE })
-    }
-    const page = await getBookletAssignmentsPage(readActor.actor, parsed.data.capability, {
+    const page = await getBookletAssignmentsPage(actor, parsed.data.capability, {
       cursor: parsed.data.cursor ?? null,
     })
     if (!page) {
@@ -97,12 +93,15 @@ async function handlePOST(request: Request) {
   }
   const parsed = importSchema.safeParse(body)
   if (!parsed.success) return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: NO_STORE })
+  // Sin cambio de datos: la vista previa no escribe; el evento registra solo la cantidad de filas.
+  describirAuditoria({ objetoTipo: 'cuadernillo_asignacion', metadatos: { cantidad: parsed.data.rows.length } })
 
   try {
     if (parsed.data.mode === 'confirm') {
       return Response.json({ error: 'assignment_confirmation_unavailable' }, { status: 503, headers: NO_STORE })
     }
     const preview = validateAssignments(parsed.data.rows)
+    describirAuditoria({ resultado: 'sin_cambio' })
     return Response.json({ preview }, { status: 200, headers: NO_STORE })
   } catch {
     return Response.json({ error: 'assignment_preview_failed' }, { status: 503, headers: NO_STORE })
@@ -110,4 +109,4 @@ async function handlePOST(request: Request) {
 }
 
 export const GET = ruta('cuadernillos.assignments.get', handleGET)
-export const POST = ruta('cuadernillos.assignments.post', handlePOST)
+export const POST = conAuditoria('cuadernillo.asignacion_guardar', '/api/cuadernillos/assignments', ruta('cuadernillos.assignments.post', handlePOST))

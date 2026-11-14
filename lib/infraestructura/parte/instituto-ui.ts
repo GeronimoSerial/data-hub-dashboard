@@ -5,6 +5,9 @@
 // regla espeja la del servidor (instituto-alcance.ts): una carrera sin alumnos
 // elegidos es la carrera completa; con alumnos elegidos, sólo esos.
 
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+
 export interface CarreraElegible {
   id: number
   nombre: string
@@ -54,9 +57,10 @@ export function textoAlcanceInstitutoConNombres(nombres: string[], alumnos: numb
 }
 
 /** "Alcanza a 2 carreras (15 alumnos)". Sin alumnos calculados, sólo la cantidad de carreras. */
-export function textoAlcanceInstituto(carreras: number, alumnos: number): string {
-  const base = `Alcanza a ${contar(carreras, 'carrera', 'carreras')}`
-  return alumnos > 0 ? `${base} (${contar(alumnos, 'alumno', 'alumnos')})` : base
+export function textoAlcanceInstituto(carreras: number, alumnos: number, t: Diccionario = es): string {
+  const p = t.residuos.instituto
+  const base = `${p.alcanza} ${contar(carreras, p.carrera, p.carreras)}`
+  return alumnos > 0 ? `${base} (${contar(alumnos, p.alumno, p.alumnos)})` : base
 }
 
 /** "RM 4658/15", "R.M. 690/12" o "RM: 4658/15" → "4658/15". Sin prefijo, lo deja igual. */

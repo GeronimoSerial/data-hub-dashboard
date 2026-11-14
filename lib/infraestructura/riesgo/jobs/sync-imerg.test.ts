@@ -614,4 +614,119 @@ describe('ejecutarSyncImerg', () => {
       expect(run?.errorSaneado).not.toContain('token-fake')
     })
   })
+
+  describe('salud de la fuente según filas recibidas', () => {
+    const puertoDeGranulo = (
+      inicioEn: string,
+      finEn: string,
+      observaciones: Array<{ geometryRef: string }>,
+    ): PuertoObservacionSatelital => {
+      const granulo = { id: `GPM_3IMERGHHE.${inicioEn}`, inicioEn, finEn, urlDatos: 'https://example.invalid/g.HDF5' }
+      return {
+        async listarGranulos() {
+          return [granulo]
+        },
+        async obtenerObservacion() {
+          return {
+            observaciones: observaciones.map((o) => ({
+              geometryRef: o.geometryRef,
+              variable: 'precipitacion_observada_satelital' as const,
+              valorMm: 1.1,
+              observadoEn: inicioEn,
+              ventanaDesde: inicioEn,
+              ventanaHasta: finEn,
+              calidad: 0.9,
+            })),
+            celdasSinDato: [],
+          }
+        },
+      }
+    }
+
+    it('un gránulo que llega sin observaciones (0 filas recibidas) deja la salud degradada, no ok', async () => {
+      const resultado = await sync({
+        ahora: new Date('2026-09-27T00:05:00.000Z'), // bloque 00:00 libre
+        puerto: puertoDeGranulo('2026-09-26T23:45:00.000Z', '2026-09-26T23:59:59.999Z', []),
+      })
+
+      expect(resultado).toMatchObject({ ok: true, resultado: { celdasActualizadas: 0, granulosProcesados: 1 } })
+      const salud = await saludImerg()
+      expect(salud?.estado).toBe('degradado')
+      // degradado conserva el último éxito conocido; no lo avanza a esta corrida.
+      expect(salud?.ultimoExitoEn).not.toBe('2026-09-27T00:05:00.000Z')
+    })
+
+    it('ya sincronizado (gránulo ya ingerido, 0 celdas escritas) sigue en ok', async () => {
+      const inicioEn = '2026-09-26T05:30:00.000Z'
+      const finEn = '2026-09-26T05:59:59.999Z'
+      const puerto = puertoDeGranulo(inicioEn, finEn, [{ geometryRef: '-27.5_-58.8' }])
+      await sync({ ahora: new Date('2026-09-26T06:05:00.000Z'), puerto }) // bloque 06:00
+
+      const segunda = await sync({ ahora: new Date('2026-09-26T06:35:00.000Z'), puerto }) // bloque 06:30
+
+      expect(segunda).toEqual({
+        ok: true,
+        resultado: { celdasActualizadas: 0, motivo: 'sincronizado', granulosProcesados: 0, granulosFallidos: 0 },
+      })
+      const salud = await saludImerg()
+      expect(salud?.estado).toBe('ok')
+      expect(salud?.ultimoExitoEn).toBe(new Date('2026-09-26T06:35:00.000Z').toISOString())
+    })
+  })
+
+  describe('retención de 90 días', () => {
+    it('invoca la purga tras publicar con el mismo ahora; si falla, el job queda completado', async () => {
+      const ahora = new Date('2026-09-29T10:05:00.000Z')
+      let estadoAlPurgar: string | undefined
+      const purgar = vi.fn(async () => {
+        estadoAlPurgar = (await (await db()).select().from(infraJobRun)).find(
+          (fila) => fila.tipo === 'sync-hazard-imerg' && fila.claveIdempotente === '2026-09-29T10:00',
+        )?.estado
+        throw new Error('disco lleno')
+      })
+      const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const resultado = await sync({ ahora, purgarImerg: purgar })
+        expect(resultado.ok).toBe(true)
+        expect(aviso).toHaveBeenCalledWith(expect.stringContaining('disco lleno'))
+      } finally {
+        aviso.mockRestore()
+      }
+
+      expect(purgar).toHaveBeenCalledTimes(1)
+      expect(purgar.mock.calls[0]).toEqual([expect.anything(), { ahora }])
+      expect(estadoAlPurgar).toBe('completado')
+      const run = (await (await db()).select().from(infraJobRun)).find(
+        (fila) => fila.tipo === 'sync-hazard-imerg' && fila.claveIdempotente === '2026-09-29T10:00',
+      )
+      expect(run?.estado).toBe('completado')
+    })
+  })
+
+  describe('excepción fuera de los try/catch del cuerpo', () => {
+    it('publica el error real saneado (sin el token) y relanza la excepción original', async () => {
+      const original = new Error('canceling statement due to statement timeout (token-fake)')
+      const spy = vi.spyOn(await db(), 'selectDistinct').mockImplementationOnce(() => {
+        throw original
+      })
+      try {
+        await expect(
+          sync({
+            ahora: new Date('2026-09-28T10:05:00.000Z'),
+          }),
+        ).rejects.toBe(original)
+      } finally {
+        spy.mockRestore()
+      }
+
+      const run = (await (await db()).select().from(infraJobRun)).find(
+        (fila) => fila.tipo === 'sync-hazard-imerg' && fila.claveIdempotente === '2026-09-28T10:00',
+      )
+      expect(run?.estado).toBe('fallido')
+      expect(run?.errorSaneado).toBe(
+        'canceling statement due to statement timeout ([REDACTED])',
+      )
+      expect(run?.errorSaneado).not.toContain('token-fake')
+    })
+  })
 })

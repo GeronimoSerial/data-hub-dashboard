@@ -6,6 +6,8 @@ import {
   verificarPassword,
 } from '@/lib/infraestructura/acceso-publico'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
+import { actorAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -39,10 +41,11 @@ async function handlePOST(request: Request) {
     return Response.json({ error: 'Contraseña incorrecta' }, { status: 401 })
   }
 
+  actorAuditoria({ actorTipo: 'compartido', actorId: null, actorRol: null, viaAcceso: 'password_compartida' })
   const { token, expiraEn } = crearTokenSesion()
   const respuesta = NextResponse.json({ ok: true }, { status: 200 })
   respuesta.cookies.set(NOMBRE_COOKIE, token, opcionesCookieSesion(expiraEn))
   return respuesta
 }
 
-export const POST = ruta('problematicas.acceso.post', handlePOST)
+export const POST = conAuditoria('acceso.ingresar', '/api/problematicas/acceso', ruta('problematicas.acceso.post', handlePOST))

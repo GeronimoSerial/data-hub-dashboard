@@ -134,7 +134,7 @@ export function calcularAlumnosAlcanzados(params: {
 // El umbral vive en umbrales.ts, un modulo sin importaciones de servidor:
 // el mapa lo necesita en runtime y este modulo arrastra node:fs via getDb.
 import { UMBRAL_SIN_ACTUALIZAR_HORAS } from './umbrales'
-import { ubicacionEnCorrientes } from './radar-meteo/departamentos'
+import { ubicacionEnRegion } from './radar-meteo/departamentos'
 import { seccionesEfectivamenteSuspendidas } from './servicio-educativo'
 export { UMBRAL_SIN_ACTUALIZAR_HORAS }
 
@@ -824,7 +824,7 @@ export async function listarEscuelasMapa(
   for (const fila of padron) {
     // A coordinate outside the province is a padrón error: the school still
     // counts in its department totals, but is not drawn on the map.
-    if (fila.lat === null || fila.lon === null || !ubicacionEnCorrientes(fila.lat, fila.lon)) {
+    if (fila.lat === null || fila.lon === null || !ubicacionEnRegion(fila.lat, fila.lon)) {
       sinUbicacion.push({
         cueAnexo: fila.cueAnexo,
         nombre: fila.nombre,
@@ -859,7 +859,7 @@ export async function listarEscuelasMapa(
 export async function listarCuesAfectadosEnMapa(): Promise<string[]> {
   const { partes } = await listarPartesVigentes()
   const candidatos = [...new Set(partes
-    .filter((parte) => parte.lat !== null && parte.lon !== null && ubicacionEnCorrientes(parte.lat, parte.lon))
+    .filter((parte) => parte.lat !== null && parte.lon !== null && ubicacionEnRegion(parte.lat, parte.lon))
     .map((parte) => parte.cueAnexo))]
   if (candidatos.length === 0) return []
 
@@ -1057,7 +1057,7 @@ export async function obtenerEscuelaFichaEnriquecida(
   const ubicacionDisponible =
     fila.lat !== null &&
     fila.lon !== null &&
-    ubicacionEnCorrientes(fila.lat, fila.lon)
+    ubicacionEnRegion(fila.lat, fila.lon)
 
   const [{ partes }, corte] = await Promise.all([
     listarPartesVigentes(filtros),

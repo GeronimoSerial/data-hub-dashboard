@@ -11,6 +11,7 @@ import { FORMATOS, type Formato } from '@/lib/model'
 import { exploreHref } from '@/lib/explore-filters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { MARCA_FORMATO, MARCA_TEMA, MarcaTemaGenerica } from '@/components/marcas-tematicas'
 
 function BrowseCard({
@@ -26,6 +27,7 @@ function BrowseCard({
   count: number
   marca?: (props: { className?: string }) => React.JSX.Element
 }) {
+  const th = useTextos().shellHub.home
   return (
     <Link className="browse-card" href={href}>
       {Marca ? (
@@ -36,7 +38,7 @@ function BrowseCard({
       <span className="browse-card__name">{name}</span>
       <span className="browse-card__note">{note}</span>
       <span className="browse-card__count">
-        {count} {count === 1 ? 'recurso' : 'recursos'}
+        {count} {count === 1 ? th.recurso : th.recursos}
       </span>
     </Link>
   )
@@ -44,6 +46,8 @@ function BrowseCard({
 
 export function HubPage() {
   const router = useRouter()
+  const t = useTextos().shellHub
+  const th = t.home
   const { recursos, categorias, niveles } = useHubData()
   const canAccessPath = useSectionAccess()
   const [query, setQuery] = React.useState('')
@@ -63,10 +67,9 @@ export function HubPage() {
     <div className="page-stack">
       <header className="hero">
         <div className="hero__lead">
-          <h1 className="page-title">Análisis educativo</h1>
+          <h1 className="page-title">{th.titulo}</h1>
           <p className="page-intro">
-            Reportes, tableros y mapas publicados por las direcciones del
-            Ministerio. Algunos requieren ingresar con cuenta.
+            {th.intro}
           </p>
           {canAccessPath('/explorar') ? <form
             className="hero-search"
@@ -77,7 +80,7 @@ export function HubPage() {
             }}
           >
             <label className="hero-search__label" htmlFor="home-search">
-              Buscar información
+              {th.buscarEtiqueta}
             </label>
             <div className="hero-search__line">
               <Input
@@ -85,10 +88,10 @@ export function HubPage() {
                 className="text-input"
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
-                placeholder="Matrícula, trayectorias, nivel secundario…"
+                placeholder={th.buscarPlaceholder}
               />
               <Button type="submit">
-                <Search size={17} /> Buscar
+                <Search size={17} /> {th.buscar}
               </Button>
             </div>
           </form> : null}
@@ -96,15 +99,15 @@ export function HubPage() {
 
         <div className="stat-block">
           <div className="stat-block__row">
-            <span className="stat-block__label">Recursos publicados</span>
+            <span className="stat-block__label">{th.recursosPublicados}</span>
             <span className="stat-block__value">{published.length}</span>
           </div>
           <div className="stat-block__row">
-            <span className="stat-block__label">Temas</span>
+            <span className="stat-block__label">{th.temas}</span>
             <span className="stat-block__value">{byCategory.length}</span>
           </div>
           <div className="stat-block__row">
-            <span className="stat-block__label">Niveles educativos</span>
+            <span className="stat-block__label">{th.nivelesEducativos}</span>
             <span className="stat-block__value">{byLevel.length}</span>
           </div>
         </div>
@@ -115,22 +118,21 @@ export function HubPage() {
           emergencia es lo que se viene a hacer, no lo que se viene a leer. */}
       {canAccessPath('/infraestructura/cargar') ? <section className="section">
         <div className="section-head">
-          <h2>Registrar una problemática</h2>
+          <h2>{th.registrarTitulo}</h2>
         </div>
         <Link className="accion-card" href="/infraestructura/cargar">
-          <span className="accion-card__name">Cargar el parte de una escuela</span>
+          <span className="accion-card__name">{th.cargarParte}</span>
           <span className="accion-card__note">
-            Busque la escuela por CUE y entre a informar lo que está pasando. Si ya tiene un parte
-            abierto, la pantalla lleva a actualizarlo.
+            {th.cargarParteNota}
           </span>
         </Link>
       </section> : null}
 
       {canAccessPath('/explorar') ? <section className="section">
         <div className="section-head">
-          <h2>Actualizaciones recientes</h2>
+          <h2>{th.recientes}</h2>
           {canAccessPath('/explorar') ? <Link className="section-link" href="/explorar">
-            Ver el catálogo
+            {th.verCatalogo}
           </Link> : null}
         </div>
         <div className="card-grid">
@@ -142,7 +144,7 @@ export function HubPage() {
 
       {canAccessPath('/explorar') ? <section className="section">
         <div className="section-head">
-          <h2>Explorar por tema</h2>
+          <h2>{th.porTema}</h2>
         </div>
         <div className="card-grid card-grid--wide">
           {byCategory.map((item) => (
@@ -150,7 +152,7 @@ export function HubPage() {
               key={item.id}
               href={exploreHref({ tema: item.id })}
               name={item.nombre}
-              note="Ver los recursos publicados sobre este tema."
+              note={th.notaTema}
               count={item.count}
               marca={MARCA_TEMA[item.id] ?? MarcaTemaGenerica}
             />
@@ -160,15 +162,15 @@ export function HubPage() {
 
       {canAccessPath('/explorar') ? <section className="section">
         <div className="section-head">
-          <h2>Explorar por formato</h2>
+          <h2>{th.porFormato}</h2>
         </div>
         <div className="card-grid card-grid--wide">
           {byFormat.map(({ key, count }) => (
             <BrowseCard
               key={key}
               href={exploreHref({ formato: key })}
-              name={FORMATOS[key].plural}
-              note={FORMATOS[key].descripcion}
+              name={t.catalogo.formatos[key].plural}
+              note={t.catalogo.formatos[key].descripcion}
               count={count}
               marca={MARCA_FORMATO[key]}
             />
@@ -178,7 +180,7 @@ export function HubPage() {
 
       {canAccessPath('/explorar') ? <section className="section">
         <div className="section-head">
-          <h2>Explorar por nivel educativo</h2>
+          <h2>{th.porNivel}</h2>
         </div>
         <div className="chip-grid">
           {byLevel.map((item) => (

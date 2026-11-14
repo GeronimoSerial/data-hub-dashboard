@@ -1,4 +1,6 @@
 import { referencia, versionReferencia } from '@/lib/infraestructura/datasets/memoria'
+import { regionActiva } from '@/lib/infraestructura/region/activa'
+import type { RegionConfig } from '@/lib/infraestructura/region/esquema'
 // Versioned catalogue of the Prefectura Naval Argentina (PNA) stations relevant to
 // Corrientes, plus upstream context stations. Thresholds are never stored here:
 // they always come from each reading. Coordinates are the publisher's declared
@@ -33,6 +35,19 @@ export type EstacionPrefectura = {
 
 
 export function obtenerEstacionesPrefectura(): readonly EstacionPrefectura[] { return referencia('estaciones-prefectura') }
+
+// Catálogo para consultas web de la región: una región sin fuente 'prefectura' no tiene
+// estaciones de Prefectura y no lee el dataset (que sólo existe para Corrientes).
+export function regionTienePrefectura(region: Pick<RegionConfig, 'fuentesRio'> = regionActiva()): boolean {
+  return region.fuentesRio.includes('prefectura')
+}
+
+export function obtenerEstacionesPrefecturaDeRegion(
+  region: Pick<RegionConfig, 'fuentesRio'> = regionActiva(),
+): readonly EstacionPrefectura[] {
+  if (!regionTienePrefectura(region)) return []
+  return obtenerEstacionesPrefectura()
+}
 
 // Accent-, case- and whitespace-insensitive key for name matching.
 function claveNombre(texto: string): string {
