@@ -13,6 +13,7 @@ import { libTextos2Es } from './grupos/libTextos2.es'
 import { residuosEs } from './grupos/residuos.es'
 import { fichaPanelEs } from './grupos/fichaPanel.es'
 import { fichaPaginaEs } from './grupos/fichaPagina.es'
+import { fichaBitacoraEs } from './grupos/fichaBitacora.es'
 import { radarRestoEs } from './grupos/radarResto.es'
 import { libTextosEs } from './grupos/libTextos.es'
 import { controlesCapasEs } from './grupos/controlesCapas.es'
@@ -306,6 +307,7 @@ export const es = {
   libTextos: libTextosEs,
   fichaPanel: fichaPanelEs,
   fichaPagina: fichaPaginaEs,
+  fichaBitacora: fichaBitacoraEs,
   libTextos2: libTextos2Es,
   residuos: residuosEs,
   parteComunTextos: parteComunTextosEs,

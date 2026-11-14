@@ -768,3 +768,204 @@
     border-bottom: 1px solid var(--f-line);
   }
 }
+
+/* Status strip: the last thing that happened, right under the header */
+.estadoRapido {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin: 0.875rem 0 0;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--f-line);
+  border-radius: 0.625rem;
+  background: var(--f-panel);
+  font-size: var(--fs-13-5);
+  color: var(--f-ink);
+}
+
+.estadoRapidoSecundario {
+  color: var(--f-ink-5);
+}
+
+/* Situation cards */
+.situacion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--f-line);
+  border-radius: 0.75rem;
+}
+
+.situacionPrincipal {
+  background: var(--f-incident);
+}
+
+.situacionTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.situacionTitulo {
+  margin: 0;
+  font-size: var(--fs-17);
+  font-weight: 700;
+  color: var(--f-ink);
+}
+
+.situacionPrincipal .situacionTitulo {
+  font-size: var(--fs-21);
+}
+
+.situacionMeta {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--f-ink-5);
+}
+
+.situacionCita {
+  margin: 0;
+  font-size: var(--fs-14);
+  color: var(--f-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.evolucion {
+  display: flex;
+  margin: 0.375rem 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.evolucionPaso {
+  flex: 1 0 7rem;
+  padding: 0.375rem 0.75rem 0 0;
+  border-top: 3px solid var(--f-line);
+}
+
+.evolucionPaso:last-child {
+  border-top-color: var(--f-danger);
+}
+
+.evolucionFecha {
+  margin: 0;
+  font-size: var(--fs-12);
+  color: var(--f-ink-5);
+}
+
+.evolucionTexto {
+  margin: 0;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--f-ink);
+}
+
+.continuidadLinea {
+  margin: 0;
+  font-size: var(--fs-13-5);
+  color: var(--f-ink-5);
+}
+
+/* Unified log */
+.bitacora {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bitacoraFiltros {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.filtros {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.filtro {
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--f-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--f-ink);
+  font: inherit;
+  font-size: var(--fs-13);
+  cursor: pointer;
+}
+
+.filtro[aria-pressed='true'] {
+  border-color: var(--f-action);
+  background: var(--f-action);
+  color: var(--card, #fff);
+}
+
+.bitacoraDia {
+  display: flex;
+  flex-direction: column;
+}
+
+.bitacoraDiaTitulo {
+  margin: 0 0 0.25rem;
+  font-size: var(--fs-12);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--f-ink-5);
+}
+
+.bitacoraLista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bitacoraEntrada {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--f-line-soft);
+}
+
+.bitacoraHora {
+  font-size: var(--fs-13);
+  color: var(--f-ink-5);
+  font-variant-numeric: tabular-nums;
+}
+
+.bitacoraLinea {
+  margin: 0;
+  font-size: var(--fs-14);
+  color: var(--f-ink);
+}
+
+.bitacoraNota {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--f-ink-5);
+}
+
+.verMas {
+  align-self: flex-start;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--f-line);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--f-ink);
+  font: inherit;
+  cursor: pointer;
+}

@@ -13,6 +13,7 @@ import { libTextos2Pt } from './grupos/libTextos2.pt'
 import { residuosPt } from './grupos/residuos.pt'
 import { fichaPanelPt } from './grupos/fichaPanel.pt'
 import { fichaPaginaPt } from './grupos/fichaPagina.pt'
+import { fichaBitacoraPt } from './grupos/fichaBitacora.pt'
 import { radarRestoPt } from './grupos/radarResto.pt'
 import { libTextosPt } from './grupos/libTextos.pt'
 import { controlesCapasPt } from './grupos/controlesCapas.pt'
@@ -304,6 +305,7 @@ export const pt: Diccionario = {
   libTextos: libTextosPt,
   fichaPanel: fichaPanelPt,
   fichaPagina: fichaPaginaPt,
+  fichaBitacora: fichaBitacoraPt,
   libTextos2: libTextos2Pt,
   residuos: residuosPt,
   parteComunTextos: parteComunTextosPt,
