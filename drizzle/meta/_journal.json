@@ -428,6 +428,13 @@
       "when": 1794602384501,
       "tag": "0060_hazard_observation_observado_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1794692063037,
+      "tag": "0061_hazard_forecast_drop_pkey",
+      "breakpoints": true
     }
   ]
 }
