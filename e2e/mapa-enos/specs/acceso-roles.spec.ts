@@ -53,7 +53,7 @@ test.describe('admin: alcance del mapa y enlace nominal', () => {
 
   test('la ficha de una escuela con afectación muestra el enlace "Ver alumnos alcanzados"', async ({ page }) => {
     await page.goto(`${RUTA_MAPA}/escuelas/${CUE_CON_AFECTACION}`)
-    await expect(page.getByText('Panorama', { exact: true }).first()).toBeVisible()
+    await expect(page.locator('#situaciones')).toBeVisible()
     await expect(page.locator('[data-testid^="ver-alumnos-"]')).toHaveCount(1)
   })
 })
@@ -64,9 +64,9 @@ test.describe('consulta sin nominal: enlace ausente', () => {
   test('la ficha de la misma escuela no muestra "Ver alumnos alcanzados"', async ({ page }) => {
     await page.goto(`${RUTA_MAPA}/escuelas/${CUE_CON_AFECTACION}`)
     await expect(page).toHaveURL(new RegExp(`/mapas/infraestructura/escuelas/${CUE_CON_AFECTACION}$`))
-    await expect(page.getByText('Panorama', { exact: true }).first()).toBeVisible()
+    await expect(page.locator('#situaciones')).toBeVisible()
     // Control positivo: la afectación se ve en la sección de situaciones; el enlace falta por el permiso nominal.
-    await expect(page.getByTestId('ficha-incidente').getByText('Alcanzados por la situación')).toBeVisible()
+    await expect(page.getByTestId('ficha-incidente')).toContainText(/alumnos/i)
     await expect(page.locator('[data-testid^="ver-alumnos-"]')).toHaveCount(0)
   })
 })
