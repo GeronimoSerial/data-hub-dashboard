@@ -54,8 +54,8 @@ const esCasing = (id: string) => /casing/.test(id)
 export function ajustesCapa(capa: CapaBasemap): Array<['paint' | 'layout', string, unknown]> {
   if (capa.type === 'line' && capa['source-layer'] === 'waterway') {
     return [
+      // No `line-dasharray` here: maplibre-gl 6.3 throws in Program.draw when it is a feature-dependent expression.
       ['paint', 'line-color', COLOR_AGUA_LINEA],
-      ['paint', 'line-dasharray', ['case', ['==', ['get', 'intermittent'], 1], ['literal', [3, 2]], ['literal', [1, 0]]]],
     ]
   }
   if (capa.type === 'symbol' && capa['source-layer'] === 'waterway') {
