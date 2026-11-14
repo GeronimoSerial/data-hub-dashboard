@@ -39,6 +39,8 @@ const env = {
   T8_CABECERA_PASSWORD: randomSecret('Cabecera'),
   T8_SUPERVISOR_PASSWORD: randomSecret('Supervisor'),
   T8_ADMIN_PASSWORD: randomSecret('Admin'),
+  T8_OPERATOR_PASSWORD: randomSecret('Operator'),
+  T8_OPERATOROTHER_PASSWORD: randomSecret('OperatorOther'),
   T8_SCREENS_DIR: screensDir ?? '',
   OBS_BUCKET: '', OBS_REGION: '', OBS_ENDPOINT: '', OBS_ACCESS_KEY_ID: '', OBS_SECRET_ACCESS_KEY: '',
   AWS_ACCESS_KEY_ID: '', AWS_SECRET_ACCESS_KEY: '', GE_SSO_SHARED_SECRET: '', GE_SSO_SHARED_KEY: '',
