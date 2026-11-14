@@ -55,6 +55,31 @@ describe('page-level hub authorization', () => {
     await expect(requireServerHubPageAccess('/cuadernillos')).resolves.toMatchObject({ role: 'consulta' })
   })
 
+  it('lets a school operator with a CUE reach only the receipt page and denies the booklet workspace', async () => {
+    mocks.getSessionUser.mockResolvedValue({
+      id: 'school-op', role: 'operador_establecimiento', cueAnexo: '1-2', banned: false,
+      nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [],
+    })
+    await expect(requireServerHubPageAccess('/cuadernillos/recepcion')).resolves.toMatchObject({ role: 'operador_establecimiento' })
+    await expect(requireServerHubPageAccess('/cuadernillos')).rejects.toThrow('REDIRECT:/problematicas/parte/nuevo')
+  })
+
+  it('denies the receipt page to a school operator without a CUE', async () => {
+    mocks.getSessionUser.mockResolvedValue({
+      id: 'school-op', role: 'operador_establecimiento', banned: false,
+      nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [],
+    })
+    await expect(requireServerHubPageAccess('/cuadernillos/recepcion')).rejects.toThrow(/REDIRECT:/)
+  })
+
+  it('keeps the receipt page behind the booklet section for non-confined users', async () => {
+    await expect(requireServerHubPageAccess('/cuadernillos/recepcion')).rejects.toThrow('REDIRECT:/forbidden')
+    mocks.getSessionUser.mockResolvedValue({
+      id: 'admin', role: 'admin', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [],
+    })
+    await expect(requireServerHubPageAccess('/cuadernillos/recepcion')).resolves.toMatchObject({ role: 'admin' })
+  })
+
   it('denies a direct resource detail URL when its canonical route belongs to a disabled section', async () => {
     await expect(requireServerHubPageAccess('/recursos/infra-resource')).rejects.toThrow('REDIRECT:/forbidden')
   })
