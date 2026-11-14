@@ -88,6 +88,7 @@ export const ROUTE_MANIFEST: Record<string, RouteCapability | readonly RouteCapa
   'app/api/cuadernillos/requests/[id]/remainder/route.ts': 'hub.section.cuadernillos',
   'app/api/cuadernillos/requests/route.ts': 'hub.section.cuadernillos',
   'app/api/cuadernillos/stock/route.ts': 'hub.section.cuadernillos',
+  'app/api/cuadernillos/remitos/route.ts': 'hub.section.cuadernillos',
   'app/api/hub/admin/route.ts': 'staff',
   // TODO(T3): archivo GET uses the resource ACL; POST requires staff.
   'app/api/recursos/[id]/archivo/route.ts': ['hub.recursos', 'staff'],
