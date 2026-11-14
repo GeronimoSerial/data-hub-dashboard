@@ -123,3 +123,51 @@ export function debeMostrarRigeDesde(creadaEn: string, rigeDesde: string): boole
   if (Number.isNaN(carga)) return true
   return carga !== vigencia
 }
+
+const DIAS_CORTOS_ES = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'] as const
+const INDICE_DIA: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+
+function diaSemanaCorto(fecha: Date, idioma: Idioma): string {
+  if (idioma === 'es') {
+    return DIAS_CORTOS_ES[INDICE_DIA[formatoFechaRegion('en-US', { weekday: 'short' }).format(fecha)] ?? 0]
+  }
+  return formatoFechaRegion('pt-BR', { weekday: 'short' }).format(fecha).replace('.', '')
+}
+
+/** Calendar day in the region's time zone ("2026-11-14"); '' when unparseable. */
+export function claveDiaHistorial(iso: string): string {
+  const fecha = new Date(iso)
+  return Number.isNaN(fecha.getTime()) ? '' : fechaClave().format(fecha)
+}
+
+/** Day header for the log: "Hoy", "Ayer" or "mié 12/11". Without `ahora`, always the date. */
+export function etiquetaDiaHistorial(iso: string, ahora: Date | null, idioma: Idioma = 'es'): string {
+  const fecha = new Date(iso)
+  if (Number.isNaN(fecha.getTime())) return ''
+  if (ahora) {
+    const clave = fechaClave().format(fecha)
+    if (clave === fechaClave().format(ahora)) return textos(idioma).fichaHistorial.formato.hoy
+    if (clave === fechaClave().format(new Date(ahora.getTime() - 86_400_000))) return textos(idioma).fichaBitacora.ayer
+  }
+  const { dia, mes } = partesEnZona(fecha)
+  return `${diaSemanaCorto(fecha, idioma)} ${dia}/${mes + 1}`
+}
+
+/** Time of day: "09:12". */
+export function horaHistorial(iso: string): string {
+  const fecha = new Date(iso)
+  if (Number.isNaN(fecha.getTime())) return ''
+  const { hora, minuto } = partesEnZona(fecha)
+  return `${hora}:${minuto}`
+}
+
+/** Short moment: "Hoy 09:12", "Ayer 17:40" or "12/11 07:50". */
+export function momentoCortoHistorial(iso: string, ahora: Date | null, idioma: Idioma = 'es'): string {
+  const fecha = new Date(iso)
+  if (Number.isNaN(fecha.getTime())) return ''
+  const t = textos(idioma)
+  const dia = etiquetaDiaHistorial(iso, ahora, idioma)
+  const { dia: numero, mes } = partesEnZona(fecha)
+  const relativo = dia === t.fichaHistorial.formato.hoy || dia === t.fichaBitacora.ayer
+  return `${relativo ? dia : `${numero}/${mes + 1}`} ${horaHistorial(iso)}`
+}

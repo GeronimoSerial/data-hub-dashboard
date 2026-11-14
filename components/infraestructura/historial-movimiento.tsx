@@ -1,6 +1,7 @@
 import type { JSX } from 'react'
 import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
 import type { RolMovimiento, TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import type { EventoMovimiento } from '@/lib/infraestructura/movimiento-eventos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import {
   debeMostrarRigeDesde,
@@ -23,6 +24,8 @@ export interface MovimientoHistorial {
   titulo: string
   cambios: string[]
   severidad?: Severidad | null
+  /** Short per-situation events; absent in older payloads and test fixtures. */
+  eventos?: EventoMovimiento[]
 }
 
 /**

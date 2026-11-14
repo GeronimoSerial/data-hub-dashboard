@@ -84,27 +84,23 @@ describe('FichaEscuelaPagina · idioma', () => {
   it('mantiene en español la cabecera, las pestañas y los avisos de la ficha', () => {
     renderizar('es')
 
-    expect(screen.getByText('Detalle del establecimiento')).toBeVisible()
     expect(screen.getByText('Ubicación no disponible en el mapa')).toBeVisible()
     expect(screen.getByText('Cargar una situación')).toBeVisible()
     const tabs = within(screen.getByRole('navigation', { name: 'Secciones de la ficha' }))
-    expect(tabs.getByText('Panorama')).toBeVisible()
     expect(tabs.getByText('Situaciones (0)')).toBeVisible()
-    expect(tabs.getByText('Territorio y clima')).toBeVisible()
-    expect(tabs.getByText('Historial')).toBeVisible()
+    expect(tabs.getByText('Bitácora')).toBeVisible()
+    expect(tabs.getByText('Territorio')).toBeVisible()
   })
 
   it('muestra la cabecera, las pestañas y los avisos de la ficha en portugués de Brasil', () => {
     renderizar('pt')
 
-    expect(screen.getByText('Detalhe do estabelecimento')).toBeVisible()
     expect(screen.getByText('Localização não disponível no mapa')).toBeVisible()
     expect(screen.getByText('Registrar uma situação')).toBeVisible()
     expect(screen.getByRole('navigation', { name: 'Seções da ficha' })).toBeVisible()
     const tabs = within(screen.getByRole('navigation', { name: 'Seções da ficha' }))
-    expect(tabs.getByText('Visão geral')).toBeVisible()
     expect(tabs.getByText('Situações (0)')).toBeVisible()
-    expect(tabs.getByText('Território e clima')).toBeVisible()
-    expect(tabs.getByText('Histórico')).toBeVisible()
+    expect(tabs.getByText('Registro')).toBeVisible()
+    expect(tabs.getByText('Território')).toBeVisible()
   })
 })

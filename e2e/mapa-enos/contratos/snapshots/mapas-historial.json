@@ -5,6 +5,15 @@
         "Funcionamiento: habitual → parcial"
       ],
       "creadaEn": "<fecha>",
+      "eventos": [
+        {
+          "afectacionId": null,
+          "motivo": null,
+          "paso": "Edificio: parcial",
+          "texto": "Edificio: parcial",
+          "tipo": "general"
+        }
+      ],
       "id": "<uuid:1>",
       "rigeDesde": "<fecha>",
       "rol": "director",
@@ -17,7 +26,16 @@
         "Se dejó de informar Corte de luz"
       ],
       "creadaEn": "<fecha>",
-      "id": "<uuid:2>",
+      "eventos": [
+        {
+          "afectacionId": "<uuid:2>",
+          "motivo": "Corte de luz",
+          "paso": "Resuelta",
+          "texto": "Resuelta: Corte de luz",
+          "tipo": "solucionada"
+        }
+      ],
+      "id": "<uuid:3>",
       "rigeDesde": "<fecha>",
       "rol": "director",
       "severidad": null,
@@ -30,7 +48,17 @@
         "Gravedad Alta"
       ],
       "creadaEn": "<fecha>",
-      "id": "<uuid:3>",
+      "eventos": [
+        {
+          "afectacionId": "<uuid:2>",
+          "motivo": "Corte de luz",
+          "paso": "Alta",
+          "severidad": "Alta",
+          "texto": "Nueva: Corte de luz · alta",
+          "tipo": "nueva"
+        }
+      ],
+      "id": "<uuid:4>",
       "rigeDesde": "<fecha>",
       "rol": "director",
       "severidad": "Alta",
@@ -42,7 +70,17 @@
         "Situación: Inundación"
       ],
       "creadaEn": "<fecha>",
-      "id": "<uuid:4>",
+      "eventos": [
+        {
+          "afectacionId": "<uuid:5>",
+          "motivo": "Inundación",
+          "paso": "↑ Media",
+          "severidad": "Media",
+          "texto": "Inundación pasó a media",
+          "tipo": "gravedad"
+        }
+      ],
+      "id": "<uuid:6>",
       "rigeDesde": "<fecha>",
       "rol": "director",
       "severidad": "Media",
@@ -55,7 +93,17 @@
         "Gravedad Baja"
       ],
       "creadaEn": "<fecha>",
-      "id": "<uuid:5>",
+      "eventos": [
+        {
+          "afectacionId": "<uuid:5>",
+          "motivo": "Inundación",
+          "paso": "Baja",
+          "severidad": "Baja",
+          "texto": "Nueva: Inundación · baja",
+          "tipo": "nueva"
+        }
+      ],
+      "id": "<uuid:7>",
       "rigeDesde": "<fecha>",
       "rol": "director",
       "severidad": "Baja",
