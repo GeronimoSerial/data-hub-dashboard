@@ -18,12 +18,27 @@ export function roleIsHubConfined(role: Role | null | undefined): boolean {
   return hubConfined({ id: '', role, banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] })
 }
 
+function isSchoolOperator(user: SessionUser): boolean {
+  return user.role === 'operador_establecimiento' && Boolean(user.cueAnexo)
+}
+
 // Hub paths a confined user may reach, and the capability that grants each.
-const CONFINED_AREAS: ReadonlyArray<{ pattern: RegExp; capability: Capability }> = [
+// `allowed` narrows a capability that other confined roles also hold.
+const CONFINED_AREAS: ReadonlyArray<{
+  pattern: RegExp
+  capability: Capability
+  allowed?: (user: SessionUser) => boolean
+}> = [
   { pattern: /^\/mapas\/infraestructura(\/|$)/, capability: 'infra.map.read' },
   { pattern: /^\/infraestructura\/cargar(\/|$)/, capability: 'infra.cargar' },
   { pattern: /^\/problematicas\/parte\/nuevo$/, capability: 'parte.access' },
   { pattern: /^\/call-center(\/|$)/, capability: 'callcenter.access' },
+  // Booklet receipt for schools: only these three exact paths of /cuadernillos and /api/cuadernillos.
+  ...[
+    /^\/cuadernillos\/recepcion\/?$/,
+    /^\/api\/cuadernillos\/recepciones\/?$/,
+    /^\/api\/cuadernillos\/remito-lineas\/[^/]+\/recibir\/?$/,
+  ].map((pattern) => ({ pattern, capability: 'parte.access' as const, allowed: isSchoolOperator })),
 ]
 
 export function confinedAreaCapability(path: string): Capability | null {
@@ -34,8 +49,10 @@ export function confinedAreaCapability(path: string): Capability | null {
 
 /** Whether a confined user holds the capability behind this path. Non-confined users never reach here. */
 export function confinedPathAllowed(user: SessionUser, path: string): boolean {
-  const capability = confinedAreaCapability(path)
-  return capability !== null && can(user, capability)
+  if (user.banned) return false
+  const pathname = safePathname(path)
+  const area = pathname ? CONFINED_AREAS.find(({ pattern }) => pattern.test(pathname)) : undefined
+  return area !== undefined && can(user, area.capability) && (area.allowed?.(user) ?? true)
 }
 
 /** Post-login home of a confined user, or null when the user is not confined or has no area. */
