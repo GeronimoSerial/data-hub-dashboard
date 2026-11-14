@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { BookletServiceError, setQuota } from '@/lib/cuadernillos/inventory'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -23,7 +24,13 @@ async function handlePOST(request: Request) {
   const parsed = schema.safeParse(body)
   if (!parsed.success) return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: noStore })
   try {
-    const quota = await setQuota(actor!, parsed.data)
+    const quota = await cambioAuditado(() => setQuota(actor!, parsed.data), () => ({
+      status: 200,
+      objetoTipo: 'cuadernillo_cuota',
+      objetoId: parsed.data.productId,
+      cueAnexo: parsed.data.cabeceraCueAnexo,
+      metadatos: { cantidad: parsed.data.quantity },
+    }))
     return Response.json({ quota }, { status: 200, headers: noStore })
   } catch (error) {
     if (error instanceof BookletServiceError) return Response.json({ error: error.code }, { status: error.status, headers: noStore })
@@ -31,4 +38,4 @@ async function handlePOST(request: Request) {
   }
 }
 
-export const POST = ruta('cuadernillos.quotas.post', handlePOST)
+export const POST = conAuditoria('cuadernillo.cuota_guardar', '/api/cuadernillos/quotas', ruta('cuadernillos.quotas.post', handlePOST))

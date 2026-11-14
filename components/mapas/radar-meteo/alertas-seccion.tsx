@@ -2,6 +2,8 @@
 
 import { useState, type JSX } from 'react'
 import { formatearVentanaAlerta, type GrupoAlertaRadar } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export function AlertasSeccion(props: {
   grupos: GrupoAlertaRadar[]
@@ -11,30 +13,31 @@ export function AlertasSeccion(props: {
   onSeleccionar: (clave: string | null) => void
 }): JSX.Element {
   const { grupos, cargando, error, claveSeleccionada, onSeleccionar } = props
+  const t = useTextos()
   const [mostrarTodas, setMostrarTodas] = useState(false)
   const grupoSeleccionado = grupos.find((grupo) => grupo.clave === claveSeleccionada)
   const mostrarTodo = mostrarTodas || Boolean(grupoSeleccionado && grupos.indexOf(grupoSeleccionado) >= 4)
   const gruposVisibles = grupos.length > 4 && !mostrarTodo ? grupos.slice(0, 4) : grupos
 
   return (
-    <section id="radar-alertas-smn" aria-labelledby="radar-alertas-smn-titulo" className="map-radar-alertas">
-      <h3 id="radar-alertas-smn-titulo" className="map-sitact__titulo-seccion">Alertas del SMN</h3>
+    <section id="radar-alertas-smn" aria-labelledby="radar-alertas-smn-titulo" className="map-radar-alertas" data-testid="radar-alertas-smn">
+      <h3 id="radar-alertas-smn-titulo" className="map-sitact__titulo-seccion">{t.radar.alertas.titulo}</h3>
       {cargando ? (
-        <p role="status" className="map-sitact__vacio map-sitact__vacio--linea">Cargando alertas…</p>
+        <p role="status" className="map-sitact__vacio map-sitact__vacio--linea">{t.radar.alertas.cargando}</p>
       ) : error ? (
-        <p className="map-sitact__vacio map-sitact__vacio--linea">No se pudieron cargar las alertas del SMN.</p>
+        <p className="map-sitact__vacio map-sitact__vacio--linea">{t.radar.alertas.error}</p>
       ) : grupos.length === 0 ? (
-        <p className="map-sitact__vacio map-sitact__vacio--linea">Sin alertas oficiales vigentes ni próximas · SMN</p>
+        <p className="map-sitact__vacio map-sitact__vacio--linea">{t.radar.alertas.vacio}</p>
       ) : (
         <>
           <div className="map-sitact__lista">
             {gruposVisibles.map((grupo) => {
               const seleccionada = grupo.clave === claveSeleccionada
-              const evento = `${grupo.proxima ? 'Próxima · ' : ''}${grupo.evento} · ${grupo.severidad}`
-              const departamentos = grupo.departamentos.length ? grupo.departamentos.join(', ') : 'Corrientes'
+              const evento = `${grupo.proxima ? t.radar.alertas.proxima : ''}${grupo.evento} · ${grupo.severidad}`
+              const departamentos = grupo.departamentos.length ? grupo.departamentos.join(', ') : regionPublicaActual().nombre
               const color = colorFranja(grupo.nivelSat)
               return (
-                <div className="map-radar-alertas__item" key={grupo.clave}>
+                <div className="map-radar-alertas__item" key={grupo.clave} data-testid="radar-alerta">
                   <button
                     type="button"
                     className="map-sitact__fila"
@@ -49,10 +52,10 @@ export function AlertasSeccion(props: {
                     </span>
                   </button>
                   {seleccionada ? (
-                    <div className="map-radar-alertas__detalle" role="region" aria-label={`Detalle: ${grupo.evento}`}>
+                    <div className="map-radar-alertas__detalle" role="region" aria-label={t.radar.alertas.detalleAria(grupo.evento)}>
                       <strong>{grupo.headline ?? grupo.evento}</strong>
                       {grupo.description ? <p>{grupo.description}</p> : null}
-                      {grupo.instruction ? <p>Recomendación oficial: {grupo.instruction}</p> : null}
+                      {grupo.instruction ? <p>{t.radar.alertas.recomendacion} {grupo.instruction}</p> : null}
                     </div>
                   ) : null}
                 </div>
@@ -68,7 +71,7 @@ export function AlertasSeccion(props: {
                 setMostrarTodas(!mostrarTodas)
               }}
             >
-              {mostrarTodo ? 'Ver menos' : `Ver las ${grupos.length} alertas`}
+              {mostrarTodo ? t.radar.alertas.verMenos : t.radar.alertas.verTodas(grupos.length)}
             </button>
           ) : null}
         </>

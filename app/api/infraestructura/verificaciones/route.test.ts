@@ -86,7 +86,9 @@ describe('GET /api/infraestructura/verificaciones', () => {
     expect(a.ok && b.ok).toBe(true)
 
     const filaA = await obtenerVerificacion(a.ok ? a.verificacion.id : '')
-    expect(filaA?.tokenHash).toBeTypeOf('string')
+    expect(filaA?.id).toBe(a.ok ? a.verificacion.id : '')
+    const hashA = a.ok ? a.verificacion.tokenHash : ''
+    expect(hashA).toBeTypeOf('string')
 
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     const res = await GET(
@@ -103,7 +105,7 @@ describe('GET /api/infraestructura/verificaciones', () => {
     for (const v of data.verificaciones) {
       expect('tokenHash' in v).toBe(false)
     }
-    expect(JSON.stringify(data)).not.toContain(filaA?.tokenHash)
+    expect(JSON.stringify(data)).not.toContain(hashA)
   })
 
   it('rechaza un estado inválido con 400', async () => {

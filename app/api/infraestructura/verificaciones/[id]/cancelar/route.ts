@@ -8,6 +8,7 @@ import { sinTokenHash } from '@/lib/infraestructura/verificacion-route'
 import {
   cancelarVerificacion,
 } from '@/lib/infraestructura/verificaciones'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -64,11 +65,16 @@ async function handlePOST(
     return jsonError(parsed.error.issues[0]?.message ?? 'Cuerpo inválido', 400, NO_STORE)
   }
 
-  const resultado = await cancelarVerificacion({
-    verificacionId: id,
-    actorUserId: user!.id,
-    motivo: parsed.data.motivo ?? null,
-  })
+  const resultado = await cambioAuditado(
+    () => cancelarVerificacion({
+      verificacionId: id,
+      actorUserId: user!.id,
+      motivo: parsed.data.motivo ?? null,
+    }),
+    valor => valor.ok
+      ? { status: 200, objetoTipo: 'verificacion', objetoId: id, cueAnexo: valor.verificacion.cueAnexo, metadatos: { verificacionId: id } }
+      : { status: valor.status, objetoTipo: 'verificacion', objetoId: id, metadatos: { verificacionId: id } },
+  )
 
   if (!resultado.ok) {
     return jsonError(mensajeMotivo(resultado.motivo), resultado.status, NO_STORE)
@@ -77,4 +83,8 @@ async function handlePOST(
   return jsonNoStore({ ok: true, verificacion: sinTokenHash(resultado.verificacion) })
 }
 
-export const POST = ruta('infraestructura.verificaciones.id.cancelar.post', handlePOST)
+export const POST = conAuditoria(
+  'verificacion.cancelar',
+  '/api/infraestructura/verificaciones/[id]/cancelar',
+  ruta('infraestructura.verificaciones.id.cancelar.post', handlePOST),
+)

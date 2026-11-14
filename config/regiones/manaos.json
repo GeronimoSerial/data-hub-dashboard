@@ -1,0 +1,44 @@
+{
+  "id": "manaos",
+  "nombre": "Manaos",
+  "pais": "BR",
+  "zonaHoraria": "America/Manaus",
+  "locale": "pt-BR",
+  "idiomas": ["pt", "es"],
+  "toleranciaBorde": 5,
+  "bboxPlausible": { "latMin": -3.7, "latMax": -2.3, "lonMin": -60.8, "lonMax": -59.2 },
+  "limitesMapa": [
+    [-60.45, -3.45],
+    [-59.6, -2.6]
+  ],
+  "bboxRuta": { "latMin": -3.45, "latMax": -2.6, "lonMin": -60.45, "lonMax": -59.6 },
+  "regionesInteresLluvia": [{ "lon": [-60.8, -59.2], "lat": [-3.7, -2.3] }],
+  "vistaInicial": { "centro": [-60.02, -3.12], "zoom": 9 },
+  "mapaCentro": [-60.02, -3.12],
+  "mapaZoom": 9,
+  "datasets": {
+    "unidadesAdministrativas": "departamentos",
+    "estacionesRio": "estacoes-ana",
+    "localizaciones": "localizaciones"
+  },
+  "cargaDatasets": [
+    { "clave": "localizaciones", "archivo": "data/regiones/manaos/localizaciones.json" },
+    { "clave": "departamentos", "archivo": "data/regiones/manaos/departamentos.json" },
+    { "clave": "mascara", "archivo": "data/regiones/manaos/mascara.json" },
+    { "clave": "estacoes-ana", "archivo": "data/regiones/manaos/estacoes-ana.json" }
+  ],
+  "fuentesRio": ["ana", "sgb"],
+  "fuentesAlertas": ["inmet"],
+  "fuenteDem": "fabdem",
+  "capasEstaticas": ["exposicion-rio-dem"],
+  "archivos": {
+    "mascara": "/data/mascara-manaos.geojson",
+    "departamentos": "/data/municipios-manaos.geojson"
+  },
+  "marca": {
+    "logo": null,
+    "reparticionesLineas": ["ENOS"],
+    "jurisdiccionLineas": ["Amazonas", "Brasil"],
+    "pieLineas": ["ENOS"]
+  }
+}

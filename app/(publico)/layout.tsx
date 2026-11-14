@@ -1,11 +1,21 @@
 import { MarcaCompacta, MarcaHorizontal, MarcaHorizontalInversa } from '@/components/marca'
+import { marcaPublica, regionActiva } from '@/lib/infraestructura/region'
+import { idiomaEfectivo } from '@/lib/i18n/idioma'
+import { IdiomaProvider } from '@/lib/i18n/idioma-provider'
+import { textos } from '@/lib/i18n'
 
 export default function PublicoLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const region = regionActiva()
+  const marca = marcaPublica(region)
+  // Sin usuario: el idioma es el de la región (la preferencia la pone la sesión).
+  const idioma = idiomaEfectivo({ preferencia: undefined, region })
+  const t = textos(idioma).shellHub.shell
   return (
+    <IdiomaProvider idioma={idioma}>
     <div className="publico-layout">
       {/* The public flow is where a school first meets this service, so it
           carries the full institutional signature, not a text stand-in. */}
@@ -18,10 +28,14 @@ export default function PublicoLayout({
           <span />
         </div>
         <div className="publico-header__inner">
-          <MarcaHorizontal className="publico-header__mark" />
-          <MarcaHorizontalInversa />
-          <MarcaCompacta />
-          <span className="publico-header__title">Hub de Datos</span>
+          {marca.logo ? (
+            <>
+              <MarcaHorizontal className="publico-header__mark" />
+              <MarcaHorizontalInversa />
+              <MarcaCompacta />
+            </>
+          ) : null}
+          <span className="publico-header__title">{t.producto}</span>
         </div>
       </header>
 
@@ -31,9 +45,10 @@ export default function PublicoLayout({
       <main className="publico-main">
         <div className="publico-main__body">{children}</div>
         <footer className="publico-footer">
-          Ministerio de Educación · Provincia de Corrientes
+          {marca.pieLineas.join(' · ')}
         </footer>
       </main>
     </div>
+    </IdiomaProvider>
   )
 }

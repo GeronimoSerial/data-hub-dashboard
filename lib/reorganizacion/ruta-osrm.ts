@@ -1,5 +1,6 @@
 // Parseo y normalización puros del proxy de recorridos (OSRM). Sin I/O: la
 // ruta HTTP se encarga de fetch, timeout y cancelación.
+import { regionActiva } from '@/lib/infraestructura/region'
 
 export interface Coordenada {
   lat: number
@@ -16,8 +17,8 @@ export type ResultadoOsrm =
   | { ok: true; ruta: RutaVial }
   | { ok: false; error: 'sin_ruta_vial' | 'proveedor_no_disponible' }
 
-// Caja de la provincia de Corrientes: fuera de ella no se calcula recorrido.
-export const CORRIENTES_BBOX = { latMin: -30.8, latMax: -27.0, lonMin: -59.7, lonMax: -55.6 } as const
+// Caja de la región activa (bboxRuta de config/regiones): fuera de ella no se calcula recorrido.
+export const CORRIENTES_BBOX = regionActiva().bboxRuta
 
 const NUMERO = '(-?\\d+(?:\\.\\d+)?)'
 const PAR_COORDENADAS = new RegExp(`^\\s*${NUMERO}\\s*,\\s*${NUMERO}\\s*$`)

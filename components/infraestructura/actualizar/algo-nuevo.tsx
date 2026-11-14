@@ -1,5 +1,6 @@
 'use client'
 
+import { localeRegion, zonaHorariaRegion } from '@/lib/infraestructura/formato-region'
 import { useEffect, useState, type JSX } from 'react'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type AfectacionBorrador } from '@/components/infraestructura/afectacion-campos'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
@@ -24,6 +25,11 @@ import {
 } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { VIGENCIA_AHORA, resolverVigencia, type EleccionVigencia } from '@/lib/infraestructura/vigencia-eleccion'
 import { impactoAlumnosEnContexto } from '@/lib/infraestructura/prioridad-alumnos'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+import { useTextos } from '@/lib/i18n/idioma-provider'
+
+type TextosCausa = Diccionario['parteAlgoNuevo']['causa']
 
 export interface AlgoNuevoProps {
   candidatasCausa: CandidataCausa[]
@@ -46,34 +52,34 @@ type DecisionDuplicado = 'distintos' | 'actualizar' | 'solucionada'
 function fechaCorta(fecha: string): string {
   const fechaValida = new Date(fecha)
   if (!Number.isFinite(fechaValida.getTime())) return fecha
-  return new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+  return new Intl.DateTimeFormat(localeRegion(), {
+    timeZone: zonaHorariaRegion(),
     day: 'numeric',
     month: 'long',
   }).format(fechaValida)
 }
 
-function fechaCausaLegible(fecha: string): string {
+function fechaCausaLegible(fecha: string, t: TextosCausa = es.parteAlgoNuevo.causa): string {
   const fechaValida = new Date(fecha)
   if (!Number.isFinite(fechaValida.getTime())) return fecha
   const fechaLocal = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone: zonaHorariaRegion(),
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(fechaValida)
   const hoy = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone: zonaHorariaRegion(),
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date())
   const ayerDate = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const ayer = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone: zonaHorariaRegion(),
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(ayerDate)
-  const dia = fechaLocal === hoy ? 'hoy' : fechaLocal === ayer ? 'ayer' : new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'long',
+  const dia = fechaLocal === hoy ? t.hoy : fechaLocal === ayer ? t.ayer : new Intl.DateTimeFormat(localeRegion(), {
+    timeZone: zonaHorariaRegion(), day: 'numeric', month: 'long',
   }).format(fechaValida).toLocaleLowerCase('es-AR')
-  const hora = new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+  const hora = new Intl.DateTimeFormat(localeRegion(), {
+    timeZone: zonaHorariaRegion(),
     hourCycle: 'h23',
     hour: '2-digit',
     minute: '2-digit',
@@ -81,21 +87,21 @@ function fechaCausaLegible(fecha: string): string {
   return `${dia} ${hora}`
 }
 
-function detalleCausa(candidata: CandidataCausa, cantidadSeccionesEscuela: number): string {
+function detalleCausa(candidata: CandidataCausa, cantidadSeccionesEscuela: number, t: TextosCausa = es.parteAlgoNuevo.causa): string {
   const partes: Array<string | undefined> = [candidata.severidad]
   if (candidata.carreras !== undefined) {
-    const alcance = contar(candidata.carreras, 'carrera', 'carreras')
-    partes.push(candidata.alumnos !== undefined ? `${alcance}, ${contar(candidata.alumnos, 'alumno', 'alumnos')}` : alcance)
+    const alcance = contar(candidata.carreras, t.carrera, t.carreras)
+    partes.push(candidata.alumnos !== undefined ? `${alcance}, ${contar(candidata.alumnos, t.alumno, t.alumnos)}` : alcance)
   } else if (candidata.secciones !== undefined) {
     if (cantidadSeccionesEscuela > 0 && candidata.secciones === cantidadSeccionesEscuela) {
-      partes.push('toda la escuela')
+      partes.push(t.todaLaEscuela)
     } else {
-      const alcance = `${candidata.secciones} ${candidata.secciones === 1 ? 'sección' : 'secciones'}`
-      partes.push(candidata.alumnos !== undefined ? `${alcance}, ${candidata.alumnos} ${candidata.alumnos === 1 ? 'alumno' : 'alumnos'}` : alcance)
+      const alcance = `${candidata.secciones} ${candidata.secciones === 1 ? t.seccion : t.secciones}`
+      partes.push(candidata.alumnos !== undefined ? `${alcance}, ${candidata.alumnos} ${candidata.alumnos === 1 ? t.alumno : t.alumnos}` : alcance)
     }
   }
-  partes.push(`desde ${fechaCausaLegible(candidata.fecha)}`)
-  if (!candidata.activa) partes.push('Solucionada')
+  partes.push(t.desde(fechaCausaLegible(candidata.fecha, t)))
+  if (!candidata.activa) partes.push(t.solucionada)
   return partes.filter(Boolean).join(' · ')
 }
 
@@ -139,6 +145,7 @@ export function AlgoNuevo({
   onActualizarExistente,
   onSolucionarExistente,
 }: AlgoNuevoProps): JSX.Element {
+  const t = useTextos().parteAlgoNuevo
   const [etapa, setEtapa] = useState<Etapa>(() => estado.nueva ? 'datos' : 'pregunta')
   const [hayAlgoNuevo, setHayAlgoNuevo] = useState<boolean | null>(() => estado.nueva ? true : null)
   const [causadaPorId, setCausadaPorId] = useState<string | null>(() => estado.nueva?.causadaPorId ?? null)
@@ -186,23 +193,23 @@ export function AlgoNuevo({
 
   function mensajeFaltantes(): string | null {
     const faltantes: string[] = []
-    if (!borrador.categoria) faltantes.push('el tipo')
-    if (!borrador.motivo) faltantes.push('el motivo')
-    if (!completaLaGravedad) faltantes.push('la gravedad')
+    if (!borrador.categoria) faltantes.push(t.faltantes.tipo)
+    if (!borrador.motivo) faltantes.push(t.faltantes.motivo)
+    if (!completaLaGravedad) faltantes.push(t.faltantes.gravedad)
     if (esInstituto) {
-      if ((borrador.carreras ?? []).length === 0) faltantes.push('al menos una carrera')
-      else if (borrador.categoria === 'alumnos' && carrerasSinAlumno(borrador.carreras ?? [], borrador.alumnosElegidos ?? []).length > 0) faltantes.push('al menos un alumno de cada carrera')
+      if ((borrador.carreras ?? []).length === 0) faltantes.push(t.faltantes.carrera)
+      else if (borrador.categoria === 'alumnos' && carrerasSinAlumno(borrador.carreras ?? [], borrador.alumnosElegidos ?? []).length > 0) faltantes.push(t.faltantes.alumnoDeCadaCarrera)
     } else if (borrador.categoria === 'establecimiento' && !borrador.alcanceEstablecimiento) {
-      faltantes.push('el alcance del establecimiento')
+      faltantes.push(t.faltantes.alcanceEstablecimiento)
     } else if (borrador.secciones.length === 0) {
-      faltantes.push('al menos una sección')
+      faltantes.push(t.faltantes.seccion)
     }
 
     if (faltantes.length === 0) return null
     const lista = faltantes.length === 1
       ? faltantes[0]
-      : `${faltantes.slice(0, -1).join(', ')} y ${faltantes[faltantes.length - 1]}`
-    return `Elija ${lista}.`
+      : `${faltantes.slice(0, -1).join(', ')}${t.faltantes.y}${faltantes[faltantes.length - 1]}`
+    return t.faltantes.elija(lista)
   }
 
   const textoFaltantes = mensajeFaltantes()
@@ -263,19 +270,19 @@ export function AlgoNuevo({
   }
 
   return (
-    <section className="algo-nuevo" aria-label="Situación nueva">
-      <h2 className={etapa === 'pregunta' ? 'asistente__titulo' : 'asistente__titulo asistente__titulo--rotulo'}>{etapa === 'pregunta' ? '¿Hay algo nuevo?' : 'Situación nueva'}</h2>
+    <section className="algo-nuevo" aria-label={t.nueva}>
+      <h2 className={etapa === 'pregunta' ? 'asistente__titulo' : 'asistente__titulo asistente__titulo--rotulo'}>{etapa === 'pregunta' ? t.pregunta.titulo : t.nueva}</h2>
       {etapa === 'pregunta' ? (
         <>
-          <fieldset className="afectacion-campos__grupo" aria-label="¿Hay algo nuevo?">
+          <fieldset className="afectacion-campos__grupo" aria-label={t.pregunta.titulo}>
             <div className="afectacion-campos__opciones">
-              <Opcion tipo="radio" name="algo-nuevo" checked={hayAlgoNuevo === false} onChange={() => { setHayAlgoNuevo(false); onTerminar(null) }} label="No" />
-              <Opcion tipo="radio" name="algo-nuevo" checked={hayAlgoNuevo === true} onChange={() => { setHayAlgoNuevo(true); setEtapa('datos') }} label="Sí, agregar una situación nueva" />
+              <Opcion tipo="radio" name="algo-nuevo" checked={hayAlgoNuevo === false} onChange={() => { setHayAlgoNuevo(false); onTerminar(null) }} label={t.no} />
+              <Opcion tipo="radio" name="algo-nuevo" checked={hayAlgoNuevo === true} onChange={() => { setHayAlgoNuevo(true); setEtapa('datos') }} label={t.pregunta.si} />
             </div>
           </fieldset>
           {hayAlgoNuevo ? (
             <div className="asistente__acciones asistente__acciones--pegada">
-              <Button type="button" onClick={() => setEtapa('datos')}>Continuar</Button>
+              <Button type="button" onClick={() => setEtapa('datos')}>{t.continuar}</Button>
             </div>
           ) : null}
         </>
@@ -284,18 +291,18 @@ export function AlgoNuevo({
       {etapa === 'causa' ? (
         <>
           <fieldset className="afectacion-campos__grupo">
-            <legend className="afectacion-campos__legend">¿Se originó por alguna de estas situaciones?</legend>
+            <legend className="afectacion-campos__legend">{t.causa.titulo}</legend>
             <div className="afectacion-campos__opciones algo-nuevo__causas">
               <Opcion
                 tipo="radio"
                 name="causa-problema-nuevo"
                 checked={causadaPorId === null}
                 onChange={() => setCausadaPorId(null)}
-                label="No, es independiente"
+                label={t.causa.independiente}
                 compacta
               />
               {candidatasVisibles.map((candidata) => {
-                const detalle = detalleCausa(candidata, cantidadSeccionesEscuela)
+                const detalle = detalleCausa(candidata, cantidadSeccionesEscuela, t.causa)
                 return (
                   <Opcion
                     key={candidata.id}
@@ -319,14 +326,14 @@ export function AlgoNuevo({
                 aria-haspopup="dialog"
                 onClick={() => setAnterioresAbiertas(true)}
               >
-                Ver anteriores ({candidatasCerradas.length})
+                {t.causa.verAnteriores(candidatasCerradas.length)}
               </Button>
             ) : null}
           </fieldset>
-          <BottomSheet open={anterioresAbiertas} titulo="Situaciones anteriores" onCerrar={() => setAnterioresAbiertas(false)}>
+          <BottomSheet open={anterioresAbiertas} titulo={t.causa.anterioresTitulo} onCerrar={() => setAnterioresAbiertas(false)}>
             <div className="afectacion-campos__opciones">
               {candidatasCerradas.map((candidata) => {
-                const detalle = detalleCausa(candidata, cantidadSeccionesEscuela)
+                const detalle = detalleCausa(candidata, cantidadSeccionesEscuela, t.causa)
                 return (
                   <Opcion
                     key={candidata.id}
@@ -347,9 +354,9 @@ export function AlgoNuevo({
             </div>
           </BottomSheet>
           <div className="asistente__acciones asistente__acciones--pegada">
-            <Button type="button" variant="secondary" onClick={() => setEtapa('datos')}>Volver</Button>
+            <Button type="button" variant="secondary" onClick={() => setEtapa('datos')}>{t.volver}</Button>
             <Button type="button" onClick={terminar}>
-              Continuar
+              {t.continuar}
             </Button>
           </div>
         </>
@@ -358,7 +365,7 @@ export function AlgoNuevo({
       {etapa === 'datos' ? (
         <div className="algo-nuevo__datos">
           <div className="asistente__cuerpo">
-            <h2 className="asistente__titulo">¿Qué pasó?</h2>
+            <h2 className="asistente__titulo">{t.datos.queOcurrio}</h2>
             <CamposQuePaso
               borrador={borrador}
               idPrefijo="algo-nuevo"
@@ -369,7 +376,7 @@ export function AlgoNuevo({
               onChange={cambiarBorrador}
             />
             <div className="afectacion-campos__grupo">
-              <Label htmlFor="algo-nuevo-descripcion">Descripción (opcional)</Label>
+              <Label htmlFor="algo-nuevo-descripcion">{t.datos.descripcion}</Label>
               <Textarea
                 id="algo-nuevo-descripcion"
                 maxLength={500}
@@ -379,7 +386,7 @@ export function AlgoNuevo({
             </div>
           </div>
           <div className="asistente__cuerpo">
-            <h2 className="asistente__titulo">¿A quiénes afecta?</h2>
+            <h2 className="asistente__titulo">{t.datos.aQuienAfecta}</h2>
             {esInstituto ? (
               <InstitutoCamposAQuienAfecta
                 cue={cue}
@@ -410,9 +417,9 @@ export function AlgoNuevo({
               aria-describedby={textoFaltantes ? 'algo-nuevo-faltantes' : undefined}
               onClick={continuarDesdeDatos}
             >
-              Continuar
+              {t.continuar}
             </Button>
-            <Button type="button" variant="secondary" className="algo-nuevo__volver" onClick={() => setEtapa('pregunta')}>Volver</Button>
+            <Button type="button" variant="secondary" className="algo-nuevo__volver" onClick={() => setEtapa('pregunta')}>{t.volver}</Button>
             {textoFaltantes ? <p id="algo-nuevo-faltantes" className="algo-nuevo__faltantes" role="status">{textoFaltantes}</p> : null}
           </div>
         </div>
@@ -421,9 +428,9 @@ export function AlgoNuevo({
       <ConfirmSheet
         open={situacionPendiente !== null}
         titulo={situacionPendiente
-          ? `Ya tiene activa "${situacionPendiente.motivo}" desde el ${fechaCorta(situacionPendiente.rigeDesde)}. ¿Qué pasó con esa?`
+          ? t.duplicado.titulo(situacionPendiente.motivo, fechaCorta(situacionPendiente.rigeDesde))
           : ''}
-        confirmarLabel="Continuar"
+        confirmarLabel={t.continuar}
         confirmarDeshabilitado={decisionDuplicado === null || (decisionDuplicado === 'solucionada' && resolverVigencia(cuandoSolucionada) === null)}
         onCancelar={() => {
           setMotivoPendiente(null)
@@ -433,12 +440,12 @@ export function AlgoNuevo({
         onConfirmar={confirmarMotivoPendiente}
       >
         <div className="afectacion-campos__opciones">
-          <Opcion tipo="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'distintos'} onChange={() => setDecisionDuplicado('distintos')} label="Son dos situaciones distintas a la vez" compacta />
-          <Opcion tipo="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'actualizar'} onChange={() => setDecisionDuplicado('actualizar')} label="Sigue igual: es la misma, quiero actualizarla" compacta />
-          <Opcion tipo="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'solucionada'} onChange={() => setDecisionDuplicado('solucionada')} label="Se solucionó y esto es una situación nueva" compacta />
+          <Opcion tipo="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'distintos'} onChange={() => setDecisionDuplicado('distintos')} label={t.duplicado.distintos} compacta />
+          <Opcion tipo="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'actualizar'} onChange={() => setDecisionDuplicado('actualizar')} label={t.duplicado.actualizar} compacta />
+          <Opcion tipo="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'solucionada'} onChange={() => setDecisionDuplicado('solucionada')} label={t.duplicado.solucionada} compacta />
         </div>
         {decisionDuplicado === 'solucionada' ? (
-          <VigenciaChips value={cuandoSolucionada} onChange={setCuandoSolucionada} label="¿Cuándo se solucionó?" />
+          <VigenciaChips value={cuandoSolucionada} onChange={setCuandoSolucionada} label={t.cuandoSolucionada} />
         ) : null}
       </ConfirmSheet>
     </section>

@@ -1,5 +1,7 @@
 import type { JSX } from 'react'
+import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
 import type { RolMovimiento, TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import type { EventoMovimiento } from '@/lib/infraestructura/movimiento-eventos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import {
   debeMostrarRigeDesde,
@@ -22,11 +24,8 @@ export interface MovimientoHistorial {
   titulo: string
   cambios: string[]
   severidad?: Severidad | null
-}
-
-const ROL_TEXTO: Record<RolMovimiento, string> = {
-  director: 'Director',
-  supervisor: 'Supervisor',
+  /** Short per-situation events; absent in older payloads and test fixtures. */
+  eventos?: EventoMovimiento[]
 }
 
 /**
@@ -37,8 +36,12 @@ const ROL_TEXTO: Record<RolMovimiento, string> = {
  * contenedor (historial-parte.tsx) resuelve la carga y el orden.
  */
 export function HistorialMovimiento({ movimiento }: { movimiento: MovimientoHistorial }): JSX.Element {
-  const carga = formatearMomentoHistorial(movimiento.creadaEn)
-  const rol = ROL_TEXTO[movimiento.rol] ?? movimiento.rol
+  const idioma = useIdioma()
+  const t = useTextos().fichaHistorial
+  // "Supervisor" se escribe igual en portugués: no va al diccionario (ver fichaHistorial).
+  const rolTexto: Record<RolMovimiento, string> = { director: t.rol.director, supervisor: 'Supervisor' }
+  const carga = formatearMomentoHistorial(movimiento.creadaEn, undefined, idioma)
+  const rol = rolTexto[movimiento.rol] ?? movimiento.rol
   const mostrarVigencia = debeMostrarRigeDesde(movimiento.creadaEn, movimiento.rigeDesde)
   const cambios = movimiento.cambios.filter((cambio) => cambio !== movimiento.titulo)
 
@@ -52,7 +55,7 @@ export function HistorialMovimiento({ movimiento }: { movimiento: MovimientoHist
       </p>
 
       {mostrarVigencia ? (
-        <p className="historial-movimiento__vigencia">{formatearRigeDesde(movimiento.rigeDesde)}</p>
+        <p className="historial-movimiento__vigencia">{formatearRigeDesde(movimiento.rigeDesde, idioma)}</p>
       ) : null}
 
       <p className="historial-movimiento__titulo">{movimiento.titulo}</p>

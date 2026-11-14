@@ -16,6 +16,14 @@ vi.mock('@/lib/db/hub', () => ({ loadHubCatalog: mocks.loadHubCatalog }))
 vi.mock('@/lib/usuarios', () => ({ mutateUsuariosDenied: mocks.mutateUsuariosDenied, getHubUserSession: mocks.getHubUserSession }))
 vi.mock('@/lib/hub-entry-server', () => ({ serverHubPathAllowedByExistingAcl: mocks.allowed }))
 
+import { beforeAll } from 'vitest'
+import { migrarDb } from '@/lib/db'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+
+// Fixture: cada intento deja un evento en auditoria_evento, así que la ruta necesita una base migrada.
+usarDbTemporal('usuarios-opciones-fixture-', { seed: false })
+beforeAll(async () => { await migrarDb() })
+
 import { GET, POST } from './route'
 
 describe('/api/usuarios/opciones', () => {

@@ -1,10 +1,11 @@
 import ExcelJS from 'exceljs'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionUser } from '@/lib/acl'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { listarEscuelasMapaEnriquecidas } from '@/lib/infraestructura/parte-mapa'
 import { GET as radarGET } from '@/app/api/infraestructura/radar/route'
 import { GET } from './route'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { invalidarCacheExportaciones } from '@/lib/exportaciones/consulta'
 import * as exportacionesEscuelas from '@/lib/exportaciones/escuelas'
 
@@ -90,6 +91,12 @@ async function hojaDeTabla(res: Response) {
 async function filasDelLibro(res: Response): Promise<string[]> {
   return (await hojaDeTabla(res)).nombres
 }
+
+usarDbTemporal('exportar-route-', { seed: false })
+beforeAll(async () => {
+  const { migrarDb } = await import('@/lib/db')
+  await migrarDb()
+})
 
 describe('GET /api/infraestructura/exportar', () => {
   beforeEach(() => {

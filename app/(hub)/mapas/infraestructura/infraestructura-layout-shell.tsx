@@ -5,6 +5,9 @@ import { usePathname } from 'next/navigation'
 import { InfraestructuraMapClient } from './map-client'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { useFullscreenTarget } from '@/components/ui/use-fullscreen-element'
+import { SelectorIdioma } from '@/components/mapas/selector-idioma'
+import type { Idioma } from '@/lib/i18n/idioma'
+import estilos from './map-header.module.css'
 
 export interface InfraestructuraLayoutShellProps {
   mostrarEnlaceNominal: boolean
@@ -13,6 +16,9 @@ export interface InfraestructuraLayoutShellProps {
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
+  mostrarSelectorIdioma?: boolean
+  idioma?: Idioma
+  idiomasRegion?: readonly Idioma[]
   children: React.ReactNode
 }
 
@@ -28,6 +34,9 @@ export function InfraestructuraLayoutShell({
   hazardContextEnabled = false,
   riskRadarEnabled = false,
   seasonalEnabled = false,
+  mostrarSelectorIdioma = false,
+  idioma = 'es',
+  idiomasRegion = ['es'],
   children,
 }: InfraestructuraLayoutShellProps) {
   const pathname = usePathname()
@@ -49,6 +58,11 @@ export function InfraestructuraLayoutShell({
       {pantallaCompleta && !enMapa && (
         <div className="infraestructura-pantalla-completa__acciones">
           <FullscreenButton targetRef={pantallaCompletaRef} />
+        </div>
+      )}
+      {mostrarSelectorIdioma && (
+        <div className={estilos.idiomaBarra}>
+          <SelectorIdioma idioma={idioma} idiomas={idiomasRegion} />
         </div>
       )}
       <div className="infraestructura-pantalla-completa__contenido">

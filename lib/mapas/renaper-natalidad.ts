@@ -18,10 +18,18 @@ export function extraerSerieRenaper(series: unknown): SerieRenaper {
   return result
 }
 
+// RENAPER natalidad is declared Corrientes-only (see the natalidad module), so the
+// region name and department count are Corrientes values, not read from the active region.
+const NOMBRE_PROVINCIA_RENAPER = 'Corrientes'
+export const DEPARTAMENTOS_ESPERADOS_CORRIENTES = 25
+
 export function construirSnapshotRenaper(
   departamentos: Record<string, SerieRenaper>, provincia: SerieRenaper, extraidoEn: string,
+  cantidadEsperada: number = DEPARTAMENTOS_ESPERADOS_CORRIENTES,
 ) {
-  if (Object.keys(departamentos).length !== 25) throw new Error('Expected all 25 Corrientes departments')
+  if (Object.keys(departamentos).length !== cantidadEsperada) {
+    throw new Error(`Expected all ${cantidadEsperada} ${NOMBRE_PROVINCIA_RENAPER} departments`)
+  }
   const validate = (serie: SerieRenaper) => extraerSerieRenaper([{ data: Object.entries(serie).map(([x, y]) => ({ x: Number(x), y })) }])
   validate(provincia)
   Object.values(departamentos).forEach(validate)
@@ -36,7 +44,7 @@ export function construirSnapshotRenaper(
       corteFuente: '2026-09', extraidoEn, anios: ANIOS_RENAPER,
       metodologia: 'Registros administrativos de personas identificadas con DNI; residencia al nacimiento. Serie independiente de DEIS.',
     },
-    provincia: { nombre: 'Corrientes', serie: provincia },
+    provincia: { nombre: NOMBRE_PROVINCIA_RENAPER, serie: provincia },
     departamentos: Object.fromEntries(Object.entries(departamentos).map(([nombre, serie]) => [nombre, { nombre, serie }])),
     conciliacion,
   }

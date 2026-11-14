@@ -1,24 +1,28 @@
-const FORMATO_FECHA = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'America/Argentina/Buenos_Aires',
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
+import { formatoFechaRegion } from '../formato-region'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 function fechaCorta(iso: string): string {
-  const partes = Object.fromEntries(FORMATO_FECHA.formatToParts(new Date(iso)).map((p) => [p.type, p.value]))
+  const formato = formatoFechaRegion('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+  const partes = Object.fromEntries(formato.formatToParts(new Date(iso)).map((p) => [p.type, p.value]))
   return `${partes.day}/${partes.month} ${partes.hour}:${partes.minute}`
 }
 
 export type EstadoRio = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 
-export const ETIQUETA_ESTADO_RIO: Record<EstadoRio, string> = {
-  evacuacion: 'Evacuación',
-  alerta: 'Alerta',
-  normal: 'Normal',
-  sin_dato: 'Sin dato',
+// Alerta y Normal se escriben igual en portugués: quedan literales, no en el diccionario.
+const ESTADO_RIO_IGUAL: Partial<Record<EstadoRio, string>> = { alerta: 'Alerta', normal: 'Normal' }
+
+function estadoRioTexto(estado: EstadoRio, t: Diccionario): string {
+  const igual = ESTADO_RIO_IGUAL[estado]
+  if (igual !== undefined) return igual
+  return estado === 'evacuacion' ? t.libTextos2.rio.estado.evacuacion : t.libTextos2.rio.estado.sinDato
 }
 
 export function metros(valor: number): string {
@@ -40,19 +44,20 @@ export function textoAlturaRio(entrada: {
   estado: EstadoRio
   alertaM: number | null
   evacuacionM: number | null
-}): TextoAlturaRio {
+}, t: Diccionario = es): TextoAlturaRio {
+  const rio = t.libTextos2.rio
   const umbrales = [
-    entrada.alertaM === null ? null : `alerta ${metros(entrada.alertaM)}`,
-    entrada.evacuacionM === null ? null : `evacuación ${metros(entrada.evacuacionM)}`,
+    entrada.alertaM === null ? null : rio.umbralAlerta(metros(entrada.alertaM)),
+    entrada.evacuacionM === null ? null : rio.umbralEvacuacion(metros(entrada.evacuacionM)),
   ].filter((parte): parte is string => parte !== null)
   return {
-    altura: `Altura del río: ${entrada.alturaM === null ? 'sin dato' : metros(entrada.alturaM)}`,
-    estado: ETIQUETA_ESTADO_RIO[entrada.estado],
+    altura: rio.altura(entrada.alturaM === null ? rio.alturaSinDato : metros(entrada.alturaM)),
+    estado: estadoRioTexto(entrada.estado, t),
     umbrales: umbrales.length > 0 ? umbrales.join(' · ') : null,
   }
 }
 
 /** 'Actualizado 13/10 20:03' (hora local), para el tooltip de un dato o sección. */
-export function textoActualizado(iso: string | null | undefined): string {
-  return iso ? `Actualizado ${fechaCorta(iso)}` : 'Sin fecha de actualización'
+export function textoActualizado(iso: string | null | undefined, t: Diccionario = es): string {
+  return iso ? t.libTextos2.actualizado.con(fechaCorta(iso)) : t.libTextos2.actualizado.sinFecha
 }

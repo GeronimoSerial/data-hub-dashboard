@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { JOBS_ESPERADOS, JOBS_ESPERADOS_PRODUCTOR, jobsEsperadosParaRol } from './jobs-esperados'
+import { aplicaJobARegion, filasRecibidas, JOBS_ESPERADOS, JOBS_ESPERADOS_PRODUCTOR, jobsEsperadosParaRol } from './jobs-esperados'
+import { regionActiva } from '../region/activa'
+import { cargarRegion } from '../region/registro'
 import { JOBS_OPEN_METEO } from './providers/rol-entorno'
 
 const porNombre = new Map(JOBS_ESPERADOS.map((job) => [job.nombre, job]))
@@ -18,6 +20,7 @@ describe('JOBS_ESPERADOS', () => {
     ['sync-synop-lluvia', 60],
     ['sync-prefectura-historico', 1440],
     ['importar-exposicion-rio-dem', 1440],
+    ['sonda-cadena-datos', 60],
   ])('vigila %s cada %i min en producción', (nombre, intervalo) => {
     expect(porNombre.get(nombre)).toMatchObject({ habilitado: true, intervaloMinutos: intervalo })
   })
@@ -50,10 +53,77 @@ describe('jobsEsperadosParaRol', () => {
     // INA no comparte cupo: el consumidor corre sus propios jobs INA.
     expect(consumidor.find((job) => job.nombre === 'sync-ina-serie-diaria')).toMatchObject({ habilitado: true })
     expect(consumidor.find((job) => job.nombre === 'sync-ina-pronostico')).toMatchObject({ habilitado: true })
-    expect(consumidor.map((job) => job.nombre)).toEqual(JOBS_ESPERADOS.map((job) => job.nombre))
+    // La sonda corre también en consumidor (sólo omite la comparación con Prefectura).
+    expect(consumidor.find((job) => job.nombre === 'sonda-cadena-datos')).toMatchObject({ habilitado: true })
+    // Los jobs de ANA y SGB (B12.2) no aplican a Corrientes: se compara la lista aplicable a la región activa.
+    expect(consumidor.filter((job) => aplicaJobARegion(job.nombre, regionActiva())).map((job) => job.nombre)).toEqual(
+      JOBS_ESPERADOS.map((job) => job.nombre),
+    )
+    // Guarda de Corrientes: la lista del consumidor aplicable a Corrientes es exactamente la de siempre.
+    expect(consumidor.filter((job) => aplicaJobARegion(job.nombre, cargarRegion('corrientes'))).map((job) => job.nombre)).toEqual([
+      'sync-radar-meteo',
+      'sync-radar-ensemble',
+      'sync-smn-alertas',
+      'verificar-radar-meteo',
+      'sync-imerg',
+      'climatologia-caudal',
+      'climatologia-precipitacion',
+      'climatologia-imerg',
+      'calcular-riesgo',
+      'sync-pronostico-caudal',
+      'sync-ensemble',
+      'situacion-corte',
+      'sonda-cadena-datos',
+      'episodios-derivados',
+      'sync-seasonal',
+      'sync-prefectura-alturas',
+      'veredicto-diario',
+      'veredicto-cierre',
+      'sync-synop-lluvia',
+      'sync-prefectura-historico',
+      'importar-exposicion-rio-dem',
+      'importar-altimetria-v04',
+      'sync-ina-serie-diaria',
+      'sync-ina-pronostico',
+    ])
   })
 
   it('en rol productor conserva la lista declarada', () => {
     expect(jobsEsperadosParaRol('productor')).toEqual(JOBS_ESPERADOS_PRODUCTOR)
+  })
+})
+
+describe('minimoFilas y contadorFilas (I2)', () => {
+  it('prefectura-alturas cuenta filasPublicadas (recibidas) con mínimo 1', () => {
+    expect(porNombre.get('sync-prefectura-alturas')).toMatchObject({ contadorFilas: 'filasPublicadas', minimoFilas: 1 })
+  })
+
+  it('ensamble y pronóstico de caudal cuentan filas con mínimo 1', () => {
+    expect(porNombre.get('sync-ensemble')).toMatchObject({ contadorFilas: 'filas', minimoFilas: 1 })
+    expect(porNombre.get('sync-pronostico-caudal')).toMatchObject({ contadorFilas: 'filas', minimoFilas: 1 })
+  })
+
+  it('exposición DEM cuenta las filas del archivo recibidas con mínimo 1', () => {
+    expect(porNombre.get('importar-exposicion-rio-dem')).toMatchObject({ contadorFilas: 'filas', minimoFilas: 1 })
+  })
+
+  it('IMERG no tiene mínimo: cero celdas es legítimo', () => {
+    const imerg = porNombre.get('sync-imerg')
+    expect(imerg?.minimoFilas).toBeUndefined()
+    expect(imerg?.contadorFilas).toBeUndefined()
+  })
+
+  it('todo job con mínimo declara el contador de filas que usa', () => {
+    for (const job of JOBS_ESPERADOS) {
+      if (job.minimoFilas !== undefined) expect(job.contadorFilas, job.nombre).toEqual(expect.any(String))
+    }
+  })
+
+  it('filasRecibidas lee el contador declarado y devuelve null si no hay dato', () => {
+    const alturas = porNombre.get('sync-prefectura-alturas')!
+    expect(filasRecibidas(alturas, { filasPublicadas: 7 })).toBe(7)
+    expect(filasRecibidas(alturas, { insertadas: 0 })).toBeNull()
+    expect(filasRecibidas(alturas, null)).toBeNull()
+    expect(filasRecibidas(porNombre.get('sync-imerg')!, { celdasActualizadas: 4 })).toBeNull()
   })
 })

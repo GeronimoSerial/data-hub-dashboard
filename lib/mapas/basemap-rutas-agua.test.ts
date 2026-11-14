@@ -26,14 +26,11 @@ describe('ajustesCapa', () => {
     expect(color).toEqual(['match', ['get', 'class'], ['track', 'unclassified'], COLOR_TIERRA, expect.any(String)])
   })
 
-  it('dashes intermittent waterways and keeps permanent ones solid', () => {
+  it('restyles waterway lines without a feature-dependent dash', () => {
     const ajustes = ajustesCapa({ id: 'waterway-river', type: 'line', 'source-layer': 'waterway' })
     expect(ajustes).toContainEqual(['paint', 'line-color', COLOR_AGUA_LINEA])
-    expect(ajustes).toContainEqual([
-      'paint',
-      'line-dasharray',
-      ['case', ['==', ['get', 'intermittent'], 1], ['literal', [3, 2]], ['literal', [1, 0]]],
-    ])
+    // maplibre-gl 6.3 throws in Program.draw when `line-dasharray` is a feature-dependent expression.
+    expect(ajustes.filter(([, propiedad]) => propiedad === 'line-dasharray')).toEqual([])
   })
 
   it('italicises waterway labels', () => {

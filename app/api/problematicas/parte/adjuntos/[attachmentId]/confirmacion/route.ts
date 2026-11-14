@@ -2,8 +2,11 @@ import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { infraAdjunto, infraMovimiento, infraParte } from '@/lib/db/schema'
+import { tieneAccesoPublico } from '@/lib/infraestructura/acceso-publico'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { confirmarAdjunto } from '@/lib/infraestructura/adjuntos/confirmacion'
+import { actorAuditoria, describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { getReportesOfflineFeatures, reportesOfflineFlagDisabledResponse } from '@/lib/infraestructura/parte/feature-flags'
 import { log } from '@/lib/http/log'
 import { ruta } from '@/lib/http/ruta'
@@ -60,6 +63,8 @@ async function handlePOST(request: Request, context: RouteContext): Promise<Resp
       // Lets clients holding a stale movement id rebind to the movement that owns the attachment.
       return Response.json({ code: 'not_found', movimientoId: movement.movimientoId }, { status: 404, headers: NO_STORE })
     }
+    if (tieneAccesoPublico(request)) actorAuditoria({ actorTipo: 'compartido', actorId: null, actorRol: null, viaAcceso: 'contrasena_compartida' })
+    describirAuditoria({ objetoTipo: 'adjunto', objetoId: attachmentId, cueAnexo: movement.cueAnexo })
 
     const result = await confirmarAdjunto({ attachmentId, movimientoId, optimizadaEtag, miniaturaEtag })
     if (!result.ok) return Response.json({ code: result.code, missingVariants: result.missingVariants }, { status: result.status, headers: NO_STORE })
@@ -78,4 +83,4 @@ async function handlePOST(request: Request, context: RouteContext): Promise<Resp
   }
 }
 
-export const POST = ruta('parte.adjuntos.attachmentId.confirmacion.post', handlePOST)
+export const POST = conAuditoria('foto.confirmar', '/api/problematicas/parte/adjuntos/[attachmentId]/confirmacion', ruta('parte.adjuntos.attachmentId.confirmacion.post', handlePOST))

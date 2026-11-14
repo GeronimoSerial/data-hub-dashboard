@@ -1,0 +1,115 @@
+{
+  "movimientos": [
+    {
+      "cambios": [
+        "Funcionamiento: habitual → parcial"
+      ],
+      "creadaEn": "<fecha>",
+      "eventos": [
+        {
+          "afectacionId": null,
+          "motivo": null,
+          "paso": "Edificio: parcial",
+          "texto": "Edificio: parcial",
+          "tipo": "general"
+        }
+      ],
+      "id": "<uuid:1>",
+      "rigeDesde": "<fecha>",
+      "rol": "director",
+      "severidad": null,
+      "tipo": "actualizacion",
+      "titulo": "Cambió el estado del edificio"
+    },
+    {
+      "cambios": [
+        "Se dejó de informar Corte de luz"
+      ],
+      "creadaEn": "<fecha>",
+      "eventos": [
+        {
+          "afectacionId": "<uuid:2>",
+          "motivo": "Corte de luz",
+          "paso": "Resuelta",
+          "texto": "Resuelta: Corte de luz",
+          "tipo": "solucionada"
+        }
+      ],
+      "id": "<uuid:3>",
+      "rigeDesde": "<fecha>",
+      "rol": "director",
+      "severidad": null,
+      "tipo": "actualizacion",
+      "titulo": "Se dejó de informar Corte de luz"
+    },
+    {
+      "cambios": [
+        "Se informó Corte de luz",
+        "Gravedad Alta"
+      ],
+      "creadaEn": "<fecha>",
+      "eventos": [
+        {
+          "afectacionId": "<uuid:2>",
+          "motivo": "Corte de luz",
+          "paso": "Alta",
+          "severidad": "Alta",
+          "texto": "Nueva: Corte de luz · alta",
+          "tipo": "nueva"
+        }
+      ],
+      "id": "<uuid:4>",
+      "rigeDesde": "<fecha>",
+      "rol": "director",
+      "severidad": "Alta",
+      "tipo": "actualizacion",
+      "titulo": "Se informó Corte de luz"
+    },
+    {
+      "cambios": [
+        "Situación: Inundación"
+      ],
+      "creadaEn": "<fecha>",
+      "eventos": [
+        {
+          "afectacionId": "<uuid:5>",
+          "motivo": "Inundación",
+          "paso": "↑ Media",
+          "severidad": "Media",
+          "texto": "Inundación pasó a media",
+          "tipo": "gravedad"
+        }
+      ],
+      "id": "<uuid:6>",
+      "rigeDesde": "<fecha>",
+      "rol": "director",
+      "severidad": "Media",
+      "tipo": "actualizacion",
+      "titulo": "Cambió la gravedad: Baja → Media"
+    },
+    {
+      "cambios": [
+        "Se informó Inundación",
+        "Gravedad Baja"
+      ],
+      "creadaEn": "<fecha>",
+      "eventos": [
+        {
+          "afectacionId": "<uuid:5>",
+          "motivo": "Inundación",
+          "paso": "Baja",
+          "severidad": "Baja",
+          "texto": "Nueva: Inundación · baja",
+          "tipo": "nueva"
+        }
+      ],
+      "id": "<uuid:7>",
+      "rigeDesde": "<fecha>",
+      "rol": "director",
+      "severidad": "Baja",
+      "tipo": "reporte_inicial",
+      "titulo": "Se informó Inundación"
+    }
+  ],
+  "ok": true
+}

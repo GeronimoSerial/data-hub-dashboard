@@ -26,7 +26,6 @@ import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import { MOTOR_VERSION, REGLAS_V04_VERSION, type ReglasMotor } from '../motor/config'
-import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
 import { riesgoReglasMotor } from '../flags'
 import { crearAdapterAltimetriaV04, type PuertoAltimetriaV04 } from '../motor-v04/altimetria-adaptador'
 import { CONFIG_V04, hashCanonico, type HorizonteV04 } from '../motor-v04/config'
@@ -41,6 +40,7 @@ import {
   HORIZONTES,
   TAMANO_CHUNK_INSERCION,
   calcularFilasEscuela,
+  construirPuertoRioRegion,
   construirPuertosReales,
   crearPuertosConCache,
   insertarEnChunks,
@@ -162,7 +162,7 @@ export async function calcularYPublicarRiesgo(params?: {
         puertos = observarPeligro240(
           crearPuertosConCache({
             ...construirPuertosReales({ reglas: 'v0.4', escenariosSubida: escenarios }),
-            rioPrefectura: crearAdapterRioPrefectura({ reglas: 'v0.4', escenarios, referencias, maximosEscala }),
+            rioPrefectura: construirPuertoRioRegion({ reglas: 'v0.4', escenarios, referencias, maximosEscala }),
           }),
           observadoPeligro,
         )

@@ -27,7 +27,7 @@ vi.mock('@/lib/db/seed', () => ({
 }))
 
 vi.mock('@/lib/db', () => ({
-  getDb: vi.fn(() => ({ fake: true })),
+  getDb: vi.fn(() => dbFalsa()),
 }))
 
 vi.mock('@/lib/infraestructura/veredicto/repositorio', () => ({
@@ -40,6 +40,11 @@ vi.mock('@/lib/infraestructura/veredicto/eventos-terreno', () => ({
 vi.mock('@/lib/infraestructura/veredicto/pdf', () => ({
   generarPdfVeredictos: vi.fn(),
 }))
+
+/** La auditoría inserta su evento en este objeto falso; no se guarda y `toHaveBeenCalledWith` no ve la propiedad no enumerable. */
+function dbFalsa() {
+  return Object.defineProperty({ fake: true }, 'insert', { value: () => ({ values: async () => undefined }) })
+}
 
 let GET: typeof Ruta.GET
 beforeAll(async () => { GET = (await import('./route')).GET })

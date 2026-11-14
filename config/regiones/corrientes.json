@@ -1,0 +1,46 @@
+{
+  "id": "corrientes",
+  "nombre": "Corrientes",
+  "pais": "AR",
+  "zonaHoraria": "America/Argentina/Buenos_Aires",
+  "locale": "es-AR",
+  "idiomas": ["es"],
+  "toleranciaBorde": 5,
+  "bboxPlausible": { "latMin": -32, "latMax": -26, "lonMin": -61, "lonMax": -54 },
+  "limitesMapa": [
+    [-59.710824, -30.730192],
+    [-55.620259, -27.253966]
+  ],
+  "bboxRuta": { "latMin": -30.8, "latMax": -27.0, "lonMin": -59.7, "lonMax": -55.6 },
+  "regionesInteresLluvia": [
+    { "lon": [-59.8, -55.6], "lat": [-30.8, -27.2] },
+    { "lon": [-56.1, -53.6], "lat": [-28.2, -25.4] }
+  ],
+  "vistaInicial": { "centro": [-58.15, -29.55], "zoom": 6.3 },
+  "mapaCentro": [-58.215, -28.811],
+  "mapaZoom": 8,
+  "datasets": {
+    "unidadesAdministrativas": "departamentos",
+    "estacionesRio": "estaciones-prefectura",
+    "localizaciones": "localizaciones"
+  },
+  "fuentesRio": ["prefectura", "ina"],
+  "fuentesAlertas": ["smn"],
+  "fuentesLluvia": ["synop"],
+  "capasEstaticas": ["exposicion-rio-dem"],
+  "estacionAncla": "pna-corrientes",
+  "sondaTestigos": {
+    "escuelas": ["1800643-00", "1801605-04", "1801131-00"],
+    "estaciones": ["pna-corrientes", "pna-paso-de-los-libres"]
+  },
+  "archivos": {
+    "mascara": "/data/mascara-corrientes.geojson",
+    "departamentos": "/data/departamentos-corrientes-georef-2026-09-27.geojson"
+  },
+  "marca": {
+    "logo": "educacion-corrientes",
+    "reparticionesLineas": ["Dirección de Sistemas de Información", "Dirección de Gestión Escolar"],
+    "jurisdiccionLineas": ["Provincia de Corrientes", "República Argentina"],
+    "pieLineas": ["Ministerio de Educación", "Provincia de Corrientes"]
+  }
+}

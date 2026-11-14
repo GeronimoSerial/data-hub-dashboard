@@ -29,21 +29,14 @@ import type {
 } from 'maplibre-gl'
 import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
 import type { PaddingOptions } from 'maplibre-gl'
-import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
+import { localeMaplibre } from '@/lib/i18n/locale-maplibre'
+import { useIdioma } from '@/lib/i18n/idioma-provider'
 // V8: MapLibre trae sus cadenas de UI (tooltips de controles, aria-labels) en
 // inglés por defecto. `locale` acepta la tabla `{ clave: texto }` de
 // `maplibre-gl` y sólo pisa las claves presentes en el objeto, así que acá se
 // declaran las que este mapa realmente monta: NavigationControl (zoom y
 // orientación), el canvas del mapa (`Map.Title`), los attr de atribución y los
 // del popup (`Popup.Close`). En español neutro y profesional.
-const LOCALE_MAPLIBRE_ES: Record<string, string> = {
-  'NavigationControl.ZoomIn': 'Acercar',
-  'NavigationControl.ZoomOut': 'Alejar',
-  'NavigationControl.ResetBearing': 'Arrastrar para rotar el mapa, clic para reiniciar al norte',
-  'Map.Title': 'Mapa',
-  'AttributionControl.ToggleAttribution': 'Mostrar u ocultar la atribución',
-  'Popup.Close': 'Cerrar',
-}
 import {
   MapPin,
 } from 'lucide-react'
@@ -63,6 +56,7 @@ import { ControlesZoom } from '@/components/mapas/controles-zoom'
 import { bboxGeometria } from '@/lib/mapas/geo'
 import { aquietarBasemap } from '@/lib/mapas/basemap-sereno'
 import { horaActualizacion, PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { PanelRadar } from '@/components/mapas/panel-radar'
 import { PanelPlanificacion } from '@/components/mapas/panel-planificacion'
 import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
@@ -159,10 +153,11 @@ export {
 } from '@/lib/infraestructura/mapa/punto'
 import { construirPuntosNivel, puntosRadarVisibles } from '@/lib/infraestructura/mapa/puntos-nivel'
 import { coloresRadar, escuelasPorRiesgo } from '@/lib/infraestructura/mapa/radar'
-import { coloresPlanificacion, ETIQUETA_NIVEL_PLAN, nivelPlanificacion, TITULO_LEYENDA_VISTA, VISTA_PLANIFICACION_DEFAULT, VISTAS_ESTRUCTURALES } from '@/lib/infraestructura/mapa/planificacion'
+import { coloresPlanificacion, etiquetaNivelPlan, nivelPlanificacion, tituloLeyendaVista, VISTA_PLANIFICACION_DEFAULT, VISTAS_ESTRUCTURALES } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
 import { mantenerPopupsVisibles } from '@/components/mapas/popups-visibles'
+import { instalarGanchoE2E } from '@/components/mapas/e2e-hook'
 import { puntosRiesgoSobreSituacion } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   iconosClusterMapa,
@@ -179,6 +174,8 @@ import {
 import { COLORES_MAPA_CLARO, coloresMapa } from '@/lib/mapas/colores-mapa'
 import { registrarImagenesSvg } from '@/lib/mapas/insignias-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
+import type { RegionPublica } from '@/lib/infraestructura/region/esquema'
+import { regionPublicaActual } from '@/lib/infraestructura/region/publica'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
 ensureMapWorker()
@@ -493,15 +490,6 @@ export function filtroIconoEscuelaSolucionada(): FilterSpecification {
   return ['all', ['!', ['has', 'point_count']], ['==', ['get', 'solucionadaReciente'], true]]
 }
 
-// Texto accesible de cada badge, sin depender de una segunda escala de color.
-const ETIQUETA_ICONO_ESTADO: Record<IconoPunto, string> = {
-  sin: ETIQUETA_ESTADO_CLASES.sin,
-  parcial: ETIQUETA_ESTADO_CLASES.parcial,
-  evacuado: ETIQUETA_ESTADO_CLASES.evacuado,
-  centro: ETIQUETA_ESTADO_CLASES.centro,
-  reloj: 'Sin actualizar',
-}
-
 // Popup del cruce de agua clickeado: misma forma (anclado al `lngLat` del
 // evento) que el del departamento. Guarda la CLASE del cruce, no su texto: la
 // etiqueta sale de `ETIQUETAS_CRUCE`, la única fuente de verdad del dominio.
@@ -628,7 +616,19 @@ function extraerEscuelasConCoordenadas(escuelas: EscuelaMapaPadron[]) {
 // listener 'change' además hace que el mapa reaccione en vivo si el usuario
 // cambia el ajuste de reduced-motion del sistema operativo, cosa que el
 // efecto one-shot viejo no hacía.
+// Vista inicial del radar: el centro y zoom de la región, no literales de Corrientes.
+export function vistaRadarDeRegion(region: RegionPublica): { center: [number, number]; zoom: number } {
+  return { center: region.vistaInicial.centro, zoom: region.vistaInicial.zoom }
+}
+
+// Fuente de departamentos cuando el GeoJSON no se pudo cargar (región sin
+// datasets publicados): las capas siguen montadas pero no dibujan nada, sin
+// volver a pedir la URL que ya respondió con error.
+const DEPARTAMENTOS_SIN_DATOS = { type: 'FeatureCollection' as const, features: [] }
+
 export default function MapInfraestructuraPage(props: {
+  // Región pública; por defecto la activa en el cliente.
+  region?: RegionPublica
   mostrarEnlaceNominal: boolean
   escuelasMapa: EscuelasMapaPadronResultado | null
   pestana: Exclude<PestanaMapa, 'estadisticas' | 'capas' | 'metodologia' | 'exportar'>
@@ -644,6 +644,7 @@ export default function MapInfraestructuraPage(props: {
   contenedorPantallaCompleta?: RefObject<HTMLElement | null>
   filtrosActivos?: FiltrosMapa
 }) {
+  const idiomaMapa = useIdioma()
   const panel = props.panel ?? props.pestana
   const panelLateral = panel === 'radar' && !(props.riskRadarEnabled ?? false) ? 'actual' : panel
   const styles = useOverlayStyles()
@@ -652,6 +653,8 @@ export default function MapInfraestructuraPage(props: {
   const mapRef = useRef<MapRef>(null)
   const soltarPopupsVisibles = useRef<(() => void) | null>(null)
   useEffect(() => () => soltarPopupsVisibles.current?.(), [])
+  const t = useTextos().panelesMapa
+  const dictMapa = useTextos()
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [capasVisibles, setCapasVisibles] = useState<CapasVisibles>(CAPAS_VISIBLES_DEFAULT)
   // Restored after mount (not in the initializer) so server and client render the same first frame.
@@ -790,13 +793,14 @@ export default function MapInfraestructuraPage(props: {
           bearing: map.getBearing(),
           pitch: map.getPitch(),
         }
-        map.flyTo({ center: [-58.15, -29.55], zoom: 6.3, duration: 900 })
+        const vista = vistaRadarDeRegion(props.region ?? regionPublicaActual())
+        map.flyTo({ center: vista.center, zoom: vista.zoom, duration: 900 })
       } else if (radarAnterior && vistaPreviaRadar.current) {
         map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
       }
     }
     setCruceInfoClic(null)
-  }, [modoRadar, props.pestana, props.riskRadarEnabled])
+  }, [modoRadar, props.pestana, props.riskRadarEnabled, props.region])
   // "Escuelas en riesgo hoy" outside Radar reuses the same engine snapshot.
   // Planificación › Riesgo hoy colorea el mapa con el motor: no depende de riskRadarEnabled
   // y reemplaza a la capa superpuesta para no dibujar el riesgo dos veces.
@@ -1013,6 +1017,19 @@ export default function MapInfraestructuraPage(props: {
       [Math.max(...puntos.map((p) => p[0])), Math.max(...puntos.map((p) => p[1]))]]
   }, [departamentosRaw])
 
+  // Sin departamentos (sin límites), el encuadre de la provincia cae a la vista
+  // inicial de la región en vez de fitBounds sobre un bbox inexistente.
+  const vistaInicialRegion = useMemo(
+    () => vistaRadarDeRegion(props.region ?? regionPublicaActual()),
+    [props.region],
+  )
+  const encuadrarProvincia = useCallback((opciones: { padding: PaddingOptions; duration?: number }) => {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa) return
+    if (limitesCorrientes) mapa.fitBounds(limitesCorrientes, opciones)
+    else mapa.flyTo({ center: vistaInicialRegion.center, zoom: vistaInicialRegion.zoom, duration: opciones.duration })
+  }, [limitesCorrientes, vistaInicialRegion])
+
   // Closing the preview deselects the school and returns to the province view.
   const cerrarFicha = useCallback(() => {
     setSeleccionCue(null)
@@ -1021,8 +1038,8 @@ export default function MapInfraestructuraPage(props: {
     setFichaPestana(null)
     setAvisoBusqueda(null)
     setCruceInfoClic(null)
-    mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia(), duration: 600 })
-  }, [limitesCorrientes])
+    encuadrarProvincia({ padding: paddingProvincia(), duration: 600 })
+  }, [encuadrarProvincia])
 
   useEffect(() => {
     const contenedor = mapRef.current?.getMap().getContainer()
@@ -1375,9 +1392,7 @@ export default function MapInfraestructuraPage(props: {
   const handleSeleccionarEscuelaBuscada = useCallback(
     (escuela: EscuelaMapaPadron, opciones?: { conservarCamara?: boolean }) => {
       if (escuela.lat === null || escuela.lon === null) {
-        setAvisoBusqueda(
-          `La escuela "${escuela.nombre}" no tiene ubicación cargada: se muestra la ficha, pero no se puede señalar en el mapa.`,
-        )
+        setAvisoBusqueda(t.mapaAvisoSinUbicacion(escuela.nombre))
         setEscuelaResaltada(null)
         setSeleccionCue(escuela.cueAnexo)
         setFichaCerradaCue(null)
@@ -1397,7 +1412,7 @@ export default function MapInfraestructuraPage(props: {
       setFichaCerradaCue(null)
       setFichaPestana(panelLateral)
     },
-    [panelLateral],
+    [panelLateral, t],
   )
 
   // Lista de riesgo, marcadores del radar y bloque territorial seleccionan por CUE.
@@ -1556,7 +1571,7 @@ export default function MapInfraestructuraPage(props: {
       if (limites) {
         mapRef.current?.getMap()?.fitBounds(limites, { padding: paddingEncuadre(), duration: 600 })
       } else {
-        mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia() })
+        encuadrarProvincia({ padding: paddingProvincia() })
       }
     }
   }, [
@@ -1565,7 +1580,7 @@ export default function MapInfraestructuraPage(props: {
     dataEscuelasMapaVisible,
     handleSeleccionarEscuelaBuscada,
     departamentoSeleccionado,
-    limitesCorrientes,
+    encuadrarProvincia,
     departamentosRaw,
     setCruceInfoClic,
     horasLluvia,
@@ -1644,6 +1659,7 @@ export default function MapInfraestructuraPage(props: {
     actualizarCuesNoAgrupados()
     const map = mapRef.current?.getMap()
     if (map) aquietarBasemap(map)
+    if (map && process.env.NEXT_PUBLIC_E2E === 'true') instalarGanchoE2E(map)
     if (map) {
       soltarPopupsVisibles.current?.()
       soltarPopupsVisibles.current = mantenerPopupsVisibles(map)
@@ -1711,23 +1727,29 @@ export default function MapInfraestructuraPage(props: {
           mutuamente excluyentes: nunca se muestran a la vez. */}
       {((loading && !data) || !limitesCorrientes) && (
         <div className={`${styles.panel} ${styles.titlePanel}`}>
-          {errorGeografia ? <>No se pudieron cargar los límites del mapa. <Button onClick={() => { setErrorGeografia(false); setIntentoGeografia((n) => n + 1) }}>Reintentar</Button></> : 'Cargando datos del mapa…'}
+          {errorGeografia ? <>{t.mapaErrorLimites} <Button onClick={() => { setErrorGeografia(false); setIntentoGeografia((n) => n + 1) }}>{t.mapaReintentar}</Button></> : t.mapaCargando}
         </div>
       )}
       <div className={styles.mapRoot}>
-        {limitesCorrientes && <MapGL
+        {/* El mapa se monta cuando hay límites o cuando la carga de departamentos falló de forma definitiva: sin datasets publicados el basemap igual aparece, con la vista de la región. Mientras carga, no se monta (el encuadre sale del bbox). */}
+        {(limitesCorrientes || errorGeografia) && <MapGL
           ref={mapRef}
           attributionControl={false}
           mapStyle={mapStyle}
           // Los estilos claro y oscuro son distintos: el diff descarta las fuentes propias sin emitir `style.load`.
           styleDiffing={false}
-          locale={LOCALE_MAPLIBRE_ES}
+          locale={localeMaplibre(idiomaMapa)}
           // Encuadre inicial ajustado a la provincia. MAP_CENTER/MAP_ZOOM son
           // los del mapa de matrícula y dejaban a Corrientes descentrada y
-          // demasiado cerca; acá el encuadre sale del bbox real del GeoJSON.
-          initialViewState={{
+          // demasiado cerca; acá el encuadre sale del bbox real del GeoJSON, y
+          // sin GeoJSON, de la vista inicial de la región.
+          initialViewState={limitesCorrientes ? {
             bounds: limitesCorrientes,
             fitBoundsOptions: { padding: paddingProvincia() },
+          } : {
+            longitude: vistaInicialRegion.center[0],
+            latitude: vistaInicialRegion.center[1],
+            zoom: vistaInicialRegion.zoom,
           }}
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
@@ -1758,7 +1780,7 @@ export default function MapInfraestructuraPage(props: {
           <Fragment key={versionEstilo}>
           <ControlesZoom
             mapRef={mapRef}
-            onVerProvincia={() => mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia(), duration: 600 })}
+            onVerProvincia={() => encuadrarProvincia({ padding: paddingProvincia(), duration: 600 })}
           />
           {/* La atribución compacta deja libre la esquina inferior derecha del mapa. */}
           <AttributionControl key={radarActivo ? 'radar-attribution' : 'map-attribution'} position={radarActivo ? 'top-right' : 'bottom-right'} compact />
@@ -1770,14 +1792,13 @@ export default function MapInfraestructuraPage(props: {
           {/*
             F2.4: `data` pasa a ser el GeoJSON ya cruzado con `escuelasCaidas`
             (departamentosGeojson) apenas termina de resolverse el fetch +
-            useMemo; hasta entonces cae a la URL, igual que antes — el
-            coalesce de fillPaintDepartamentos cubre ese instante sin
-            propiedad.
+            useMemo. Sin departamentos publicados la fuente queda vacía
+            (DEPARTAMENTOS_SIN_DATOS): el mapa monta igual y no dibuja límites.
           */}
           <Source
             id="infra-departamentos-src"
             type="geojson"
-            data={departamentosGeojson ?? DEPARTAMENTOS_INFRA_URL}
+            data={departamentosGeojson ?? DEPARTAMENTOS_SIN_DATOS}
           >
             <Layer
               id={CAPA_DEPARTAMENTOS_RELLENO_ID}
@@ -2090,7 +2111,7 @@ export default function MapInfraestructuraPage(props: {
           {!ocultarPartes && badgesEstado.length > 0 && (
             <ul className="sr-only" data-capa={CAPA_BADGE_ESTADO_ID}>
               {badgesEstado.map((badge) => (
-                <li key={badge.cueAnexo}>{`${ETIQUETA_ICONO_ESTADO[badge.icono]}: ${badge.nombre}`}</li>
+                <li key={badge.cueAnexo}>{`${badge.icono === 'reloj' ? t.sitSinActualizar : t.sitClases[badge.icono]}: ${badge.nombre}`}</li>
               ))}
             </ul>
           )}
@@ -2105,8 +2126,8 @@ export default function MapInfraestructuraPage(props: {
             >
               <span
                 role="img"
-                aria-label={`${badge.count} ${badge.count === 1 ? 'borrador sin enviar' : 'borradores sin enviar'}: ${badge.nombre}`}
-                title={`${badge.count} ${badge.count === 1 ? 'borrador sin enviar' : 'borradores sin enviar'}`}
+                aria-label={`${t.mapaBorradores(badge.count)}: ${badge.nombre}`}
+                title={t.mapaBorradores(badge.count)}
                 style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: TAMANO_BADGE_ESTADO, height: TAMANO_BADGE_ESTADO, padding: '0 4px', border: `1px solid ${anilloColor(mode === 'dark')}`, borderRadius: 999, background: 'var(--card)', color: 'var(--ink-soft)', boxShadow: `0 1px 3px ${coloresMapa(mode === 'dark').sombra}`, fontSize: 'var(--t-micro)', fontWeight: 700, lineHeight: 1 }}
               >
                 {badge.count}
@@ -2242,8 +2263,8 @@ export default function MapInfraestructuraPage(props: {
               </>
             )}
             subtitulos={{
-              actual: actualizadoEn && ahoraMs !== null ? horaActualizacion(actualizadoEn, ahoraMs) : undefined,
-              radar: 'Pronóstico',
+              actual: actualizadoEn && ahoraMs !== null ? horaActualizacion(actualizadoEn, ahoraMs, t) : undefined,
+              radar: t.mapaPronostico,
             }}
             actual={panelActual}
             radar={(
@@ -2308,7 +2329,7 @@ export default function MapInfraestructuraPage(props: {
         </div>
       )}
       {dataVisible && !fichaAbierta && !radarActivo && departamentoSeleccionado && (
-        <aside className="map-ficha-flotante" aria-label="Vista previa del departamento" data-testid="preview-departamento">
+        <aside className="map-ficha-flotante" aria-label={t.mapaAriaVistaPrevia} data-testid="preview-departamento">
           <ResumenDepartamento
             nombre={departamentoSeleccionado}
             totales={totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado)) ?? null}
@@ -2316,23 +2337,23 @@ export default function MapInfraestructuraPage(props: {
               entradaPuntosPendiente.current = true
               setPuntosVisibles(false)
               setDepartamentoSeleccionado(null)
-              mapRef.current?.getMap()?.fitBounds(limitesCorrientes!, { padding: paddingProvincia() })
+              encuadrarProvincia({ padding: paddingProvincia() })
             }}
           />
         </aside>
       )}
       {dataVisible && fichaAbierta && escuelaSeleccionada && (
-        <aside className="map-ficha-flotante" aria-label="Ficha de la escuela" data-testid="ficha-flotante">
+        <aside className="map-ficha-flotante" aria-label={t.mapaAriaFicha} data-testid="ficha-flotante">
               <FichaEscuelaPanel
                 key={seleccionCue}
                 escuela={escuelaSeleccionada}
                 borradoresServerCount={borradoresMapa.error ? null : (borradoresMapa.counts.get(escuelaSeleccionada.cueAnexo) ?? (borradoresMapa.loading ? null : 0))}
                 horizonteRiesgo={horizonteEfectivo}
                 planificacion={VISTAS_ESTRUCTURALES.map((vista) => ({
-                  etiquetaVista: TITULO_LEYENDA_VISTA[vista],
+                  etiquetaVista: tituloLeyendaVista(dictMapa, vista),
                   etiquetaNivel: vista === 'historial'
-                    ? `${ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })]} (${escuelaSeleccionada.situacionesHistoricas})`
-                    : ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })],
+                    ? `${etiquetaNivelPlan(dictMapa, nivelPlanificacion(escuelaSeleccionada, vista, { territorio }))} (${escuelaSeleccionada.situacionesHistoricas})`
+                    : etiquetaNivelPlan(dictMapa, nivelPlanificacion(escuelaSeleccionada, vista, { territorio })),
                 }))}
                 centroEvacuados={(
                   <BloqueCentroEvacuados
@@ -2381,7 +2402,7 @@ export default function MapInfraestructuraPage(props: {
           aria-haspopup="dialog"
           onClick={() => setVeredictoAbierto(true)}
         >
-          Veredicto diario
+          {t.mapaVeredicto}
         </Button>
       )}
       {/* Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración) */}

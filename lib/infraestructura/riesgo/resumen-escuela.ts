@@ -1,4 +1,7 @@
 import { textoAlturaRio } from '@/lib/infraestructura/presentacion/textos-dato'
+import { formatoFechaRegion } from '@/lib/infraestructura/formato-region'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 export type Nivel = 'bajo' | 'moderado' | 'alto' | 'muy_alto' | 'sin_dato'
 
@@ -35,72 +38,62 @@ export type PuntoResumen = {
 }
 
 export type ResumenEscuela = {
-  titulo: 'Situación de la escuela'
+  titulo: string
   conclusion: string
   puntos: PuntoResumen[]
 }
-
-const ZONA_HORARIA = 'America/Argentina/Buenos_Aires'
-
-const formatoFecha = new Intl.DateTimeFormat('en-GB', {
-  timeZone: ZONA_HORARIA,
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
 
 function formatoNumero(valor: number, decimales: number): string {
   return valor.toFixed(decimales).replace('.', ',')
 }
 
 export function fechaCorta(iso: string): string {
+  const formato = formatoFechaRegion('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
   const partes = Object.fromEntries(
-    formatoFecha.formatToParts(new Date(iso)).map((p) => [p.type, p.value]),
+    formato.formatToParts(new Date(iso)).map((p) => [p.type, p.value]),
   )
   return `${partes.day}/${partes.month} ${partes.hour}:${partes.minute}`
 }
 
-export function cantidadLluvia(mm: number): string {
-  if (mm < 1) return 'sin lluvia'
+export function cantidadLluvia(mm: number, t: Diccionario = es): string {
+  if (mm < 1) return t.libTextos2.lluvia.sinLluvia
   const decimal = Math.round(mm * 10) / 10
   const numero =
     decimal >= 10 ? String(Math.round(mm)) : Number.isInteger(decimal) ? String(decimal) : formatoNumero(decimal, 1)
   const categoria = mm < 20 ? 'poca' : mm < 50 ? 'moderada' : 'mucha'
-  return `${numero} mm (${categoria})`
+  return t.libTextos2.lluvia.cantidad(numero, categoria)
 }
 
-const TEXTO_MOTIVO = {
-  lluvia: 'lluvia',
-  rafagas: 'ráfagas',
-  caudal: 'crecida del río',
-} as const
-
-function puntoLluvia(entrada: EntradaResumen): PuntoResumen {
+function puntoLluvia(entrada: EntradaResumen, t: Diccionario): PuntoResumen {
   const { mm, hasta } = entrada.lluviaObservada72h
-  const valor = mm === null ? 'sin dato' : cantidadLluvia(mm)
-  return { texto: `Lluvia últimos 3 días: ${valor}`, actualizado: hasta, vencido: false }
+  const valor = mm === null ? t.libTextos2.lluvia.sinDato : cantidadLluvia(mm, t)
+  return { texto: t.libTextos2.resumenEscuela.lluviaTresDias(valor), actualizado: hasta, vencido: false }
 }
 
-function puntoPronostico(entrada: EntradaResumen): PuntoResumen {
+function puntoPronostico(entrada: EntradaResumen, t: Diccionario): PuntoResumen {
   const { mm } = entrada.lluviaPronosticada24h
-  const valor = mm === null ? 'sin dato' : cantidadLluvia(mm)
+  const valor = mm === null ? t.libTextos2.lluvia.sinDato : cantidadLluvia(mm, t)
   const desde = entrada.pronosticoDesactualizadoDesde
   // Vencido: la fecha del último éxito de la fuente; al día: la de la corrida usada.
   const actualizado = desde ?? entrada.lluviaPronosticada24h.corridaEn ?? null
-  return { texto: `Pronóstico próximas 24 h: ${valor}`, actualizado, vencido: desde !== null }
+  return { texto: t.libTextos2.resumenEscuela.pronostico24h(valor), actualizado, vencido: desde !== null }
 }
 
-function puntoRio(entrada: EntradaResumen): PuntoResumen {
+function puntoRio(entrada: EntradaResumen, t: Diccionario): PuntoResumen {
   const rio = entrada.rio
-  if (rio === null) return { texto: 'Río: sin estación de referencia cercana', actualizado: null, vencido: false }
+  if (rio === null) return { texto: t.libTextos2.resumenEscuela.sinEstacion, actualizado: null, vencido: false }
   const altura = textoAlturaRio({
     alturaM: rio.alturaM,
     estado: rio.estado,
     alertaM: rio.alertaM ?? null,
     evacuacionM: rio.evacuacionM ?? null,
-  })
+  }, t)
   return {
     texto: `${altura.altura} · ${altura.estado} (${rio.estacionNombre})`,
     ...(altura.umbrales ? { detalle: altura.umbrales } : {}),
@@ -109,35 +102,35 @@ function puntoRio(entrada: EntradaResumen): PuntoResumen {
   }
 }
 
-function conclusion(entrada: EntradaResumen): string {
+function conclusion(entrada: EntradaResumen, t: Diccionario): string {
+  const c = t.libTextos2.resumenEscuela.conclusion
   const estadoRio = entrada.rio?.estado
   if (estadoRio === 'evacuacion') {
-    return 'Río en nivel de evacuación en la estación de referencia.'
+    return c.evacuacionRio
   }
   if (estadoRio === 'alerta') {
-    return 'Río en alerta en la estación de referencia.'
+    return c.alertaRio
   }
 
   const { nivel, horizonteHoras, motivo } = entrada.nivelMaximo
   if (nivel === 'alto' || nivel === 'muy_alto') {
-    const grado = nivel === 'alto' ? 'alto' : 'muy alto'
-    const causa = motivo ? ` por ${TEXTO_MOTIVO[motivo]}` : ''
-    const horizonte = horizonteHoras === null ? '' : ` en las próximas ${horizonteHoras} h`
-    return `Riesgo ${grado}${causa}${horizonte}.`
+    const causa = motivo ? c.causa(t.libTextos2.resumenEscuela.motivo[motivo]) : ''
+    const horizonte = horizonteHoras === null ? '' : c.horizonte(horizonteHoras)
+    return c.riesgo(nivel === 'muy_alto', causa, horizonte)
   }
   if (nivel === 'moderado') {
-    return 'Riesgo moderado: conviene seguir la evolución.'
+    return c.moderado
   }
   if (nivel === 'bajo') {
-    return 'Sin señales de riesgo por lluvia ni por río.'
+    return c.bajo
   }
-  return 'Sin datos suficientes para evaluar el riesgo.'
+  return c.sinDatos
 }
 
-export function resumirSituacionEscuela(entrada: EntradaResumen): ResumenEscuela {
+export function resumirSituacionEscuela(entrada: EntradaResumen, t: Diccionario = es): ResumenEscuela {
   return {
-    titulo: 'Situación de la escuela',
-    conclusion: conclusion(entrada),
-    puntos: [puntoLluvia(entrada), puntoPronostico(entrada), puntoRio(entrada)],
+    titulo: t.libTextos2.resumenEscuela.titulo,
+    conclusion: conclusion(entrada, t),
+    puntos: [puntoLluvia(entrada, t), puntoPronostico(entrada, t), puntoRio(entrada, t)],
   }
 }

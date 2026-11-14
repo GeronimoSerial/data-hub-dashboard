@@ -10,7 +10,11 @@ import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import type { infraRiskFactor, infraRiskSnapshot } from '@/lib/db/schema'
 import { crearAdapterAislamiento } from '../motor/adaptadores/aislamiento'
 import { crearAdapterExposicion } from '../motor/adaptadores/exposicion'
-import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
+import { regionActiva } from '@/lib/infraestructura/region'
+import { crearAdapterRioPrefectura, type DependenciasAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
+import { crearAdapterRioAna, crearAdapterRioSgb } from '../motor/adaptadores/rio-ana-sgb'
+import { combinarProveedoresRio } from '../motor/combinar-puertos-rio'
+import { crearRegistroProveedoresRio } from '../motor/proveedores-rio'
 import { crearAdapterHistorial } from '../motor/adaptadores/historial'
 import { cargarClimatologiaPorPeriodoDesdeDb, crearAdapterLluvia } from '../motor/adaptadores/lluvia'
 import { crearAdapterPeligro } from '../motor/adaptadores/peligro'
@@ -74,6 +78,24 @@ export type OpcionesPuertosReales = {
   escenariosSubida?: ReadonlyMap<string, EscenarioSubidaEstacion>
 }
 
+// Proveedores de nivel de río implementados (ana y sgb desde B12.2). Acá (y no en
+// motor/) porque el motor no puede nombrar Prefectura (CA1). INA no es un
+// proveedor del motor: alimenta otros jobs (FUENTES_RIO_FUERA_DEL_MOTOR).
+// Varios proveedores de la misma región se combinan en uno (ana+sgb, prefectura+ana).
+export const PROVEEDORES_RIO = crearRegistroProveedoresRio<DependenciasAdapterRioPrefectura>(
+  [
+    { id: 'prefectura', crearPuerto: (deps) => crearAdapterRioPrefectura(deps) },
+    { id: 'ana', crearPuerto: () => crearAdapterRioAna() },
+    { id: 'sgb', crearPuerto: () => crearAdapterRioSgb() },
+  ],
+  { combinar: combinarProveedoresRio },
+)
+
+// Puerto de río de la región activa (fuentesRio). Único punto que lo arma.
+export function construirPuertoRioRegion(deps: DependenciasAdapterRioPrefectura) {
+  return PROVEEDORES_RIO.construirPuerto(regionActiva().fuentesRio, deps)
+}
+
 export function construirPuertosReales(opciones: OpcionesPuertosReales = {}): PuertosMotor {
   const v04 = opciones.reglas === 'v0.4'
   return {
@@ -84,7 +106,7 @@ export function construirPuertosReales(opciones: OpcionesPuertosReales = {}): Pu
     susceptibilidad: crearAdapterSusceptibilidad(v04 ? { conProfundidadFluvial: true } : {}),
     historial: crearAdapterHistorial(v04 ? { informarFuente: true } : {}),
     exposicion: crearAdapterExposicion(),
-    rioPrefectura: crearAdapterRioPrefectura(v04 ? { reglas: 'v0.4', escenarios: opciones.escenariosSubida } : {}),
+    rioPrefectura: construirPuertoRioRegion(v04 ? { reglas: 'v0.4', escenarios: opciones.escenariosSubida } : {}),
   }
 }
 

@@ -1,17 +1,20 @@
 import type { Metadata } from 'next'
-import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
+import { EncabezadoParte } from '@/components/infraestructura/encabezado-parte'
 import { HistorialParte } from '@/components/infraestructura/historial-parte'
 import { normalizeCue } from '@/lib/infraestructura/cue'
+import { textosActuales } from '@/lib/i18n'
 import { bloqueoDeAcceso } from '../compartido'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const t = textosActuales().parteResto
+
 export const metadata: Metadata = {
-  title: `Historial · ${TITULO_PROGRAMA_COMPLETO}`,
+  title: `${t.pantallas.historial} · ${t.encabezado.programaCompleto}`,
 }
 
-const TITULO = 'Historial'
+const TITULO = t.pantallas.historial
 
 /**
  * Historial del parte (spec §15): sólo lectura.
@@ -36,7 +39,7 @@ export default async function HistorialPartePage({
       <div className="publico-content">
         <EncabezadoParte pantalla={TITULO} />
         <p className="historial-estado__texto" role="alert">
-          Este enlace no incluye un CUE válido. Solicite el enlace nuevamente a quien se lo compartió.
+          {t.historial.cueInvalido}
         </p>
       </div>
     )
@@ -47,16 +50,16 @@ export default async function HistorialPartePage({
   return (
     <div className="publico-content publico-content--parte">
       <div className="historial-contenido">
-        <EncabezadoParte pantalla={TITULO} descripcion="Los cambios más recientes aparecen primero." />
+        <EncabezadoParte pantalla={TITULO} descripcion={t.historial.descripcion} />
         <a className="ui-button ui-button--secondary historial-volver" href={enlaceVolver}>
-          Volver al estado actual
+          {t.historial.volverEstadoActual}
         </a>
         <HistorialParte
           cue={cueNormalizado.value}
           endpoint={`/api/problematicas/parte/historial?cue=${encodeURIComponent(cueNormalizado.value)}`}
         />
         <a className="ui-button ui-button--secondary historial-volver" href={enlaceVolver}>
-          Volver al estado actual
+          {t.historial.volverEstadoActual}
         </a>
       </div>
     </div>

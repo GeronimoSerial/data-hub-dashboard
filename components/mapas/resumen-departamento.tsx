@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Filter, X } from 'lucide-react'
 import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import styles from './vista-previa-escuela.module.css'
 import propios from './resumen-departamento.module.css'
 
@@ -18,6 +19,7 @@ export interface ResumenDepartamentoProps {
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 
 export function ResumenDepartamento({ nombre, totales, onQuitar }: ResumenDepartamentoProps) {
+  const t = useTextos().fichaCuerpo.resumen
   useEffect(() => {
     const alPresionarTecla = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onQuitar()
@@ -30,13 +32,13 @@ export function ResumenDepartamento({ nombre, totales, onQuitar }: ResumenDepart
     <section className={`${styles.card} ${propios.card}`} aria-label={`Departamento ${nombre}`}>
       <div className={styles.header}>
         <div className={styles.titleGroup}>
-          <p className={propios.etiqueta}><Filter size={12} aria-hidden="true" />Filtro activo</p>
+          <p className={propios.etiqueta}><Filter size={12} aria-hidden="true" />{t.filtroActivo}</p>
           <h2 className={styles.title}>{nombre}</h2>
           <p className={styles.meta}>
-            Departamento{totales ? ` · ${FORMATO_NUMERO.format(totales.totalEscuelas)} escuelas` : ''}
+            Departamento{totales ? t.escuelas(FORMATO_NUMERO.format(totales.totalEscuelas)) : ''}
           </p>
         </div>
-        <button type="button" className={styles.closeIconBtn} aria-label="Cerrar departamento" onClick={onQuitar}>
+        <button type="button" className={styles.closeIconBtn} aria-label={t.cerrar} onClick={onQuitar}>
           <X size={16} aria-hidden="true" />
         </button>
       </div>
@@ -44,18 +46,18 @@ export function ResumenDepartamento({ nombre, totales, onQuitar }: ResumenDepart
         <div className={styles.impacto}>
           <p className={styles.impactoCifra}>
             <strong>{FORMATO_NUMERO.format(totales.escuelasAfectadas)}</strong>
-            <span>{totales.escuelasAfectadas === 1 ? 'escuela con situaciones abiertas' : 'escuelas con situaciones abiertas'}</span>
+            <span>{t.escuelasAfectadas(totales.escuelasAfectadas)}</span>
           </p>
           <p className={styles.impactoContexto}>
-            {totales.porcentajeAfectadas}% de las escuelas del departamento
+            {t.porcentajeDelDepartamento(totales.porcentajeAfectadas)}
           </p>
-          <div className={styles.proporcion} role="img" aria-label={`${totales.porcentajeAfectadas}% de las escuelas afectadas`}>
+          <div className={styles.proporcion} role="img" aria-label={t.porcentajeAfectadas(totales.porcentajeAfectadas)}>
             <span style={{ width: `${totales.porcentajeAfectadas}%` }} />
           </div>
         </div>
       )}
       <div className={styles.actions}>
-        <button type="button" className={styles.ghostBtn} onClick={onQuitar}>Quitar filtro</button>
+        <button type="button" className={styles.ghostBtn} onClick={onQuitar}>{t.quitar}</button>
       </div>
     </section>
   )

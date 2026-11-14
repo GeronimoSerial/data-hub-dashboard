@@ -42,7 +42,7 @@ import type {
   ResultadoRiesgoEscuela,
 } from './tipos'
 import { calcularRiesgoAcceso, type ResultadoRiesgoAcceso } from './riesgo-acceso'
-import { valorAmenazaRio } from './rio-prefectura'
+import { valorAmenazaRio } from './nivel-rio'
 import { valorLluviaObservada } from './lluvia-observada'
 import { explicacionExposicionV04 } from './exposicion-v04'
 import { explicacionAlturaCritica } from './altura-critica'

@@ -22,6 +22,8 @@ import { CircleQuestionMark, Droplets, Route, RouteOff, WavesHorizontal } from '
 import { construirSvgIcono } from './iconos-mapa'
 import { coloresMapa } from './colores-mapa'
 import type { GlifoIcono } from './insignias-mapa'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 // ---------------------------------------------------------------------------
 // Clases y paletas
@@ -76,32 +78,22 @@ export function claseInundacion(claseRio: string | null | undefined): ClaseInund
 // `<details>` de ayuda (cerrado por defecto) para que lo visible sea corto.
 // `{periodo}` se reemplaza con el período de retorno de los datos vía
 // `textoConPeriodo` (nunca se escribe el número a mano).
-export const TEXTOS_ACCESOS = {
-  tituloAcceso: 'Dificultad para llegar por camino',
-  subtituloAcceso:
-    'De 0 (muy baja) a 3 (alta). Es un cálculo con datos de mapa, no el estado del camino hoy.',
-  queMideAcceso:
-    'Estima qué tan difícil es llegar por camino desde la escuela hasta la ciudad cabecera de su departamento. Tiene en cuenta la distancia, los tramos de tierra y los cruces de ríos, arroyos o canales que figuran en OpenStreetMap (el mapa abierto de donde salen los caminos).',
-  nivelesAcceso:
-    'Cuanto más alto el número, más difícil es llegar: 0 muy baja, 1 baja, 2 media, 3 alta.',
-  noRepresentaAcceso:
-    'No dice si hoy el camino está cortado, no es un pronóstico y no muestra el estado del edificio. El riesgo de acceso pronosticado está en el modo Radar y la situación de hoy, en los partes.',
-  tituloInundacion: 'Agua estimada por crecida de río (en la escuela)',
-  subtituloInundacion:
-    'Metros de agua estimados en el punto de la escuela para una crecida que ocurre, en promedio, una vez cada {periodo} años.',
-  sinProfundidad: 'El modelo no estima agua en ese punto (0 m). Es un resultado del cálculo, no una garantía de que nunca se inunde.',
-  sinCobertura:
-    'Sin dato: esta escuela no está en los datos calculados, así que no se sabe su valor. No equivale a nivel 0 ni a "sin agua".',
-  detalleDatos: 'Datos calculados con mapas y modelos; no reemplazan el parte ni confirman el estado del edificio.',
-  periodoEscenario:
-    'Período de retorno: {periodo} años (una crecida que ocurre, en promedio, una vez cada {periodo} años) · escenario con clima histórico',
-  sinRuta: 'Sin recorrido para mostrar',
-  verRecorrido: 'Ver recorrido',
-} as const
+// Los textos viven en el diccionario (`libTextos.accesos`); estas constantes
+// son la copia en español y el resto de los consumidores usa los accesores `t`.
+export function textosAccesos(t: Diccionario = es) {
+  return t.libTextos.accesos.textos
+}
 
-// Rellena el período de retorno de los textos que lo usan. Si el dato no está
-// disponible se mantiene 100 (valor por defecto del dataset), pero los bloques
-// que lo muestran sólo se renderizan cuando hay metadatos de susceptibilidad.
+export const TEXTOS_ACCESOS = textosAccesos(es)
+
+export function tituloAcceso(t: Diccionario = es): string {
+  return textosAccesos(t).tituloAcceso
+}
+
+export function tituloInundacion(t: Diccionario = es): string {
+  return textosAccesos(t).tituloInundacion
+}
+
 export function textoConPeriodo(
   texto: string,
   periodoRetornoAnios: number | null | undefined,
@@ -114,85 +106,59 @@ export function textoConPeriodo(
 // (services/geo-static/src/geo_static/osm_aislamiento.py); no cambiar la
 // semántica sin cambiar el cálculo. Se muestran sólo dentro del `<details>` de
 // ayuda: lo visible es el nombre corto con su conteo.
-export const DESCRIPCIONES_AISLAMIENTO = {
-  0: {
-    nombre: 'Muy baja',
-    detalle:
-      'Camino de hasta 3 km hasta la ciudad cabecera de su departamento, sin cruces de agua y con como mucho 1 tramo de tierra.',
-  },
-  1: {
-    nombre: 'Baja',
-    detalle:
-      'Ningún cruce de agua carece de puente registrado, pero el trayecto no es el más simple: más de 3 km, cruces con puente o varios tramos de tierra.',
-  },
-  2: {
-    nombre: 'Media',
-    detalle:
-      'Hay al menos un cruce de agua sin puente registrado, pero existe otro camino que lo evita.',
-  },
-  3: {
-    nombre: 'Alta',
-    detalle:
-      'Más de 20 km hasta la ciudad cabecera de su departamento, o un cruce de agua sin puente registrado y ningún camino que lo evite.',
-  },
-  sin_datos_red: {
-    nombre: 'No calculable',
-    detalle:
-      'No se pudo calcular: no hay un camino cargado cerca de la escuela, el camino cercano no llega a la ciudad cabecera o la ubicación cargada no coincide con su departamento. Es falta de dato: no significa acceso fácil ni difícil.',
-  },
-} as const
-
-// `ETIQUETAS_AISLAMIENTO[n]` es siempre `DESCRIPCIONES_AISLAMIENTO[n].nombre`:
-// una sola fuente para el nombre corto que usan leyenda, ficha y control.
-export const ETIQUETAS_AISLAMIENTO = {
-  0: DESCRIPCIONES_AISLAMIENTO[0].nombre,
-  1: DESCRIPCIONES_AISLAMIENTO[1].nombre,
-  2: DESCRIPCIONES_AISLAMIENTO[2].nombre,
-  3: DESCRIPCIONES_AISLAMIENTO[3].nombre,
-  sin_datos_red: DESCRIPCIONES_AISLAMIENTO.sin_datos_red.nombre,
-} as const
-
-export const ETIQUETAS_INUNDACION = {
-  alto: 'Alto',
-  medio: 'Medio',
-  bajo: 'Bajo',
-  sin_riesgo: 'Sin riesgo',
-  sin_dato: 'Sin dato',
-} as const
-
-export const ETIQUETAS_CRUCE = {
-  puente: 'Puente',
-  vado: 'Vado',
-  vado_probable: 'Vado probable',
-  // OSM no tiene tag de puente en ese punto; NO confirma que no haya puente.
-  sin_evidencia: 'Sin puente registrado',
-} as const
-
-export const DESCRIPCIONES_CRUCE = {
-  puente: 'Cruce de agua con puente cargado en el mapa.',
-  vado: 'Cruce de agua a nivel del cauce, sin puente. No dice si hoy se puede pasar.',
-  vado_probable: 'Cruce sin tag ford=yes sobre una vía no pavimentada; se estima como vado para el índice.',
-  sin_evidencia:
-    'No hay puente cargado en el mapa en este cruce; puede existir sin estar cargado. No dice si hoy se puede pasar.',
-} as const
-
-export const MOTIVO_SIN_RUTA_GENERICO = 'No hay recorrido calculado para esta escuela.'
-
-export const MOTIVOS_SIN_RUTA: Record<string, string> = {
-  sin_conexion_red:
-    'La escuela no conecta con la red de caminos hasta la ciudad cabecera, así que no se calculó un recorrido.',
-  coordenada_fuera_de_departamento:
-    'La ubicación cargada de la escuela cae fuera de su departamento. Para no mostrar un dato en un lugar equivocado, no se calculó nada. Conviene revisar la ubicación en el padrón.',
-  red_vial_no_conectada:
-    'Hay un camino a menos de 5 km, pero no se conecta con los caminos principales ni llega a la ciudad cabecera, así que no se dibuja un recorrido. Es falta de dato: no significa que la escuela sea inaccesible.',
-  sin_via_osm_cercana:
-    'No hay caminos cargados en OpenStreetMap a menos de 5 km de la escuela, así que no se puede calcular. Es falta de dato, no acceso fácil ni difícil.',
-  ruta_degenerada: 'La escuela está junto a la ciudad cabecera de su departamento: no hay recorrido para dibujar.',
-  sin_geometria_importada: 'Todavía no se cargó el recorrido de esta escuela.',
+// El nombre de "Alta" se escribe igual en español y portugués: no va al diccionario.
+export function descripcionesAislamiento(t: Diccionario = es) {
+  const niveles = t.libTextos.accesos.aislamiento
+  return { ...niveles, 3: { nombre: 'Alta', detalle: niveles[3].detalle } }
 }
 
-export function textoMotivoSinRuta(motivo: string | null | undefined): string {
-  return (motivo && MOTIVOS_SIN_RUTA[motivo]) || MOTIVO_SIN_RUTA_GENERICO
+export const DESCRIPCIONES_AISLAMIENTO = descripcionesAislamiento(es)
+
+// `etiquetasAislamiento(t)[n]` es siempre `descripcionesAislamiento(t)[n].nombre`:
+// una sola fuente para el nombre corto que usan leyenda, ficha y control.
+export function etiquetasAislamiento(t: Diccionario = es) {
+  const niveles = descripcionesAislamiento(t)
+  return {
+    0: niveles[0].nombre,
+    1: niveles[1].nombre,
+    2: niveles[2].nombre,
+    3: niveles[3].nombre,
+    sin_datos_red: niveles.sin_datos_red.nombre,
+  }
+}
+
+export const ETIQUETAS_AISLAMIENTO = etiquetasAislamiento(es)
+
+// `alto` se escribe igual en español y portugués: no va al diccionario.
+export function etiquetasInundacion(t: Diccionario = es) {
+  return { alto: 'Alto', ...t.libTextos.accesos.inundacion }
+}
+
+export const ETIQUETAS_INUNDACION = etiquetasInundacion(es)
+
+export function etiquetasCruce(t: Diccionario = es) {
+  return t.libTextos.accesos.cruce.etiqueta
+}
+
+export const ETIQUETAS_CRUCE = etiquetasCruce(es)
+
+export function descripcionesCruce(t: Diccionario = es) {
+  return t.libTextos.accesos.cruce.descripcion
+}
+
+export const DESCRIPCIONES_CRUCE = descripcionesCruce(es)
+
+export const MOTIVO_SIN_RUTA_GENERICO = es.libTextos.accesos.motivoSinRuta.generico
+
+export function motivosSinRuta(t: Diccionario = es): Record<string, string> {
+  const { generico: _generico, ...motivos } = t.libTextos.accesos.motivoSinRuta
+  return motivos
+}
+
+export const MOTIVOS_SIN_RUTA: Record<string, string> = motivosSinRuta(es)
+
+export function textoMotivoSinRuta(motivo: string | null | undefined, t: Diccionario = es): string {
+  return (motivo && motivosSinRuta(t)[motivo]) || t.libTextos.accesos.motivoSinRuta.generico
 }
 
 // ---------------------------------------------------------------------------

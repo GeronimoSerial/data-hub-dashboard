@@ -3,7 +3,7 @@
 // hacen red ni leen credenciales— este job sí orquesta las dos llamadas HTTP
 // reales:
 //   1. CMR (metadata) para elegir el gránulo más reciente.
-//   2. OPeNDAP ASCII (subsetting server-side) del bbox de Corrientes.
+//   2. OPeNDAP ASCII (subsetting server-side) del bbox de la región activa.
 //
 // El token de NASA Earthdata NO se lee implícitamente de `process.env` dentro
 // de esta función: llega como parámetro `earthdataToken`. El proceso que invoca
@@ -44,6 +44,7 @@ import { hazardObservation } from '@/lib/db/schema'
 import { adquirirLease, publicarResultado } from '../job-run'
 import { CONFIG_FUENTES } from '../providers/config-fuentes'
 import { crearAdaptadorImerg } from '../adaptadores-ingesta/imerg'
+import { purgarImergAntiguo } from '../retencion-imerg'
 import { actualizarSaludFuente } from './salud-fuente'
 import type {
   GranuloSatelital,
@@ -180,6 +181,7 @@ async function actualizarSalud(
   estado: EstadoSalud,
   ultimoErrorSaneado: string | null,
   ahoraIso: string,
+  filas?: { recibidas: number; yaSincronizado?: boolean },
 ): Promise<void> {
   // Upsert único: seguro de reintentar ante SQLITE_BUSY (job, no request
   // path), el statement no deja nada aplicado si no llega a correr.
@@ -190,6 +192,8 @@ async function actualizarSalud(
     estado,
     ultimoErrorSaneado,
     ahoraIso,
+    filasRecibidas: filas?.recibidas,
+    yaSincronizado: filas?.yaSincronizado,
   })
 }
 
@@ -330,6 +334,19 @@ export function seleccionarGranulosAProcesar<T extends { inicioEn: string }>(
   return [masReciente, ...resto].slice(0, presupuesto)
 }
 
+async function purgarRetencionSegura(
+  db: Db,
+  ahora: Date,
+  purgar: typeof purgarImergAntiguo,
+): Promise<void> {
+  try {
+    await purgar(db, { ahora })
+  } catch (error) {
+    const mensaje = error instanceof Error ? error.message : String(error)
+    console.warn(`[sync-hazard-imerg] purga de retención falló: ${mensaje}`)
+  }
+}
+
 export async function ejecutarSyncImerg(params?: {
   ahora?: Date
   fetchImpl?: typeof fetch
@@ -338,6 +355,8 @@ export async function ejecutarSyncImerg(params?: {
   // construcción del adaptador real. Demuestra la inyección por puerto (ver
   // sync-imerg.test.ts).
   puerto?: PuertoObservacionSatelital
+  // Seam de test: reemplaza la purga de retención de 90 días (ver retencion-imerg.ts).
+  purgarImerg?: typeof purgarImergAntiguo
 }): Promise<ResultadoEjecucionSyncImerg> {
   const db = getDb()
   const ahora = params?.ahora ?? new Date()
@@ -377,13 +396,17 @@ export async function ejecutarSyncImerg(params?: {
   // lease venza solo. Se envuelve todo el cuerpo para que un fallo siempre
   // marque 'fallido' antes de relanzar la excepción original.
   try {
-    return await ejecutarCuerpoDelJobImerg({ db, ahora, ahoraIso, token, lease, params })
+    const resultado = await ejecutarCuerpoDelJobImerg({ db, ahora, ahoraIso, token, lease, params })
+    // Retención: tras publicar el resultado (el lease ya se liberó) y sin poder
+    // fallar el job; un error de purga sólo se avisa.
+    await purgarRetencionSegura(db, ahora, params?.purgarImerg ?? purgarImergAntiguo)
+    return resultado
   } catch (error) {
     await publicarResultado({
       jobRunId: lease.jobRunId,
       leaseOwner: lease.leaseOwner,
       estado: 'fallido',
-      errorSaneado: 'fallo al ejecutar sync-hazard-imerg',
+      errorSaneado: sanearError(error, token),
       ahora,
     })
     throw error
@@ -473,7 +496,7 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
   if (aProcesar.length === 0) {
     // Ya está todo al día (incluido el gránulo más reciente): no hay red que
     // pedir además del listado de CMR ya hecho arriba.
-    await actualizarSalud(db, 'ok', null, ahoraIso)
+    await actualizarSalud(db, 'ok', null, ahoraIso, { recibidas: 0, yaSincronizado: true })
     await publicarResultado({
       jobRunId: lease.jobRunId,
       leaseOwner: lease.leaseOwner,
@@ -526,6 +549,9 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
     degradaFuente ? 'degradado' : 'ok',
     degradaFuente ? errorMasRecienteSaneado : null,
     ahoraIso,
+    // Filas recibidas del satélite en los gránulos procesados (upsert: cuenta
+    // lo recibido, no lo que cambió de valor).
+    { recibidas: celdasActualizadas },
   )
   const granulosNoPublicados = fallos.filter((fallo) => fallo.clase === 'no_publicado').length
   const granulosConError = fallos.length - granulosNoPublicados

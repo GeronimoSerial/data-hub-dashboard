@@ -2,6 +2,7 @@
 
 import type { JSX, ReactNode } from 'react'
 import { Button } from './button'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 import { SheetContent, SheetRoot, SheetTitle } from './sheet'
 
 export interface BottomSheetProps {
@@ -14,7 +15,8 @@ export interface BottomSheetProps {
 
 // Panel de consulta que sale desde abajo, igual que ConfirmSheet, para que el
 // flujo del parte tenga un solo patrón para "ver más" sin empujar la página.
-export function BottomSheet({ open, titulo, children, cerrarLabel = 'Cerrar', onCerrar }: BottomSheetProps): JSX.Element {
+export function BottomSheet({ open, titulo, children, cerrarLabel, onCerrar }: BottomSheetProps): JSX.Element {
+  const t = useTextos().parteComunControles
   return (
     <SheetRoot
       open={open}
@@ -27,7 +29,7 @@ export function BottomSheet({ open, titulo, children, cerrarLabel = 'Cerrar', on
         <div className="confirm-sheet__cuerpo bottom-sheet__cuerpo">{children}</div>
         <div className="confirm-sheet__acciones bottom-sheet__acciones">
           <Button type="button" variant="secondary" onClick={onCerrar}>
-            {cerrarLabel}
+            {cerrarLabel ?? t.cerrar}
           </Button>
         </div>
       </SheetContent>

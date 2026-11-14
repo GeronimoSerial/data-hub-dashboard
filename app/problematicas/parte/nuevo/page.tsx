@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
+import { EncabezadoParte } from '@/components/infraestructura/encabezado-parte'
 import { NuevoParteContenido } from '@/components/infraestructura/nuevo-parte-contenido'
 import { bloqueoDeAcceso, cargarCarrerasDelCue, cargarContextoParte, ErrorContexto } from '../compartido'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
@@ -7,17 +7,20 @@ import { obtenerParteActual } from '@/lib/infraestructura/parte-consulta'
 import { redirect } from 'next/navigation'
 import { ensureSeeded } from '@/lib/db/seed'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
+import { textosActuales } from '@/lib/i18n'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const t = textosActuales().parteResto
+
 export const metadata: Metadata = {
-  title: `Cargar una situación · ${TITULO_PROGRAMA_COMPLETO}`,
+  title: `${t.pantallas.cargarSituacion} · ${t.encabezado.programaCompleto}`,
 }
 
-const TITULO = 'Cargar una situación'
+const TITULO = t.pantallas.cargarSituacion
 // Nivel Superior con matrícula que no se pudo leer: no se cae al padrón GE.
-const MENSAJE_ERROR_CARRERAS = 'No pudimos cargar las carreras de este instituto. Intente nuevamente más tarde.'
+const MENSAJE_ERROR_CARRERAS = t.errorCarreras
 
 /**
  * Pantalla para cargar una situación (spec §7): primer paso del parte, donde el

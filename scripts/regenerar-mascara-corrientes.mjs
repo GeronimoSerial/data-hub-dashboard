@@ -16,7 +16,9 @@
 //      `-dissolve` + `-rectangle` + `-erase`; acá se resuelve con las
 //      operaciones booleanas de Turf porque mapshaper no está instalado).
 //
-// Uso: node scripts/regenerar-mascara-corrientes.mjs
+// Uso: node scripts/regenerar-mascara-corrientes.mjs [region-id]
+// El id de región es opcional (default `corrientes`); las rutas de entrada y
+// salida salen de `archivos` en config/regiones/<id>.json.
 // (no se ejecuta en build/CI; el resultado ya versionado en
 // public/data/mascara-corrientes.geojson es lo que consume la app).
 //
@@ -29,11 +31,16 @@ import { union } from '@turf/union'
 import { difference } from '@turf/difference'
 import { featureCollection, polygon } from '@turf/helpers'
 
-const ENTRADA = path.resolve(
-  process.cwd(),
-  'public/data/departamentos-corrientes-georef-2026-09-27.geojson',
+const REGION_ID = process.argv[2] ?? 'corrientes'
+if (!/^[a-z0-9-]+$/.test(REGION_ID)) {
+  throw new Error(`Id de región inválido: ${REGION_ID}`)
+}
+const REGION = JSON.parse(
+  readFileSync(path.resolve(process.cwd(), 'config/regiones', `${REGION_ID}.json`), 'utf8'),
 )
-const SALIDA = path.resolve(process.cwd(), 'public/data/mascara-corrientes.geojson')
+const PUBLIC_DIR = path.resolve(process.cwd(), 'public')
+const ENTRADA = path.join(PUBLIC_DIR, REGION.archivos.departamentos)
+const SALIDA = path.join(PUBLIC_DIR, REGION.archivos.mascara)
 
 // Tolerancia de simplificación, en grados de longitud/latitud (~ metros a
 // esta latitud: 1° ≈ 111 km, así que 0.0015° ≈ 165 m). Se aplica con un

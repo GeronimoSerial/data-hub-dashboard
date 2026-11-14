@@ -110,6 +110,9 @@ export async function syncPrefecturaHistorico(
           medianaM: estadisticas.mediana,
           p10M: estadisticas.p10,
           p90M: estadisticas.p90,
+          // I4: rango del histórico de 365 días para detectar valores atípicos.
+          minM: Math.min(...lecturas.map((l) => l.lecturaM)),
+          maxM: Math.max(...lecturas.map((l) => l.lecturaM)),
           desde: estadisticas.desde,
           hasta: estadisticas.hasta,
           fuente: FUENTE,

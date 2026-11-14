@@ -476,3 +476,24 @@ describe('ejecutarSyncPronosticoCaudal — retención de hazard_forecast', () =>
     avisos.mockRestore()
   })
 })
+
+describe('ejecutarSyncPronosticoCaudal — salud según filas recibidas', () => {
+  it('un proveedor que no devuelve filas queda degradado mientras el otro sigue en ok', async () => {
+    const ecmwfSinFilas: ProveedorConDiagnostico = {
+      nombreProveedor: 'open-meteo-ecmwf',
+      async obtenerPronosticoConDiagnostico() {
+        return { puntos: [], erroresPorCelda: {} }
+      },
+    }
+
+    await ejecutarSyncPronosticoCaudal({
+      ahora: new Date('2026-12-03T13:00:00.000Z'),
+      ecmwfProvider: ecmwfSinFilas,
+      floodProvider: floodFake(),
+    })
+
+    const salud = await getDb().select().from(hazardSourceHealth)
+    const estadoPorProveedor = Object.fromEntries(salud.map((fila) => [fila.provider, fila.estado]))
+    expect(estadoPorProveedor).toEqual({ 'open-meteo-ecmwf': 'degradado', 'open-meteo-flood': 'ok' })
+  })
+})

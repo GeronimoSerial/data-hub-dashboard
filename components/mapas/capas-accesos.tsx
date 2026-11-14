@@ -12,13 +12,13 @@ import type { SymbolLayerSpecification, LineLayerSpecification } from 'maplibre-
 import { Layer, Source } from 'react-map-gl/maplibre'
 import {
   COLOR_RUTA_ACCESO,
-  ETIQUETAS_AISLAMIENTO,
+  etiquetasAislamiento,
+  tituloAcceso,
   SVG_ICONO_AISLAMIENTO_0,
   SVG_ICONO_AISLAMIENTO_1,
   SVG_ICONO_AISLAMIENTO_2,
   SVG_ICONO_AISLAMIENTO_3,
   SVG_ICONO_AISLAMIENTO_SIN_DATOS,
-  TEXTOS_ACCESOS,
 } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
@@ -26,6 +26,7 @@ import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import type { CapaAccesos } from '@/components/mapas/layer-control'
 import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
 import { visibilidadCapa } from '@/lib/infraestructura/mapa/capas'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 // ---------------------------------------------------------------------------
 // Ids de capas (los consume la página para `fitBounds` e interactividad)
@@ -199,6 +200,7 @@ export function LeyendaAccesos({
 }: LeyendaAccesosProps) {
   // contenedor). El hook se llama siempre, antes del early return.
   const styles = useOverlayStyles()
+  const t = useTextos()
   const hayBloqueTerritorio = visibles.aislamiento
   if (!hayBloqueTerritorio) {
     return null
@@ -218,11 +220,11 @@ export function LeyendaAccesos({
     <section
       className={`${styles.panel} map-leyenda-accesos`}
       data-testid="leyenda-accesos"
-      aria-label="Datos territoriales"
+      aria-label={t.capas.accesos.ariaDatos}
     >
       {hayBloqueTerritorio && territorioLoading && (
         <div className={styles.legendItemStack} data-testid="leyenda-territorio-cargando">
-          <div className={styles.hint}>Cargando capas territoriales…</div>
+          <div className={styles.hint}>{t.capas.accesos.cargando}</div>
         </div>
       )}
       {hayBloqueTerritorio && !territorioLoading && territorioError !== null && (
@@ -277,14 +279,16 @@ function BloqueAislamiento({
   resumen: ReturnType<typeof resumirCobertura> | null
 }) {
   const styles = useOverlayStyles()
-  const sinDatos = territorio?.aislamiento == null || resumen === null
+  const t = useTextos()
+  const sinDatos =territorio?.aislamiento == null || resumen === null
+  const etiquetas = etiquetasAislamiento(t)
 
   return (
     <div className={styles.legendItemStack} data-testid="leyenda-aislamiento">
-      <b>{TEXTOS_ACCESOS.tituloAcceso}</b>
+      <b>{tituloAcceso(t)}</b>
       {sinDatos ? (
         <div className={styles.legendItemStack} data-testid="leyenda-aislamiento-sin-datos">
-          <div className={styles.hint}>Sin datos de caminos cargados.</div>
+          <div className={styles.hint}>{t.capas.accesos.sinDatosCaminos}</div>
         </div>
       ) : (
         <div data-testid="leyenda-aislamiento-contenido">
@@ -294,15 +298,15 @@ function BloqueAislamiento({
               svg={ICONO_AISLAMIENTO[nivel]}
               etiqueta={
                 nivel === 'sin_datos_red'
-                  ? ETIQUETAS_AISLAMIENTO[nivel]
-                  : `${ETIQUETAS_AISLAMIENTO[nivel]} (${nivel})`
+                  ? etiquetas[nivel]
+                  : `${etiquetas[nivel]} (${nivel})`
               }
               conteo={resumen.aislamiento[nivel]}
             />
           ))}
           <div className={styles.legendItem}>
             <span>
-              Sin dato (escuela fuera de los datos): <b>{resumen.aislamiento.sin_cobertura}</b>
+              {t.capas.accesos.sinCobertura}<b>{resumen.aislamiento.sin_cobertura}</b>
             </span>
           </div>
         </div>

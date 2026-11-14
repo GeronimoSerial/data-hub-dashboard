@@ -3,10 +3,18 @@
 // allá en ninguna de las dos direcciones. Un solo lugar calcula los bordes
 // para que el campo del cliente (vigencia-field.tsx) y el schema del
 // servidor (validacion-trayectoria.ts) nunca discrepen.
+import { parteComunTextosEs } from '@/lib/i18n/diccionarios/grupos/parteComunTextos.es'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
+
 const MESES_VENTANA = 12
 
-export const MENSAJE_FUERA_DE_RANGO_VIGENCIA =
-  'La fecha debe estar entre hace 12 meses y el momento actual.'
+export const MENSAJE_FUERA_DE_RANGO_VIGENCIA = parteComunTextosEs.vigencia.fueraDeRango
+
+/** Mismo mensaje en el idioma `t` (por defecto español, el del servidor). */
+export function mensajeFueraDeRangoVigencia(t: Diccionario = es): string {
+  return t.parteComunTextos.vigencia.fueraDeRango
+}
 
 export interface RangoVigencia {
   /** Momento más antiguo aceptado (inclusive). */

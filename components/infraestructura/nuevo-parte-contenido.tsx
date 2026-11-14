@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState, type JSX } from 'react'
-import { EncabezadoParte, type EscuelaEncabezado, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
+import { EncabezadoParte, type EscuelaEncabezado } from '@/components/infraestructura/encabezado-parte'
 import { ReporteInicialForm } from '@/components/infraestructura/reporte-inicial-form'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { CarreraElegible } from '@/lib/infraestructura/parte/instituto-ui'
 import { abrirAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 import type { ContextoReporte } from '@/lib/infraestructura/reportes-offline-contratos'
+import { useTextos } from '@/lib/i18n/idioma-provider'
 
 export function NuevoParteContenido({ cue, escuela, turnos, motivos, carreras }: {
   cue: string
@@ -16,12 +17,13 @@ export function NuevoParteContenido({ cue, escuela, turnos, motivos, carreras }:
   motivos: MotivoRow[]
   carreras?: CarreraElegible[]
 }): JSX.Element {
+  const t = useTextos().parteResto
   const [guardado, setGuardado] = useState(false)
-  const pantalla = guardado ? 'Parte registrado' : 'Cargar una situación'
+  const pantalla = guardado ? t.pantallas.parteRegistrado : t.pantallas.cargarSituacion
 
   useEffect(() => {
-    document.title = `${pantalla} · ${TITULO_PROGRAMA_COMPLETO}`
-  }, [pantalla])
+    document.title = `${pantalla} · ${t.encabezado.programaCompleto}`
+  }, [pantalla, t.encabezado.programaCompleto])
 
   useEffect(() => {
     let vigente = true

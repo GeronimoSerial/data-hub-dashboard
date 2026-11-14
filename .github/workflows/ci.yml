@@ -74,3 +74,154 @@ jobs:
 
       - name: Test shard ${{ matrix.shard }}/4
         run: pnpm exec vitest run --maxWorkers=1 --hookTimeout=30000 --testTimeout=30000 --shard=${{ matrix.shard }}/4
+
+  # Path filter only. Runs on every PR; the e2e jobs below stay green (steps skipped) when nothing relevant changed,
+  # so they can become required checks later without blocking unrelated PRs.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      mapa: ${{ steps.filter.outputs.mapa }}
+      hub: ${{ steps.filter.outputs.hub }}
+    steps:
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            mapa:
+              - 'app/(hub)/mapas/**'
+              - 'components/mapas/**'
+              - 'lib/infraestructura/**'
+              - 'lib/mapas/**'
+              - 'drizzle/**'
+              - 'e2e/mapa-enos/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+            hub:
+              - 'app/**'
+              - 'lib/**'
+              - 'e2e/hub-access/**'
+              - 'e2e/reportes-offline/**'
+              - 'drizzle/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+
+  e2e-mapa:
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        # Ephemeral CI-only service container with trust auth (no password). It is reachable only from this job's runner and holds only the throwaway E2E data.
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: mapa_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mapa_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      E2E_DATABASE_URL: postgres://postgres@127.0.0.1:5432/mapa_e2e
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - name: Checkout
+        if: needs.changes.outputs.mapa == 'true'
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        if: needs.changes.outputs.mapa == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node
+        if: needs.changes.outputs.mapa == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        if: needs.changes.outputs.mapa == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        if: needs.changes.outputs.mapa == 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run mapa ENOS e2e
+        if: needs.changes.outputs.mapa == 'true'
+        env:
+          MAPA_E2E_KEEP_DIR: ${{ runner.temp }}/mapa-e2e-keep
+        run: node e2e/mapa-enos/run.mjs
+
+      - name: Upload mapa e2e artifacts
+        if: failure() && needs.changes.outputs.mapa == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mapa-e2e-report
+          path: ${{ runner.temp }}/mapa-e2e-keep
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Non-blocking until the known failures are fixed. Four tests fail on origin/main too:
+  #   - e2e/hub-access/hub-access.spec.ts:171 (chromium, mobile-chromium): infra-only user does not see the `/mapas/infraestructura` nav link
+  #   - e2e/hub-access/hub-access.spec.ts:255 (mobile-chromium): missing 'ENOS 2026' menuitem
+  #   - e2e/reportes-offline/reportes-offline.spec.ts:351 (chromium): `waitForResponse` for POST /api/problematicas/parte times out
+  #     because the listener is attached after the request may have fired
+  # The job still reports its result but does not block the PR. Remove continue-on-error once these pass.
+  e2e-hub:
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - name: Checkout
+        if: needs.changes.outputs.hub == 'true'
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        if: needs.changes.outputs.hub == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node
+        if: needs.changes.outputs.hub == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        if: needs.changes.outputs.hub == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        if: needs.changes.outputs.hub == 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Both runners create their own SQLite data dir (DATABASE_URL is empty), so no service container is needed.
+      - name: Run hub access e2e
+        if: needs.changes.outputs.hub == 'true'
+        env:
+          HUB_E2E_KEEP_DIR: ${{ runner.temp }}/hub-e2e-keep
+        run: node e2e/hub-access/run.mjs
+
+      - name: Run reportes offline e2e
+        if: needs.changes.outputs.hub == 'true'
+        run: node e2e/reportes-offline/run.mjs
+
+      - name: Upload hub e2e artifacts
+        if: failure() && needs.changes.outputs.hub == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hub-e2e-report
+          path: ${{ runner.temp }}/hub-e2e-keep
+          retention-days: 7
+          if-no-files-found: ignore

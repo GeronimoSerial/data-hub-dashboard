@@ -1,0 +1,54 @@
+{
+  "alertas": [
+    {
+      "certainty": "Likely",
+      "departamentos": [
+        {
+          "id": "18021",
+          "nombre": "Capital"
+        },
+        {
+          "id": "18070",
+          "nombre": "Goya"
+        }
+      ],
+      "description": "Tormentas de variada intensidad sobre Capital y Goya.",
+      "event": "Tormentas",
+      "expires": "<fecha>",
+      "headline": "Tormentas",
+      "id": "urn:oid:2.49.0.1.32.0.2026.seed.radar-mapa-enos",
+      "instruction": "Evite salir.",
+      "nivelSat": null,
+      "onset": "<fecha>",
+      "poligonos": [
+        [
+          [
+            -58.7,
+            -27.3
+          ],
+          [
+            -59.4,
+            -27.3
+          ],
+          [
+            -59.4,
+            -29.3
+          ],
+          [
+            -58.7,
+            -29.3
+          ],
+          [
+            -58.7,
+            -27.3
+          ]
+        ]
+      ],
+      "sender": "smn@smn.gob.ar",
+      "sent": "<fecha>",
+      "severity": "Moderada",
+      "severityCap": "Moderate",
+      "urgency": "Immediate"
+    }
+  ]
+}

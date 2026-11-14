@@ -1,0 +1,62 @@
+{
+  "alumnosAcumulados": [
+    {
+      "dias": "hasta-hoy",
+      "valores": {
+        "alumnosAcumulados": 0
+      }
+    }
+  ],
+  "distribucionMotivo": [
+    {
+      "afectacionesVigentes": 6,
+      "motivo": "Inundación"
+    },
+    {
+      "afectacionesVigentes": 4,
+      "motivo": "Corte de luz"
+    },
+    {
+      "afectacionesVigentes": 3,
+      "motivo": "Corte de agua"
+    },
+    {
+      "afectacionesVigentes": 2,
+      "motivo": "Falta de calefacción"
+    },
+    {
+      "afectacionesVigentes": 2,
+      "motivo": "Incendio"
+    }
+  ],
+  "rankingDepartamentos": [
+    {
+      "alumnosAlcanzados": 0,
+      "departamento": "Capital",
+      "escuelasAfectadas": 7
+    },
+    {
+      "alumnosAlcanzados": 0,
+      "departamento": "Goya",
+      "escuelasAfectadas": 4
+    },
+    {
+      "alumnosAlcanzados": 0,
+      "departamento": "Paso de los Libres",
+      "escuelasAfectadas": 3
+    },
+    {
+      "alumnosAlcanzados": 0,
+      "departamento": "Santo Tomé",
+      "escuelasAfectadas": 3
+    }
+  ],
+  "serieEscuelasServicioCaido": [
+    {
+      "dias": "hasta-hoy",
+      "valores": {
+        "escuelas": 0
+      }
+    }
+  ]
+}
