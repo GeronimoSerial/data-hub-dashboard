@@ -815,7 +815,7 @@ export const infraGeoProfile = pgTable(
 export const hazardForecast = pgTable(
   'hazard_forecast',
   {
-    id: text('id').primaryKey(),
+    id: text('id').notNull(),
     provider: text('provider').notNull(),
     variable: text('variable').notNull(),
     geometryRef: text('geometry_ref').notNull(),
