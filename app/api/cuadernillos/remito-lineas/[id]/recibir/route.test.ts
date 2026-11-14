@@ -1,8 +1,11 @@
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Route from './route'
 import { receiveRemitoLineAtSchool } from '@/lib/cuadernillos/remito-receipts'
 import { BookletServiceError } from '@/lib/cuadernillos/inventory'
 import { getSessionUser } from '@/lib/session'
+
+usarDbTemporal('cuadernillos-remito-lineas-id-recibir-rutas-')
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/lib/cuadernillos/remito-receipts', () => ({ receiveRemitoLineAtSchool: vi.fn() }))

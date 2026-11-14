@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { bookletIdempotency, bookletMembership, bookletProduct, bookletRemito, bookletRemitoItem, bookletRemitoLine, bookletSchoolAssignment, user } from '@/lib/db/schema'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { toDashedCue } from './eligibility'
@@ -146,7 +147,10 @@ export async function receiveRemitoAtCabecera(actor: SessionUser, remitoId: stri
 
     const payload = { remitoId, lines: input.lines, idempotencyKey: input.idempotencyKey }
     const replayed = await replay<CabeceraReceiptResult>(tx, actor.id, OPERATION_CABECERA, input.idempotencyKey, payload)
-    if (replayed) return replayed
+    if (replayed) {
+      describirAuditoria({ resultado: 'repetido' })
+      return replayed
+    }
     if (remito.status !== 'dispatched') throw new BookletServiceError('already_received', 409)
 
     const lines = await tx.select().from(bookletRemitoLine).where(eq(bookletRemitoLine.remitoId, remitoId)).for('update')
@@ -205,7 +209,10 @@ export async function receiveRemitoLineAtSchool(actor: SessionUser, lineId: stri
 
     const payload = { lineId, items: input.items, shortfallReason: input.shortfallReason, idempotencyKey: input.idempotencyKey }
     const replayed = await replay<SchoolReceiptResult>(tx, actor.id, OPERATION_SCHOOL, input.idempotencyKey, payload)
-    if (replayed) return replayed
+    if (replayed) {
+      describirAuditoria({ resultado: 'repetido' })
+      return replayed
+    }
     if (line.status === 'in_transit') throw new BookletServiceError('cabecera_receipt_pending', 409)
     if (line.status !== 'at_cabecera') throw new BookletServiceError('already_received', 409)
 

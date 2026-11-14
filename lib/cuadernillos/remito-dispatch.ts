@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { and, desc, eq, inArray, lt, or } from 'drizzle-orm'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
+import { describirAuditoria } from '@/lib/infraestructura/auditoria/contexto'
 import { bookletProduct, bookletRemito, bookletRemitoItem, bookletRemitoLine, bookletStockMovement, user } from '@/lib/db/schema'
 import { crearEjecutorSql, type GeSchemaReady } from '@/lib/infraestructura/ge-db'
 import { listarPartesVigentes } from '@/lib/infraestructura/parte-mapa'
@@ -178,7 +179,10 @@ export function createRemitoRepository(db: Db, overrides: Partial<RemitoReposito
   return repository
 }
 
-const databaseRepository = createRemitoRepository(getDb())
+// Resolved on every access: inside cambioAuditado, getDb() returns the audited transaction.
+const databaseRepository: RemitoRepository = new Proxy({} as RemitoRepository, {
+  get: (_target, key) => Reflect.get(createRemitoRepository(getDb()), key),
+})
 
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const CUE = /^\d{9}$/
@@ -221,6 +225,7 @@ export async function dispatchRemito(actor: SessionUser, input: DispatchRemitoIn
     const record = await tx.getIdempotency(actor.id, DISPATCH_OPERATION, input.idempotencyKey)
     if (record) {
       if (record.payloadHash !== hash(input)) throw new BookletServiceError('idempotency_conflict', 409)
+      describirAuditoria({ resultado: 'repetido' })
       return record.response as DispatchedRemito
     }
     assertCampaign(await tx.getCampaign(input.campaignId))
