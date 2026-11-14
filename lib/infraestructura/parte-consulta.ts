@@ -4,6 +4,7 @@
 // schema `ge` de Postgres (a diferencia de trayectoria-tipos.ts y el resto del
 // batch 2, que son puros): esta capa SÍ hace I/O, a propósito, porque es la
 // que arma los snapshots que consume la capa pura.
+import { eventosMovimiento, type EventoMovimiento } from './movimiento-eventos'
 import { crearEjecutorSql, type EjecutorSql } from './ge-db'
 import { and, desc, eq, gte, inArray, isNotNull } from 'drizzle-orm'
 import { getDb, getRawClient } from '@/lib/db'
@@ -542,6 +543,7 @@ export interface MovimientoDescrito {
   titulo: string
   cambios: string[]
   severidad: Severidad | null
+  eventos: EventoMovimiento[]
 }
 
 // Historial de movimientos de un parte, ya traducidos a prosa castellana
@@ -577,6 +579,7 @@ export async function listarMovimientosDescritos(
       titulo: tituloMovimiento(fila.resumen as unknown as DiffParte, tipo, fila.rigeDesde),
       cambios: describirMovimiento(fila.resumen as unknown as DiffParte, { tipo, secciones: actual.secciones }),
       severidad: severidadDelMovimiento(fila.resumen as unknown as DiffParte),
+      eventos: eventosMovimiento(fila.resumen as unknown as DiffParte, tipo),
     }
   })
 }
