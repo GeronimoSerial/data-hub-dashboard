@@ -2104,13 +2104,85 @@ export const bookletStockMovement = pgTable('booklet_stock_movement', {
   movement: text('movement').notNull(),
   idempotencyKey: text('idempotency_key').notNull(),
   requestId: text('request_id').references(() => bookletRequest.id, { onDelete: 'restrict' }),
+  // Dispatch movements are bound to the remito that left stock; historical
+  // approval movements keep their request binding.
+  remitoId: text('remito_id').references(() => bookletRemito.id, { onDelete: 'restrict' }),
   actorUserId: text('actor_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('booklet_stock_movement_campaign_product_created_idx').on(t.campaignId, t.productId, t.createdAt),
   check('booklet_stock_movement_quantity_check', sql`${t.quantity} > 0`),
-  check('booklet_stock_movement_kind_check', sql`${t.movement} IN ('initial', 'replenishment', 'approval')`),
-  check('booklet_stock_movement_request_check', sql`(${t.movement} = 'approval' AND ${t.requestId} IS NOT NULL) OR (${t.movement} <> 'approval' AND ${t.requestId} IS NULL)`),
+  check('booklet_stock_movement_kind_check', sql`${t.movement} IN ('initial', 'replenishment', 'approval', 'dispatch')`),
+  check('booklet_stock_movement_binding_check', sql`(${t.movement} = 'approval' AND ${t.requestId} IS NOT NULL AND ${t.remitoId} IS NULL) OR (${t.movement} = 'dispatch' AND ${t.remitoId} IS NOT NULL AND ${t.requestId} IS NULL) OR (${t.movement} IN ('initial', 'replenishment') AND ${t.requestId} IS NULL AND ${t.remitoId} IS NULL)`),
+])
+
+// A remito is what Planeamiento dispatches to one cabecera. Dispatch deducts
+// global stock; the cabecera account signs one receipt for the whole remito.
+export const bookletRemito = pgTable('booklet_remito', {
+  id: text('id').primaryKey(),
+  campaignId: text('campaign_id').notNull().references(() => bookletCampaign.id, { onDelete: 'restrict' }),
+  cabeceraCueAnexo: text('cabecera_cue_anexo').notNull().references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
+  status: text('status').notNull(),
+  dispatchedByUserId: text('dispatched_by_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  dispatchedAt: timestamp('dispatched_at', { withTimezone: true }).notNull(),
+  cabeceraReceivedByUserId: text('cabecera_received_by_user_id').references(() => user.id, { onDelete: 'restrict' }),
+  cabeceraReceivedAt: timestamp('cabecera_received_at', { withTimezone: true }),
+}, (t) => [
+  index('booklet_remito_cabecera_dispatched_idx').on(t.cabeceraCueAnexo, t.dispatchedAt),
+  index('booklet_remito_campaign_dispatched_idx').on(t.campaignId, t.dispatchedAt),
+  check('booklet_remito_status_check', sql`${t.status} IN ('dispatched', 'received')`),
+  check('booklet_remito_receipt_signature_check', sql`(${t.status} = 'received' AND ${t.cabeceraReceivedByUserId} IS NOT NULL AND ${t.cabeceraReceivedAt} IS NOT NULL) OR (${t.status} = 'dispatched' AND ${t.cabeceraReceivedByUserId} IS NULL AND ${t.cabeceraReceivedAt} IS NULL)`),
+])
+
+// One line per destination school. Recipients are any Crítica Consejo school,
+// so the CUE is not bound to an assignment row. The school signs its own
+// receipt; the cabecera's own line is closed by the remito receipt.
+export const bookletRemitoLine = pgTable('booklet_remito_line', {
+  id: text('id').primaryKey(),
+  remitoId: text('remito_id').notNull().references(() => bookletRemito.id, { onDelete: 'restrict' }),
+  recipientCueAnexo: text('recipient_cue_anexo').notNull(),
+  recipientName: text('recipient_name'),
+  status: text('status').notNull(),
+  cabeceraShortfallReason: text('cabecera_shortfall_reason'),
+  schoolReceivedByUserId: text('school_received_by_user_id').references(() => user.id, { onDelete: 'restrict' }),
+  schoolReceivedAt: timestamp('school_received_at', { withTimezone: true }),
+  schoolShortfallReason: text('school_shortfall_reason'),
+}, (t) => [
+  uniqueIndex('booklet_remito_line_remito_recipient_uidx').on(t.remitoId, t.recipientCueAnexo),
+  index('booklet_remito_line_recipient_idx').on(t.recipientCueAnexo, t.status),
+  check('booklet_remito_line_cue_check', sql`${t.recipientCueAnexo} ~ '^[0-9]{9}$'`),
+  check('booklet_remito_line_status_check', sql`${t.status} IN ('in_transit', 'at_cabecera', 'received', 'closed_empty')`),
+  check('booklet_remito_line_school_signature_check', sql`(${t.status} = 'received' AND ${t.schoolReceivedByUserId} IS NOT NULL AND ${t.schoolReceivedAt} IS NOT NULL) OR (${t.status} <> 'received' AND ${t.schoolReceivedByUserId} IS NULL AND ${t.schoolReceivedAt} IS NULL AND ${t.schoolShortfallReason} IS NULL)`),
+  check('booklet_remito_line_cabecera_reason_check', sql`${t.cabeceraShortfallReason} IS NULL OR length(trim(${t.cabeceraShortfallReason})) > 0`),
+  check('booklet_remito_line_school_reason_check', sql`${t.schoolShortfallReason} IS NULL OR length(trim(${t.schoolShortfallReason})) > 0`),
+])
+
+// Quantities per product for each leg. A leg can only confirm up to what the
+// previous leg handed over; the difference is that leg's shortfall.
+export const bookletRemitoItem = pgTable('booklet_remito_item', {
+  lineId: text('line_id').notNull().references(() => bookletRemitoLine.id, { onDelete: 'restrict' }),
+  productId: text('product_id').notNull().references(() => bookletProduct.id, { onDelete: 'restrict' }),
+  dispatchedQuantity: integer('dispatched_quantity').notNull(),
+  cabeceraReceivedQuantity: integer('cabecera_received_quantity'),
+  schoolReceivedQuantity: integer('school_received_quantity'),
+}, (t) => [
+  primaryKey({ columns: [t.lineId, t.productId] }),
+  check('booklet_remito_item_dispatched_check', sql`${t.dispatchedQuantity} > 0`),
+  check('booklet_remito_item_cabecera_check', sql`${t.cabeceraReceivedQuantity} IS NULL OR (${t.cabeceraReceivedQuantity} >= 0 AND ${t.cabeceraReceivedQuantity} <= ${t.dispatchedQuantity})`),
+  check('booklet_remito_item_school_check', sql`${t.schoolReceivedQuantity} IS NULL OR (${t.cabeceraReceivedQuantity} IS NOT NULL AND ${t.schoolReceivedQuantity} >= 0 AND ${t.schoolReceivedQuantity} <= ${t.cabeceraReceivedQuantity})`),
+])
+
+// After-the-fact supervisor control: observations never change quantities.
+export const bookletRemitoObservation = pgTable('booklet_remito_observation', {
+  id: text('id').primaryKey(),
+  remitoId: text('remito_id').notNull().references(() => bookletRemito.id, { onDelete: 'restrict' }),
+  lineId: text('line_id').references(() => bookletRemitoLine.id, { onDelete: 'restrict' }),
+  authorUserId: text('author_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  body: text('body').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('booklet_remito_observation_remito_created_idx').on(t.remitoId, t.createdAt),
+  check('booklet_remito_observation_body_check', sql`length(trim(${t.body})) > 0`),
 ])
 
 export const bookletQuota = pgTable('booklet_quota', {
