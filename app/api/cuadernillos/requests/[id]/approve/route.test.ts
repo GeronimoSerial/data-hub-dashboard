@@ -15,28 +15,22 @@ let POST: typeof Route.POST
 beforeAll(async () => { POST = (await import('./route')).POST })
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(getSessionUser).mockResolvedValue({ id: 'verified-supervisor', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] })
+  vi.mocked(getSessionUser).mockResolvedValue({ id: 'user-1', role: 'consulta', banned: false, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [] })
   vi.mocked(hubApiAccessResponse).mockResolvedValue(null)
-  vi.mocked(approveRequest).mockResolvedValue({ requestId: 'r1', status: 'approved', approved: [{ productId: 'p1', quantity: 2 }], remaining: [], signerUserId: 'verified-supervisor', approvedAt: '2026-11-09T00:00:00.000Z' })
 })
-const body = { lines: [{ productId: 'p1', quantity: 2 }], idempotencyKey: 'a1' }
-const request = (value: unknown) => new Request('http://localhost/api/cuadernillos/requests/r1/approve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) })
+const request = () => new Request('http://localhost/api/cuadernillos/requests/r1/approve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ anything: true }) })
 
-describe('POST /api/cuadernillos/requests/[id]/approve', () => {
-  it('takes signer identity from the session and rejects identity fields in the body', async () => {
-    const response = await POST(request({ ...body, signerUserId: 'attacker' }), { params: Promise.resolve({ id: 'r1' }) })
-    expect(response.status).toBe(400)
+describe('POST /api/cuadernillos/requests/r1/approve', () => {
+  it('answers 410 flow_retired to an authorized caller and never calls the old service', async () => {
+    const response = await POST(request(), { params: Promise.resolve({ id: 'r1' }) })
+    expect(response.status).toBe(410)
+    expect(await response.json()).toEqual({ error: 'flow_retired', message: 'Booklet requests and quotas were replaced by remitos.' })
     expect(approveRequest).not.toHaveBeenCalled()
   })
-  it('sends only the session actor and path ID to the atomic service', async () => {
-    const response = await POST(request(body), { params: Promise.resolve({ id: 'r1' }) })
-    expect(response.status).toBe(200)
-    expect(approveRequest).toHaveBeenCalledWith(expect.objectContaining({ id: 'verified-supervisor' }), { requestId: 'r1', ...body })
-  })
-  it('denies anonymous actors before calling the service', async () => {
+  it('keeps the hub guard: anonymous callers get the guard response', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     vi.mocked(hubApiAccessResponse).mockResolvedValue(Response.json({ error: 'Unauthorized' }, { status: 401 }))
-    const response = await POST(request(body), { params: Promise.resolve({ id: 'r1' }) })
+    const response = await POST(request(), { params: Promise.resolve({ id: 'r1' }) })
     expect(response.status).toBe(401)
     expect(approveRequest).not.toHaveBeenCalled()
   })
