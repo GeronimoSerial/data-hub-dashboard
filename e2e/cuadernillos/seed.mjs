@@ -40,8 +40,14 @@ const ids = {
   cabecera: 't8-fixture-cabecera',
   supervisor: 't8-fixture-supervisor',
   admin: 't8-fixture-admin',
+  operator: 't8-fixture-operator',
+  operatorOther: 't8-fixture-operatorother',
 }
-const roleOf = { planning: 'consulta', cabecera: 'consulta', supervisor: 'consulta', admin: 'admin' }
+const roleOf = {
+  planning: 'consulta', cabecera: 'consulta', supervisor: 'consulta', admin: 'admin',
+  operator: 'operador_establecimiento', operatorOther: 'operador_establecimiento',
+}
+const schoolOperators = ['operator', 'operatorOther']
 
 for (const [capability, userId] of Object.entries(ids)) {
   const created = await context.internalAdapter.createUser({
@@ -59,12 +65,15 @@ for (const [capability, userId] of Object.entries(ids)) {
     accountId: created.id,
     password: await context.password.hash(process.env[`T8_${capability.toUpperCase()}_PASSWORD`]),
   })
-  await db.update(schema.user).set({
-    hubSecciones: ['cuadernillos'],
-    hubLanding: false,
-    hubDestino: '/cuadernillos',
-  }).where(eq(schema.user.id, userId))
-  if (capability !== 'admin') {
+  // School operators are hub-confined: their CUE is assigned below once the fixture CUEs exist.
+  if (!schoolOperators.includes(capability)) {
+    await db.update(schema.user).set({
+      hubSecciones: ['cuadernillos'],
+      hubLanding: false,
+      hubDestino: '/cuadernillos',
+    }).where(eq(schema.user.id, userId))
+  }
+  if (capability !== 'admin' && !schoolOperators.includes(capability)) {
     await db.insert(schema.bookletMembership).values({
       id: `membership-${capability}`,
       userId,
@@ -88,7 +97,7 @@ while (criticalCues.length < 3) {
   const cue = rand9()
   if (cue !== headCue && !criticalCues.includes(cue)) criticalCues.push(cue)
 }
-const [recipientCue, criticalB, criticalC] = criticalCues
+const [recipientCue] = criticalCues
 const criticalNames = ['Escuela Anexo de prueba', 'Escuela Crítica B de prueba', 'Escuela Crítica C de prueba']
 
 await db.insert(schema.bookletCampaign).values({
@@ -167,6 +176,12 @@ for (const [index, cue] of criticalCues.entries()) {
      VALUES ($1, $2, 'fixture', 'establecimiento', 'Crítica', $3, $3, NULL)`,
     [`t8-fixture-affectation-${index}`, partId, affectationAt.toISOString()],
   )
+}
+
+// GE SSO accounts of two schools; the session cueAnexo comes from ge_cue_anexo in dashed form.
+for (const [capability, cue] of [['operator', criticalCues[0]], ['operatorOther', criticalCues[1]]]) {
+  await db.update(schema.user).set({ geCueAnexo: `${cue.slice(0, 7)}-${cue.slice(7)}` })
+    .where(eq(schema.user.id, ids[capability]))
 }
 
 for (const id of [productId, productExtraId]) {
