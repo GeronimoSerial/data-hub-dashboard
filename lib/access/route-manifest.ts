@@ -27,6 +27,8 @@ export const ROUTE_MANIFEST: Record<string, RouteCapability | readonly RouteCapa
   'app/(hub)/mapas/infraestructura/escuelas/[cue]/page.tsx': 'infra.map.read',
   'app/(hub)/tableros/page.tsx': 'hub.section.dashboards',
   'app/(hub)/cuadernillos/page.tsx': 'hub.section.cuadernillos',
+  // Also reachable by operador_establecimiento with a CUE: lib/access/hub-confinement.ts opens this exact path for that role only (parte.access alone is also held by director_nivel).
+  'app/(hub)/cuadernillos/recepcion/page.tsx': ['hub.section.cuadernillos', 'parte.access'],
   'app/(hub)/recursos/[id]/page.tsx': 'hub.recursos',
   // Gated by adminPageGate (staff); the section capability hub.section.situation does not enforce it.
   'app/(hub)/situacion/page.tsx': 'staff',
