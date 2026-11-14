@@ -3,6 +3,7 @@ import { receiveRemitoLineAtSchool } from '@/lib/cuadernillos/remito-receipts'
 import { BookletServiceError } from '@/lib/cuadernillos/inventory'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -27,7 +28,13 @@ async function handlePOST(request: Request, context: { params: Promise<{ id: str
   const parsed = schema.safeParse(body)
   if (!parsed.success || !id.trim()) return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: noStore })
   try {
-    const receipt = await receiveRemitoLineAtSchool(actor!, id, parsed.data)
+    const receipt = await cambioAuditado(() => receiveRemitoLineAtSchool(actor!, id, parsed.data), (signed) => ({
+      status: 200,
+      objetoTipo: 'cuadernillo_remito_linea',
+      objetoId: signed.lineId,
+      cueAnexo: actor!.cueAnexo ?? undefined,
+      metadatos: { cantidad: parsed.data.items.reduce((total, entry) => total + entry.receivedQuantity, 0) },
+    }))
     return Response.json({ receipt }, { status: 200, headers: noStore })
   } catch (error) {
     if (error instanceof BookletServiceError) return Response.json({ error: error.code }, { status: error.status, headers: noStore })
@@ -35,4 +42,4 @@ async function handlePOST(request: Request, context: { params: Promise<{ id: str
   }
 }
 
-export const POST = ruta('cuadernillos.remito-lineas.recibir.post', handlePOST)
+export const POST = conAuditoria('cuadernillo.remito_recibir_escuela', '/api/cuadernillos/remito-lineas/[id]/recibir', ruta('cuadernillos.remito-lineas.recibir.post', handlePOST))

@@ -24,6 +24,7 @@ export const ACCIONES_AUDITORIA = [
   // Cuadernillos, recursos, taxonomías, call center, idioma y miniapp de enlaces
   'cuadernillo.asignacion_guardar', 'cuadernillo.cabecera_guardar', 'cuadernillo.cuota_guardar', 'cuadernillo.stock_guardar',
   'cuadernillo.solicitud_crear', 'cuadernillo.solicitud_aprobar', 'cuadernillo.solicitud_rechazar', 'cuadernillo.solicitud_remanente',
+  'cuadernillo.remito_despachar', 'cuadernillo.remito_recibir_cabecera', 'cuadernillo.remito_recibir_escuela', 'cuadernillo.remito_observar',
   'recurso.crear', 'recurso.modificar', 'recurso.eliminar', 'recurso.archivo', 'recurso.explicar',
   'taxonomia.crear', 'taxonomia.modificar', 'taxonomia.eliminar',
   'call_center.llamada_crear', 'call_center.llamada_modificar', 'call_center.llamada_eliminar',

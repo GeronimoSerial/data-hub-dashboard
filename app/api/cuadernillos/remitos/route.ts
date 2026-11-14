@@ -3,6 +3,8 @@ import { BookletServiceError } from '@/lib/cuadernillos/inventory'
 import { dispatchRemito, listRemitosForPlanning, RemitoDispatchError } from '@/lib/cuadernillos/remito-dispatch'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { prepararEsquemaGe } from '@/lib/cuadernillos/ge-conexion'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
@@ -61,12 +63,20 @@ async function handlePOST(request: Request) {
   const parsed = schema.safeParse(body)
   if (!parsed.success) return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: noStore })
   try {
-    const remito = await dispatchRemito(actor!, parsed.data)
+    // GE schema is prepared before the audit transaction opens; if it fails the service retries and answers as before.
+    await prepararEsquemaGe().catch(() => undefined)
+    const remito = await cambioAuditado(() => dispatchRemito(actor!, parsed.data), (created) => ({
+      status: 201,
+      objetoTipo: 'cuadernillo_remito',
+      objetoId: created.remitoId,
+      cueAnexo: created.cabeceraCueAnexo,
+      metadatos: { cantidad: created.lines.reduce((total, line) => total + line.items.reduce((sum, item) => sum + item.quantity, 0), 0) },
+    }))
     return Response.json({ remito }, { status: 201, headers: noStore })
   } catch (error) {
     return errorResponse(error, 'remito_dispatch_failed')
   }
 }
 
-export const POST = ruta('cuadernillos.remitos.post', handlePOST)
+export const POST = conAuditoria('cuadernillo.remito_despachar', '/api/cuadernillos/remitos', ruta('cuadernillos.remitos.post', handlePOST))
 export const GET = ruta('cuadernillos.remitos.get', handleGET)

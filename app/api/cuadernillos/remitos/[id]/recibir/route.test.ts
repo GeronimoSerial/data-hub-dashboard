@@ -1,9 +1,12 @@
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Route from './route'
 import { receiveRemitoAtCabecera } from '@/lib/cuadernillos/remito-receipts'
 import { BookletServiceError } from '@/lib/cuadernillos/inventory'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
+
+usarDbTemporal('cuadernillos-remitos-id-recibir-rutas-')
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/lib/hub-entry-server', () => ({ hubApiAccessResponse: vi.fn() }))
