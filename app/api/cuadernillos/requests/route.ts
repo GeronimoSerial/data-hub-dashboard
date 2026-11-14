@@ -1,24 +1,13 @@
 import { z } from 'zod'
-import { BookletServiceError } from '@/lib/cuadernillos/inventory'
 import { BookletRequestReadError, getBookletRequestPage } from '@/lib/cuadernillos/permissions'
-import { createRequest } from '@/lib/cuadernillos/requests'
 import { getSessionUser } from '@/lib/session'
 import { hubApiAccessResponse } from '@/lib/hub-entry-server'
-import { prepararEsquemaGe } from '@/lib/cuadernillos/ge-conexion'
-import { cambioAuditado, conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
+import { conAuditoria } from '@/lib/infraestructura/auditoria/servidor'
 import { ruta } from '@/lib/http/ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 const noStore = { 'Cache-Control': 'private, no-store' }
-const schema = z.object({
-  campaignId: z.string().trim().min(1).max(128),
-  recipientCueAnexo: z.string().regex(/^\d{9}$/),
-  cabeceraCueAnexo: z.string().regex(/^\d{9}$/).optional(),
-  lines: z.array(z.object({ productId: z.string().trim().min(1).max(128), quantity: z.number().int().positive().safe() }).strict()).min(1).max(100),
-  submit: z.boolean(),
-  idempotencyKey: z.string().trim().min(1).max(128),
-}).strict()
 const getSchema = z.object({
   campaignId: z.string().trim().min(1).max(128).optional(),
   cursor: z.string().min(1).max(512).optional(),
@@ -54,29 +43,14 @@ async function handleGET(request: Request) {
   }
 }
 
-async function handlePOST(request: Request) {
+async function handlePOST(_request: Request) {
   const actor = await getSessionUser()
   const hubDenied = await hubApiAccessResponse(actor, '/cuadernillos')
   if (hubDenied) return hubDenied
-  let body: unknown
-  try { body = await request.json() } catch { return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: noStore }) }
-  const parsed = schema.safeParse(body)
-  if (!parsed.success) return Response.json({ error: 'Cuerpo inválido' }, { status: 400, headers: noStore })
-  try {
-    // Esquema GE antes de abrir la auditoría; si falla, el servicio lo reintenta y responde como antes.
-    await prepararEsquemaGe().catch(() => undefined)
-    const result = await cambioAuditado(() => createRequest(actor!, parsed.data), (creada) => ({
-      status: creada.status === 'pending' ? 201 : 200,
-      objetoTipo: 'cuadernillo_solicitud',
-      objetoId: creada.requestId,
-      cueAnexo: creada.recipientCueAnexo,
-      metadatos: { cantidad: parsed.data.lines.reduce((total, line) => total + line.quantity, 0) },
-    }))
-    return Response.json({ request: result }, { status: result.status === 'pending' ? 201 : 200, headers: noStore })
-  } catch (error) {
-    if (error instanceof BookletServiceError) return Response.json({ error: error.code }, { status: error.status, headers: noStore })
-    return Response.json({ error: 'request_create_failed' }, { status: 503, headers: noStore })
-  }
+  return Response.json(
+    { error: 'flow_retired', message: 'Booklet requests and quotas were replaced by remitos.' },
+    { status: 410, headers: noStore },
+  )
 }
 
 export const POST = conAuditoria('cuadernillo.solicitud_crear', '/api/cuadernillos/requests', ruta('cuadernillos.requests.post', handlePOST))

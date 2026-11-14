@@ -20,19 +20,21 @@ beforeEach(() => {
   vi.mocked(createRemainderRequest).mockResolvedValue({ requestId: 'child-1', campaignId: 'c1', recipientCueAnexo: '180123457', recipientName: 'School', cabeceraCueAnexo: '180123456', status: 'pending', lines: [{ productId: 'p1', quantity: 4 }], recommendations: [], submittedAt: '2026-11-09T00:00:00.000Z' })
   vi.mocked(getRequestChain).mockResolvedValue({ rootRequestId: 'root-1', requested: [{ productId: 'p1', quantity: 10 }], approved: [{ productId: 'p1', quantity: 6 }], remaining: [{ productId: 'p1', quantity: 4 }], availableRemainder: [{ productId: 'p1', quantity: 3 }] })
 })
-const body = { lines: [{ productId: 'p1', quantity: 4 }], idempotencyKey: 'remainder-1' }
-const request = (value: unknown) => new Request('http://localhost/api/cuadernillos/requests/root/remainder', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) })
+const request = () => new Request('http://localhost/api/cuadernillos/requests/root/remainder', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ anything: true }) })
 
 describe('POST /api/cuadernillos/requests/[id]/remainder', () => {
-  it('uses the path root and rejects caller-selected chain IDs', async () => {
-    const response = await POST(request({ ...body, rootRequestId: 'attacker-root' }), { params: Promise.resolve({ id: 'root-1' }) })
-    expect(response.status).toBe(400)
+  it('answers 410 flow_retired to an authorized caller and never calls the old service', async () => {
+    const response = await POST(request(), { params: Promise.resolve({ id: 'root-1' }) })
+    expect(response.status).toBe(410)
+    expect(await response.json()).toEqual({ error: 'flow_retired', message: 'Booklet requests and quotas were replaced by remitos.' })
     expect(createRemainderRequest).not.toHaveBeenCalled()
   })
-  it('passes authenticated actor, exact root path, and quantities', async () => {
-    const response = await POST(request(body), { params: Promise.resolve({ id: 'root-1' }) })
-    expect(response.status).toBe(201)
-    expect(createRemainderRequest).toHaveBeenCalledWith(expect.objectContaining({ id: 'cabecera-1' }), { rootRequestId: 'root-1', ...body })
+  it('keeps the hub guard: unauthorized callers get the guard response', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null)
+    vi.mocked(hubApiAccessResponse).mockResolvedValue(Response.json({ error: 'denied' }, { status: 403 }))
+    const response = await POST(request(), { params: Promise.resolve({ id: 'root-1' }) })
+    expect(response.status).toBe(403)
+    expect(createRemainderRequest).not.toHaveBeenCalled()
   })
 })
 
