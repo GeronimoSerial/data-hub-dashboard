@@ -109,7 +109,6 @@ describe('FichaEscuelaPagina', () => {
       historial: { fase: 'listo', movimientos: [] },
     })
     render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 4 })} mostrarEnlaceNominal={false} />)
-    expect(screen.getAllByText('Justificación de gravedad:')).toHaveLength(2)
     expect(screen.getByText(/Bloquea la salida de emergencia/)).toBeInTheDocument()
     expect(screen.getByText('Hay riesgo eléctrico, estructural o sanitario')).toBeInTheDocument()
   })
@@ -201,8 +200,7 @@ describe('FichaEscuelaPagina', () => {
     expect(screen.getByTestId('seccion-historial-inline').textContent).toContain(
       'Se reportó Filtraciones en techo (Alta)',
     )
-    expect(screen.getByTestId('observacion-reporte')).toHaveTextContent('Observación registrada en el reporte:')
-    expect(screen.getByTestId('observacion-reporte').querySelector('blockquote p')?.textContent).toBe('Sector norte clausurado')
+    expect(screen.getByTestId('situacion-observacion')).toHaveTextContent('«Sector norte clausurado»')
 
     // El botón nominal abre el modal de alumnos alcanzados
     fireEvent.click(screen.getByTestId('ver-alumnos-af-99'))
@@ -288,6 +286,75 @@ describe('FichaEscuelaPagina', () => {
     )
   })
 
+})
+
+describe('FichaEscuelaPagina — bitácora y evolución', () => {
+  afterEach(cleanup)
+
+  const afectacion = {
+    id: 'af-1', motivo: 'Anegamiento', categoria: 'establecimiento', severidad: 'Crítica', descripcion: null,
+    causadaPorId: null, rigeDesde: '2026-11-10T11:30:00Z', creadaEn: '2026-11-10T11:30:00Z', totales: { secciones: 3, alumnos: 84 },
+  }
+  const evento = (tipo: string, texto: string, paso: string) => ({ tipo, afectacionId: 'af-1', motivo: 'Anegamiento', texto, paso })
+  const movimientos = [
+    { id: 'm1', tipo: 'reporte_inicial', rol: 'director', creadaEn: '2026-11-10T11:30:00Z', rigeDesde: '2026-11-10T11:30:00Z', titulo: 'Se informó Anegamiento', cambios: [], eventos: [evento('nueva', 'Nueva: Anegamiento · media', 'Media · 1 secc.')] },
+    { id: 'm2', tipo: 'actualizacion', rol: 'supervisor', creadaEn: '2026-11-12T10:50:00Z', rigeDesde: '2026-11-12T01:00:00Z', titulo: 'Cambió la gravedad', cambios: [], eventos: [evento('gravedad', 'Anegamiento pasó a crítica', '↑ Crítica')] },
+    { id: 'm3', tipo: 'confirmacion', rol: 'director', creadaEn: '2026-11-14T12:12:00Z', rigeDesde: '2026-11-14T12:12:00Z', titulo: 'Situación confirmada', cambios: ['Sigue igual: "Anegamiento"'], eventos: [evento('confirmada', 'Anegamiento sigue igual', 'Sigue igual')] },
+  ]
+  const llamadas = [
+    { id: 'l1', callerNombre: 'Operadora', justificacion: 'Seguimiento', respuestaDirector: 'Mañana bombean', creadaEn: '2026-11-13T20:40:00Z' },
+  ]
+
+  function renderConHistorial(conLlamadas: boolean) {
+    mockUseFichaParte.mockReturnValue({
+      estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [afectacion], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } },
+      historial: { fase: 'listo', movimientos },
+    })
+    render(
+      <FichaEscuelaPagina
+        escuela={crearEscuelaFicha({ gravedad: 4 })}
+        mostrarEnlaceNominal={false}
+        llamadasCallCenter={conLlamadas ? llamadas : undefined}
+      />,
+    )
+  }
+
+  it('shows the latest confirmation in the status strip and the log', () => {
+    renderConHistorial(false)
+    expect(screen.getByTestId('ficha-ultimo-movimiento')).toHaveTextContent('Anegamiento sigue igual')
+    expect(screen.getByTestId('seccion-historial-inline')).toHaveTextContent('Anegamiento sigue igual')
+  })
+
+  it('draws the situation evolution oldest first, naming the supervisor', () => {
+    renderConHistorial(false)
+    const pasos = screen.getByRole('list', { name: 'Evolución' }).querySelectorAll('li')
+    expect([...pasos].map((paso) => paso.textContent)).toEqual([
+      expect.stringContaining('Media · 1 secc.'),
+      expect.stringMatching(/Supervisor.*↑ Crítica/),
+      expect.stringContaining('Sigue igual'),
+    ])
+  })
+
+  it('notes a back-dated load and supervisor in the log', () => {
+    renderConHistorial(false)
+    expect(screen.getByTestId('seccion-historial-inline')).toHaveTextContent(/Supervisor · rige desde/)
+  })
+
+  it('merges call-center calls into the log and filters them', () => {
+    renderConHistorial(true)
+    const bitacora = screen.getByTestId('seccion-historial-inline')
+    expect(bitacora).toHaveTextContent('Llamada · Operadora')
+    expect(bitacora).toHaveTextContent('«Mañana bombean»')
+    expect(screen.getByTestId('ficha-ultimo-movimiento')).toHaveTextContent('Última llamada')
+    fireEvent.click(screen.getByRole('button', { name: 'Llamadas' }))
+    expect(bitacora).not.toHaveTextContent('Anegamiento sigue igual')
+    expect(bitacora).toHaveTextContent('Llamada · Operadora')
+  })
+
+  it('hides call filters for viewers without call-center access', () => {
+    renderConHistorial(false)
+    expect(screen.queryByRole('button', { name: 'Llamadas' })).not.toBeInTheDocument()
+  })
 })
 
 describe('FichaEscuelaPagina — comedor y posible centro de evacuados', () => {
