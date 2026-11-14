@@ -9,7 +9,7 @@ import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
 import type { ShellUser } from '@/lib/session'
 import { canUseLanding, effectiveSections, sectionForPath } from '@/lib/hub-sections'
-import { confinedAreaCapability, roleIsHubConfined } from '@/lib/access/hub-confinement'
+import { SCHOOL_RECEIPT_PATH, confinedPathAllowed, roleIsHubConfined } from '@/lib/access/hub-confinement'
 import { shellNavAllowed, shellUserFor } from '@/lib/access/shell-nav'
 import { decideScrollAction, isAdminWorkspacePath, isBleedViewerPath, isMapViewerPath, isRestoreSettled, scrollRestorationKey } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
@@ -258,7 +258,7 @@ export function AppShell({
   situacionEnabled = false,
 }: {
   children: React.ReactNode
-  initialUser: ShellUser | null
+  initialUser: (ShellUser & { cueAnexo?: string | null }) | null
   situacionEnabled?: boolean
 }) {
   const { mode, setMode } = useThemeMode()
@@ -278,15 +278,19 @@ export function AppShell({
   const sections = effectiveSections(policy)
   // Confined roles see only their own area in the chrome: no Inicio, Explorar, search or logo link.
   const confined = roleIsHubConfined(role ?? initialUser?.role)
+  const navRole = role ?? initialUser?.role
+  const shellCueAnexo = (sessionUser as { cueAnexo?: string | null } | null)?.cueAnexo
+  const navUser = navRole ? { ...shellUserFor(navRole, policy), cueAnexo: shellCueAnexo ?? null } : null
   const canAccessPath = (path: string) => {
-    if (confined) return confinedAreaCapability(path) !== null
+    if (confined) return navUser !== null && confinedPathAllowed(navUser, path)
     const section = sectionForPath(path)
     return section === 'landing' ? canUseLanding(policy) : section ? sections.has(section) : true
   }
   // Map pages carry no primary navigation; elsewhere only what the role's capabilities allow.
-  const navRole = role ?? initialUser?.role
-  const navUser = navRole ? shellUserFor(navRole, policy) : null
-  const visibleNav = isMapViewerPath(pathname) ? [] : navItems.filter((item) => shellNavAllowed(navUser, item.href))
+  const visibleNav = isMapViewerPath(pathname) ? [] : [
+    ...navItems.filter((item) => shellNavAllowed(navUser, item.href)),
+    ...(confined && canAccessPath(SCHOOL_RECEIPT_PATH) ? [{ href: SCHOOL_RECEIPT_PATH, label: 'Recepción de cuadernillos' }] : []),
+  ]
   const compactoMapa = isMapViewerPath(pathname) || isAdminWorkspacePath(pathname)
   const mapViewer = isBleedViewerPath(pathname) || isAdminWorkspacePath(pathname)
   const resourceViewer = pathname.startsWith('/recursos/')
