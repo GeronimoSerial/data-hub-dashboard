@@ -6280,7 +6280,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .situacion-datos__fila { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1) var(--s-3); padding: var(--s-2) 0; border-top: 1px solid var(--line); min-width: 0; }
 .situacion-datos__texto { flex: 1 1 16rem; min-width: 0; }
 .situacion-datos__secundario { color: var(--ink-soft); font-size: var(--t-micro); margin: 0; }
-.situacion-datos__error { font-family: var(--font-mono, monospace); font-size: 0.8125rem; color: var(--danger-ink); overflow-wrap: anywhere; margin: var(--s-1) 0 0; }
+.situacion-datos__error { font-family: var(--font-mono, monospace); font-size: var(--t-micro); color: var(--danger-ink); overflow-wrap: anywhere; margin: var(--s-1) 0 0; }
 .situacion-datos__ver-todas { display: inline-flex; align-items: center; gap: var(--s-1); margin: var(--s-3) 0 var(--s-1); padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: var(--t-small); text-decoration: underline; cursor: pointer; }
 .situacion-datos__ver-todas svg[data-abierto='true'] { transform: rotate(180deg); }
 
