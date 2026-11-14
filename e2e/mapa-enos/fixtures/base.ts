@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { teselaAgua } from './tesela-agua'
 import { test as base, expect, type Page } from '@playwright/test'
 
 // Plan de pruebas 4.4: el mapa base sale de un estilo propio servido desde Playwright,
@@ -8,6 +9,7 @@ import { test as base, expect, type Page } from '@playwright/test'
 const ESTILO_LOCAL = readFileSync(path.join(__dirname, '..', 'estilo-prueba.json'), 'utf8')
 const HOST_MAPA = 'https://tiles.openfreemap.org/**'
 const RUTA_ESTILO = /^\/styles\//
+const RUTA_TESELA_AGUA = /^\/e2e-agua\//
 
 type Fixtures = {
   /** Peticiones de terceros respondidas con 204 por el aislamiento genérico. */
@@ -34,6 +36,10 @@ export const test = base.extend<Fixtures>({
       // genérico va después, y deja pasar el host del mapa para que lo atienda la ruta anterior.
       await context.route(HOST_MAPA, async (route) => {
         estiloLocal.push(route.request().url())
+        if (RUTA_TESELA_AGUA.test(new URL(route.request().url()).pathname)) {
+          await route.fulfill({ status: 200, contentType: 'application/x-protobuf', body: teselaAgua() })
+          return
+        }
         if (RUTA_ESTILO.test(new URL(route.request().url()).pathname)) {
           await route.fulfill({ status: 200, contentType: 'application/json', body: ESTILO_LOCAL })
           return
