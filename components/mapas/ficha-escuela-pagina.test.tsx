@@ -394,3 +394,29 @@ describe('FichaEscuelaPagina — comedor y posible centro de evacuados', () => {
     expect(screen.queryByText('Posible centro de evacuados')).not.toBeInTheDocument()
   })
 })
+
+describe('FichaEscuelaPagina — zero and just-now values', () => {
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  it('hides enrollment counts when the school reports no students', () => {
+    const afectacion = { id: 'a0', categoria: 'establecimiento', severidad: 'Media', motivo: 'Inundación', descripcion: null, causadaPorId: null, rigeDesde: '2026-04-10T08:00:00Z', creadaEn: '2026-04-10T08:00:00Z', totales: { secciones: 0, alumnos: 0 } }
+    mockUseFichaParte.mockReturnValue({ estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [afectacion], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } }, historial: { fase: 'listo', movimientos: [] } })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ alumnos: 0, gravedad: 2 })} mostrarEnlaceNominal={false} />)
+    expect(screen.queryByText(/0 alumnos/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/0 de 0/)).not.toBeInTheDocument()
+    expect(screen.getByText('CUE 1801605-00')).toBeVisible()
+  })
+
+  it('says "recién" instead of "hace 0 min" for a situation opened under a minute ago', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-04-10T08:00:30Z'))
+    const afectacion = { id: 'a1', categoria: 'establecimiento', severidad: 'Media', motivo: 'Inundación', descripcion: null, causadaPorId: null, rigeDesde: '2026-04-10T08:00:00Z', creadaEn: '2026-04-10T08:00:00Z', totales: { secciones: 1, alumnos: 10 } }
+    mockUseFichaParte.mockReturnValue({ estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [afectacion], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } }, historial: { fase: 'listo', movimientos: [] } })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 2 })} mostrarEnlaceNominal={false} />)
+    expect(screen.getByText('abierta recién')).toBeVisible()
+    expect(screen.queryByText(/hace 0 min/)).not.toBeInTheDocument()
+  })
+})

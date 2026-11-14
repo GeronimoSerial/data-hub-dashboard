@@ -1,6 +1,8 @@
 // Spanish texts of the `fichaBitacora` group: status strip, situation cards and unified log of the school ficha.
 export const fichaBitacoraEs = {
   ayer: 'Ayer',
+  recien: 'recién',
+  ultimoMovimiento: 'Último movimiento',
   pestanaBitacora: 'Bitácora',
   pestanaTerritorio: 'Territorio',
   ultimaNovedad: (relativo: string) => `Última novedad ${relativo}`,
