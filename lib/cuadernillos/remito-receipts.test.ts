@@ -203,6 +203,27 @@ describe('receiveRemitoAtCabecera', () => {
   })
 })
 
+describe('lock order', () => {
+  async function lockSequence(run: (loggedDb: ReceiptDb) => Promise<unknown>) {
+    const queries: string[] = []
+    const loggedDb = drizzle(client, { logger: { logQuery: (query) => { queries.push(query) } } }) as unknown as ReceiptDb
+    await run(loggedDb)
+    return queries.filter((query) => /for update/i.test(query)).map((query) => /from "([a-z_]+)"/i.exec(query)?.[1])
+  }
+
+  it('locks the user row before the remito and line rows on both signing paths', async () => {
+    const { remitoId, lineIds } = await seed()
+    const cabeceraOrder = await lockSequence((loggedDb) => receiveRemitoAtCabecera(cabeceraActor, remitoId, fullInput(lineIds), loggedDb))
+    expect(cabeceraOrder.slice(0, 3)).toEqual(['user', 'booklet_remito', 'booklet_school_assignment'])
+    expect(cabeceraOrder.indexOf('user')).toBeLessThan(cabeceraOrder.indexOf('booklet_remito_line'))
+
+    const schoolOrder = await lockSequence((loggedDb) => receiveRemitoLineAtSchool(schoolActor, lineIds[0], {
+      idempotencyKey: `key-${++counter}`, items: [{ productId: 'p1', receivedQuantity: 30 }, { productId: 'p2', receivedQuantity: 10 }],
+    }, loggedDb))
+    expect(schoolOrder).toEqual(['user', 'booklet_remito_line'])
+  })
+})
+
 describe('receiveRemitoLineAtSchool', () => {
   const twoLines: SeedLine[] = [{ cue: SCHOOL_A, items: [['p1', 30], ['p2', 10]] }]
   const schoolInput = (quantities: number[], shortfallReason?: string) => ({

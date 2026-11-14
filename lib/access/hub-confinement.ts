@@ -19,7 +19,7 @@ export function roleIsHubConfined(role: Role | null | undefined): boolean {
 }
 
 function isSchoolOperator(user: SessionUser): boolean {
-  return user.role === 'operador_establecimiento' && Boolean(user.cueAnexo)
+  return user.role === 'operador_establecimiento' && Boolean(user.cueAnexo?.trim())
 }
 
 // Hub paths a confined user may reach, and the capability that grants each.
@@ -40,6 +40,9 @@ const CONFINED_AREAS: ReadonlyArray<{
     /^\/api\/cuadernillos\/remito-lineas\/[^/]+\/recibir\/?$/,
   ].map((pattern) => ({ pattern, capability: 'parte.access' as const, allowed: isSchoolOperator })),
 ]
+
+/** Path of the school receipt page, the one booklet entry a confined school operator gets in the shell. */
+export const SCHOOL_RECEIPT_PATH = '/cuadernillos/recepcion'
 
 export function confinedAreaCapability(path: string): Capability | null {
   const pathname = safePathname(path)

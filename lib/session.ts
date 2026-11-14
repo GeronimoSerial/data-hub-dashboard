@@ -59,7 +59,7 @@ export async function getSessionUser(): Promise<SessionUserConIdioma | null> {
 
 /** Name and role for chrome (header) rendered on the server, so SSR and the
  *  first client render agree before the client session hook resolves. */
-export type ShellUser = { name: string; role: Role; hubPolicy?: SessionUser['hubPolicy']; hubDestination?: string | null }
+export type ShellUser = { name: string; role: Role; hubPolicy?: SessionUser['hubPolicy']; hubDestination?: string | null; cueAnexo?: string | null }
 
 export async function getShellUser(): Promise<ShellUser | null> {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -70,5 +70,6 @@ export async function getShellUser(): Promise<ShellUser | null> {
     role: (session.user.role as Role | undefined) ?? 'consulta',
     hubPolicy: current?.hubPolicy,
     hubDestination: current?.hubDestination ?? null,
+    cueAnexo: current?.cueAnexo ?? null,
   }
 }

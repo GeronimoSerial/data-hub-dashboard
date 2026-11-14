@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { and, desc, eq, inArray, lt, or } from 'drizzle-orm'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
-import { bookletRemito, bookletRemitoItem, bookletRemitoLine, bookletStockMovement } from '@/lib/db/schema'
+import { bookletProduct, bookletRemito, bookletRemitoItem, bookletRemitoLine, bookletStockMovement, user } from '@/lib/db/schema'
 import { crearEjecutorSql, type GeSchemaReady } from '@/lib/infraestructura/ge-db'
 import { listarPartesVigentes } from '@/lib/infraestructura/parte-mapa'
 import { createApprovalRepository, type ApprovalRepository } from './approvals'
@@ -44,6 +44,7 @@ export type StoredRemitoLine = {
   status: 'in_transit' | 'at_cabecera' | 'received' | 'closed_empty'
   items: StoredRemitoItem[]
 }
+export type RemitoSigner = { userId: string; name: string }
 export type RemitoRow = {
   remitoId: string
   campaignId: string
@@ -52,7 +53,15 @@ export type RemitoRow = {
   dispatchedByUserId: string
   dispatchedAt: Date
   cabeceraReceivedAt: Date | null
-  lines: Array<Omit<StoredRemitoLine, 'id' | 'items'> & { lineId?: string; items: Array<Required<StoredRemitoItem>> }>
+  cabeceraReceivedBy: RemitoSigner | null
+  lines: Array<Omit<StoredRemitoLine, 'id' | 'items'> & {
+    lineId?: string
+    cabeceraShortfallReason: string | null
+    schoolShortfallReason: string | null
+    schoolReceivedBy: RemitoSigner | null
+    schoolReceivedAt: Date | null
+    items: Array<Required<StoredRemitoItem> & { productName: string }>
+  }>
 }
 export type RemitoCursor = { dispatchedAt: Date; remitoId: string }
 export type RemitoListQuery = { campaignId?: string; after: RemitoCursor | null; limit: number }
@@ -134,17 +143,31 @@ export function createRemitoRepository(db: Db, overrides: Partial<RemitoReposito
       if (remitos.length === 0) return []
       const lines = await db.select().from(bookletRemitoLine)
         .where(inArray(bookletRemitoLine.remitoId, remitos.map((remito) => remito.id))).orderBy(bookletRemitoLine.recipientCueAnexo)
-      const items = lines.length === 0 ? [] : await db.select().from(bookletRemitoItem)
+      const items = lines.length === 0 ? [] : await db.select({
+        lineId: bookletRemitoItem.lineId, productId: bookletRemitoItem.productId, productName: bookletProduct.name,
+        dispatchedQuantity: bookletRemitoItem.dispatchedQuantity,
+        cabeceraReceivedQuantity: bookletRemitoItem.cabeceraReceivedQuantity, schoolReceivedQuantity: bookletRemitoItem.schoolReceivedQuantity,
+      }).from(bookletRemitoItem).innerJoin(bookletProduct, eq(bookletProduct.id, bookletRemitoItem.productId))
         .where(inArray(bookletRemitoItem.lineId, lines.map((line) => line.id))).orderBy(bookletRemitoItem.productId)
+      const signerIds = [...new Set([
+        ...remitos.map((remito) => remito.cabeceraReceivedByUserId),
+        ...lines.map((line) => line.schoolReceivedByUserId),
+      ].filter((id): id is string => id !== null))]
+      const signerRows = signerIds.length === 0 ? [] : await db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, signerIds))
+      const signerNames = new Map(signerRows.map((row) => [row.id, row.name]))
+      const signer = (userId: string | null): RemitoSigner | null => userId === null ? null : { userId, name: signerNames.get(userId) ?? '' }
       return remitos.map((remito) => ({
         remitoId: remito.id, campaignId: remito.campaignId, cabeceraCueAnexo: remito.cabeceraCueAnexo,
         status: remito.status as RemitoRow['status'], dispatchedByUserId: remito.dispatchedByUserId,
         dispatchedAt: remito.dispatchedAt, cabeceraReceivedAt: remito.cabeceraReceivedAt,
+        cabeceraReceivedBy: signer(remito.cabeceraReceivedByUserId),
         lines: lines.filter((line) => line.remitoId === remito.id).map((line) => ({
           lineId: line.id, recipientCueAnexo: line.recipientCueAnexo, recipientName: line.recipientName,
           status: line.status as StoredRemitoLine['status'],
+          cabeceraShortfallReason: line.cabeceraShortfallReason, schoolShortfallReason: line.schoolShortfallReason,
+          schoolReceivedBy: signer(line.schoolReceivedByUserId), schoolReceivedAt: line.schoolReceivedAt,
           items: items.filter((item) => item.lineId === line.id).map((item) => ({
-            productId: item.productId, dispatchedQuantity: item.dispatchedQuantity,
+            productId: item.productId, productName: item.productName, dispatchedQuantity: item.dispatchedQuantity,
             cabeceraReceivedQuantity: item.cabeceraReceivedQuantity, schoolReceivedQuantity: item.schoolReceivedQuantity,
           })),
         })),
@@ -252,7 +275,11 @@ export async function dispatchRemito(actor: SessionUser, input: DispatchRemitoIn
 
 export type RemitoListInput = { campaignId?: string; cursor?: string; limit?: number }
 export type RemitoPage = {
-  remitos: Array<Omit<RemitoRow, 'dispatchedAt' | 'cabeceraReceivedAt'> & { dispatchedAt: string; cabeceraReceivedAt: string | null }>
+  remitos: Array<Omit<RemitoRow, 'dispatchedAt' | 'cabeceraReceivedAt' | 'lines'> & {
+    dispatchedAt: string
+    cabeceraReceivedAt: string | null
+    lines: Array<Omit<RemitoRow['lines'][number], 'schoolReceivedAt'> & { schoolReceivedAt: string | null }>
+  }>
   hasMore: boolean
   nextCursor: string | null
 }
@@ -276,7 +303,12 @@ export async function listRemitosForPlanning(actor: SessionUser | null, input: R
   const rows = await repository.listRemitos({ campaignId: input.campaignId, after, limit: pageSize + 1 })
   const page = rows.slice(0, pageSize)
   return {
-    remitos: page.map((row) => ({ ...row, dispatchedAt: row.dispatchedAt.toISOString(), cabeceraReceivedAt: row.cabeceraReceivedAt?.toISOString() ?? null })),
+    remitos: page.map((row) => ({
+      ...row,
+      dispatchedAt: row.dispatchedAt.toISOString(),
+      cabeceraReceivedAt: row.cabeceraReceivedAt?.toISOString() ?? null,
+      lines: row.lines.map((line) => ({ ...line, schoolReceivedAt: line.schoolReceivedAt?.toISOString() ?? null })),
+    })),
     hasMore: rows.length > pageSize,
     nextCursor: rows.length > pageSize ? encodeCursor(page.at(-1)!) : null,
   }

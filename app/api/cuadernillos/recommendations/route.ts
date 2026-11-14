@@ -33,9 +33,9 @@ async function handleGET(request: Request) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: NO_STORE })
   }
 
-  // The recipient school needs no assignment; the actor must be the requesting cabecera (or admin).
+  // The recipient school needs no assignment; the actor must be the requesting cabecera, planning (it builds the remitos) or admin.
   const { cueAnexo, cabeceraCueAnexo, campaignId } = parsed.data
-  if (!await canAccessSchool(actor, cabeceraCueAnexo, 'cabecera')) {
+  if (!await canAccessSchool(actor, cabeceraCueAnexo, 'cabecera') && !await canAccessSchool(actor, cabeceraCueAnexo, 'planning')) {
     return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403, headers: NO_STORE })
   }
 
