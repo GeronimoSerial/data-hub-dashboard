@@ -30,9 +30,10 @@ beforeAll(async () => {
       ('u-cab2', 'Other Cabecera', 'cab2@example.test', true, now(), now()),
       ('u-admin', 'Admin', 'admin@example.test', true, now(), now()),
       ('u-school', 'School A', 'school@example.test', true, now(), now()),
-      ('u-school2', 'School B', 'school2@example.test', true, now(), now());
+      ('u-school2', 'School B', 'school2@example.test', true, now(), now()),
+      ('u-unbound', 'Unbound Cabecera', 'unbound@example.test', true, now(), now());
     INSERT INTO booklet_membership (id, user_id, capability, granted_by_user_id) VALUES
-      ('m1', 'u-cab', 'cabecera', 'u-plan'), ('m2', 'u-cab2', 'cabecera', 'u-plan'), ('m3', 'u-admin', 'planning', 'u-plan');
+      ('m1', 'u-cab', 'cabecera', 'u-plan'), ('m2', 'u-cab2', 'cabecera', 'u-plan'), ('m3', 'u-admin', 'planning', 'u-plan'), ('m4', 'u-unbound', 'cabecera', 'u-plan');
     INSERT INTO booklet_campaign (id, name, status, distribution_enabled, overassignment_allowed)
       VALUES ('c1', 'Campaign', 'active', true, false);
     INSERT INTO booklet_product (id, name, level_code, grade_code) VALUES
@@ -356,7 +357,18 @@ describe('full custody chain on a real database', () => {
     if (result.kind !== 'cabecera') throw new Error('unreachable')
     const ids = result.remitos.map((remito) => remito.remitoId)
     expect(ids.indexOf(pending.remitoId)).toBeLessThan(ids.indexOf(history.remitoId))
-    expect(await rejection(listReceiptsForActor(adminActor, db))).toMatchObject({ status: 403 })
     expect(await rejection(listReceiptsForActor(actor('u-school', 'consulta'), db))).toMatchObject({ status: 403 })
+  })
+
+  it('gives booklet admins a read-only view of every remito instead of an error', async () => {
+    const { remitoId } = await seed()
+    const result = await listReceiptsForActor(adminActor, db)
+    expect(result).toMatchObject({ kind: 'cabecera', readOnly: true })
+    if (result.kind !== 'cabecera') throw new Error('unreachable')
+    expect(result.remitos.map((remito) => remito.remitoId)).toContain(remitoId)
+  })
+
+  it('tells a cabecera account without a confirmed cabecera school what is missing', async () => {
+    expect(await rejection(listReceiptsForActor(actor('u-unbound', 'consulta'), db))).toMatchObject({ status: 403, code: 'cabecera_not_bound' })
   })
 })

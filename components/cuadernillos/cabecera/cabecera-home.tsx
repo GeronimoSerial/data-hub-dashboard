@@ -102,7 +102,7 @@ function HistoryRemito({ remito }: { remito: CabeceraRemitoView }) {
     <Panel title={`Envío del ${formatWhen(remito.dispatchedAt)}`}>
       <div className="k-stack" style={{ gap: '.7rem' }}>
         <ShipmentJourney steps={remitoJourney(remito)} />
-        <SignedNote signer={remito.cabeceraReceivedBy} at={remito.cabeceraReceivedAt} />
+        {remito.cabeceraReceivedBy ? <SignedNote signer={remito.cabeceraReceivedBy} at={remito.cabeceraReceivedAt} /> : null}
         {remito.lines.map((line) => (
           <div key={line.lineId} className="k-stack" style={{ gap: '.3rem' }}>
             <h4 style={{ margin: 0 }}>{lineName(line)}</h4>
@@ -110,7 +110,7 @@ function HistoryRemito({ remito }: { remito: CabeceraRemitoView }) {
               {line.items.map((item) => (
                 <li key={item.productId} className="k-qty-row">
                   <span>{shortProduct(item.productName)}</span>
-                  <span>{`${formatCount(item.cabeceraReceivedQuantity ?? 0)} de ${formatCount(item.dispatchedQuantity)}`}</span>
+                  <span>{item.cabeceraReceivedQuantity === null ? formatCount(item.dispatchedQuantity) : `${formatCount(item.cabeceraReceivedQuantity)} de ${formatCount(item.dispatchedQuantity)}`}</span>
                 </li>
               ))}
             </ul>
@@ -125,9 +125,12 @@ function HistoryRemito({ remito }: { remito: CabeceraRemitoView }) {
 export function CabeceraHome() {
   const { listing, error, reload, retry } = useReceiptListing()
   const remitos = listing?.kind === 'cabecera' ? listing.remitos : null
+  const readOnly = listing?.kind === 'cabecera' && listing.readOnly === true
   const pending = remitos?.filter((remito) => remito.status === 'dispatched') ?? []
   const history = remitos?.filter((remito) => remito.status !== 'dispatched') ?? []
-  const title = pending.length === 0 ? 'No tenés nada pendiente.' : `Tenés ${pending.length} ${pluralize(pending.length, 'envío', 'envíos')} para recibir.`
+  const title = readOnly
+    ? (pending.length === 0 ? 'Ningún envío está esperando a su cabecera.' : `${pending.length} ${pluralize(pending.length, 'envío está', 'envíos están')} esperando a su cabecera.`)
+    : pending.length === 0 ? 'No tenés nada pendiente.' : `Tenés ${pending.length} ${pluralize(pending.length, 'envío', 'envíos')} para recibir.`
 
   return (
     <section aria-labelledby="cabecera-home-title" className="k-stack">
@@ -139,7 +142,8 @@ export function CabeceraHome() {
         </div>
       ) : null}
       {!remitos && !error ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando envíos…</p> : null}
-      {remitos ? <TaskCard tone={pending.length > 0 ? 'warn' : 'ok'} title={title} /> : null}
+      {remitos ? <TaskCard tone={pending.length > 0 ? 'warn' : 'ok'} title={title}
+        description={readOnly ? 'Estás viendo todos los envíos como administrador. Solo la cuenta de cada cabecera puede confirmar lo que llegó.' : undefined} /> : null}
       {remitos && remitos.length === 0 ? (
         <>
           <EmptyState title="Todavía no hay envíos" description="Cuando Planeamiento envíe cuadernillos a tu cabecera, los confirmás acá." />
@@ -148,7 +152,9 @@ export function CabeceraHome() {
       ) : null}
       {pending.length > 0 ? (
         <div className="k-stack" role="region" aria-label="Pendientes">
-          {pending.map((remito) => <PendingRemito key={remito.remitoId} remito={remito} onSigned={reload} />)}
+          {pending.map((remito) => readOnly
+            ? <HistoryRemito key={remito.remitoId} remito={remito} />
+            : <PendingRemito key={remito.remitoId} remito={remito} onSigned={reload} />)}
         </div>
       ) : null}
       {history.length > 0 ? (
