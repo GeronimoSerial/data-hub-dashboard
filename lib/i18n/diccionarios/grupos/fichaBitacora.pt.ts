@@ -4,6 +4,14 @@ import type { fichaBitacoraEs } from './fichaBitacora.es'
 // Brazilian Portuguese texts of the `fichaBitacora` group; must mirror fichaBitacora.es.ts key for key.
 export const fichaBitacoraPt: DeepStringify<typeof fichaBitacoraEs> = {
   ayer: 'Ontem',
+  escuela: 'Escola',
+  seCargo: (paso: string) => `Registrada · ${paso}`,
+  gravedadPaso: (paso: string) => `Gravidade ${paso}`,
+  alcancePaso: (paso: string) => `Abrangência ${paso}`,
+  cargada: 'Registrada',
+  ultimoCambio: 'Última alteração',
+  masRecientePrimero: 'Mais recente primeiro',
+  alcanzados: 'alunos alcançados',
   recien: 'agora mesmo',
   ultimoMovimiento: 'Última movimentação',
   pestanaBitacora: 'Registro',
