@@ -254,14 +254,11 @@ describe('VistaPreviaEscuela — comedor y posible centro de evacuados', () => {
     expect(screen.queryByText('Comedor')).not.toBeInTheDocument()
   })
 
-  it('marca la escuela apta, con su variante sin antecedentes, y no marca la no apta', () => {
-    const { unmount } = render(<VistaPreviaEscuela escuela={crearEscuelaBase({ posibleCentroEvacuados: true })} {...props} />)
-    expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
-    unmount()
-    const otra = render(<VistaPreviaEscuela escuela={crearEscuelaBase({ posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true })} {...props} />)
-    expect(screen.getByText('Posible centro de evacuados (sin antecedentes de riesgo)')).toBeInTheDocument()
-    otra.unmount()
-    render(<VistaPreviaEscuela escuela={crearEscuelaBase({ posibleCentroEvacuados: false })} {...props} />)
+  it.each([
+    [{ posibleCentroEvacuados: true }],
+    [{ posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true as const }],
+  ])('no muestra la sugerencia calculada de centro de evacuados (%o)', (marcas) => {
+    render(<VistaPreviaEscuela escuela={crearEscuelaBase(marcas)} {...props} />)
     expect(screen.queryByText(/Posible centro de evacuados/)).not.toBeInTheDocument()
   })
 })
