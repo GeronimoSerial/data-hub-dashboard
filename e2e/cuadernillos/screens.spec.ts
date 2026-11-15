@@ -107,7 +107,7 @@ for (const { width, height } of VIEWPORTS) {
       await dismissUnderDevelopment(page)
       await shot(page, 'planning-home', width)
       await step('planning remito builder', async () => {
-        await page.getByRole('button', { name: 'Nuevo remito' }).click()
+        await page.getByRole('button', { name: 'Enviar cuadernillos' }).click()
         await page.getByRole('dialog').waitFor({ timeout: 5_000 })
       })
       await shot(page, 'planning-remito-builder', width)

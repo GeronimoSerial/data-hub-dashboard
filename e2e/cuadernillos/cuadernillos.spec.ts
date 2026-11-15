@@ -18,15 +18,15 @@ test('isolated PGlite smoke loads every role surface and confines the school ope
   const planning = await session(browser, 'planning')
   const planningPage = planning.pages()[0]
   await expect(planningPage.getByRole('heading', { name: 'Cuadernillos' })).toBeVisible()
-  await expect(planningPage.getByRole('button', { name: 'Nuevo remito' })).toBeVisible()
+  await expect(planningPage.getByRole('button', { name: 'Enviar cuadernillos' })).toBeVisible()
   await planning.close()
 
   const cabecera = await session(browser, 'cabecera')
-  await expect(cabecera.pages()[0].getByRole('heading', { name: 'Recepción de remitos' })).toBeVisible()
+  await expect(cabecera.pages()[0].getByRole('heading', { name: 'Recepción de envíos' })).toBeVisible()
   await cabecera.close()
 
   const supervisor = await session(browser, 'supervisor')
-  await expect(supervisor.pages()[0].getByRole('heading', { name: 'Control de remitos' })).toBeVisible()
+  await expect(supervisor.pages()[0].getByRole('heading', { name: 'Revisar envíos' })).toBeVisible()
   await supervisor.close()
 
   const operator = await session(browser, 'operator')
