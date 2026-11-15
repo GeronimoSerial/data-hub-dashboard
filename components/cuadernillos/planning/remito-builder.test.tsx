@@ -181,6 +181,19 @@ describe('RemitoBuilder', () => {
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   })
 
+  it('shows the stock left per grade while loading quantities and flags a grade that runs out', async () => {
+    vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
+
+    renderBuilder({ products: [products[0], { ...products[1], available: 20 }] })
+    await goToQuantities()
+
+    const left = screen.getByRole('group', { name: 'Stock que queda por grado' })
+    expect(left).toHaveTextContent('-5')
+    expect(left.querySelectorAll('[data-state="over"]')).toHaveLength(1)
+    expect(screen.getByRole('alert')).toHaveTextContent('No alcanza el stock de 2.º grado. Bajá las cantidades para poder enviar.')
+    expect(screen.getByLabelText('Total para Escuela A')).toHaveTextContent('55')
+  })
+
   it('lists in the review only what is being sent, like a receipt', async () => {
     vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
     renderBuilder()
