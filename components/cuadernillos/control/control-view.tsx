@@ -8,16 +8,19 @@ import type {
   RemitoControlItem, RemitoControlLine, RemitoControlObservation, RemitoControlPage, RemitoControlRemito,
 } from '@/lib/cuadernillos/remito-control'
 import { dashedCue } from '../cabecera/cabecera-api'
-import { Chip, EmptyState, KpiStrip, Modal, ModalBody, ModalFoot, Note, PageHeader, Panel, Segmented, formatCount } from '../kit'
+import {
+  Chip, CircuitGuide, EmptyState, KpiStrip, Modal, ModalBody, ModalFoot, Note, PageHeader, Panel, Segmented, ShipmentJourney, TaskCard, formatCount, shortProduct,
+  type JourneyStep,
+} from '../kit'
 
-const LOAD_ERROR = 'No se pudo cargar el control de remitos.'
+const LOAD_ERROR = 'No se pudieron cargar los envíos.'
 const dateTime = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' })
 const when = (iso: string) => dateTime.format(new Date(iso))
 
 const OBSERVATION_ERRORS: Record<string, string> = {
-  forbidden: 'Esta cuenta no puede agregar observaciones a este remito.',
-  remito_not_found: 'El remito ya no está disponible.',
-  line_not_found: 'La línea elegida ya no pertenece al remito.',
+  forbidden: 'Esta cuenta no puede dejar observaciones en este envío.',
+  remito_not_found: 'El envío ya no está disponible.',
+  line_not_found: 'La escuela elegida ya no pertenece al envío.',
 }
 
 type Filter = 'all' | 'shortfall'
@@ -81,103 +84,150 @@ export function ControlView() {
 
   const summary = page?.summary
   const open = page?.remitos.find((remito) => remito.remitoId === openId) ?? null
+  const incomplete = page ? page.remitos.filter((remito) => remito.hasShortfall).length : 0
+  const partial = Boolean(page?.hasMore) && filter === 'all'
 
   return (
     <section aria-labelledby="control-title" className="k-stack">
-      <PageHeader id="control-title" title="Control de remitos" description="Seguimiento posterior de lo despachado y recibido en cada tramo. No hay aprobaciones: solo observaciones." />
+      <PageHeader id="control-title" title="Revisar envíos" description="Revisá cómo llegaron los envíos de tus escuelas y dejá observaciones si algo no está bien." />
 
       {error ? <Note tone="danger">{error}</Note> : null}
-      {loading && !page ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando remitos…</p> : null}
+      {loading && !page ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando envíos…</p> : null}
+
+      {page ? (
+        incomplete > 0 ? (
+          <TaskCard
+            tone="warn"
+            title={`${partial ? 'Al menos ' : ''}${incomplete} ${incomplete === 1 ? 'envío llegó incompleto' : 'envíos llegaron incompletos'}. Revisalos.`}
+            action={filter === 'all'
+              ? <Button type="button" onClick={() => { setLoading(true); setFilter('shortfall') }}>Ver los incompletos</Button>
+              : <Button type="button" variant="secondary" onClick={() => { setLoading(true); setFilter('all') }}>Ver todos los envíos</Button>}
+          />
+        ) : (
+          <TaskCard tone="ok" title="No tenés nada pendiente." />
+        )
+      ) : null}
 
       {summary ? (
-        <KpiStrip label="Resumen de control" items={[
-          { label: 'Remitos pendientes de recepción en cabecera', value: summary.remitosPendingCabeceraReceipt, tone: summary.remitosPendingCabeceraReceipt > 0 ? 'warn' : undefined },
-          { label: 'Líneas pendientes en escuela', value: summary.linesPendingSchoolReceipt, tone: summary.linesPendingSchoolReceipt > 0 ? 'warn' : undefined },
-          { label: 'Faltantes Planeamiento → Cabecera', value: formatCount(summary.planningToCabeceraShortfallUnits), tone: summary.planningToCabeceraShortfallUnits > 0 ? 'warn' : undefined },
-          { label: 'Faltantes Cabecera → Escuela', value: formatCount(summary.cabeceraToSchoolShortfallUnits), tone: summary.cabeceraToSchoolShortfallUnits > 0 ? 'warn' : undefined },
+        <KpiStrip label="Resumen de envíos" items={[
+          { label: 'Esperando a la cabecera', value: summary.remitosPendingCabeceraReceipt },
+          { label: 'Esperando a la escuela', value: summary.linesPendingSchoolReceipt },
+          { label: 'Llegó de menos a la cabecera', value: formatCount(summary.planningToCabeceraShortfallUnits), tone: summary.planningToCabeceraShortfallUnits > 0 ? 'warn' : undefined },
+          { label: 'Llegó de menos a la escuela', value: formatCount(summary.cabeceraToSchoolShortfallUnits), tone: summary.cabeceraToSchoolShortfallUnits > 0 ? 'warn' : undefined },
         ]} />
       ) : null}
 
       <Segmented<Filter>
-        label="Filtro de remitos"
+        label="Filtro de envíos"
         value={filter}
-        options={[{ value: 'all', label: 'Todos' }, { value: 'shortfall', label: 'Solo con faltantes' }]}
+        options={[{ value: 'all', label: 'Todos' }, { value: 'shortfall', label: 'Solo incompletos' }]}
         onChange={(next) => { setLoading(true); setFilter(next) }}
       />
 
       {page ? (
-        <Panel title="Remitos" aside={`${page.remitos.length}${page.hasMore ? '+' : ''}`}>
+        <Panel title="Envíos" aside={`${page.remitos.length}${page.hasMore ? '+' : ''}`}>
           {page.remitos.length === 0 ? (
-            <EmptyState
-              title={filter === 'shortfall' ? 'No hay remitos con faltantes' : 'Todavía no hay remitos para controlar'}
-              description={filter === 'shortfall' ? 'Cuando un tramo reciba menos de lo enviado, aparece acá.' : 'Los remitos de tus cabeceras aparecen cuando Planeamiento los despacha.'}
-            />
+            <>
+              <EmptyState
+                title={filter === 'shortfall' ? 'No hay envíos incompletos' : 'Todavía no hay envíos para revisar'}
+                description={filter === 'shortfall' ? 'Cuando a una escuela le llegue menos de lo enviado, aparece acá.' : 'Los envíos a tus cabeceras aparecen cuando Planeamiento los manda.'}
+              />
+              {filter === 'all' ? <CircuitGuide /> : null}
+            </>
           ) : (
             <ul className="k-list">
               {page.remitos.map((remito) => (
                 <li key={remito.remitoId}>
-                  <button type="button" className="k-row" aria-label={`Remito a ${remito.cabeceraName}, ${when(remito.dispatchedAt)}`} onClick={() => setOpenId(remito.remitoId)}>
-                    <span className="k-row-main">
+                  <button type="button" className="k-row" aria-label={`Envío a ${remito.cabeceraName}, ${when(remito.dispatchedAt)}`} onClick={() => setOpenId(remito.remitoId)}>
+                    <span className="k-row-main" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: '.75rem', rowGap: '.1rem' }}>
                       <span className="k-row-title">{remito.cabeceraName}</span>
                       <span className="k-row-meta">{when(remito.dispatchedAt)} · {remito.lines.length} escuela{remito.lines.length === 1 ? '' : 's'}</span>
-                      <span style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
-                        {remito.cabeceraReceivedAt ? <Chip tone="ok">Recibido por cabecera</Chip> : <Chip tone="warn">Pendiente en cabecera</Chip>}
-                        {remito.hasShortfall ? <Chip tone="danger">Con faltantes</Chip> : null}
-                        {remito.observations.length > 0 ? <Chip tone="info">{remito.observations.length} observación{remito.observations.length === 1 ? '' : 'es'}</Chip> : null}
-                      </span>
+                      {stageChip(remito)}
+                      {remito.observations.length > 0 ? <Chip tone="info">{remito.observations.length} observación{remito.observations.length === 1 ? '' : 'es'}</Chip> : null}
                     </span>
-                    <span className="k-row-side"><ChevronRight aria-hidden size={20} /></span>
+                    <span className="k-row-side"><ChevronRight aria-hidden size={18} /></span>
                   </button>
                 </li>
               ))}
             </ul>
           )}
           {page.hasMore ? (
-            <Button type="button" variant="secondary" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? 'Cargando…' : 'Ver más remitos'}</Button>
+            <Button type="button" variant="secondary" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? 'Cargando…' : 'Ver más envíos'}</Button>
           ) : null}
         </Panel>
       ) : null}
 
-      <Modal open={open !== null} title={open ? `Remito a ${open.cabeceraName}` : 'Remito'} description={open ? `CUE ${dashedCue(open.cabeceraCueAnexo)}` : undefined} onClose={() => setOpenId(null)}>
+      <Modal open={open !== null} title={open ? `Envío a ${open.cabeceraName}` : 'Envío'} description={open ? `CUE ${dashedCue(open.cabeceraCueAnexo)}` : undefined} onClose={() => setOpenId(null)}>
         {open ? <RemitoDetail key={open.remitoId} remito={open} onObservation={(observation) => observationAdded(open.remitoId, observation)} /> : null}
       </Modal>
     </section>
   )
 }
 
-function itemShortfalls(item: RemitoControlItem) {
-  return (
-    <span style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
-      {item.planningToCabeceraShortfall ? <Chip tone="danger">Planeamiento → Cabecera: faltan {formatCount(item.planningToCabeceraShortfall)}</Chip> : null}
-      {item.cabeceraToSchoolShortfall ? <Chip tone="danger">Cabecera → Escuela: faltan {formatCount(item.cabeceraToSchoolShortfall)}</Chip> : null}
-    </span>
-  )
+function stageChip(remito: RemitoControlRemito) {
+  if (remito.hasShortfall) return <Chip tone="danger">Llegó de menos</Chip>
+  if (!remito.cabeceraReceivedAt) return <Chip tone="warn">Esperando a la cabecera</Chip>
+  if (remito.lines.every((line) => line.schoolReceivedAt)) return <Chip tone="ok">Llegó a la escuela</Chip>
+  return <Chip tone="warn">Esperando a la escuela</Chip>
 }
 
-const count = (value: number | null) => value === null ? 'pendiente' : formatCount(value)
+const count = (value: number | null) => value === null ? '—' : formatCount(value)
+
+function journeySteps(remito: RemitoControlRemito): JourneyStep[] {
+  const units = (pick: (item: RemitoControlItem) => number) => remito.lines.reduce((sum, line) => sum + line.items.reduce((inner, item) => inner + pick(item), 0), 0)
+  const shortAtCabecera = units((item) => item.planningToCabeceraShortfall ?? 0) > 0
+  const shortAtSchool = units((item) => item.cabeceraToSchoolShortfall ?? 0) > 0
+  const received = remito.lines.filter((line) => line.schoolReceivedAt).length
+  const allReceived = remito.lines.length > 0 && received === remito.lines.length
+  const cabeceraWho = `${remito.cabeceraReceivedByName ?? 'La cabecera'}${remito.cabeceraReceivedAt ? ` · ${when(remito.cabeceraReceivedAt)}` : ''}`
+  return [
+    { label: 'Enviado', state: 'done', detail: `${remito.dispatchedByName} · ${when(remito.dispatchedAt)}` },
+    remito.cabeceraReceivedAt
+      ? { label: 'Llegó a la cabecera', state: shortAtCabecera ? 'short' : 'done', detail: `${cabeceraWho}${shortAtCabecera ? ' · llegó de menos' : ''}` }
+      : { label: 'Llegó a la cabecera', state: 'current' },
+    allReceived
+      ? { label: 'Llegó a la escuela', state: shortAtSchool ? 'short' : 'done', detail: `${received} de ${remito.lines.length} escuelas${shortAtSchool ? ' · llegó de menos' : ''}` }
+      : { label: 'Llegó a la escuela', state: remito.cabeceraReceivedAt ? 'current' : 'pending', detail: remito.cabeceraReceivedAt ? `${received} de ${remito.lines.length} escuelas` : null },
+  ]
+}
+
+const cell = { padding: '.15rem .5rem', textAlign: 'right' as const, fontVariantNumeric: 'tabular-nums' as const }
 
 function LineChain({ remito, line }: { remito: RemitoControlRemito; line: RemitoControlLine }) {
   return (
-    <section aria-label={line.recipientName ?? line.recipientCueAnexo} style={{ display: 'grid', gap: '.4rem' }}>
+    <section aria-label={line.recipientName ?? line.recipientCueAnexo} style={{ display: 'grid', gap: '.3rem' }}>
       <span className="k-row-title">{line.recipientName ?? 'Escuela'} <span className="k-row-meta">CUE {dashedCue(line.recipientCueAnexo)}</span></span>
       <span className="k-row-meta">
         {line.schoolReceivedAt
-          ? `Escuela: Firmó ${line.schoolReceivedByName ?? 'una cuenta de la escuela'} el ${when(line.schoolReceivedAt)}`
-          : remito.cabeceraReceivedAt ? 'Escuela: pendiente de firma' : 'Escuela: espera la recepción de la cabecera'}
+          ? `Llegó a la escuela · ${line.schoolReceivedByName ?? 'una cuenta de la escuela'} · ${when(line.schoolReceivedAt)}`
+          : remito.cabeceraReceivedAt ? 'Esperando a la escuela' : 'Esperando a la cabecera'}
       </span>
-      <ul className="k-qty-list">
-        {line.items.map((item) => (
-          <li key={item.productId} className="k-qty-row">
-            <span className="k-row-main">
-              <span className="k-row-title">{item.productLabel}</span>
-              <span className="k-row-meta">Despachado {formatCount(item.dispatched)} · Cabecera {count(item.cabeceraReceived)} · Escuela {count(item.schoolReceived)}</span>
-            </span>
-            {itemShortfalls(item)}
-          </li>
-        ))}
-      </ul>
-      {line.cabeceraShortfallReason ? <Note>Motivo del faltante en cabecera: {line.cabeceraShortfallReason}</Note> : null}
-      {line.schoolShortfallReason ? <Note>Motivo del faltante en escuela: {line.schoolShortfallReason}</Note> : null}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.88rem' }}>
+        <thead>
+          <tr style={{ color: 'var(--ink-soft)' }}>
+            <th scope="col" style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>Grado</th>
+            <th scope="col" style={{ ...cell, fontWeight: 600 }}>Enviado</th>
+            <th scope="col" style={{ ...cell, fontWeight: 600 }}>En cabecera</th>
+            <th scope="col" style={{ ...cell, fontWeight: 600 }}>En escuela</th>
+          </tr>
+        </thead>
+        <tbody>
+          {line.items.map((item) => (
+            <tr key={item.productId} style={{ borderTop: '1px solid var(--line-soft)' }}>
+              <th scope="row" style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>{shortProduct(item.productLabel)}</th>
+              <td style={cell}>{formatCount(item.dispatched)}</td>
+              <td style={{ ...cell, color: item.planningToCabeceraShortfall ? 'var(--danger-ink)' : undefined }}>
+                {count(item.cabeceraReceived)}{item.planningToCabeceraShortfall ? ` (faltan ${formatCount(item.planningToCabeceraShortfall)})` : ''}
+              </td>
+              <td style={{ ...cell, color: item.cabeceraToSchoolShortfall ? 'var(--danger-ink)' : undefined }}>
+                {count(item.schoolReceived)}{item.cabeceraToSchoolShortfall ? ` (faltan ${formatCount(item.cabeceraToSchoolShortfall)})` : ''}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {line.cabeceraShortfallReason ? <Note>Por qué llegó de menos a la cabecera: {line.cabeceraShortfallReason}</Note> : null}
+      {line.schoolShortfallReason ? <Note>Por qué llegó de menos a la escuela: {line.schoolShortfallReason}</Note> : null}
     </section>
   )
 }
@@ -217,26 +267,13 @@ function RemitoDetail({ remito, onObservation }: { remito: RemitoControlRemito; 
   return (
     <>
       <ModalBody>
-        <ol aria-label="Cadena del remito" className="k-list">
-          <li className="k-row"><span className="k-row-main">
-            <span className="k-row-title">Planeamiento</span>
-            <span className="k-row-meta">Despachó {remito.dispatchedByName} el {when(remito.dispatchedAt)}</span>
-          </span></li>
-          <li className="k-row"><span className="k-row-main">
-            <span className="k-row-title">Cabecera</span>
-            <span className="k-row-meta">
-              {remito.cabeceraReceivedAt
-                ? `Firmó ${remito.cabeceraReceivedByName ?? 'la cabecera'} el ${when(remito.cabeceraReceivedAt)}`
-                : 'Pendiente de recepción'}
-            </span>
-          </span></li>
-        </ol>
+        <ShipmentJourney steps={journeySteps(remito)} />
         {remito.lines.map((line) => <LineChain key={line.lineId} remito={remito} line={line} />)}
 
         <div className="k-field">
           <span className="k-label">Observaciones</span>
           {remito.observations.length === 0 ? <span className="k-hint">Todavía no hay observaciones.</span> : (
-            <ul className="k-list" aria-label="Observaciones del remito">
+            <ul className="k-list" aria-label="Observaciones del envío">
               {remito.observations.map((observation) => (
                 <li key={observation.id} className="k-row">
                   <span className="k-row-main">
@@ -256,9 +293,9 @@ function RemitoDetail({ remito, onObservation }: { remito: RemitoControlRemito; 
           <Textarea id="obs-body" value={body} maxLength={2000} rows={3} onChange={(event) => setBody(event.target.value)} />
           {remito.lines.length > 1 ? (
             <Segmented
-              label="Referida a"
+              label="Sobre"
               value={lineId}
-              options={[{ value: '', label: 'Todo el remito' }, ...remito.lines.map((line) => ({ value: line.lineId, label: line.recipientName ?? dashedCue(line.recipientCueAnexo) }))]}
+              options={[{ value: '', label: 'Todo el envío' }, ...remito.lines.map((line) => ({ value: line.lineId, label: line.recipientName ?? dashedCue(line.recipientCueAnexo) }))]}
               onChange={setLineId}
             />
           ) : null}
