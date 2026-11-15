@@ -9,7 +9,11 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
  * Layout rules that inline styles cannot express (hover, focus, breakpoints) live in KitStyles.
  */
 const CSS = `
-.cdl-page { overflow-wrap: anywhere; }
+.cdl-page { display: grid; gap: .75rem; width: 100%; max-width: 72rem; box-sizing: border-box; margin: 0 auto; padding: clamp(1.25rem, 3vw, 2.25rem) var(--gutter, clamp(1.25rem, 4vw, 3rem)) 3rem; color: var(--ink); overflow-wrap: anywhere; }
+/* Planeamiento is a working board: it uses the full measure of the hub. */
+.cdl-page[data-wide] { max-width: var(--measure, 90rem); }
+.cdl-eyebrow { margin: 0; color: var(--ink-soft); font-family: var(--font-body); font-size: .8rem; font-weight: 600; line-height: 1.2; letter-spacing: .08em; text-transform: uppercase; }
+.cdl-sections { display: grid; gap: 1.5rem; }
 .cdl-page > *, .cdl-page .k-min { min-width: 0; }
 /* Section headings in sentence case: the hub's uppercase display style reads as labels here. */
 .cdl-page h3, .cdl-page h4 { text-transform: none; letter-spacing: 0; }

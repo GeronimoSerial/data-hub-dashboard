@@ -5,6 +5,7 @@ import { ChevronRight } from 'lucide-react'
 import { dashedCue } from '../cabecera/cabecera-api'
 import { CircuitGuide, EmptyState, ShipmentJourney, formatCount, shortProduct, type JourneyStep } from '../kit'
 import type { RemitoLineRow, RemitoSigner, RemitoSummary } from './remito-api'
+import { daysAgo, envioStatus, lineDone, remitoUnits, type EnvioStatus } from './remito-status'
 
 // The campaign already fixes the year, so dates stay short: "13 nov" and "13 nov, 11:10".
 const dateFormat = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' })
@@ -14,10 +15,6 @@ function signature(signer: RemitoSigner | null | undefined, at: string | null | 
   if (!signer) return null
   const name = signer.name || 'cuenta sin nombre'
   return at ? `${name} · ${dateTimeFormat.format(new Date(at))}` : name
-}
-
-function lineDone(line: RemitoLineRow) {
-  return line.status === 'received' || line.status === 'closed_empty'
 }
 
 const LINE_STATUS: Record<RemitoLineRow['status'], string> = {
@@ -105,15 +102,34 @@ function LineDetail({ line, productLabels }: { line: RemitoLineRow; productLabel
   )
 }
 
-export function RemitosList({ remitos, cabeceraNames, productLabels, hasMore, loadingMore, onLoadMore }: {
+type Filter = 'all' | 'waiting' | 'delivering' | 'done' | 'short'
+
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: 'all', label: 'Todos' },
+  { id: 'waiting', label: 'Esperando a la cabecera' },
+  { id: 'delivering', label: 'En reparto' },
+  { id: 'done', label: 'Entregados' },
+  { id: 'short', label: 'Con faltantes' },
+]
+
+function matches(status: EnvioStatus, filter: Filter) {
+  if (filter === 'all') return true
+  if (filter === 'short') return status.short
+  return status.stage === filter
+}
+
+export function RemitosList({ remitos, cabeceras, productLabels, hasMore, loadingMore, onLoadMore }: {
   remitos: RemitoSummary[]
-  cabeceraNames: Map<string, string>
+  cabeceras: Map<string, { nombre: string; departamento: string }>
   productLabels: Map<string, string>
   hasMore: boolean
   loadingMore: boolean
   onLoadMore: () => void
 }) {
   const [openId, setOpenId] = useState<string | null>(null)
+  const [filter, setFilter] = useState<Filter>('all')
+  // Read once: "hace 2 días" must not change between renders of the same screen.
+  const [now] = useState(() => Date.now())
   if (remitos.length === 0) {
     return (
       <div className="pl-envios-empty">
@@ -122,40 +138,77 @@ export function RemitosList({ remitos, cabeceraNames, productLabels, hasMore, lo
       </div>
     )
   }
+  const rows = remitos.map((remito) => ({ remito, status: envioStatus(remito, now) }))
+  const filters = FILTERS.map((item) => ({ ...item, count: rows.filter((row) => matches(row.status, item.id)).length }))
+    .filter((item) => item.id === 'all' || item.count > 0)
+  const active = filters.some((item) => item.id === filter) ? filter : 'all'
+  const visible = rows.filter((row) => matches(row.status, active))
   return (
     <>
-      <ul className="pl-envios">
-        {remitos.map((remito) => {
-          const open = openId === remito.remitoId
-          const name = cabeceraNames.get(remito.cabeceraCueAnexo) ?? `CUE ${dashedCue(remito.cabeceraCueAnexo)}`
-          const units = remito.lines.reduce((sum, line) => sum + line.items.reduce((acc, item) => acc + item.dispatchedQuantity, 0), 0)
-          const cabeceraSigner = signature(remito.cabeceraReceivedBy, remito.cabeceraReceivedAt)
-          return (
-            <li key={remito.remitoId} className="pl-envio" data-open={open || undefined}>
-              {/* The click bubbles from the button, so the whole row toggles while the button stays the keyboard target. */}
-              <div className="pl-envio-row" onClick={() => setOpenId(open ? null : remito.remitoId)}>
-                <button type="button" className="pl-envio-toggle" aria-expanded={open} aria-label={`Envío a ${name}, ${dateFormat.format(new Date(remito.dispatchedAt))}`}>
-                  <ChevronRight aria-hidden size={16} />
-                  <span className="pl-envio-name">{name}</span>
-                  <span className="pl-envio-meta">
-                    {dateFormat.format(new Date(remito.dispatchedAt))} · {remito.lines.length} escuela{remito.lines.length === 1 ? '' : 's'}
-                    {units > 0 ? ` · ${formatCount(units)} cuadernillos` : ''}
+      {filters.length > 2 ? (
+        <div role="group" aria-label="Filtrar envíos" className="pl-filters">
+          {filters.map((item) => (
+            <button key={item.id} type="button" aria-pressed={active === item.id} onClick={() => setFilter(item.id)}>
+              {item.label} <span>{item.count}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="pl-envios">
+        <div className="pl-envio-cols pl-envios-head" aria-hidden="true">
+          <span>Cabecera</span>
+          <span>Salió</span>
+          <span>Lleva</span>
+          <span>Estado</span>
+        </div>
+        <ul>
+          {visible.map(({ remito, status }) => {
+            const open = openId === remito.remitoId
+            const cabecera = cabeceras.get(remito.cabeceraCueAnexo)
+            const name = cabecera?.nombre ?? `CUE ${dashedCue(remito.cabeceraCueAnexo)}`
+            const units = remitoUnits(remito).dispatched
+            const tone = status.short ? 'short' : status.stage
+            return (
+              <li key={remito.remitoId} className="pl-envio" data-open={open || undefined}>
+                <button type="button" className="pl-envio-cols pl-envio-row" aria-expanded={open}
+                  aria-label={`Envío a ${name}, ${dateFormat.format(new Date(remito.dispatchedAt))}`}
+                  onClick={() => setOpenId(open ? null : remito.remitoId)}>
+                  <span className="pl-envio-who">
+                    <strong>{name}</strong>
+                    <span>{cabecera ? `${cabecera.departamento} · ` : ''}CUE {dashedCue(remito.cabeceraCueAnexo)}</span>
                   </span>
+                  <span className="pl-envio-when">
+                    <strong>{dateFormat.format(new Date(remito.dispatchedAt))}</strong>
+                    <span>{daysAgo(remito.dispatchedAt, now)}</span>
+                  </span>
+                  <span className="pl-envio-what">
+                    <strong>{formatCount(units)} cuadernillos</strong>
+                    <span>{remito.lines.length} escuela{remito.lines.length === 1 ? '' : 's'}</span>
+                  </span>
+                  <span className="pl-envio-status" data-tone={tone}>
+                    <strong>{status.label}</strong>
+                    <span>{status.detail}</span>
+                    {status.schools > 0 ? (
+                      <span className="pl-envio-bar" aria-hidden="true">
+                        <span style={{ width: `${Math.round((status.schoolsDone / status.schools) * 100)}%` }} />
+                      </span>
+                    ) : null}
+                  </span>
+                  <ChevronRight aria-hidden size={16} className="pl-envio-chevron" />
                 </button>
-                <ShipmentJourney steps={journeySteps(remito)} label={`Recorrido del envío a ${name}`} />
-              </div>
-              {open ? (
-                <div className="pl-envio-detail">
-                  {cabeceraSigner ? <p className="pl-line-note">Confirmó la cabecera: {cabeceraSigner}</p> : null}
-                  <div className="pl-lines">
-                    {remito.lines.map((line) => <LineDetail key={line.recipientCueAnexo} line={line} productLabels={productLabels} />)}
+                {open ? (
+                  <div className="pl-envio-detail">
+                    <ShipmentJourney steps={journeySteps(remito)} label={`Recorrido del envío a ${name}`} />
+                    <div className="pl-lines">
+                      {remito.lines.map((line) => <LineDetail key={line.recipientCueAnexo} line={line} productLabels={productLabels} />)}
+                    </div>
                   </div>
-                </div>
-              ) : null}
-            </li>
-          )
-        })}
-      </ul>
+                ) : null}
+              </li>
+            )
+          })}
+        </ul>
+      </div>
       {hasMore ? (
         <button type="button" className="ui-button ui-button--secondary pl-more" disabled={loadingMore} onClick={onLoadMore}>
           {loadingMore ? 'Cargando…' : 'Ver más envíos'}
