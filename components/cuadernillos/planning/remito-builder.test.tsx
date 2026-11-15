@@ -63,7 +63,11 @@ describe('RemitoBuilder', () => {
     expect(screen.getByLabelText('Escuela A · Cuadernillo 1.er grado')).toHaveValue(30)
     fireEvent.change(screen.getByLabelText('Escuela A · Cuadernillo 2.º grado'), { target: { value: '20' } })
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
-    expect(await screen.findByRole('list', { name: 'Totales contra stock' })).toHaveTextContent('Enviás 30 · Stock 100')
+    const receipt = await screen.findByRole('region', { name: 'Detalle del envío' })
+    expect(receipt).toHaveTextContent('Envío aCabecera Norte')
+    expect(receipt).toHaveTextContent('Escuela A')
+    expect(receipt).toHaveTextContent('Total50 cuadernillos')
+    expect(receipt).not.toHaveTextContent('Stock')
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
     await waitFor(() => expect(onDispatched).toHaveBeenCalled())
@@ -148,7 +152,7 @@ describe('RemitoBuilder', () => {
     await goToQuantities()
     expect(items()[1]).toHaveAttribute('aria-current', 'step')
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
-    expect(await screen.findByRole('list', { name: 'Totales contra stock' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Detalle del envío' })).toBeInTheDocument()
     expect(items()[2]).toHaveAttribute('aria-current', 'step')
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeEnabled()
   })
@@ -172,8 +176,33 @@ describe('RemitoBuilder', () => {
     // The recommendation for 2.º grado is 25 but only 20 are in stock.
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
 
-    expect(await screen.findByText('Faltan 5')).toBeInTheDocument()
+    expect(await screen.findByText(/No alcanza el stock: 2\.º grado \(quedan 20, pediste 25\)/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled()
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  })
+
+  it('shows the stock left per grade while loading quantities and flags a grade that runs out', async () => {
+    vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
+
+    renderBuilder({ products: [products[0], { ...products[1], available: 20 }] })
+    await goToQuantities()
+
+    const left = screen.getByRole('group', { name: 'Stock que queda por grado' })
+    expect(left).toHaveTextContent('-5')
+    expect(left.querySelectorAll('[data-state="over"]')).toHaveLength(1)
+    expect(screen.getByRole('alert')).toHaveTextContent('No alcanza el stock de 2.º grado. Bajá las cantidades para poder enviar.')
+    expect(screen.getByLabelText('Total para Escuela A')).toHaveTextContent('55')
+  })
+
+  it('lists in the review only what is being sent, like a receipt', async () => {
+    vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
+    renderBuilder()
+    await goToQuantities()
+    fireEvent.change(screen.getByLabelText('Escuela A · Cuadernillo 2.º grado'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
+    const receipt = await screen.findByRole('region', { name: 'Detalle del envío' })
+    expect(receipt).toHaveTextContent('1.er grado30')
+    expect(receipt).not.toHaveTextContent('2.º grado')
+    expect(receipt).toHaveTextContent('Total30 cuadernillos')
   })
 })
