@@ -321,8 +321,9 @@ describe('FichaEscuelaPagina — bitácora y evolución', () => {
 
   it('shows the latest confirmation in the status strip and the log', () => {
     renderConHistorial(false)
-    expect(screen.getByTestId('ficha-ultimo-movimiento')).toHaveTextContent('Anegamiento sigue igual')
-    expect(screen.getByTestId('seccion-historial-inline')).toHaveTextContent('Anegamiento sigue igual')
+    expect(screen.getByTestId('ficha-ultimo-movimiento')).toHaveTextContent('Anegamiento: Sigue igual')
+    const primera = screen.getByTestId('seccion-historial-inline').querySelector('li')
+    expect(primera).toHaveTextContent(/^Anegamiento · Sigue igual/)
   })
 
   it('draws the situation evolution oldest first, naming the supervisor', () => {
@@ -347,7 +348,7 @@ describe('FichaEscuelaPagina — bitácora y evolución', () => {
     expect(bitacora).toHaveTextContent('«Mañana bombean»')
     expect(screen.getByTestId('ficha-ultimo-movimiento')).toHaveTextContent('Última llamada')
     fireEvent.click(screen.getByRole('button', { name: 'Llamadas' }))
-    expect(bitacora).not.toHaveTextContent('Anegamiento sigue igual')
+    expect(bitacora).not.toHaveTextContent('Sigue igual')
     expect(bitacora).toHaveTextContent('Llamada · Operadora')
   })
 
@@ -407,16 +408,54 @@ describe('FichaEscuelaPagina — zero and just-now values', () => {
     render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ alumnos: 0, gravedad: 2 })} mostrarEnlaceNominal={false} />)
     expect(screen.queryByText(/0 alumnos/)).not.toBeInTheDocument()
     expect(screen.queryByText(/0 de 0/)).not.toBeInTheDocument()
-    expect(screen.getByText('CUE 1801605-00')).toBeVisible()
+    expect(screen.getByText(/CUE 1801605-00/)).toBeVisible()
   })
 
-  it('says "recién" instead of "hace 0 min" for a situation opened under a minute ago', () => {
+  it('says "recién" instead of "hace 0 min" for a report updated under a minute ago', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-04-10T08:00:30Z'))
-    const afectacion = { id: 'a1', categoria: 'establecimiento', severidad: 'Media', motivo: 'Inundación', descripcion: null, causadaPorId: null, rigeDesde: '2026-04-10T08:00:00Z', creadaEn: '2026-04-10T08:00:00Z', totales: { secciones: 1, alumnos: 10 } }
-    mockUseFichaParte.mockReturnValue({ estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [afectacion], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } }, historial: { fase: 'listo', movimientos: [] } })
-    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 2 })} mostrarEnlaceNominal={false} />)
-    expect(screen.getByText('abierta recién')).toBeVisible()
+    mockUseFichaParte.mockReturnValue({ estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual', actualizadaEn: '2026-04-10T08:00:00Z' }, afectaciones: [], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } }, historial: { fase: 'listo', movimientos: [] } })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha()} mostrarEnlaceNominal={false} />)
+    expect(screen.getByTestId('ficha-ultimo-movimiento')).toHaveTextContent('Última novedad recién')
     expect(screen.queryByText(/hace 0 min/)).not.toBeInTheDocument()
+  })
+})
+
+describe('FichaEscuelaPagina — which situation is newest', () => {
+  afterEach(cleanup)
+
+  const base = { categoria: 'establecimiento', descripcion: null, causadaPorId: null, totales: { secciones: 1, alumnos: 10 } }
+  const grave = { ...base, id: 'grave', motivo: 'Inundación', severidad: 'Crítica', rigeDesde: '2026-11-09T10:00:00Z', creadaEn: '2026-11-09T10:00:00Z' }
+  const vieja = { ...base, id: 'vieja', motivo: 'Filtración', severidad: 'Baja', rigeDesde: '2026-11-10T10:00:00Z', creadaEn: '2026-11-10T10:00:00Z' }
+  const nueva = { ...base, id: 'nueva', motivo: 'Corte de luz', severidad: 'Media', rigeDesde: '2026-11-12T10:00:00Z', creadaEn: '2026-11-12T10:00:00Z' }
+  const evento = (afectacionId: string, motivo: string, tipo: string, paso: string) => ({ tipo, afectacionId, motivo, texto: `${motivo} ${paso}`, paso })
+  const movimientos = [
+    { id: 'm1', tipo: 'reporte_inicial', rol: 'director', creadaEn: '2026-11-09T10:00:00Z', rigeDesde: '2026-11-09T10:00:00Z', titulo: '', cambios: [], eventos: [evento('grave', 'Inundación', 'nueva', 'Crítica · 1 secc.')] },
+    { id: 'm2', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-11-10T10:00:00Z', rigeDesde: '2026-11-10T10:00:00Z', titulo: '', cambios: [], eventos: [evento('vieja', 'Filtración', 'nueva', 'Baja · 1 secc.')] },
+    { id: 'm3', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-11-12T10:00:00Z', rigeDesde: '2026-11-12T10:00:00Z', titulo: '', cambios: [], eventos: [evento('nueva', 'Corte de luz', 'nueva', 'Media · 1 secc.')] },
+  ]
+
+  it('keeps the most serious first and lists the rest newest first, with their dates', () => {
+    mockUseFichaParte.mockReturnValue({
+      estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [vieja, grave, nueva], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } },
+      historial: { fase: 'listo', movimientos },
+    })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 4 })} mostrarEnlaceNominal={false} />)
+    expect(screen.getByTestId('ficha-incidente').querySelector('h2')).toHaveTextContent('Inundación')
+    const otras = [...document.querySelectorAll('[data-testid^="ficha-situacion-"]')].map((nodo) => nodo.querySelector('h4')?.textContent)
+    expect(otras).toEqual(['Corte de luz', 'Filtración'])
+    expect(screen.getByTestId('ficha-situacion-nueva')).toHaveTextContent(/Cargada\s*12\/11/)
+    expect(screen.getByText('Más reciente primero')).toBeVisible()
+  })
+
+  it('puts the situation in bold as the subject of each log line', () => {
+    mockUseFichaParte.mockReturnValue({
+      estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [vieja, grave, nueva], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } },
+      historial: { fase: 'listo', movimientos },
+    })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 4 })} mostrarEnlaceNominal={false} />)
+    const filas = [...screen.getByTestId('seccion-historial-inline').querySelectorAll('li')]
+    expect(filas.map((fila) => fila.querySelector('strong')?.textContent)).toEqual(['Corte de luz', 'Filtración', 'Inundación'])
+    expect(filas[0]).toHaveTextContent('Se cargó · Media · 1 secc.')
   })
 })
