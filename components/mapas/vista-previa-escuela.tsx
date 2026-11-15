@@ -15,7 +15,6 @@ import { detalleNivelOInstituto, etiquetaDepartamento } from '@/lib/infraestruct
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { valorComedor } from '@/lib/infraestructura/comedores/estado'
-import { ETIQUETA_POSIBLE_CENTRO, ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES } from '@/lib/infraestructura/evacuacion/mapa'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
@@ -290,12 +289,6 @@ export function VistaPreviaEscuela({
           <div data-testid="preview-comedor">
             <dt>{t.vistaPrevia.comedor}</dt>
             <dd>{valorComedor(escuela.comedor)}</dd>
-          </div>
-        )}
-        {escuela.posibleCentroEvacuados === true && (
-          <div data-testid="preview-posible-centro">
-            <dt>{t.vistaPrevia.evacuacion}</dt>
-            <dd>{escuela.posibleCentroSinAntecedentes === true ? ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES : ETIQUETA_POSIBLE_CENTRO}</dd>
           </div>
         )}
         {aislamiento !== null && (
