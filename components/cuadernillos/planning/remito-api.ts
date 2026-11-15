@@ -1,3 +1,5 @@
+import { shortProduct } from '../kit'
+
 export type ProductOption = { productId: string; productLabel: string; available: number }
 
 export type RemitoSigner = { userId: string; name: string }
@@ -47,29 +49,54 @@ export function isCabeceraList(value: unknown): value is { cabeceras: Array<Conf
   return Boolean(value && typeof value === 'object' && Array.isArray((value as { cabeceras?: unknown }).cabeceras))
 }
 
+/** Error codes from the API mapped to plain Spanish; the codes are only keys and never reach the screen. */
 export const REMITO_ERRORS: Record<string, string> = {
-  forbidden: 'La cuenta no tiene autorización para despachar remitos.',
+  forbidden: 'Tu cuenta no tiene permiso para enviar cuadernillos.',
   campaign_inactive: 'La campaña ya no está activa.',
-  policy_unresolved: 'La campaña no tiene una política de distribución habilitada.',
-  authority_unavailable: 'Esa cabecera todavía no tiene una cuenta confirmada para recibir el remito.',
-  product_not_found: 'Un cuadernillo del remito ya no está disponible en el catálogo.',
-  idempotency_conflict: 'El reintento no coincide con el remito anterior. Cerrá esta ventana y volvé a armar el remito.',
-  duplicate_recipient: 'Hay una escuela repetida en el remito.',
+  policy_unresolved: 'La campaña todavía no tiene habilitada la distribución.',
+  authority_unavailable: 'La escuela cabecera todavía no confirmó su cuenta para recibir envíos. Pedile que la confirme y volvé a intentar.',
+  product_not_found: 'Uno de los cuadernillos del envío ya no está disponible.',
+  idempotency_conflict: 'Este reintento no coincide con el envío anterior. Cerrá esta ventana y volvé a armar el envío.',
+  duplicate_recipient: 'Hay una escuela repetida en el envío.',
   invalid_quantity: 'Revisá las cantidades: tienen que ser números enteros positivos.',
-  invalid_remito: 'El remito necesita al menos una escuela con cantidades.',
+  invalid_remito: 'El envío necesita al menos una escuela con cantidades.',
 }
 
-/** Human message for a failed dispatch. `labels` resolves product ids; `schools` resolves CUEs to names. */
-export function dispatchErrorMessage(data: unknown, labels: Map<string, string>, schools: Map<string, string>): string {
+const GENERIC_ERROR = 'No se pudo enviar. Intentá nuevamente.'
+
+function schoolPhrase(name: string) {
+  return /^escuela\b/i.test(name) ? name : `escuela ${name}`
+}
+
+/**
+ * Plain message for a failed dispatch. `labels` resolves product ids, `schools` resolves CUEs to names
+ * and `available` (optional) gives the remaining stock per product id.
+ */
+export function dispatchErrorMessage(
+  data: unknown,
+  labels: Map<string, string>,
+  schools: Map<string, string>,
+  available?: Map<string, number>,
+): string {
   const body = data && typeof data === 'object' ? data as Record<string, unknown> : {}
   const code = typeof body.error === 'string' ? body.error : ''
   if (code === 'recipients_not_critical' && Array.isArray(body.recipientCueAnexos)) {
-    const list = body.recipientCueAnexos.map(String).map((cue) => schools.get(cue) ? `${schools.get(cue)} (CUE ${cue})` : `CUE ${cue}`)
-    return `Estas escuelas ya no están en severidad Crítica y no pueden recibir el remito: ${list.join(', ')}. Quitalas e intentá de nuevo.`
+    const names = body.recipientCueAnexos.map(String).map((cue) => {
+      const name = schools.get(cue)
+      return name ? schoolPhrase(name) : `escuela con CUE ${cue}`
+    })
+    if (names.length === 1) return `La ${names[0]} ya no figura como prioritaria, quitala del envío.`
+    return `Estas escuelas ya no figuran como prioritarias, quitalas del envío: ${names.join(', ')}.`
   }
   if (code === 'insufficient_stock' && Array.isArray(body.productIds)) {
-    const list = body.productIds.map(String).map((id) => labels.get(id) ?? id)
-    return `No hay stock suficiente de: ${list.join(', ')}. Bajá las cantidades o cargá stock.`
+    const parts = body.productIds.map(String).map((id) => ({ name: shortProduct(labels.get(id) ?? id), left: available?.get(id) }))
+    if (parts.length === 1) {
+      const [part] = parts
+      return part.left === undefined
+        ? `No alcanza el stock de ${part.name}.`
+        : `No alcanza el stock de ${part.name}: quedan ${part.left}.`
+    }
+    return `No alcanza el stock de ${parts.map((part) => (part.left === undefined ? part.name : `${part.name} (quedan ${part.left})`)).join(', ')}.`
   }
-  return REMITO_ERRORS[code] ?? 'No se pudo despachar el remito. Intentá nuevamente.'
+  return REMITO_ERRORS[code] ?? GENERIC_ERROR
 }

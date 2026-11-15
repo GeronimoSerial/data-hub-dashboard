@@ -27,17 +27,18 @@ export function SchoolCard({ school, selected, onChoose, onClear }: {
             </>
           ) : null}
         </span>
-        <span style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
-          <Chip tone="danger">{school.severity}</Chip>
-          {selected ? <Chip tone="ok"><Check aria-hidden size={13} strokeWidth={3} />Seleccionada</Chip> : null}
-        </span>
+        {selected ? (
+          <span style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+            <Chip tone="ok"><Check aria-hidden size={13} strokeWidth={3} />Seleccionada</Chip>
+          </span>
+        ) : null}
       </div>
       <div className="k-row-side">
         {selected ? (
           <Button type="button" variant="ghost" onClick={onClear}>Cambiar escuela</Button>
         ) : (
-          <Button type="button" variant="secondary" aria-label={`Elegir ${school.nombre}, CUE ${school.cueAnexo}`} onClick={() => onChoose(school)}>
-            Elegir
+          <Button type="button" variant="secondary" aria-label={`Agregar ${school.nombre}, CUE ${school.cueAnexo}`} onClick={() => onChoose(school)}>
+            Agregar
           </Button>
         )}
       </div>

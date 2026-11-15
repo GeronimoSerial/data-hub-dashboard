@@ -77,14 +77,14 @@ describe('PlanningHome', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Cuadernillo A: stock 10' }))
     expect(await screen.findByRole('dialog')).toHaveTextContent('Stock actual: 10')
     fireEvent.change(screen.getByLabelText('Cantidad de stock'), { target: { value: '25' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar movimiento' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar stock' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/stock', expect.objectContaining({ method: 'POST' })))
     const post = fetchMock.mock.calls.find(([url]) => url === '/api/cuadernillos/stock')!
     const body = JSON.parse(String(post[1].body))
     expect(body).toEqual(expect.objectContaining({ campaignId: 'campaign-1', productId: 'book-a', quantity: 25, movement: 'replenishment' }))
     expect(typeof body.idempotencyKey).toBe('string')
-    expect(await screen.findByText('Movimiento de stock registrado.')).toBeInTheDocument()
+    expect(await screen.findByText('Stock guardado.')).toBeInTheDocument()
   })
 
   it('registers the initial stock when the grade has none yet', async () => {
@@ -94,7 +94,7 @@ describe('PlanningHome', () => {
     render(<PlanningHome />)
     fireEvent.click(await screen.findByRole('button', { name: 'Cuadernillo B: sin stock' }))
     fireEvent.change(await screen.findByLabelText('Cantidad de stock'), { target: { value: '40' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar movimiento' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar stock' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/stock', expect.objectContaining({ method: 'POST' })))
     const post = fetchMock.mock.calls.find(([url]) => url === '/api/cuadernillos/stock')!
@@ -108,26 +108,126 @@ describe('PlanningHome', () => {
     render(<PlanningHome />)
     fireEvent.click(await screen.findByRole('button', { name: 'Cuadernillo A: stock 10' }))
 
-    expect(await screen.findByRole('button', { name: 'Registrar movimiento' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'Guardar stock' })).toBeDisabled()
     expect(fetchMock).not.toHaveBeenCalledWith('/api/cuadernillos/stock', expect.anything())
   })
 
-  it('lists remitos with a status per leg and dispatched vs received quantities with shortfall', async () => {
+  it('opens with a task card whose main action starts a new envío', async () => {
+    vi.stubGlobal('fetch', routedFetch())
+
+    render(<PlanningHome />)
+
+    const card = await screen.findByRole('region', { name: 'Lo que tenés que hacer' })
+    expect(card).toHaveTextContent('Todavía no enviaste cuadernillos en esta campaña.')
+    fireEvent.click(within(card).getByRole('button', { name: 'Enviar cuadernillos' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Enviar cuadernillos')
+    expect(screen.queryByText(/remito/i)).not.toBeInTheDocument()
+  })
+
+  it('counts the envíos still waiting for the cabecera in plain words', async () => {
+    vi.stubGlobal('fetch', routedFetch(overview, [{ ...remito, cabeceraReceivedAt: null, lines: [] }]))
+
+    render(<PlanningHome />)
+
+    expect(await screen.findByRole('region', { name: 'Lo que tenés que hacer' })).toHaveTextContent('1 envío todavía no fue confirmado por la cabecera.')
+  })
+
+  it('hides the campaign selector when there is only one campaign', async () => {
+    vi.stubGlobal('fetch', routedFetch())
+
+    render(<PlanningHome />)
+    await screen.findByRole('button', { name: 'Cuadernillo A: stock 10' })
+
+    expect(screen.queryByRole('group', { name: 'Campaña' })).not.toBeInTheDocument()
+  })
+
+  it('shows the campaign selector when there are several campaigns', async () => {
+    const other = { ...campaign, id: 'campaign-2', name: 'Distribución 2027' }
+    vi.stubGlobal('fetch', routedFetch({ ...overview, campaignOptions: [campaign, other] }))
+
+    render(<PlanningHome />)
+
+    expect(await screen.findByRole('group', { name: 'Campaña' })).toBeInTheDocument()
+  })
+
+  it('selects the only campaign by itself when the overview comes without one', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.startsWith('/api/cuadernillos/overview')) {
+        const withCampaign = url.includes('campaignId=campaign-1')
+        return Promise.resolve(response(withCampaign ? overview : { ...overview, campaignId: null, balances: [] }))
+      }
+      if (url.startsWith('/api/cuadernillos/remitos')) return Promise.resolve(response({ remitos: [], hasMore: false, nextCursor: null }))
+      return Promise.resolve(response({ cabeceras: [] }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<PlanningHome />)
+
+    expect(await screen.findByRole('button', { name: 'Cuadernillo A: stock 10' })).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/overview?capability=planning&campaignId=campaign-1', expect.anything())
+    expect(screen.queryByRole('group', { name: 'Campaña' })).not.toBeInTheDocument()
+  })
+
+  it('shows the circuit guide on the empty envíos list', async () => {
+    vi.stubGlobal('fetch', routedFetch())
+
+    render(<PlanningHome />)
+
+    expect(await screen.findByText('Todavía no enviaste cuadernillos')).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'Cómo funciona' })).toBeInTheDocument()
+  })
+
+  it('lists envíos with a journey and the sent vs received quantities with the shortfall', async () => {
     const fetchMock = routedFetch(overview, [remito])
     vi.stubGlobal('fetch', fetchMock)
 
     render(<PlanningHome />)
-    const row = await screen.findByRole('button', { name: /Remito a Cabecera Norte/ })
-    expect(row).toHaveTextContent('Despachado')
-    expect(row).toHaveTextContent('Recibido por cabecera')
-    expect(row).toHaveTextContent('Recibido por escuela 1/2')
+    const row = await screen.findByRole('button', { name: /Envío a Cabecera Norte/ })
+    expect(row).toHaveTextContent('2 escuelas')
+    const journey = screen.getByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })
+    const steps = within(journey).getAllByRole('listitem')
+    expect(steps.map((step) => step.getAttribute('data-state'))).toEqual(['done', 'short', 'current'])
+    expect(steps[0]).toHaveTextContent('Enviado')
+    expect(steps[1]).toHaveTextContent('Llegó a la cabecera')
+    expect(steps[1]).toHaveTextContent('llegó de menos')
+    expect(steps[2]).toHaveTextContent('Llegó a la escuela')
+    expect(steps[2]).toHaveTextContent('1 de 2 escuelas')
+    expect(screen.queryByText('Pendiente en cabecera')).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/remitos?campaignId=campaign-1&limit=20', expect.anything())
 
     fireEvent.click(row)
     const lineA = await screen.findByRole('region', { name: 'Escuela A' })
-    expect(lineA).toHaveTextContent('Despachado 30 · Cabecera 25 · Escuela pendiente')
-    expect(lineA).toHaveTextContent('Planeamiento → Cabecera: faltan 5')
-    expect(within(screen.getByRole('region', { name: 'Escuela B' })).queryByText(/faltan/)).not.toBeInTheDocument()
+    expect(lineA).toHaveTextContent('Enviado 30 · Cabecera 25 · Escuela pendiente')
+    expect(lineA).toHaveTextContent('Llegaron 5 de menos a la cabecera')
+    expect(within(screen.getByRole('region', { name: 'Escuela B' })).queryByText(/de menos/)).not.toBeInTheDocument()
+  })
+
+  it('marks every journey step done once all the schools confirmed', async () => {
+    const complete = {
+      ...remito,
+      lines: remito.lines.map((line) => ({
+        ...line, status: 'received', items: line.items.map((item) => ({ ...item, cabeceraReceivedQuantity: item.dispatchedQuantity, schoolReceivedQuantity: item.dispatchedQuantity })),
+      })),
+    }
+    vi.stubGlobal('fetch', routedFetch(overview, [complete]))
+
+    render(<PlanningHome />)
+
+    const journey = await screen.findByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })
+    expect(within(journey).getAllByRole('listitem').map((step) => step.getAttribute('data-state'))).toEqual(['done', 'done', 'done'])
+  })
+
+  it('marks the school step short when everything arrived but with less', async () => {
+    const lessAtSchool = {
+      ...remito,
+      lines: [{ ...remito.lines[1], items: [{ productId: 'book-a', dispatchedQuantity: 18, cabeceraReceivedQuantity: 18, schoolReceivedQuantity: 15 }] }],
+    }
+    vi.stubGlobal('fetch', routedFetch(overview, [lessAtSchool]))
+
+    render(<PlanningHome />)
+
+    const journey = await screen.findByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })
+    expect(within(journey).getAllByRole('listitem').map((step) => step.getAttribute('data-state'))).toEqual(['done', 'done', 'short'])
   })
 
   it('shows shortfall reasons, signers and the product name fallback for each leg', async () => {
@@ -144,23 +244,26 @@ describe('PlanningHome', () => {
     vi.stubGlobal('fetch', routedFetch(overview, [detailed]))
 
     render(<PlanningHome />)
-    fireEvent.click(await screen.findByRole('button', { name: /Remito a Cabecera Norte/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Envío a Cabecera Norte/ }))
 
     const line = await screen.findByRole('region', { name: 'Escuela A' })
     expect(line).toHaveTextContent('Matemática 2°')
-    expect(line).toHaveTextContent('Planeamiento → Cabecera: faltan 5')
-    expect(line).toHaveTextContent('Cabecera → Escuela: faltan 5')
-    expect(line).toHaveTextContent('Motivo de la diferencia (Planeamiento → Cabecera): Cajas dañadas en el traslado')
-    expect(line).toHaveTextContent('Motivo de la diferencia (Cabecera → Escuela): Faltaron dos cajas')
-    expect(line).toHaveTextContent('Recibido por la escuela: Directora A')
-    expect(screen.getByText(/Recibido por la cabecera: Cabecera Norte/)).toBeInTheDocument()
+    expect(line).toHaveTextContent('Llegaron 5 de menos a la cabecera')
+    expect(line).toHaveTextContent('Llegaron 5 de menos a la escuela')
+    expect(line).toHaveTextContent('Por qué llegó de menos a la cabecera: Cajas dañadas en el traslado')
+    expect(line).toHaveTextContent('Por qué llegó de menos a la escuela: Faltaron dos cajas')
+    expect(line).toHaveTextContent('Confirmó la escuela: Directora A')
+    expect(screen.getByText(/Confirmó la cabecera: Cabecera Norte/)).toBeInTheDocument()
   })
 
-  it('flags a remito the cabecera has not received yet', async () => {
+  it('flags an envío the cabecera has not confirmed yet', async () => {
     vi.stubGlobal('fetch', routedFetch(overview, [{ ...remito, cabeceraReceivedAt: null, lines: [] }]))
 
     render(<PlanningHome />)
 
-    expect(await screen.findByRole('button', { name: /Remito a Cabecera Norte/ })).toHaveTextContent('Pendiente en cabecera')
+    const journey = await screen.findByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })
+    const steps = within(journey).getAllByRole('listitem')
+    expect(steps.map((step) => step.getAttribute('data-state'))).toEqual(['done', 'current', 'pending'])
+    expect(steps[1]).toHaveTextContent('Todavía no')
   })
 })
