@@ -2,13 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import {
-  claveDiaHistorial,
-  etiquetaDiaHistorial,
-  horaHistorial,
-  momentoCortoHistorial,
-} from '@/components/infraestructura/historial-formato'
+import { momentoCortoHistorial } from '@/components/infraestructura/historial-formato'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
+import type { EventoMovimiento } from '@/lib/infraestructura/movimiento-eventos'
 import type { LlamadaFicha } from '@/components/call-center/llamadas-ficha'
 import { useIdioma, useTextos } from '@/lib/i18n/idioma-provider'
 import type { Idioma } from '@/lib/i18n'
@@ -16,11 +12,17 @@ import styles from './ficha-escuela-pagina.module.css'
 
 type Filtro = 'todo' | 'parte' | 'llamadas'
 
+/** One line of an entry: who or what changed (bold) and how. */
+export interface LineaBitacora {
+  sujeto: string
+  detalle: string
+}
+
 interface EntradaBitacora {
   id: string
   fuente: 'parte' | 'llamada'
   creadaEn: string
-  lineas: string[]
+  lineas: LineaBitacora[]
   nota: string | null
 }
 
@@ -28,17 +30,43 @@ const VISIBLES_INICIALES = 15
 // A back-dated load only matters when it differs by more than a moment.
 const UMBRAL_VIGENCIA_MS = 30 * 60_000
 
-/** Short lines of a movement; older payloads without events fall back to the title. */
-export function lineasMovimiento(movimiento: MovimientoHistorial): string[] {
-  if (movimiento.eventos && movimiento.eventos.length > 0) return movimiento.eventos.map((evento) => evento.texto)
-  const respaldo = movimiento.titulo || movimiento.cambios[0]
-  return respaldo ? [respaldo] : []
-}
-
 interface TextosBitacora {
   supervisor: string
+  escuela: string
   llamada: (operador: string) => string
   rigeDesde: (momento: string) => string
+  seCargo: (paso: string) => string
+  gravedadPaso: (paso: string) => string
+  alcancePaso: (paso: string) => string
+}
+
+function lineaEvento(evento: EventoMovimiento, tb: TextosBitacora): LineaBitacora {
+  const sujeto = evento.motivo ?? tb.escuela
+  switch (evento.tipo) {
+    case 'nueva':
+      return { sujeto, detalle: tb.seCargo(evento.paso) }
+    case 'gravedad':
+      return { sujeto, detalle: tb.gravedadPaso(evento.paso) }
+    case 'alcance':
+      return { sujeto, detalle: tb.alcancePaso(evento.paso) }
+    case 'datos': {
+      // The log text repeats the situation name as a prefix; the subject already carries it.
+      const prefijo = `${evento.motivo}: `
+      return { sujeto, detalle: evento.texto.startsWith(prefijo) ? evento.texto.slice(prefijo.length) : evento.texto }
+    }
+    case 'general':
+    case 'evidencia':
+      return { sujeto, detalle: evento.texto }
+    default:
+      return { sujeto, detalle: evento.paso }
+  }
+}
+
+/** Lines of a movement, situation first; older payloads without events fall back to the title. */
+export function lineasMovimiento(movimiento: MovimientoHistorial, tb: TextosBitacora): LineaBitacora[] {
+  if (movimiento.eventos && movimiento.eventos.length > 0) return movimiento.eventos.map((evento) => lineaEvento(evento, tb))
+  const respaldo = movimiento.titulo || movimiento.cambios[0]
+  return respaldo ? [{ sujeto: tb.escuela, detalle: respaldo }] : []
 }
 
 function notaMovimiento(movimiento: MovimientoHistorial, ahora: Date | null, idioma: Idioma, tb: TextosBitacora): string | null {
@@ -63,7 +91,7 @@ function construirEntradas(
       id: `m-${movimiento.id}`,
       fuente: 'parte' as const,
       creadaEn: movimiento.creadaEn,
-      lineas: lineasMovimiento(movimiento),
+      lineas: lineasMovimiento(movimiento, tb),
       nota: notaMovimiento(movimiento, ahora, idioma, tb),
     }))
     .filter((entrada) => entrada.lineas.length > 0)
@@ -71,7 +99,7 @@ function construirEntradas(
     id: `l-${llamada.id}`,
     fuente: 'llamada' as const,
     creadaEn: llamada.creadaEn,
-    lineas: [tb.llamada(llamada.callerNombre)],
+    lineas: [{ sujeto: tb.llamada(llamada.callerNombre), detalle: '' }],
     nota: llamada.respuestaDirector ? `«${llamada.respuestaDirector}»` : null,
   }))
   return [...deParte, ...deLlamadas].sort((a, b) => b.creadaEn.localeCompare(a.creadaEn))
@@ -102,14 +130,6 @@ export function BitacoraFicha({
   )
   const visibles = expandida ? filtradas : filtradas.slice(0, VISIBLES_INICIALES)
   const ocultas = filtradas.length - visibles.length
-
-  const dias: Array<{ clave: string; etiqueta: string; entradas: EntradaBitacora[] }> = []
-  for (const entrada of visibles) {
-    const clave = claveDiaHistorial(entrada.creadaEn)
-    const ultimo = dias[dias.length - 1]
-    if (ultimo && ultimo.clave === clave) ultimo.entradas.push(entrada)
-    else dias.push({ clave, etiqueta: etiquetaDiaHistorial(entrada.creadaEn, ahora, idioma), entradas: [entrada] })
-  }
 
   const filtros: Array<{ id: Filtro; etiqueta: string }> = llamadas
     ? [
@@ -149,31 +169,27 @@ export function BitacoraFicha({
         </div>
       )}
 
-      {dias.length === 0 ? (
+      {visibles.length === 0 ? (
         <p className={styles.emptyState}>{tb.vacia}</p>
       ) : (
-        dias.map((dia) => (
-          <section key={dia.clave} aria-label={dia.etiqueta} className={styles.bitacoraDia}>
-            <h4 className={styles.bitacoraDiaTitulo}>{dia.etiqueta}</h4>
-            <ol className={styles.bitacoraLista}>
-              {dia.entradas.map((entrada) => (
-                <li key={entrada.id} className={styles.bitacoraEntrada} data-fuente={entrada.fuente}>
-                  <time dateTime={entrada.creadaEn} className={styles.bitacoraHora}>
-                    {horaHistorial(entrada.creadaEn)}
-                  </time>
-                  <div>
-                    {entrada.lineas.map((linea, indice) => (
-                      <p key={indice} className={styles.bitacoraLinea}>
-                        {linea}
-                      </p>
-                    ))}
-                    {entrada.nota && <p className={styles.bitacoraNota}>{entrada.nota}</p>}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-        ))
+        <ol className={styles.timeline}>
+          {visibles.map((entrada) => (
+            <li key={entrada.id} className={styles.timelineEntrada} data-fuente={entrada.fuente}>
+              <div className={styles.timelineCuerpo}>
+                {entrada.lineas.map((linea, indice) => (
+                  <p key={indice} className={styles.timelineLinea}>
+                    <strong className={styles.timelineSujeto}>{linea.sujeto}</strong>
+                    {linea.detalle && <span className={styles.timelineDetalle}>{` · ${linea.detalle}`}</span>}
+                  </p>
+                ))}
+                {entrada.nota && <p className={styles.timelineNota}>{entrada.nota}</p>}
+              </div>
+              <time dateTime={entrada.creadaEn} className={styles.timelineHora}>
+                {momentoCortoHistorial(entrada.creadaEn, ahora, idioma)}
+              </time>
+            </li>
+          ))}
+        </ol>
       )}
 
       {ocultas > 0 && (
