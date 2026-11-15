@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import type { BookletBalanceView, BookletCampaignOption, BookletOverview } from '@/lib/cuadernillos/types'
 import { EmptyState, KpiStrip, Note, PageHeader, Panel, Segmented, TaskCard, formatCount, shortProduct, type Kpi } from '../kit'
 import { PlanningStyles } from './planning-styles'
-import { isCabeceraList, isRemitosPage, type RemitoSummary } from './remito-api'
+import { isCabeceraList, isRemitosPage, type ConfirmedCabecera, type RemitoSummary } from './remito-api'
+import { daysAgo, remitoUnits } from './remito-status'
 import { RemitoBuilder } from './remito-builder'
 import { RemitosList } from './remitos-list'
 import { StockModal } from './stock-modal'
@@ -73,7 +74,9 @@ export function PlanningHome() {
   const [remitosCursor, setRemitosCursor] = useState<string | null>(null)
   const [remitosError, setRemitosError] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [cabeceraNames, setCabeceraNames] = useState<Map<string, string>>(new Map())
+  const [cabeceraList, setCabeceraList] = useState<Array<ConfirmedCabecera & { status: string }> | null>(null)
+  // Read once: "hace 2 días" must not change between renders of the same screen.
+  const [now] = useState(() => Date.now())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -131,11 +134,11 @@ export function PlanningHome() {
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false)
     })
-    // Names for the envíos list; a failure only leaves the CUE as the label.
+    // Names for the envíos list and the cabeceras panel; a failure only leaves the CUE as the label.
     void fetch('/api/cuadernillos/cabeceras', { cache: 'no-store', signal: controller.signal })
       .then((response) => readJson(response).then((data) => ({ response, data })))
       .then(({ response, data }) => {
-        if (response.ok && isCabeceraList(data)) setCabeceraNames(new Map(data.cabeceras.map((row) => [row.cue, row.nombre])))
+        if (response.ok && isCabeceraList(data)) setCabeceraList(data.cabeceras)
       })
       .catch(() => undefined)
     return () => controller.abort()
@@ -209,21 +212,46 @@ export function PlanningHome() {
 
   const stockProduct = products.find((row) => row.productId === stockProductId) ?? null
   const stockMax = Math.max(1, ...products.map((row) => row.globalAvailable ?? 0))
+  const partial = remitosCursor !== null
+  const cabeceras = useMemo(() => new Map((cabeceraList ?? []).map((row) => [row.cue, row])), [cabeceraList])
+  const totals = remitos.reduce((sum, remito) => {
+    const units = remitoUnits(remito)
+    return { dispatched: sum.dispatched + units.dispatched, delivered: sum.delivered + units.delivered, short: sum.short + units.short, shortEnvios: sum.shortEnvios + (units.short > 0 ? 1 : 0) }
+  }, { dispatched: 0, delivered: 0, short: 0, shortEnvios: 0 })
+  const sentByProduct = new Map<string, number>()
+  for (const remito of remitos) {
+    for (const line of remito.lines) {
+      for (const item of line.items) sentByProduct.set(item.productId, (sentByProduct.get(item.productId) ?? 0) + item.dispatchedQuantity)
+    }
+  }
   const schoolLines = remitos.flatMap((remito) => remito.lines)
   const schoolsDone = schoolLines.filter((line) => line.status === 'received' || line.status === 'closed_empty').length
+  const withoutStock = products.filter((row) => !row.globalAvailable).length
+  const oldestPending = remitos.filter((remito) => !remito.cabeceraReceivedAt).map((remito) => remito.dispatchedAt).sort()[0]
+  const plus = partial ? '+' : ''
   const kpis: Kpi[] = [
-    { label: 'Cuadernillos en stock', value: formatCount(stockTotal) },
-    { label: 'Envíos hechos', value: `${remitos.length}${remitosCursor ? '+' : ''}` },
-    { label: 'Esperando a la cabecera', value: pendingCabecera, tone: pendingCabecera > 0 ? 'warn' : undefined },
+    {
+      label: 'En stock', value: formatCount(stockTotal),
+      hint: withoutStock > 0 ? `${withoutStock} grado${withoutStock === 1 ? '' : 's'} sin stock` : `En ${products.length} grado${products.length === 1 ? '' : 's'}`,
+    },
+    { label: 'Enviados', value: `${formatCount(totals.dispatched)}${plus}`, hint: remitos.length === 0 ? 'Todavía sin envíos' : `En ${remitos.length}${plus} envío${remitos.length === 1 ? '' : 's'}` },
+    {
+      label: 'Recibidos por las escuelas', value: `${formatCount(totals.delivered)}${plus}`,
+      hint: schoolLines.length > 0 ? `${schoolsDone} de ${schoolLines.length} escuela${schoolLines.length === 1 ? '' : 's'} ya confirmaron` : 'Todavía sin escuelas',
+      tone: schoolLines.length > 0 && schoolsDone === schoolLines.length ? 'ok' : undefined,
+    },
+    {
+      label: 'Esperando a la cabecera', value: `${pendingCabecera}${plus}`, tone: pendingCabecera > 0 ? 'warn' : undefined,
+      hint: oldestPending ? `El más antiguo salió ${daysAgo(oldestPending, now)}` : 'Ningún envío sin confirmar',
+    },
+    {
+      label: 'Llegaron de menos', value: `${formatCount(totals.short)}${plus}`, tone: totals.short > 0 ? 'warn' : undefined,
+      hint: totals.short > 0 ? `En ${totals.shortEnvios} envío${totals.shortEnvios === 1 ? '' : 's'}` : 'Sin faltantes informados',
+    },
   ]
-  if (schoolLines.length > 0) {
-    kpis.push({
-      label: 'Escuelas que ya recibieron',
-      value: `${schoolsDone} de ${schoolLines.length}`,
-      hint: remitosCursor ? `En los últimos ${remitos.length} envíos` : undefined,
-      tone: schoolsDone === schoolLines.length ? 'ok' : undefined,
-    })
-  }
+  const confirmed = (cabeceraList ?? []).filter((row) => row.status === 'confirmada')
+  const unconfirmed = (cabeceraList ?? []).filter((row) => row.status !== 'confirmada')
+  const reached = new Set(remitos.map((remito) => remito.cabeceraCueAnexo)).size
   const multipleCampaigns = Boolean(overview && overview.campaignOptions.length > 1)
 
   return (
@@ -276,40 +304,64 @@ export function PlanningHome() {
             <KpiStrip label="Resumen de la campaña" items={kpis} />
           </div>
 
-          <Panel title="Stock por grado" aside={writeEnabled ? 'Elegí un grado para sumar stock' : undefined}>
-            <ul className="pl-stock">
-              {products.map((row) => {
-                const stock = row.globalAvailable
-                const state = stock === null ? 'unset' : stock === 0 ? 'empty' : undefined
-                return (
-                  <li key={row.productId}>
-                    <button type="button" className="pl-stock-item" data-state={state} disabled={!writeEnabled}
-                      aria-label={`${row.productLabel}: ${stock === null ? 'sin stock' : `stock ${stock}`}`}
-                      onClick={() => { setModalError(null); setStockProductId(row.productId) }}>
-                      <span className="pl-stock-name">{shortProduct(row.productLabel)}</span>
-                      <span className="pl-stock-num">{stock === null ? 'Sin cargar' : formatCount(stock)}</span>
-                      <Plus aria-hidden size={15} className="pl-stock-add" />
-                      <span className="pl-stock-bar" aria-hidden="true"><span style={{ width: `${Math.round(((stock ?? 0) / stockMax) * 100)}%` }} /></span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </Panel>
+          <div className="pl-grid">
+            <Panel title="Envíos" aside={remitos.length > 0 ? `${remitos.length}${plus} · del más reciente al más antiguo` : undefined}>
+              {remitosError ? <Note tone="danger">{remitosError}</Note> : null}
+              {!remitosError || remitos.length > 0 ? (
+                <RemitosList
+                  remitos={remitos}
+                  cabeceras={cabeceras}
+                  productLabels={productLabels}
+                  hasMore={remitosCursor !== null}
+                  loadingMore={loadingMore}
+                  onLoadMore={() => void loadMoreRemitos()}
+                />
+              ) : null}
+            </Panel>
 
-          <Panel title="Envíos" aside={remitos.length > 0 ? 'Del más reciente al más antiguo' : undefined}>
-            {remitosError ? <Note tone="danger">{remitosError}</Note> : null}
-            {!remitosError || remitos.length > 0 ? (
-              <RemitosList
-                remitos={remitos}
-                cabeceraNames={cabeceraNames}
-                productLabels={productLabels}
-                hasMore={remitosCursor !== null}
-                loadingMore={loadingMore}
-                onLoadMore={() => void loadMoreRemitos()}
-              />
-            ) : null}
-          </Panel>
+            <aside className="pl-aside" aria-label="Stock y cabeceras">
+              <Panel title="Stock por grado" aside={writeEnabled ? 'Elegí un grado para sumar' : undefined}>
+                <ul className="pl-stock">
+                  {products.map((row) => {
+                    const stock = row.globalAvailable
+                    const state = stock === null ? 'unset' : stock === 0 ? 'empty' : undefined
+                    const sent = sentByProduct.get(row.productId) ?? 0
+                    return (
+                      <li key={row.productId}>
+                        <button type="button" className="pl-stock-item" data-state={state} disabled={!writeEnabled}
+                          aria-label={`${row.productLabel}: ${stock === null ? 'sin stock' : `stock ${stock}`}`}
+                          onClick={() => { setModalError(null); setStockProductId(row.productId) }}>
+                          <span className="pl-stock-name">{shortProduct(row.productLabel)}</span>
+                          <span className="pl-stock-num">{stock === null ? 'Sin cargar' : formatCount(stock)}</span>
+                          <Plus aria-hidden size={15} className="pl-stock-add" />
+                          <span className="pl-stock-bar" aria-hidden="true"><span style={{ width: `${Math.round(((stock ?? 0) / stockMax) * 100)}%` }} /></span>
+                          <span className="pl-stock-sent">{sent > 0 ? `${formatCount(sent)}${plus} ya enviados` : 'Todavía sin envíos'}</span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </Panel>
+
+              {cabeceraList && cabeceraList.length > 0 ? (
+                <Panel title="Cabeceras">
+                  <dl className="pl-facts">
+                    <div><dt>Pueden recibir envíos</dt><dd>{confirmed.length} de {cabeceraList.length}</dd></div>
+                    <div><dt>Ya les enviaste</dt><dd>{reached}{plus}</dd></div>
+                  </dl>
+                  {unconfirmed.length > 0 ? (
+                    <div className="pl-unconfirmed">
+                      <p>Todavía no confirmaron su cuenta y no se les puede enviar:</p>
+                      <ul>
+                        {unconfirmed.slice(0, 4).map((row) => <li key={row.cue}>{row.nombre} <span>· {row.departamento}</span></li>)}
+                      </ul>
+                      {unconfirmed.length > 4 ? <p>y {unconfirmed.length - 4} más.</p> : null}
+                    </div>
+                  ) : null}
+                </Panel>
+              ) : null}
+            </aside>
+          </div>
         </>
       ) : null}
 

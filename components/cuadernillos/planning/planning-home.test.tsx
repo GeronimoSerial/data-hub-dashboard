@@ -185,6 +185,17 @@ describe('PlanningHome', () => {
     render(<PlanningHome />)
     const row = await screen.findByRole('button', { name: /Envío a Cabecera Norte/ })
     expect(row).toHaveTextContent('2 escuelas')
+    expect(row).toHaveTextContent('48 cuadernillos')
+    expect(row).toHaveTextContent('En reparto')
+    expect(row).toHaveTextContent('1 de 2 escuelas ya recibió · llegaron 5 de menos')
+    expect(screen.queryByText('Pendiente en cabecera')).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/remitos?campaignId=campaign-1&limit=20', expect.anything())
+    const summary = screen.getByLabelText('Resumen de la campaña')
+    expect(summary).toHaveTextContent('Enviados48En 1 envío')
+    expect(summary).toHaveTextContent('Recibidos por las escuelas181 de 2 escuelas ya confirmaron')
+    expect(summary).toHaveTextContent('Llegaron de menos5En 1 envío')
+
+    fireEvent.click(row)
     const journey = screen.getByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })
     const steps = within(journey).getAllByRole('listitem')
     expect(steps.map((step) => step.getAttribute('data-state'))).toEqual(['done', 'short', 'current'])
@@ -193,12 +204,6 @@ describe('PlanningHome', () => {
     expect(steps[1]).toHaveTextContent('llegó de menos')
     expect(steps[2]).toHaveTextContent('Llegó a la escuela')
     expect(steps[2]).toHaveTextContent('1 de 2 escuelas')
-    expect(row).toHaveTextContent('48 cuadernillos')
-    expect(within(screen.getByLabelText('Resumen de la campaña')).getByText('1 de 2')).toBeInTheDocument()
-    expect(screen.queryByText('Pendiente en cabecera')).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/remitos?campaignId=campaign-1&limit=20', expect.anything())
-
-    fireEvent.click(row)
     const lineA = await screen.findByRole('region', { name: 'Escuela A' })
     const cells = within(lineA).getAllByRole('cell').map((cell) => cell.textContent)
     expect(cells).toEqual(['30', '255 de menos', 'Pendiente'])
@@ -216,6 +221,7 @@ describe('PlanningHome', () => {
     vi.stubGlobal('fetch', routedFetch(overview, [complete]))
 
     render(<PlanningHome />)
+    fireEvent.click(await screen.findByRole('button', { name: /Envío a Cabecera Norte/ }))
 
     const journey = await screen.findByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })
     expect(within(journey).getAllByRole('listitem').map((step) => step.getAttribute('data-state'))).toEqual(['done', 'done', 'done'])
@@ -229,6 +235,7 @@ describe('PlanningHome', () => {
     vi.stubGlobal('fetch', routedFetch(overview, [lessAtSchool]))
 
     render(<PlanningHome />)
+    fireEvent.click(await screen.findByRole('button', { name: /Envío a Cabecera Norte/ }))
 
     const journey = await screen.findByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })
     expect(within(journey).getAllByRole('listitem').map((step) => step.getAttribute('data-state'))).toEqual(['done', 'done', 'short'])
@@ -256,13 +263,14 @@ describe('PlanningHome', () => {
     expect(line).toHaveTextContent('Por qué llegó de menos a la cabecera: Cajas dañadas en el traslado')
     expect(line).toHaveTextContent('Por qué llegó de menos a la escuela: Faltaron dos cajas')
     expect(line).toHaveTextContent('Confirmó la escuela: Directora A')
-    expect(screen.getByText(/Confirmó la cabecera: Cabecera Norte/)).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })).getAllByRole('listitem')[1]).toHaveTextContent('Cabecera Norte ·')
   })
 
   it('flags an envío the cabecera has not confirmed yet', async () => {
     vi.stubGlobal('fetch', routedFetch(overview, [{ ...remito, cabeceraReceivedAt: null, lines: [] }]))
 
     render(<PlanningHome />)
+    fireEvent.click(await screen.findByRole('button', { name: /Envío a Cabecera Norte/ }))
 
     const journey = await screen.findByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })
     const steps = within(journey).getAllByRole('listitem')
