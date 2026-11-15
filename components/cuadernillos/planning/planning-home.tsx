@@ -4,26 +4,26 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { BookletBalanceView, BookletCampaignOption, BookletOverview } from '@/lib/cuadernillos/types'
-import { Chip, EmptyState, KpiStrip, Note, PageHeader, Panel, Segmented, formatCount } from '../kit'
+import { Chip, EmptyState, KpiStrip, Note, PageHeader, Panel, Segmented, TaskCard, formatCount, shortProduct } from '../kit'
 import { isCabeceraList, isRemitosPage, type RemitoSummary } from './remito-api'
 import { RemitoBuilder } from './remito-builder'
 import { RemitosList } from './remitos-list'
 import { StockModal } from './stock-modal'
 
 const LOAD_ERROR = 'No se pudo cargar el catálogo y los saldos.'
-const REMITOS_LOAD_ERROR = 'No se pudieron cargar los remitos.'
+const REMITOS_LOAD_ERROR = 'No se pudieron cargar los envíos.'
 const REMITOS_PAGE_SIZE = 20
 
 const errorMessages: Record<string, string> = {
   campaign_inactive: 'La campaña ya no está activa.',
-  policy_unresolved: 'La campaña no tiene una política de distribución habilitada.',
-  ineligible: 'La escuela no cumple actualmente el criterio de elegibilidad para enviar la solicitud.',
-  forbidden: 'La cuenta no tiene autorización para esta operación.',
+  policy_unresolved: 'La campaña todavía no tiene habilitada la distribución.',
+  ineligible: 'La escuela ya no figura entre las que necesitan cuadernillos.',
+  forbidden: 'Tu cuenta no tiene permiso para esta operación.',
   product_not_found: 'El producto ya no está disponible en el catálogo.',
   initial_stock_exists: 'Ese cuadernillo ya tiene stock inicial: registrá una reposición.',
   initial_stock_missing: 'Ese cuadernillo todavía no tiene stock inicial.',
   invalid_quantity: 'Ingresá una cantidad entera válida.',
-  idempotency_conflict: 'La clave de reintento quedó asociada a otra solicitud. Volvé a cargar la pantalla.',
+  idempotency_conflict: 'Este reintento no coincide con la operación anterior. Volvé a cargar la pantalla.',
 }
 
 function errorText(data: unknown, fallback: string) {
@@ -90,7 +90,7 @@ export function PlanningHome() {
     return data
   }, [])
 
-  // The remitos read never blocks the stock view: its failure shows next to the list only.
+  // The envíos read never blocks the stock view: its failure shows next to the list only.
   const refreshRemitos = useCallback(async (campaignId: string, signal?: AbortSignal) => {
     try {
       const page = await loadRemitos(campaignId, null, signal)
@@ -103,15 +103,21 @@ export function PlanningHome() {
   }, [loadRemitos])
 
   const loadOverview = useCallback(async (campaignId?: string, signal?: AbortSignal) => {
-    const query = new URLSearchParams({ capability: 'planning' })
-    if (campaignId) query.set('campaignId', campaignId)
-    const response = await fetch(`/api/cuadernillos/overview?${query}`, { signal, cache: 'no-store' })
-    const data = await readJson(response)
-    if (!response.ok) throw new Error(errorText(data, LOAD_ERROR))
-    if (!isOverview(data) || data.capability !== 'planning') throw new Error('La respuesta del resumen no tiene un formato válido.')
-    setOverview(data)
-    setSelectedCampaign(data.campaignId ?? '')
-    return data.campaignId
+    let requested = campaignId
+    // With a single campaign there is nothing to choose: a second pass selects it right away.
+    for (let pass = 0; pass < 2; pass += 1) {
+      const query = new URLSearchParams({ capability: 'planning' })
+      if (requested) query.set('campaignId', requested)
+      const response = await fetch(`/api/cuadernillos/overview?${query}`, { signal, cache: 'no-store' })
+      const data = await readJson(response)
+      if (!response.ok) throw new Error(errorText(data, LOAD_ERROR))
+      if (!isOverview(data) || data.capability !== 'planning') throw new Error('La respuesta del resumen no tiene un formato válido.')
+      if (!data.campaignId && !requested && data.campaignOptions.length === 1) { requested = data.campaignOptions[0].id; continue }
+      setOverview(data)
+      setSelectedCampaign(data.campaignId ?? '')
+      return data.campaignId
+    }
+    return null
   }, [])
 
   useEffect(() => {
@@ -124,7 +130,7 @@ export function PlanningHome() {
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false)
     })
-    // Names for the remitos list; a failure only leaves the CUE as the label.
+    // Names for the envíos list; a failure only leaves the CUE as the label.
     void fetch('/api/cuadernillos/cabeceras', { cache: 'no-store', signal: controller.signal })
       .then((response) => readJson(response).then((data) => ({ response, data })))
       .then(({ response, data }) => {
@@ -142,6 +148,10 @@ export function PlanningHome() {
   const writeEnabled = actionEnabled(campaign)
   const stockTotal = products.reduce((sum, row) => sum + (row.globalAvailable ?? 0), 0)
   const pendingCabecera = remitos.filter((remito) => !remito.cabeceraReceivedAt).length
+  let pendingDescription: string
+  if (remitos.length === 0) pendingDescription = 'Todavía no enviaste cuadernillos en esta campaña.'
+  else if (pendingCabecera === 0) pendingDescription = 'Ningún envío está esperando a la cabecera.'
+  else pendingDescription = `${remitosCursor ? 'Al menos ' : ''}${pendingCabecera} envío${pendingCabecera === 1 ? '' : 's'} todavía no ${pendingCabecera === 1 ? 'fue confirmado' : 'fueron confirmados'} por la cabecera.`
 
   async function selectCampaign(campaignId: string) {
     setSelectedCampaign(campaignId)
@@ -182,14 +192,14 @@ export function PlanningHome() {
       if (!response.ok) throw new Error(errorText(data, 'No se pudo completar la operación.'))
       await loadOverview(selectedCampaign)
       setStockProductId(null)
-      setNotice('Movimiento de stock registrado.')
-    } catch (reason) { setModalError(reason instanceof Error ? reason.message : 'No se pudo registrar el movimiento de stock.') }
+      setNotice('Stock guardado.')
+    } catch (reason) { setModalError(reason instanceof Error ? reason.message : 'No se pudo guardar el stock.') }
     finally { setSaving(false) }
   }
 
   async function remitoDispatched() {
     setBuilderOpen(false)
-    setNotice('Remito despachado. El stock ya se descontó.')
+    setNotice('Envío hecho. El stock ya se descontó.')
     await Promise.all([
       loadOverview(selectedCampaign).catch(() => undefined),
       refreshRemitos(selectedCampaign),
@@ -203,10 +213,7 @@ export function PlanningHome() {
       <PageHeader
         id="planning-home-title"
         title="Planeamiento"
-        description={campaign ? `${campaign.name}: cargá el stock de cada grado y enviá remitos a las escuelas.` : 'Cargá el stock de cada grado y enviá remitos a las escuelas.'}
-        action={overview?.campaignId ? (
-          <Button type="button" disabled={!writeEnabled || products.length === 0} onClick={() => { setNotice(null); setBuilderOpen(true) }}>Nuevo remito</Button>
-        ) : undefined}
+        description={campaign ? `${campaign.name}: cargá el stock de cada grado y enviá cuadernillos a las escuelas cabecera.` : 'Cargá el stock de cada grado y enviá cuadernillos a las escuelas cabecera.'}
       />
 
       {loading && !overview ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando catálogo y saldos…</p> : null}
@@ -214,7 +221,7 @@ export function PlanningHome() {
       {notice ? <Note tone="ok">{notice}</Note> : null}
 
       {overview && overview.campaignOptions.length === 0 ? (
-        <EmptyState title="No hay campañas activas para consultar." description="Cuando se active una campaña, acá cargás el stock y despachás remitos." />
+        <EmptyState title="No hay campañas activas para consultar." description="Cuando se active una campaña, acá cargás el stock y enviás cuadernillos." />
       ) : null}
 
       {overview && overview.campaignOptions.length > 1 ? (
@@ -226,18 +233,29 @@ export function PlanningHome() {
         />
       ) : null}
       {overview && overview.campaignOptions.length > 1 && !selectedCampaign ? <EmptyState title="Elegí una campaña" description="Elegí una campaña para ver sus saldos." /> : null}
-      {selectedCampaign && !writeEnabled ? <Note>Esta campaña todavía no permite registrar movimientos.</Note> : null}
+      {selectedCampaign && !writeEnabled ? <Note>Esta campaña todavía no permite cargar stock ni enviar cuadernillos.</Note> : null}
 
       {overview?.campaignId ? (
         <>
+          <TaskCard
+            tone={pendingCabecera > 0 ? 'warn' : undefined}
+            title="Enviá cuadernillos a una cabecera"
+            description={pendingDescription}
+            action={(
+              <Button type="button" disabled={!writeEnabled || products.length === 0} onClick={() => { setNotice(null); setBuilderOpen(true) }}>
+                Enviar cuadernillos
+              </Button>
+            )}
+          />
+
           <KpiStrip label="Resumen de la campaña" items={[
             { label: 'Stock total', value: formatCount(stockTotal) },
-            { label: 'Remitos despachados', value: `${remitos.length}${remitosCursor ? '+' : ''}` },
-            { label: 'Pendientes en cabecera', value: pendingCabecera, tone: pendingCabecera > 0 ? 'warn' : undefined },
+            { label: 'Envíos hechos', value: `${remitos.length}${remitosCursor ? '+' : ''}` },
+            { label: 'Esperando a la cabecera', value: pendingCabecera, tone: pendingCabecera > 0 ? 'warn' : undefined },
           ]} />
 
           <Panel title="Stock por grado" aside="Tocá un grado para cargar stock">
-            <div className="k-list">
+            <div className="k-list" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 15rem), 1fr))' }}>
               {products.map((row) => {
                 const stock = row.globalAvailable
                 return (
@@ -245,12 +263,12 @@ export function PlanningHome() {
                     aria-label={`${row.productLabel}: ${stock === null ? 'sin stock' : `stock ${stock}`}`}
                     onClick={() => { setModalError(null); setStockProductId(row.productId) }}>
                     <span className="k-row-main">
-                      <span className="k-row-title">{row.productLabel}</span>
+                      <span className="k-row-title">{shortProduct(row.productLabel)}</span>
                       {stock === null ? <span className="k-row-meta">Todavía sin stock inicial</span> : null}
                     </span>
                     <span className="k-row-side">
                       {stock === null ? <Chip tone="warn">Sin stock</Chip> : <span className="k-row-num">{formatCount(stock)}</span>}
-                      <ChevronRight aria-hidden size={20} />
+                      <ChevronRight aria-hidden size={16} />
                     </span>
                   </button>
                 )
@@ -258,7 +276,7 @@ export function PlanningHome() {
             </div>
           </Panel>
 
-          <Panel title="Remitos" aside="Del más reciente al más antiguo">
+          <Panel title="Envíos" aside="Del más reciente al más antiguo">
             {remitosError ? <Note tone="danger">{remitosError}</Note> : null}
             {!remitosError || remitos.length > 0 ? (
               <RemitosList

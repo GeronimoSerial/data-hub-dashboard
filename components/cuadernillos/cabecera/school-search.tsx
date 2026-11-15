@@ -7,7 +7,7 @@ import { readJson, isSchoolList, type CriticalSchool } from './cabecera-api'
 import { EmptyState, Note } from '../kit'
 import { SchoolCard } from './school-card'
 
-/** CUE search. Once a school is chosen, only that school stays on screen until "Cambiar escuela". */
+/** School search by CUE (the only lookup the API offers). Once a school is chosen, only that school stays on screen until "Cambiar escuela". */
 export type SchoolSearchState = {
   cueQuery: string
   setCueQuery: (value: string) => void
@@ -35,7 +35,7 @@ export function SchoolSearch({ selected, onChoose, onClear, state }: {
   async function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const cue = cueQuery.trim()
-    if (!/^\d{3,9}$/.test(cue)) { setError('Ingresá al menos 3 dígitos del CUE.'); return }
+    if (!/^\d{3,9}$/.test(cue)) { setError('Escribí al menos 3 dígitos del CUE de la escuela.'); return }
     setError(null)
     setSearching(true)
     try {
@@ -62,7 +62,7 @@ export function SchoolSearch({ selected, onChoose, onClear, state }: {
   return (
     <div style={{ display: 'grid', gap: '.75rem', minWidth: 0 }}>
       <form onSubmit={(event) => void search(event)} className="k-field">
-        <label htmlFor="cab-cue">CUE de la escuela</label>
+        <label htmlFor="cab-cue">Buscar escuela por CUE</label>
         <div style={{ display: 'flex', gap: '.5rem' }}>
           <Input
             id="cab-cue"
@@ -78,11 +78,11 @@ export function SchoolSearch({ selected, onChoose, onClear, state }: {
             {searching ? 'Buscando…' : 'Buscar escuela'}
           </Button>
         </div>
-        <span className="k-hint">Alcanza con los primeros dígitos. Solo aparecen escuelas en severidad Crítica.</span>
+        <span className="k-hint">Alcanza con los primeros dígitos. Solo aparecen las escuelas que necesitan cuadernillos.</span>
       </form>
       {error ? <Note tone="danger">{error}</Note> : null}
       {results && results.length === 0 ? (
-        <EmptyState title="Sin resultados" description="No hay escuelas en severidad Crítica con ese CUE." />
+        <EmptyState title="Sin resultados" description="No hay escuelas que necesiten cuadernillos con ese CUE." />
       ) : null}
       {results && results.length ? (
         <ul className="k-list">
