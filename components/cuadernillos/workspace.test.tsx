@@ -9,7 +9,7 @@ vi.mock('./cabecera/cabecera-home', () => ({
 }))
 
 vi.mock('./control/control-view', () => ({
-  ControlView: () => 'Control de remitos',
+  ControlView: () => 'Control de envíos',
 }))
 
 afterEach(() => {
@@ -52,7 +52,7 @@ describe('CuadernillosWorkspace roles', () => {
 
     render(<CuadernillosWorkspace capabilities={[]} />)
 
-    expect(screen.getByRole('status')).toHaveTextContent('Esta cuenta todavía no tiene una responsabilidad de cuadernillos habilitada.')
+    expect(screen.getByRole('status')).toHaveTextContent('Tu cuenta todavía no tiene acceso a cuadernillos. Pedile acceso a un administrador.')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -66,14 +66,23 @@ describe('CuadernillosWorkspace roles', () => {
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
   })
 
+  it('shows no role tabs for a supervisor-only account', () => {
+    vi.stubGlobal('fetch', fetchOverview())
+
+    render(<CuadernillosWorkspace capabilities={['supervisor']} />)
+
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(screen.getByText(/Control de envíos/)).toBeInTheDocument()
+  })
+
   it('defaults to the most specific role the user has and offers only those roles', () => {
     vi.stubGlobal('fetch', fetchOverview())
 
     render(<CuadernillosWorkspace capabilities={['planning', 'cabecera', 'supervisor']} />)
 
-    expect(screen.getByRole('tab', { name: 'Cabecera' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('tab', { name: 'Supervisión' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Planeamiento' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Recibir y repartir' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Revisar envíos' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Enviar cuadernillos' })).toBeInTheDocument()
     expect(screen.getByText(/Inicio de cabecera/)).toBeInTheDocument()
   })
 
@@ -82,9 +91,9 @@ describe('CuadernillosWorkspace roles', () => {
 
     render(<CuadernillosWorkspace capabilities={['planning', 'supervisor']} />)
 
-    expect(screen.getByRole('tab', { name: 'Supervisión' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.queryByRole('tab', { name: 'Cabecera' })).not.toBeInTheDocument()
-    expect(screen.getByText(/Control de remitos/)).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Revisar envíos' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('tab', { name: 'Recibir y repartir' })).not.toBeInTheDocument()
+    expect(screen.getByText(/Control de envíos/)).toBeInTheDocument()
   })
 
   it('switches between the roles the server supplied', async () => {
@@ -92,9 +101,9 @@ describe('CuadernillosWorkspace roles', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<CuadernillosWorkspace capabilities={['cabecera', 'supervisor']} />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Supervisión' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Revisar envíos' }))
 
-    expect(await screen.findByText(/Control de remitos/)).toBeInTheDocument()
+    expect(await screen.findByText(/Control de envíos/)).toBeInTheDocument()
     expect(screen.queryByText(/Inicio de cabecera/)).not.toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/cuadernillos/overview'), expect.anything())
   })
@@ -104,6 +113,6 @@ describe('CuadernillosWorkspace roles', () => {
 
     render(<CuadernillosWorkspace capabilities={['planning']} />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('La cuenta no tiene autorización para esta operación.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tu cuenta no tiene permiso para esta operación.')
   })
 })
