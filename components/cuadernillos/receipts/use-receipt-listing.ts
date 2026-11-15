@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { CabeceraRemitoView, ReceiptListing, SchoolLineView } from '@/lib/cuadernillos/remito-receipts'
 import { loadJson } from '../cabecera/cabecera-api'
 
-const FAILURE = 'No se pudieron cargar los recibidos.'
+const FAILURE = 'No se pudieron cargar los envíos.'
 
 function isListing(value: unknown): value is ReceiptListing {
   if (!value || typeof value !== 'object') return false

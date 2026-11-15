@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { RemitoBuilder } from './remito-builder'
 
 afterEach(() => {
@@ -40,12 +40,11 @@ function mockFetch(post: () => unknown) {
 
 async function goToQuantities() {
   fireEvent.click(await screen.findByRole('button', { name: /Cabecera Norte/ }))
-  fireEvent.change(screen.getByLabelText('CUE de la escuela'), { target: { value: '180123' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+  fireEvent.change(screen.getByLabelText('Buscar escuela por CUE'), { target: { value: '180123' } })
   fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
-  fireEvent.click(await screen.findByRole('button', { name: /Elegir Escuela A/ }))
-  const next = await screen.findByRole('button', { name: 'Siguiente' })
-  await waitFor(() => expect(next).toBeEnabled())
-  fireEvent.click(next)
+  fireEvent.click(await screen.findByRole('button', { name: /Agregar Escuela A/ }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled())
 }
 
 function renderBuilder(overrides: Partial<{ onDispatched: () => void; products: typeof products }> = {}) {
@@ -64,8 +63,8 @@ describe('RemitoBuilder', () => {
     expect(screen.getByLabelText('Escuela A · Cuadernillo 1.er grado')).toHaveValue(30)
     fireEvent.change(screen.getByLabelText('Escuela A · Cuadernillo 2.º grado'), { target: { value: '20' } })
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
-    expect(await screen.findByRole('list', { name: 'Totales contra stock' })).toHaveTextContent('Despacho 30 · Stock 100')
-    fireEvent.click(screen.getByRole('button', { name: 'Despachar remito' }))
+    expect(await screen.findByRole('list', { name: 'Totales contra stock' })).toHaveTextContent('Enviás 30 · Stock 100')
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
     await waitFor(() => expect(onDispatched).toHaveBeenCalled())
     const post = fetchMock.mock.calls.find(([url, init]) => url === '/api/cuadernillos/remitos' && init?.method === 'POST')!
@@ -87,9 +86,9 @@ describe('RemitoBuilder', () => {
     renderBuilder({ onDispatched })
     await goToQuantities()
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Despachar remito' }))
-    expect(await screen.findByText('No se pudo despachar el remito. Intentá nuevamente.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Despachar remito' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar' }))
+    expect(await screen.findByText('No se pudo enviar. Intentá nuevamente.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
     await waitFor(() => expect(onDispatched).toHaveBeenCalled())
     const keys = fetchMock.mock.calls
@@ -99,26 +98,69 @@ describe('RemitoBuilder', () => {
     expect(keys[0]).toBe(keys[1])
   })
 
-  it('lists the schools that are no longer Crítica when the dispatch is refused', async () => {
+  it('names the school in plain words when it is no longer a priority', async () => {
     vi.stubGlobal('fetch', mockFetch(() => response({ error: 'recipients_not_critical', recipientCueAnexos: ['180123457'] }, 409)))
 
     renderBuilder()
     await goToQuantities()
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Despachar remito' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Escuela A (CUE 180123457)')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('La Escuela A ya no figura como prioritaria, quitala del envío.')
+    expect(alert).not.toHaveTextContent(/recipients_not_critical|severidad|Crítica/)
   })
 
-  it('names the products without stock when the server reports insufficient stock', async () => {
+  it('tells how much stock is left when the server reports insufficient stock', async () => {
     vi.stubGlobal('fetch', mockFetch(() => response({ error: 'insufficient_stock', productIds: ['book-2'] }, 409)))
 
     renderBuilder()
     await goToQuantities()
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Despachar remito' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('No hay stock suficiente de: Cuadernillo 2.º grado')
+    expect(await screen.findByRole('alert')).toHaveTextContent('No alcanza el stock de 2.º grado: quedan 30.')
+  })
+
+  it('explains in plain words that the cabecera has no confirmed account yet', async () => {
+    vi.stubGlobal('fetch', mockFetch(() => response({ error: 'authority_unavailable' }, 409)))
+
+    renderBuilder()
+    await goToQuantities()
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('La escuela cabecera todavía no confirmó su cuenta para recibir envíos.')
+    expect(alert).not.toHaveTextContent('authority_unavailable')
+  })
+
+  it('shows the three numbered steps and moves the current one forward', async () => {
+    vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
+
+    renderBuilder()
+    const steps = await screen.findByRole('list', { name: 'Pasos del envío' })
+    const items = () => within(steps).getAllByRole('listitem')
+    expect(items().map((item) => item.textContent)).toEqual(['1. ¿A qué cabecera?', '2. ¿Qué escuelas y cuántos?', '3. Revisar y enviar'])
+    expect(items()[0]).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+
+    await goToQuantities()
+    expect(items()[1]).toHaveAttribute('aria-current', 'step')
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
+    expect(await screen.findByRole('list', { name: 'Totales contra stock' })).toBeInTheDocument()
+    expect(items()[2]).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeEnabled()
+  })
+
+  it('shows the school name first and the CUE as secondary text', async () => {
+    vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
+
+    renderBuilder()
+    await goToQuantities()
+
+    const group = screen.getByRole('group', { name: 'Escuela A' })
+    expect(group).toHaveTextContent('CUE 1801234-57')
   })
 
   it('blocks the dispatch in the review when the totals exceed the stock', async () => {
@@ -131,7 +173,7 @@ describe('RemitoBuilder', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
 
     expect(await screen.findByText('Faltan 5')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Despachar remito' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled()
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   })
 })

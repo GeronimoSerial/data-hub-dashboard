@@ -6,21 +6,34 @@ Guía operativa del flujo de envío de cuadernillos. Reemplaza el esquema anteri
 
 Planeamiento envía los cuadernillos a las escuelas que los necesitan. Cada traspaso se firma con la cuenta de quien recibe.
 
-1. **Planeamiento** arma un remito por cabecera (botón "Nuevo remito"), con una línea por escuela destino y cantidades por cuadernillo (nivel y grado). La cantidad inicial sale de la recomendación por matrícula y se puede editar. Solo pueden ser destino escuelas del Consejo con severidad Crítica.
+1. **Planeamiento** arma un remito por cabecera (botón "Enviar cuadernillos"), con una línea por escuela destino y cantidades por cuadernillo (nivel y grado). La cantidad inicial sale de la recomendación por matrícula y se puede editar. Solo pueden ser destino escuelas del Consejo con severidad Crítica.
 2. **Despacho.** Al enviar, el sistema revalida que todas las escuelas sigan en Crítica y descuenta el stock global en el acto. Si alguna dejó de serlo, o el stock no alcanza, no se despacha nada. Reenviar con la misma clave de idempotencia no duplica el remito.
 3. **Cabecera.** La cuenta de la cabecera del remito firma un único recibido por todo el remito. Para cada cuadernillo se confirma la cantidad recibida.
 4. **Escuela.** La cuenta de la escuela (GE SSO, rol `operador_establecimiento`, acotada por su CUE) firma su propia línea en `/cuadernillos/recepcion`. Se le consulta por lo que confirmó la cabecera, no por lo que despachó Planeamiento. No puede firmar antes de que la cabecera firme (`cabecera_receipt_pending`), y una escuela no puede firmar la línea de otra.
 5. **Cabecera como destino.** Si la propia escuela cabecera es una línea, el recibido del remito cuenta también como recibido de esa línea.
 
+## Qué ve cada usuario
+
+La interfaz usa lenguaje llano: "envío" en lugar de remito, "enviar" en lugar de despachar, "confirmar que llegó" en lugar de firmar el recibido y "llegó de menos" en lugar de faltante. Cada pantalla abre con una tarjeta que dice qué hay que hacer ahora, y cada envío muestra su recorrido: Enviado → Llegó a la cabecera → Llegó a la escuela, con quién confirmó cada paso y cuándo.
+
+| Rol | Pestaña | Tarea al entrar |
+|---|---|---|
+| Planeamiento | Enviar cuadernillos | "Enviar cuadernillos" (asistente de 3 pasos: cabecera, escuelas y cantidades, revisar y enviar) |
+| Cabecera | Recibir y repartir | "Tenés N envíos para recibir." |
+| Escuela | Recepción de cuadernillos | "Te llegó un envío de cuadernillos. Confirmá qué recibiste." |
+| Supervisor | Revisar envíos | "N envíos llegaron incompletos. Revisalos." |
+
+Sin pendientes, la tarjeta dice "No tenés nada pendiente.". En los términos de este documento, envío = remito y llegó de menos = faltante.
+
 ## Faltantes
 
-Cada receptor responde "¿Recibió X cantidad de X cuadernillo?". Confirmar firma. Si la cantidad real es menor, se carga por nivel y grado y el motivo es obligatorio. La diferencia queda registrada como faltante del tramo anterior (Planeamiento → Cabecera, o Cabecera → Escuela). Nunca se puede recibir más de lo enviado en ese tramo, y no se admite un motivo si no hay faltante.
+Cada receptor ve la lista de lo enviado y elige "Sí, llegó todo" o "Llegó menos"; "Confirmo que recibí estos cuadernillos" firma. Si la cantidad real es menor, se carga por nivel y grado y el motivo es obligatorio. La diferencia queda registrada como faltante del tramo anterior (Planeamiento → Cabecera, o Cabecera → Escuela). Nunca se puede recibir más de lo enviado en ese tramo, y no se admite un motivo si no hay faltante.
 
 Los recibidos firmados son inmutables y su identidad y fecha salen de la sesión, nunca del cuerpo del pedido. Una línea cuyo total confirmado por la cabecera es 0 se cierra sin recibido de escuela.
 
 ## Supervisión
 
-El supervisor de cada cabecera tiene una vista de control posterior ("Control de remitos"): ve lo despachado, lo recibido y los faltantes por tramo de sus remitos y puede agregar observaciones. No aprueba ni bloquea nada. Los administradores de cuadernillos solo leen.
+El supervisor de cada cabecera tiene una vista de control posterior ("Revisar envíos"): ve lo despachado, lo recibido y los faltantes por tramo de sus remitos y puede agregar observaciones. No aprueba ni bloquea nada. Los administradores de cuadernillos solo leen.
 
 ## Stock
 
