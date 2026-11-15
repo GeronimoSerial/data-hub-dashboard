@@ -107,11 +107,16 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-journey li[data-state="short"] strong { color: var(--warn); }
 .k-journey li[data-state="current"] { border-color: var(--ink); background: var(--card); }
 .k-journey li[data-state="current"] strong { color: var(--ink); }
+@media (max-width: 640px) {
+  .k-journey { flex-direction: column; gap: .25rem; }
+  .k-journey li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; flex: none; }
+}
 
 .k-guide { display: grid; gap: .4rem; padding: .6rem 1rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--fill); }
 .k-guide-head { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; }
 .k-guide-head strong { color: var(--ink); }
-.k-guide ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: .5rem 1rem; margin: 0; padding-left: 1.2rem; color: var(--ink-soft); }
+.k-guide ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .25rem 1.5rem; margin: 0; padding: 0; list-style-position: inside; color: var(--ink-soft); }
+.k-guide li { min-width: 0; }
 .k-guide button { min-height: 36px; padding: .25rem .75rem; border: 0; background: transparent; color: var(--accent); font: inherit; cursor: pointer; }
 .k-guide button:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
 
