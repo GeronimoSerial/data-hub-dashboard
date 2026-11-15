@@ -64,6 +64,7 @@ async function sembrarParteVigente(corteId: number, params: {
   asistencia?: Asistencia
   rigeDesdeHaceDias?: number
   actualizadaHaceDias?: number
+  secciones?: number[]
 }): Promise<void> {
   const parteId = await crearParte(params.cue, corteId)
   await crearAfectacion({
@@ -72,7 +73,7 @@ async function sembrarParteVigente(corteId: number, params: {
     categoria: 'establecimiento',
     severidad: params.severidad,
     rigeDesde: hace(params.rigeDesdeHaceDias ?? 0),
-    secciones: [],
+    secciones: params.secciones ?? [],
   })
   await fijarParte(parteId, {
     estadoEstablecimiento: params.estado,
@@ -205,11 +206,33 @@ async function crearCorteVigente(): Promise<number> {
   return corteId
 }
 
+// Una sección GE con matrícula para la escuela de acceso-roles.spec.ts: la ficha sólo muestra
+// el alcance en alumnos cuando es mayor que cero, y ese control positivo necesita un valor real.
+const SECCION_CON_MATRICULA = 990001
+const ALUMNOS_CON_MATRICULA = 12
+
+async function sembrarSeccionConMatricula(corteId: number, cue: string): Promise<void> {
+  const client = crearEjecutorSql(getRawClient())
+  await client.execute({
+    sql: `INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno)
+          VALUES (?, ?, ?, '1', 'A', 'Primario', 'Mañana') ON CONFLICT DO NOTHING`,
+    args: [corteId, SECCION_CON_MATRICULA, cue],
+  })
+  for (let indice = 0; indice < ALUMNOS_CON_MATRICULA; indice++) {
+    await client.execute({
+      sql: `INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id)
+            VALUES (?, ?, ?) ON CONFLICT DO NOTHING`,
+      args: [corteId, SECCION_CON_MATRICULA, 99_000_000 + indice],
+    })
+  }
+}
+
 export async function sembrarPartes(): Promise<void> {
   const corteId = await crearCorteVigente()
+  await sembrarSeccionConMatricula(corteId, '1800554-00')
 
   // Vigentes: actualizados hoy, con afectación activa.
-  await sembrarParteVigente(corteId, { cue: '1800554-00', severidad: 'Media', motivo: 'Inundación' })
+  await sembrarParteVigente(corteId, { cue: '1800554-00', severidad: 'Media', motivo: 'Inundación', secciones: [SECCION_CON_MATRICULA] })
   await sembrarParteVigente(corteId, { cue: '1800643-00', severidad: 'Baja', motivo: 'Inundación' })
   await sembrarParteVigente(corteId, {
     cue: '1801899-00', severidad: 'Alta', motivo: 'Falta de calefacción',

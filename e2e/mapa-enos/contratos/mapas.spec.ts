@@ -257,8 +257,11 @@ test.describe('GET /nominal', () => {
     const respuesta = await apiAdmin.get(`${RUTA}/nominal`, { params: { afectacionId: afectacionId ?? '' } })
     expect(respuesta.status()).toBe(200)
     const cuerpo = (await respuesta.json()) as { cantidad: number; secciones: unknown[] }
-    // El seed no carga alumnos: el alcance nominal de la afectacion llega vacio. Un cambio de seed lo hara fallar.
-    expect(cuerpo).toEqual({ cantidad: 0, secciones: [] })
+    // El seed carga una sola seccion con 12 alumnos para la escuela del operador. Un cambio de seed lo hara fallar.
+    expect(cuerpo).toEqual({
+      cantidad: 12,
+      secciones: [{ geSectionId: 990001, curso: '1', division: 'A', turno: 'Mañana', alumnos: [] }],
+    })
     compararSnapshot('mapas-nominal-admin', cuerpo)
   })
 
@@ -289,7 +292,10 @@ test.describe('GET /nominal', () => {
 
     const respuesta = await apiDirector.get(`${RUTA}/nominal`, { params: { afectacionId } })
     expect(respuesta.status()).toBe(200)
-    expect(await respuesta.json()).toEqual({ cantidad: 0, secciones: [] })
+    expect(await respuesta.json()).toEqual({
+      cantidad: 12,
+      secciones: [{ geSectionId: 990001, curso: '1', division: 'A', turno: 'Mañana', alumnos: [] }],
+    })
   })
 
   test('admin sin afectacionId recibe 400', async ({ apiAdmin }) => {

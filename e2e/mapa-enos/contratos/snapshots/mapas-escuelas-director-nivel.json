@@ -1,7 +1,7 @@
 {
   "escuelas": [
     {
-      "alumnos": 0,
+      "alumnos": 12,
       "alumnosSinClases": 0,
       "apoyo": null,
       "categoriaPrincipal": "establecimiento",
@@ -21,7 +21,9 @@
       },
       "nivelJurisdiccionalId": 1,
       "nivelJurisdiccionalNombre": "Dirección de Nivel Secundario",
-      "niveles": [],
+      "niveles": [
+        "Primario"
+      ],
       "nombre": "ESCUELA NORMAL \"DR.JUAN GREGORIO PUJOL\"",
       "parte": {
         "actualizadaEn": "<fecha>",
@@ -36,8 +38,8 @@
             "severidad": "Media"
           }
         ],
-        "alumnosAlcanzados": 0,
-        "alumnosDelHecho": 0,
+        "alumnosAlcanzados": 12,
+        "alumnosDelHecho": 12,
         "categorias": [
           "establecimiento"
         ],
@@ -51,7 +53,7 @@
         "parteId": "<uuid:2>",
         "peorSeveridad": "Media",
         "rigeDesde": "<fecha>",
-        "seccionesAlcanzadas": 0,
+        "seccionesAlcanzadas": 1,
         "servicio": "normal",
         "servicioInformado": false
       },
