@@ -35,17 +35,20 @@ export async function readJson(response: Response): Promise<unknown> {
  * error, timeout, non-ok status or unexpected body rejects with `failure`.
  * `cancel` aborts the request and clears the timeout (call it from effect cleanup).
  */
-export function loadJson<T>(url: string, isExpected: (value: unknown) => value is T, failure: string) {
+/** `messages` maps an API error code to the text shown instead of the generic `failure`. */
+export function loadJson<T>(url: string, isExpected: (value: unknown) => value is T, failure: string, messages: Record<string, string> = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), LOAD_TIMEOUT_MS)
   const promise = (async (): Promise<T> => {
+    let message = failure
     try {
       const response = await fetch(url, { cache: 'no-store', signal: controller.signal })
       const data = await readJson(response)
-      if (!response.ok || !isExpected(data)) throw new Error(failure)
+      if (!response.ok) message = messages[errorCode(data)] ?? failure
+      if (!response.ok || !isExpected(data)) throw new Error(message)
       return data
     } catch {
-      throw new Error(failure)
+      throw new Error(message)
     } finally {
       clearTimeout(timer)
     }

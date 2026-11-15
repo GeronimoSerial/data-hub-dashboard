@@ -67,7 +67,8 @@ export type SchoolLineView = {
   items: Array<{ productId: string; productName: string; expectedQuantity: number | null; schoolReceivedQuantity: number | null }>
 }
 export type ReceiptListing =
-  | { kind: 'cabecera'; remitos: CabeceraRemitoView[] }
+  /** `readOnly`: booklet admins see every remito but only the bound cabecera account can sign. */
+  | { kind: 'cabecera'; remitos: CabeceraRemitoView[]; readOnly?: boolean }
   | { kind: 'school'; lines: SchoolLineView[] }
 
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
@@ -250,17 +251,23 @@ export async function listReceiptsForActor(actor: SessionUser, db: ReceiptDb = g
   if (!account || account.banned === true) throw forbidden()
 
   if (actor.role === 'operador_establecimiento') return listForSchool(actor, db)
+  if (actor.role === 'admin') {
+    const all = (await db.select({ cueAnexo: bookletRemito.cabeceraCueAnexo }).from(bookletRemito)).map((row) => row.cueAnexo)
+    return { ...await listForCabecera([...new Set(all)], db), readOnly: true }
+  }
 
   const cues = (await db.select({ cueAnexo: bookletSchoolAssignment.cueAnexo }).from(bookletSchoolAssignment)
     .where(and(eq(bookletSchoolAssignment.relationship, 'cabecera'), eq(bookletSchoolAssignment.cabeceraUserId, actor.id)))).map((row) => row.cueAnexo)
   const [membership] = await db.select({ id: bookletMembership.id }).from(bookletMembership)
     .where(and(eq(bookletMembership.userId, actor.id), eq(bookletMembership.capability, 'cabecera'), sql`${bookletMembership.revokedAt} IS NULL`)).limit(1)
-  if (!cues.length || !membership) throw forbidden()
+  if (!membership) throw forbidden()
+  // A cabecera membership without a confirmed cabecera school: say what is missing instead of a bare 403.
+  if (!cues.length) throw new BookletServiceError('cabecera_not_bound', 403)
   return listForCabecera(cues, db)
 }
 
-async function listForCabecera(cues: string[], db: ReceiptDb): Promise<ReceiptListing> {
-  const remitos = await db.select().from(bookletRemito).where(inArray(bookletRemito.cabeceraCueAnexo, cues))
+async function listForCabecera(cues: string[], db: ReceiptDb): Promise<Extract<ReceiptListing, { kind: 'cabecera' }>> {
+  const remitos = cues.length ? await db.select().from(bookletRemito).where(inArray(bookletRemito.cabeceraCueAnexo, cues)) : []
   const ids = remitos.map((remito) => remito.id)
   const lines = ids.length ? await db.select().from(bookletRemitoLine).where(inArray(bookletRemitoLine.remitoId, ids)) : []
   const items = lines.length ? await db.select({

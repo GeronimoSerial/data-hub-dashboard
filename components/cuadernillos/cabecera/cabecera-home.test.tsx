@@ -77,6 +77,22 @@ describe('CabeceraHome receipt view', () => {
     expect(await screen.findByText('No tenés nada pendiente.')).toBeTruthy()
   })
 
+  it('gives admins a read-only view: every pending envío, no confirm buttons', async () => {
+    const fetchMock = vi.fn(async () => json({ kind: 'cabecera', readOnly: true, remitos: [pendingRemito] }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<CabeceraHome />)
+    expect(await screen.findByText('1 envío está esperando a su cabecera.')).toBeTruthy()
+    expect(screen.getByText(/Solo la cuenta de cada cabecera puede confirmar/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Confirmo que recibí estos cuadernillos' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Sí, llegó todo' })).toBeNull()
+  })
+
+  it('explains that the account is not linked to a cabecera instead of a generic load error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({ error: 'cabecera_not_bound' }, false)))
+    render(<CabeceraHome />)
+    expect(await screen.findByText(/Tu cuenta todavía no está vinculada a una escuela cabecera/)).toBeTruthy()
+  })
+
   it('shows the circuit guide when there are no envíos', async () => {
     setup(undefined, [])
     render(<CabeceraHome />)
