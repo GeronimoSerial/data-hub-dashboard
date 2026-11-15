@@ -1,4 +1,12 @@
 {
-  "cantidad": 0,
-  "secciones": []
+  "cantidad": 12,
+  "secciones": [
+    {
+      "alumnos": [],
+      "curso": "1",
+      "division": "A",
+      "geSectionId": 990001,
+      "turno": "Mañana"
+    }
+  ]
 }

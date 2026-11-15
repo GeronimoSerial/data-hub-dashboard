@@ -1,34 +1,16 @@
 import { test, type Browser, type BrowserContext, type Page, type Request } from '@playwright/test'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { login } from './session'
 
 // Visual review captures. Never fails for a missing element: every step is logged and skipped.
-const fixture: { headCue: string; recipientCue: string; criticalCues: string[] } =
+const fixture: { campaignId: string; productId: string; headCue: string; recipientCue: string; criticalCues: string[] } =
   JSON.parse(readFileSync(path.join(__dirname, '.results/fixture-state.json'), 'utf8'))
 
 const outDir = process.env.T8_SCREENS_DIR ?? ''
 const missing: string[] = []
 const networkLog: string[] = []
 const VIEWPORTS = [{ width: 1280, height: 800 }, { width: 390, height: 844 }]
-
-type Capability = 'planning' | 'cabecera' | 'supervisor' | 'admin'
-
-async function login(page: Page, who: Capability) {
-  const email = `t8-fixture-${who}@example.test`
-  const password = process.env[`T8_${who.toUpperCase()}_PASSWORD`]
-  if (!password) throw new Error(`Missing isolated credential for ${who}`)
-  await page.goto('/login?callbackUrl=%2Fcuadernillos')
-  await page.getByLabel('Correo').fill(email)
-  await page.getByLabel('Contraseña').fill(password)
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const responsePromise = page.waitForResponse((response) => response.url().includes('/api/auth/sign-in') && response.request().method() === 'POST', { timeout: 15_000 }).catch(() => null)
-    await page.getByRole('button', { name: 'Iniciar sesión' }).click()
-    const response = await responsePromise
-    if (!response || response.status() !== 429) break
-    await page.waitForTimeout(10_500)
-  }
-  await page.waitForURL(/\/cuadernillos(?:\?|$)/, { timeout: 15_000 })
-}
 
 async function dismissUnderDevelopment(page: Page) {
   const dialog = page.getByRole('dialog').filter({ hasText: /en desarrollo/i }).first()
@@ -116,55 +98,7 @@ for (const { width, height } of VIEWPORTS) {
     networkLog.length = 0
     mkdirSync(outDir, { recursive: true })
 
-    // Cabecera: initial, CUE search with results, school selected with quantities.
-    {
-      const context = await openContext(browser, width, height)
-      const page = await context.newPage()
-      track(page, 'cabecera')
-      await login(page, 'cabecera')
-      await dismissUnderDevelopment(page)
-      await shot(page, 'cabecera-initial', width)
-      await step('cabecera search by CUE', async () => {
-        await page.getByLabel('CUE de la escuela').fill(fixture.criticalCues[0])
-        await page.getByRole('button', { name: 'Buscar escuela' }).click()
-        await page.getByRole('button', { name: new RegExp(`Elegir .*CUE ${fixture.criticalCues[0]}`) }).waitFor({ timeout: 10_000 })
-      })
-      await shot(page, 'cabecera-search', width)
-      await step('cabecera select school and quantities', async () => {
-        await page.getByRole('button', { name: new RegExp(`Elegir .*CUE ${fixture.criticalCues[0]}`) }).click()
-        await page.getByLabel(/Cantidad · Cuadernillo de prueba/).first().fill('3')
-      })
-      await shot(page, 'cabecera-selected', width)
-      await context.close()
-    }
-
-    // Supervisor: inbox list, detail panel, approve confirmation open (not confirmed).
-    {
-      const context = await openContext(browser, width, height)
-      const page = await context.newPage()
-      track(page, 'supervisor')
-      await login(page, 'supervisor')
-      await dismissUnderDevelopment(page)
-      // Campaign buttons render only when several campaigns are active; a single campaign is selected by the server.
-      await step('supervisor select campaign', async () => {
-        const campaign = page.getByRole('button', { name: /Campaña de prueba aislada/ })
-        if (await campaign.isVisible().catch(() => false)) await campaign.click()
-      })
-      await shot(page, 'supervisor-list', width)
-      // Each inbox row is a whole-row button whose accessible name carries the dashed CUE (1801234-00).
-      await step('supervisor open detail', async () => {
-        await page.getByRole('button', { name: /CUE \d{7}-\d{2}/ }).first().click()
-      })
-      await shot(page, 'supervisor-detail', width)
-      await step('supervisor open approve confirmation', async () => {
-        await page.getByRole('button', { name: 'Aprobar' }).click()
-        await page.getByRole('button', { name: 'Confirmar aprobación' }).waitFor({ timeout: 5_000 })
-      })
-      await shot(page, 'supervisor-approve-confirm', width)
-      await context.close()
-    }
-
-    // Planning home.
+    // A pending remito so every screen has content; the dispatch is idempotent per viewport.
     {
       const context = await openContext(browser, width, height)
       const page = await context.newPage()
@@ -172,6 +106,34 @@ for (const { width, height } of VIEWPORTS) {
       await login(page, 'planning')
       await dismissUnderDevelopment(page)
       await shot(page, 'planning-home', width)
+      await step('planning remito builder', async () => {
+        await page.getByRole('button', { name: 'Enviar cuadernillos' }).click()
+        await page.getByRole('dialog').waitFor({ timeout: 5_000 })
+      })
+      await shot(page, 'planning-remito-builder', width)
+      await step('planning dispatch fixture remito', async () => {
+        const response = await context.request.post('/api/cuadernillos/remitos', {
+          data: {
+            campaignId: fixture.campaignId, cabeceraCueAnexo: fixture.headCue, idempotencyKey: `t8-screens-remito-${width}`,
+            lines: [{ recipientCueAnexo: fixture.criticalCues[0], items: [{ productId: fixture.productId, quantity: 4 }] }],
+          },
+        })
+        if (response.status() !== 201) throw new Error(`dispatch returned ${response.status()}`)
+      })
+      await context.close()
+    }
+
+    for (const [who, label, shotName] of [
+      ['cabecera', 'cabecera', 'cabecera-receipt'],
+      ['operator', 'school', 'school-receipt'],
+      ['supervisor', 'supervisor', 'supervisor-control'],
+    ] as const) {
+      const context = await openContext(browser, width, height)
+      const page = await context.newPage()
+      track(page, label)
+      await login(page, who)
+      await dismissUnderDevelopment(page)
+      await shot(page, shotName, width)
       await context.close()
     }
 

@@ -91,17 +91,17 @@ test.describe('ficha de escuela', () => {
   test(`la ficha de ${CUE_CON_PARTE} muestra nombre, situación vigente y secciones`, async ({ page }) => {
     await page.goto(`/mapas/infraestructura/escuelas/${CUE_CON_PARTE}`)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(NOMBRE_CON_PARTE)
-    await expect(page.locator('#panorama')).toBeVisible()
+    await expect(page.locator('#bitacora')).toBeVisible()
     await expect(page.locator('#situaciones').getByTestId('ficha-incidente').locator('h2')).toHaveText(MOTIVO_CON_PARTE)
-    await expect(page.getByTestId('ficha-chip-vigente')).toBeVisible()
+    await expect(page.getByTestId('ficha-ultimo-movimiento')).toBeVisible()
     await expect(page.getByTestId('ficha-chip-sin-actualizar')).toHaveCount(0)
     await expect(page.locator('#territorio')).toBeVisible()
   })
 
-  test(`la ficha de ${CUE_SIN_SITUACIONES} muestra "Sin situaciones abiertas reportadas"`, async ({ page }) => {
+  test(`la ficha de ${CUE_SIN_SITUACIONES} muestra "Sin situaciones abiertas"`, async ({ page }) => {
     await page.goto(`/mapas/infraestructura/escuelas/${CUE_SIN_SITUACIONES}`)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(NOMBRE_SIN_SITUACIONES)
-    await expect(page.getByTestId('ficha-sin-situaciones')).toHaveText('Sin situaciones abiertas reportadas')
+    await expect(page.getByTestId('ficha-sin-situaciones')).toHaveText('Sin situaciones abiertas')
   })
 
   test(`la ficha de ${CUE_SIN_UBICACION} (sin coordenadas) muestra el aviso de sin ubicación`, async ({ page }) => {

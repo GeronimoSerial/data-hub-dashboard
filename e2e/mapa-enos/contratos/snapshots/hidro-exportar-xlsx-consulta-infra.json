@@ -115,8 +115,8 @@
         "Capital",
         "CORRIENTES",
         "Dirección de Nivel Secundario",
-        null,
-        0,
+        "Primario",
+        12,
         "Media",
         "Funcionamiento habitual",
         null
@@ -470,7 +470,7 @@
         null
       ],
       [
-        "Total alumnos: 0",
+        "Total alumnos: 12",
         null,
         null,
         null,

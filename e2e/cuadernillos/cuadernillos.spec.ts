@@ -1,121 +1,143 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Browser, type BrowserContext } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { login, type Who } from './session'
 
-const fixture: { campaignId: string; productId: string; requestId: string; headCue: string; recipientCue: string } =
-  JSON.parse(readFileSync(path.join(__dirname, '.results/fixture-state.json'), 'utf8'))
+const fixture: {
+  campaignId: string; productId: string; productExtraId: string; rejectedId: string
+  headCue: string; recipientCue: string; criticalCues: string[]
+} = JSON.parse(readFileSync(path.join(__dirname, '.results/fixture-state.json'), 'utf8'))
 
-async function login(page: Page, capability: 'planning' | 'cabecera' | 'supervisor') {
-  const email = `t8-fixture-${capability}@example.test`
-  const password = process.env[`T8_${capability.toUpperCase()}_PASSWORD`]
-  if (!password) throw new Error(`Missing isolated credential for ${capability}`)
-  await page.goto('/login?callbackUrl=%2Fcuadernillos')
-  await page.getByLabel('Correo').fill(email)
-  await page.getByLabel('Contraseña').fill(password)
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const responsePromise = page.waitForResponse((response) => response.url().includes('/api/auth/sign-in') && response.request().method() === 'POST', { timeout: 15_000 }).catch(() => null)
-    await page.getByRole('button', { name: 'Iniciar sesión' }).click()
-    const response = await responsePromise
-    if (!response || response.status() !== 429) break
-    await page.waitForTimeout(10_500)
-  }
-  await page.waitForURL(/\/cuadernillos(?:\?|$)/, { timeout: 15_000 })
+async function session(browser: Browser, who: Who): Promise<BrowserContext> {
+  const context = await browser.newContext()
+  await login(await context.newPage(), who)
+  return context
 }
 
-test('isolated PGlite public smoke shows balances, own requests, and fail-closed individual decisions @pglite-smoke', async ({ browser }) => {
-  const planning = await browser.newPage()
-  await login(planning, 'planning')
-  await expect(planning.getByRole('heading', { name: 'Cuadernillos' })).toBeVisible()
-  await expect(planning.getByRole('rowheader', { name: 'Cuadernillo de prueba' }).first()).toBeVisible()
+test('isolated PGlite smoke loads every role surface and confines the school operator @pglite-smoke', async ({ browser }) => {
+  const planning = await session(browser, 'planning')
+  const planningPage = planning.pages()[0]
+  await expect(planningPage.getByRole('heading', { name: 'Cuadernillos' })).toBeVisible()
+  await expect(planningPage.getByRole('button', { name: 'Enviar cuadernillos' })).toBeVisible()
   await planning.close()
 
-  const supervisor = await browser.newPage()
-  await login(supervisor, 'supervisor')
-  await supervisor.getByRole('button', { name: /Campaña de prueba aislada/ }).click()
-  await expect(supervisor.getByRole('button', { name: /Escuela Anexo de prueba/ }).first()).toBeVisible()
-  await supervisor.getByRole('button', { name: /Escuela Anexo de prueba/ }).first().click()
-  await supervisor.getByRole('button', { name: 'Aprobar' }).click()
-  await supervisor.getByRole('button', { name: 'Confirmar aprobación' }).click()
-  await expect(supervisor.locator('[role="alert"]').first()).toBeVisible()
-  await supervisor.reload()
-  await expect(supervisor.getByText('Pendiente', { exact: true }).first()).toBeVisible()
+  const cabecera = await session(browser, 'cabecera')
+  await expect(cabecera.pages()[0].getByRole('heading', { name: 'Recepción de envíos' })).toBeVisible()
+  await cabecera.close()
+
+  const supervisor = await session(browser, 'supervisor')
+  await expect(supervisor.pages()[0].getByRole('heading', { name: 'Revisar envíos' })).toBeVisible()
   await supervisor.close()
 
-  const cabecera = await browser.newPage()
-  await login(cabecera, 'cabecera')
-  await expect(cabecera.getByRole('button', { name: 'Pedir remanente' }).first()).toBeVisible()
-  await cabecera.getByRole('button', { name: 'Pedir remanente' }).first().click()
-  await expect(cabecera.getByRole('button', { name: 'Solicitar remanente' })).toBeVisible()
-  await cabecera.close()
+  const operator = await session(browser, 'operator')
+  const school = operator.pages()[0]
+  await expect(school.getByRole('heading', { name: 'Recepción de cuadernillos' })).toBeVisible()
+  await school.goto('/cuadernillos')
+  await expect(school).not.toHaveURL(/\/cuadernillos(?:\?|$)/)
+  const forbidden = await operator.request.get('/api/cuadernillos/remitos')
+  expect(forbidden.status()).toBe(403)
+  await operator.close()
 })
 
-test('isolated PostgreSQL public flow approves, reserves remainder, rejects without deduction, and persists balances @postgres-workflow', async ({ browser }) => {
-  const planning = await browser.newPage()
-  await login(planning, 'planning')
-  const initialBalance = planning.getByRole('row').filter({ has: planning.getByRole('rowheader', { name: 'Cuadernillo de prueba' }) })
-  await expect(initialBalance).toContainText('100')
-  await expect(initialBalance).toContainText('50')
-  await planning.close()
+type ControlItem = { productId: string; dispatched: number }
+type ControlLine = { lineId: string; recipientCueAnexo: string; items: ControlItem[] }
+type ControlRemito = { remitoId: string; hasShortfall: boolean; lines: ControlLine[] }
+type Body = { remito?: { remitoId: string; status: string }; remitos?: ControlRemito[]; summary?: { planningToCabeceraShortfallUnits: number }; error?: string }
 
-  const supervisor = await browser.newPage()
-  await login(supervisor, 'supervisor')
-  await supervisor.getByRole('button', { name: /Campaña de prueba aislada/ }).click()
-  await supervisor.getByRole('button', { name: /Escuela Anexo de prueba/ }).first().click()
-  await supervisor.getByLabel('Cantidad aprobada · Cuadernillo de prueba').fill('8')
-  const approvalResponsePromise = supervisor.waitForResponse((response) =>
-    response.url().includes(`/api/cuadernillos/requests/${encodeURIComponent(fixture.requestId)}/approve`)
-      && response.request().method() === 'POST')
-  await supervisor.getByRole('button', { name: 'Aprobar' }).click()
-  await supervisor.getByRole('button', { name: 'Confirmar aprobación' }).click()
-  const approvalResponse = await approvalResponsePromise
-  expect(approvalResponse.status()).toBe(200)
-  await expect(supervisor.getByText('Aprobado', { exact: true }).first()).toBeVisible()
+async function json(response: Awaited<ReturnType<APIRequestContext['get']>>) {
+  return response.json() as Promise<Body>
+}
 
-  const cabecera = await browser.newPage()
-  await login(cabecera, 'cabecera')
-  await cabecera.getByRole('button', { name: 'Pedir remanente' }).first().click()
-  await expect(cabecera.getByLabel('Cantidad propuesta · Cuadernillo de prueba')).toHaveValue('4')
-  const remainderResponsePromise = cabecera.waitForResponse((response) =>
-    response.url().includes(`/api/cuadernillos/requests/${encodeURIComponent(fixture.requestId)}/remainder`)
-      && response.request().method() === 'POST')
-  await cabecera.getByRole('button', { name: 'Solicitar remanente' }).click()
-  const remainderResponse = await remainderResponsePromise
-  expect(remainderResponse.status()).toBe(201)
-  const chainResponse = await cabecera.request.get(`/api/cuadernillos/requests/${encodeURIComponent(fixture.requestId)}/remainder`)
-  expect(chainResponse.status()).toBe(200)
-  await expect(chainResponse.json()).resolves.toMatchObject({
-    rootRequestId: fixture.requestId,
-    requested: [{ productId: fixture.productId, quantity: 12 }],
-    approved: [{ productId: fixture.productId, quantity: 8 }],
-    remaining: [{ productId: fixture.productId, quantity: 4 }],
-    availableRemainder: [],
-  })
+test('isolated remito flow dispatches, receipts with a shortfall, and keeps history @pglite-smoke @postgres-workflow', async ({ browser }) => {
+  const [schoolA, schoolB] = fixture.criticalCues
+  const planning = await session(browser, 'planning')
+  const cabecera = await session(browser, 'cabecera')
+  const supervisor = await session(browser, 'supervisor')
+  const operator = await session(browser, 'operator')
+  const operatorOther = await session(browser, 'operatorOther')
 
-  const rejectionRequestResponse = await cabecera.request.post('/api/cuadernillos/requests', {
+  // S3/S4: planning dispatches one remito and stock is debited immediately.
+  const dispatch = await planning.request.post('/api/cuadernillos/remitos', {
     data: {
-      campaignId: fixture.campaignId, recipientCueAnexo: fixture.recipientCue,
-      lines: [{ productId: fixture.productId, quantity: 3 }], submit: true,
-      idempotencyKey: 't8-rejection-create-fixture',
+      campaignId: fixture.campaignId, cabeceraCueAnexo: fixture.headCue, idempotencyKey: 't8-remito-dispatch',
+      lines: [
+        { recipientCueAnexo: schoolA, items: [{ productId: fixture.productId, quantity: 10 }, { productId: fixture.productExtraId, quantity: 5 }] },
+        { recipientCueAnexo: schoolB, items: [{ productId: fixture.productId, quantity: 6 }] },
+      ],
     },
   })
-  expect(rejectionRequestResponse.status()).toBe(201)
-  const rejectionRequest = await rejectionRequestResponse.json()
-  const rejectedRequestId = rejectionRequest.request.requestId as string
-  const rejectionResponse = await supervisor.request.post(`/api/cuadernillos/requests/${encodeURIComponent(rejectedRequestId)}/reject`, {
-    data: { reason: 'Fixture rejection; no inventory deduction expected.', idempotencyKey: 't8-rejection-fixture' },
-  })
-  expect(rejectionResponse.status()).toBe(200)
-  const requestPageResponse = await supervisor.request.get(`/api/cuadernillos/requests?campaignId=${encodeURIComponent(fixture.campaignId)}`)
-  expect(requestPageResponse.status()).toBe(200)
-  const requestPage = await requestPageResponse.json()
-  expect(requestPage.requests).toContainEqual(expect.objectContaining({ requestId: rejectedRequestId, status: 'rejected' }))
+  expect(dispatch.status()).toBe(201)
+  const { remito } = await json(dispatch) as { remito: { remitoId: string; status: string } }
+  expect(remito.status).toBe('dispatched')
+  const stock = await planning.request.get(`/api/cuadernillos/overview?capability=planning&campaignId=${encodeURIComponent(fixture.campaignId)}`)
+  const stockText = JSON.stringify(await stock.json())
+  expect(stock.status()).toBe(200)
+  expect(stockText).toContain('84')
 
-  const finalPlanning = await browser.newPage()
-  await login(finalPlanning, 'planning')
-  const finalBalance = finalPlanning.getByRole('row').filter({ has: finalPlanning.getByRole('rowheader', { name: 'Cuadernillo de prueba' }) })
-  await expect(finalBalance).toContainText('92')
-  await expect(finalBalance).toContainText('42')
-  await finalPlanning.close()
-  await cabecera.close()
-  await supervisor.close()
+  // Supervisor control exposes the line ids (the dispatch response carries none).
+  const control = await supervisor.request.get(`/api/cuadernillos/control?campaignId=${encodeURIComponent(fixture.campaignId)}`)
+  expect(control.status()).toBe(200)
+  const controlRemito = (await json(control)).remitos?.find((entry) => entry.remitoId === remito.remitoId)
+  if (!controlRemito) throw new Error('remito missing from supervisor control')
+  const lineOf = (cue: string) => {
+    const found = controlRemito.lines.find((line) => line.recipientCueAnexo.replaceAll('-', '') === cue)
+    if (!found) throw new Error(`line for ${cue} missing`)
+    return found
+  }
+  const lineA = lineOf(schoolA)
+  const lineB = lineOf(schoolB)
+
+  // S7: the school cannot sign before the cabecera.
+  const early = await operator.request.post(`/api/cuadernillos/remito-lineas/${lineA.lineId}/recibir`, {
+    data: { idempotencyKey: 't8-school-early', items: [{ productId: fixture.productId, receivedQuantity: 10 }, { productId: fixture.productExtraId, receivedQuantity: 5 }] },
+  })
+  expect(early.status()).toBe(409)
+  await expect(json(early)).resolves.toMatchObject({ error: 'cabecera_receipt_pending' })
+
+  // S5/S6: cabecera signs the whole remito with one shortfall and its reason.
+  const cabeceraReceipt = await cabecera.request.post(`/api/cuadernillos/remitos/${remito.remitoId}/recibir`, {
+    data: {
+      idempotencyKey: 't8-cabecera-receipt',
+      lines: [
+        { lineId: lineA.lineId, items: [{ productId: fixture.productId, receivedQuantity: 8 }, { productId: fixture.productExtraId, receivedQuantity: 5 }], shortfallReason: 'Caja dañada en el traslado' },
+        { lineId: lineB.lineId, items: [{ productId: fixture.productId, receivedQuantity: 6 }] },
+      ],
+    },
+  })
+  expect(cabeceraReceipt.status()).toBe(200)
+
+  // S7: another school's operator cannot sign this line; the owner signs what the cabecera confirmed.
+  const otherAttempt = await operatorOther.request.post(`/api/cuadernillos/remito-lineas/${lineA.lineId}/recibir`, {
+    data: { idempotencyKey: 't8-school-other', items: [{ productId: fixture.productId, receivedQuantity: 8 }, { productId: fixture.productExtraId, receivedQuantity: 5 }] },
+  })
+  expect(otherAttempt.status()).toBe(403)
+  const schoolReceipt = await operator.request.post(`/api/cuadernillos/remito-lineas/${lineA.lineId}/recibir`, {
+    data: { idempotencyKey: 't8-school-receipt', items: [{ productId: fixture.productId, receivedQuantity: 8 }, { productId: fixture.productExtraId, receivedQuantity: 5 }] },
+  })
+  expect(schoolReceipt.status()).toBe(200)
+
+  // S9: supervisor sees the shortfall on the Planeamiento -> Cabecera leg and may only observe.
+  const after = await json(await supervisor.request.get(`/api/cuadernillos/control?campaignId=${encodeURIComponent(fixture.campaignId)}`))
+  const seen = after.remitos?.find((entry) => entry.remitoId === remito.remitoId)
+  if (!seen) throw new Error('remito missing after receipts')
+  expect(seen.hasShortfall).toBe(true)
+  const shortItem = seen.lines.flatMap((line) => line.items).find((item) => item.productId === fixture.productId && item.dispatched === 10)
+  expect(shortItem).toMatchObject({ planningToCabeceraShortfall: 2, cabeceraToSchoolShortfall: 0 })
+  expect(after.summary?.planningToCabeceraShortfallUnits).toBe(2)
+  const observation = await supervisor.request.post(`/api/cuadernillos/remitos/${remito.remitoId}/observaciones`, {
+    data: { body: 'Seguimiento posterior del faltante' },
+  })
+  expect(observation.status()).toBe(201)
+
+  // S1/S11: the request flow is retired for writes while history stays readable.
+  const retired = await cabecera.request.post('/api/cuadernillos/requests', {
+    data: { campaignId: fixture.campaignId, recipientCueAnexo: schoolA, lines: [{ productId: fixture.productId, quantity: 3 }], idempotencyKey: 't8-retired' },
+  })
+  expect(retired.status()).toBe(410)
+  await expect(json(retired)).resolves.toMatchObject({ error: 'flow_retired' })
+  const history = await supervisor.request.get(`/api/cuadernillos/requests?campaignId=${encodeURIComponent(fixture.campaignId)}`)
+  expect(history.status()).toBe(200)
+  expect(JSON.stringify(await history.json())).toContain(fixture.rejectedId)
+
+  await Promise.all([planning, cabecera, supervisor, operator, operatorOther].map((context) => context.close()))
 })

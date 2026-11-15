@@ -17,7 +17,7 @@ on:
       - 'app/api/health/**'
       - '.github/workflows/links-cadm.yml'
   push:
-    branches: [dev, staging, prod]
+    branches: [staging, prod]
     paths:
       - 'miniapps/links/**'
       - 'app/(miniapps)/(links)/**'

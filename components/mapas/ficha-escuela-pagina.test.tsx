@@ -109,7 +109,6 @@ describe('FichaEscuelaPagina', () => {
       historial: { fase: 'listo', movimientos: [] },
     })
     render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 4 })} mostrarEnlaceNominal={false} />)
-    expect(screen.getAllByText('Justificación de gravedad:')).toHaveLength(2)
     expect(screen.getByText(/Bloquea la salida de emergencia/)).toBeInTheDocument()
     expect(screen.getByText('Hay riesgo eléctrico, estructural o sanitario')).toBeInTheDocument()
   })
@@ -201,8 +200,7 @@ describe('FichaEscuelaPagina', () => {
     expect(screen.getByTestId('seccion-historial-inline').textContent).toContain(
       'Se reportó Filtraciones en techo (Alta)',
     )
-    expect(screen.getByTestId('observacion-reporte')).toHaveTextContent('Observación registrada en el reporte:')
-    expect(screen.getByTestId('observacion-reporte').querySelector('blockquote p')?.textContent).toBe('Sector norte clausurado')
+    expect(screen.getByTestId('situacion-observacion')).toHaveTextContent('«Sector norte clausurado»')
 
     // El botón nominal abre el modal de alumnos alcanzados
     fireEvent.click(screen.getByTestId('ver-alumnos-af-99'))
@@ -290,6 +288,77 @@ describe('FichaEscuelaPagina', () => {
 
 })
 
+describe('FichaEscuelaPagina — bitácora y evolución', () => {
+  afterEach(cleanup)
+
+  const afectacion = {
+    id: 'af-1', motivo: 'Anegamiento', categoria: 'establecimiento', severidad: 'Crítica', descripcion: null,
+    causadaPorId: null, rigeDesde: '2026-11-10T11:30:00Z', creadaEn: '2026-11-10T11:30:00Z', totales: { secciones: 3, alumnos: 84 },
+  }
+  const evento = (tipo: string, texto: string, paso: string) => ({ tipo, afectacionId: 'af-1', motivo: 'Anegamiento', texto, paso })
+  const movimientos = [
+    { id: 'm1', tipo: 'reporte_inicial', rol: 'director', creadaEn: '2026-11-10T11:30:00Z', rigeDesde: '2026-11-10T11:30:00Z', titulo: 'Se informó Anegamiento', cambios: [], eventos: [evento('nueva', 'Nueva: Anegamiento · media', 'Media · 1 secc.')] },
+    { id: 'm2', tipo: 'actualizacion', rol: 'supervisor', creadaEn: '2026-11-12T10:50:00Z', rigeDesde: '2026-11-12T01:00:00Z', titulo: 'Cambió la gravedad', cambios: [], eventos: [evento('gravedad', 'Anegamiento pasó a crítica', '↑ Crítica')] },
+    { id: 'm3', tipo: 'confirmacion', rol: 'director', creadaEn: '2026-11-14T12:12:00Z', rigeDesde: '2026-11-14T12:12:00Z', titulo: 'Situación confirmada', cambios: ['Sigue igual: "Anegamiento"'], eventos: [evento('confirmada', 'Anegamiento sigue igual', 'Sigue igual')] },
+  ]
+  const llamadas = [
+    { id: 'l1', callerNombre: 'Operadora', justificacion: 'Seguimiento', respuestaDirector: 'Mañana bombean', creadaEn: '2026-11-13T20:40:00Z' },
+  ]
+
+  function renderConHistorial(conLlamadas: boolean) {
+    mockUseFichaParte.mockReturnValue({
+      estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [afectacion], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } },
+      historial: { fase: 'listo', movimientos },
+    })
+    render(
+      <FichaEscuelaPagina
+        escuela={crearEscuelaFicha({ gravedad: 4 })}
+        mostrarEnlaceNominal={false}
+        llamadasCallCenter={conLlamadas ? llamadas : undefined}
+      />,
+    )
+  }
+
+  it('shows the latest confirmation in the status strip and the log', () => {
+    renderConHistorial(false)
+    expect(screen.getByTestId('ficha-ultimo-movimiento')).toHaveTextContent('Anegamiento: Sigue igual')
+    const primera = screen.getByTestId('seccion-historial-inline').querySelector('li')
+    expect(primera).toHaveTextContent(/^Anegamiento · Sigue igual/)
+  })
+
+  it('draws the situation evolution newest first, with date, time and the supervisor', () => {
+    renderConHistorial(false)
+    const pasos = [...screen.getByRole('list', { name: 'Evolución' }).querySelectorAll('li')]
+    expect(pasos.map((paso) => paso.textContent)).toEqual([
+      expect.stringContaining('Sigue igual'),
+      expect.stringMatching(/12\/11 \d{2}:\d{2}↑ Crítica · Supervisor/),
+      expect.stringContaining('Media · 1 secc.'),
+    ])
+    expect(pasos[0]).toHaveAttribute('aria-current', 'step')
+  })
+
+  it('notes a back-dated load and supervisor in the log', () => {
+    renderConHistorial(false)
+    expect(screen.getByTestId('seccion-historial-inline')).toHaveTextContent(/Supervisor · rige desde/)
+  })
+
+  it('merges call-center calls into the log and filters them', () => {
+    renderConHistorial(true)
+    const bitacora = screen.getByTestId('seccion-historial-inline')
+    expect(bitacora).toHaveTextContent('Llamada · Operadora')
+    expect(bitacora).toHaveTextContent('«Mañana bombean»')
+    expect(screen.getByTestId('ficha-ultimo-movimiento')).toHaveTextContent('Última llamada')
+    fireEvent.click(screen.getByRole('button', { name: 'Llamadas' }))
+    expect(bitacora).not.toHaveTextContent('Sigue igual')
+    expect(bitacora).toHaveTextContent('Llamada · Operadora')
+  })
+
+  it('hides call filters for viewers without call-center access', () => {
+    renderConHistorial(false)
+    expect(screen.queryByRole('button', { name: 'Llamadas' })).not.toBeInTheDocument()
+  })
+})
+
 describe('FichaEscuelaPagina — comedor y posible centro de evacuados', () => {
   afterEach(cleanup)
 
@@ -312,18 +381,77 @@ describe('FichaEscuelaPagina — comedor y posible centro de evacuados', () => {
     expect(screen.queryByText('Comedor')).not.toBeInTheDocument()
   })
 
-  it('marca la escuela apta como posible centro de evacuados', () => {
-    renderPagina({ posibleCentroEvacuados: true })
-    expect(screen.getByText('Posible centro de evacuados').nextElementSibling).toHaveTextContent('Sí')
-  })
-
-  it('aclara cuando es apta sin antecedentes de riesgo', () => {
-    renderPagina({ posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true })
-    expect(screen.getByText('Posible centro de evacuados').nextElementSibling).toHaveTextContent('Sí (sin antecedentes de riesgo)')
-  })
-
-  it('no muestra la fila si la escuela no es apta', () => {
-    renderPagina({ posibleCentroEvacuados: false })
+  it.each([
+    [{ posibleCentroEvacuados: true }],
+    [{ posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true as const }],
+    [{ posibleCentroEvacuados: false }],
+  ])('does not show the computed evacuation-center suggestion (%o)', (marcas) => {
+    renderPagina(marcas)
     expect(screen.queryByText('Posible centro de evacuados')).not.toBeInTheDocument()
+  })
+})
+
+describe('FichaEscuelaPagina — zero and just-now values', () => {
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  it('hides enrollment counts when the school reports no students', () => {
+    const afectacion = { id: 'a0', categoria: 'establecimiento', severidad: 'Media', motivo: 'Inundación', descripcion: null, causadaPorId: null, rigeDesde: '2026-04-10T08:00:00Z', creadaEn: '2026-04-10T08:00:00Z', totales: { secciones: 0, alumnos: 0 } }
+    mockUseFichaParte.mockReturnValue({ estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [afectacion], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } }, historial: { fase: 'listo', movimientos: [] } })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ alumnos: 0, gravedad: 2 })} mostrarEnlaceNominal={false} />)
+    expect(screen.queryByText(/0 alumnos/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/0 de 0/)).not.toBeInTheDocument()
+    expect(screen.getByText(/CUE 1801605-00/)).toBeVisible()
+  })
+
+  it('says "recién" instead of "hace 0 min" for a report updated under a minute ago', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-04-10T08:00:30Z'))
+    mockUseFichaParte.mockReturnValue({ estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual', actualizadaEn: '2026-04-10T08:00:00Z' }, afectaciones: [], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } }, historial: { fase: 'listo', movimientos: [] } })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha()} mostrarEnlaceNominal={false} />)
+    expect(screen.getByTestId('ficha-ultimo-movimiento')).toHaveTextContent('Última novedad recién')
+    expect(screen.queryByText(/hace 0 min/)).not.toBeInTheDocument()
+  })
+})
+
+describe('FichaEscuelaPagina — which situation is newest', () => {
+  afterEach(cleanup)
+
+  const base = { categoria: 'establecimiento', descripcion: null, causadaPorId: null, totales: { secciones: 1, alumnos: 10 } }
+  const grave = { ...base, id: 'grave', motivo: 'Inundación', severidad: 'Crítica', rigeDesde: '2026-11-09T10:00:00Z', creadaEn: '2026-11-09T10:00:00Z' }
+  const vieja = { ...base, id: 'vieja', motivo: 'Filtración', severidad: 'Baja', rigeDesde: '2026-11-10T10:00:00Z', creadaEn: '2026-11-10T10:00:00Z' }
+  const nueva = { ...base, id: 'nueva', motivo: 'Corte de luz', severidad: 'Media', rigeDesde: '2026-11-12T10:00:00Z', creadaEn: '2026-11-12T10:00:00Z' }
+  const evento = (afectacionId: string, motivo: string, tipo: string, paso: string) => ({ tipo, afectacionId, motivo, texto: `${motivo} ${paso}`, paso })
+  const movimientos = [
+    { id: 'm1', tipo: 'reporte_inicial', rol: 'director', creadaEn: '2026-11-09T10:00:00Z', rigeDesde: '2026-11-09T10:00:00Z', titulo: '', cambios: [], eventos: [evento('grave', 'Inundación', 'nueva', 'Crítica · 1 secc.')] },
+    { id: 'm2', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-11-10T10:00:00Z', rigeDesde: '2026-11-10T10:00:00Z', titulo: '', cambios: [], eventos: [evento('vieja', 'Filtración', 'nueva', 'Baja · 1 secc.')] },
+    { id: 'm3', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-11-12T10:00:00Z', rigeDesde: '2026-11-12T10:00:00Z', titulo: '', cambios: [], eventos: [evento('nueva', 'Corte de luz', 'nueva', 'Media · 1 secc.')] },
+  ]
+
+  it('orders every open situation by its last change, newest first, regardless of severity', () => {
+    mockUseFichaParte.mockReturnValue({
+      estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [vieja, grave, nueva], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } },
+      historial: { fase: 'listo', movimientos },
+    })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 4 })} mostrarEnlaceNominal={false} />)
+    const tarjetas = [...document.querySelectorAll('#situaciones article')]
+    expect(tarjetas.map((tarjeta) => tarjeta.querySelector('h2')?.textContent)).toEqual(['Corte de luz', 'Filtración', 'Inundación'])
+    expect(tarjetas[0]).toHaveAttribute('data-testid', 'ficha-incidente')
+    expect(tarjetas[0].querySelector('time')).toHaveTextContent(/12\/11/)
+    expect(tarjetas[2]).toHaveTextContent(/Cargada 9\/11/)
+    expect(screen.getByText('Por último cambio, más reciente primero')).toBeVisible()
+  })
+
+  it('puts the situation in bold as the subject of each log line', () => {
+    mockUseFichaParte.mockReturnValue({
+      estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [vieja, grave, nueva], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } },
+      historial: { fase: 'listo', movimientos },
+    })
+    render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 4 })} mostrarEnlaceNominal={false} />)
+    const filas = [...screen.getByTestId('seccion-historial-inline').querySelectorAll('li')]
+    expect(filas.map((fila) => fila.querySelector('strong')?.textContent)).toEqual(['Corte de luz', 'Filtración', 'Inundación'])
+    expect(filas[0]).toHaveTextContent('Se cargó · Media · 1 secc.')
   })
 })

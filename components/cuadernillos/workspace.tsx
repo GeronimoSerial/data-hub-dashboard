@@ -4,14 +4,14 @@ import { useState } from 'react'
 import type { BookletCapability } from '@/lib/cuadernillos/types'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { CabeceraHome } from './cabecera/cabecera-home'
-import { SupervisorInbox } from './supervisor/supervisor-inbox'
+import { ControlView } from './control/control-view'
 import { PlanningHome } from './planning/planning-home'
 import { KitStyles } from './kit'
 
 const SECTION_LABELS: Record<BookletCapability, string> = {
-  planning: 'Planeamiento',
-  cabecera: 'Cabecera',
-  supervisor: 'Supervisión',
+  planning: 'Enviar cuadernillos',
+  cabecera: 'Recibir y repartir',
+  supervisor: 'Revisar envíos',
 }
 
 // Most specific role first: the default section is the first role the account holds.
@@ -36,7 +36,7 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
 
       {sections.length === 0 ? (
         <p role="status" style={{ borderLeft: '4px solid var(--marker)', background: 'var(--fill)', padding: '1rem 1.25rem', margin: 0, color: 'var(--ink-soft)' }}>
-          Esta cuenta todavía no tiene una responsabilidad de cuadernillos habilitada.
+          Tu cuenta todavía no tiene acceso a cuadernillos. Pedile acceso a un administrador.
         </p>
       ) : (
         <Tabs value={activeSection ?? undefined} onValueChange={(value) => setChosenSection(value as BookletCapability)} style={{ display: 'grid', gap: '1.5rem' }}>
@@ -52,7 +52,7 @@ export function CuadernillosWorkspace({ capabilities }: { capabilities: BookletC
 
           {activeSection === 'planning' ? <PlanningHome /> : null}
           {activeSection === 'cabecera' ? <CabeceraHome /> : null}
-          {activeSection === 'supervisor' ? <SupervisorInbox /> : null}
+          {activeSection === 'supervisor' ? <ControlView /> : null}
         </Tabs>
       )}
     </div>

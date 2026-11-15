@@ -21,7 +21,8 @@ async function handleGET(request: Request) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400, headers: NO_STORE })
   }
 
-  if (!await hasBookletCapability(actor, 'cabecera')) {
+  // Planning builds the remitos, so it searches destination schools like a cabecera does.
+  if (!await hasBookletCapability(actor, 'cabecera') && !await hasBookletCapability(actor, 'planning')) {
     return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403, headers: NO_STORE })
   }
 

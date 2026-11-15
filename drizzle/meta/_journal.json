@@ -435,6 +435,13 @@
       "when": 1794692063037,
       "tag": "0061_hazard_forecast_drop_pkey",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1794699325262,
+      "tag": "0062_booklet_remitos",
+      "breakpoints": true
     }
   ]
 }

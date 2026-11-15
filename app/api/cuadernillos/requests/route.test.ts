@@ -29,39 +29,22 @@ beforeEach(() => {
   vi.mocked(getBookletRequestPage).mockResolvedValue({ campaignId: 'campaign-1', campaignOptions: [], requests: [], hasMore: false, nextCursor: null })
 })
 
-const body = { campaignId: 'campaign-1', recipientCueAnexo: '180123457', lines: [{ productId: 'product-1', quantity: 2 }], submit: true, idempotencyKey: 'request-1' }
-const request = (value: unknown) => new Request('http://localhost/api/cuadernillos/requests', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) })
+const request = () => new Request('http://localhost/api/cuadernillos/requests', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ anything: true }) })
 
 describe('POST /api/cuadernillos/requests', () => {
-  it('uses the authenticated actor and rejects caller-supplied authority fields', async () => {
-    const response = await POST(request({ ...body, actorId: 'attacker' }))
-    expect(response.status).toBe(400)
+  it('answers 410 flow_retired to an authorized caller and never calls the old service', async () => {
+    const response = await POST(request())
+    expect(response.status).toBe(410)
+    expect(await response.json()).toEqual({ error: 'flow_retired', message: 'Booklet requests and quotas were replaced by remitos.' })
     expect(createRequest).not.toHaveBeenCalled()
   })
 
-  it('forwards the optional cabecera scope and still rejects an invalid one', async () => {
-    const scoped = { ...body, cabeceraCueAnexo: '180123456' }
-    const response = await POST(request(scoped))
-    expect(response.status).toBe(201)
-    expect(createRequest).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-user' }), scoped)
-
-    const invalid = await POST(request({ ...body, cabeceraCueAnexo: '18012' }))
-    expect(invalid.status).toBe(400)
-  })
-
-  it('requires an authenticated session before creating a request', async () => {
+  it('keeps the hub guard: anonymous callers get the guard response', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     vi.mocked(hubApiAccessResponse).mockResolvedValue(Response.json({ error: 'Unauthorized' }, { status: 401 }))
-    const response = await POST(request(body))
+    const response = await POST(request())
     expect(response.status).toBe(401)
     expect(createRequest).not.toHaveBeenCalled()
-  })
-
-  it('passes session identity and strict request input to the service', async () => {
-    const response = await POST(request(body))
-    expect(response.status).toBe(201)
-    expect(createRequest).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-user' }), body)
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   })
 })
 
