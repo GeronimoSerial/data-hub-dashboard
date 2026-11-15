@@ -326,14 +326,15 @@ describe('FichaEscuelaPagina — bitácora y evolución', () => {
     expect(primera).toHaveTextContent(/^Anegamiento · Sigue igual/)
   })
 
-  it('draws the situation evolution oldest first, naming the supervisor', () => {
+  it('draws the situation evolution newest first, with date, time and the supervisor', () => {
     renderConHistorial(false)
-    const pasos = screen.getByRole('list', { name: 'Evolución' }).querySelectorAll('li')
-    expect([...pasos].map((paso) => paso.textContent)).toEqual([
-      expect.stringContaining('Media · 1 secc.'),
-      expect.stringMatching(/Supervisor.*↑ Crítica/),
+    const pasos = [...screen.getByRole('list', { name: 'Evolución' }).querySelectorAll('li')]
+    expect(pasos.map((paso) => paso.textContent)).toEqual([
       expect.stringContaining('Sigue igual'),
+      expect.stringMatching(/12\/11 \d{2}:\d{2}↑ Crítica · Supervisor/),
+      expect.stringContaining('Media · 1 secc.'),
     ])
+    expect(pasos[0]).toHaveAttribute('aria-current', 'step')
   })
 
   it('notes a back-dated load and supervisor in the log', () => {
@@ -380,18 +381,12 @@ describe('FichaEscuelaPagina — comedor y posible centro de evacuados', () => {
     expect(screen.queryByText('Comedor')).not.toBeInTheDocument()
   })
 
-  it('marca la escuela apta como posible centro de evacuados', () => {
-    renderPagina({ posibleCentroEvacuados: true })
-    expect(screen.getByText('Posible centro de evacuados').nextElementSibling).toHaveTextContent('Sí')
-  })
-
-  it('aclara cuando es apta sin antecedentes de riesgo', () => {
-    renderPagina({ posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true })
-    expect(screen.getByText('Posible centro de evacuados').nextElementSibling).toHaveTextContent('Sí (sin antecedentes de riesgo)')
-  })
-
-  it('no muestra la fila si la escuela no es apta', () => {
-    renderPagina({ posibleCentroEvacuados: false })
+  it.each([
+    [{ posibleCentroEvacuados: true }],
+    [{ posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true as const }],
+    [{ posibleCentroEvacuados: false }],
+  ])('does not show the computed evacuation-center suggestion (%o)', (marcas) => {
+    renderPagina(marcas)
     expect(screen.queryByText('Posible centro de evacuados')).not.toBeInTheDocument()
   })
 })
@@ -435,17 +430,18 @@ describe('FichaEscuelaPagina — which situation is newest', () => {
     { id: 'm3', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-11-12T10:00:00Z', rigeDesde: '2026-11-12T10:00:00Z', titulo: '', cambios: [], eventos: [evento('nueva', 'Corte de luz', 'nueva', 'Media · 1 secc.')] },
   ]
 
-  it('keeps the most serious first and lists the rest newest first, with their dates', () => {
+  it('orders every open situation by its last change, newest first, regardless of severity', () => {
     mockUseFichaParte.mockReturnValue({
       estado: { fase: 'listo', datos: { parte: { id: 'p1', estadoEstablecimiento: 'habitual' }, afectaciones: [vieja, grave, nueva], servicio: { estadoGeneral: 'normal', alcanceVigente: [] }, secciones: [] } },
       historial: { fase: 'listo', movimientos },
     })
     render(<FichaEscuelaPagina escuela={crearEscuelaFicha({ gravedad: 4 })} mostrarEnlaceNominal={false} />)
-    expect(screen.getByTestId('ficha-incidente').querySelector('h2')).toHaveTextContent('Inundación')
-    const otras = [...document.querySelectorAll('[data-testid^="ficha-situacion-"]')].map((nodo) => nodo.querySelector('h4')?.textContent)
-    expect(otras).toEqual(['Corte de luz', 'Filtración'])
-    expect(screen.getByTestId('ficha-situacion-nueva')).toHaveTextContent(/Cargada\s*12\/11/)
-    expect(screen.getByText('Más reciente primero')).toBeVisible()
+    const tarjetas = [...document.querySelectorAll('#situaciones article')]
+    expect(tarjetas.map((tarjeta) => tarjeta.querySelector('h2')?.textContent)).toEqual(['Corte de luz', 'Filtración', 'Inundación'])
+    expect(tarjetas[0]).toHaveAttribute('data-testid', 'ficha-incidente')
+    expect(tarjetas[0].querySelector('time')).toHaveTextContent(/12\/11/)
+    expect(tarjetas[2]).toHaveTextContent(/Cargada 9\/11/)
+    expect(screen.getByText('Por último cambio, más reciente primero')).toBeVisible()
   })
 
   it('puts the situation in bold as the subject of each log line', () => {
