@@ -77,6 +77,7 @@ describe('PlanningHome', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Cuadernillo A: stock 10' }))
     expect(await screen.findByRole('dialog')).toHaveTextContent('Stock actual: 10')
     fireEvent.change(screen.getByLabelText('Cantidad de stock'), { target: { value: '25' } })
+    expect(screen.getByRole('dialog')).toHaveTextContent('Va a quedar en35')
     fireEvent.click(screen.getByRole('button', { name: 'Guardar stock' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/stock', expect.objectContaining({ method: 'POST' })))
@@ -192,13 +193,16 @@ describe('PlanningHome', () => {
     expect(steps[1]).toHaveTextContent('llegó de menos')
     expect(steps[2]).toHaveTextContent('Llegó a la escuela')
     expect(steps[2]).toHaveTextContent('1 de 2 escuelas')
+    expect(row).toHaveTextContent('48 cuadernillos')
+    expect(within(screen.getByLabelText('Resumen de la campaña')).getByText('1 de 2')).toBeInTheDocument()
     expect(screen.queryByText('Pendiente en cabecera')).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/remitos?campaignId=campaign-1&limit=20', expect.anything())
 
     fireEvent.click(row)
     const lineA = await screen.findByRole('region', { name: 'Escuela A' })
-    expect(lineA).toHaveTextContent('Enviado 30 · Cabecera 25 · Escuela pendiente')
-    expect(lineA).toHaveTextContent('Llegaron 5 de menos a la cabecera')
+    const cells = within(lineA).getAllByRole('cell').map((cell) => cell.textContent)
+    expect(cells).toEqual(['30', '255 de menos', 'Pendiente'])
+    expect(within(lineA).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Grado', 'Enviado', 'Cabecera', 'Escuela'])
     expect(within(screen.getByRole('region', { name: 'Escuela B' })).queryByText(/de menos/)).not.toBeInTheDocument()
   })
 
@@ -248,8 +252,7 @@ describe('PlanningHome', () => {
 
     const line = await screen.findByRole('region', { name: 'Escuela A' })
     expect(line).toHaveTextContent('Matemática 2°')
-    expect(line).toHaveTextContent('Llegaron 5 de menos a la cabecera')
-    expect(line).toHaveTextContent('Llegaron 5 de menos a la escuela')
+    expect(within(line).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['30', '255 de menos', '205 de menos'])
     expect(line).toHaveTextContent('Por qué llegó de menos a la cabecera: Cajas dañadas en el traslado')
     expect(line).toHaveTextContent('Por qué llegó de menos a la escuela: Faltaron dos cajas')
     expect(line).toHaveTextContent('Confirmó la escuela: Directora A')
