@@ -6,7 +6,7 @@ import { ImpactoAlumnosResumen } from '@/components/infraestructura/impacto-alum
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ArrowUpRight, Clock, Cloud, MapPinOff } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Clock, MapPinOff, PencilLine, Phone, Users } from 'lucide-react'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { etiquetaDiaHistorial, momentoCortoHistorial } from '@/components/infraestructura/historial-formato'
@@ -89,7 +89,7 @@ export function FichaEscuelaPagina({
   const ahoraMs = montado ? ahoraClienteMs : null
   const [pestanaActiva, setPestanaActiva] = useState('situaciones')
   const [altoCabecera, setAltoCabecera] = useState(0)
-  const cabeceraRef = useRef<HTMLDivElement>(null)
+  const cabeceraRef = useRef<HTMLElement>(null)
   // While a tab-triggered smooth scroll runs, the scroll spy must not override the clicked tab.
   const scrollPorClickRef = useRef<number | null>(null)
 
@@ -236,19 +236,20 @@ export function FichaEscuelaPagina({
         : null
 
 
+  const diccionario = useTextos()
+  const idioma = useIdioma()
+  const t = diccionario.ficha
+  const tp = diccionario.fichaPagina
+  const tb = diccionario.fichaBitacora
+
   const ultimaActualizacionIso =
     datos?.parte?.actualizadaEn ?? escuela.parte?.actualizadaEn ?? escuela.ultimaNovedad
   const novedadRelativa =
     ultimaActualizacionIso && ahoraMs !== null
-      ? tiempoRelativo(ultimaActualizacionIso, ahoraMs)
+      ? relativoFicha(ultimaActualizacionIso, ahoraMs, tb.recien)
       : null
   const ahora = ahoraMs === null ? null : new Date(ahoraMs)
-  const diccionario = useTextos()
-  const idioma = useIdioma()
   const FORMATO_NUMERO = useMemo(() => new Intl.NumberFormat(localeNumero(idioma)), [idioma])
-  const t = diccionario.ficha
-  const tp = diccionario.fichaPagina
-  const tb = diccionario.fichaBitacora
 
   const sinUbicacion =
     !escuela.ubicacionDisponible || escuela.lat === null || escuela.lon === null
@@ -343,12 +344,12 @@ export function FichaEscuelaPagina({
     mostrarEnlaceNominal && !esInstituto ? (
       <button
         type="button"
-        className={styles.linkAccion}
+        className={styles.botonSecundario}
         data-testid={`ver-alumnos-${afectacionId}`}
         onClick={() => setNominalAfectacionId(afectacionId)}
       >
+        <Users size={16} aria-hidden="true" />
         {tb.verAlumnos}
-        <ArrowUpRight size={13} aria-hidden="true" />
       </button>
     ) : null
 
@@ -369,49 +370,51 @@ export function FichaEscuelaPagina({
     >
       <nav className={styles.topBar} aria-label={t.navegacionSuperior}>
         <Link href={urlRetornoMapa} className={styles.backLink} data-testid="volver-al-mapa">
-          <ArrowLeft size={14} aria-hidden="true" />
+          <ArrowLeft size={16} aria-hidden="true" />
           <span>{vieneDelMapa ? t.volverAlMapa : t.irAlMapa}</span>
         </Link>
       </nav>
 
-      <div ref={cabeceraRef} className={styles.cabecera}>
-        <header className={styles.header}>
-          <div className={styles.identity}>
-            <h1 className={styles.schoolTitle}>{escuela.nombre}</h1>
-            <div className={styles.schoolMeta}>
-              <p>
-                {[
-                  ubicacionTexto,
-                  esInstituto
-                    ? contar(escuela.carreras ?? 0, 'carrera', 'carreras')
-                    : escuela.niveles.length > 0 ? escuela.niveles.join(', ') : null,
-                  `${FORMATO_NUMERO.format(escuela.alumnos)} ${etiquetaAlumnos}`,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-              <p>CUE {escuela.cueAnexo}</p>
-            </div>
-            {sinUbicacion && (
-              <div className={styles.sinUbicacionBanner} data-testid="ficha-sin-ubicacion">
-                <MapPinOff size={14} aria-hidden="true" />
-                <span>{t.sinUbicacion}</span>
-              </div>
-            )}
-          </div>
-          <Link
-            href={urlCargarParte}
-            className={styles.primaryAction}
-            data-testid="accion-actualizar-parte"
-          >
-            {tieneSituacionActiva ? t.actualizarParte : t.cargarSituacion}
-            <ArrowUpRight size={14} aria-hidden="true" className={styles.primaryActionIcono} />
-          </Link>
-        </header>
+      <header className={styles.header}>
+        <div className={styles.identity}>
+          <h1 className={styles.schoolTitle}>{escuela.nombre}</h1>
+          <p className={styles.schoolMeta}>
+            {[
+              `CUE ${escuela.cueAnexo}`,
+              ubicacionTexto,
+              esInstituto
+                ? contar(escuela.carreras ?? 0, 'carrera', 'carreras')
+                : escuela.niveles.length > 0 ? escuela.niveles.join(', ') : null,
+              escuela.alumnos > 0 ? `${FORMATO_NUMERO.format(escuela.alumnos)} ${etiquetaAlumnos}` : null,
+            ]
+              .filter(Boolean)
+              .map((dato) => (
+                <span key={dato}>{dato}</span>
+              ))}
+          </p>
+          {sinUbicacion && (
+            <p className={styles.sinUbicacionBanner} data-testid="ficha-sin-ubicacion">
+              <MapPinOff size={14} aria-hidden="true" />
+              <span>{t.sinUbicacion}</span>
+            </p>
+          )}
+        </div>
+        <Link
+          href={urlCargarParte}
+          className={styles.primaryAction}
+          data-testid="accion-actualizar-parte"
+        >
+          <PencilLine size={16} aria-hidden="true" />
+          {tieneSituacionActiva ? t.actualizarParte : t.cargarSituacion}
+        </Link>
+      </header>
 
-        <p className={styles.estadoRapido} data-testid="ficha-ultimo-movimiento">
+      <div className={styles.estadoRapido} data-testid="ficha-ultimo-movimiento">
+        <p className={styles.estadoRapidoPrincipal}>
           {ultimoMovimiento && lineasUltimo.length > 0 ? (
             <span>
+              <span className={styles.estadoRapidoEtiqueta}>{tb.ultimoMovimiento}</span>
+              {' '}
               <strong>{momentoCortoHistorial(ultimoMovimiento.creadaEn, ahora, idioma)}</strong>
               {' · '}
               {lineasUltimo[0]}
@@ -423,33 +426,34 @@ export function FichaEscuelaPagina({
           ) : (
             <span>{tb.sinMovimientos}</span>
           )}
-          {ultimaLlamada && (
-            <span className={styles.estadoRapidoSecundario}>
-              {tb.ultimaLlamada(momentoCortoHistorial(ultimaLlamada.creadaEn, ahora, idioma))}
-            </span>
-          )}
-          {escuela.sinActualizar && (
-            <span className={styles.chipAviso} data-testid="ficha-chip-sin-actualizar">
-              <Clock size={12} aria-hidden="true" />
-              {tb.sinActualizar}
-            </span>
-          )}
         </p>
-
-        <nav className={styles.tabs} aria-label={t.seccionesFicha}>
-          {pestanas.map((pestana) => (
-            <a
-              key={pestana.id}
-              href={`#${pestana.id}`}
-              className={styles.tab}
-              aria-current={pestanaActiva === pestana.id ? 'true' : undefined}
-              onClick={(evento) => irASeccion(evento, pestana.id)}
-            >
-              {pestana.etiqueta}
-            </a>
-          ))}
-        </nav>
+        {ultimaLlamada && (
+          <p className={styles.estadoRapidoSecundario}>
+            <Phone size={14} aria-hidden="true" />
+            {tb.ultimaLlamada(momentoCortoHistorial(ultimaLlamada.creadaEn, ahora, idioma))}
+          </p>
+        )}
+        {escuela.sinActualizar && (
+          <p className={styles.chipAviso} data-testid="ficha-chip-sin-actualizar">
+            <Clock size={14} aria-hidden="true" />
+            {tb.sinActualizar}
+          </p>
+        )}
       </div>
+
+      <nav ref={cabeceraRef} className={styles.tabs} aria-label={t.seccionesFicha}>
+        {pestanas.map((pestana) => (
+          <a
+            key={pestana.id}
+            href={`#${pestana.id}`}
+            className={styles.tab}
+            aria-current={pestanaActiva === pestana.id ? 'true' : undefined}
+            onClick={(evento) => irASeccion(evento, pestana.id)}
+          >
+            {pestana.etiqueta}
+          </a>
+        ))}
+      </nav>
 
       <div className={styles.mainGrid}>
         <div className={styles.column}>
@@ -477,19 +481,21 @@ export function FichaEscuelaPagina({
                 const justificacion = presentarJustificacionCritica(afectacion)
                 const pasos = (pasosPorSituacion.get(afectacion.id) ?? []).slice(-5)
                 const meta = [
-                  tb.alumnosDe(FORMATO_NUMERO.format(afectacion.totales.alumnos), FORMATO_NUMERO.format(escuela.alumnos), etiquetaAlumnos),
+                  afectacion.totales.alumnos > 0
+                    ? tb.alumnosDe(FORMATO_NUMERO.format(afectacion.totales.alumnos), FORMATO_NUMERO.format(escuela.alumnos), etiquetaAlumnos)
+                    : null,
                   esInstituto
-                    ? contar(afectacion.totales.carreras ?? 0, 'carrera', 'carreras')
+                    ? (afectacion.totales.carreras ?? 0) > 0 ? contar(afectacion.totales.carreras ?? 0, 'carrera', 'carreras') : null
                     : afectacion.totales.secciones > 0 ? tp.secciones(afectacion.totales.secciones) : null,
-                  ahoraMs !== null ? tb.abierta(tiempoRelativo(afectacion.rigeDesde, ahoraMs)) : null,
+                  ahoraMs !== null ? tb.abierta(relativoFicha(afectacion.rigeDesde, ahoraMs, tb.recien)) : null,
                   causadaPor ? tb.por(causadaPor.motivo) : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
+                ].filter((dato): dato is string => Boolean(dato))
+                const accionAlumnos = verAlumnos(afectacion.id)
                 return (
                   <article
                     key={afectacion.id}
                     className={`${styles.situacion} ${esPrincipal ? styles.situacionPrincipal : ''}`}
+                    data-severidad={afectacion.severidad}
                     data-testid={esPrincipal ? 'ficha-incidente' : `ficha-situacion-${afectacion.id}`}
                   >
                     <div className={styles.situacionTop}>
@@ -500,32 +506,45 @@ export function FichaEscuelaPagina({
                         <EstadoActualSeveridad severidad={afectacion.severidad} prefijo={false} />
                       )}
                     </div>
-                    <p className={styles.situacionMeta}>{meta}</p>
-                    {justificacion && (
+                    {meta.length > 0 && (
                       <p className={styles.situacionMeta}>
-                        {justificacion.etiqueta}
+                        {meta.map((dato) => (
+                          <span key={dato}>{dato}</span>
+                        ))}
+                      </p>
+                    )}
+                    {justificacion && (
+                      <p className={styles.situacionJustificacion}>
+                        <strong>{justificacion.etiqueta}</strong>
                         {justificacion.detalle && ` · ${justificacion.detalle}`}
                       </p>
                     )}
                     {afectacion.descripcion && (
-                      <p className={styles.situacionCita} data-testid="situacion-observacion">
+                      <blockquote className={styles.situacionCita} data-testid="situacion-observacion">
                         «{afectacion.descripcion}»
-                      </p>
+                      </blockquote>
                     )}
                     {pasos.length > 1 && (
-                      <ol className={styles.evolucion} aria-label={tb.evolucion}>
-                        {pasos.map((paso) => (
-                          <li key={paso.id} className={styles.evolucionPaso}>
-                            <p className={styles.evolucionFecha}>
-                              {paso.fecha}
-                              {paso.rol && ` · ${paso.rol}`}
-                            </p>
-                            <p className={styles.evolucionTexto}>{paso.texto}</p>
-                          </li>
-                        ))}
-                      </ol>
+                      <div className={styles.evolucionBloque}>
+                        <p className={styles.evolucionTitulo}>{tb.evolucion}</p>
+                        <ol className={styles.evolucion} aria-label={tb.evolucion}>
+                          {pasos.map((paso, indicePaso) => (
+                            <li
+                              key={paso.id}
+                              className={styles.evolucionPaso}
+                              aria-current={indicePaso === pasos.length - 1 ? 'step' : undefined}
+                            >
+                              <span className={styles.evolucionFecha}>
+                                {paso.fecha}
+                                {paso.rol && ` · ${paso.rol}`}
+                              </span>
+                              <span className={styles.evolucionTexto}>{paso.texto}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
                     )}
-                    {verAlumnos(afectacion.id)}
+                    {accionAlumnos && <div className={styles.situacionAcciones}>{accionAlumnos}</div>}
                   </article>
                 )
               })
@@ -539,6 +558,8 @@ export function FichaEscuelaPagina({
               </div>
             )}
 
+            <div className={styles.continuidadBloque}>
+            <h3 className={styles.sectionTitle}>{tb.continuidad}</h3>
             <dl className={styles.continuidad} aria-label={tb.continuidad}>
               <div>
                 <dt>{t.vistaPrevia.funcionamiento}</dt>
@@ -573,11 +594,12 @@ export function FichaEscuelaPagina({
                 </div>
               )}
             </dl>
+            </div>
           </section>
 
           <section
             id="bitacora"
-            className={styles.section}
+            className={`${styles.section} ${styles.panel}`}
             aria-labelledby="titulo-bitacora"
             data-testid="seccion-historial-inline"
           >
@@ -599,6 +621,7 @@ export function FichaEscuelaPagina({
 
           <div id="evidencia" className={styles.anchor}>
             <GaleriaEvidencia
+              className={styles.panel}
               cue={escuela.cueAnexo}
               movimientoBaseId={movimientoBaseEvidencia}
               urlCargarParte={urlCargarParte}
@@ -607,25 +630,9 @@ export function FichaEscuelaPagina({
         </div>
 
         <aside id="territorio" className={styles.column} aria-label={t.pestanas.territorio}>
-          <section className={styles.section} aria-labelledby="titulo-riesgo">
-            <h3 id="titulo-riesgo" className={styles.sectionTitleSmall}>
-              {tb.riesgo}
-            </h3>
-            <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={72} planificacion={planificacion} />
-          </section>
-          <section className={styles.climaCard} aria-labelledby="titulo-clima">
+          <section className={styles.panel} aria-labelledby="titulo-ubicacion">
             <div className={styles.sectionHeader}>
-              <h3 id="titulo-clima" className={styles.sectionTitleSmall}>
-                {tb.pronostico}
-              </h3>
-              <Cloud size={20} strokeWidth={1.6} aria-hidden="true" className={styles.climaIcono} />
-            </div>
-            <FichaTerritorial cueAnexo={escuela.cueAnexo} localidad={escuela.localidad} />
-          </section>
-
-          <section className={styles.section} aria-labelledby="titulo-ubicacion">
-            <div className={styles.sectionHeader}>
-              <h3 id="titulo-ubicacion" className={styles.sectionTitleSmall}>
+              <h3 id="titulo-ubicacion" className={styles.sectionTitle}>
                 {tb.ubicacionAcceso}
               </h3>
               <Link
@@ -634,17 +641,20 @@ export function FichaEscuelaPagina({
                 data-testid="abrir-mapa"
               >
                 {tp.abrirMapa}
-                <ArrowUpRight size={13} aria-hidden="true" />
+                <ArrowUpRight size={14} aria-hidden="true" />
               </Link>
             </div>
             <div className={styles.direccion}>
               <p className={styles.direccionFuerte}>{escuela.localidad?.trim() || tp.sinLocalidad}</p>
-              <p>{etiquetaDepartamento(escuela.departamento)}, {jurisdiccionCorta()}</p>
-              {!sinUbicacion && (
-                <p className={styles.coordenadas}>
-                  {escuela.lat?.toFixed(4)}, {escuela.lon?.toFixed(4)}
-                </p>
-              )}
+              <p>
+                {etiquetaDepartamento(escuela.departamento)}, {jurisdiccionCorta()}
+                {!sinUbicacion && (
+                  <span className={styles.coordenadas}>
+                    {' · '}
+                    {escuela.lat?.toFixed(4)}, {escuela.lon?.toFixed(4)}
+                  </span>
+                )}
+              </p>
             </div>
             <BloqueAcceso
               geometria={geometria}
@@ -659,6 +669,20 @@ export function FichaEscuelaPagina({
               error={Boolean(geometriaError)}
             />
           </section>
+
+          <section className={styles.panel} aria-labelledby="titulo-clima">
+            <h3 id="titulo-clima" className={styles.sectionTitle}>
+              {tb.pronostico}
+            </h3>
+            <FichaTerritorial cueAnexo={escuela.cueAnexo} localidad={escuela.localidad} />
+          </section>
+
+          <section className={styles.panel} aria-labelledby="titulo-riesgo">
+            <h3 id="titulo-riesgo" className={styles.sectionTitle}>
+              {tb.riesgo}
+            </h3>
+            <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={72} planificacion={planificacion} />
+          </section>
         </aside>
       </div>
 
@@ -670,6 +694,13 @@ export function FichaEscuelaPagina({
       )}
     </main>
   )
+}
+
+// Under a minute reads as "just now" instead of "0 min ago".
+function relativoFicha(iso: string, ahoraMs: number, recien: string): string {
+  const fechaMs = Date.parse(iso)
+  if (Number.isFinite(fechaMs) && ahoraMs - fechaMs < 60_000) return recien
+  return tiempoRelativo(iso, ahoraMs)
 }
 
 function suscribirSinCambios(): () => void {

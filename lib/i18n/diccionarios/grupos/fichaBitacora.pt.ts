@@ -4,6 +4,8 @@ import type { fichaBitacoraEs } from './fichaBitacora.es'
 // Brazilian Portuguese texts of the `fichaBitacora` group; must mirror fichaBitacora.es.ts key for key.
 export const fichaBitacoraPt: DeepStringify<typeof fichaBitacoraEs> = {
   ayer: 'Ontem',
+  recien: 'agora mesmo',
+  ultimoMovimiento: 'Última movimentação',
   pestanaBitacora: 'Registro',
   pestanaTerritorio: 'Território',
   ultimaNovedad: (relativo: string) => `Última novidade ${relativo}`,
