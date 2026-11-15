@@ -11,15 +11,15 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 const CSS = `
 .cdl-page { overflow-wrap: anywhere; }
 .cdl-page > *, .cdl-page .k-min { min-width: 0; }
-.k-stack { display: grid; gap: 1.5rem; }
+.k-stack { display: grid; gap: 1rem; }
 .k-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: .75rem 1rem; }
 .k-head h2 { margin: 0; font-family: var(--font-display); font-size: clamp(1.35rem, 3vw, 1.75rem); line-height: 1.1; color: var(--ink); }
 .k-head p { margin: .25rem 0 0; color: var(--ink-soft); }
 
-.k-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }
-.k-kpi { display: grid; gap: .2rem; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); }
+.k-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.k-kpi { display: grid; gap: .1rem; padding: .5rem .75rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); }
 .k-kpi dt, .k-kpi-label { color: var(--ink-soft); font-size: .85rem; font-weight: 600; }
-.k-kpi dd, .k-kpi-value { margin: 0; color: var(--ink); font-family: var(--font-display); font-size: 1.9rem; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.k-kpi dd, .k-kpi-value { margin: 0; color: var(--ink); font-family: var(--font-display); font-size: 1.45rem; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .k-kpi-hint { color: var(--ink-faint); font-size: .8rem; }
 .k-kpi[data-tone="warn"] { border-color: var(--warn); background: var(--warn-tint); }
 .k-kpi[data-tone="ok"] .k-kpi-value { color: var(--ok); }
@@ -30,13 +30,13 @@ const CSS = `
 .k-chip[data-tone="danger"] { border-color: var(--danger-mark); background: var(--danger-tint); color: var(--danger-ink); }
 .k-chip[data-tone="info"] { border-color: var(--info); background: var(--info-tint); color: var(--info); }
 
-.k-panel { display: grid; gap: .75rem; }
+.k-panel { display: grid; gap: .5rem; }
 .k-panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1rem; }
 .k-panel-head h3 { margin: 0; font-family: var(--font-display); font-size: 1.1rem; color: var(--ink); }
 .k-panel-head span { color: var(--ink-soft); font-size: .88rem; }
 
-.k-list { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
-.k-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .35rem 1rem; width: 100%; box-sizing: border-box; min-height: 44px; padding: .8rem 1rem; text-align: left; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); color: var(--ink); font: inherit; }
+.k-list { display: grid; gap: .3rem; margin: 0; padding: 0; list-style: none; }
+.k-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .2rem .75rem; width: 100%; box-sizing: border-box; min-height: 0; padding: .4rem .75rem; text-align: left; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); color: var(--ink); font: inherit; }
 button.k-row { cursor: pointer; }
 button.k-row:hover { border-color: var(--ink-soft); background: var(--fill); }
 button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
@@ -44,17 +44,17 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-row-title { font-weight: 700; color: var(--ink); }
 .k-row-meta { color: var(--ink-soft); font-size: .85rem; }
 .k-row-side { display: flex; align-items: center; gap: .6rem; justify-content: flex-end; flex-wrap: wrap; }
-.k-row-num { font-family: var(--font-display); font-size: 1.25rem; font-variant-numeric: tabular-nums; color: var(--ink); }
+.k-row-num { font-family: var(--font-display); font-size: 1.05rem; font-variant-numeric: tabular-nums; color: var(--ink); }
 
 .k-meter { height: .45rem; border-radius: var(--r-pill); background: var(--line-soft); overflow: hidden; }
 .k-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--ink); }
 .k-meter[data-tone="warn"] > span { background: var(--warn); }
 
-.k-empty { display: grid; justify-items: start; gap: .5rem; padding: 1.25rem; border: 1px dashed var(--line); border-radius: var(--r-lg); background: var(--fill); }
+.k-empty { display: grid; justify-items: start; gap: .4rem; padding: .9rem 1rem; border: 1px dashed var(--line); border-radius: var(--r-lg); background: var(--fill); }
 .k-empty strong { color: var(--ink); }
 .k-empty p { margin: 0; color: var(--ink-soft); }
 
-.k-note { margin: 0; padding: .7rem 1rem; border-left: 4px solid var(--marker); background: var(--fill); color: var(--ink); }
+.k-note { margin: 0; padding: .45rem .8rem; border-left: 4px solid var(--marker); background: var(--fill); color: var(--ink); }
 .k-note[data-tone="ok"] { border-left-color: var(--ok); background: var(--ok-tint); }
 .k-note[data-tone="danger"] { border-left-color: var(--danger-mark); background: var(--danger-tint); color: var(--danger-ink); }
 
@@ -79,18 +79,48 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-field { display: grid; gap: .35rem; }
 .k-field > label, .k-field > span.k-label { color: var(--ink); font-weight: 600; }
 .k-hint { color: var(--ink-soft); font-size: .82rem; }
-.k-qty-list { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
-.k-qty-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .75rem; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); }
+.k-qty-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: .3rem .5rem; margin: 0; padding: 0; list-style: none; }
+.k-qty-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem; padding: .2rem .25rem .2rem .6rem; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--card); font-size: .9rem; }
 .k-qty-row[data-active="true"] { border-color: var(--ink); background: var(--fill); }
 .k-step { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--card); }
-.k-step button { display: grid; place-items: center; width: 40px; min-height: 40px; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
+.k-step button { display: grid; place-items: center; width: 28px; min-height: 28px; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
 .k-step button:disabled { opacity: .35; cursor: not-allowed; }
 .k-step button:focus-visible, .k-step input:focus-visible { outline: 2px solid var(--marker); outline-offset: -2px; }
-.k-step input { width: 4.2rem; min-height: 40px; box-sizing: border-box; border: 0; border-inline: 1px solid var(--line); text-align: center; font: inherit; font-variant-numeric: tabular-nums; background: transparent; color: var(--ink); -moz-appearance: textfield; }
+.k-step input { width: 3.4rem; min-height: 28px; box-sizing: border-box; border: 0; border-inline: 1px solid var(--line); text-align: center; font: inherit; font-variant-numeric: tabular-nums; background: transparent; color: var(--ink); -moz-appearance: textfield; }
 .k-step input::-webkit-outer-spin-button, .k-step input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .k-link { color: var(--accent); }
 .k-total { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .25rem .1rem; color: var(--ink-soft); }
 .k-total strong { color: var(--ink); font-family: var(--font-display); font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+
+.k-task { display: grid; gap: .4rem; justify-items: start; padding: .85rem 1rem; border: 1px solid var(--line); border-left: 6px solid var(--marker); border-radius: var(--r-lg); background: var(--card); }
+.k-task[data-tone="warn"] { border-left-color: var(--warn); }
+.k-task[data-tone="ok"] { border-left-color: var(--ok); }
+.k-task h3 { margin: 0; font-family: var(--font-display); font-size: clamp(1.15rem, 2.6vw, 1.4rem); line-height: 1.2; color: var(--ink); }
+.k-task p { margin: 0; color: var(--ink-soft); }
+
+.k-journey { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.k-journey li { display: grid; gap: 0; flex: 1 1 9rem; min-width: 0; padding: .3rem .6rem; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--fill); color: var(--ink-soft); font-size: .85rem; }
+.k-journey li strong { color: var(--ink-soft); font-size: .9rem; }
+.k-journey li[data-state="done"] { border-color: var(--ok); background: var(--ok-tint); }
+.k-journey li[data-state="done"] strong { color: var(--ok); }
+.k-journey li[data-state="short"] { border-color: var(--warn); background: var(--warn-tint); }
+.k-journey li[data-state="short"] strong { color: var(--warn); }
+.k-journey li[data-state="current"] { border-color: var(--ink); background: var(--card); }
+.k-journey li[data-state="current"] strong { color: var(--ink); }
+
+.k-guide { display: grid; gap: .4rem; padding: .6rem 1rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--fill); }
+.k-guide-head { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; }
+.k-guide-head strong { color: var(--ink); }
+.k-guide ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: .5rem 1rem; margin: 0; padding-left: 1.2rem; color: var(--ink-soft); }
+.k-guide button { min-height: 36px; padding: .25rem .75rem; border: 0; background: transparent; color: var(--accent); font: inherit; cursor: pointer; }
+.k-guide button:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
+
+/* Dense on desktop; touch screens keep 44px targets. */
+@media (pointer: coarse) {
+  .k-row { min-height: 44px; }
+  .k-step button { width: 40px; min-height: 40px; }
+  .k-step input { min-height: 40px; }
+}
 `
 
 export function KitStyles() {
@@ -259,4 +289,66 @@ export function shortProduct(label: string) {
     .replace(/^Cuadernillo /i, '')
     .trim()
   return short ? short.charAt(0).toUpperCase() + short.slice(1) : label
+}
+
+/** The one thing the person has to do now, shown first on every role's screen. */
+export function TaskCard({ title, description, action, tone }: { title: string; description?: string; action?: ReactNode; tone?: 'warn' | 'ok' }) {
+  return (
+    <section className="k-task" data-tone={tone} aria-label="Lo que tenés que hacer">
+      <h3>{title}</h3>
+      {description ? <p>{description}</p> : null}
+      {action}
+    </section>
+  )
+}
+
+export type JourneyStep = {
+  label: string
+  state: 'done' | 'short' | 'current' | 'pending'
+  /** Who confirmed the step and when, in plain words, e.g. "Ana Pérez · 14/11 10:30". */
+  detail?: string | null
+}
+
+/** "Enviado → Llegó a la cabecera → Llegó a la escuela" with who confirmed each step. */
+export function ShipmentJourney({ steps, label = 'Recorrido del envío' }: { steps: JourneyStep[]; label?: string }) {
+  return (
+    <ol className="k-journey" aria-label={label}>
+      {steps.map((step) => (
+        <li key={step.label} data-state={step.state} aria-current={step.state === 'current' ? 'step' : undefined}>
+          <strong>{step.label}</strong>
+          <span>{step.detail ?? (step.state === 'pending' || step.state === 'current' ? 'Todavía no' : '')}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+const GUIDE_KEY = 'cuadernillos.guide.dismissed'
+
+/** Three-step explanation of the circuit; dismissible per browser, always visible again when storage is unavailable. */
+export function CircuitGuide() {
+  const [dismissed, setDismissed] = useState(false)
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(GUIDE_KEY) === '1') setDismissed(true) // eslint-disable-line react-hooks/set-state-in-effect -- read once after mount to keep SSR markup stable
+    } catch { /* storage unavailable: keep the guide visible */ }
+  }, [])
+  if (dismissed) return null
+  function dismiss() {
+    setDismissed(true)
+    try { window.localStorage.setItem(GUIDE_KEY, '1') } catch { /* ignore */ }
+  }
+  return (
+    <aside className="k-guide" aria-label="Cómo funciona">
+      <div className="k-guide-head">
+        <strong>Cómo funciona</strong>
+        <button type="button" onClick={dismiss}>Entendido</button>
+      </div>
+      <ol>
+        <li>Planeamiento envía los cuadernillos a la escuela cabecera.</li>
+        <li>La cabecera confirma lo que llegó y los reparte a cada escuela.</li>
+        <li>Cada escuela confirma lo que recibió.</li>
+      </ol>
+    </aside>
+  )
 }
