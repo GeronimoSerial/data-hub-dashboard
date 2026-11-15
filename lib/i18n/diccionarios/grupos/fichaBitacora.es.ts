@@ -1,6 +1,8 @@
 // Spanish texts of the `fichaBitacora` group: status strip, situation cards and unified log of the school ficha.
 export const fichaBitacoraEs = {
   ayer: 'Ayer',
+  situacionesAbiertas: 'Situaciones abiertas',
+  porUltimoCambio: 'Por último cambio, más reciente primero',
   escuela: 'Escuela',
   seCargo: (paso: string) => `Se cargó · ${paso}`,
   gravedadPaso: (paso: string) => `Gravedad ${paso}`,
