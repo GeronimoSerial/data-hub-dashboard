@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { BookletBalanceView, BookletCampaignOption, BookletOverview } from '@/lib/cuadernillos/types'
-import { Chip, EmptyState, KpiStrip, Note, PageHeader, Panel, Segmented, TaskCard, formatCount, shortProduct } from '../kit'
+import { EmptyState, KpiStrip, Note, PageHeader, Panel, Segmented, TaskCard, formatCount, shortProduct, type Kpi } from '../kit'
+import { PlanningStyles } from './planning-styles'
 import { isCabeceraList, isRemitosPage, type RemitoSummary } from './remito-api'
 import { RemitoBuilder } from './remito-builder'
 import { RemitosList } from './remitos-list'
@@ -207,76 +208,96 @@ export function PlanningHome() {
   }
 
   const stockProduct = products.find((row) => row.productId === stockProductId) ?? null
+  const stockMax = Math.max(1, ...products.map((row) => row.globalAvailable ?? 0))
+  const schoolLines = remitos.flatMap((remito) => remito.lines)
+  const schoolsDone = schoolLines.filter((line) => line.status === 'received' || line.status === 'closed_empty').length
+  const kpis: Kpi[] = [
+    { label: 'Cuadernillos en stock', value: formatCount(stockTotal) },
+    { label: 'Envíos hechos', value: `${remitos.length}${remitosCursor ? '+' : ''}` },
+    { label: 'Esperando a la cabecera', value: pendingCabecera, tone: pendingCabecera > 0 ? 'warn' : undefined },
+  ]
+  if (schoolLines.length > 0) {
+    kpis.push({
+      label: 'Escuelas que ya recibieron',
+      value: `${schoolsDone} de ${schoolLines.length}`,
+      hint: remitosCursor ? `En los últimos ${remitos.length} envíos` : undefined,
+      tone: schoolsDone === schoolLines.length ? 'ok' : undefined,
+    })
+  }
+  const multipleCampaigns = Boolean(overview && overview.campaignOptions.length > 1)
 
   return (
-    <section aria-labelledby="planning-home-title" className="k-stack">
+    <section aria-labelledby="planning-home-title" className="pl-home">
+      <PlanningStyles />
       <PageHeader
         id="planning-home-title"
         title="Planeamiento"
-        description={campaign ? `${campaign.name}: cargá el stock de cada grado y enviá cuadernillos a las escuelas cabecera.` : 'Cargá el stock de cada grado y enviá cuadernillos a las escuelas cabecera.'}
+        description={campaign && !multipleCampaigns ? campaign.name : 'Stock y envíos de cuadernillos a las escuelas cabecera.'}
+        action={overview && multipleCampaigns ? (
+          <Segmented
+            label="Campaña"
+            value={selectedCampaign}
+            options={overview.campaignOptions.map((option) => ({ value: option.id, label: option.name }))}
+            onChange={(id) => void selectCampaign(id)}
+          />
+        ) : undefined}
       />
 
-      {loading && !overview ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando catálogo y saldos…</p> : null}
+      {loading && !overview ? (
+        <div role="status" className="pl-skeleton">
+          <span className="sr-only">Cargando catálogo y saldos…</span>
+          <span aria-hidden="true" style={{ height: '4.75rem' }} />
+          <span aria-hidden="true" style={{ height: '4.5rem' }} />
+          <span aria-hidden="true" style={{ height: '9rem' }} />
+        </div>
+      ) : null}
       {error ? <Note tone="danger">{error}</Note> : null}
       {notice ? <Note tone="ok">{notice}</Note> : null}
 
       {overview && overview.campaignOptions.length === 0 ? (
         <EmptyState title="No hay campañas activas para consultar." description="Cuando se active una campaña, acá cargás el stock y enviás cuadernillos." />
       ) : null}
-
-      {overview && overview.campaignOptions.length > 1 ? (
-        <Segmented
-          label="Campaña"
-          value={selectedCampaign}
-          options={overview.campaignOptions.map((option) => ({ value: option.id, label: option.name }))}
-          onChange={(id) => void selectCampaign(id)}
-        />
-      ) : null}
-      {overview && overview.campaignOptions.length > 1 && !selectedCampaign ? <EmptyState title="Elegí una campaña" description="Elegí una campaña para ver sus saldos." /> : null}
+      {multipleCampaigns && !selectedCampaign ? <EmptyState title="Elegí una campaña" description="Elegí una campaña para ver su stock y sus envíos." /> : null}
       {selectedCampaign && !writeEnabled ? <Note>Esta campaña todavía no permite cargar stock ni enviar cuadernillos.</Note> : null}
 
       {overview?.campaignId ? (
         <>
-          <TaskCard
-            tone={pendingCabecera > 0 ? 'warn' : undefined}
-            title="Enviá cuadernillos a una cabecera"
-            description={pendingDescription}
-            action={(
-              <Button type="button" disabled={!writeEnabled || products.length === 0} onClick={() => { setNotice(null); setBuilderOpen(true) }}>
-                Enviar cuadernillos
-              </Button>
-            )}
-          />
+          <div className="pl-lead">
+            <TaskCard
+              tone={pendingCabecera > 0 ? 'warn' : undefined}
+              title="Enviá cuadernillos a una cabecera"
+              description={pendingDescription}
+              action={(
+                <Button type="button" disabled={!writeEnabled || products.length === 0} onClick={() => { setNotice(null); setBuilderOpen(true) }}>
+                  Enviar cuadernillos
+                </Button>
+              )}
+            />
+            <KpiStrip label="Resumen de la campaña" items={kpis} />
+          </div>
 
-          <KpiStrip label="Resumen de la campaña" items={[
-            { label: 'Stock total', value: formatCount(stockTotal) },
-            { label: 'Envíos hechos', value: `${remitos.length}${remitosCursor ? '+' : ''}` },
-            { label: 'Esperando a la cabecera', value: pendingCabecera, tone: pendingCabecera > 0 ? 'warn' : undefined },
-          ]} />
-
-          <Panel title="Stock por grado" aside="Tocá un grado para cargar stock">
-            <div className="k-list" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 15rem), 1fr))' }}>
+          <Panel title="Stock por grado" aside={writeEnabled ? 'Elegí un grado para sumar stock' : undefined}>
+            <ul className="pl-stock">
               {products.map((row) => {
                 const stock = row.globalAvailable
+                const state = stock === null ? 'unset' : stock === 0 ? 'empty' : undefined
                 return (
-                  <button key={row.productId} type="button" className="k-row" disabled={!writeEnabled}
-                    aria-label={`${row.productLabel}: ${stock === null ? 'sin stock' : `stock ${stock}`}`}
-                    onClick={() => { setModalError(null); setStockProductId(row.productId) }}>
-                    <span className="k-row-main">
-                      <span className="k-row-title">{shortProduct(row.productLabel)}</span>
-                      {stock === null ? <span className="k-row-meta">Todavía sin stock inicial</span> : null}
-                    </span>
-                    <span className="k-row-side">
-                      {stock === null ? <Chip tone="warn">Sin stock</Chip> : <span className="k-row-num">{formatCount(stock)}</span>}
-                      <ChevronRight aria-hidden size={16} />
-                    </span>
-                  </button>
+                  <li key={row.productId}>
+                    <button type="button" className="pl-stock-item" data-state={state} disabled={!writeEnabled}
+                      aria-label={`${row.productLabel}: ${stock === null ? 'sin stock' : `stock ${stock}`}`}
+                      onClick={() => { setModalError(null); setStockProductId(row.productId) }}>
+                      <span className="pl-stock-name">{shortProduct(row.productLabel)}</span>
+                      <span className="pl-stock-num">{stock === null ? 'Sin cargar' : formatCount(stock)}</span>
+                      <Plus aria-hidden size={15} className="pl-stock-add" />
+                      <span className="pl-stock-bar" aria-hidden="true"><span style={{ width: `${Math.round(((stock ?? 0) / stockMax) * 100)}%` }} /></span>
+                    </button>
+                  </li>
                 )
               })}
-            </div>
+            </ul>
           </Panel>
 
-          <Panel title="Envíos" aside="Del más reciente al más antiguo">
+          <Panel title="Envíos" aside={remitos.length > 0 ? 'Del más reciente al más antiguo' : undefined}>
             {remitosError ? <Note tone="danger">{remitosError}</Note> : null}
             {!remitosError || remitos.length > 0 ? (
               <RemitosList
