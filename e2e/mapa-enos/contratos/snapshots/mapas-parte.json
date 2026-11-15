@@ -10,13 +10,22 @@
       "rigeDesde": "<fecha>",
       "severidad": "Media",
       "totales": {
-        "alumnos": 0,
-        "secciones": 0
+        "alumnos": 12,
+        "secciones": 1
       }
     }
   ],
-  "alumnosUnicos": 0,
-  "datosPadron": null,
+  "alumnosUnicos": 12,
+  "datosPadron": {
+    "matriculaTotal": 12,
+    "niveles": [
+      "Primario"
+    ],
+    "secciones": 1,
+    "turnos": [
+      "Mañana"
+    ]
+  },
   "ok": true,
   "parte": {
     "actualizadaEn": "<fecha>",
@@ -31,7 +40,15 @@
     "nombre": "Protocolo ENOS 2026/2027"
   },
   "recientes": [],
-  "secciones": [],
+  "secciones": [
+    {
+      "curso": "1",
+      "division": "A",
+      "geSectionId": 990001,
+      "nivel": "Primario",
+      "turno": "Mañana"
+    }
+  ],
   "servicio": {
     "alcanceVigente": [],
     "estadoGeneral": "normal"

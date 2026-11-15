@@ -94,10 +94,10 @@ export const ESPERADOS = {
   },
   // Ranking de evolucion (lib/infraestructura/evolucion.ts construirRanking): escuelas afectadas por departamento
   // sobre las 17 escuelas con parte visible. Orden: escuelas desc, luego alumnos desc, luego nombre.
-  // Los alumnos son 0 porque el seed no carga secciones ni alumnos.
+  // Los alumnos son 0 salvo en Capital: el seed sólo carga una sección con 12 alumnos para 1800554-00 (seed/partes.ts).
   evolucion: {
     rankingDepartamentos: [
-      { departamento: 'Capital', escuelasAfectadas: 7, alumnosAlcanzados: 0 },
+      { departamento: 'Capital', escuelasAfectadas: 7, alumnosAlcanzados: 12 },
       { departamento: 'Goya', escuelasAfectadas: 4, alumnosAlcanzados: 0 },
       { departamento: 'Paso de los Libres', escuelasAfectadas: 3, alumnosAlcanzados: 0 },
       { departamento: 'Santo Tomé', escuelasAfectadas: 3, alumnosAlcanzados: 0 },
