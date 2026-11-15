@@ -1,9 +1,15 @@
 {
   "alumnosAcumulados": [
     {
-      "dias": "hasta-hoy",
+      "dias": 318,
       "valores": {
         "alumnosAcumulados": 0
+      }
+    },
+    {
+      "dias": "hasta-hoy",
+      "valores": {
+        "alumnosAcumulados": 12
       }
     }
   ],
@@ -31,7 +37,7 @@
   ],
   "rankingDepartamentos": [
     {
-      "alumnosAlcanzados": 0,
+      "alumnosAlcanzados": 12,
       "departamento": "Capital",
       "escuelasAfectadas": 7
     },
