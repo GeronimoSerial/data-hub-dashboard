@@ -179,7 +179,7 @@ export function BitacoraFicha({
                 {entrada.lineas.map((linea, indice) => (
                   <p key={indice} className={styles.timelineLinea}>
                     <strong className={styles.timelineSujeto}>{linea.sujeto}</strong>
-                    {linea.detalle && <span className={styles.timelineDetalle}>{` · ${linea.detalle}`}</span>}
+                    {linea.detalle && <span>{` · ${linea.detalle}`}</span>}
                   </p>
                 ))}
                 {entrada.nota && <p className={styles.timelineNota}>{entrada.nota}</p>}
