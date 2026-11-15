@@ -102,7 +102,7 @@ export function SchoolReceipts() {
   const history = lines?.filter((line) => line.status !== 'at_cabecera' && line.status !== 'in_transit') ?? []
 
   return (
-    <section aria-labelledby="school-receipts-title" className="k-stack">
+    <section aria-labelledby="school-receipts-title" className="k-stack cdl-page">
       <KitStyles />
       <PageHeader id="school-receipts-title" title="Recepción de cuadernillos" description="Confirmá qué cuadernillos llegaron a tu escuela." />
       {error ? (
