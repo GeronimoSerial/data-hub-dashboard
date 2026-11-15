@@ -1,27 +1,42 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { dashedCue } from '../cabecera/cabecera-api'
-import { Chip, CircuitGuide, EmptyState, ShipmentJourney, formatCount, shortProduct, type JourneyStep } from '../kit'
-import type { RemitoItemRow, RemitoLineRow, RemitoSigner, RemitoSummary } from './remito-api'
+import { CircuitGuide, EmptyState, ShipmentJourney, formatCount, shortProduct, type JourneyStep } from '../kit'
+import type { RemitoLineRow, RemitoSigner, RemitoSummary } from './remito-api'
 
-const dateFormat = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium' })
-const dateTimeFormat = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' })
+// The campaign already fixes the year, so dates stay short: "13 nov" and "13 nov, 11:10".
+const dateFormat = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' })
+const dateTimeFormat = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
 
 function signature(signer: RemitoSigner | null | undefined, at: string | null | undefined) {
   if (!signer) return null
   const name = signer.name || 'cuenta sin nombre'
-  return at ? `${name}, ${dateTimeFormat.format(new Date(at))}` : name
+  return at ? `${name} · ${dateTimeFormat.format(new Date(at))}` : name
 }
 
 function lineDone(line: RemitoLineRow) {
   return line.status === 'received' || line.status === 'closed_empty'
 }
 
-function Shortfall({ from, to, label }: { from: number; to: number | null; label: string }) {
-  if (to === null || to >= from) return null
-  return <Chip tone="danger">Llegaron {formatCount(from - to)} de menos {label}</Chip>
+const LINE_STATUS: Record<RemitoLineRow['status'], string> = {
+  in_transit: 'En camino a la cabecera',
+  at_cabecera: 'En la cabecera, falta repartir',
+  received: 'Recibido por la escuela',
+  closed_empty: 'Cerrado sin entrega',
+}
+
+/** One received quantity; `from` is what the previous leg handed over, so a smaller number is a shortfall. */
+function ReceivedCell({ from, to }: { from: number | null; to: number | null }) {
+  if (to === null) return <td data-state="pending">Pendiente</td>
+  if (from === null || to >= from) return <td>{formatCount(to)}</td>
+  return (
+    <td data-state="short">
+      {formatCount(to)}
+      <span className="pl-short">{formatCount(from - to)} de menos</span>
+    </td>
+  )
 }
 
 /** "Enviado → Llegó a la cabecera → Llegó a la escuela"; the school step aggregates every school of the envío. */
@@ -54,22 +69,39 @@ function journeySteps(remito: RemitoSummary): JourneyStep[] {
   ]
 }
 
-function ItemRow({ item, label }: { item: RemitoItemRow; label: string }) {
+function LineDetail({ line, productLabels }: { line: RemitoLineRow; productLabels: Map<string, string> }) {
+  const name = line.recipientName ?? 'Escuela'
+  const schoolSigner = signature(line.schoolReceivedBy, line.schoolReceivedAt)
   return (
-    <li className="k-qty-row">
-      <span className="k-row-main">
-        <span className="k-row-title">{label}</span>
-        <span className="k-row-meta">
-          Enviado {formatCount(item.dispatchedQuantity)}
-          {' · '}Cabecera {item.cabeceraReceivedQuantity === null ? 'pendiente' : formatCount(item.cabeceraReceivedQuantity)}
-          {' · '}Escuela {item.schoolReceivedQuantity === null ? 'pendiente' : formatCount(item.schoolReceivedQuantity)}
-        </span>
-      </span>
-      <span style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
-        <Shortfall from={item.dispatchedQuantity} to={item.cabeceraReceivedQuantity} label="a la cabecera" />
-        <Shortfall from={item.cabeceraReceivedQuantity ?? 0} to={item.cabeceraReceivedQuantity === null ? null : item.schoolReceivedQuantity} label="a la escuela" />
-      </span>
-    </li>
+    <section aria-label={line.recipientName ?? line.recipientCueAnexo} className="pl-line">
+      <header className="pl-line-head">
+        <strong>{name}</strong>
+        <span>CUE {dashedCue(line.recipientCueAnexo)} · {LINE_STATUS[line.status]}</span>
+      </header>
+      <table className="pl-table">
+        <thead>
+          <tr>
+            <th scope="col">Grado</th>
+            <th scope="col">Enviado</th>
+            <th scope="col">Cabecera</th>
+            <th scope="col">Escuela</th>
+          </tr>
+        </thead>
+        <tbody>
+          {line.items.map((item) => (
+            <tr key={item.productId}>
+              <th scope="row">{shortProduct(productLabels.get(item.productId) ?? item.productName ?? item.productId)}</th>
+              <td>{formatCount(item.dispatchedQuantity)}</td>
+              <ReceivedCell from={item.dispatchedQuantity} to={item.cabeceraReceivedQuantity} />
+              <ReceivedCell from={item.cabeceraReceivedQuantity} to={item.cabeceraReceivedQuantity === null ? null : item.schoolReceivedQuantity} />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {line.cabeceraShortfallReason ? <p className="pl-line-note">Por qué llegó de menos a la cabecera: {line.cabeceraShortfallReason}</p> : null}
+      {line.schoolShortfallReason ? <p className="pl-line-note">Por qué llegó de menos a la escuela: {line.schoolShortfallReason}</p> : null}
+      {schoolSigner ? <p className="pl-line-note">Confirmó la escuela: {schoolSigner}</p> : null}
+    </section>
   )
 }
 
@@ -84,47 +116,40 @@ export function RemitosList({ remitos, cabeceraNames, productLabels, hasMore, lo
   const [openId, setOpenId] = useState<string | null>(null)
   if (remitos.length === 0) {
     return (
-      <>
-        <CircuitGuide />
+      <div className="pl-envios-empty">
         <EmptyState title="Todavía no enviaste cuadernillos" description="Cuando hagas el primer envío, acá vas a ver por dónde va." />
-      </>
+        <CircuitGuide />
+      </div>
     )
   }
   return (
     <>
-      <ul className="k-list">
+      <ul className="pl-envios">
         {remitos.map((remito) => {
           const open = openId === remito.remitoId
           const name = cabeceraNames.get(remito.cabeceraCueAnexo) ?? `CUE ${dashedCue(remito.cabeceraCueAnexo)}`
+          const units = remito.lines.reduce((sum, line) => sum + line.items.reduce((acc, item) => acc + item.dispatchedQuantity, 0), 0)
+          const cabeceraSigner = signature(remito.cabeceraReceivedBy, remito.cabeceraReceivedAt)
           return (
-            <li key={remito.remitoId} style={{ display: 'grid', gap: '.5rem' }}>
-              <button type="button" className="k-row" aria-expanded={open} aria-label={`Envío a ${name}, ${dateFormat.format(new Date(remito.dispatchedAt))}`}
-                onClick={() => setOpenId(open ? null : remito.remitoId)}>
-                <span className="k-row-main">
-                  <span className="k-row-title">{name}</span>
-                  <span className="k-row-meta">{dateFormat.format(new Date(remito.dispatchedAt))} · {remito.lines.length} escuela{remito.lines.length === 1 ? '' : 's'}</span>
-                </span>
-                <span className="k-row-side">{open ? <ChevronDown aria-hidden size={18} /> : <ChevronRight aria-hidden size={18} />}</span>
-              </button>
-              <ShipmentJourney steps={journeySteps(remito)} label={`Recorrido del envío a ${name}`} />
+            <li key={remito.remitoId} className="pl-envio" data-open={open || undefined}>
+              {/* The click bubbles from the button, so the whole row toggles while the button stays the keyboard target. */}
+              <div className="pl-envio-row" onClick={() => setOpenId(open ? null : remito.remitoId)}>
+                <button type="button" className="pl-envio-toggle" aria-expanded={open} aria-label={`Envío a ${name}, ${dateFormat.format(new Date(remito.dispatchedAt))}`}>
+                  <ChevronRight aria-hidden size={16} />
+                  <span className="pl-envio-name">{name}</span>
+                  <span className="pl-envio-meta">
+                    {dateFormat.format(new Date(remito.dispatchedAt))} · {remito.lines.length} escuela{remito.lines.length === 1 ? '' : 's'}
+                    {units > 0 ? ` · ${formatCount(units)} cuadernillos` : ''}
+                  </span>
+                </button>
+                <ShipmentJourney steps={journeySteps(remito)} label={`Recorrido del envío a ${name}`} />
+              </div>
               {open ? (
-                <div style={{ display: 'grid', gap: '.75rem', paddingLeft: '.5rem' }}>
-                  {signature(remito.cabeceraReceivedBy, remito.cabeceraReceivedAt) ? (
-                    <span className="k-row-meta">Confirmó la cabecera: {signature(remito.cabeceraReceivedBy, remito.cabeceraReceivedAt)}</span>
-                  ) : null}
-                  {remito.lines.map((line) => (
-                    <section key={line.recipientCueAnexo} aria-label={line.recipientName ?? line.recipientCueAnexo} style={{ display: 'grid', gap: '.4rem' }}>
-                      <span className="k-row-title">{line.recipientName ?? 'Escuela'} <span className="k-row-meta">CUE {dashedCue(line.recipientCueAnexo)}</span></span>
-                      <ul className="k-qty-list">
-                        {line.items.map((item) => <ItemRow key={item.productId} item={item} label={shortProduct(productLabels.get(item.productId) ?? item.productName ?? item.productId)} />)}
-                      </ul>
-                      {line.cabeceraShortfallReason ? <span className="k-row-meta">Por qué llegó de menos a la cabecera: {line.cabeceraShortfallReason}</span> : null}
-                      {line.schoolShortfallReason ? <span className="k-row-meta">Por qué llegó de menos a la escuela: {line.schoolShortfallReason}</span> : null}
-                      {signature(line.schoolReceivedBy, line.schoolReceivedAt) ? (
-                        <span className="k-row-meta">Confirmó la escuela: {signature(line.schoolReceivedBy, line.schoolReceivedAt)}</span>
-                      ) : null}
-                    </section>
-                  ))}
+                <div className="pl-envio-detail">
+                  {cabeceraSigner ? <p className="pl-line-note">Confirmó la cabecera: {cabeceraSigner}</p> : null}
+                  <div className="pl-lines">
+                    {remito.lines.map((line) => <LineDetail key={line.recipientCueAnexo} line={line} productLabels={productLabels} />)}
+                  </div>
                 </div>
               ) : null}
             </li>
@@ -132,7 +157,7 @@ export function RemitosList({ remitos, cabeceraNames, productLabels, hasMore, lo
         })}
       </ul>
       {hasMore ? (
-        <button type="button" className="ui-button ui-button--secondary" disabled={loadingMore} onClick={onLoadMore}>
+        <button type="button" className="ui-button ui-button--secondary pl-more" disabled={loadingMore} onClick={onLoadMore}>
           {loadingMore ? 'Cargando…' : 'Ver más envíos'}
         </button>
       ) : null}

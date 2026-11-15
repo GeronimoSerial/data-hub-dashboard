@@ -29,16 +29,21 @@ function StockForm({ product, saving, error, onSubmit }: {
   const [quantity, setQuantity] = useState(0)
   const initial = product.globalAvailable === null
   const movement = initial ? 'initial' : 'replenishment'
+  const current = product.globalAvailable ?? 0
   return (
     <>
       <ModalBody>
-        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
-          {initial ? 'Todavía no hay stock de este grado. Cargá cuántos cuadernillos tenés.' : `Stock actual: ${formatCount(product.globalAvailable ?? 0)}. Lo que cargues se suma al stock.`}
+        <p className="k-note">
+          {initial ? 'Todavía no hay stock de este grado. Cargá cuántos cuadernillos tenés.' : `Stock actual: ${formatCount(current)}. Lo que cargues se suma al stock.`}
         </p>
-        <div className="k-qty-row">
+        <div className="pl-stock-form">
           <span className="k-row-title">{initial ? 'Cuántos tenés' : 'Cuántos sumás'}</span>
           <Stepper label="Cantidad de stock" value={quantity} disabled={saving} onChange={setQuantity} />
         </div>
+        <p className="pl-stock-result" aria-live="polite">
+          <span>Va a quedar en</span>
+          <strong>{formatCount(current + quantity)}</strong>
+        </p>
         {error ? <Note tone="danger">{error}</Note> : null}
       </ModalBody>
       <ModalFoot>

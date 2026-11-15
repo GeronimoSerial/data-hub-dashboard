@@ -73,7 +73,11 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-modal-body { display: grid; gap: 1rem; align-content: start; padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 .k-modal-foot { display: flex; flex-wrap: wrap; gap: .5rem; padding: .9rem 1.5rem; border-top: 1px solid var(--line); background: var(--card); }
 .k-modal-foot > * { flex: 1 1 8rem; min-height: 44px; }
+.k-modal.k-modal--wide { width: min(64rem, calc(100vw - 2rem)); height: min(46rem, calc(100dvh - 2rem)); max-height: none; }
+.k-modal--wide .k-modal-foot { align-items: center; justify-content: flex-end; }
+.k-modal--wide .k-modal-foot > .ui-button { flex: 0 0 auto; min-width: 9.5rem; }
 @media (max-width: 640px) {
+  .k-modal--wide .k-modal-foot > .ui-button { flex: 1 1 8rem; min-width: 0; }
   .k-modal-head { padding-left: 1rem; }
   .k-modal-body { padding: 1rem; }
   .k-modal-foot { padding-left: 1rem; padding-right: 1rem; }
@@ -242,16 +246,18 @@ export function Segmented<T extends string>({ label, value, options, onChange }:
 }
 
 /** Centered modal dialog. Compose with ModalBody and ModalFoot. */
-export function Modal({ open, title, description, onClose, children }: {
+export function Modal({ open, title, description, size, onClose, children }: {
   open: boolean
   title: string
   description?: string
+  /** `wide` gives multi-step flows a roomy, fixed-height dialog so steps do not resize it. */
+  size?: 'wide'
   onClose: () => void
   children: ReactNode
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose() }}>
-      <DialogContent className="k-modal">
+      <DialogContent className={size === 'wide' ? 'k-modal k-modal--wide' : 'k-modal'}>
         <div className="k-modal-head">
           <DialogTitle className="k-modal-title">{title}</DialogTitle>
           {description ? <p>{description}</p> : null}
