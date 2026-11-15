@@ -20,7 +20,7 @@ describe('guidance building blocks', () => {
       { label: 'Llegó a la escuela', state: 'pending' },
     ]} />)
     const items = screen.getAllByRole('listitem')
-    expect(items.map((item) => item.textContent)).toEqual(['EnviadoPlaneamiento · 14/11', 'Llegó a la cabeceraTodavía no', 'Llegó a la escuelaTodavía no'])
+    expect(items.map((item) => item.textContent)).toEqual(['✓EnviadoPlaneamiento · 14/11', '2Llegó a la cabeceraTodavía no', '3Llegó a la escuelaTodavía no'])
     expect(items[1]).toHaveAttribute('aria-current', 'step')
   })
 
