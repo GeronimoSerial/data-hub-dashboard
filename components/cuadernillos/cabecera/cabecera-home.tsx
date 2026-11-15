@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Chip, EmptyState, Note, PageHeader, Panel, formatCount, shortProduct } from '../kit'
+import { CircuitGuide, EmptyState, Note, PageHeader, Panel, ShipmentJourney, TaskCard, formatCount, shortProduct } from '../kit'
 import { LineQuestions } from '../receipts/line-questions'
 import {
-  EMPTY_ANSWERS, errorMessage, evaluateLine, formatWhen, postReceipt, reasonFor, useIdempotencyKey,
+  EMPTY_ANSWERS, allArrived, arrivalMode, buildJourney, errorMessage, evaluateLine, formatWhen, pluralize, postReceipt, reasonFor, useIdempotencyKey,
   type LineAnswers, type ReceiptItem,
 } from '../receipts/receipt-model'
 import { SignPanel, SignedNote } from '../receipts/sign-panel'
@@ -18,6 +18,23 @@ const lineItems = (line: RemitoLine): ReceiptItem[] =>
 
 const lineName = (line: RemitoLine) => line.recipientName ?? `CUE ${line.recipientCueAnexo}`
 
+function remitoJourney(remito: CabeceraRemitoView) {
+  const confirmed = remito.lines.filter((line) => line.status === 'received' || line.status === 'closed_empty')
+  return buildJourney({
+    dispatchedAt: remito.dispatchedAt,
+    cabeceraBy: remito.cabeceraReceivedBy,
+    cabeceraAt: remito.cabeceraReceivedAt,
+    cabeceraShort: remito.lines.some((line) => Boolean(line.cabeceraShortfallReason)),
+    schools: {
+      confirmed: confirmed.length,
+      total: remito.lines.length,
+      short: remito.lines.some((line) => Boolean(line.schoolShortfallReason)),
+      by: confirmed[0]?.schoolReceivedBy,
+      at: confirmed[0]?.schoolReceivedAt,
+    },
+  })
+}
+
 function PendingRemito({ remito, onSigned }: { remito: CabeceraRemitoView; onSigned: () => void }) {
   const [states, setStates] = useState<Record<string, LineAnswers>>({})
   const [busy, setBusy] = useState(false)
@@ -25,13 +42,19 @@ function PendingRemito({ remito, onSigned }: { remito: CabeceraRemitoView; onSig
   const keyFor = useIdempotencyKey()
 
   const evaluated = remito.lines.map((line) => {
+    const items = lineItems(line)
     const state = states[line.lineId] ?? EMPTY_ANSWERS
-    return { line, state, evaluation: evaluateLine(lineItems(line), state) }
+    return { line, items, state, evaluation: evaluateLine(items, state) }
   })
   const complete = evaluated.every(({ evaluation }) => evaluation.complete)
   const reasonMissing = evaluated.some(({ evaluation }) => evaluation.reasonMissing)
   const receivedTotal = evaluated.reduce((sum, { evaluation }) => sum + evaluation.receivedTotal, 0)
   const expectedTotal = evaluated.reduce((sum, { evaluation }) => sum + evaluation.expectedTotal, 0)
+  const everythingArrived = evaluated.every(({ items, state }) => arrivalMode(items, state) === 'all' || items.every((item) => item.expected === 0))
+
+  function confirmEverything() {
+    setStates(Object.fromEntries(evaluated.map(({ line, items }) => [line.lineId, allArrived(items)])))
+  }
 
   async function sign() {
     const body = {
@@ -49,21 +72,25 @@ function PendingRemito({ remito, onSigned }: { remito: CabeceraRemitoView; onSig
   }
 
   return (
-    <Panel title={`Remito del ${formatWhen(remito.dispatchedAt)}`} aside={<Chip tone="warn">Pendiente de firma</Chip>}>
-      <div className="k-stack" style={{ gap: '1.1rem' }}>
-        {evaluated.map(({ line, state }) => {
-          const own = line.recipientCueAnexo === remito.cabeceraCueAnexo
-          return (
-            <div key={line.lineId} className="k-stack" style={{ gap: '.6rem' }}>
-              <h4 style={{ margin: 0 }}>{lineName(line)}</h4>
-              {own ? <Note>Un solo recibido: este recibido también cuenta como el recibido de tu escuela.</Note> : null}
-              <LineQuestions scope={line.lineId} items={lineItems(line)} state={state} disabled={busy}
+    <Panel title={`Envío del ${formatWhen(remito.dispatchedAt)}`}>
+      <div className="k-stack" style={{ gap: '.8rem' }}>
+        <ShipmentJourney steps={remitoJourney(remito)} />
+        <div className="k-stack" style={{ gap: '.3rem' }}>
+          {evaluated.map(({ line, state }) => (
+            <div key={line.lineId}>
+              <LineQuestions scope={line.lineId} label={lineName(line)} variant="less-only" items={lineItems(line)} state={state} disabled={busy}
                 onChange={(next) => setStates((current) => ({ ...current, [line.lineId]: next }))} />
             </div>
-          )
-        })}
-        <SignPanel receivedTotal={receivedTotal} expectedTotal={expectedTotal} canSign={complete && !reasonMissing} busy={busy} error={error}
-          hint={reasonMissing ? 'Completá el motivo de cada línea con faltante para poder firmar.' : undefined}
+          ))}
+        </div>
+        <SignPanel receivedTotal={receivedTotal} expectedTotal={expectedTotal} answered={complete} canSign={complete && !reasonMissing} busy={busy} error={error}
+          hint={reasonMissing ? 'Contanos qué pasó en cada escuela a la que llegó menos para poder confirmar.' : undefined}
+          before={(
+            <Button type="button" style={{ minHeight: '2.5rem' }} variant={everythingArrived ? 'default' : 'secondary'} disabled={busy}
+              aria-pressed={everythingArrived} onClick={confirmEverything}>
+              Sí, llegó todo
+            </Button>
+          )}
           onSign={() => { void sign() }} />
       </div>
     </Panel>
@@ -72,11 +99,12 @@ function PendingRemito({ remito, onSigned }: { remito: CabeceraRemitoView; onSig
 
 function HistoryRemito({ remito }: { remito: CabeceraRemitoView }) {
   return (
-    <Panel title={`Remito del ${formatWhen(remito.dispatchedAt)}`} aside={<Chip tone="ok">Recibido</Chip>}>
-      <div className="k-stack" style={{ gap: '.9rem' }}>
+    <Panel title={`Envío del ${formatWhen(remito.dispatchedAt)}`}>
+      <div className="k-stack" style={{ gap: '.7rem' }}>
+        <ShipmentJourney steps={remitoJourney(remito)} />
         <SignedNote signer={remito.cabeceraReceivedBy} at={remito.cabeceraReceivedAt} />
         {remito.lines.map((line) => (
-          <div key={line.lineId} className="k-stack" style={{ gap: '.4rem' }}>
+          <div key={line.lineId} className="k-stack" style={{ gap: '.3rem' }}>
             <h4 style={{ margin: 0 }}>{lineName(line)}</h4>
             <ul className="k-qty-list">
               {line.items.map((item) => (
@@ -86,7 +114,7 @@ function HistoryRemito({ remito }: { remito: CabeceraRemitoView }) {
                 </li>
               ))}
             </ul>
-            {line.cabeceraShortfallReason ? <p className="k-hint" style={{ margin: 0 }}>{`Motivo: ${line.cabeceraShortfallReason}`}</p> : null}
+            {line.cabeceraShortfallReason ? <p className="k-hint" style={{ margin: 0 }}>{`Qué pasó: ${line.cabeceraShortfallReason}`}</p> : null}
           </div>
         ))}
       </div>
@@ -99,29 +127,37 @@ export function CabeceraHome() {
   const remitos = listing?.kind === 'cabecera' ? listing.remitos : null
   const pending = remitos?.filter((remito) => remito.status === 'dispatched') ?? []
   const history = remitos?.filter((remito) => remito.status !== 'dispatched') ?? []
+  const title = pending.length === 0 ? 'No tenés nada pendiente.' : `Tenés ${pending.length} ${pluralize(pending.length, 'envío', 'envíos')} para recibir.`
 
   return (
     <section aria-labelledby="cabecera-home-title" className="k-stack">
-      <PageHeader id="cabecera-home-title" title="Recepción de remitos" description="Confirmá los cuadernillos que llegaron a tu cabecera para cada escuela y firmá el recibido." />
+      <PageHeader id="cabecera-home-title" title="Recepción de envíos" description="Confirmá qué cuadernillos llegaron a tu cabecera para cada escuela." />
       {error ? (
         <div className="k-stack" style={{ gap: '.5rem', justifyItems: 'start' }}>
           <Note tone="danger">{error}</Note>
           <Button type="button" variant="secondary" onClick={retry}>Reintentar</Button>
         </div>
       ) : null}
-      {!remitos && !error ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando remitos…</p> : null}
-      {remitos && remitos.length === 0 ? <EmptyState title="Sin remitos" description="Cuando Planeamiento despache cuadernillos a tu cabecera, los firmás acá." /> : null}
+      {!remitos && !error ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando envíos…</p> : null}
+      {remitos ? <TaskCard tone={pending.length > 0 ? 'warn' : 'ok'} title={title} /> : null}
+      {remitos && remitos.length === 0 ? (
+        <>
+          <EmptyState title="Todavía no hay envíos" description="Cuando Planeamiento envíe cuadernillos a tu cabecera, los confirmás acá." />
+          <CircuitGuide />
+        </>
+      ) : null}
       {pending.length > 0 ? (
         <div className="k-stack" role="region" aria-label="Pendientes">
-          <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Pendientes</h3>
           {pending.map((remito) => <PendingRemito key={remito.remitoId} remito={remito} onSigned={reload} />)}
         </div>
       ) : null}
       {history.length > 0 ? (
-        <div className="k-stack" role="region" aria-label="Historial">
-          <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Historial</h3>
-          {history.map((remito) => <HistoryRemito key={remito.remitoId} remito={remito} />)}
-        </div>
+        <details>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: '2.25rem' }}>{`Envíos anteriores (${history.length})`}</summary>
+          <div className="k-stack" role="region" aria-label="Historial" style={{ marginTop: '.5rem' }}>
+            {history.map((remito) => <HistoryRemito key={remito.remitoId} remito={remito} />)}
+          </div>
+        </details>
       ) : null}
     </section>
   )

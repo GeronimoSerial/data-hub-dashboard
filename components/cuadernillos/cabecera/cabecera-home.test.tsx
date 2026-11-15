@@ -39,8 +39,10 @@ function setup(post: () => unknown = () => json({ receipt: { remitoId: 'remito-1
 const posts = (fetchMock: ReturnType<typeof setup>) => fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')
 
 async function confirmAll() {
-  for (const button of await screen.findAllByRole('button', { name: 'Sí, recibí' })) fireEvent.click(button)
+  fireEvent.click(await screen.findByRole('button', { name: 'Sí, llegó todo' }))
 }
+
+const SIGN = 'Confirmo que recibí estos cuadernillos'
 
 describe('CabeceraHome receipt view', () => {
   beforeEach(() => {
@@ -48,36 +50,73 @@ describe('CabeceraHome receipt view', () => {
     vi.stubGlobal('crypto', { randomUUID: () => `key-${++n}` })
   })
 
-  it('asks per product, notes the own-school line and lists history read-only with signer and time', async () => {
+  it('opens with the task card, lists products per school and keeps history collapsed and read-only', async () => {
     setup()
     render(<CabeceraHome />)
 
-    expect(await screen.findByText('¿Recibió 30 cuadernillos de 1° grado?')).toBeTruthy()
-    expect(screen.getByText('¿Recibió 25 cuadernillos de 2° grado?')).toBeTruthy()
-    expect(screen.getAllByText(/Un solo recibido/)).toHaveLength(1)
-    const history = within(screen.getByRole('region', { name: 'Historial' }))
-    expect(history.getByText(/Firmado por Ana Cabecera/)).toBeTruthy()
-    expect(history.getByText('Motivo: Caja rota')).toBeTruthy()
-    expect(history.queryByRole('button', { name: 'Firmar recibido' })).toBeNull()
+    expect(await screen.findByText('Tenés 1 envío para recibir.')).toBeTruthy()
+    expect(screen.getByText('1° grado: 30 · 2° grado: 25')).toBeTruthy()
+    expect(screen.getByText('1° grado: 18')).toBeTruthy()
+    expect(screen.queryByText(/Un solo recibido/)).toBeNull()
+    expect(document.body.textContent).not.toMatch(/remito|despach|tramo|faltante|Crítica/i)
+    const details = document.querySelector('details') as HTMLDetailsElement
+    expect(details.open).toBe(false)
+    const history = within(screen.getByRole('region', { name: 'Historial', hidden: true }))
+    expect(history.getByText(/Confirmado por Ana Cabecera/)).toBeTruthy()
+    expect(history.getByText('Qué pasó: Caja rota')).toBeTruthy()
+    expect(history.queryByRole('button', { name: SIGN })).toBeNull()
   })
 
-  it('keeps signing disabled until every product is answered, then posts the exact payload and retries with the same key', async () => {
+  it('pluralizes the task card and says nothing is pending', async () => {
+    setup(undefined, [pendingRemito, { ...pendingRemito, remitoId: 'remito-2' }])
+    render(<CabeceraHome />)
+    expect(await screen.findByText('Tenés 2 envíos para recibir.')).toBeTruthy()
+    cleanup()
+    setup(undefined, [signedRemito])
+    render(<CabeceraHome />)
+    expect(await screen.findByText('No tenés nada pendiente.')).toBeTruthy()
+  })
+
+  it('shows the circuit guide when there are no envíos', async () => {
+    setup(undefined, [])
+    render(<CabeceraHome />)
+    expect(await screen.findByText('No tenés nada pendiente.')).toBeTruthy()
+    expect(screen.getByRole('complementary', { name: 'Cómo funciona' })).toBeTruthy()
+  })
+
+  it('shows the journey with who and when for each step', async () => {
+    setup()
+    render(<CabeceraHome />)
+    await screen.findByText('Tenés 1 envío para recibir.')
+    const pending = within(screen.getByRole('region', { name: 'Pendientes' }))
+    const journey = within(pending.getByRole('list', { name: 'Recorrido del envío' }))
+    expect(journey.getByText('Enviado')).toBeTruthy()
+    expect(journey.getByText(/^Planeamiento · /)).toBeTruthy()
+    expect(journey.getByText('Llegó a la cabecera').closest('li')?.getAttribute('data-state')).toBe('current')
+    expect(journey.getByText('Llegó a la escuela').closest('li')?.getAttribute('data-state')).toBe('pending')
+
+    const done = within(within(screen.getByRole('region', { name: 'Historial', hidden: true })).getByRole('list', { name: 'Recorrido del envío', hidden: true }))
+    expect(done.getByText('Llegó a la cabecera').closest('li')?.getAttribute('data-state')).toBe('short')
+    expect(done.getByText(/^Ana Cabecera · /)).toBeTruthy()
+  })
+
+  it('keeps signing disabled until answered, then "Sí, llegó todo" posts full quantities and retries with the same key', async () => {
     const fetchMock = setup(() => json({ error: 'cabecera_receipt_pending' }, false))
     render(<CabeceraHome />)
-    const sign = await screen.findByRole('button', { name: 'Firmar recibido' })
+    const sign = await screen.findByRole('button', { name: SIGN })
     expect(sign).toBeDisabled()
 
     await confirmAll()
     expect(sign).toBeEnabled()
+    expect(screen.getByText('Llegaron los 73 cuadernillos')).toBeTruthy()
     fireEvent.click(sign)
-    await screen.findByText(/La cabecera todavía no firmó/)
+    await screen.findByText(/La cabecera todavía no confirmó/)
     fireEvent.click(sign)
     await waitFor(() => expect(posts(fetchMock)).toHaveLength(2))
 
     const [url, init] = posts(fetchMock)[0]
     expect(url).toBe('/api/cuadernillos/remitos/remito-1/recibir')
-    const body = JSON.parse(String(init?.body))
-    expect(body).toEqual({
+    expect(JSON.parse(String(init?.body))).toEqual({
       idempotencyKey: 'key-1',
       lines: [
         { lineId: 'line-own', items: [{ productId: 'p1', receivedQuantity: 30 }, { productId: 'p2', receivedQuantity: 25 }] },
@@ -87,20 +126,22 @@ describe('CabeceraHome receipt view', () => {
     expect(JSON.parse(String(posts(fetchMock)[1][1]?.body)).idempotencyKey).toBe('key-1')
   })
 
-  it('requires a motivo for a shortfall, bounds the quantity and posts the reason', async () => {
+  it('"Llegó menos" reveals bounded quantities and a required motivo, and posts the reason', async () => {
     const fetchMock = setup()
     render(<CabeceraHome />)
+    await screen.findByText('Tenés 1 envío para recibir.')
+    expect(screen.queryByLabelText(/Cantidad recibida/)).toBeNull()
     await confirmAll()
-    const other = screen.getAllByRole('button', { name: 'No, recibí otra cantidad' })[2]
-    fireEvent.click(other)
+    fireEvent.click(screen.getByRole('button', { name: /^Llegó menos · Escuela B/ }))
     const quantity = screen.getByLabelText('Cantidad recibida · line-b · 1° grado')
+    expect(screen.queryByLabelText('Cantidad recibida · line-own · 1° grado')).toBeNull()
     fireEvent.change(quantity, { target: { value: '99' } })
     expect((quantity as HTMLInputElement).value).toBe('18')
     fireEvent.change(quantity, { target: { value: '12' } })
 
-    const sign = screen.getByRole('button', { name: 'Firmar recibido' })
+    const sign = screen.getByRole('button', { name: SIGN })
     expect(sign).toBeDisabled()
-    fireEvent.change(screen.getByLabelText('Motivo'), { target: { value: 'Faltaron 6' } })
+    fireEvent.change(screen.getByLabelText('¿Qué pasó?'), { target: { value: 'Faltaron 6' } })
     expect(sign).toBeEnabled()
     fireEvent.click(sign)
 
@@ -111,12 +152,12 @@ describe('CabeceraHome receipt view', () => {
     expect(JSON.stringify(body)).not.toMatch(/signer|userId|identity/i)
   })
 
-  it('shows the API error for a rejected receipt and refetches after a successful one', async () => {
+  it('shows the API error for a rejected receipt in plain Spanish', async () => {
     const fetchMock = setup(() => json({ error: 'already_received' }, false))
     render(<CabeceraHome />)
     await confirmAll()
-    fireEvent.click(screen.getByRole('button', { name: 'Firmar recibido' }))
-    expect(await screen.findByText(/ya fue firmado/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: SIGN }))
+    expect(await screen.findByText(/ya fue confirmado/)).toBeTruthy()
     expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith('/api/cuadernillos/recepciones'))).toHaveLength(1)
   })
 })
