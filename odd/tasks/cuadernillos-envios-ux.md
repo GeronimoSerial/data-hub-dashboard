@@ -20,13 +20,14 @@ Branch: feat/cuadernillos-envios-ux (from origin/main c128b156). Delivery: PR to
 | ID | Specs | Route | Status | Commit |
 |---|---|---|---|---|
 | T1 | S4, S6, S8 | inline (shared kit: TaskCard, ShipmentJourney, CircuitGuide, dense CSS) | done — kit.guidance.test 3/3 | (this commit) |
-| T2 | S1–S4, S6, S8 | delegated (sonnet medium, parallel: receipts) | pending | |
-| T3 | S1, S2, S4–S8 | delegated (sonnet medium, parallel: planning) | pending | |
-| T4 | S1, S2, S4, S6–S8 | delegated (sonnet medium, parallel: control + workspace) | pending | |
-| T5 | all | inline (e2e selectors, docs, seam check) | pending | |
+| T2 | S1–S4, S6, S8 | delegated (sonnet medium, parallel: receipts) + parent layout fix | done — 13 tests; parent: cabecera schools as compact rows, "Sí, llegó todo" beside confirm | see git log |
+| T3 | S1, S2, S4–S8 | delegated (sonnet medium, parallel: planning) | done — 29 tests; gaps: name search needs API (schools endpoint only takes CUE prefix), no dispatcher name / envío number in data | see git log |
+| T4 | S1, S2, S4, S6–S8 | delegated (sonnet medium, parallel: control + workspace) | done — 16 tests; journey inside the opened envío, rows keep one stage chip | see git log |
+| T5 | all | inline (e2e selectors, docs, seam check) | done — components/cuadernillos 61 passed, tsc 0, eslint clean, PGlite e2e 2/2, screens 1280+390 reviewed (fixed guide overlap, phone journey, cabecera buttons) | see git log |
 
 ## Log
 
 - L1 (2026-11-14): "Sigue sin entenderse muy bien cuando ingresas, hay que refactorizar la experiencia de usuario para que sea mas fluido el comprendimiento de lo que hay que hacer, no tantos tecnicismos / Dame sugerencias"
 - L2: Suggestions 1–7 given; answers: "Usar "envío" (Recommended)", "Todo, 1 a 7 (Recommended)".
 - L3: "Tambien vamos a tener que aprovchar mejor los espacios en las pantallas, no me puede ocupar un row de cuadernillos y su cantidad, aproximadamente 60px, son gigantes. Estamos desperdiciando espacio. Reordenalo" → S8; kit density tightened in T1.
+- L4: Seam check and visual review done; open gaps for the user: school name search (API), dispatcher name and envío number (API).
