@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { formatCount, shortProduct, type JourneyStep } from '../kit'
 
 export type ReceiptItem = { productId: string; productName: string; expected: number }
 export type ItemAnswer = { mode: 'yes' | 'other'; quantity: number }
@@ -7,15 +8,78 @@ export type LineAnswers = { answers: Record<string, ItemAnswer>; reason: string 
 export const EMPTY_ANSWERS: LineAnswers = { answers: {}, reason: '' }
 
 export const ERROR_MESSAGES: Record<string, string> = {
-  reason_required: 'Indicá el motivo de la diferencia en cada línea con faltante.',
-  reason_not_allowed: 'Solo se indica un motivo cuando hay faltante.',
-  quantity_exceeds_sent: 'No podés recibir más de lo que se envió.',
-  invalid_receipt: 'El recibido no coincide con el envío. Actualizá la página y volvé a intentar.',
-  invalid_quantity: 'Hay una cantidad inválida.',
-  already_received: 'Este envío ya fue firmado. Actualizá la página.',
-  cabecera_receipt_pending: 'La cabecera todavía no firmó el recibido de este envío.',
-  idempotency_conflict: 'El reintento no coincide con la firma anterior. Volvé a intentar.',
-  forbidden: 'Esta cuenta no puede firmar este recibido.',
+  reason_required: 'Contanos qué pasó: hace falta el motivo cuando llegó menos de lo enviado.',
+  reason_not_allowed: 'El motivo solo se completa cuando llegó menos de lo enviado.',
+  quantity_exceeds_sent: 'No puede llegar más de lo que se envió.',
+  invalid_receipt: 'Lo que cargaste no coincide con el envío. Actualizá la página y probá de nuevo.',
+  invalid_quantity: 'Hay una cantidad que no es válida.',
+  already_received: 'Este envío ya fue confirmado. Actualizá la página.',
+  cabecera_receipt_pending: 'La cabecera todavía no confirmó que le llegó este envío.',
+  idempotency_conflict: 'Lo que cargaste cambió respecto del intento anterior. Probá de nuevo.',
+  forbidden: 'Esta cuenta no puede confirmar este envío.',
+}
+
+const sendable = (items: ReceiptItem[]) => items.filter((item) => item.expected > 0)
+
+/** Everything arrived: every product that was expected is answered "yes". */
+export function allArrived(items: ReceiptItem[]): LineAnswers {
+  const answers: LineAnswers['answers'] = {}
+  for (const item of sendable(items)) answers[item.productId] = { mode: 'yes', quantity: item.expected }
+  return { answers, reason: '' }
+}
+
+/** Less arrived: quantities open up, keeping what was already typed. */
+export function lessArrived(items: ReceiptItem[], state: LineAnswers): LineAnswers {
+  const answers: LineAnswers['answers'] = {}
+  for (const item of sendable(items)) {
+    const current = state.answers[item.productId]
+    answers[item.productId] = { mode: 'other', quantity: current?.mode === 'other' ? current.quantity : item.expected }
+  }
+  return { answers, reason: state.reason }
+}
+
+export type ArrivalMode = 'all' | 'less' | null
+
+export function arrivalMode(items: ReceiptItem[], state: LineAnswers): ArrivalMode {
+  const expected = sendable(items)
+  if (expected.some((item) => state.answers[item.productId]?.mode === 'other')) return 'less'
+  if (expected.length > 0 && expected.every((item) => state.answers[item.productId]?.mode === 'yes')) return 'all'
+  return null
+}
+
+/** "1° grado: 30 · 2° grado: 25" */
+export function summarizeItems(items: ReceiptItem[]): string {
+  return sendable(items).map((item) => `${shortProduct(item.productName)}: ${formatCount(item.expected)}`).join(' · ')
+}
+
+export const pluralize = (count: number, one: string, many: string) => (count === 1 ? one : many)
+
+export type JourneyInput = {
+  dispatchedAt: string
+  cabeceraBy: Signer | null
+  cabeceraAt: string | null
+  cabeceraShort: boolean
+  /** Schools of the envío that already confirmed, out of all of them. */
+  schools: { confirmed: number; total: number; short: boolean; by?: Signer | null; at?: string | null }
+}
+
+const who = (signer: Signer | null, at: string | null) => [signer?.name, formatWhen(at)].filter(Boolean).join(' · ') || null
+
+/** Enviado -> Llegó a la cabecera -> Llegó a la escuela, with who confirmed each step and when. */
+export function buildJourney(input: JourneyInput): JourneyStep[] {
+  const cabeceraDone = Boolean(input.cabeceraAt || input.cabeceraBy)
+  const { confirmed, total, short, by = null, at = null } = input.schools
+  const schoolsDone = total > 0 && confirmed >= total
+  const schoolDetail = total > 1 ? `${confirmed} de ${total} escuelas` : who(by, at)
+  return [
+    { label: 'Enviado', state: 'done', detail: `Planeamiento · ${formatWhen(input.dispatchedAt)}` },
+    { label: 'Llegó a la cabecera', state: cabeceraDone ? (input.cabeceraShort ? 'short' : 'done') : 'current', detail: who(input.cabeceraBy, input.cabeceraAt) },
+    {
+      label: 'Llegó a la escuela',
+      state: schoolsDone ? (short ? 'short' : 'done') : cabeceraDone ? 'current' : 'pending',
+      detail: schoolDetail,
+    },
+  ]
 }
 
 /** Quantity the item resolves to: an item with nothing expected needs no answer. */
@@ -73,7 +137,7 @@ export async function postReceipt(url: string, body: unknown): Promise<PostResul
 }
 
 export function errorMessage(code: string): string {
-  return ERROR_MESSAGES[code] ?? 'No se pudo firmar el recibido. Volvé a intentar.'
+  return ERROR_MESSAGES[code] ?? 'No se pudo confirmar. Probá de nuevo.'
 }
 
 /** One key per distinct payload: a retry of the same payload replays, an edited payload gets a fresh key. */
