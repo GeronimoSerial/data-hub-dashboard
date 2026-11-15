@@ -224,7 +224,6 @@
 .map-sitact__pill--aviso { color: var(--warn); }
 .map-sitact__pill--neutro { color: var(--ink-faint); }
 .map-sitact__pill--ok { color: var(--ok); }
-.map-sitact__pill--posible-centro { color: #15803d; font-weight: 600; }
 .map-sitact__cuando { flex-shrink: 0; align-self: flex-start; color: var(--ink-faint); font-size: var(--t-micro); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .map-sitact__filtros { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--s-2); }
 .map-sitact__filtro { padding: 5px 12px; border: 1px solid var(--line); border-radius: var(--r-pill); background: transparent; color: var(--ink-soft); font: inherit; font-size: var(--t-micro); font-weight: 600; cursor: pointer; transition: background-color 120ms ease-out, color 120ms ease-out; }

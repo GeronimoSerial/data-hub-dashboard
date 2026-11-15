@@ -3,8 +3,6 @@ import { es } from '@/lib/i18n/diccionarios/es'
 import type { Diccionario } from '@/lib/i18n/diccionarios/tipos'
 
 export const COLOR_POSIBLE_CENTRO = '#15803d'
-export const ETIQUETA_POSIBLE_CENTRO = 'Posible centro de evacuados'
-export const ETIQUETA_POSIBLE_CENTRO_SIN_ANTECEDENTES = 'Posible centro de evacuados (sin antecedentes de riesgo)'
 
 export interface CaminoCentro {
   linea: GeoJSON.FeatureCollection<GeoJSON.LineString, { tipo: 'camino' | 'linea_recta' }>
