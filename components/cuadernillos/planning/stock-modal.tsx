@@ -14,7 +14,7 @@ export function StockModal({ product, saving, error, onClose, onSubmit }: {
   onSubmit: (quantity: number, movement: 'initial' | 'replenishment') => void
 }) {
   return (
-    <Modal open={product !== null} title={product?.productLabel ?? 'Stock'} description="Cargar stock global" onClose={onClose}>
+    <Modal open={product !== null} title={product?.productLabel ?? 'Stock'} description="Cargá cuántos cuadernillos hay para enviar." onClose={onClose}>
       {product ? <StockForm key={product.productId} product={product} saving={saving} error={error} onSubmit={onSubmit} /> : null}
     </Modal>
   )
@@ -33,17 +33,17 @@ function StockForm({ product, saving, error, onSubmit }: {
     <>
       <ModalBody>
         <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
-          {initial ? 'Todavía no hay stock de este grado. Este es el ingreso inicial.' : `Stock actual: ${formatCount(product.globalAvailable ?? 0)}. Lo que cargues se suma como reposición.`}
+          {initial ? 'Todavía no hay stock de este grado. Cargá cuántos cuadernillos tenés.' : `Stock actual: ${formatCount(product.globalAvailable ?? 0)}. Lo que cargues se suma al stock.`}
         </p>
         <div className="k-qty-row">
-          <span className="k-row-title">{initial ? 'Ingreso inicial' : 'Reposición'}</span>
+          <span className="k-row-title">{initial ? 'Cuántos tenés' : 'Cuántos sumás'}</span>
           <Stepper label="Cantidad de stock" value={quantity} disabled={saving} onChange={setQuantity} />
         </div>
         {error ? <Note tone="danger">{error}</Note> : null}
       </ModalBody>
       <ModalFoot>
         <Button type="button" disabled={saving || quantity <= 0} onClick={() => onSubmit(quantity, movement)}>
-          {saving ? 'Guardando…' : 'Registrar movimiento'}
+          {saving ? 'Guardando…' : 'Guardar stock'}
         </Button>
       </ModalFoot>
     </>
