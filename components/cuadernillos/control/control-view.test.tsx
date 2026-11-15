@@ -44,52 +44,106 @@ const page = (remitos: unknown[]) => ({
 })
 
 describe('ControlView', () => {
-  it('renders the KPIs and the remito list, with no approve or reject actions', async () => {
+  it('opens with the task card, compact numbers and no approve or reject actions', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page([remito]))))
 
     render(<ControlView />)
 
-    const kpis = await screen.findByLabelText('Resumen de control')
-    expect(kpis).toHaveTextContent(/Remitos pendientes de recepción en cabecera\s*2/)
-    expect(kpis).toHaveTextContent(/Líneas pendientes en escuela\s*3/)
-    expect(kpis).toHaveTextContent(/Faltantes Planeamiento → Cabecera\s*5/)
-    expect(kpis).toHaveTextContent(/Faltantes Cabecera → Escuela\s*2/)
-    expect(screen.getByRole('button', { name: /Remito a Cabecera Norte/ })).toHaveTextContent('Con faltantes')
+    const task = await screen.findByLabelText('Lo que tenés que hacer')
+    expect(task).toHaveTextContent('1 envío llegó incompleto. Revisalos.')
+    const kpis = screen.getByLabelText('Resumen de envíos')
+    expect(kpis).toHaveTextContent(/Esperando a la cabecera\s*2/)
+    expect(kpis).toHaveTextContent(/Esperando a la escuela\s*3/)
+    expect(kpis).toHaveTextContent(/Llegó de menos a la cabecera\s*5/)
+    expect(kpis).toHaveTextContent(/Llegó de menos a la escuela\s*2/)
+    expect(screen.getByRole('button', { name: /Envío a Cabecera Norte/ })).toHaveTextContent('Llegó de menos')
     expect(screen.queryByRole('button', { name: /aprobar|rechazar/i })).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/remito|tramo|línea|faltantes/i)
   })
 
-  it('asks the server for remitos with shortfall only when filtered', async () => {
+  it('pluralises the task card and says nothing is pending when no envío is incomplete', async () => {
+    const second = { ...remito, remitoId: 'remito-2' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page([remito, second]))))
+    const { unmount } = render(<ControlView />)
+    expect(await screen.findByLabelText('Lo que tenés que hacer')).toHaveTextContent('2 envíos llegaron incompletos. Revisalos.')
+    unmount()
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page([{ ...remito, hasShortfall: false }]))))
+    render(<ControlView />)
+    expect(await screen.findByLabelText('Lo que tenés que hacer')).toHaveTextContent('No tenés nada pendiente.')
+    expect(screen.queryByRole('button', { name: 'Ver los incompletos' })).not.toBeInTheDocument()
+  })
+
+  it('asks the server for incomplete envíos only when the task card action is used', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(page([remito])))
     vi.stubGlobal('fetch', fetchMock)
 
     render(<ControlView />)
-    await screen.findByLabelText('Resumen de control')
+    await screen.findByLabelText('Resumen de envíos')
     expect(fetchMock).toHaveBeenLastCalledWith('/api/cuadernillos/control', expect.anything())
-    fireEvent.click(screen.getByRole('button', { name: 'Solo con faltantes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ver los incompletos' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith('/api/cuadernillos/control?onlyWithShortfall=true', expect.anything()))
+    expect(await screen.findByRole('button', { name: 'Ver todos los envíos' })).toBeInTheDocument()
   })
 
-  it('shows the chain with who signed, quantities and shortfall per leg with its reason', async () => {
+  it('keeps observations out of the list until an envío is opened', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page([{
+      ...remito,
+      observations: [{ id: 'obs-0', lineId: null, authorUserId: 'sup', authorName: 'Super Visor', body: 'Ya hablé con la cabecera', createdAt: '2026-11-13T12:00:00.000Z' }],
+    }]))))
+
+    render(<ControlView />)
+    const row = await screen.findByRole('button', { name: /Envío a Cabecera Norte/ })
+    expect(row).toHaveTextContent('1 observación')
+    expect(screen.queryByText('Ya hablé con la cabecera')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Agregar observación')).not.toBeInTheDocument()
+
+    fireEvent.click(row)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Ya hablé con la cabecera')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Agregar observación')).toBeInTheDocument()
+  })
+
+  it('shows the journey with who and when, quantities per product and the reasons', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page([remito]))))
 
     render(<ControlView />)
-    fireEvent.click(await screen.findByRole('button', { name: /Remito a Cabecera Norte/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Envío a Cabecera Norte/ }))
 
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('Despachó Plani Pérez')
-    expect(dialog).toHaveTextContent('Firmó Cabe Gómez')
+    const journey = within(dialog).getByRole('list', { name: 'Recorrido del envío' })
+    const steps = within(journey).getAllByRole('listitem')
+    expect(steps.map((step) => step.getAttribute('data-state'))).toEqual(['done', 'short', 'current'])
+    expect(steps[0]).toHaveTextContent('Plani Pérez')
+    expect(steps[1]).toHaveTextContent('Cabe Gómez')
+    expect(steps[1]).toHaveTextContent('llegó de menos')
+    expect(steps[2]).toHaveTextContent('1 de 2 escuelas')
+
     const lineA = within(dialog).getByRole('region', { name: 'Escuela A' })
-    expect(lineA).toHaveTextContent('Firmó Director A')
-    expect(lineA).toHaveTextContent('Despachado 30 · Cabecera 25 · Escuela 23')
-    expect(lineA).toHaveTextContent('Planeamiento → Cabecera: faltan 5')
-    expect(lineA).toHaveTextContent('Cabecera → Escuela: faltan 2')
-    expect(lineA).toHaveTextContent('Motivo del faltante en cabecera: Cajas dañadas')
-    expect(lineA).toHaveTextContent('Motivo del faltante en escuela: Faltaron 2 en la entrega')
-    expect(within(dialog).getByRole('region', { name: 'Escuela B' })).toHaveTextContent('Escuela: pendiente de firma')
+    expect(lineA).toHaveTextContent('Llegó a la escuela · Director A')
+    const row = within(lineA).getByRole('row', { name: /1\.er grado/ })
+    expect(within(row).getAllByRole('cell').map((c) => c.textContent)).toEqual(['30', '25 (faltan 5)', '23 (faltan 2)'])
+    expect(lineA).toHaveTextContent('Por qué llegó de menos a la cabecera: Cajas dañadas')
+    expect(lineA).toHaveTextContent('Por qué llegó de menos a la escuela: Faltaron 2 en la entrega')
+    expect(within(dialog).getByRole('region', { name: 'Escuela B' })).toHaveTextContent('Esperando a la escuela')
   })
 
-  it('posts an observation for a line and shows it in the list', async () => {
+  it('marks the journey as arrived when every school confirmed with nothing short', async () => {
+    const done = {
+      ...remito, hasShortfall: false,
+      lines: [{ ...remito.lines[0], cabeceraShortfallReason: null, schoolShortfallReason: null, items: [item({ schoolReceived: 30, planningToCabeceraShortfall: null, cabeceraReceived: 30 })] }],
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page([done]))))
+
+    render(<ControlView />)
+    fireEvent.click(await screen.findByRole('button', { name: /Envío a Cabecera Norte/ }))
+    const dialog = await screen.findByRole('dialog')
+    const steps = within(within(dialog).getByRole('list', { name: 'Recorrido del envío' })).getAllByRole('listitem')
+    expect(steps.map((step) => step.getAttribute('data-state'))).toEqual(['done', 'done', 'done'])
+  })
+
+  it('posts an observation for a school and shows it in the list', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (init?.method === 'POST') {
         return Promise.resolve(response({ observation: { id: 'obs-1', lineId: 'line-b', authorUserId: 'sup', authorName: 'Super Visor', body: 'Revisar el traslado', createdAt: '2026-11-13T12:00:00.000Z' } }, 201))
@@ -99,13 +153,13 @@ describe('ControlView', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<ControlView />)
-    fireEvent.click(await screen.findByRole('button', { name: /Remito a Cabecera Norte/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Envío a Cabecera Norte/ }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('Agregar observación'), { target: { value: 'Revisar el traslado' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Escuela B' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar observación' }))
 
-    const list = await within(dialog).findByRole('list', { name: 'Observaciones del remito' })
+    const list = await within(dialog).findByRole('list', { name: 'Observaciones del envío' })
     expect(list).toHaveTextContent('Revisar el traslado')
     expect(list).toHaveTextContent('Super Visor')
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
@@ -118,22 +172,24 @@ describe('ControlView', () => {
       Promise.resolve(init?.method === 'POST' ? response({ error: 'forbidden' }, 403) : response(page([remito])))))
 
     render(<ControlView />)
-    fireEvent.click(await screen.findByRole('button', { name: /Remito a Cabecera Norte/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Envío a Cabecera Norte/ }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('Agregar observación'), { target: { value: 'Hola' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar observación' }))
 
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Esta cuenta no puede agregar observaciones a este remito.')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Esta cuenta no puede dejar observaciones en este envío.')
   })
 
-  it('shows an empty state and a load error', async () => {
+  it('shows the empty state with the circuit guide, and a load error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page([]))))
     const { unmount } = render(<ControlView />)
-    expect(await screen.findByText('Todavía no hay remitos para controlar')).toBeInTheDocument()
+    expect(await screen.findByText('Todavía no hay envíos para revisar')).toBeInTheDocument()
+    expect(screen.getByLabelText('Cómo funciona')).toBeInTheDocument()
+    expect(screen.getByLabelText('Lo que tenés que hacer')).toHaveTextContent('No tenés nada pendiente.')
     unmount()
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ error: 'forbidden' }, 403)))
     render(<ControlView />)
-    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar el control de remitos.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudieron cargar los envíos.')
   })
 })
