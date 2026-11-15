@@ -235,31 +235,30 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
 
         {step === 'revision' ? (
           <>
-            <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
-              Envío a {cabecera?.nombre} para {lines.length} escuela{lines.length === 1 ? '' : 's'}.
-            </p>
-            <ul className="k-qty-list" aria-label="Totales contra stock">
-              {totals.filter((row) => row.requested > 0 || row.available > 0).map((row) => (
-                <li key={row.productId} className="k-qty-row" data-active={row.requested > row.available ? 'true' : undefined}>
-                  <span className="k-row-main">
-                    <span className="k-row-title">{shortProduct(row.productLabel)}</span>
-                    <span className="k-row-meta">Enviás {formatCount(row.requested)} · Stock {formatCount(row.available)}</span>
-                  </span>
-                  {row.requested > row.available
-                    ? <Chip tone="danger">Faltan {formatCount(row.requested - row.available)}</Chip>
-                    : <Chip tone="ok">Alcanza</Chip>}
-                </li>
-              ))}
-            </ul>
-            <ul className="k-qty-list" aria-label="Escuelas del envío">
+            <section className="k-receipt" aria-label="Detalle del envío">
+              <header className="k-receipt-head">
+                <span>Envío a</span>
+                <strong>{cabecera?.nombre}</strong>
+              </header>
               {lines.map((line) => (
-                <li key={line.recipientCueAnexo} className="k-qty-row">
-                  <span className="k-row-title">{schoolNames.get(line.recipientCueAnexo) ?? line.recipientCueAnexo}</span>
-                  <span className="k-row-meta">{formatCount(line.items.reduce((sum, item) => sum + item.quantity, 0))} cuadernillos</span>
-                </li>
+                <div key={line.recipientCueAnexo} className="k-receipt-group">
+                  <h4>{schoolNames.get(line.recipientCueAnexo) ?? line.recipientCueAnexo}</h4>
+                  <dl>
+                    {line.items.filter((item) => item.quantity > 0).map((item) => (
+                      <div key={item.productId}>
+                        <dt>{shortProduct(labels.get(item.productId) ?? item.productId)}</dt>
+                        <dd>{formatCount(item.quantity)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
               ))}
-            </ul>
-            {short.length > 0 ? <Note tone="danger">No alcanza el stock de {short.map((row) => shortProduct(row.productLabel)).join(', ')}. Volvé atrás y bajá las cantidades.</Note> : null}
+              <p className="k-receipt-total">
+                <span>Total</span>
+                <strong>{formatCount(lines.reduce((sum, line) => sum + line.items.reduce((acc, item) => acc + item.quantity, 0), 0))} cuadernillos</strong>
+              </p>
+            </section>
+            {short.length > 0 ? <Note tone="danger">{`No alcanza el stock: ${short.map((row) => `${shortProduct(row.productLabel)} (quedan ${formatCount(row.available)}, pediste ${formatCount(row.requested)})`).join(', ')}. Volvé atrás y bajá las cantidades.`}</Note> : null}
             {lines.length === 0 ? <Note tone="danger">El envío no tiene cantidades. Volvé atrás y cargalas.</Note> : null}
           </>
         ) : null}
