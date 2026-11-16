@@ -151,6 +151,66 @@ describe('calcularAcumuladoObservado (función pura)', () => {
   })
 })
 
+describe('calcularAcumuladoObservado: confianza por calidad IMERG', () => {
+  const ASOF = new Date('2026-11-15T00:00:00.000Z')
+  const conCalidad = (calidades: Array<number | null>, valor = 1) =>
+    calidades.map((calidad, i) => ({
+      valor,
+      calidad,
+      validoHasta: new Date(ASOF.getTime() - i * 30 * 60 * 1000).toISOString(),
+    }))
+  const calcular = (granulos: ReturnType<typeof conCalidad>) =>
+    calcularAcumuladoObservado({ geometryRef: CELDA, horizonteHoras: 24, granulos, asOf: ASOF })
+
+  it('lluvia con calidad baja (14/11: 0.33-0.50) se marca confianza baja y conserva el acumulado', () => {
+    const calidades = Array.from({ length: 48 }, (_, i) => (i % 2 === 0 ? 0.33 : 0.5))
+    const resultado = calcular(conCalidad(calidades))
+
+    expect(resultado.confianza).toBe('baja')
+    expect(resultado.calidadPonderada).toBeCloseTo(0.415, 3)
+    expect(resultado.acumuladoMm).toBe(48)
+  })
+
+  it('lluvia con calidad alta se marca confianza alta', () => {
+    const resultado = calcular(conCalidad(Array.from({ length: 48 }, () => 0.7)))
+
+    expect(resultado.confianza).toBe('alta')
+    expect(resultado.calidadPonderada).toBeCloseTo(0.7, 5)
+  })
+
+  it('pondera por mm: un gránulo lluvioso de buena calidad pesa más que muchos casi secos de mala', () => {
+    const granulos = conCalidad(Array.from({ length: 48 }, () => 0.3), 0.01)
+    granulos[0] = { ...granulos[0], valor: 20, calidad: 0.8 }
+
+    expect(calcular(granulos).confianza).toBe('alta')
+  })
+
+  it('calidad null es desconocida: no baja la confianza ni entra en el promedio', () => {
+    const resultado = calcular(conCalidad(Array.from({ length: 48 }, () => null)))
+
+    expect(resultado.confianza).toBe('alta')
+    expect(resultado.calidadPonderada).toBeNull()
+  })
+
+  it('sin lluvia (todo 0) o sin acumulado (cobertura insuficiente) la confianza es alta', () => {
+    const seco = calcular(conCalidad(Array.from({ length: 48 }, () => 0.2), 0))
+    const incompleto = calcular(conCalidad([0.2, 0.2, 0.2]))
+
+    expect(seco.confianza).toBe('alta')
+    expect(seco.calidadPonderada).toBeNull()
+    expect(incompleto.acumuladoMm).toBeNull()
+    expect(incompleto.confianza).toBe('alta')
+  })
+
+  it('no altera el acumulado: igual con o sin calidad', () => {
+    const base = conCalidad(Array.from({ length: 48 }, () => null), 1.5)
+    const baja = conCalidad(Array.from({ length: 48 }, () => 0.2), 1.5)
+
+    expect(calcular(baja).acumuladoMm).toBe(calcular(base).acumuladoMm)
+    expect(calcular(baja).acumuladoMm).toBe(72)
+  })
+})
+
 describe('obtenerAcumuladoObservado (lectura DB)', () => {
   it('suma lo persistido en hazard_observation para la celda pedida', async () => {
     const asOf = new Date('2026-09-26T06:00:00.000Z')

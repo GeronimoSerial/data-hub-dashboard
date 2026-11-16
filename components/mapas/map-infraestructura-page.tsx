@@ -502,7 +502,7 @@ type InfoCruceClic = {
   nombreCurso: string | null
   nombrePuente: string | null
   // IMERG cell under the crossing when the observed-rain layer is on.
-  lluvia: { mm: number; horas: HorasLluvia } | null
+  lluvia: { mm: number; horas: HorasLluvia; bajaConfianza?: boolean } | null
 }
 
 const OFFSET_POPUP_DEPARTAMENTO: [number, number] = [0, -12]
@@ -1522,7 +1522,7 @@ export default function MapInfraestructuraPage(props: {
         indice: Number.isInteger(indice) && indice >= 0 ? indice : null,
         nombreCurso: texto(cruceClic.properties?.nombreCurso),
         nombrePuente: texto(cruceClic.properties?.nombrePuente),
-        lluvia: celdaLluvia && Number.isFinite(mm) ? { mm, horas: horasLluvia } : null,
+        lluvia: celdaLluvia && Number.isFinite(mm) ? { mm, horas: horasLluvia, bajaConfianza: celdaLluvia.properties?.confianza === 'baja' } : null,
       })
       return
     }

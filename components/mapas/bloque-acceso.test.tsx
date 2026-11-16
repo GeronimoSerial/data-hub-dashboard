@@ -148,19 +148,4 @@ describe('BloqueAcceso', () => {
       '/mapas/infraestructura#metodologia/inundacion-ruta-acceso',
     ])
   })
-
-  it('esencial: without any known value it renders nothing', () => {
-    const { container } = render(<BloqueAcceso geometria={null} exposicion={null} esencial />)
-    expect(container).toBeEmptyDOMElement()
-  })
-
-  it('esencial: keeps the rows with a known value and drops the method links', () => {
-    render(
-      <BloqueAcceso geometria={geometria} exposicion={exposicion('con_profundidad', 0.4, 'alto')} claseEscuela="sin_dato" esencial />,
-    )
-    expect(screen.getByTestId('bloque-acceso-cruces')).toBeInTheDocument()
-    expect(screen.getByTestId('bloque-acceso-riesgo')).toBeInTheDocument()
-    expect(screen.queryByTestId('bloque-acceso-escuela')).not.toBeInTheDocument()
-    expect(screen.queryByRole('link')).not.toBeInTheDocument()
-  })
 })

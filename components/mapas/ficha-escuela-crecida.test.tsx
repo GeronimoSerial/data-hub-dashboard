@@ -46,8 +46,7 @@ it('carga el gráfico real dentro de la ficha 1800818-00 aunque el riesgo public
   expect(within(grafico).getByRole('figure')).toHaveTextContent('15,47 m')
   expect(grafico).toHaveTextContent('280 m de la escuela')
   expect(grafico).toHaveTextContent('+11,87 m')
-  // The ficha is the day-to-day view: no study margin note and no missing-probability sentence.
-  expect(grafico).not.toHaveTextContent('Referencia del estudio')
-  expect(grafico).not.toHaveTextContent('todavía no se puede estimar la probabilidad')
+  expect(grafico).toHaveTextContent('Referencia del estudio')
+  expect(grafico).toHaveTextContent('todavía no se puede estimar la probabilidad')
   expect(fetchMock).toHaveBeenCalledWith('/api/infraestructura/riesgo/escuela/1800818-00?horizonte=72')
 })

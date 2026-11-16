@@ -31,6 +31,7 @@ export const libTextos2Es = {
     },
     motivo: { lluvia: 'lluvia', rafagas: 'ráfagas', caudal: 'crecida del río' },
     lluviaTresDias: (valor: string) => `Lluvia últimos 3 días: ${valor}`,
+    lluviaBajaConfianza: 'Estimación satelital de baja confianza: puede deberse a nubosidad o humedad, no necesariamente lluvia.',
     pronostico24h: (valor: string) => `Pronóstico próximas 24 h: ${valor}`,
     sinEstacion: 'Río: sin estación de referencia cercana',
     titulo: 'Situación de la escuela',

@@ -19,6 +19,8 @@ export type EscenarioFake = {
   caudal?: Record<string, NivelCaudalPunto> // key: puntoId
   lluvia72h?: Record<string, number | null> // key: geometryRef
   lluvia24h?: Record<string, number | null>
+  // Confianza de la lluvia satelital por celda; ausente = 'alta'.
+  lluviaConfianza?: Record<string, 'alta' | 'baja'>
   territorio?: Record<string, PerfilTerritorio>
   aislamiento?: Record<string, IndiceAislamiento>
   susceptibilidad?: Record<string, IndicadoresSusceptibilidad>
@@ -52,6 +54,8 @@ export function crearPuertosFake(escenario: EscenarioFake): PuertosMotor {
           acumuladoMm24h: escenario.lluvia24h?.[params.geometryRef] ?? null,
           acumuladoMm72h: escenario.lluvia72h?.[params.geometryRef] ?? null,
           observadoEn: escenario.lluvia72h?.[params.geometryRef] != null ? params.asOf : null,
+          confianza24h: escenario.lluviaConfianza?.[params.geometryRef] ?? 'alta',
+          confianza72h: escenario.lluviaConfianza?.[params.geometryRef] ?? 'alta',
         }
       },
     },

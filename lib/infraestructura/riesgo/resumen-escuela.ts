@@ -11,7 +11,8 @@ export type EntradaResumen = {
     horizonteHoras: number | null
     motivo: 'lluvia' | 'rafagas' | 'caudal' | null
   }
-  lluviaObservada72h: { mm: number | null; parcial: boolean; hasta: string | null }
+  /** `confianzaBaja`: estimación satelital de calidad baja (se muestra con aviso; no es una medición). */
+  lluviaObservada72h: { mm: number | null; parcial: boolean; hasta: string | null; confianzaBaja?: boolean }
   /** `corridaEn`: ISO de la corrida de pronóstico más reciente usada, si se conoce. */
   lluviaPronosticada24h: { mm: number | null; corridaEn?: string | null }
   rio: {
@@ -35,8 +36,6 @@ export type PuntoResumen = {
   /** ISO de la última actualización conocida, para el tooltip. */
   actualizado: string | null
   vencido: boolean
-  /** The point only says a value is missing; essential views skip it. */
-  sinDato?: true
 }
 
 export type ResumenEscuela = {
@@ -73,13 +72,13 @@ export function cantidadLluvia(mm: number, t: Diccionario = es): string {
 }
 
 function puntoLluvia(entrada: EntradaResumen, t: Diccionario): PuntoResumen {
-  const { mm, hasta } = entrada.lluviaObservada72h
+  const { mm, hasta, confianzaBaja } = entrada.lluviaObservada72h
   const valor = mm === null ? t.libTextos2.lluvia.sinDato : cantidadLluvia(mm, t)
   return {
     texto: t.libTextos2.resumenEscuela.lluviaTresDias(valor),
+    ...(mm !== null && confianzaBaja ? { detalle: t.libTextos2.resumenEscuela.lluviaBajaConfianza } : {}),
     actualizado: hasta,
     vencido: false,
-    ...(mm === null ? { sinDato: true as const } : {}),
   }
 }
 
@@ -89,19 +88,12 @@ function puntoPronostico(entrada: EntradaResumen, t: Diccionario): PuntoResumen 
   const desde = entrada.pronosticoDesactualizadoDesde
   // Vencido: la fecha del último éxito de la fuente; al día: la de la corrida usada.
   const actualizado = desde ?? entrada.lluviaPronosticada24h.corridaEn ?? null
-  return {
-    texto: t.libTextos2.resumenEscuela.pronostico24h(valor),
-    actualizado,
-    vencido: desde !== null,
-    ...(mm === null ? { sinDato: true as const } : {}),
-  }
+  return { texto: t.libTextos2.resumenEscuela.pronostico24h(valor), actualizado, vencido: desde !== null }
 }
 
 function puntoRio(entrada: EntradaResumen, t: Diccionario): PuntoResumen {
   const rio = entrada.rio
-  if (rio === null) {
-    return { texto: t.libTextos2.resumenEscuela.sinEstacion, actualizado: null, vencido: false, sinDato: true }
-  }
+  if (rio === null) return { texto: t.libTextos2.resumenEscuela.sinEstacion, actualizado: null, vencido: false }
   const altura = textoAlturaRio({
     alturaM: rio.alturaM,
     estado: rio.estado,

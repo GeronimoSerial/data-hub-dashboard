@@ -51,6 +51,12 @@ export interface LluviaObservadaCelda {
   // 'synop:<wmo>:<nombre>:<km>km' (estación SMN medida, preferida sobre IMERG).
   fuente24h?: string
   fuente72h?: string
+  // Confianza del acumulado satelital (calidad IMERG, ver peligro/observado.ts).
+  // 'baja' = estimación dudosa (p. ej. nubes frías vistas como lluvia): el
+  // motor no la usa para el puntaje de peligro. Ausente = 'alta'. Un acumulado
+  // medido en estación SMN siempre es 'alta'.
+  confianza24h?: 'alta' | 'baja'
+  confianza72h?: 'alta' | 'baja'
   // Climatología IMERG de la celda por ventana (P90/P95/P99), si existe; sin
   // ella el motor puntúa con umbrales absolutos documentados (lluvia-observada.ts).
   climatologia24h?: ClimatologiaObservada | null

@@ -20,8 +20,6 @@ interface BloqueAccesoProps {
   juntoLaguna?: boolean
   cargando?: boolean
   error?: boolean
-  /** Day-to-day view (school ficha): only rows with a known value, no method links. */
-  esencial?: boolean
 }
 
 function textoRiesgo(riesgo: TextosRiesgo, sujeto: string, nivel: NivelRiesgoTexto): string {
@@ -65,24 +63,19 @@ export function BloqueAcceso({
   juntoLaguna = false,
   cargando = false,
   error = false,
-  esencial = false,
 }: BloqueAccesoProps) {
   const diccionario = useTextos()
   const t = diccionario.fichaCuerpo.acceso
-  if (cargando) return esencial ? null : <p className="map-bloque-acceso__estado">{t.calculando}</p>
-  if (error) return esencial ? null : <p className="map-bloque-acceso__estado">{t.error}</p>
+  if (cargando) return <p className="map-bloque-acceso__estado">{t.calculando}</p>
+  if (error) return <p className="map-bloque-acceso__estado">{t.error}</p>
 
   const lineas = lineasAcceso(geometria, exposicion, diccionario)
   const nivelCaminoTexto = nivelCamino(lineas, exposicion)
-  const conDato = (nivel: NivelRiesgoTexto) => nivel !== 'sin_dato' && nivel !== 'sin_ruta'
-  const verEscuela = !esencial || conDato(claseEscuela) || juntoLaguna
-  const verCamino = !esencial || conDato(nivelCaminoTexto)
-  if (esencial && lineas === null && !verEscuela && !verCamino) return null
 
   return (
     <div className="map-bloque-acceso" aria-label={t.etiqueta}>
       {lineas === null ? (
-        esencial ? null : <p className="map-bloque-acceso__estado">{t.sinAcceso}</p>
+        <p className="map-bloque-acceso__estado">{t.sinAcceso}</p>
       ) : (
         <>
           {lineas.via && (
@@ -102,25 +95,19 @@ export function BloqueAcceso({
           </div>
         </>
       )}
-      {(verEscuela || verCamino) && (
       <div className="map-bloque-acceso__inundacion" data-testid="bloque-acceso-inundacion">
-        {verEscuela && (
         <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-escuela">
           <School aria-hidden="true" />
           <span className={claseCss(claseEscuela)}>{textoRiesgo(t.riesgo, t.sujetos.escuela, claseEscuela)}</span>
-          {!esencial && <LinkMetodologia seccion="inundacion-clases-rio" />}
+          <LinkMetodologia seccion="inundacion-clases-rio" />
           {juntoLaguna && <span className="badge badge--neutral" data-testid="bloque-acceso-laguna">{t.junto}</span>}
         </div>
-        )}
-        {verCamino && (
         <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-riesgo">
           <Route aria-hidden="true" />
           <span className={claseCss(nivelCaminoTexto)}>{textoRiesgo(t.riesgo, t.sujetos.camino, nivelCaminoTexto)}</span>
-          {!esencial && <LinkMetodologia seccion="inundacion-ruta-acceso" />}
+          <LinkMetodologia seccion="inundacion-ruta-acceso" />
         </div>
-        )}
       </div>
-      )}
     </div>
   )
 }

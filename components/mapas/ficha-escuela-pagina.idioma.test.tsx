@@ -89,7 +89,7 @@ describe('FichaEscuelaPagina · idioma', () => {
     const tabs = within(screen.getByRole('navigation', { name: 'Secciones de la ficha' }))
     expect(tabs.getByText('Situaciones (0)')).toBeVisible()
     expect(tabs.getByText('Bitácora')).toBeVisible()
-    expect(tabs.getByText('Pronóstico y riesgo')).toBeVisible()
+    expect(tabs.getByText('Territorio')).toBeVisible()
   })
 
   it('muestra la cabecera, las pestañas y los avisos de la ficha en portugués de Brasil', () => {
@@ -101,6 +101,6 @@ describe('FichaEscuelaPagina · idioma', () => {
     const tabs = within(screen.getByRole('navigation', { name: 'Seções da ficha' }))
     expect(tabs.getByText('Situações (0)')).toBeVisible()
     expect(tabs.getByText('Registro')).toBeVisible()
-    expect(tabs.getByText('Previsão e risco')).toBeVisible()
+    expect(tabs.getByText('Território')).toBeVisible()
   })
 })

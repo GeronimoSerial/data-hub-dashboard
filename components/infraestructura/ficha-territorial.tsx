@@ -18,8 +18,6 @@ export type EstadoVistaPeligro = 'con_datos' | 'sin_datos' | 'cargando'
 
 export interface FichaTerritorialProps {
   cueAnexo: string
-  /** Day-to-day view (school ficha): no technical detail and no rows that only report a missing value. */
-  esencial?: boolean
   // Localidad de la escuela: se usa para buscar la estación de río de referencia.
   localidad?: string
   // Dimensión SEPARADA "acceso territorial" (aislamiento OSM x peligro). No es
@@ -117,6 +115,9 @@ interface ObservadoAcumulado {
   granulosEsperados: number
   cobertura: number
   masRecienteEn: string | null
+  // Additive (calidad IMERG): absent in older responses, which count as 'alta'.
+  calidadPonderada?: number | null
+  confianza?: 'alta' | 'baja'
 }
 
 interface ClimatologiaPeligro {
@@ -354,7 +355,6 @@ function DatosTerritoriales({
   riesgoAcceso,
   estadoEdificio,
   onEstado,
-  esencial = false,
 }: FichaTerritorialProps): JSX.Element {
   const [estado, setEstado] = useState<EstadoFichaTerritorial>({ fase: 'cargando' })
   const dic = useTextos()
@@ -561,6 +561,9 @@ function DatosTerritoriales({
   const acumulados = peligro.observadoAcumulado ?? []
   const acumulado24h = acumulados.find((fila) => fila.horizonteHoras === 24) ?? null
   const acumulado72h = acumulados.find((fila) => fila.horizonteHoras === 72) ?? null
+  const lluviaSateliteBajaConfianza = [acumulado24h, acumulado72h].some(
+    (fila) => fila !== null && fila.acumuladoMm !== null && fila.confianza === 'baja',
+  )
 
   // --- Resumen en lenguaje llano (datos ya calculados arriba) ---
   const lluviaPronosticada24h = precipitacion
@@ -581,6 +584,7 @@ function DatosTerritoriales({
           mm: acumulado72h.acumuladoMm,
           parcial: cobertureParcial(acumulado72h),
           hasta: acumulado72h.masRecienteEn,
+          confianzaBaja: acumulado72h.confianza === 'baja',
         }
       : { mm: null, parcial: false, hasta: null },
     lluviaPronosticada24h: { mm: lluviaPronosticada24h, corridaEn: corridaPronostico24h },
@@ -608,19 +612,12 @@ function DatosTerritoriales({
       vencidas.find((fuente) => tipoFuente(fuente.provider) === 'pronóstico')?.ultimoExitoEn ?? null,
   }
   const resumen = resumirSituacionEscuela(entrada, dic)
-  // Points come as [observed rain, 24 h forecast, river]. The essential view already shows the
-  // forecast in the card above, so it keeps only the observed rain and the river, when they have a value.
-  const [puntoLluvia, , puntoRio] = resumen.puntos
-  const puntosVisibles = esencial
-    ? [puntoLluvia, puntoRio].filter((punto) => punto && !punto.sinDato)
-    : resumen.puntos
 
   return (
     <section className="ficha-territorial" data-testid="ficha-territorial-datos">
       {/* La conclusión de la escuela sale del motor de riesgo (RiesgoEscuela); acá sólo los datos de apoyo. */}
-      {puntosVisibles.length > 0 && (
       <ul className="ficha-territorial__puntos" data-testid="ficha-territorial-puntos">
-        {puntosVisibles.map((punto) => (
+        {resumen.puntos.map((punto) => (
           <li key={punto.texto}>
             {/* Sin avisos de frescura en el texto: la fecha va al tooltip y un dato vencido se ve atenuado. */}
             {/* Sin fecha conocida no hay tooltip: nunca un "Sin fecha de actualización" técnico. */}
@@ -635,9 +632,7 @@ function DatosTerritoriales({
           </li>
         ))}
       </ul>
-      )}
 
-      {!esencial && (
       <details className="ficha-territorial__detalle" data-testid="ficha-territorial-detalle">
         <summary>{t.verDetalle}</summary>
 
@@ -723,6 +718,11 @@ function DatosTerritoriales({
                 {t.ultimas72(textoAcumuladoObservado(t, dic, acumulado72h))}
               </p>
             )}
+            {lluviaSateliteBajaConfianza && (
+              <p className="ficha-territorial__fuente" data-testid="ficha-territorial-observado-baja-confianza">
+                {dic.libTextos2.resumenEscuela.lluviaBajaConfianza}
+              </p>
+            )}
           </div>
         )}
 
@@ -733,7 +733,6 @@ function DatosTerritoriales({
           </p>
         )}
       </details>
-      )}
 
       {/* Estado del edificio y acceso: dos dimensiones SEPARADAS. Se muestran
           a la vez cuando ambos datos existen, nunca una en lugar de la otra. */}
