@@ -214,23 +214,4 @@ describe('RiesgoEscuela', () => {
     render(<RiesgoEscuela cueAnexo={CUE} horizonte={72} planificacion={null} />)
     expect(screen.queryByTestId('riesgo-escuela-planificacion')).not.toBeInTheDocument()
   })
-
-  it('esencial: keeps the river comparison and drops sources, margins and method notes', async () => {
-    fetchMock.mockResolvedValue(jsonOk({ snapshot: snapshot('alto'), factores: [FACTOR_RIO], crecidaRio: PRESENTACION_CRECIDA }))
-    render(<RiesgoEscuela cueAnexo={CUE} horizonte={72} planificacion={PLANIFICACION} esencial />)
-    const bloque = await screen.findByRole('region', { name: 'Referencia de crecida del río' })
-    expect(bloque).toHaveTextContent('130 m de la escuela')
-    expect(bloque).toHaveTextContent('+3,38 m')
-    expect(bloque).not.toHaveTextContent('Imagen satelital')
-    expect(within(bloque).queryByText('Cómo se estima')).not.toBeInTheDocument()
-    expect(screen.getByTestId('riesgo-escuela-nivel')).toBeInTheDocument()
-    expect(screen.queryByText(/Estimación automática/)).not.toBeInTheDocument()
-    expect(document.querySelector('.riesgo-escuela__tecnico')).toBeNull()
-  })
-
-  it('esencial: a school the engine has not evaluated shows no climate-risk block', async () => {
-    fetchMock.mockResolvedValue(jsonOk({ snapshot: null, factores: [] }))
-    render(<RiesgoEscuela cueAnexo={CUE} horizonte={72} planificacion={null} esencial />)
-    await waitFor(() => expect(screen.queryByTestId('riesgo-escuela-actual')).not.toBeInTheDocument())
-  })
 })

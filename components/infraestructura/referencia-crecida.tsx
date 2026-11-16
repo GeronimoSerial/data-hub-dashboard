@@ -8,16 +8,7 @@ import { useTextos } from '@/lib/i18n/idioma-provider'
 const metros = (valor: number) => `${valor.toFixed(2).replace('.', ',')} m`
 const fechaCorta = (fecha: string) => fecha.split('-').reverse().join('/')
 
-export function ReferenciaCrecida({
-  crecida,
-  horizonte,
-  esencial = false,
-}: {
-  crecida: PresentacionCrecida
-  horizonte: HorizonteMotor
-  /** Day-to-day view: keeps the comparison and drops sources, margins and method notes. */
-  esencial?: boolean
-}) {
+export function ReferenciaCrecida({ crecida, horizonte }: { crecida: PresentacionCrecida; horizonte: HorizonteMotor }) {
   const r = useTextos().fichaTerritorio.referencia
   const { antecedente, alturaActualM, alturaCriticaM, subidaDesdeActualM, estacion } = crecida
   const niveles = [
@@ -49,9 +40,9 @@ export function ReferenciaCrecida({
               ? <>{r.quedoA}<strong>{(Math.round(antecedente.distanciaAguaM / 10) * 10).toLocaleString('es-AR')} m</strong>{r.deLaEscuela}</>
               : r.noAlcanzo}
           </p>
-          {!esencial && <p className="referencia-crecida__fuente">
+          <p className="referencia-crecida__fuente">
             {r.imagenSatelital}{antecedente.fecha && <>{r.del} <time dateTime={antecedente.fecha}>{fechaCorta(antecedente.fecha)}</time></>}.
-          </p>}
+          </p>
         </div>
       )}
       <figure className="referencia-crecida__grafico" aria-label={r.ariaGrafico}>
@@ -72,22 +63,20 @@ export function ReferenciaCrecida({
             </div>
           ))}
         </dl>
-        {!esencial && <figcaption>{r.alturaEscala(estacion)}</figcaption>}
+        <figcaption>{r.alturaEscala(estacion)}</figcaption>
       </figure>
       {subida !== null && subida > 0 && (
         <div className="referencia-crecida__diferencia">
           <strong>+{metros(subida)}</strong>
           <p>{antecedente ? r.masQueAquella : r.desdeUltimaLectura} {r.paraLlegarAlTerreno}</p>
-          {!esencial && <span>{crecida.origen === 'estudio_v04' ? r.referenciaMargen : r.estimacionMargen}</span>}
+          <span>{crecida.origen === 'estudio_v04' ? r.referenciaMargen : r.estimacionMargen}</span>
         </div>
       )}
-      {!(esencial && porcentaje === null) && (
       <p className="referencia-crecida__probabilidad">
         {porcentaje === null
           ? r.sinProbabilidad
           : <>{r.probabilidadPre} {plazo} {r.probabilidadPost} <strong>{porcentaje}</strong>.</>}
       </p>
-      )}
       {antecedente && antecedente.subidaHastaUmbralM !== null && antecedente.subidaHastaUmbralM <= 0 && (
         <p>{r.aquellaYaAlcanzaba}</p>
       )}
@@ -97,8 +86,7 @@ export function ReferenciaCrecida({
       {crecida.defensaCostera && (
         <p>{r.defensaCostera}</p>
       )}
-      {!esencial && alturaCriticaM === null && <p>{r.crecidaNoEstimada}</p>}
-      {!esencial && (
+      {alturaCriticaM === null && <p>{r.crecidaNoEstimada}</p>}
       <details className="referencia-crecida__detalle">
         <summary>{r.comoSeEstima}</summary>
         {subidaDesdeActualM !== null && subidaDesdeActualM > 0 && (
@@ -109,7 +97,6 @@ export function ReferenciaCrecida({
         <p>{r.margenConservador}</p>
         <p>{r.terrenoNoEdificio}</p>
       </details>
-      )}
     </section>
   )
 }
