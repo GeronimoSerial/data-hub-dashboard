@@ -193,6 +193,8 @@ export function crearAdapterLluvia(
         // Ambas ventanas terminan en el mismo gránulo ancla, así que
         // `masRecienteEn` coincide; se toma el de 72 h con fallback a 24 h.
         observadoEn: acumulado72h?.masRecienteEn ?? acumulado24h?.masRecienteEn ?? null,
+        confianza24h: acumulado24h?.confianza ?? 'alta',
+        confianza72h: acumulado72h?.confianza ?? 'alta',
       }
       const clima = await climatologiaDe(params.geometryRef)
       celda.climatologia24h = clima?.[24] ?? null
@@ -213,10 +215,12 @@ export function crearAdapterLluvia(
       if (synop24 !== null) {
         celda.acumuladoMm24h = synop24.acumuladoMm
         celda.fuente24h = fuente
+        celda.confianza24h = 'alta' // medición de estación: no depende de la calidad IMERG
       }
       if (synop72 !== null) {
         celda.acumuladoMm72h = synop72.acumuladoMm
         celda.fuente72h = fuente
+        celda.confianza72h = 'alta'
       }
       const ultimaSynop = synop72?.observadoEn ?? synop24?.observadoEn ?? null
       if (ultimaSynop !== null && (celda.observadoEn === null || ultimaSynop > celda.observadoEn)) {

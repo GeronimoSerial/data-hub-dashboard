@@ -49,8 +49,20 @@ describe('crearAdapterLluvia.obtenerAcumulado', () => {
       fuente72h: 'nasa-imerg',
       climatologia24h: null,
       climatologia72h: null,
+      confianza24h: 'alta',
+      confianza72h: 'alta',
     }
     expect(celda).toEqual(esperada)
+  })
+
+  it('propaga confianza baja cuando la calidad IMERG ponderada es baja (acumulado intacto)', async () => {
+    await db
+      .insert(hazardObservation)
+      .values(granulosConsecutivos(AS_OF, 144, 1).map((fila) => ({ ...fila, calidad: 0.4 })))
+
+    const celda = await crearAdapterLluvia().obtenerAcumulado({ geometryRef: CELDA, asOf: AS_OF })
+
+    expect(celda).toMatchObject({ acumuladoMm24h: 48, acumuladoMm72h: 144, confianza24h: 'baja', confianza72h: 'baja' })
   })
 
   it('sin filas en el rango devuelve null explícito (no 0, no error)', async () => {
@@ -63,6 +75,8 @@ describe('crearAdapterLluvia.obtenerAcumulado', () => {
       observadoEn: null,
       climatologia24h: null,
       climatologia72h: null,
+      confianza24h: 'alta',
+      confianza72h: 'alta',
     })
   })
 

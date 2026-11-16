@@ -1,11 +1,13 @@
-import { and, count, eq, gt, lte, max, sum } from 'drizzle-orm'
+import { and, count, eq, gt, lte, max, sql, sum } from 'drizzle-orm'
 import type { getDb } from '@/lib/db'
 import { hazardObservation } from '@/lib/db/schema'
 import {
   type HorizonteObservado,
   PROVIDER_OBSERVADO,
+  type ConfianzaObservado,
   UMBRAL_COBERTURA_MINIMA,
   VARIABLE_OBSERVADA,
+  confianzaDesdeCalidad,
 } from './observado'
 
 // Cadencia nativa de IMERG Early Run: un gránulo cada 30 min.
@@ -21,6 +23,10 @@ export interface CeldaObservada {
   esperados: number
   cobertura: number
   parcial: boolean
+  // Calidad IMERG ponderada por mm de la ventana (null si no hay lluvia con
+  // calidad conocida) y la confianza que se deriva de ella; ver observado.ts.
+  calidadPonderada: number | null
+  confianza: ConfianzaObservado
 }
 
 export interface GrillaObservada {
@@ -86,6 +92,9 @@ export async function obtenerGrillaObservada(db: Db, horas: HorizonteObservado):
       geometryRef: hazardObservation.geometryRef,
       suma: sum(hazardObservation.valor),
       granulos: count(),
+      // Media de calidad ponderada por mm: sólo gránulos con lluvia y calidad conocida.
+      pesoCalidad: sql<string | null>`sum(${hazardObservation.valor}) filter (where ${hazardObservation.valor} > 0 and ${hazardObservation.calidad} is not null)`,
+      sumaCalidad: sql<string | null>`sum(${hazardObservation.valor} * ${hazardObservation.calidad}) filter (where ${hazardObservation.valor} > 0 and ${hazardObservation.calidad} is not null)`,
     })
     .from(hazardObservation)
     .where(
@@ -101,6 +110,8 @@ export async function obtenerGrillaObservada(db: Db, horas: HorizonteObservado):
   const celdas = filas.map((fila): CeldaObservada => {
     const granulos = Number(fila.granulos)
     const cobertura = Math.min(granulos / esperados, 1)
+    const peso = Number(fila.pesoCalidad ?? 0)
+    const calidadPonderada = peso > 0 ? Number(fila.sumaCalidad ?? 0) / peso : null
     return {
       geometryRef: fila.geometryRef,
       acumuladoMm: Math.round(Number(fila.suma ?? 0) * 10) / 10,
@@ -108,6 +119,8 @@ export async function obtenerGrillaObservada(db: Db, horas: HorizonteObservado):
       esperados,
       cobertura,
       parcial: cobertura < UMBRAL_COBERTURA_MINIMA,
+      calidadPonderada,
+      confianza: confianzaDesdeCalidad(calidadPonderada),
     }
   })
 

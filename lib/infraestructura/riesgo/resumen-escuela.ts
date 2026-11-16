@@ -11,7 +11,8 @@ export type EntradaResumen = {
     horizonteHoras: number | null
     motivo: 'lluvia' | 'rafagas' | 'caudal' | null
   }
-  lluviaObservada72h: { mm: number | null; parcial: boolean; hasta: string | null }
+  /** `confianzaBaja`: estimación satelital de calidad baja (se muestra con aviso; no es una medición). */
+  lluviaObservada72h: { mm: number | null; parcial: boolean; hasta: string | null; confianzaBaja?: boolean }
   /** `corridaEn`: ISO de la corrida de pronóstico más reciente usada, si se conoce. */
   lluviaPronosticada24h: { mm: number | null; corridaEn?: string | null }
   rio: {
@@ -71,9 +72,14 @@ export function cantidadLluvia(mm: number, t: Diccionario = es): string {
 }
 
 function puntoLluvia(entrada: EntradaResumen, t: Diccionario): PuntoResumen {
-  const { mm, hasta } = entrada.lluviaObservada72h
+  const { mm, hasta, confianzaBaja } = entrada.lluviaObservada72h
   const valor = mm === null ? t.libTextos2.lluvia.sinDato : cantidadLluvia(mm, t)
-  return { texto: t.libTextos2.resumenEscuela.lluviaTresDias(valor), actualizado: hasta, vencido: false }
+  return {
+    texto: t.libTextos2.resumenEscuela.lluviaTresDias(valor),
+    ...(mm !== null && confianzaBaja ? { detalle: t.libTextos2.resumenEscuela.lluviaBajaConfianza } : {}),
+    actualizado: hasta,
+    vencido: false,
+  }
 }
 
 function puntoPronostico(entrada: EntradaResumen, t: Diccionario): PuntoResumen {
