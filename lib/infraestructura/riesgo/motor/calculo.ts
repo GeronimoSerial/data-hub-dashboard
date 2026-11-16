@@ -288,7 +288,10 @@ export async function calcularRiesgoEscuela(params: {
   const observado = await puertos.lluviaObservada.obtenerAcumulado({ geometryRef, asOf })
   const mm = horizonte === 24 ? observado.acumuladoMm24h : observado.acumuladoMm72h
   let lluviaPresente = false
-  if (mm !== null) {
+  // Un acumulado satelital de baja confianza (calidad IMERG baja) se muestra
+  // en la ficha pero no puntúa peligro: cuenta como faltante, no como lluvia.
+  const confianzaLluvia = horizonte === 24 ? observado.confianza24h : observado.confianza72h
+  if (mm !== null && confianzaLluvia !== 'baja') {
     const ventana = horizonte === 24 ? 24 : 72
     const puntaje = valorLluviaObservada(
       mm,

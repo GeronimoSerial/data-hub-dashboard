@@ -117,6 +117,9 @@ interface ObservadoAcumulado {
   granulosEsperados: number
   cobertura: number
   masRecienteEn: string | null
+  // Additive (calidad IMERG): absent in older responses, which count as 'alta'.
+  calidadPonderada?: number | null
+  confianza?: 'alta' | 'baja'
 }
 
 interface ClimatologiaPeligro {
@@ -561,6 +564,9 @@ function DatosTerritoriales({
   const acumulados = peligro.observadoAcumulado ?? []
   const acumulado24h = acumulados.find((fila) => fila.horizonteHoras === 24) ?? null
   const acumulado72h = acumulados.find((fila) => fila.horizonteHoras === 72) ?? null
+  const lluviaSateliteBajaConfianza = [acumulado24h, acumulado72h].some(
+    (fila) => fila !== null && fila.acumuladoMm !== null && fila.confianza === 'baja',
+  )
 
   // --- Resumen en lenguaje llano (datos ya calculados arriba) ---
   const lluviaPronosticada24h = precipitacion
@@ -581,6 +587,7 @@ function DatosTerritoriales({
           mm: acumulado72h.acumuladoMm,
           parcial: cobertureParcial(acumulado72h),
           hasta: acumulado72h.masRecienteEn,
+          confianzaBaja: acumulado72h.confianza === 'baja',
         }
       : { mm: null, parcial: false, hasta: null },
     lluviaPronosticada24h: { mm: lluviaPronosticada24h, corridaEn: corridaPronostico24h },
@@ -721,6 +728,11 @@ function DatosTerritoriales({
             {acumulado72h && (
               <p className="ficha-territorial__dato" data-testid="ficha-territorial-observado-72h">
                 {t.ultimas72(textoAcumuladoObservado(t, dic, acumulado72h))}
+              </p>
+            )}
+            {lluviaSateliteBajaConfianza && (
+              <p className="ficha-territorial__fuente" data-testid="ficha-territorial-observado-baja-confianza">
+                {dic.libTextos2.resumenEscuela.lluviaBajaConfianza}
               </p>
             )}
           </div>
