@@ -31,6 +31,7 @@ export const radarRestoEs = {
     acumulado: (horas: number) => `Acumulado de las últimas ${horas} h`,
     masDe150: '150 mm o más',
     satelite: (cobertura: number) => `Faltan pasadas del satélite en esta ventana (${cobertura} % cubierto): la lluvia real puede ser mayor.`,
+    bajaConfianza: 'Estimación satelital de baja confianza: puede deberse a nubosidad o humedad, no necesariamente lluvia.',
     constelacion: 'Constelación de satélites NASA · JAXA',
   },
 } as const
