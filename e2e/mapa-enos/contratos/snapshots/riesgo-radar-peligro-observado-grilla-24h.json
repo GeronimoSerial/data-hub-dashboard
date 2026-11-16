@@ -33,7 +33,9 @@
         },
         "properties": {
           "acumuladoMm": 10.5,
+          "calidadPonderada": 1,
           "cobertura": 0.041666666666666664,
+          "confianza": "alta",
           "esperados": 48,
           "geometryRef": "-27.4_-58.9",
           "granulos": 2,
@@ -71,7 +73,9 @@
         },
         "properties": {
           "acumuladoMm": 7.3,
+          "calidadPonderada": 1,
           "cobertura": 0.041666666666666664,
+          "confianza": "alta",
           "esperados": 48,
           "geometryRef": "-27.5_-58.8",
           "granulos": 2,
@@ -109,7 +113,9 @@
         },
         "properties": {
           "acumuladoMm": 20,
+          "calidadPonderada": 1,
           "cobertura": 0.041666666666666664,
+          "confianza": "alta",
           "esperados": 48,
           "geometryRef": "-29.1_-59.2",
           "granulos": 2,

@@ -33,6 +33,7 @@ export const libTextos2Pt: DeepStringify<typeof libTextos2Es> = {
     },
     motivo: { lluvia: 'chuva', rafagas: 'rajadas', caudal: 'cheia do rio' },
     lluviaTresDias: (valor) => `Chuva últimos 3 dias: ${valor}`,
+    lluviaBajaConfianza: 'Estimativa de satélite de baixa confiança: pode ser causada por nebulosidade ou umidade, não necessariamente chuva.',
     pronostico24h: (valor) => `Previsão próximas 24 h: ${valor}`,
     sinEstacion: 'Rio: sem estação de referência próxima',
     titulo: 'Situação da escola',

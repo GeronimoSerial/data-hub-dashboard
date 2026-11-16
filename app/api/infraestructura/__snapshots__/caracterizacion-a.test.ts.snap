@@ -1858,7 +1858,9 @@ exports[`GET /api/infraestructura/peligro > returns the hazard layers for one gr
     "observadoAcumulado": [
       {
         "acumuladoMm": null,
+        "calidadPonderada": null,
         "cobertura": 0,
+        "confianza": "alta",
         "geometryRef": "-34.5_-58.5",
         "granulosEncontrados": 0,
         "granulosEsperados": 48,
@@ -1867,7 +1869,9 @@ exports[`GET /api/infraestructura/peligro > returns the hazard layers for one gr
       },
       {
         "acumuladoMm": null,
+        "calidadPonderada": null,
         "cobertura": 0,
+        "confianza": "alta",
         "geometryRef": "-34.5_-58.5",
         "granulosEncontrados": 0,
         "granulosEsperados": 144,

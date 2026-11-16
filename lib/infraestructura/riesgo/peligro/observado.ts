@@ -33,6 +33,41 @@ const GRANULOS_POR_HORA = 2
 // de la revisión.
 export const UMBRAL_COBERTURA_MINIMA = 0.8
 
+// Calidad (precipitationQualityIndex de IMERG, 0..1) ponderada por mm de la
+// ventana, por debajo de la cual el acumulado se presenta como estimación de
+// baja confianza. IMERG Early inventa lluvia con nubes frías y altas vistas en
+// infrarrojo; en esos gránulos la calidad es baja.
+//
+// Medido en prod (SELECT, 16/11/2026): la celda -27.5_-58.8 del 14/11 (32.9 mm
+// con SYNOP/Open-Meteo en 0 mm) tuvo calidad ponderada 0.41; las celdas con
+// >= 5 mm de IMERG en esa fecha tuvieron mediana 0.45. En días de lluvia real
+// (12/10, 22/10, 24/10, 11/11) las medianas fueron 0.55-0.60. El umbral 0.45
+// marca esa celda y deja pasar la lluvia típica; no separa de forma perfecta
+// (la calidad por sí sola es una señal débil), por eso "baja" sólo rotula y
+// excluye del puntaje de peligro, sin borrar el dato.
+export const UMBRAL_CALIDAD_CONFIABLE = 0.45
+
+export type ConfianzaObservado = 'alta' | 'baja'
+
+// Sin lluvia, sin acumulado o sin calidad conocida (null) la confianza es
+// 'alta': una calidad desconocida no es evidencia de mala calidad.
+export function confianzaDesdeCalidad(calidadPonderada: number | null): ConfianzaObservado {
+  return calidadPonderada !== null && calidadPonderada < UMBRAL_CALIDAD_CONFIABLE ? 'baja' : 'alta'
+}
+
+// Media de `calidad` ponderada por `valor`. Ignora gránulos sin lluvia
+// (valor <= 0) y sin calidad (null). null si no queda ninguno.
+export function calidadPonderadaPorLluvia(granulos: ReadonlyArray<{ valor: number; calidad?: number | null }>): number | null {
+  let peso = 0
+  let suma = 0
+  for (const g of granulos) {
+    if (g.valor <= 0 || g.calidad === null || g.calidad === undefined) continue
+    peso += g.valor
+    suma += g.valor * g.calidad
+  }
+  return peso > 0 ? suma / peso : null
+}
+
 export interface AcumuladoObservado {
   geometryRef: string
   horizonteHoras: HorizonteObservado
@@ -47,9 +82,16 @@ export interface AcumuladoObservado {
   // `observadoEn` del gránulo más reciente considerado (el ancla de la
   // ventana), o null si no había ningún gránulo <= asOf para la celda.
   masRecienteEn: string | null
+  // Media de la calidad IMERG ponderada por mm de la ventana; null si no hay
+  // lluvia, no hay acumulado o ningún gránulo con lluvia trae calidad.
+  calidadPonderada: number | null
+  // 'baja' cuando calidadPonderada < UMBRAL_CALIDAD_CONFIABLE. El acumulado se
+  // sigue informando; la baja confianza sólo lo rotula y lo saca del puntaje
+  // de peligro. 'alta' si no hay lluvia, acumulado nulo o calidad desconocida.
+  confianza: ConfianzaObservado
 }
 
-type GranuloBruto = { valor: number; validoHasta: string }
+type GranuloBruto = { valor: number; validoHasta: string; calidad?: number | null }
 
 function ventanaVacia(geometryRef: string, horizonteHoras: HorizonteObservado): AcumuladoObservado {
   const granulosEsperados = horizonteHoras * GRANULOS_POR_HORA
@@ -61,6 +103,8 @@ function ventanaVacia(geometryRef: string, horizonteHoras: HorizonteObservado): 
     granulosEsperados,
     cobertura: 0,
     masRecienteEn: null,
+    calidadPonderada: null,
+    confianza: 'alta',
   }
 }
 
@@ -117,9 +161,12 @@ export function calcularAcumuladoObservado(params: {
       granulosEsperados,
       cobertura,
       masRecienteEn,
+      calidadPonderada: null,
+      confianza: 'alta',
     }
   }
 
+  const calidadPonderada = calidadPonderadaPorLluvia(ventana)
   const acumuladoMm = ventana.reduce((total, g) => total + g.valor, 0)
   return {
     geometryRef,
@@ -129,6 +176,8 @@ export function calcularAcumuladoObservado(params: {
     granulosEsperados,
     cobertura,
     masRecienteEn,
+    calidadPonderada,
+    confianza: confianzaDesdeCalidad(calidadPonderada),
   }
 }
 
@@ -173,7 +222,11 @@ async function consultarGranulos(
   cotaSuperior: string,
 ): Promise<GranuloBruto[]> {
   return db
-    .select({ valor: hazardObservation.valor, validoHasta: hazardObservation.validoHasta })
+    .select({
+      valor: hazardObservation.valor,
+      validoHasta: hazardObservation.validoHasta,
+      calidad: hazardObservation.calidad,
+    })
     .from(hazardObservation)
     .where(
       and(
