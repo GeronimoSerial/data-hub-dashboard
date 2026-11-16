@@ -34,6 +34,12 @@ import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
 import { claseInundacion } from '@/lib/mapas/accesos-capas'
+import {
+  etiquetaNivelPlan,
+  nivelPlanificacion,
+  tituloLeyendaVista,
+  VISTAS_ESTRUCTURALES,
+} from '@/lib/infraestructura/mapa/planificacion'
 import type { EscuelaFichaEnriquecida } from '@/lib/infraestructura/parte-mapa'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 import {
@@ -250,6 +256,18 @@ export function FichaEscuelaPagina({
   const borradoresCount = borradoresMapa.error
     ? null
     : (borradoresMapa.counts.get(escuela.cueAnexo) ?? (borradoresMapa.loading ? null : 0))
+
+  const planificacion = useMemo(
+    () =>
+      VISTAS_ESTRUCTURALES.map((vista) => ({
+        etiquetaVista: tituloLeyendaVista(diccionario, vista),
+        etiquetaNivel:
+          vista === 'historial'
+            ? `${etiquetaNivelPlan(diccionario, nivelPlanificacion(escuela, vista, { territorio }))} (${escuela.situacionesHistoricas})`
+            : etiquetaNivelPlan(diccionario, nivelPlanificacion(escuela, vista, { territorio })),
+      })),
+    [diccionario, escuela, territorio],
+  )
 
   const ubicacionTexto = [
     escuela.localidad ? escuela.localidad.trim() : null,
@@ -509,72 +527,39 @@ export function FichaEscuelaPagina({
         </Link>
       </header>
 
-      <section className={styles.estadoHoy} aria-labelledby="titulo-continuidad">
-        <h2 id="titulo-continuidad" className={styles.sectionTitleSmall}>
-          {tb.estadoHoy}
-        </h2>
-        <dl className={styles.continuidad} aria-label={tb.continuidad}>
-          <div>
-            <dt>{t.vistaPrevia.funcionamiento}</dt>
-            <dd>{etiquetaFuncionamiento(situacionesFuncionamiento, diccionario)}</dd>
-          </div>
-          <div>
-            <dt>{t.vistaPrevia.clases}</dt>
-            <dd>{etiquetaClases(clasesActuales, clasesInformadas, diccionario)}</dd>
-          </div>
-          {tieneParteRegistrado && edificioRegistrado !== 'habitual' && (
-            <div>
-              <dt>{t.vistaPrevia.edificio}</dt>
-              <dd>{ETIQUETA_ESTABLECIMIENTO[edificioRegistrado]}</dd>
-            </div>
+      <div className={styles.estadoRapido} data-testid="ficha-ultimo-movimiento">
+        <p className={styles.estadoRapidoPrincipal}>
+          {ultimoMovimiento && lineasUltimo.length > 0 ? (
+            <>
+              <span className={styles.estadoRapidoEtiqueta}>{tb.ultimoMovimiento}</span>
+              <span>
+                <strong>{momentoCortoHistorial(ultimoMovimiento.creadaEn, ahora, idioma)}</strong>
+                {' · '}
+                {lineasUltimo[0].sujeto === tb.escuela
+                  ? lineasUltimo[0].detalle
+                  : `${lineasUltimo[0].sujeto}: ${lineasUltimo[0].detalle}`}
+                {lineasUltimo.length > 1 && tb.masCambios(lineasUltimo.length - 1)}
+                {ultimoMovimiento.rol === 'supervisor' && ` · ${tb.supervisor}`}
+              </span>
+            </>
+          ) : novedadRelativa ? (
+            <span>{tb.ultimaNovedad(novedadRelativa)}</span>
+          ) : (
+            <span>{tb.sinMovimientos}</span>
           )}
-          {asistencia && (
-            <div>
-              <dt>{t.vistaPrevia.asistencia}</dt>
-              <dd>{asistencia}</dd>
-            </div>
-          )}
-          {escuela.comedor !== undefined && (
-            <div>
-              <dt>{t.vistaPrevia.comedor}</dt>
-              <dd>{valorComedor(escuela.comedor)}</dd>
-            </div>
-          )}
-        </dl>
-        <div className={styles.estadoRapido} data-testid="ficha-ultimo-movimiento">
-          <p className={styles.estadoRapidoPrincipal}>
-            {ultimoMovimiento && lineasUltimo.length > 0 ? (
-              <>
-                <span className={styles.estadoRapidoEtiqueta}>{tb.ultimoMovimiento}</span>
-                <span>
-                  <strong>{momentoCortoHistorial(ultimoMovimiento.creadaEn, ahora, idioma)}</strong>
-                  {' · '}
-                  {lineasUltimo[0].sujeto === tb.escuela
-                    ? lineasUltimo[0].detalle
-                    : `${lineasUltimo[0].sujeto}: ${lineasUltimo[0].detalle}`}
-                  {lineasUltimo.length > 1 && tb.masCambios(lineasUltimo.length - 1)}
-                  {ultimoMovimiento.rol === 'supervisor' && ` · ${tb.supervisor}`}
-                </span>
-              </>
-            ) : novedadRelativa ? (
-              <span>{tb.ultimaNovedad(novedadRelativa)}</span>
-            ) : (
-              <span>{tb.sinMovimientos}</span>
-            )}
+        </p>
+        {ultimaLlamada && (
+          <p className={styles.estadoRapidoSecundario}>
+            {tb.ultimaLlamada(momentoCortoHistorial(ultimaLlamada.creadaEn, ahora, idioma))}
           </p>
-          {ultimaLlamada && (
-            <p className={styles.estadoRapidoSecundario}>
-              {tb.ultimaLlamada(momentoCortoHistorial(ultimaLlamada.creadaEn, ahora, idioma))}
-            </p>
-          )}
-          {escuela.sinActualizar && (
-            <p className={styles.chipAviso} data-testid="ficha-chip-sin-actualizar">
-              <Clock size={12} aria-hidden="true" />
-              {tb.sinActualizar}
-            </p>
-          )}
-        </div>
-      </section>
+        )}
+        {escuela.sinActualizar && (
+          <p className={styles.chipAviso} data-testid="ficha-chip-sin-actualizar">
+            <Clock size={12} aria-hidden="true" />
+            {tb.sinActualizar}
+          </p>
+        )}
+      </div>
 
       <nav ref={cabeceraRef} className={styles.tabs} aria-label={t.seccionesFicha}>
         {pestanas.map((pestana) => (
@@ -613,6 +598,9 @@ export function FichaEscuelaPagina({
               <>
                 <div className={styles.sectionHeader}>
                   <h3 className={styles.sectionTitleSmall}>{tb.situacionesAbiertas}</h3>
+                  {situacionesPorFecha.length > 1 && (
+                    <span className={styles.sectionMeta}>{tb.porUltimoCambio}</span>
+                  )}
                 </div>
                 {situacionesPorFecha.map(({ afectacion, tiempos }, indice) => renderSituacion(afectacion, tiempos, indice))}
               </>
@@ -625,6 +613,40 @@ export function FichaEscuelaPagina({
                 )}
               </div>
             )}
+          </section>
+
+          <section className={styles.section} aria-labelledby="titulo-continuidad">
+            <h3 id="titulo-continuidad" className={styles.sectionTitle}>
+              {tb.continuidad}
+            </h3>
+            <dl className={styles.continuidad} aria-label={tb.continuidad}>
+              <div>
+                <dt>{t.vistaPrevia.funcionamiento}</dt>
+                <dd>{etiquetaFuncionamiento(situacionesFuncionamiento, diccionario)}</dd>
+              </div>
+              <div>
+                <dt>{t.vistaPrevia.clases}</dt>
+                <dd>{etiquetaClases(clasesActuales, clasesInformadas, diccionario)}</dd>
+              </div>
+              {tieneParteRegistrado && edificioRegistrado !== 'habitual' && (
+                <div>
+                  <dt>{t.vistaPrevia.edificio}</dt>
+                  <dd>{ETIQUETA_ESTABLECIMIENTO[edificioRegistrado]}</dd>
+                </div>
+              )}
+              {asistencia && (
+                <div>
+                  <dt>{t.vistaPrevia.asistencia}</dt>
+                  <dd>{asistencia}</dd>
+                </div>
+              )}
+              {escuela.comedor !== undefined && (
+                <div>
+                  <dt>{t.vistaPrevia.comedor}</dt>
+                  <dd>{valorComedor(escuela.comedor)}</dd>
+                </div>
+              )}
+            </dl>
           </section>
 
           <section
@@ -664,14 +686,14 @@ export function FichaEscuelaPagina({
               {tp.pronosticoEscuela}
             </h3>
             <p className={styles.sectionMeta}>{tp.condicionesPrevistas}</p>
-            <FichaTerritorial cueAnexo={escuela.cueAnexo} localidad={escuela.localidad} esencial />
+            <FichaTerritorial cueAnexo={escuela.cueAnexo} localidad={escuela.localidad} />
           </section>
 
           <section className={styles.section} aria-labelledby="titulo-riesgo">
             <h3 id="titulo-riesgo" className={styles.sectionTitleSmall}>
               {tp.riesgoEscuela}
             </h3>
-            <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={72} planificacion={null} esencial />
+            <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={72} planificacion={planificacion} />
           </section>
 
 
@@ -692,9 +714,13 @@ export function FichaEscuelaPagina({
             <div className={styles.direccion}>
               <p className={styles.direccionFuerte}>{escuela.localidad?.trim() || tp.sinLocalidad}</p>
               <p>{etiquetaDepartamento(escuela.departamento)}, {jurisdiccionCorta()}</p>
+              {!sinUbicacion && (
+                <p className={styles.coordenadas}>
+                  {escuela.lat?.toFixed(4)}, {escuela.lon?.toFixed(4)}
+                </p>
+              )}
             </div>
             <BloqueAcceso
-              esencial
               geometria={geometria}
               exposicion={exposicion}
               claseEscuela={claseInundacion(

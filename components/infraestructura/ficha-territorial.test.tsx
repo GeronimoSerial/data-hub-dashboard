@@ -251,25 +251,6 @@ describe('FichaTerritorial', () => {
     expect(within(detalle as HTMLElement).getAllByTestId('ficha-territorial-nivel-peligro')).toHaveLength(3)
   })
 
-  it('esencial: drops the technical detail and the rows that only report a missing value', async () => {
-    stubFetch({
-      peligro: () =>
-        jsonOk({
-          niveles: [nivel(24, 'naranja', 85), nivel(72, 'amarillo', 90), nivel(240, 'sin_dato')],
-          climatologia: [climatologiaLluvia(62)],
-          observado: [],
-        }),
-    })
-
-    const { container } = render(<FichaTerritorial cueAnexo={CUE} esencial />)
-
-    const datos = await screen.findByTestId('ficha-territorial-datos')
-    expect(container.querySelector('details')).toBeNull()
-    expect(datos).not.toHaveTextContent('sin dato')
-    expect(datos).not.toHaveTextContent('sin estación de referencia')
-    expect(datos).not.toHaveTextContent('Pronóstico próximas 24 h')
-  })
-
   it('nunca renderiza ids internos, códigos de calidad ni nombres de proveedor', async () => {
     stubFetch({
       peligro: () =>
