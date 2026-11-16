@@ -19,8 +19,6 @@ export type RiesgoEscuelaProps = {
   cueAnexo: string
   horizonte: HorizonteMotor
   planificacion: Planificacion | null
-  /** Day-to-day view (school ficha): conclusions only, no method notes and no block for an unevaluated school. */
-  esencial?: boolean
 }
 
 type RespuestaRiesgo = { snapshot: SnapshotMotor | null; factores: FactorMotor[]; crecidaRio?: PresentacionCrecida | null }
@@ -30,7 +28,7 @@ type EstadoRiesgo =
   | { fase: 'error'; clave: string }
   | { fase: 'listo'; clave: string; explicacion: ExplicacionSnapshot; crecidaRio: PresentacionCrecida | null }
 
-export function RiesgoEscuela({ cueAnexo, horizonte, planificacion, esencial = false }: RiesgoEscuelaProps): JSX.Element {
+export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscuelaProps): JSX.Element {
   const dic = useTextos()
   const t = dic.fichaPanorama.riesgo
   const clave = `${cueAnexo}|${horizonte}`
@@ -61,30 +59,23 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion, esencial = f
     }
   }, [cueAnexo, horizonte, dic])
 
-  // An unevaluated school has no level to show: the essential view drops the whole block.
-  const sinEvaluar = esencial && estado.fase === 'listo' && estado.explicacion.nivel === null
-
   return (
     <section className="riesgo-escuela" aria-label={t.region}>
-      {estado.fase === 'listo' && estado.crecidaRio && (
-        <ReferenciaCrecida crecida={estado.crecidaRio} horizonte={horizonte} esencial={esencial} />
-      )}
-      {!sinEvaluar && (
+      {estado.fase === 'listo' && estado.crecidaRio && <ReferenciaCrecida crecida={estado.crecidaRio} horizonte={horizonte} />}
       <div className="riesgo-escuela__bloque" data-testid="riesgo-escuela-actual">
         <div className="riesgo-escuela__encabezado">
           <h3 className="riesgo-escuela__titulo">{t.titulo}</h3>
           <span className="riesgo-escuela__horizonte">{t.horizonte(etiquetaHorizonteMotor(horizonte, dic))}</span>
         </div>
-        {!esencial && <p className="riesgo-escuela__explicacion">{t.explicacion}</p>}
+        <p className="riesgo-escuela__explicacion">{t.explicacion}</p>
         {estado.fase === 'cargando' && (
           <p role="status">{t.cargando}</p>
         )}
         {estado.fase === 'error' && (
           <p role="alert">{t.error}</p>
         )}
-        {estado.fase === 'listo' && <ContenidoRiesgo explicacion={estado.explicacion} esencial={esencial} />}
+        {estado.fase === 'listo' && <ContenidoRiesgo explicacion={estado.explicacion} />}
       </div>
-      )}
 
       {planificacion && planificacion.some((fila) => !esSinValor(fila.etiquetaNivel)) && (
         <div className="riesgo-escuela__bloque" data-testid="riesgo-escuela-planificacion">
@@ -118,7 +109,7 @@ function esSinValor(etiqueta: string | null | undefined): boolean {
   return limpio === '' || /^Nulo(\s*\(0\))?$/.test(limpio)
 }
 
-function ContenidoRiesgo({ explicacion, esencial }: { explicacion: ExplicacionSnapshot; esencial: boolean }): JSX.Element {
+function ContenidoRiesgo({ explicacion }: { explicacion: ExplicacionSnapshot }): JSX.Element {
   const t = useTextos().fichaPanorama.riesgo
   const { nivel, etiquetaNivel, conclusion, zonaExpuesta, detalleTecnico } = explicacion
   // La primera evidencia ya está en la conclusión: no se repite en la lista.
@@ -155,7 +146,7 @@ function ContenidoRiesgo({ explicacion, esencial }: { explicacion: ExplicacionSn
           <p>{zonaExpuesta}</p>
         </>
       )}
-      {!esencial && detalleTecnico.length > 0 && (
+      {detalleTecnico.length > 0 && (
         <details className="riesgo-escuela__tecnico">
           <summary>{t.detalleTecnico}</summary>
           <dl>

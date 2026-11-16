@@ -599,18 +599,23 @@ describe('FichaEscuelaPanel — comedor y posible centro de evacuados', () => {
     expect(screen.queryByText(/^Comedor:/)).not.toBeInTheDocument()
   })
 
-  it.each([
-    [{ posibleCentroEvacuados: true }],
-    [{ posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true as const }],
-  ])('no muestra la sugerencia calculada de centro de evacuados (%o)', (marcas) => {
-    renderFicha({ escuela: { ...escuela, ...marcas } })
-    expect(screen.queryByText(/Posible centro de evacuados/)).not.toBeInTheDocument()
+  it('una escuela apta sin antecedentes aclara que no hay datos de riesgo', () => {
+    renderFicha({ escuela: { ...escuela, posibleCentroEvacuados: true, posibleCentroSinAntecedentes: true } })
+    expect(screen.getByText('Posible centro de evacuados (sin antecedentes de riesgo)')).toBeInTheDocument()
   })
 
-  it('el estado reportado "Usado como centro de evacuados" se sigue mostrando', () => {
+  it('una escuela apta muestra la insignia "Posible centro de evacuados"; una no apta no', () => {
+    const { unmount } = renderFicha({ escuela: { ...escuela, posibleCentroEvacuados: true } })
+    expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
+    unmount()
+    renderFicha({ escuela: { ...escuela, posibleCentroEvacuados: false } })
+    expect(screen.queryByText('Posible centro de evacuados')).not.toBeInTheDocument()
+  })
+
+  it('la insignia es distinta del estado reportado "Usado como centro de evacuados"', () => {
     renderFicha({ escuela: { ...escuela, clases: 'centro', clasesInformadas: true, posibleCentroEvacuados: true } })
     expect(screen.getAllByText('Usado como centro de evacuados').length).toBeGreaterThan(0)
-    expect(screen.queryByText(/Posible centro de evacuados/)).not.toBeInTheDocument()
+    expect(screen.getByText('Posible centro de evacuados')).toBeInTheDocument()
   })
 })
 

@@ -39,19 +39,9 @@ describe('resumirSituacionEscuela', () => {
           vencido: false,
         },
         { texto: 'Pronóstico próximas 24 h: sin lluvia', actualizado: null, vencido: false },
-        { texto: 'Río: sin estación de referencia cercana', actualizado: null, vencido: false, sinDato: true },
+        { texto: 'Río: sin estación de referencia cercana', actualizado: null, vencido: false },
       ],
     })
-  })
-
-  it('marks as sinDato only the points that report a missing value', () => {
-    const r = resumirSituacionEscuela({
-      ...base,
-      lluviaObservada72h: { mm: null, parcial: false, hasta: null },
-      lluviaPronosticada24h: { mm: null, corridaEn: null },
-    })
-    expect(r.puntos.map((punto) => punto.sinDato ?? false)).toEqual([true, true, true])
-    expect(resumirSituacionEscuela(base).puntos.map((punto) => punto.sinDato ?? false)).toEqual([false, false, true])
   })
 
   it('no agrega sufijo de datos incompletos a la lluvia observada parcial', () => {

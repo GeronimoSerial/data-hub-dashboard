@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { FichaEscuelaPagina } from './ficha-escuela-pagina'
 import type { EscuelaFichaEnriquecida } from '@/lib/infraestructura/parte-mapa'
 
@@ -389,20 +389,6 @@ describe('FichaEscuelaPagina — comedor y posible centro de evacuados', () => {
     renderPagina(marcas)
     expect(screen.queryByText('Posible centro de evacuados')).not.toBeInTheDocument()
   })
-
-  it('shows how the school is today before the section tabs, closed by the latest news', () => {
-    renderPagina({})
-    const estado = screen.getByRole('heading', { name: 'Cómo está la escuela hoy' }).closest('section')!
-    const tabs = screen.getByRole('navigation', { name: 'Secciones de la ficha' })
-    expect(estado.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(within(estado).getByText('Funcionamiento')).toBeInTheDocument()
-    expect(within(estado).getByTestId('ficha-ultimo-movimiento')).toBeInTheDocument()
-  })
-
-  it('does not print the coordinates', () => {
-    renderPagina({})
-    expect(screen.queryByText(/-27\.47/)).not.toBeInTheDocument()
-  })
 })
 
 describe('FichaEscuelaPagina — zero and just-now values', () => {
@@ -455,7 +441,7 @@ describe('FichaEscuelaPagina — which situation is newest', () => {
     expect(tarjetas[0]).toHaveAttribute('data-testid', 'ficha-incidente')
     expect(tarjetas[0].querySelector('time')).toHaveTextContent(/12\/11/)
     expect(tarjetas[2]).toHaveTextContent(/Cargada 9\/11/)
-    expect(screen.queryByText('Por último cambio, más reciente primero')).not.toBeInTheDocument()
+    expect(screen.getByText('Por último cambio, más reciente primero')).toBeVisible()
   })
 
   it('puts the situation in bold as the subject of each log line', () => {

@@ -417,23 +417,13 @@
   display: none;
 }
 
-/* How the school is today: sits between the header and the tabs, before any detail. */
-.estadoHoy {
-  display: flex;
-  flex-direction: column;
-  gap: 0.875rem;
-  margin-bottom: 1rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--f-line);
-  border-radius: 0.75rem;
-  background: var(--f-panel);
-}
-
+/* Educational continuity */
 .continuidad {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.5rem;
   margin: 0;
+  padding-top: 0.25rem;
 }
 
 .continuidad > div:not(:last-child) {
@@ -501,6 +491,10 @@
   color: var(--f-ink-2);
 }
 
+.coordenadas {
+  color: var(--f-ink-6);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Surroundings */
 
@@ -582,14 +576,13 @@
 }
 
 
-/* Status line: the last recorded change, closing the state block */
+/* Status line: the last recorded change, under the school meta */
 .estadoRapido {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.25rem 1.5rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--f-line);
+  margin: -0.25rem 0 0.5rem;
   font-size: var(--fs-13-5);
   color: var(--f-ink-5);
 }
