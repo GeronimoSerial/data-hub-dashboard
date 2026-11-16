@@ -55,6 +55,15 @@ describe('pintarGrillaLluvia', () => {
     expect(pixel(grilla, 14, 0)).toEqual([56, 140, 240, 191])
   })
 
+  it('dibuja una celda de baja confianza con el mismo color pero alfa reducido (incierta, no oculta)', () => {
+    const grilla = pintarGrillaLluvia([{ geometryRef: '-27.4_-58.8', acumuladoMm: 30, confianza: 'baja' }])
+
+    const [r, g, b, alfa] = pixel(grilla, 0, 0)
+    expect([r, g, b]).toEqual([56, 140, 240])
+    expect(alfa).toBeGreaterThan(0)
+    expect(alfa).toBeLessThan(191)
+  })
+
   it('deja transparente una celda menor a 1 mm', () => {
     const grilla = pintarGrillaLluvia(celdas)
 
@@ -178,6 +187,24 @@ describe('CapaLluviaObservada', () => {
     expect(popup.textContent).toContain('10–25 mm')
     expect(popup.textContent).toContain('(69 % cubierto): la lluvia real puede ser mayor.')
     expect(popup.textContent).toContain('NASA IMERG')
+  })
+
+  it('el popup de una celda de baja confianza lo dice; el de una de confianza alta no', async () => {
+    render(<CapaLluviaObservada visible horas={72} />)
+    await waitFor(() => expect(screen.getAllByTestId('source').length).toBeGreaterThan(0))
+    const manejadorClic = mapa.on.mock.calls.find((llamada) => llamada[0] === 'click' && llamada[1] === 'lluvia-observada-hit')?.[2]
+
+    act(() => {
+      manejadorClic({ point: { x: 10, y: 10 }, lngLat: { lng: -58.8, lat: -27.4 }, features: [{ properties: { ...CELDA_PARCIAL, confianza: 'alta' } }] })
+    })
+    expect((await screen.findByTestId('popup')).textContent).not.toContain('baja confianza')
+
+    act(() => {
+      manejadorClic({ point: { x: 10, y: 10 }, lngLat: { lng: -58.8, lat: -27.4 }, features: [{ properties: { ...CELDA_PARCIAL, confianza: 'baja' } }] })
+    })
+    expect((await screen.findByTestId('popup')).textContent).toContain(
+      'Estimación satelital de baja confianza: puede deberse a nubosidad o humedad, no necesariamente lluvia.',
+    )
   })
 
   it('no abre el popup de lluvia cuando el clic cae sobre un marcador', async () => {

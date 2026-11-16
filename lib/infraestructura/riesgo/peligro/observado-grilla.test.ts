@@ -35,7 +35,7 @@ function granulo(geometryRef: string, observadoEn: string, valor: number, provid
     observadoEn,
     validoDesde: observadoEn,
     validoHasta: observadoEn,
-    calidad: null,
+    calidad: null as number | null,
     rawRef: null,
     ingeridoEn: '2026-10-13T12:05:00.000Z',
   }
@@ -91,8 +91,34 @@ describe('obtenerGrillaObservada', () => {
         esperados: 48,
         cobertura: 1,
         parcial: false,
+        calidadPonderada: null,
+        confianza: 'alta',
       },
     ])
+  })
+
+  it('marca confianza baja si la lluvia viene de gránulos de calidad baja, sin cambiar el acumulado', async () => {
+    const filas = Array.from({ length: 48 }, (_, k) => ({
+      ...granulo(CELDA_A, instante(HASTA, k * 30), 0.5),
+      calidad: k % 2 === 0 ? 0.33 : 0.5,
+    }))
+    await insertar(filas)
+
+    const [celda] = (await obtenerGrillaObservada(getDb(), 24)).celdas
+    expect(celda.acumuladoMm).toBe(24)
+    expect(celda.confianza).toBe('baja')
+    expect(celda.calidadPonderada).toBeCloseTo(0.415, 3)
+  })
+
+  it('con calidad alta la confianza es alta; la calidad null no la baja', async () => {
+    await insertar([
+      ...Array.from({ length: 48 }, (_, k) => ({ ...granulo(CELDA_A, instante(HASTA, k * 30), 0.5), calidad: 0.7 })),
+      ...Array.from({ length: 48 }, (_, k) => granulo(CELDA_B, instante(HASTA, k * 30), 0.5)),
+    ])
+
+    const celdas = (await obtenerGrillaObservada(getDb(), 24)).celdas
+    expect(celdas.find((c) => c.geometryRef === CELDA_A)?.confianza).toBe('alta')
+    expect(celdas.find((c) => c.geometryRef === CELDA_B)).toMatchObject({ confianza: 'alta', calidadPonderada: null })
   })
 
   it('marca como parcial una celda con pocos gránulos y reporta igual su suma', async () => {

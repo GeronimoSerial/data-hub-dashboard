@@ -19,7 +19,16 @@ export type MetaLluviaObservada = {
   vencida: boolean
 }
 
-type PropiedadesCelda = { geometryRef: string; acumuladoMm: number; granulos: number; esperados: number; cobertura: number; parcial: boolean }
+type PropiedadesCelda = {
+  geometryRef: string
+  acumuladoMm: number
+  granulos: number
+  esperados: number
+  cobertura: number
+  parcial: boolean
+  /** Additive field (calidad IMERG): absent in older responses, which count as 'alta'. */
+  confianza?: 'alta' | 'baja'
+}
 
 type CeldaLluvia = {
   type: 'Feature'
@@ -52,6 +61,8 @@ export const CLASES_LLUVIA: ReadonlyArray<{ desde: number; color: string; etique
 const PASO_CELDA = 0.1
 const MEDIO_PASO = PASO_CELDA / 2
 const ALFA_BASE = 0.75 * 255
+// Low-confidence cells (poor IMERG quality) stay on the map but fade to read as uncertain.
+const FACTOR_ALFA_BAJA_CONFIANZA = 0.35
 const ANCHO_TRANSICION = 0.4
 
 // Exported so other map handlers can read the cell under a click (e.g. the water crossing card).
@@ -92,11 +103,11 @@ function centroDe(geometryRef: string): [number, number] | null {
  * Convierte celdas de 0,1° en un buffer RGBA de un píxel por celda (fila 0 = norte).
  * Las esquinas son los bordes exteriores de las celdas extremas.
  */
-export function pintarGrillaLluvia(celdas: ReadonlyArray<{ geometryRef: string; acumuladoMm: number }>): GrillaLluvia {
+export function pintarGrillaLluvia(celdas: ReadonlyArray<{ geometryRef: string; acumuladoMm: number; confianza?: 'alta' | 'baja' }>): GrillaLluvia {
   const regionesInteres = regionPublicaActual().regionesInteresLluvia
   const centros = celdas.flatMap((celda) => {
     const centro = centroDe(celda.geometryRef)
-    return centro ? [{ lon: centro[0], lat: centro[1], mm: celda.acumuladoMm }] : []
+    return centro ? [{ lon: centro[0], lat: centro[1], mm: celda.acumuladoMm, baja: celda.confianza === 'baja' }] : []
   })
   if (centros.length === 0) return { ancho: 0, alto: 0, datos: new Uint8ClampedArray(0), coordenadas: null }
 
@@ -113,7 +124,9 @@ export function pintarGrillaLluvia(celdas: ReadonlyArray<{ geometryRef: string; 
     if (!clase) continue
     const columna = Math.round((celda.lon - lonMin) / PASO_CELDA)
     const fila = Math.round((latMax - celda.lat) / PASO_CELDA)
-    const alfa = Math.round(ALFA_BASE * factorRegion(celda.lon, celda.lat, regionesInteres))
+    const alfa = Math.round(
+      ALFA_BASE * factorRegion(celda.lon, celda.lat, regionesInteres) * (celda.baja ? FACTOR_ALFA_BAJA_CONFIANZA : 1),
+    )
     const indice = (fila * ancho + columna) * 4
     const [r, g, b] = colorRgb(clase.color)
     datos[indice] = r
@@ -316,6 +329,8 @@ function TarjetaLluvia({
           {formatearFechaLocal(desde)} – {formatearFechaLocal(hasta)}
         </p>
       )}
+
+      {celda.confianza === 'baja' && <p className="tarjeta-lluvia__aviso">{l.bajaConfianza}</p>}
 
       {celda.parcial && (
         <p className="tarjeta-lluvia__aviso">

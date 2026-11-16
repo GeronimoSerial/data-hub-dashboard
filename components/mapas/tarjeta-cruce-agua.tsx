@@ -91,7 +91,7 @@ function formatearKm(metros: number, locale: string): string {
   return km.toLocaleString(locale, { maximumFractionDigits: km < 10 ? 1 : 0 })
 }
 
-export type LluviaEnCruce = { mm: number; horas: number }
+export type LluviaEnCruce = { mm: number; horas: number; bajaConfianza?: boolean }
 
 export function TarjetaCruceAgua({
   clasificacion,
@@ -156,6 +156,7 @@ export function TarjetaCruceAgua({
           {t.lluviaObservada(lluvia.horas)}: {lluvia.mm.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm
         </p>
       )}
+      {lluvia?.bajaConfianza && <p className="tarjeta-lluvia__aviso">{dicionario.radarResto.lluvia.bajaConfianza}</p>}
 
       {(escuela?.nombre || destino || via) && (
         <div className="tarjeta-cruce__ruta">

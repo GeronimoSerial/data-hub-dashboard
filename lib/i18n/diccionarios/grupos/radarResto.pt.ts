@@ -34,6 +34,7 @@ export const radarRestoPt: DeepStringify<typeof radarRestoEs> = {
     acumulado: (horas: number) => `Acumulado das últimas ${horas} h`,
     masDe150: '150 mm ou mais',
     satelite: (cobertura: number) => `Faltam passagens do satélite nesta janela (${cobertura} % coberto): a chuva real pode ser maior.`,
+    bajaConfianza: 'Estimativa de satélite de baixa confiança: pode ser causada por nebulosidade ou umidade, não necessariamente chuva.',
     constelacion: 'Constelação de satélites NASA · JAXA',
   },
 }

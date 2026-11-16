@@ -142,6 +142,30 @@ function escenarioBase(): EscenarioFake {
   }
 }
 
+describe('calcularRiesgoEscuela: lluvia satelital de baja confianza', () => {
+  const sinPeligroCelda = (): EscenarioFake => ({ ...escenarioBase(), peligro: {}, caudal: {} })
+
+  it('la lluvia IMERG de baja confianza no aporta amenaza (como si faltara) y no sube el puntaje', async () => {
+    const alta = await calcular({ puertos: crearPuertosFake({ ...sinPeligroCelda(), lluvia24h: { [GEOM]: 120 } }) })
+    const baja = await calcular({
+      puertos: crearPuertosFake({ ...sinPeligroCelda(), lluvia24h: { [GEOM]: 120 }, lluviaConfianza: { [GEOM]: 'baja' } }),
+    })
+
+    expect(alta.factores.some((f) => f.fuente === 'lluvia-observada')).toBe(true)
+    expect(baja.factores.some((f) => f.fuente === 'lluvia-observada')).toBe(false)
+    expect(baja.scoreAmenaza ?? 0).toBeLessThan(alta.scoreAmenaza ?? 0)
+  })
+
+  it('con confianza alta el resultado es idéntico al de siempre', async () => {
+    const sinCampo = await calcular({ puertos: crearPuertosFake(escenarioBase()) })
+    const conAlta = await calcular({
+      puertos: crearPuertosFake({ ...escenarioBase(), lluviaConfianza: { [GEOM]: 'alta' } }),
+    })
+
+    expect(conAlta).toEqual(sinCampo)
+  })
+})
+
 describe('calcularRiesgoEscuela', () => {
   it('T1: escenario completo es determinista', async () => {
     const escenario = escenarioBase()

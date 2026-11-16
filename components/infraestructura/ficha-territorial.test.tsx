@@ -590,6 +590,37 @@ describe('FichaTerritorial', () => {
     expect(acumulado72h).not.toHaveTextContent('cobertura')
   })
 
+  it('con acumulado de baja confianza muestra el valor con una etiqueta corta; con confianza alta no hay etiqueta', async () => {
+    const acumulado = (confianza: 'alta' | 'baja') => [
+      {
+        geometryRef: GEOMETRY_REF,
+        horizonteHoras: 72 as const,
+        acumuladoMm: 32.9,
+        granulosEncontrados: 144,
+        granulosEsperados: 144,
+        cobertura: 1,
+        masRecienteEn: '2026-10-13T09:00:00Z',
+        calidadPonderada: confianza === 'baja' ? 0.41 : 0.7,
+        confianza,
+      },
+    ]
+    const ETIQUETA = 'Estimación satelital de baja confianza: puede deberse a nubosidad o humedad, no necesariamente lluvia.'
+
+    stubFetch({ peligro: () => jsonOk({ niveles: [nivel(24, 'verde')], observado: [], observadoAcumulado: acumulado('baja') }) })
+    const baja = render(<FichaTerritorial cueAnexo={CUE} />)
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(screen.getByTestId('ficha-territorial-observado-72h')).toHaveTextContent('33 mm')
+    expect(screen.getByTestId('ficha-territorial-observado-baja-confianza')).toHaveTextContent(ETIQUETA)
+    expect(screen.getByTestId('ficha-territorial-puntos')).toHaveTextContent(ETIQUETA)
+    baja.unmount()
+
+    stubFetch({ peligro: () => jsonOk({ niveles: [nivel(24, 'verde')], observado: [], observadoAcumulado: acumulado('alta') }) })
+    render(<FichaTerritorial cueAnexo={CUE} />)
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(screen.queryByTestId('ficha-territorial-observado-baja-confianza')).not.toBeInTheDocument()
+    expect(screen.getByTestId('ficha-territorial-puntos')).not.toHaveTextContent('baja confianza')
+  })
+
   it('con localidad y estación en evacuación, la conclusión y los puntos lo dicen', async () => {
     stubFetch({
       peligro: () => jsonOk({ niveles: [nivel(24, 'verde')] }),
