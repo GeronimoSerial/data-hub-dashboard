@@ -22,8 +22,8 @@ Branch: `feat/cuadernillos-envio-directo` (from origin/main 6272c2c1), worktree 
 | T2 | S1 (API), S3, S4 dispatch | delegated (haiku) | done | a9965f48 |
 | T3 | S4, S5, S6, S7 (receipts) | delegated (haiku) | done | 9b341433 |
 | T4 | S7, S8 (control) | delegated (haiku) | done | 079e366e |
-| T5 | S1, S4, S5 (UI) | delegated (haiku) | pending | |
-| T6 | docs + e2e | delegated (haiku) | pending | |
+| T5 | S1, S4, S5 (UI) | delegated (haiku) | done | a97a12bc |
+| T6 | docs + e2e | delegated (haiku) | done | e4cc445b |
 
 Order: T1 → (T2 ‖ T3 ‖ T4, disjoint files) → T5 → T6. Parent owns git, runs the full suite as the seam check, and commits per task.
 
@@ -37,3 +37,4 @@ Order: T1 → (T2 ‖ T3 ‖ T4, disjoint files) → T5 → T6. Parent owns git,
 - **L5** Code map (origin/prod, explorer): `booklet_remito.cabecera_cue_anexo` is NOT NULL with an FK (lib/db/schema.ts:2124). `receipt_signature_check` (:2134) ties `received` to the cabecera signer. `booklet_remito_item_school_check` (:2172) requires `cabecera_received_quantity`. Dispatch: lib/cuadernillos/remito-dispatch.ts (authority check :232, Crítica :236-241). Receipts: remito-receipts.ts (school `cabecera_receipt_pending` :216, expected quantity :220). Control scoping: remito-control.ts:121-127. Wizard: components/cuadernillos/planning/remito-builder.tsx.
 - **L7** (T2) The existing recommendations test case `cueAnexo=…&campaignId=…` (no cabecera → 400) was removed: S1 makes a missing cabecera valid for planning (200), and non-planning without cabecera is now covered by a 403 test. Idempotency hashes drop `modo: 'cabecera'` so absent and explicit cabecera match pre-existing records.
 - **L8** (T2–T4 seam) `vitest lib/cuadernillos app/api/cuadernillos`: 48 files, 370 passed. Directo shortfall is counted in the school leg with dispatched as base (T4). Remaining tsc error `control-view.tsx:160` (nullable cabecera) belongs to T5.
+- **L9** (T5/T6) UI: cabecera POST keeps today's body without `modo` (existing exact-body test); planning KPIs/journeys skip the cabecera for directo. components/cuadernillos 80/80, tsc 0. E2E `node e2e/cuadernillos/run.mjs`: 3 passed (direct scenario API-driven). Feature complete; push/PR is the user's decision.
