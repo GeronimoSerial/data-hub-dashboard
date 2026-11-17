@@ -18,10 +18,10 @@ Branch: `feat/cuadernillos-envio-directo` (from origin/main 6272c2c1), worktree 
 
 | ID | Specs | Route | Status | Commit |
 |---|---|---|---|---|
-| T1 | S2 | delegated (haiku, user request) — Risk: item 1 (migration) | pending | |
-| T2 | S1 (API), S3, S4 dispatch | delegated (haiku) | pending | |
-| T3 | S4, S5, S6, S7 (receipts) | delegated (haiku) | pending | |
-| T4 | S7, S8 (control) | delegated (haiku) | pending | |
+| T1 | S2 | delegated (haiku, user request) — Risk: item 1 (migration) | done | 4b61f05f |
+| T2 | S1 (API), S3, S4 dispatch | delegated (haiku) | done | a9965f48 |
+| T3 | S4, S5, S6, S7 (receipts) | delegated (haiku) | done | 9b341433 |
+| T4 | S7, S8 (control) | delegated (haiku) | done | 079e366e |
 | T5 | S1, S4, S5 (UI) | delegated (haiku) | pending | |
 | T6 | docs + e2e | delegated (haiku) | pending | |
 
@@ -35,3 +35,5 @@ Order: T1 → (T2 ‖ T3 ‖ T4, disjoint files) → T5 → T6. Parent owns git,
 - **L4** Context: Escuela 293 (CUE 180119800, Capital, no cabecera) received booklets that must be registered later through this flow, with totals: 1° 73, 2° 81, 3° 98, 6° 68 (user: "registra totales, no diferencies por docentes").
 - **L6** (T1 decision) A CHECK on `booklet_remito_item` cannot see `booklet_remito.modo`. The school check becomes `school <= COALESCE(cabecera_received, dispatched)`. For cabecera remitos, "the cabecera signs first" is enforced by `remito-receipts.ts` (the existing test "rejects signing before the cabecera receipt" stays). The 0062 schema test asserting the DB rejection is updated to the new invariant.
 - **L5** Code map (origin/prod, explorer): `booklet_remito.cabecera_cue_anexo` is NOT NULL with an FK (lib/db/schema.ts:2124). `receipt_signature_check` (:2134) ties `received` to the cabecera signer. `booklet_remito_item_school_check` (:2172) requires `cabecera_received_quantity`. Dispatch: lib/cuadernillos/remito-dispatch.ts (authority check :232, Crítica :236-241). Receipts: remito-receipts.ts (school `cabecera_receipt_pending` :216, expected quantity :220). Control scoping: remito-control.ts:121-127. Wizard: components/cuadernillos/planning/remito-builder.tsx.
+- **L7** (T2) The existing recommendations test case `cueAnexo=…&campaignId=…` (no cabecera → 400) was removed: S1 makes a missing cabecera valid for planning (200), and non-planning without cabecera is now covered by a 403 test. Idempotency hashes drop `modo: 'cabecera'` so absent and explicit cabecera match pre-existing records.
+- **L8** (T2–T4 seam) `vitest lib/cuadernillos app/api/cuadernillos`: 48 files, 370 passed. Directo shortfall is counted in the school leg with dispatched as base (T4). Remaining tsc error `control-view.tsx:160` (nullable cabecera) belongs to T5.
