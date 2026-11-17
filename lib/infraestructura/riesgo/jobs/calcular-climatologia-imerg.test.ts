@@ -29,6 +29,11 @@ const AHORA_E = new Date('2026-10-17T12:00:00.000Z')
 const AHORA_F = new Date('2026-10-18T12:00:00.000Z')
 const AHORA_G = new Date('2026-10-19T12:00:00.000Z')
 const AHORA_H = new Date('2026-10-20T12:00:00.000Z')
+const AHORA_I = new Date('2026-10-21T12:00:00.000Z')
+const AHORA_J = new Date('2026-10-22T12:00:00.000Z')
+const AHORA_K = new Date('2026-10-23T12:00:00.000Z')
+const AHORA_L = new Date('2026-10-24T12:00:00.000Z')
+const AHORA_M = new Date('2026-10-25T12:00:00.000Z')
 
 const CSV_SUBSET = [
   'Dataset: x',
@@ -42,19 +47,32 @@ function claveIdempotente(periodoHasta: string, ahora: Date): string {
   return `${periodoHasta}_${VERSION_CLIMATOLOGIA_IMERG}_${ahora.toISOString().slice(0, 10)}`
 }
 
+type OpcionesFetchFalso = {
+  fallaSubsetDe?: string
+  /** CMR responde HTTP 500 para cualquier mes. */
+  fallaCmr?: boolean
+  /** CMR sólo publica gránulos hasta esta fecha (inclusive). */
+  ultimoDiaPublicado?: string
+  /** Días que CMR no lista aunque estén dentro de la publicación. */
+  diasSinGranulo?: string[]
+}
+
 /** Fetch falso: CMR devuelve un gránulo por día del mes pedido; OPeNDAP devuelve el CSV fijo. */
-function crearFetchFalso(opciones: { fallaSubsetDe?: string } = {}) {
+function crearFetchFalso(opciones: OpcionesFetchFalso = {}) {
   const urls: string[] = []
   const fetchImpl = async (entrada: string | URL | Request): Promise<Response> => {
     const url = String(entrada)
     urls.push(url)
     if (url.startsWith('https://cmr.earthdata.nasa.gov/')) {
+      if (opciones.fallaCmr) return new Response('cmr caído', { status: 500 })
       const temporal = new URL(url).searchParams.get('temporal') ?? ''
       const [desde, hasta] = temporal.split(',')
       const fin = Date.parse(`${hasta.slice(0, 10)}T00:00:00Z`)
       const entradas = []
       for (let t = Date.parse(`${desde.slice(0, 10)}T00:00:00Z`); t <= fin; t += DIA_MS) {
         const fecha = new Date(t).toISOString().slice(0, 10)
+        if (opciones.ultimoDiaPublicado && fecha > opciones.ultimoDiaPublicado) continue
+        if (opciones.diasSinGranulo?.includes(fecha)) continue
         entradas.push({
           time_start: `${fecha}T00:00:00.000Z`,
           links: [{ href: `https://opendap.earthdata.nasa.gov/x/${fecha}` }],
@@ -124,6 +142,7 @@ describe('ejecutarCalculoClimatologiaImerg (descarga diaria IMERG)', () => {
       resultado: {
         diasDescargados: 59,
         diasPendientes: 0,
+        diasSinPublicar: 0,
         diasConError: 0,
         celdasConUmbral: 0,
         requests: 61,
@@ -305,5 +324,129 @@ describe('ejecutarCalculoClimatologiaImerg (descarga diaria IMERG)', () => {
     const { reducirClimatologiaObservada } = await import('../motor/adaptadores/lluvia')
     const elegida = reducirClimatologiaObservada(filas).get(CELDA_A)?.[24]
     expect(elegida).toEqual({ p90: 5, p95: 5, p99: 5, version: `${VERSION_CLIMATOLOGIA_IMERG}-2001-2014` })
+  })
+
+  // Not published yet is not an error: CMR lists nothing for a month that NASA
+  // has not released. Those days stay pending and the run still completes.
+  it('a month with zero CMR granules counts its pending days as not published and stops', async () => {
+    const { fetchImpl, urls } = crearFetchFalso({ ultimoDiaPublicado: '2000-12-31' })
+
+    const resultado = await ejecutarCalculoClimatologiaImerg({
+      ahora: AHORA_I,
+      earthdataToken: TOKEN,
+      fetchImpl,
+      diasPorCorrida: 100,
+      periodoDesde: '2001-01-01',
+      periodoHasta: '2001-02-28',
+    })
+
+    expect(resultado).toMatchObject({
+      ok: true,
+      resultado: { diasDescargados: 0, diasPendientes: 59, diasSinPublicar: 31, diasConError: 0, error: null },
+    })
+    expect(urls.filter(esSubset)).toHaveLength(0)
+    expect(urls.filter((url) => url.startsWith('https://cmr.earthdata.nasa.gov/'))).toHaveLength(1)
+
+    const [salud] = await getDb().select().from(hazardSourceHealth).where(eq(hazardSourceHealth.provider, PROVIDER))
+    expect(salud.estado).toBe('ok')
+    expect(salud.ultimoErrorSaneado).toBeNull()
+
+    const [corrida] = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.claveIdempotente, claveIdempotente('2001-02-28', AHORA_I)))
+    expect(corrida.estado).toBe('completado')
+  })
+
+  it('a month with some granules saves the available days and counts the missing ones as not published', async () => {
+    const { fetchImpl } = crearFetchFalso({ diasSinGranulo: ['2001-01-15', '2001-01-16'] })
+
+    const resultado = await ejecutarCalculoClimatologiaImerg({
+      ahora: AHORA_J,
+      earthdataToken: TOKEN,
+      fetchImpl,
+      diasPorCorrida: 100,
+      periodoDesde: '2001-01-01',
+      periodoHasta: '2001-02-28',
+    })
+
+    expect(resultado).toMatchObject({
+      ok: true,
+      resultado: { diasDescargados: 57, diasPendientes: 2, diasSinPublicar: 2, diasConError: 0, error: null },
+    })
+
+    const [fila] = await getDb()
+      .select()
+      .from(hazardPrecipitacionSerie)
+      .where(eq(hazardPrecipitacionSerie.celdaEra5, claveSerieImerg(CELDA_A)))
+    expect(fila.valores[13]).toBe(1.5)
+    expect(fila.valores[14]).toBeNull()
+    expect(fila.valores[15]).toBeNull()
+    expect(fila.valores[16]).toBe(1.5)
+
+    const [salud] = await getDb().select().from(hazardSourceHealth).where(eq(hazardSourceHealth.provider, PROVIDER))
+    expect(salud.estado).toBe('ok')
+  })
+
+  it('a later run downloads the days that NASA published after the previous run', async () => {
+    const primera = crearFetchFalso({ ultimoDiaPublicado: '2001-01-31' })
+    await ejecutarCalculoClimatologiaImerg({
+      ahora: AHORA_M,
+      earthdataToken: TOKEN,
+      fetchImpl: primera.fetchImpl,
+      diasPorCorrida: 100,
+      periodoDesde: '2001-01-01',
+      periodoHasta: '2001-02-28',
+    })
+
+    const segunda = crearFetchFalso({ ultimoDiaPublicado: '2001-02-10' })
+    const resultado = await ejecutarCalculoClimatologiaImerg({
+      ahora: AHORA_K,
+      earthdataToken: TOKEN,
+      fetchImpl: segunda.fetchImpl,
+      diasPorCorrida: 100,
+      periodoDesde: '2001-01-01',
+      periodoHasta: '2001-02-28',
+    })
+
+    expect(resultado).toMatchObject({
+      ok: true,
+      resultado: { diasDescargados: 10, diasPendientes: 18, diasSinPublicar: 18, diasConError: 0, error: null },
+    })
+    expect(segunda.urls.filter(esSubset)).toHaveLength(10)
+
+    const [fila] = await getDb()
+      .select()
+      .from(hazardPrecipitacionSerie)
+      .where(eq(hazardPrecipitacionSerie.celdaEra5, claveSerieImerg(CELDA_A)))
+    expect(fila.valores[40]).toBe(1.5)
+    expect(fila.valores[41]).toBeNull()
+  })
+
+  it('a CMR HTTP error still fails the run with diasConError 1 and marks the source degraded', async () => {
+    const { fetchImpl } = crearFetchFalso({ fallaCmr: true })
+
+    const resultado = await ejecutarCalculoClimatologiaImerg({
+      ahora: AHORA_L,
+      earthdataToken: TOKEN,
+      fetchImpl,
+      diasPorCorrida: 100,
+      periodoDesde: '2001-01-01',
+      periodoHasta: '2001-02-28',
+    })
+
+    expect(resultado).toMatchObject({
+      ok: true,
+      resultado: { diasDescargados: 0, diasPendientes: 59, diasSinPublicar: 0, diasConError: 1, error: 'cmr HTTP 500 2001-01' },
+    })
+
+    const [salud] = await getDb().select().from(hazardSourceHealth).where(eq(hazardSourceHealth.provider, PROVIDER))
+    expect(salud.estado).toBe('degradado')
+
+    const [corrida] = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.claveIdempotente, claveIdempotente('2001-02-28', AHORA_L)))
+    expect(corrida.estado).toBe('fallido')
   })
 })

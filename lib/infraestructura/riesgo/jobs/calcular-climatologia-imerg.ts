@@ -36,6 +36,8 @@ export type ResultadoCalcularClimatologiaImerg = {
   diasDescargados: number
   /** Días del período que todavía no tienen valor en ninguna celda. */
   diasPendientes: number
+  /** Días pendientes que NASA todavía no publicó (CMR sin gránulo). No son error. */
+  diasSinPublicar: number
   /** Meses que fallaron (un error descarta el mes y corta la corrida). */
   diasConError: number
   /** Celdas con >= 10 años completos cuyos umbrales IMERG se escribieron. */
@@ -156,6 +158,7 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
   const meses = diasDelPeriodo(periodoDesde, periodoHasta)
 
   let diasDescargados = 0
+  let diasSinPublicar = 0
   let diasConError = 0
   let requests = 0
   let cortadoPorPresupuesto = false
@@ -171,12 +174,14 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
 
     // Todo el mes se baja antes de guardar: un error descarta el mes completo.
     const valoresPorFecha = new Map<string, Map<string, number | null>>()
+    let granulosDelMes: GranuloDiarioImerg[] = []
     try {
       requests += 1
-      const granulos = await buscarGranulosMes(fetchImpl, mes)
+      granulosDelMes = await buscarGranulosMes(fetchImpl, mes)
       for (const fecha of pendientes) {
-        const granulo = granulos.find((candidato) => candidato.fecha === fecha)
-        if (!granulo) throw new Error(`granulo IMERG ausente ${fecha}`)
+        const granulo = granulosDelMes.find((candidato) => candidato.fecha === fecha)
+        // A day without a granule is not published yet: it stays pending for a later run.
+        if (!granulo) continue
         requests += 1
         valoresPorFecha.set(fecha, await descargarDia(fetchImpl, earthdataToken, granulo))
       }
@@ -186,8 +191,16 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
       break
     }
 
+    // NASA publishes in order: a month with no granule at all means later months are not out either.
+    if (granulosDelMes.length === 0) {
+      diasSinPublicar += pendientes.length
+      break
+    }
+    diasSinPublicar += pendientes.length - valoresPorFecha.size
+    if (valoresPorFecha.size === 0) continue
+
     for (const celda of celdas) {
-      for (const fecha of pendientes) {
+      for (const fecha of valoresPorFecha.keys()) {
         const { anio, indice } = indiceDelDia(fecha)
         const porCelda = seriesPorAnio.get(anio) ?? new Map<string, Array<number | null>>()
         const valores = porCelda.get(celda.geometryRef) ?? new Array<number | null>(diasDelAnio(anio)).fill(null)
@@ -205,7 +218,7 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
       })
     }
 
-    diasDescargados += pendientes.length
+    diasDescargados += valoresPorFecha.size
     await renovarLease({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, duracionLeaseMs: DURACION_LEASE_MS, ahora })
   }
 
@@ -283,7 +296,7 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
     leaseOwner: lease.leaseOwner,
     estado: errorSaneado === null ? 'completado' : 'fallido',
     errorSaneado: errorSaneado ?? undefined,
-    contadores: { diasDescargados, diasPendientes, diasConError, celdasConUmbral, requests },
+    contadores: { diasDescargados, diasPendientes, diasSinPublicar, diasConError, celdasConUmbral, requests },
     ahora,
   })
 
@@ -292,6 +305,7 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
     resultado: {
       diasDescargados,
       diasPendientes,
+      diasSinPublicar,
       diasConError,
       celdasConUmbral,
       requests,
