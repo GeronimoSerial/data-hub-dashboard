@@ -6,7 +6,7 @@ const now = new Date('2026-11-14T12:00:00.000Z').getTime()
 
 function remito(overrides: Partial<RemitoSummary>): RemitoSummary {
   return {
-    remitoId: 'r', campaignId: 'c', cabeceraCueAnexo: '180000000', status: 'dispatched',
+    remitoId: 'r', campaignId: 'c', modo: 'cabecera', cabeceraCueAnexo: '180000000', status: 'dispatched',
     dispatchedAt: '2026-11-12T12:00:00.000Z', cabeceraReceivedAt: '2026-11-13T12:00:00.000Z', lines: [], ...overrides,
   }
 }
@@ -32,6 +32,22 @@ describe('envioStatus', () => {
     const line = (school: number) => ({ recipientCueAnexo: 'a', recipientName: 'A', status: 'received' as const, items: [item(10, 10, school)] })
     expect(envioStatus(remito({ lines: [line(10)] }), now)).toMatchObject({ stage: 'done', short: false, label: 'Entregado', detail: 'La escuela confirmó que recibió todo' })
     expect(envioStatus(remito({ lines: [line(9)] }), now)).toMatchObject({ stage: 'done', short: true, label: 'Entregado con faltantes', detail: 'Llegó 1 de menos · la escuela ya confirmó' })
+  })
+})
+
+describe('envioStatus for a directo remito', () => {
+  const directo = (lines: RemitoSummary['lines']) => remito({ modo: 'directo', cabeceraCueAnexo: null, cabeceraReceivedAt: null, lines })
+  const line = (status: RemitoSummary['lines'][number]['status'], school: number | null) => ({
+    recipientCueAnexo: 'a', recipientName: 'A', status, items: [item(10, null, school)],
+  })
+
+  it('never waits for a cabecera and says it is on its way to the schools', () => {
+    const status = envioStatus(directo([line('in_transit', null), line('in_transit', null)]), now)
+    expect(status).toMatchObject({ stage: 'delivering', label: 'En camino a escuelas', detail: '0 de 2 escuelas ya recibieron', schools: 2, schoolsDone: 0 })
+  })
+
+  it('is delivered once every school confirmed', () => {
+    expect(envioStatus(directo([line('received', 10)]), now)).toMatchObject({ stage: 'done', label: 'Entregado', short: false })
   })
 })
 
