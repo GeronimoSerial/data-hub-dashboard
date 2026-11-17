@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dispatchErrorMessage, REMITO_ERRORS } from './remito-api'
+import { dispatchErrorMessage, recommendationsParams, remitoDispatchBody, REMITO_ERRORS } from './remito-api'
 
 const labels = new Map([['p1', 'Cuadernillo para estudiantes de 1.er grado'], ['p2', 'Cuadernillo para estudiantes de 2.º grado']])
 const schools = new Map([['180123457', 'Escuela N° 5'], ['180123458', 'Colegio Sur']])
@@ -37,5 +37,30 @@ describe('dispatchErrorMessage', () => {
       expect(text, code).not.toMatch(/remito|despach|severidad|cr[ií]tica/i)
     }
     expect(dispatchErrorMessage({ error: 'something_new' }, labels, schools)).toBe('No se pudo enviar. Intentá nuevamente.')
+  })
+})
+
+describe('remitoDispatchBody', () => {
+  const lines = [{ recipientCueAnexo: '180123457', items: [{ productId: 'book-1', quantity: 30 }] }]
+
+  it('sends the cabecera exactly as before when the mode is a cabecera', () => {
+    expect(remitoDispatchBody({ mode: 'cabecera', campaignId: 'c1', cabeceraCueAnexo: '180000000', idempotencyKey: 'k1', lines })).toEqual({
+      campaignId: 'c1', cabeceraCueAnexo: '180000000', idempotencyKey: 'k1', lines,
+    })
+  })
+
+  it('sends modo directo and never a cabecera', () => {
+    const body = remitoDispatchBody({ mode: 'directo', campaignId: 'c1', cabeceraCueAnexo: null, idempotencyKey: 'k1', lines })
+    expect(body).toEqual({ campaignId: 'c1', modo: 'directo', idempotencyKey: 'k1', lines })
+    expect(body).not.toHaveProperty('cabeceraCueAnexo')
+  })
+})
+
+describe('recommendationsParams', () => {
+  it('asks for the cabecera only in cabecera mode', () => {
+    expect(recommendationsParams({ mode: 'cabecera', cueAnexo: '180123457', cabeceraCueAnexo: '180000000', campaignId: 'c1' }).toString())
+      .toBe('cueAnexo=180123457&campaignId=c1&cabeceraCueAnexo=180000000')
+    expect(recommendationsParams({ mode: 'directo', cueAnexo: '180123457', cabeceraCueAnexo: null, campaignId: 'c1' }).toString())
+      .toBe('cueAnexo=180123457&campaignId=c1')
   })
 })

@@ -195,3 +195,65 @@ describe('addRemitoObservation', () => {
     expect(await count()).toBe(before)
   })
 })
+
+// Direct (`modo = 'directo'`) remitos go Planeamiento -> school without a cabecera.
+// Seeded last, in campaign c3, so the earlier describes keep their original data.
+describe('direct remitos (modo = directo)', () => {
+  beforeAll(async () => {
+    await client.exec(`
+      INSERT INTO booklet_campaign (id, name, status, distribution_enabled, overassignment_allowed)
+        VALUES ('c3', 'Direct', 'active', true, false);
+      INSERT INTO booklet_remito (id, campaign_id, cabecera_cue_anexo, modo, status, dispatched_by_user_id, dispatched_at)
+        VALUES ('dirA', 'c3', NULL, 'directo', 'dispatched', 'plan', '2026-11-10T10:00:00Z');
+      INSERT INTO booklet_remito_line (id, remito_id, recipient_cue_anexo, recipient_name, status,
+        school_received_by_user_id, school_received_at, school_shortfall_reason) VALUES
+        ('dl1', 'dirA', '180000500', 'Escuela D', 'received', 'esc', '2026-11-11T10:00:00Z', 'damaged'),
+        ('dl2', 'dirA', '180000501', 'Escuela E', 'in_transit', NULL, NULL, NULL);
+      INSERT INTO booklet_remito_item (line_id, product_id, dispatched_quantity, cabecera_received_quantity, school_received_quantity) VALUES
+        ('dl1', 'p1', 10, NULL, 7), ('dl2', 'p1', 4, NULL, NULL);
+    `)
+  })
+
+  it('keeps direct remitos away from supervisors, whose summary is unchanged', async () => {
+    for (const id of ['sup1', 'sup2']) {
+      const page = await getSupervisorControl(actorOf(id), { limit: 100 })
+      expect(page.remitos.map((r) => r.remitoId)).not.toContain('dirA')
+      expect(page.remitos.some((r) => r.cabeceraCueAnexo === null)).toBe(false)
+    }
+    expect((await getSupervisorControl(actorOf('sup1'))).summary).toEqual({
+      remitosPendingCabeceraReceipt: 1, linesPendingSchoolReceipt: 1,
+      planningToCabeceraShortfallUnits: 7, cabeceraToSchoolShortfallUnits: 5,
+    })
+  })
+
+  it('shows admins the direct remito with modo directo and no cabecera', async () => {
+    const page = await getSupervisorControl(actorOf('adm', 'admin'), { campaignId: 'c3' })
+    expect(page.remitos).toHaveLength(1)
+    expect(page.remitos[0]).toMatchObject({ remitoId: 'dirA', modo: 'directo', cabeceraCueAnexo: null, cabeceraName: null, status: 'dispatched' })
+    expect(page.remitos[0].cabeceraReceivedAt).toBeNull()
+  })
+
+  it('never counts a direct remito as pending at cabecera, and counts its in_transit line as a pending school line', async () => {
+    const page = await getSupervisorControl(actorOf('adm', 'admin'), { campaignId: 'c3' })
+    expect(page.summary.remitosPendingCabeceraReceipt).toBe(0)
+    expect(page.summary.linesPendingSchoolReceipt).toBe(1)
+  })
+
+  it('reports the direct shortfall (dispatched 10, school 7) on the school leg', async () => {
+    const page = await getSupervisorControl(actorOf('adm', 'admin'), { campaignId: 'c3' })
+    expect(page.summary.cabeceraToSchoolShortfallUnits).toBe(3)
+    expect(page.summary.planningToCabeceraShortfallUnits).toBe(0)
+    const [signed] = page.remitos[0].lines.filter((line) => line.lineId === 'dl1')
+    expect(signed.items[0]).toMatchObject({ dispatched: 10, cabeceraReceived: null, schoolReceived: 7, planningToCabeceraShortfall: null, cabeceraToSchoolShortfall: 3 })
+    expect(page.remitos[0].hasShortfall).toBe(true)
+    const withShortfall = await getSupervisorControl(actorOf('adm', 'admin'), { campaignId: 'c3', onlyWithShortfall: true })
+    expect(withShortfall.remitos.map((r) => r.remitoId)).toEqual(['dirA'])
+  })
+
+  it('lets only admins add an observation to a direct remito', async () => {
+    await expect(addRemitoObservation(actorOf('sup1'), 'dirA', { body: 'x' })).rejects.toMatchObject({ status: 403, code: 'forbidden' })
+    await expect(addRemitoObservation(actorOf('sup2'), 'dirA', { body: 'x' })).rejects.toMatchObject({ status: 403, code: 'forbidden' })
+    const result = await addRemitoObservation(actorOf('adm', 'admin'), 'dirA', { body: 'Coordinate with the school' })
+    expect(result).toMatchObject({ remitoId: 'dirA', authorUserId: 'adm', authorName: 'Admin', body: 'Coordinate with the school' })
+  })
+})

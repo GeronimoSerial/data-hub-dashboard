@@ -11,10 +11,16 @@ import {
 import { SignPanel, SignedNote } from './sign-panel'
 import { useReceiptListing, type SchoolLineView } from './use-receipt-listing'
 
+const DIRECT_LEG = 'Planeamiento → Escuela'
+
+/** A directo line is signable as soon as it leaves Planeamiento; a cabecera line only once the cabecera confirmed it. */
+const isActionable = (line: SchoolLineView) => line.status === 'at_cabecera' || (line.status === 'in_transit' && line.modo === 'directo')
+
 function lineJourney(line: SchoolLineView) {
   const confirmed = line.status === 'received' || line.status === 'closed_empty'
   return buildJourney({
     dispatchedAt: line.dispatchedAt,
+    direct: line.modo === 'directo',
     cabeceraBy: line.cabeceraReceivedBy,
     cabeceraAt: line.cabeceraReceivedAt,
     cabeceraShort: Boolean(line.cabeceraShortfallReason),
@@ -45,7 +51,7 @@ function PendingLine({ line, onSigned }: { line: SchoolLineView; onSigned: () =>
       <div className="k-stack" style={{ gap: '.7rem' }}>
         <ShipmentJourney steps={lineJourney(line)} />
         {line.cabeceraShortfallReason ? <p className="k-hint" style={{ margin: 0 }}>{`Lo que pasó en la cabecera: ${line.cabeceraShortfallReason}`}</p> : null}
-        <LineQuestions scope={line.lineId} items={items} state={state} disabled={busy} onChange={setState} />
+        <LineQuestions scope={line.lineId} items={items} state={state} disabled={busy} leg={line.modo === 'directo' ? DIRECT_LEG : undefined} onChange={setState} />
         <SignPanel receivedTotal={evaluation.receivedTotal} expectedTotal={evaluation.expectedTotal} answered={evaluation.complete}
           canSign={evaluation.complete && !evaluation.reasonMissing} busy={busy} error={error}
           hint={evaluation.reasonMissing ? 'Contanos qué pasó para poder confirmar.' : undefined} onSign={() => { void sign() }} />
@@ -97,12 +103,12 @@ function taskTitle(pending: number) {
 export function SchoolReceipts() {
   const { listing, error, reload, retry } = useReceiptListing()
   const lines = listing?.kind === 'school' ? listing.lines : null
-  const pending = lines?.filter((line) => line.status === 'at_cabecera') ?? []
-  const transit = lines?.filter((line) => line.status === 'in_transit') ?? []
+  const pending = lines?.filter(isActionable) ?? []
+  const transit = lines?.filter((line) => line.status === 'in_transit' && !isActionable(line)) ?? []
   const history = lines?.filter((line) => line.status !== 'at_cabecera' && line.status !== 'in_transit') ?? []
 
   return (
-    <section aria-labelledby="school-receipts-title" className="k-stack">
+    <section aria-labelledby="school-receipts-title" className="k-stack cdl-page">
       <KitStyles />
       <PageHeader id="school-receipts-title" title="Recepción de cuadernillos" description="Confirmá qué cuadernillos llegaron a tu escuela." />
       {error ? (

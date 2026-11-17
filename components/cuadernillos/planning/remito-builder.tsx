@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { dashedCue, errorCode, isRecommendationList, readJson, type CriticalSchool } from '../cabecera/cabecera-api'
 import { SchoolSearch, useSchoolSearchState } from '../cabecera/school-search'
-import { Chip, EmptyState, Modal, ModalBody, ModalFoot, Note, Stepper, formatCount, shortProduct } from '../kit'
-import { dispatchErrorMessage, isCabeceraList, type ConfirmedCabecera, type ProductOption } from './remito-api'
+import { EmptyState, Modal, ModalBody, ModalFoot, Note, Segmented, Stepper, formatCount, shortProduct } from '../kit'
+import {
+  dispatchErrorMessage, isCabeceraList, recommendationsParams, remitoDispatchBody, type ConfirmedCabecera, type ProductOption, type RemitoModo,
+} from './remito-api'
 
 type Step = 'cabecera' | 'escuelas' | 'revision'
 type Quantities = Record<string, Record<string, number>>
@@ -28,7 +30,7 @@ export function RemitoBuilder({ open, campaignId, products, onClose, onDispatche
   onDispatched: () => void
 }) {
   return (
-    <Modal open={open} title="Enviar cuadernillos" description="Cada envío va a una escuela cabecera, que después lo reparte a sus escuelas." onClose={onClose}>
+    <Modal open={open} size="wide" title="Enviar cuadernillos" description="Cada envío va a una escuela cabecera, que después lo reparte a sus escuelas." onClose={onClose}>
       {open ? <BuilderForm campaignId={campaignId} products={products} onClose={onClose} onDispatched={onDispatched} /> : null}
     </Modal>
   )
@@ -43,6 +45,7 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   // One key per dialog: a retry after a failed or lost response replays the same dispatch instead of duplicating it.
   const idempotencyKey = useRef(crypto.randomUUID())
   const [step, setStep] = useState<Step>('cabecera')
+  const [mode, setMode] = useState<RemitoModo>('cabecera')
   const [cabeceras, setCabeceras] = useState<ConfirmedCabecera[] | null>(null)
   const [cabeceraError, setCabeceraError] = useState<string | null>(null)
   const [cabeceraFilter, setCabeceraFilter] = useState('')
@@ -90,13 +93,15 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   const stockLeft = useMemo(() => new Map(products.map((p) => [p.productId, p.available])), [products])
   const short = totals.filter((row) => row.requested > row.available)
 
+  const canContinue = mode === 'directo' || cabecera !== null
+
   async function addSchool(school: CriticalSchool) {
-    if (!cabecera || schools.some((row) => row.cueAnexo === school.cueAnexo)) return
+    if (!canContinue || schools.some((row) => row.cueAnexo === school.cueAnexo)) return
     setSchools((current) => [...current, school])
     setQuantities((current) => ({ ...current, [school.cueAnexo]: {} }))
     setLoadingRecs((current) => [...current, school.cueAnexo])
     try {
-      const query = new URLSearchParams({ cueAnexo: school.cueAnexo, cabeceraCueAnexo: cabecera.cue, campaignId })
+      const query = recommendationsParams({ mode, cueAnexo: school.cueAnexo, cabeceraCueAnexo: cabecera?.cue ?? null, campaignId })
       const response = await fetch(`/api/cuadernillos/recommendations?${query}`, { cache: 'no-store' })
       const data = await readJson(response)
       if (response.ok && isRecommendationList(data)) {
@@ -121,15 +126,21 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
     setCabecera(next)
   }
 
+  // Recommendations depend on the send mode, so the schools picked for one mode do not carry over to the other.
+  function chooseMode(next: RemitoModo) {
+    if (next !== mode) { setSchools([]); setQuantities({}) }
+    setMode(next)
+  }
+
   async function dispatch() {
-    if (!cabecera || lines.length === 0 || short.length > 0) return
+    if (!canContinue || lines.length === 0 || short.length > 0) return
     setSending(true)
     setError(null)
     try {
       const response = await fetch('/api/cuadernillos/remitos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignId, cabeceraCueAnexo: cabecera.cue, idempotencyKey: idempotencyKey.current, lines }),
+        body: JSON.stringify(remitoDispatchBody({ mode, campaignId, cabeceraCueAnexo: cabecera?.cue ?? null, idempotencyKey: idempotencyKey.current, lines })),
       })
       const data = await readJson(response)
       if (!response.ok) {
@@ -148,132 +159,183 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   const searchState = { ...search, results: pickable && pickable.length === 0 && (search.results?.length ?? 0) > 0 ? null : pickable }
   const recsPending = loadingRecs.length > 0
   const stepIndex = STEPS.findIndex((item) => item.id === step)
+  // The first step is the send mode; a directo send has no cabecera to choose, so its question changes.
+  const stepLabel = (item: { id: Step; label: string }) => (item.id === 'cabecera' && mode === 'directo' ? '¿Cómo se envía?' : item.label)
+  const totalUnits = totals.reduce((sum, row) => sum + row.requested, 0)
+  const schoolTotal = (cue: string) => products.reduce((sum, product) => sum + (quantities[cue]?.[product.productId] ?? 0), 0)
 
   return (
     <>
-      <ModalBody>
-        <ol aria-label="Pasos del envío" style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem 1rem', margin: 0, padding: 0, listStyle: 'none' }}>
+      <div className="pl-steps-bar">
+        <ol aria-label="Pasos del envío" className="pl-steps">
           {STEPS.map((item, index) => (
-            <li key={item.id} aria-current={index === stepIndex ? 'step' : undefined}
-              style={{
-                paddingBottom: '.15rem', fontSize: '.9rem',
-                fontWeight: index === stepIndex ? 700 : 500,
-                color: index === stepIndex ? 'var(--ink)' : 'var(--ink-soft)',
-                borderBottom: `2px solid ${index === stepIndex ? 'var(--ink)' : 'transparent'}`,
-              }}>
-              {`${index + 1}. ${item.label}`}
+            <li key={item.id} aria-current={index === stepIndex ? 'step' : undefined} data-state={index < stepIndex ? 'done' : undefined}>
+              <span><span className="sr-only">{`${index + 1}. `}</span>{stepLabel(item)}</span>
             </li>
           ))}
         </ol>
-
+        {step !== 'cabecera' && mode === 'directo' ? (
+          <p className="pl-dest"><span>Envío</span> <strong>Directo a escuelas</strong></p>
+        ) : null}
+        {step !== 'cabecera' && mode === 'cabecera' && cabecera ? (
+          <p className="pl-dest">
+            <span>Para</span> <strong>{cabecera.nombre}</strong> <span>· {cabecera.departamento}</span>
+          </p>
+        ) : null}
+      </div>
+      <ModalBody>
         {step === 'cabecera' ? (
           <div className="k-field">
-            <span className="k-label">Elegí la escuela cabecera que recibe el envío</span>
-            {cabeceraError ? <Note tone="danger">{cabeceraError}</Note> : null}
-            {!cabeceras && !cabeceraError ? <p role="status" style={{ margin: 0, color: 'var(--ink-soft)' }}>Cargando escuelas cabecera…</p> : null}
-            {cabeceras && cabeceras.length === 0 ? <EmptyState title="Ninguna cabecera confirmó su cuenta" description="Una cabecera tiene que confirmar su cuenta para poder recibir envíos." /> : null}
-            {cabeceras && cabeceras.length > 8 ? (
-              <Input aria-label="Buscar cabecera" placeholder="Buscar por nombre o CUE" value={cabeceraFilter} onChange={(event) => setCabeceraFilter(event.target.value)} />
-            ) : null}
-            <ul className="k-list" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 15rem), 1fr))' }}>
-              {visibleCabeceras.map((row) => (
-                <li key={row.cue}>
-                  <button type="button" className="k-row" aria-pressed={cabecera?.cue === row.cue} onClick={() => chooseCabecera(row)}
-                    style={cabecera?.cue === row.cue ? { borderColor: 'var(--ink)', background: 'var(--fill)' } : undefined}>
-                    <span className="k-row-main">
-                      <span className="k-row-title">{row.nombre}</span>
-                      <span className="k-row-meta">{row.departamento} · CUE {dashedCue(row.cue)}</span>
-                    </span>
-                    {cabecera?.cue === row.cue ? <span className="k-row-side"><Chip tone="ok">Elegida</Chip></span> : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <Segmented<RemitoModo>
+              label="Modo de envío"
+              value={mode}
+              onChange={chooseMode}
+              options={[{ value: 'cabecera', label: 'A una cabecera' }, { value: 'directo', label: 'Directo a escuelas' }]}
+            />
+            {mode === 'directo' ? (
+              <p className="k-hint" style={{ margin: 0 }}>Sin cabecera: el envío va directo a las escuelas que elijas, y cada una firma su recepción.</p>
+            ) : (
+              <>
+                <span className="k-label">Elegí la escuela cabecera que recibe el envío</span>
+                {cabeceraError ? <Note tone="danger">{cabeceraError}</Note> : null}
+                {!cabeceras && !cabeceraError ? <p role="status" className="k-note">Cargando escuelas cabecera…</p> : null}
+                {cabeceras && cabeceras.length === 0 ? <EmptyState title="Ninguna cabecera confirmó su cuenta" description="Una cabecera tiene que confirmar su cuenta para poder recibir envíos." /> : null}
+                {cabeceras && cabeceras.length > 8 ? (
+                  <Input aria-label="Buscar cabecera" placeholder="Buscar por nombre o CUE" value={cabeceraFilter} onChange={(event) => setCabeceraFilter(event.target.value)} />
+                ) : null}
+                {cabeceras && cabeceras.length > 0 && visibleCabeceras.length === 0 ? <p className="k-note">Ninguna cabecera coincide con la búsqueda.</p> : null}
+                <ul className="pl-pick">
+                  {visibleCabeceras.map((row) => (
+                    <li key={row.cue}>
+                      <button type="button" aria-pressed={cabecera?.cue === row.cue} onClick={() => chooseCabecera(row)}>
+                        <span className="pl-radio" aria-hidden="true" />
+                        <span className="pl-pick-name">{row.nombre}</span>
+                        <span className="pl-pick-meta">{row.departamento} · CUE {dashedCue(row.cue)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         ) : null}
 
         {step === 'escuelas' ? (
           <>
-            <div className="k-field">
-              <span className="k-label">Escuelas que reciben cuadernillos</span>
+            <div className="pl-search">
               <SchoolSearch selected={null} onChoose={(school) => void addSchool(school)} onClear={() => undefined} state={searchState} />
             </div>
             {schools.length > 0 ? (
-              <>
-                <p style={{ margin: 0, color: 'var(--ink-soft)' }}>Cantidades sugeridas por matrícula (1 por estudiante). Podés ajustarlas.</p>
-                {schools.map((school) => (
-                  <div key={school.cueAnexo} role="group" aria-label={school.nombre} style={{ display: 'grid', gap: '.3rem', minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.5rem' }}>
-                      <span style={{ minWidth: 0 }}>
-                        <span className="k-row-title">{school.nombre}</span>{' '}
-                        <span className="k-row-meta">
-                          CUE {dashedCue(school.cueAnexo)}{loadingRecs.includes(school.cueAnexo) ? ' · Buscando sugeridos…' : ''}
-                        </span>
+              <div className="pl-matrix-wrap">
+                <p className="pl-matrix-hint">Cantidades sugeridas por matrícula (1 por estudiante). Podés ajustarlas.</p>
+                <div className="pl-matrix" style={{ '--pl-cols': products.length } as CSSProperties}>
+                  <div className="pl-mrow pl-mhead" aria-hidden="true">
+                    <span>Escuela</span>
+                    {products.map((product) => <span key={product.productId}>{shortProduct(product.productLabel).replace(/ grado$/i, '')}</span>)}
+                    <span>Total</span>
+                    <span />
+                  </div>
+                  {schools.map((school) => (
+                    <div key={school.cueAnexo} role="group" aria-label={school.nombre} className="pl-mrow">
+                      <span className="pl-mname">
+                        <strong>{school.nombre}</strong>
+                        <span>CUE {dashedCue(school.cueAnexo)}{loadingRecs.includes(school.cueAnexo) ? ' · Buscando sugeridos…' : ''}</span>
                       </span>
-                      <Button type="button" variant="ghost" aria-label={`Quitar ${school.nombre}`} onClick={() => removeSchool(school.cueAnexo)}>
-                        <X aria-hidden size={16} />
-                      </Button>
-                    </div>
-                    <ul className="k-qty-list">
                       {products.map((product) => (
-                        <li key={product.productId} className="k-qty-row">
-                          <span className="k-row-title">{shortProduct(product.productLabel)}</span>
+                        <span key={product.productId} className="pl-cell">
+                          <span className="pl-cell-label" aria-hidden="true">{shortProduct(product.productLabel)}</span>
                           <Stepper
                             label={`${school.nombre} · ${product.productLabel}`}
                             value={quantities[school.cueAnexo]?.[product.productId] ?? 0}
                             onChange={(value) => setQuantities((current) => ({ ...current, [school.cueAnexo]: { ...(current[school.cueAnexo] ?? {}), [product.productId]: value } }))}
                           />
-                        </li>
+                        </span>
                       ))}
-                    </ul>
+                      <span className="pl-mtotal" aria-label={`Total para ${school.nombre}`}>{formatCount(schoolTotal(school.cueAnexo))}</span>
+                      <button type="button" className="pl-mremove" aria-label={`Quitar ${school.nombre}`} onClick={() => removeSchool(school.cueAnexo)}>
+                        <X aria-hidden size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="pl-mrow pl-mfoot" role="group" aria-label="Total del envío por grado">
+                    <span className="pl-mname"><strong>Total del envío</strong></span>
+                    {totals.map((row) => (
+                      <span key={row.productId} className="pl-cell">
+                        <span className="pl-cell-label" aria-hidden="true">{shortProduct(row.productLabel)}</span>
+                        <span className="pl-msum">{formatCount(row.requested)}</span>
+                      </span>
+                    ))}
+                    <span className="pl-mtotal">{formatCount(totalUnits)}</span>
+                    <span />
                   </div>
-                ))}
-              </>
-            ) : null}
+                  <div className="pl-mrow pl-mfoot pl-mleft" role="group" aria-label="Stock que queda por grado">
+                    <span className="pl-mname"><strong>Queda en stock</strong></span>
+                    {totals.map((row) => (
+                      <span key={row.productId} className="pl-cell" data-state={row.requested > row.available ? 'over' : undefined}>
+                        <span className="pl-cell-label" aria-hidden="true">{shortProduct(row.productLabel)}</span>
+                        <span className="pl-msum">{formatCount(row.available - row.requested)}</span>
+                      </span>
+                    ))}
+                    <span />
+                    <span />
+                  </div>
+                </div>
+                {short.length > 0 ? (
+                  <Note tone="danger">{`No alcanza el stock de ${short.map((row) => shortProduct(row.productLabel)).join(', ')}. Bajá las cantidades para poder enviar.`}</Note>
+                ) : null}
+              </div>
+            ) : (
+              <p className="pl-matrix-empty">Agregá al menos una escuela. Las cantidades se completan solas según la matrícula y las podés ajustar.</p>
+            )}
           </>
         ) : null}
 
         {step === 'revision' ? (
-          <>
-            <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
-              Envío a {cabecera?.nombre} para {lines.length} escuela{lines.length === 1 ? '' : 's'}.
-            </p>
-            <ul className="k-qty-list" aria-label="Totales contra stock">
-              {totals.filter((row) => row.requested > 0 || row.available > 0).map((row) => (
-                <li key={row.productId} className="k-qty-row" data-active={row.requested > row.available ? 'true' : undefined}>
-                  <span className="k-row-main">
-                    <span className="k-row-title">{shortProduct(row.productLabel)}</span>
-                    <span className="k-row-meta">Enviás {formatCount(row.requested)} · Stock {formatCount(row.available)}</span>
-                  </span>
-                  {row.requested > row.available
-                    ? <Chip tone="danger">Faltan {formatCount(row.requested - row.available)}</Chip>
-                    : <Chip tone="ok">Alcanza</Chip>}
-                </li>
-              ))}
-            </ul>
-            <ul className="k-qty-list" aria-label="Escuelas del envío">
+          <div className="pl-review">
+            <section className="k-receipt" aria-label="Detalle del envío">
+              <header className="k-receipt-head">
+                <span>{mode === 'directo' ? 'Envío' : 'Envío a'}</span>
+                <strong>{mode === 'directo' ? 'Directo a escuelas' : cabecera?.nombre}</strong>
+              </header>
+              {mode === 'directo' ? <p className="k-hint" style={{ margin: 0 }}>Sin cabecera: cada escuela firma su recepción.</p> : null}
               {lines.map((line) => (
-                <li key={line.recipientCueAnexo} className="k-qty-row">
-                  <span className="k-row-title">{schoolNames.get(line.recipientCueAnexo) ?? line.recipientCueAnexo}</span>
-                  <span className="k-row-meta">{formatCount(line.items.reduce((sum, item) => sum + item.quantity, 0))} cuadernillos</span>
-                </li>
+                <div key={line.recipientCueAnexo} className="k-receipt-group">
+                  <h4>{schoolNames.get(line.recipientCueAnexo) ?? line.recipientCueAnexo}</h4>
+                  <dl>
+                    {line.items.filter((item) => item.quantity > 0).map((item) => (
+                      <div key={item.productId}>
+                        <dt>{shortProduct(labels.get(item.productId) ?? item.productId)}</dt>
+                        <dd>{formatCount(item.quantity)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
               ))}
-            </ul>
-            {short.length > 0 ? <Note tone="danger">No alcanza el stock de {short.map((row) => shortProduct(row.productLabel)).join(', ')}. Volvé atrás y bajá las cantidades.</Note> : null}
+              <p className="k-receipt-total">
+                <span>Total</span>
+                <strong>{formatCount(totalUnits)} cuadernillos</strong>
+              </p>
+            </section>
+            {short.length > 0 ? <Note tone="danger">{`No alcanza el stock: ${short.map((row) => `${shortProduct(row.productLabel)} (quedan ${formatCount(row.available)}, pediste ${formatCount(row.requested)})`).join(', ')}. Volvé atrás y bajá las cantidades.`}</Note> : null}
             {lines.length === 0 ? <Note tone="danger">El envío no tiene cantidades. Volvé atrás y cargalas.</Note> : null}
-          </>
+          </div>
         ) : null}
 
         {error ? <Note tone="danger">{error}</Note> : null}
       </ModalBody>
       <ModalFoot>
+        {step !== 'cabecera' && lines.length > 0 ? (
+          <p className="pl-foot-sum">
+            <strong>{lines.length}</strong> escuela{lines.length === 1 ? '' : 's'} · <strong>{formatCount(totalUnits)}</strong> cuadernillos
+          </p>
+        ) : null}
         {step !== 'cabecera' ? (
           <Button type="button" variant="secondary" disabled={sending} onClick={() => setStep(step === 'revision' ? 'escuelas' : 'cabecera')}>Atrás</Button>
         ) : (
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
         )}
         {step === 'cabecera' ? (
-          <Button type="button" disabled={!cabecera} onClick={() => setStep('escuelas')}>Siguiente</Button>
+          <Button type="button" disabled={!canContinue} onClick={() => setStep('escuelas')}>Siguiente</Button>
         ) : null}
         {step === 'escuelas' ? (
           <Button type="button" disabled={lines.length === 0 || recsPending} onClick={() => setStep('revision')}>
@@ -281,7 +343,7 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
           </Button>
         ) : null}
         {step === 'revision' ? (
-          <Button type="button" disabled={sending || lines.length === 0 || short.length > 0} onClick={() => void dispatch()}>
+          <Button type="button" disabled={sending || lines.length === 0 || short.length > 0 || !canContinue} onClick={() => void dispatch()}>
             {sending ? 'Enviando…' : 'Enviar'}
           </Button>
         ) : null}

@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState } from 'react'
 import type { CabeceraRemitoView, ReceiptListing, SchoolLineView } from '@/lib/cuadernillos/remito-receipts'
 import { loadJson } from '../cabecera/cabecera-api'
 
-const FAILURE = 'No se pudieron cargar los envíos.'
+const FAILURE = 'No se pudieron cargar los envíos. Revisá la conexión y probá de nuevo.'
+const MESSAGES: Record<string, string> = {
+  cabecera_not_bound: 'Tu cuenta todavía no está vinculada a una escuela cabecera. Pedile a Planeamiento que confirme tu cabecera para ver los envíos.',
+  forbidden: 'Tu cuenta no tiene acceso a la recepción de envíos.',
+}
 
 function isListing(value: unknown): value is ReceiptListing {
   if (!value || typeof value !== 'object') return false
@@ -20,7 +24,7 @@ export function useReceiptListing() {
 
   useEffect(() => {
     let active = true
-    const load = loadJson('/api/cuadernillos/recepciones', isListing, FAILURE)
+    const load = loadJson('/api/cuadernillos/recepciones', isListing, FAILURE, MESSAGES)
     load.promise
       .then((data) => { if (active) { setListing(data); setError(null) } })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : FAILURE) })

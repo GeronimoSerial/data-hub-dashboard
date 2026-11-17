@@ -11,15 +11,20 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 const noStore = { 'Cache-Control': 'private, no-store' }
 const cue = z.string().regex(/^\d{9}$/)
-const schema = z.object({
+const remitoBase = {
   campaignId: z.string().trim().min(1).max(128),
-  cabeceraCueAnexo: cue,
   idempotencyKey: z.string().trim().min(1).max(128),
   lines: z.array(z.object({
     recipientCueAnexo: cue,
     items: z.array(z.object({ productId: z.string().trim().min(1).max(128), quantity: z.number().int().positive().safe() }).strict()).min(1).max(100),
   }).strict()).min(1).max(200),
-}).strict()
+}
+// Zod cannot default a discriminator, so a missing `modo` is a cabecera body: existing clients keep working.
+// A directo body has no cabecera, and the strict objects reject one that carries it.
+const schema = z.union([
+  z.object({ ...remitoBase, modo: z.literal('cabecera').optional(), cabeceraCueAnexo: cue }).strict(),
+  z.object({ ...remitoBase, modo: z.literal('directo') }).strict(),
+])
 const getSchema = z.object({
   campaignId: z.string().trim().min(1).max(128).optional(),
   cursor: z.string().min(1).max(512).optional(),
@@ -69,6 +74,7 @@ async function handlePOST(request: Request) {
       status: 201,
       objetoTipo: 'cuadernillo_remito',
       objetoId: created.remitoId,
+      // A directo remito has no cabecera, so the audit's school field is null; the remito id identifies it.
       cueAnexo: created.cabeceraCueAnexo,
       metadatos: { cantidad: created.lines.reduce((total, line) => total + line.items.reduce((sum, item) => sum + item.quantity, 0), 0) },
     }))

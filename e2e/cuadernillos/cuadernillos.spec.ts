@@ -141,3 +141,46 @@ test('isolated remito flow dispatches, receipts with a shortfall, and keeps hist
 
   await Promise.all([planning, cabecera, supervisor, operator, operatorOther].map((context) => context.close()))
 })
+
+type SchoolListing = { lines?: Array<{ lineId: string; remitoId: string; modo: string; status: string; items: Array<{ productId: string; expectedQuantity: number }> }> }
+type PlanningList = { remitos: Array<{ remitoId: string; modo: string; status: string; cabeceraCueAnexo: string | null; lines: Array<{ status: string }> }> }
+
+test('direct send goes to a school without cabecera, the school signs its line, and planning sees it received @pglite-smoke @postgres-workflow', async ({ browser }) => {
+  const [schoolA] = fixture.criticalCues
+  const planning = await session(browser, 'planning')
+  const operator = await session(browser, 'operator')
+
+  // S1-S3: a directo remito names no cabecera and goes to a Crítica school.
+  const dispatch = await planning.request.post('/api/cuadernillos/remitos', {
+    data: {
+      modo: 'directo', campaignId: fixture.campaignId, idempotencyKey: 't8-direct-dispatch',
+      lines: [{ recipientCueAnexo: schoolA, items: [{ productId: fixture.productId, quantity: 4 }] }],
+    },
+  })
+  expect(dispatch.status()).toBe(201)
+  const { remito } = await json(dispatch) as { remito: { remitoId: string; status: string } }
+  expect(remito.status).toBe('dispatched')
+
+  // S4: the school sees the line in transit and signs it in full against the dispatched quantity.
+  const listing = await operator.request.get('/api/cuadernillos/recepciones')
+  expect(listing.status()).toBe(200)
+  const schoolLine = ((await listing.json()) as SchoolListing).lines?.find((entry) => entry.remitoId === remito.remitoId)
+  if (!schoolLine) throw new Error('direct line missing from the school receipts')
+  expect(schoolLine).toMatchObject({ modo: 'directo', status: 'in_transit' })
+  const items = schoolLine.items.map((item) => ({ productId: item.productId, receivedQuantity: item.expectedQuantity }))
+  expect(items).toEqual([{ productId: fixture.productId, receivedQuantity: 4 }])
+  const signed = await operator.request.post(`/api/cuadernillos/remito-lineas/${schoolLine.lineId}/recibir`, {
+    data: { idempotencyKey: 't8-direct-school-receipt', items },
+  })
+  expect(signed.status()).toBe(200)
+
+  // S6: the only school has signed, so planning sees the directo remito as received, without a cabecera.
+  const planningList = await planning.request.get(`/api/cuadernillos/remitos?campaignId=${encodeURIComponent(fixture.campaignId)}`)
+  expect(planningList.status()).toBe(200)
+  const listed = ((await planningList.json()) as PlanningList).remitos.find((entry) => entry.remitoId === remito.remitoId)
+  if (!listed) throw new Error('direct remito missing from planning list')
+  expect(listed).toMatchObject({ modo: 'directo', status: 'received', cabeceraCueAnexo: null })
+  expect(listed.lines.map((line) => line.status)).toEqual(['received'])
+
+  await Promise.all([planning, operator].map((context) => context.close()))
+})

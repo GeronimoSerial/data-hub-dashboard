@@ -9,39 +9,45 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
  * Layout rules that inline styles cannot express (hover, focus, breakpoints) live in KitStyles.
  */
 const CSS = `
-.cdl-page { overflow-wrap: anywhere; }
+.cdl-page { display: grid; gap: .75rem; width: 100%; max-width: 72rem; box-sizing: border-box; margin: 0 auto; padding: clamp(1.25rem, 3vw, 2.25rem) var(--gutter, clamp(1.25rem, 4vw, 3rem)) 3rem; color: var(--ink); overflow-wrap: anywhere; }
+/* Planeamiento is a working board: it uses the full measure of the hub. */
+.cdl-page[data-wide] { max-width: var(--measure, 90rem); }
+.cdl-eyebrow { margin: 0; color: var(--ink-soft); font-family: var(--font-body); font-size: .8rem; font-weight: 600; line-height: 1.2; letter-spacing: .08em; text-transform: uppercase; }
+.cdl-sections { display: grid; gap: 1.5rem; }
 .cdl-page > *, .cdl-page .k-min { min-width: 0; }
+/* Section headings in sentence case: the hub's uppercase display style reads as labels here. */
+.cdl-page h3, .cdl-page h4 { text-transform: none; letter-spacing: 0; }
 .k-stack { display: grid; gap: 1rem; }
 .k-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: .75rem 1rem; }
 .k-head h2 { margin: 0; font-family: var(--font-display); font-size: clamp(1.35rem, 3vw, 1.75rem); line-height: 1.1; color: var(--ink); }
 .k-head p { margin: .25rem 0 0; color: var(--ink-soft); }
 
-.k-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .5rem; margin: 0; padding: 0; list-style: none; }
-.k-kpi { display: grid; gap: .1rem; padding: .5rem .75rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); }
+.k-kpis { display: flex; flex-wrap: wrap; gap: .5rem 2.5rem; margin: 0; padding: .25rem 0 .75rem; list-style: none; border-bottom: 1px solid var(--line); }
+.k-kpi { display: flex; flex-direction: column-reverse; gap: 0; }
 .k-kpi dt, .k-kpi-label { color: var(--ink-soft); font-size: .85rem; font-weight: 600; }
 .k-kpi dd, .k-kpi-value { margin: 0; color: var(--ink); font-family: var(--font-display); font-size: 1.45rem; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .k-kpi-hint { color: var(--ink-faint); font-size: .8rem; }
-.k-kpi[data-tone="warn"] { border-color: var(--warn); background: var(--warn-tint); }
+.k-kpi[data-tone="warn"] .k-kpi-value, .k-kpi[data-tone="warn"] dd { color: var(--warn); }
 .k-kpi[data-tone="ok"] .k-kpi-value { color: var(--ok); }
 
-.k-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .12rem .6rem; border-radius: var(--r-pill); border: 1px solid var(--line); background: var(--fill); color: var(--ink-soft); font-size: .78rem; font-weight: 700; white-space: nowrap; }
-.k-chip[data-tone="warn"] { border-color: var(--warn); background: var(--warn-tint); color: var(--warn); }
-.k-chip[data-tone="ok"] { border-color: var(--ok); background: var(--ok-tint); color: var(--ok); }
-.k-chip[data-tone="danger"] { border-color: var(--danger-mark); background: var(--danger-tint); color: var(--danger-ink); }
-.k-chip[data-tone="info"] { border-color: var(--info); background: var(--info-tint); color: var(--info); }
+.k-chip { display: inline-flex; align-items: center; color: var(--ink-soft); font-size: .82rem; font-weight: 600; white-space: nowrap; }
+.k-chip[data-tone="warn"] { color: var(--warn); }
+.k-chip[data-tone="ok"] { color: var(--ok); }
+.k-chip[data-tone="danger"] { color: var(--danger-ink); }
+.k-chip[data-tone="info"] { color: var(--info); }
 
 .k-panel { display: grid; gap: .5rem; }
 .k-panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1rem; }
-.k-panel-head h3 { margin: 0; font-family: var(--font-display); font-size: 1.1rem; color: var(--ink); }
+.k-panel-head h3 { margin: 0; font-family: var(--font-display); font-size: 1.1rem; text-transform: none; letter-spacing: 0; color: var(--ink); }
 .k-panel-head span { color: var(--ink-soft); font-size: .88rem; }
 
-.k-list { display: grid; gap: .3rem; margin: 0; padding: 0; list-style: none; }
-.k-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .2rem .75rem; width: 100%; box-sizing: border-box; min-height: 0; padding: .4rem .75rem; text-align: left; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); color: var(--ink); font: inherit; }
+.k-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.k-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .2rem .75rem; width: 100%; box-sizing: border-box; min-height: 0; padding: .45rem .25rem; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--ink); font: inherit; }
 button.k-row { cursor: pointer; }
-button.k-row:hover { border-color: var(--ink-soft); background: var(--fill); }
+button.k-row:hover { background: var(--fill); }
 button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
 .k-row-main { display: grid; gap: .2rem; min-width: 0; }
-.k-row-title { font-weight: 700; color: var(--ink); }
+.k-row-title { font-weight: 600; color: var(--ink); }
 .k-row-meta { color: var(--ink-soft); font-size: .85rem; }
 .k-row-side { display: flex; align-items: center; gap: .6rem; justify-content: flex-end; flex-wrap: wrap; }
 .k-row-num { font-family: var(--font-display); font-size: 1.05rem; font-variant-numeric: tabular-nums; color: var(--ink); }
@@ -50,11 +56,12 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--ink); }
 .k-meter[data-tone="warn"] > span { background: var(--warn); }
 
-.k-empty { display: grid; justify-items: start; gap: .4rem; padding: .9rem 1rem; border: 1px dashed var(--line); border-radius: var(--r-lg); background: var(--fill); }
+.k-empty { display: grid; justify-items: start; gap: .3rem; padding: .25rem 0; }
 .k-empty strong { color: var(--ink); }
 .k-empty p { margin: 0; color: var(--ink-soft); }
 
-.k-note { margin: 0; padding: .45rem .8rem; border-left: 4px solid var(--marker); background: var(--fill); color: var(--ink); }
+.k-note { margin: 0; color: var(--ink-soft); }
+.k-note[data-tone] { padding: .45rem .8rem; border-left: 3px solid; color: var(--ink); }
 .k-note[data-tone="ok"] { border-left-color: var(--ok); background: var(--ok-tint); }
 .k-note[data-tone="danger"] { border-left-color: var(--danger-mark); background: var(--danger-tint); color: var(--danger-ink); }
 
@@ -70,7 +77,11 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-modal-body { display: grid; gap: 1rem; align-content: start; padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 .k-modal-foot { display: flex; flex-wrap: wrap; gap: .5rem; padding: .9rem 1.5rem; border-top: 1px solid var(--line); background: var(--card); }
 .k-modal-foot > * { flex: 1 1 8rem; min-height: 44px; }
+.k-modal.k-modal--wide { width: min(64rem, calc(100vw - 2rem)); height: min(46rem, calc(100dvh - 2rem)); max-height: none; }
+.k-modal--wide .k-modal-foot { align-items: center; justify-content: flex-end; }
+.k-modal--wide .k-modal-foot > .ui-button { flex: 0 0 auto; min-width: 9.5rem; }
 @media (max-width: 640px) {
+  .k-modal--wide .k-modal-foot > .ui-button { flex: 1 1 8rem; min-width: 0; }
   .k-modal-head { padding-left: 1rem; }
   .k-modal-body { padding: 1rem; }
   .k-modal-foot { padding-left: 1rem; padding-right: 1rem; }
@@ -79,9 +90,9 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-field { display: grid; gap: .35rem; }
 .k-field > label, .k-field > span.k-label { color: var(--ink); font-weight: 600; }
 .k-hint { color: var(--ink-soft); font-size: .82rem; }
-.k-qty-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: .3rem .5rem; margin: 0; padding: 0; list-style: none; }
-.k-qty-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem; padding: .2rem .25rem .2rem .6rem; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--card); font-size: .9rem; }
-.k-qty-row[data-active="true"] { border-color: var(--ink); background: var(--fill); }
+.k-qty-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: 0 2rem; margin: 0; padding: 0; list-style: none; }
+.k-qty-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem; min-height: 2.1rem; padding: .15rem 0; border-bottom: 1px solid var(--line); font-size: .9rem; }
+.k-qty-row[data-active="true"] { color: var(--ink); }
 .k-step { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--card); }
 .k-step button { display: grid; place-items: center; width: 28px; min-height: 28px; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
 .k-step button:disabled { opacity: .35; cursor: not-allowed; }
@@ -92,33 +103,52 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-total { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .25rem .1rem; color: var(--ink-soft); }
 .k-total strong { color: var(--ink); font-family: var(--font-display); font-size: 1.4rem; font-variant-numeric: tabular-nums; }
 
-.k-task { display: grid; gap: .4rem; justify-items: start; padding: .85rem 1rem; border: 1px solid var(--line); border-left: 6px solid var(--marker); border-radius: var(--r-lg); background: var(--card); }
-.k-task[data-tone="warn"] { border-left-color: var(--warn); }
-.k-task[data-tone="ok"] { border-left-color: var(--ok); }
-.k-task h3 { margin: 0; font-family: var(--font-display); font-size: clamp(1.15rem, 2.6vw, 1.4rem); line-height: 1.2; color: var(--ink); }
+.k-task { display: grid; gap: .35rem; justify-items: start; padding: 0 0 .25rem; }
+.k-task h3 { margin: 0; font-family: var(--font-display); font-size: clamp(1.2rem, 2.6vw, 1.45rem); line-height: 1.2; text-transform: none; letter-spacing: 0; color: var(--ink); }
 .k-task p { margin: 0; color: var(--ink-soft); }
+.k-task[data-tone="warn"] h3 { color: var(--ink); }
 
-.k-journey { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; padding: 0; list-style: none; }
-.k-journey li { display: grid; gap: 0; flex: 1 1 9rem; min-width: 0; padding: .3rem .6rem; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--fill); color: var(--ink-soft); font-size: .85rem; }
-.k-journey li strong { color: var(--ink-soft); font-size: .9rem; }
-.k-journey li[data-state="done"] { border-color: var(--ok); background: var(--ok-tint); }
-.k-journey li[data-state="done"] strong { color: var(--ok); }
-.k-journey li[data-state="short"] { border-color: var(--warn); background: var(--warn-tint); }
+/* Sequential stepper: numbered markers joined by a rail; filled = confirmed, ring = next, hollow = later. */
+.k-journey { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; counter-reset: k-step; }
+.k-journey li { position: relative; display: grid; justify-items: start; align-content: start; gap: .15rem; padding-right: 1rem; color: var(--ink-soft); font-size: .84rem; }
+.k-journey li::after { content: ""; position: absolute; top: .65rem; left: 1.9rem; right: .4rem; height: 2px; background: var(--line); }
+.k-journey li:last-child::after { display: none; }
+.k-journey li[data-state="done"]::after { background: var(--ok); }
+.k-journey-mark { display: grid; place-items: center; width: 1.4rem; height: 1.4rem; margin-bottom: .2rem; border-radius: 50%; border: 2px solid var(--line); background: var(--card); color: var(--ink-soft); font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.k-journey li strong { color: var(--ink-soft); font-size: .9rem; font-weight: 600; }
+.k-journey li[data-state="done"] .k-journey-mark { border-color: var(--ok); background: var(--ok); color: var(--white); }
+.k-journey li[data-state="done"] strong { color: var(--ink); }
+.k-journey li[data-state="short"] .k-journey-mark { border-color: var(--warn); background: var(--warn); color: var(--white); }
 .k-journey li[data-state="short"] strong { color: var(--warn); }
-.k-journey li[data-state="current"] { border-color: var(--ink); background: var(--card); }
+.k-journey li[data-state="current"] .k-journey-mark { border-color: var(--ink); color: var(--ink); }
 .k-journey li[data-state="current"] strong { color: var(--ink); }
 @media (max-width: 640px) {
-  .k-journey { flex-direction: column; gap: .25rem; }
-  .k-journey li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; flex: none; }
+  .k-journey { grid-auto-flow: row; gap: .7rem; }
+  .k-journey li { grid-template-columns: auto minmax(0, 1fr); column-gap: .6rem; padding-right: 0; }
+  .k-journey-mark { grid-row: span 2; margin-bottom: 0; }
+  .k-journey li::after { top: 1.6rem; bottom: -.6rem; left: .64rem; right: auto; width: 2px; height: auto; }
 }
 
-.k-guide { display: grid; gap: .4rem; padding: .6rem 1rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--fill); }
-.k-guide-head { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; }
-.k-guide-head strong { color: var(--ink); }
-.k-guide ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .25rem 1.5rem; margin: 0; padding: 0; list-style-position: inside; color: var(--ink-soft); }
-.k-guide li { min-width: 0; }
-.k-guide button { min-height: 36px; padding: .25rem .75rem; border: 0; background: transparent; color: var(--accent); font: inherit; cursor: pointer; }
+.k-guide { display: grid; gap: .3rem; color: var(--ink-soft); font-size: .9rem; }
+.k-guide-head { display: flex; align-items: baseline; gap: .75rem; }
+.k-guide-head strong { color: var(--ink); font-weight: 600; }
+.k-guide ol { margin: 0; padding-left: 1.25rem; display: grid; gap: .1rem; }
+.k-guide button { padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: .85rem; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .k-guide button:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
+
+/* Receipt: what is being sent, itemised like a printed delivery note. */
+.k-receipt { display: grid; gap: .75rem; padding: .25rem 0; font-variant-numeric: tabular-nums; }
+.k-receipt-head { display: grid; gap: .05rem; padding-bottom: .6rem; border-bottom: 2px solid var(--ink); }
+.k-receipt-head span { color: var(--ink-soft); font-size: .82rem; }
+.k-receipt-head strong { color: var(--ink); font-size: 1.05rem; }
+.k-receipt-group h4 { margin: 0 0 .2rem; font-size: .95rem; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.k-receipt-group dl { margin: 0; display: grid; }
+.k-receipt-group dl > div { display: flex; align-items: baseline; gap: .5rem; padding: .1rem 0; color: var(--ink-soft); font-size: .9rem; }
+.k-receipt-group dl > div::after { content: ""; order: 1; flex: 1; border-bottom: 1px dotted var(--line); transform: translateY(-.25rem); }
+.k-receipt-group dt { order: 0; }
+.k-receipt-group dd { order: 2; margin: 0; color: var(--ink); font-weight: 600; }
+.k-receipt-total { display: flex; justify-content: space-between; align-items: baseline; margin: 0; padding-top: .6rem; border-top: 2px solid var(--ink); color: var(--ink-soft); }
+.k-receipt-total strong { color: var(--ink); font-size: 1.05rem; }
 
 /* Dense on desktop; touch screens keep 44px targets. */
 @media (pointer: coarse) {
@@ -220,16 +250,18 @@ export function Segmented<T extends string>({ label, value, options, onChange }:
 }
 
 /** Centered modal dialog. Compose with ModalBody and ModalFoot. */
-export function Modal({ open, title, description, onClose, children }: {
+export function Modal({ open, title, description, size, onClose, children }: {
   open: boolean
   title: string
   description?: string
+  /** `wide` gives multi-step flows a roomy, fixed-height dialog so steps do not resize it. */
+  size?: 'wide'
   onClose: () => void
   children: ReactNode
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose() }}>
-      <DialogContent className="k-modal">
+      <DialogContent className={size === 'wide' ? 'k-modal k-modal--wide' : 'k-modal'}>
         <div className="k-modal-head">
           <DialogTitle className="k-modal-title">{title}</DialogTitle>
           {description ? <p>{description}</p> : null}
@@ -318,8 +350,9 @@ export type JourneyStep = {
 export function ShipmentJourney({ steps, label = 'Recorrido del envío' }: { steps: JourneyStep[]; label?: string }) {
   return (
     <ol className="k-journey" aria-label={label}>
-      {steps.map((step) => (
+      {steps.map((step, index) => (
         <li key={step.label} data-state={step.state} aria-current={step.state === 'current' ? 'step' : undefined}>
+          <span className="k-journey-mark" aria-hidden="true">{step.state === 'done' ? '✓' : step.state === 'short' ? '!' : index + 1}</span>
           <strong>{step.label}</strong>
           <span>{step.detail ?? (step.state === 'pending' || step.state === 'current' ? 'Todavía no' : '')}</span>
         </li>

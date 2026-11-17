@@ -4,6 +4,9 @@ export type ProductOption = { productId: string; productLabel: string; available
 
 export type RemitoSigner = { userId: string; name: string }
 
+/** `directo` goes straight to the schools; a cabecera remito goes through its cabecera first. */
+export type RemitoModo = 'cabecera' | 'directo'
+
 export type RemitoItemRow = {
   productId: string
   productName?: string
@@ -26,7 +29,8 @@ export type RemitoLineRow = {
 export type RemitoSummary = {
   remitoId: string
   campaignId: string
-  cabeceraCueAnexo: string
+  modo: RemitoModo
+  cabeceraCueAnexo: string | null
   status: 'dispatched' | 'received'
   dispatchedAt: string
   cabeceraReceivedAt: string | null
@@ -37,6 +41,28 @@ export type RemitoSummary = {
 export type RemitosPage = { remitos: RemitoSummary[]; hasMore: boolean; nextCursor: string | null }
 
 export type ConfirmedCabecera = { cue: string; nombre: string; departamento: string }
+
+export type DispatchLine = { recipientCueAnexo: string; items: Array<{ productId: string; quantity: number }> }
+
+/** The POST body for either mode. A cabecera send stays exactly as before; a directo send never carries a cabecera. */
+export function remitoDispatchBody(input: {
+  mode: RemitoModo
+  campaignId: string
+  cabeceraCueAnexo: string | null
+  idempotencyKey: string
+  lines: DispatchLine[]
+}) {
+  const { mode, campaignId, cabeceraCueAnexo, idempotencyKey, lines } = input
+  if (mode === 'directo') return { campaignId, modo: 'directo' as const, idempotencyKey, lines }
+  return { campaignId, cabeceraCueAnexo, idempotencyKey, lines }
+}
+
+/** Recommendations need the cabecera only when the send goes through one. */
+export function recommendationsParams(input: { mode: RemitoModo; cueAnexo: string; cabeceraCueAnexo: string | null; campaignId: string }) {
+  const params = new URLSearchParams({ cueAnexo: input.cueAnexo, campaignId: input.campaignId })
+  if (input.mode === 'cabecera' && input.cabeceraCueAnexo) params.set('cabeceraCueAnexo', input.cabeceraCueAnexo)
+  return params
+}
 
 export function isRemitosPage(value: unknown): value is RemitosPage {
   if (!value || typeof value !== 'object') return false
