@@ -47,6 +47,25 @@ describe('POST /api/cuadernillos/remitos', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
+  it('accepts a directo body without a cabecera and dispatches it', async () => {
+    const directo = { campaignId: 'campaign-1', modo: 'directo', idempotencyKey: 'key-directo', lines: body.lines }
+    const response = await POST(post(directo))
+    expect(response.status).toBe(201)
+    expect(service.dispatchRemito).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-user' }), directo)
+  })
+
+  it('rejects a directo body that carries a cabecera', async () => {
+    expect((await POST(post({ ...body, modo: 'directo' }))).status).toBe(400)
+    expect(service.dispatchRemito).not.toHaveBeenCalled()
+  })
+
+  it('treats a body without modo as cabecera, which still requires a cabecera', async () => {
+    const { cabeceraCueAnexo: _cabecera, ...withoutCabecera } = body
+    expect((await POST(post(withoutCabecera))).status).toBe(400)
+    expect((await POST(post({ ...body, modo: 'cabecera' }))).status).toBe(201)
+    expect(service.dispatchRemito).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects caller-supplied authority fields and malformed bodies', async () => {
     for (const value of [{ ...body, actorId: 'attacker' }, { ...body, lines: [] }, { ...body, cabeceraCueAnexo: '18' },
       { ...body, lines: [{ recipientCueAnexo: '180000200', items: [{ productId: 'p', quantity: 0 }] }] }]) {

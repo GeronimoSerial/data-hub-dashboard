@@ -36,37 +36,41 @@ function ReceivedCell({ from, to }: { from: number | null; to: number | null }) 
   )
 }
 
-/** "Enviado → Llegó a la cabecera → Llegó a la escuela"; the school step aggregates every school of the envío. */
+/** "Enviado → Llegó a la cabecera → Llegó a la escuela"; a directo envío skips the cabecera step. The school step aggregates every school of the envío. */
 function journeySteps(remito: RemitoSummary): JourneyStep[] {
+  const direct = remito.modo === 'directo'
   const items = remito.lines.flatMap((line) => line.items)
   const cabeceraShort = items.some((item) => item.cabeceraReceivedQuantity !== null && item.cabeceraReceivedQuantity < item.dispatchedQuantity)
   const schoolShort = items.some((item) => item.schoolReceivedQuantity !== null
     && item.schoolReceivedQuantity < (item.cabeceraReceivedQuantity ?? item.dispatchedQuantity))
   const total = remito.lines.length
   const done = remito.lines.filter(lineDone).length
-  const atCabecera = Boolean(remito.cabeceraReceivedAt)
+  const atCabecera = direct || Boolean(remito.cabeceraReceivedAt)
   const cabeceraWho = signature(remito.cabeceraReceivedBy, remito.cabeceraReceivedAt)
     ?? (remito.cabeceraReceivedAt ? dateTimeFormat.format(new Date(remito.cabeceraReceivedAt)) : null)
   const lastSchoolAt = remito.lines.map((line) => line.schoolReceivedAt).filter((at): at is string => Boolean(at)).sort().at(-1)
 
   const schoolState: JourneyStep['state'] = total > 0 && done === total ? (schoolShort ? 'short' : 'done')
     : atCabecera ? 'current' : 'pending'
+  const school: JourneyStep = { label: 'Llegó a la escuela', state: schoolState, detail: null }
   let schoolDetail: string | null = null
   if (total > 0 && done === total) schoolDetail = `${done} de ${total} escuela${total === 1 ? '' : 's'}${lastSchoolAt ? ` · ${dateTimeFormat.format(new Date(lastSchoolAt))}` : ''}${schoolShort ? ' · llegó de menos' : ''}`
   else if (total > 0 && done > 0) schoolDetail = `${done} de ${total} escuelas`
 
+  const sent: JourneyStep = { label: 'Enviado', state: 'done', detail: `Planeamiento · ${dateTimeFormat.format(new Date(remito.dispatchedAt))}` }
+  if (direct) return [sent, { ...school, detail: schoolDetail }]
   return [
-    { label: 'Enviado', state: 'done', detail: `Planeamiento · ${dateTimeFormat.format(new Date(remito.dispatchedAt))}` },
+    sent,
     {
       label: 'Llegó a la cabecera',
-      state: atCabecera ? (cabeceraShort ? 'short' : 'done') : 'current',
-      detail: atCabecera ? `${cabeceraWho}${cabeceraShort ? ' · llegó de menos' : ''}` : null,
+      state: remito.cabeceraReceivedAt ? (cabeceraShort ? 'short' : 'done') : 'current',
+      detail: remito.cabeceraReceivedAt ? `${cabeceraWho}${cabeceraShort ? ' · llegó de menos' : ''}` : null,
     },
-    { label: 'Llegó a la escuela', state: schoolState, detail: schoolDetail },
+    { ...school, detail: schoolDetail },
   ]
 }
 
-function LineDetail({ line, productLabels }: { line: RemitoLineRow; productLabels: Map<string, string> }) {
+function LineDetail({ line, direct, productLabels }: { line: RemitoLineRow; direct: boolean; productLabels: Map<string, string> }) {
   const name = line.recipientName ?? 'Escuela'
   const schoolSigner = signature(line.schoolReceivedBy, line.schoolReceivedAt)
   return (
@@ -80,7 +84,7 @@ function LineDetail({ line, productLabels }: { line: RemitoLineRow; productLabel
           <tr>
             <th scope="col">Grado</th>
             <th scope="col">Enviado</th>
-            <th scope="col">Cabecera</th>
+            {direct ? null : <th scope="col">Cabecera</th>}
             <th scope="col">Escuela</th>
           </tr>
         </thead>
@@ -89,8 +93,11 @@ function LineDetail({ line, productLabels }: { line: RemitoLineRow; productLabel
             <tr key={item.productId}>
               <th scope="row">{shortProduct(productLabels.get(item.productId) ?? item.productName ?? item.productId)}</th>
               <td>{formatCount(item.dispatchedQuantity)}</td>
-              <ReceivedCell from={item.dispatchedQuantity} to={item.cabeceraReceivedQuantity} />
-              <ReceivedCell from={item.cabeceraReceivedQuantity} to={item.cabeceraReceivedQuantity === null ? null : item.schoolReceivedQuantity} />
+              {direct ? null : <ReceivedCell from={item.dispatchedQuantity} to={item.cabeceraReceivedQuantity} />}
+              <ReceivedCell
+                from={direct ? item.dispatchedQuantity : item.cabeceraReceivedQuantity}
+                to={direct || item.cabeceraReceivedQuantity !== null ? item.schoolReceivedQuantity : null}
+              />
             </tr>
           ))}
         </tbody>
@@ -164,8 +171,9 @@ export function RemitosList({ remitos, cabeceras, productLabels, hasMore, loadin
         <ul>
           {visible.map(({ remito, status }) => {
             const open = openId === remito.remitoId
-            const cabecera = cabeceras.get(remito.cabeceraCueAnexo)
-            const name = cabecera?.nombre ?? `CUE ${dashedCue(remito.cabeceraCueAnexo)}`
+            const direct = remito.modo === 'directo'
+            const cabecera = remito.cabeceraCueAnexo ? cabeceras.get(remito.cabeceraCueAnexo) : undefined
+            const name = direct ? 'Envío directo' : cabecera?.nombre ?? `CUE ${dashedCue(remito.cabeceraCueAnexo ?? '')}`
             const units = remitoUnits(remito).dispatched
             const tone = status.short ? 'short' : status.stage
             return (
@@ -175,7 +183,7 @@ export function RemitosList({ remitos, cabeceras, productLabels, hasMore, loadin
                   onClick={() => setOpenId(open ? null : remito.remitoId)}>
                   <span className="pl-envio-who">
                     <strong>{name}</strong>
-                    <span>{cabecera ? `${cabecera.departamento} · ` : ''}CUE {dashedCue(remito.cabeceraCueAnexo)}</span>
+                    <span>{direct ? 'Sin cabecera' : <>{cabecera ? `${cabecera.departamento} · ` : ''}CUE {dashedCue(remito.cabeceraCueAnexo ?? '')}</>}</span>
                   </span>
                   <span className="pl-envio-when">
                     <strong>{dateFormat.format(new Date(remito.dispatchedAt))}</strong>
@@ -198,9 +206,9 @@ export function RemitosList({ remitos, cabeceras, productLabels, hasMore, loadin
                 </button>
                 {open ? (
                   <div className="pl-envio-detail">
-                    <ShipmentJourney steps={journeySteps(remito)} label={`Recorrido del envío a ${name}`} />
+                    <ShipmentJourney steps={journeySteps(remito)} label={direct ? 'Recorrido del envío' : `Recorrido del envío a ${name}`} />
                     <div className="pl-lines">
-                      {remito.lines.map((line) => <LineDetail key={line.recipientCueAnexo} line={line} productLabels={productLabels} />)}
+                      {remito.lines.map((line) => <LineDetail key={line.recipientCueAnexo} line={line} direct={direct} productLabels={productLabels} />)}
                     </div>
                   </div>
                 ) : null}

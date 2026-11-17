@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { dashedCue, errorCode, isRecommendationList, readJson, type CriticalSchool } from '../cabecera/cabecera-api'
 import { SchoolSearch, useSchoolSearchState } from '../cabecera/school-search'
-import { EmptyState, Modal, ModalBody, ModalFoot, Note, Stepper, formatCount, shortProduct } from '../kit'
-import { dispatchErrorMessage, isCabeceraList, type ConfirmedCabecera, type ProductOption } from './remito-api'
+import { EmptyState, Modal, ModalBody, ModalFoot, Note, Segmented, Stepper, formatCount, shortProduct } from '../kit'
+import {
+  dispatchErrorMessage, isCabeceraList, recommendationsParams, remitoDispatchBody, type ConfirmedCabecera, type ProductOption, type RemitoModo,
+} from './remito-api'
 
 type Step = 'cabecera' | 'escuelas' | 'revision'
 type Quantities = Record<string, Record<string, number>>
@@ -43,6 +45,7 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   // One key per dialog: a retry after a failed or lost response replays the same dispatch instead of duplicating it.
   const idempotencyKey = useRef(crypto.randomUUID())
   const [step, setStep] = useState<Step>('cabecera')
+  const [mode, setMode] = useState<RemitoModo>('cabecera')
   const [cabeceras, setCabeceras] = useState<ConfirmedCabecera[] | null>(null)
   const [cabeceraError, setCabeceraError] = useState<string | null>(null)
   const [cabeceraFilter, setCabeceraFilter] = useState('')
@@ -90,13 +93,15 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   const stockLeft = useMemo(() => new Map(products.map((p) => [p.productId, p.available])), [products])
   const short = totals.filter((row) => row.requested > row.available)
 
+  const canContinue = mode === 'directo' || cabecera !== null
+
   async function addSchool(school: CriticalSchool) {
-    if (!cabecera || schools.some((row) => row.cueAnexo === school.cueAnexo)) return
+    if (!canContinue || schools.some((row) => row.cueAnexo === school.cueAnexo)) return
     setSchools((current) => [...current, school])
     setQuantities((current) => ({ ...current, [school.cueAnexo]: {} }))
     setLoadingRecs((current) => [...current, school.cueAnexo])
     try {
-      const query = new URLSearchParams({ cueAnexo: school.cueAnexo, cabeceraCueAnexo: cabecera.cue, campaignId })
+      const query = recommendationsParams({ mode, cueAnexo: school.cueAnexo, cabeceraCueAnexo: cabecera?.cue ?? null, campaignId })
       const response = await fetch(`/api/cuadernillos/recommendations?${query}`, { cache: 'no-store' })
       const data = await readJson(response)
       if (response.ok && isRecommendationList(data)) {
@@ -121,15 +126,21 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
     setCabecera(next)
   }
 
+  // Recommendations depend on the send mode, so the schools picked for one mode do not carry over to the other.
+  function chooseMode(next: RemitoModo) {
+    if (next !== mode) { setSchools([]); setQuantities({}) }
+    setMode(next)
+  }
+
   async function dispatch() {
-    if (!cabecera || lines.length === 0 || short.length > 0) return
+    if (!canContinue || lines.length === 0 || short.length > 0) return
     setSending(true)
     setError(null)
     try {
       const response = await fetch('/api/cuadernillos/remitos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignId, cabeceraCueAnexo: cabecera.cue, idempotencyKey: idempotencyKey.current, lines }),
+        body: JSON.stringify(remitoDispatchBody({ mode, campaignId, cabeceraCueAnexo: cabecera?.cue ?? null, idempotencyKey: idempotencyKey.current, lines })),
       })
       const data = await readJson(response)
       if (!response.ok) {
@@ -148,6 +159,8 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   const searchState = { ...search, results: pickable && pickable.length === 0 && (search.results?.length ?? 0) > 0 ? null : pickable }
   const recsPending = loadingRecs.length > 0
   const stepIndex = STEPS.findIndex((item) => item.id === step)
+  // The first step is the send mode; a directo send has no cabecera to choose, so its question changes.
+  const stepLabel = (item: { id: Step; label: string }) => (item.id === 'cabecera' && mode === 'directo' ? '¿Cómo se envía?' : item.label)
   const totalUnits = totals.reduce((sum, row) => sum + row.requested, 0)
   const schoolTotal = (cue: string) => products.reduce((sum, product) => sum + (quantities[cue]?.[product.productId] ?? 0), 0)
 
@@ -157,11 +170,14 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
         <ol aria-label="Pasos del envío" className="pl-steps">
           {STEPS.map((item, index) => (
             <li key={item.id} aria-current={index === stepIndex ? 'step' : undefined} data-state={index < stepIndex ? 'done' : undefined}>
-              <span><span className="sr-only">{`${index + 1}. `}</span>{item.label}</span>
+              <span><span className="sr-only">{`${index + 1}. `}</span>{stepLabel(item)}</span>
             </li>
           ))}
         </ol>
-        {step !== 'cabecera' && cabecera ? (
+        {step !== 'cabecera' && mode === 'directo' ? (
+          <p className="pl-dest"><span>Envío</span> <strong>Directo a escuelas</strong></p>
+        ) : null}
+        {step !== 'cabecera' && mode === 'cabecera' && cabecera ? (
           <p className="pl-dest">
             <span>Para</span> <strong>{cabecera.nombre}</strong> <span>· {cabecera.departamento}</span>
           </p>
@@ -170,25 +186,37 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
       <ModalBody>
         {step === 'cabecera' ? (
           <div className="k-field">
-            <span className="k-label">Elegí la escuela cabecera que recibe el envío</span>
-            {cabeceraError ? <Note tone="danger">{cabeceraError}</Note> : null}
-            {!cabeceras && !cabeceraError ? <p role="status" className="k-note">Cargando escuelas cabecera…</p> : null}
-            {cabeceras && cabeceras.length === 0 ? <EmptyState title="Ninguna cabecera confirmó su cuenta" description="Una cabecera tiene que confirmar su cuenta para poder recibir envíos." /> : null}
-            {cabeceras && cabeceras.length > 8 ? (
-              <Input aria-label="Buscar cabecera" placeholder="Buscar por nombre o CUE" value={cabeceraFilter} onChange={(event) => setCabeceraFilter(event.target.value)} />
-            ) : null}
-            {cabeceras && cabeceras.length > 0 && visibleCabeceras.length === 0 ? <p className="k-note">Ninguna cabecera coincide con la búsqueda.</p> : null}
-            <ul className="pl-pick">
-              {visibleCabeceras.map((row) => (
-                <li key={row.cue}>
-                  <button type="button" aria-pressed={cabecera?.cue === row.cue} onClick={() => chooseCabecera(row)}>
-                    <span className="pl-radio" aria-hidden="true" />
-                    <span className="pl-pick-name">{row.nombre}</span>
-                    <span className="pl-pick-meta">{row.departamento} · CUE {dashedCue(row.cue)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <Segmented<RemitoModo>
+              label="Modo de envío"
+              value={mode}
+              onChange={chooseMode}
+              options={[{ value: 'cabecera', label: 'A una cabecera' }, { value: 'directo', label: 'Directo a escuelas' }]}
+            />
+            {mode === 'directo' ? (
+              <p className="k-hint" style={{ margin: 0 }}>Sin cabecera: el envío va directo a las escuelas que elijas, y cada una firma su recepción.</p>
+            ) : (
+              <>
+                <span className="k-label">Elegí la escuela cabecera que recibe el envío</span>
+                {cabeceraError ? <Note tone="danger">{cabeceraError}</Note> : null}
+                {!cabeceras && !cabeceraError ? <p role="status" className="k-note">Cargando escuelas cabecera…</p> : null}
+                {cabeceras && cabeceras.length === 0 ? <EmptyState title="Ninguna cabecera confirmó su cuenta" description="Una cabecera tiene que confirmar su cuenta para poder recibir envíos." /> : null}
+                {cabeceras && cabeceras.length > 8 ? (
+                  <Input aria-label="Buscar cabecera" placeholder="Buscar por nombre o CUE" value={cabeceraFilter} onChange={(event) => setCabeceraFilter(event.target.value)} />
+                ) : null}
+                {cabeceras && cabeceras.length > 0 && visibleCabeceras.length === 0 ? <p className="k-note">Ninguna cabecera coincide con la búsqueda.</p> : null}
+                <ul className="pl-pick">
+                  {visibleCabeceras.map((row) => (
+                    <li key={row.cue}>
+                      <button type="button" aria-pressed={cabecera?.cue === row.cue} onClick={() => chooseCabecera(row)}>
+                        <span className="pl-radio" aria-hidden="true" />
+                        <span className="pl-pick-name">{row.nombre}</span>
+                        <span className="pl-pick-meta">{row.departamento} · CUE {dashedCue(row.cue)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         ) : null}
 
@@ -266,9 +294,10 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
           <div className="pl-review">
             <section className="k-receipt" aria-label="Detalle del envío">
               <header className="k-receipt-head">
-                <span>Envío a</span>
-                <strong>{cabecera?.nombre}</strong>
+                <span>{mode === 'directo' ? 'Envío' : 'Envío a'}</span>
+                <strong>{mode === 'directo' ? 'Directo a escuelas' : cabecera?.nombre}</strong>
               </header>
+              {mode === 'directo' ? <p className="k-hint" style={{ margin: 0 }}>Sin cabecera: cada escuela firma su recepción.</p> : null}
               {lines.map((line) => (
                 <div key={line.recipientCueAnexo} className="k-receipt-group">
                   <h4>{schoolNames.get(line.recipientCueAnexo) ?? line.recipientCueAnexo}</h4>
@@ -306,7 +335,7 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
         )}
         {step === 'cabecera' ? (
-          <Button type="button" disabled={!cabecera} onClick={() => setStep('escuelas')}>Siguiente</Button>
+          <Button type="button" disabled={!canContinue} onClick={() => setStep('escuelas')}>Siguiente</Button>
         ) : null}
         {step === 'escuelas' ? (
           <Button type="button" disabled={lines.length === 0 || recsPending} onClick={() => setStep('revision')}>
@@ -314,7 +343,7 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
           </Button>
         ) : null}
         {step === 'revision' ? (
-          <Button type="button" disabled={sending || lines.length === 0 || short.length > 0} onClick={() => void dispatch()}>
+          <Button type="button" disabled={sending || lines.length === 0 || short.length > 0 || !canContinue} onClick={() => void dispatch()}>
             {sending ? 'Enviando…' : 'Enviar'}
           </Button>
         ) : null}
