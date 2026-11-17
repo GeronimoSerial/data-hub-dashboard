@@ -20,7 +20,11 @@ export type RemitoControlItem = {
   schoolReceived: number | null
   /** dispatched - cabeceraReceived; null until the cabecera signs. */
   planningToCabeceraShortfall: number | null
-  /** cabeceraReceived - schoolReceived; null until the school signs. */
+  /**
+   * School-leg shortfall; null until the school signs. For cabecera remitos it is
+   * cabeceraReceived - schoolReceived. Direct remitos have no cabecera leg, so their
+   * school leg is measured from dispatched: dispatched - schoolReceived.
+   */
   cabeceraToSchoolShortfall: number | null
 }
 
@@ -49,8 +53,10 @@ export type RemitoControlLine = {
 export type RemitoControlRemito = {
   remitoId: string
   campaignId: string
-  cabeceraCueAnexo: string
-  cabeceraName: string
+  modo: 'cabecera' | 'directo'
+  /** Null for direct remitos, which have no cabecera. */
+  cabeceraCueAnexo: string | null
+  cabeceraName: string | null
   status: string
   dispatchedByUserId: string
   dispatchedByName: string
@@ -64,10 +70,18 @@ export type RemitoControlRemito = {
 }
 
 export type RemitoControlSummary = {
+  /** Cabecera remitos still waiting for the cabecera to sign. Direct remitos never count here. */
   remitosPendingCabeceraReceipt: number
-  /** Lines the cabecera already confirmed that the school has not signed yet. */
+  /**
+   * Lines still waiting for the school: cabecera-confirmed lines (`at_cabecera`) plus the
+   * `in_transit` lines of direct remitos.
+   */
   linesPendingSchoolReceipt: number
   planningToCabeceraShortfallUnits: number
+  /**
+   * Shortfall on the school leg. It counts the cabecera-to-school leg of cabecera remitos
+   * and the Planeamiento-to-school leg of direct remitos, which is measured from dispatched.
+   */
   cabeceraToSchoolShortfallUnits: number
 }
 
@@ -99,9 +113,14 @@ function decodeCursor(value: string | undefined): Cursor | null {
   }
 }
 
+// What the school leg hands over: the cabecera's receipt, or the dispatched quantity for a direct remito.
+// Requires bookletRemito in scope (the outer query or the correlated exists below).
+const schoolLegBaseSql = sql`(CASE WHEN ${bookletRemito.modo} = 'directo' THEN ${bookletRemitoItem.dispatchedQuantity}
+  ELSE ${bookletRemitoItem.cabeceraReceivedQuantity} END)`
+
 // A remito has a shortfall when any item was confirmed below what the previous leg handed over.
 const itemShortfallSql = sql`(${bookletRemitoItem.cabeceraReceivedQuantity} < ${bookletRemitoItem.dispatchedQuantity}
-  OR ${bookletRemitoItem.schoolReceivedQuantity} < ${bookletRemitoItem.cabeceraReceivedQuantity})`
+  OR ${bookletRemitoItem.schoolReceivedQuantity} < ${schoolLegBaseSql})`
 
 /**
  * Supervisor "solo control posterior" view: the chain of custody of the remitos of
@@ -119,6 +138,8 @@ export async function getSupervisorControl(actor: SessionUser | null, query: Rem
   const scope: SQL[] = []
   if (query.campaignId) scope.push(eq(bookletRemito.campaignId, query.campaignId))
   if (!admin) {
+    // Direct remitos have no cabecera, so this filter already excludes them; `modo` makes that explicit.
+    scope.push(eq(bookletRemito.modo, 'cabecera'))
     scope.push(inArray(
       bookletRemito.cabeceraCueAnexo,
       db.select({ cue: bookletSchoolAssignment.cueAnexo }).from(bookletSchoolAssignment)
@@ -156,13 +177,19 @@ export async function getSupervisorControl(actor: SessionUser | null, query: Rem
 async function computeSummary(db: Db, scoped: SQL | undefined): Promise<RemitoControlSummary> {
   const withRemito = (status: SQL) => and(scoped, status)
   const [[pendingRemitos], [pendingLines], [shortfalls]] = await Promise.all([
-    db.select({ n: sql<number>`count(*)::int` }).from(bookletRemito).where(withRemito(eq(bookletRemito.status, 'dispatched'))),
+    db.select({ n: sql<number>`count(*)::int` }).from(bookletRemito)
+      .where(withRemito(and(eq(bookletRemito.status, 'dispatched'), eq(bookletRemito.modo, 'cabecera'))!)),
     db.select({ n: sql<number>`count(*)::int` }).from(bookletRemitoLine)
       .innerJoin(bookletRemito, eq(bookletRemito.id, bookletRemitoLine.remitoId))
-      .where(withRemito(eq(bookletRemitoLine.status, 'at_cabecera'))),
+      .where(withRemito(or(
+        eq(bookletRemitoLine.status, 'at_cabecera'),
+        and(eq(bookletRemitoLine.status, 'in_transit'), eq(bookletRemito.modo, 'directo')),
+      )!)),
     db.select({
-      toCabecera: sql<number>`coalesce(sum(${bookletRemitoItem.dispatchedQuantity} - ${bookletRemitoItem.cabeceraReceivedQuantity}), 0)::int`,
-      toSchool: sql<number>`coalesce(sum(${bookletRemitoItem.cabeceraReceivedQuantity} - ${bookletRemitoItem.schoolReceivedQuantity}), 0)::int`,
+      // Direct remitos have no cabecera leg: only cabecera remitos contribute here.
+      toCabecera: sql<number>`coalesce(sum(CASE WHEN ${bookletRemito.modo} = 'cabecera'
+        THEN ${bookletRemitoItem.dispatchedQuantity} - ${bookletRemitoItem.cabeceraReceivedQuantity} END), 0)::int`,
+      toSchool: sql<number>`coalesce(sum(${schoolLegBaseSql} - ${bookletRemitoItem.schoolReceivedQuantity}), 0)::int`,
     }).from(bookletRemitoItem)
       .innerJoin(bookletRemitoLine, eq(bookletRemitoLine.id, bookletRemitoItem.lineId))
       .innerJoin(bookletRemito, eq(bookletRemito.id, bookletRemitoLine.remitoId))
@@ -199,7 +226,7 @@ async function hydrate(db: Db, remitos: Array<typeof bookletRemito.$inferSelect>
     ...lines.map((l) => l.schoolReceivedByUserId),
     ...observations.map((o) => o.authorUserId),
   ].filter((id): id is string => id !== null))]
-  const cues = [...new Set(remitos.map((r) => r.cabeceraCueAnexo))]
+  const cues = [...new Set(remitos.flatMap((r) => r.cabeceraCueAnexo ? [r.cabeceraCueAnexo] : []))]
   const [users, schools] = await Promise.all([
     db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, userIds)),
     db.select({ cue: bookletSchoolAssignment.cueAnexo, name: bookletSchoolAssignment.schoolName }).from(bookletSchoolAssignment)
@@ -207,14 +234,17 @@ async function hydrate(db: Db, remitos: Array<typeof bookletRemito.$inferSelect>
   ])
   const userName = new Map(users.map((u) => [u.id, u.name]))
   const schoolName = new Map(schools.map((s) => [s.cue, s.name]))
+  const directRemitoIds = new Set(remitos.filter((r) => r.modo === 'directo').map((r) => r.id))
+  const directLineIds = new Set(lines.filter((l) => directRemitoIds.has(l.remitoId)).map((l) => l.id))
 
   const itemsByLine = new Map<string, RemitoControlItem[]>()
   for (const item of items) {
+    const schoolLegBase = directLineIds.has(item.lineId) ? item.dispatched : item.cabeceraReceived
     const entry: RemitoControlItem = {
       productId: item.productId, productLabel: item.productLabel, dispatched: item.dispatched,
       cabeceraReceived: item.cabeceraReceived, schoolReceived: item.schoolReceived,
       planningToCabeceraShortfall: item.cabeceraReceived === null ? null : item.dispatched - item.cabeceraReceived,
-      cabeceraToSchoolShortfall: item.cabeceraReceived === null || item.schoolReceived === null ? null : item.cabeceraReceived - item.schoolReceived,
+      cabeceraToSchoolShortfall: schoolLegBase === null || item.schoolReceived === null ? null : schoolLegBase - item.schoolReceived,
     }
     itemsByLine.set(item.lineId, [...(itemsByLine.get(item.lineId) ?? []), entry])
   }
@@ -241,8 +271,10 @@ async function hydrate(db: Db, remitos: Array<typeof bookletRemito.$inferSelect>
   return remitos.map((remito) => {
     const remitoLines = linesByRemito.get(remito.id) ?? []
     return {
-      remitoId: remito.id, campaignId: remito.campaignId, cabeceraCueAnexo: remito.cabeceraCueAnexo,
-      cabeceraName: schoolName.get(remito.cabeceraCueAnexo) ?? '', status: remito.status,
+      remitoId: remito.id, campaignId: remito.campaignId, modo: remito.modo as RemitoControlRemito['modo'],
+      cabeceraCueAnexo: remito.cabeceraCueAnexo,
+      cabeceraName: remito.cabeceraCueAnexo === null ? null : schoolName.get(remito.cabeceraCueAnexo) ?? '',
+      status: remito.status,
       dispatchedByUserId: remito.dispatchedByUserId, dispatchedByName: userName.get(remito.dispatchedByUserId) ?? '',
       dispatchedAt: new Date(remito.dispatchedAt).toISOString(),
       cabeceraReceivedByUserId: remito.cabeceraReceivedByUserId,
@@ -256,6 +288,17 @@ async function hydrate(db: Db, remitos: Array<typeof bookletRemito.$inferSelect>
   })
 }
 
+/**
+ * Cabecera remitos: only the supervisor assigned to their cabecera. Direct remitos have
+ * no cabecera and so no assigned supervisor: only booklet admins may observe them.
+ */
+async function mayObserve(db: Db, actor: SessionUser, admin: boolean, remito: { cabecera: string | null; modo: string }): Promise<boolean> {
+  if (remito.modo === 'directo') return admin
+  if (admin || remito.cabecera === null) return false
+  if (!await hasBookletCapability(actor, 'supervisor')) return false
+  return createApprovalRepository(db).isAssignedSupervisor(actor.id, remito.cabecera)
+}
+
 export type RemitoObservationInput = { lineId?: string; body: string }
 export type RemitoObservationResult = RemitoControlObservation & { remitoId: string }
 
@@ -267,14 +310,11 @@ export type RemitoObservationResult = RemitoControlObservation & { remitoId: str
  */
 export async function addRemitoObservation(actor: SessionUser, remitoId: string, input: RemitoObservationInput): Promise<RemitoObservationResult> {
   const db = getDb()
-  if (await isBookletAdmin(actor)) throw new BookletServiceError('forbidden', 403)
-  if (!await hasBookletCapability(actor, 'supervisor')) throw new BookletServiceError('forbidden', 403)
-  const [remito] = await db.select({ id: bookletRemito.id, cabecera: bookletRemito.cabeceraCueAnexo }).from(bookletRemito)
-    .where(eq(bookletRemito.id, remitoId)).limit(1)
+  const admin = await isBookletAdmin(actor)
+  const [remito] = await db.select({ id: bookletRemito.id, cabecera: bookletRemito.cabeceraCueAnexo, modo: bookletRemito.modo })
+    .from(bookletRemito).where(eq(bookletRemito.id, remitoId)).limit(1)
   // Unknown and out-of-scope remitos answer identically so ids cannot be probed.
-  if (!remito || !await createApprovalRepository(db).isAssignedSupervisor(actor.id, remito.cabecera)) {
-    throw new BookletServiceError('forbidden', 403)
-  }
+  if (!remito || !await mayObserve(db, actor, admin, remito)) throw new BookletServiceError('forbidden', 403)
   const body = typeof input.body === 'string' ? input.body.trim() : ''
   if (body.length < 1 || body.length > MAX_BODY) throw new BookletServiceError('invalid_observation', 400)
   let lineId: string | null = null
