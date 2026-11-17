@@ -56,6 +56,8 @@ export const pluralize = (count: number, one: string, many: string) => (count ==
 
 export type JourneyInput = {
   dispatchedAt: string
+  /** A directo envío goes from Planeamiento straight to the school, so its journey has no cabecera step. */
+  direct?: boolean
   cabeceraBy: Signer | null
   cabeceraAt: string | null
   cabeceraShort: boolean
@@ -71,8 +73,12 @@ export function buildJourney(input: JourneyInput): JourneyStep[] {
   const { confirmed, total, short, by = null, at = null } = input.schools
   const schoolsDone = total > 0 && confirmed >= total
   const schoolDetail = total > 1 ? `${confirmed} de ${total} escuelas` : who(by, at)
+  const sent: JourneyStep = { label: 'Enviado', state: 'done', detail: `Planeamiento · ${formatWhen(input.dispatchedAt)}` }
+  if (input.direct) {
+    return [sent, { label: 'Llegó a la escuela', state: schoolsDone ? (short ? 'short' : 'done') : 'current', detail: schoolDetail }]
+  }
   return [
-    { label: 'Enviado', state: 'done', detail: `Planeamiento · ${formatWhen(input.dispatchedAt)}` },
+    sent,
     { label: 'Llegó a la cabecera', state: cabeceraDone ? (input.cabeceraShort ? 'short' : 'done') : 'current', detail: who(input.cabeceraBy, input.cabeceraAt) },
     {
       label: 'Llegó a la escuela',

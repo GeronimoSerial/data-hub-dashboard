@@ -52,7 +52,9 @@ export function envioStatus(remito: RemitoSummary, now: number): EnvioStatus {
   const units = remitoUnits(remito)
   const short = units.short > 0
   const shortText = `${units.short === 1 ? 'Llegó 1' : `Llegaron ${units.short.toLocaleString('es-AR')}`} de menos`
-  if (!remito.cabeceraReceivedAt) {
+  const direct = remito.modo === 'directo'
+  // A directo envío has no cabecera to wait for: it goes from Planeamiento straight to the schools.
+  if (!direct && !remito.cabeceraReceivedAt) {
     return { stage: 'waiting', short, label: 'Esperando a la cabecera', detail: `Salió ${daysAgo(remito.dispatchedAt, now)} y todavía no confirmó que llegó`, schools, schoolsDone }
   }
   if (schools > 0 && schoolsDone === schools) {
@@ -64,5 +66,6 @@ export function envioStatus(remito: RemitoSummary, now: number): EnvioStatus {
     return { stage: 'done', short, label: 'Entregado', detail, schools, schoolsDone }
   }
   const progress = schools === 0 ? 'La cabecera ya lo recibió' : `${schoolsDone} de ${schools} escuela${schools === 1 ? '' : 's'} ya ${schoolsDone === 1 ? 'recibió' : 'recibieron'}`
-  return { stage: 'delivering', short, label: 'En reparto', detail: short ? `${progress} · ${shortText.toLowerCase()}` : progress, schools, schoolsDone }
+  const label = direct && schoolsDone === 0 ? 'En camino a escuelas' : 'En reparto'
+  return { stage: 'delivering', short, label, detail: short ? `${progress} · ${shortText.toLowerCase()}` : progress, schools, schoolsDone }
 }

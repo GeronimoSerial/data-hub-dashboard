@@ -17,13 +17,15 @@ type Props = {
   label?: string
   /** `less-only` hides "Sí, llegó todo" (the envío-level button answers for every school). */
   variant?: 'full' | 'less-only'
+  /** The leg the shortfall happened on, e.g. "Planeamiento → Escuela" for a directo envío. */
+  leg?: string
   onChange: (next: LineAnswers) => void
 }
 
 const buttonStyle = { flex: '1 1 10rem', minHeight: '2.75rem' } as const
 
 /** The product list and one question: did everything arrive? Only "Llegó menos" opens quantities and the motivo. */
-export function LineQuestions({ scope, items, state, disabled, label, variant = 'full', onChange }: Props) {
+export function LineQuestions({ scope, items, state, disabled, label, variant = 'full', leg, onChange }: Props) {
   const evaluation = evaluateLine(items, state)
   const mode = arrivalMode(items, state)
   const summary = summarizeItems(items)
@@ -78,7 +80,7 @@ export function LineQuestions({ scope, items, state, disabled, label, variant = 
           </ul>
           {evaluation.shortfall ? (
             <div className="k-field">
-              <label htmlFor={`motivo-${scope}`}>¿Qué pasó?</label>
+              <label htmlFor={`motivo-${scope}`}>{leg ? `¿Qué pasó en el tramo ${leg}?` : '¿Qué pasó?'}</label>
               <Textarea id={`motivo-${scope}`} rows={2} maxLength={1000} disabled={disabled} value={state.reason}
                 placeholder="Contá por qué llegó menos de lo enviado"
                 onChange={(event) => onChange({ ...state, reason: event.target.value })} />
