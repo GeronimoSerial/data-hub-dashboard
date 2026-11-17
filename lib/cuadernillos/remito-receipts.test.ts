@@ -12,12 +12,14 @@ let counter = 0
 
 const CAB = '180000100'
 const SCHOOL_A = '180000200'
+const SCHOOL_B = '180000900'
 
 const actor = (id: string, role: SessionUser['role'], cueAnexo?: string, banned = false): SessionUser =>
   ({ id, role, banned, nivelJurIds: [], accesoRecursos: 'todos', recursoIds: [], cueAnexo: cueAnexo ?? null })
 const cabeceraActor = actor('u-cab', 'consulta')
 const adminActor = actor('u-admin', 'admin')
 const schoolActor = actor('u-school', 'operador_establecimiento', '1800002-00')
+const schoolBActor = actor('u-school2', 'operador_establecimiento', '1800009-00')
 
 beforeAll(async () => {
   client = new PGlite()
@@ -53,11 +55,12 @@ const DEFAULT_LINES: SeedLine[] = [
   { cue: CAB, items: [['p1', 5]] },
 ]
 
-async function seed(lines: SeedLine[] = DEFAULT_LINES) {
+async function seed(lines: SeedLine[] = DEFAULT_LINES, directo = false) {
   const n = ++counter
   const remitoId = `rem-${n}`
-  await client.exec(`INSERT INTO booklet_remito (id, campaign_id, cabecera_cue_anexo, status, dispatched_by_user_id, dispatched_at)
-    VALUES ('${remitoId}', 'c1', '${CAB}', 'dispatched', 'u-plan', now() - make_interval(mins => ${100 - n}))`)
+  // A directo remito has no cabecera: modo and cabecera_cue_anexo must agree (booklet_remito_modo_check).
+  await client.exec(`INSERT INTO booklet_remito (id, campaign_id, modo, cabecera_cue_anexo, status, dispatched_by_user_id, dispatched_at)
+    VALUES ('${remitoId}', 'c1', '${directo ? 'directo' : 'cabecera'}', ${directo ? 'NULL' : `'${CAB}'`}, 'dispatched', 'u-plan', now() - make_interval(mins => ${100 - n}))`)
   const lineIds: string[] = []
   for (const [index, line] of lines.entries()) {
     const lineId = `line-${n}-${index}`
@@ -372,3 +375,89 @@ describe('full custody chain on a real database', () => {
     expect(await rejection(listReceiptsForActor(actor('u-unbound', 'consulta'), db))).toMatchObject({ status: 403, code: 'cabecera_not_bound' })
   })
 })
+
+describe('direct remitos (modo directo)', () => {
+  const twoSchools: SeedLine[] = [{ cue: SCHOOL_A, items: [['p1', 30], ['p2', 10]] }, { cue: SCHOOL_B, items: [['p1', 4]] }]
+  const schoolInput = (quantities: number[], shortfallReason?: string) => ({
+    idempotencyKey: `dk-${++counter}`,
+    items: [{ productId: 'p1', receivedQuantity: quantities[0] }, { productId: 'p2', receivedQuantity: quantities[1] }],
+    ...(shortfallReason !== undefined ? { shortfallReason } : {}),
+  })
+  const single: SeedLine[] = [{ cue: SCHOOL_A, items: [['p1', 30], ['p2', 10]] }]
+
+  it('lets a school sign a directo in_transit line in full at the dispatched quantities', async () => {
+    const { lineIds } = await seed(single, true)
+    const result = await receiveRemitoLineAtSchool(schoolActor, lineIds[0], schoolInput([30, 10]), db)
+    expect(result).toMatchObject({ lineId: lineIds[0], status: 'received', signerUserId: 'u-school' })
+    const [line] = await q<{ status: string; by: string; reason: string | null }>(`SELECT status, school_received_by_user_id AS by, school_shortfall_reason AS reason FROM booklet_remito_line WHERE id = '${lineIds[0]}'`)
+    expect(line).toEqual({ status: 'received', by: 'u-school', reason: null })
+    const items = await q<{ product_id: string; school: number; cab: number | null }>(`SELECT product_id, school_received_quantity AS school, cabecera_received_quantity AS cab FROM booklet_remito_item WHERE line_id = '${lineIds[0]}' ORDER BY product_id`)
+    expect(items).toEqual([{ product_id: 'p1', school: 30, cab: null }, { product_id: 'p2', school: 10, cab: null }])
+  })
+
+  it('requires a reason for a short directo receipt and stores it as the Planeamiento to school leg', async () => {
+    const { lineIds } = await seed(single, true)
+    expect(await rejection(receiveRemitoLineAtSchool(schoolActor, lineIds[0], schoolInput([20, 10]), db))).toMatchObject({ code: 'reason_required', status: 400 })
+    expect(await rejection(receiveRemitoLineAtSchool(schoolActor, lineIds[0], schoolInput([30, 10], 'sin faltante'), db))).toMatchObject({ code: 'reason_not_allowed', status: 400 })
+    expect(await q(`SELECT 1 FROM booklet_remito_line WHERE id = '${lineIds[0]}' AND status = 'in_transit'`)).toHaveLength(1)
+    await receiveRemitoLineAtSchool(schoolActor, lineIds[0], schoolInput([20, 10], 'Cajas dañadas'), db)
+    const [line] = await q<{ status: string; reason: string }>(`SELECT status, school_shortfall_reason AS reason FROM booklet_remito_line WHERE id = '${lineIds[0]}'`)
+    expect(line).toEqual({ status: 'received', reason: 'Cajas dañadas' })
+  })
+
+  it('rejects receiving more than was dispatched', async () => {
+    const { lineIds } = await seed(single, true)
+    expect(await rejection(receiveRemitoLineAtSchool(schoolActor, lineIds[0], schoolInput([31, 10]), db))).toMatchObject({ code: 'quantity_exceeds_sent', status: 400 })
+    expect(await q(`SELECT 1 FROM booklet_remito_line WHERE id = '${lineIds[0]}' AND status = 'in_transit'`)).toHaveLength(1)
+  })
+
+  it('keeps the remito dispatched until every school has signed, then marks it received', async () => {
+    const { remitoId, lineIds } = await seed(twoSchools, true)
+    await receiveRemitoLineAtSchool(schoolActor, lineIds[0], schoolInput([30, 10]), db)
+    const [afterFirst] = await q<{ status: string; by: string | null }>(`SELECT status, cabecera_received_by_user_id AS by FROM booklet_remito WHERE id = '${remitoId}'`)
+    expect(afterFirst).toEqual({ status: 'dispatched', by: null })
+
+    await receiveRemitoLineAtSchool(schoolBActor, lineIds[1], { idempotencyKey: `dk-${++counter}`, items: [{ productId: 'p1', receivedQuantity: 4 }] }, db)
+    const [afterSecond] = await q<{ status: string; by: string | null; at: string | null }>(`SELECT status, cabecera_received_by_user_id AS by, cabecera_received_at AS at FROM booklet_remito WHERE id = '${remitoId}'`)
+    expect(afterSecond).toEqual({ status: 'received', by: null, at: null })
+  })
+
+  it('does not let a cabecera account sign a directo remito, and keeps it out of the cabecera listing', async () => {
+    const { remitoId, lineIds } = await seed(twoSchools, true)
+    const input = fullInput(lineIds, twoSchools)
+    expect(await rejection(receiveRemitoAtCabecera(cabeceraActor, remitoId, input, db))).toMatchObject({ code: 'forbidden', status: 403 })
+    expect(await q(`SELECT 1 FROM booklet_remito WHERE id = '${remitoId}' AND status = 'dispatched'`)).toHaveLength(1)
+
+    const cabecera = await listReceiptsForActor(cabeceraActor, db)
+    if (cabecera.kind !== 'cabecera') throw new Error('unreachable')
+    expect(cabecera.remitos.map((remito) => remito.remitoId)).not.toContain(remitoId)
+    const admin = await listReceiptsForActor(adminActor, db)
+    if (admin.kind !== 'cabecera') throw new Error('unreachable')
+    expect(admin.remitos.map((remito) => remito.remitoId)).not.toContain(remitoId)
+  })
+
+  it('lists a directo in_transit line as actionable, expecting the dispatched quantities', async () => {
+    const { remitoId, lineIds } = await seed(single, true)
+    const listing = await listReceiptsForActor(schoolActor, db)
+    if (listing.kind !== 'school') throw new Error('unreachable')
+    const line = listing.lines.find((candidate) => candidate.lineId === lineIds[0])!
+    expect(line).toMatchObject({ remitoId, modo: 'directo', cabeceraCueAnexo: null, status: 'in_transit' })
+    expect(line.items).toEqual([
+      { productId: 'p1', productName: 'Primero', expectedQuantity: 30, schoolReceivedQuantity: null },
+      { productId: 'p2', productName: 'Segundo', expectedQuantity: 10, schoolReceivedQuantity: null },
+    ])
+    // Sorted with the lines the school can sign now, ahead of cabecera lines still waiting for their cabecera.
+    const cabeceraWaiting = listing.lines.findIndex((candidate) => candidate.status === 'in_transit' && candidate.modo === 'cabecera')
+    expect(cabeceraWaiting).toBeGreaterThan(-1)
+    expect(listing.lines.indexOf(line)).toBeLessThan(cabeceraWaiting)
+  })
+
+  it('keeps a cabecera-mode line waiting for the cabecera receipt', async () => {
+    const { lineIds } = await seed(single)
+    expect(await rejection(receiveRemitoLineAtSchool(schoolActor, lineIds[0], schoolInput([30, 10]), db))).toMatchObject({ code: 'cabecera_receipt_pending', status: 409 })
+    const listing = await listReceiptsForActor(schoolActor, db)
+    if (listing.kind !== 'school') throw new Error('unreachable')
+    expect(listing.lines.find((candidate) => candidate.lineId === lineIds[0])).toMatchObject({ modo: 'cabecera', cabeceraCueAnexo: expect.any(String), status: 'in_transit' })
+  })
+})
+

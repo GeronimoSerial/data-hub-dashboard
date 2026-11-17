@@ -32,10 +32,12 @@ export type CabeceraReceiptResult = {
 export type SchoolReceiptResult = { lineId: string; status: 'received'; signerUserId: string; receivedAt: string }
 
 type Signer = { userId: string; name: string }
+export type RemitoModo = 'cabecera' | 'directo'
 export type CabeceraRemitoView = {
   remitoId: string
   campaignId: string
-  cabeceraCueAnexo: string
+  modo: RemitoModo
+  cabeceraCueAnexo: string | null
   status: 'dispatched' | 'received'
   dispatchedAt: string
   cabeceraReceivedBy: Signer | null
@@ -55,6 +57,8 @@ export type CabeceraRemitoView = {
 export type SchoolLineView = {
   lineId: string
   remitoId: string
+  modo: RemitoModo
+  cabeceraCueAnexo: string | null
   recipientCueAnexo: string
   status: string
   dispatchedAt: string
@@ -140,8 +144,11 @@ export async function receiveRemitoAtCabecera(actor: SessionUser, remitoId: stri
 
     // Admins cannot sign: only the cabecera account bound to this remito, with an active cabecera capability.
     assertActiveAccount(actor, account)
+    // A directo remito has no cabecera to sign for it: the same refusal as a non-bound cabecera.
+    const cabeceraCue = remito.cabeceraCueAnexo
+    if (remito.modo !== 'cabecera' || cabeceraCue === null) throw forbidden()
     const [assignment] = await tx.select({ cabeceraUserId: bookletSchoolAssignment.cabeceraUserId, relationship: bookletSchoolAssignment.relationship })
-      .from(bookletSchoolAssignment).where(eq(bookletSchoolAssignment.cueAnexo, remito.cabeceraCueAnexo)).limit(1).for('update')
+      .from(bookletSchoolAssignment).where(eq(bookletSchoolAssignment.cueAnexo, cabeceraCue)).limit(1).for('update')
     const [membership] = await tx.select({ id: bookletMembership.id }).from(bookletMembership)
       .where(and(eq(bookletMembership.userId, actor.id), eq(bookletMembership.capability, 'cabecera'), sql`${bookletMembership.revokedAt} IS NULL`)).limit(1).for('update')
     if (!assignment || assignment.relationship !== 'cabecera' || assignment.cabeceraUserId !== actor.id || !membership) throw forbidden()
@@ -172,7 +179,7 @@ export async function receiveRemitoAtCabecera(actor: SessionUser, remitoId: stri
 
     const resultLines: CabeceraReceiptResult['lines'] = []
     for (const { line, received, reason, total } of plan) {
-      const ownLine = line.recipientCueAnexo === remito.cabeceraCueAnexo
+      const ownLine = line.recipientCueAnexo === cabeceraCue
       for (const item of received) {
         await tx.update(bookletRemitoItem).set({
           cabeceraReceivedQuantity: item.receivedQuantity,
@@ -214,11 +221,17 @@ export async function receiveRemitoLineAtSchool(actor: SessionUser, lineId: stri
       describirAuditoria({ resultado: 'repetido' })
       return replayed
     }
-    if (line.status === 'in_transit') throw new BookletServiceError('cabecera_receipt_pending', 409)
-    if (line.status !== 'at_cabecera') throw new BookletServiceError('already_received', 409)
+    const [parent] = await tx.select({ modo: bookletRemito.modo }).from(bookletRemito).where(eq(bookletRemito.id, line.remitoId)).limit(1)
+    const direct = parent?.modo === 'directo'
+    if (!direct && line.status === 'in_transit') throw new BookletServiceError('cabecera_receipt_pending', 409)
+    if (line.status !== (direct ? 'in_transit' : 'at_cabecera')) throw new BookletServiceError('already_received', 409)
+
+    // Directo remitos: the school confirms against what Planeamiento dispatched. Lock the remito before
+    // reading its sibling lines, so two schools signing at once cannot both miss the other's signature.
+    if (direct) await tx.select({ id: bookletRemito.id }).from(bookletRemito).where(eq(bookletRemito.id, line.remitoId)).for('update')
 
     const items = await tx.select().from(bookletRemitoItem).where(eq(bookletRemitoItem.lineId, lineId))
-    const expected = new Map(items.map((item) => [item.productId, item.cabeceraReceivedQuantity ?? 0]))
+    const expected = new Map(items.map((item) => [item.productId, direct ? item.dispatchedQuantity : item.cabeceraReceivedQuantity ?? 0]))
     const { reason } = checkItems(input.items, expected, input.shortfallReason)
 
     const receivedAt = new Date()
@@ -228,6 +241,13 @@ export async function receiveRemitoLineAtSchool(actor: SessionUser, lineId: stri
     }
     await tx.update(bookletRemitoLine).set({ status: 'received', schoolReceivedByUserId: actor.id, schoolReceivedAt: receivedAt, schoolShortfallReason: reason })
       .where(eq(bookletRemitoLine.id, lineId))
+    if (direct) {
+      // A directo remito has no cabecera signature: it is received once every school has signed its line.
+      const siblings = await tx.select({ status: bookletRemitoLine.status }).from(bookletRemitoLine).where(eq(bookletRemitoLine.remitoId, line.remitoId))
+      if (siblings.every((sibling) => sibling.status === 'received' || sibling.status === 'closed_empty')) {
+        await tx.update(bookletRemito).set({ status: 'received' }).where(eq(bookletRemito.id, line.remitoId))
+      }
+    }
 
     const response: SchoolReceiptResult = { lineId, status: 'received', signerUserId: actor.id, receivedAt: receivedAt.toISOString() }
     await saveIdempotency(tx, actor.id, OPERATION_SCHOOL, input.idempotencyKey, payload, response)
@@ -252,8 +272,9 @@ export async function listReceiptsForActor(actor: SessionUser, db: ReceiptDb = g
 
   if (actor.role === 'operador_establecimiento') return listForSchool(actor, db)
   if (actor.role === 'admin') {
-    const all = (await db.select({ cueAnexo: bookletRemito.cabeceraCueAnexo }).from(bookletRemito)).map((row) => row.cueAnexo)
-    return { ...await listForCabecera([...new Set(all)], db), readOnly: true }
+    const all = (await db.select({ cueAnexo: bookletRemito.cabeceraCueAnexo }).from(bookletRemito).where(eq(bookletRemito.modo, 'cabecera')))
+      .map((row) => row.cueAnexo)
+    return { ...await listForCabecera([...new Set(all)].filter((cue): cue is string => cue !== null), db), readOnly: true }
   }
 
   const cues = (await db.select({ cueAnexo: bookletSchoolAssignment.cueAnexo }).from(bookletSchoolAssignment)
@@ -267,7 +288,8 @@ export async function listReceiptsForActor(actor: SessionUser, db: ReceiptDb = g
 }
 
 async function listForCabecera(cues: string[], db: ReceiptDb): Promise<Extract<ReceiptListing, { kind: 'cabecera' }>> {
-  const remitos = cues.length ? await db.select().from(bookletRemito).where(inArray(bookletRemito.cabeceraCueAnexo, cues)) : []
+  const remitos = cues.length ? await db.select().from(bookletRemito)
+    .where(and(eq(bookletRemito.modo, 'cabecera'), inArray(bookletRemito.cabeceraCueAnexo, cues))) : []
   const ids = remitos.map((remito) => remito.id)
   const lines = ids.length ? await db.select().from(bookletRemitoLine).where(inArray(bookletRemitoLine.remitoId, ids)) : []
   const items = lines.length ? await db.select({
@@ -277,7 +299,7 @@ async function listForCabecera(cues: string[], db: ReceiptDb): Promise<Extract<R
     .where(inArray(bookletRemitoItem.lineId, lines.map((line) => line.id))) : []
   const names = await loadNames(db, [...remitos.map((r) => r.cabeceraReceivedByUserId), ...lines.map((l) => l.schoolReceivedByUserId)])
   const views: CabeceraRemitoView[] = remitos.map((remito) => ({
-    remitoId: remito.id, campaignId: remito.campaignId, cabeceraCueAnexo: remito.cabeceraCueAnexo,
+    remitoId: remito.id, campaignId: remito.campaignId, modo: remito.modo as RemitoModo, cabeceraCueAnexo: remito.cabeceraCueAnexo,
     status: remito.status as CabeceraRemitoView['status'], dispatchedAt: iso(remito.dispatchedAt)!,
     cabeceraReceivedBy: signer(remito.cabeceraReceivedByUserId, names), cabeceraReceivedAt: iso(remito.cabeceraReceivedAt),
     lines: lines.filter((line) => line.remitoId === remito.id).sort((a, b) => a.id.localeCompare(b.id)).map((line) => ({
@@ -302,22 +324,31 @@ async function listForSchool(actor: SessionUser, db: ReceiptDb): Promise<Receipt
     .where(eq(bookletRemitoLine.recipientCueAnexo, recipient))
   const items = rows.length ? await db.select({
     lineId: bookletRemitoItem.lineId, productId: bookletRemitoItem.productId, productName: bookletProduct.name,
+    dispatchedQuantity: bookletRemitoItem.dispatchedQuantity,
     cabeceraReceivedQuantity: bookletRemitoItem.cabeceraReceivedQuantity, schoolReceivedQuantity: bookletRemitoItem.schoolReceivedQuantity,
   }).from(bookletRemitoItem).innerJoin(bookletProduct, eq(bookletProduct.id, bookletRemitoItem.productId))
     .where(inArray(bookletRemitoItem.lineId, rows.map((row) => row.line.id))) : []
   const names = await loadNames(db, rows.flatMap((row) => [row.remito.cabeceraReceivedByUserId, row.line.schoolReceivedByUserId]))
   const views: SchoolLineView[] = rows.map(({ line, remito }) => ({
-    lineId: line.id, remitoId: remito.id, recipientCueAnexo: line.recipientCueAnexo, status: line.status,
+    lineId: line.id, remitoId: remito.id, modo: remito.modo as RemitoModo, cabeceraCueAnexo: remito.cabeceraCueAnexo,
+    recipientCueAnexo: line.recipientCueAnexo, status: line.status,
     dispatchedAt: iso(remito.dispatchedAt)!,
     cabeceraReceivedBy: signer(remito.cabeceraReceivedByUserId, names), cabeceraReceivedAt: iso(remito.cabeceraReceivedAt),
     cabeceraShortfallReason: line.cabeceraShortfallReason,
     schoolReceivedBy: signer(line.schoolReceivedByUserId, names), schoolReceivedAt: iso(line.schoolReceivedAt), schoolShortfallReason: line.schoolShortfallReason,
-    // The school is asked about what the cabecera confirmed, not what Planeamiento dispatched.
+    // A cabecera line asks about what the cabecera confirmed; a directo line asks about what Planeamiento dispatched.
     items: items.filter((item) => item.lineId === line.id).sort((a, b) => a.productId.localeCompare(b.productId))
-      .map((item) => ({ productId: item.productId, productName: item.productName, expectedQuantity: item.cabeceraReceivedQuantity, schoolReceivedQuantity: item.schoolReceivedQuantity })),
+      .map((item) => ({
+        productId: item.productId, productName: item.productName,
+        expectedQuantity: remito.modo === 'directo' ? item.dispatchedQuantity : item.cabeceraReceivedQuantity,
+        schoolReceivedQuantity: item.schoolReceivedQuantity,
+      })),
   }))
-  // Actionable (at_cabecera) first, then upcoming (in_transit), then history; newest first inside each group.
-  const rank = (status: string) => status === 'at_cabecera' ? 0 : status === 'in_transit' ? 1 : 2
-  views.sort((a, b) => rank(a.status) - rank(b.status) || b.dispatchedAt.localeCompare(a.dispatchedAt))
+  // Actionable (at_cabecera, or a directo line in transit) first, then upcoming (in_transit), then history; newest first inside each group.
+  const rank = (view: SchoolLineView) => {
+    if (view.status === 'at_cabecera' || (view.status === 'in_transit' && view.modo === 'directo')) return 0
+    return view.status === 'in_transit' ? 1 : 2
+  }
+  views.sort((a, b) => rank(a) - rank(b) || b.dispatchedAt.localeCompare(a.dispatchedAt))
   return { kind: 'school', lines: views }
 }
