@@ -151,7 +151,9 @@ export function PlanningHome() {
   const campaign = overview?.campaignOptions.find((option) => option.id === selectedCampaign)
   const writeEnabled = actionEnabled(campaign)
   const stockTotal = products.reduce((sum, row) => sum + (row.globalAvailable ?? 0), 0)
-  const pendingCabecera = remitos.filter((remito) => !remito.cabeceraReceivedAt).length
+  // A directo envío never waits for a cabecera, so it is not counted there.
+  const awaitingCabecera = (remito: RemitoSummary) => remito.modo !== 'directo' && !remito.cabeceraReceivedAt
+  const pendingCabecera = remitos.filter(awaitingCabecera).length
   let pendingDescription: string
   if (remitos.length === 0) pendingDescription = 'Todavía no enviaste cuadernillos en esta campaña.'
   else if (pendingCabecera === 0) pendingDescription = 'Ningún envío está esperando a la cabecera.'
@@ -227,7 +229,7 @@ export function PlanningHome() {
   const schoolLines = remitos.flatMap((remito) => remito.lines)
   const schoolsDone = schoolLines.filter((line) => line.status === 'received' || line.status === 'closed_empty').length
   const withoutStock = products.filter((row) => !row.globalAvailable).length
-  const oldestPending = remitos.filter((remito) => !remito.cabeceraReceivedAt).map((remito) => remito.dispatchedAt).sort()[0]
+  const oldestPending = remitos.filter(awaitingCabecera).map((remito) => remito.dispatchedAt).sort()[0]
   const plus = partial ? '+' : ''
   const kpis: Kpi[] = [
     {
@@ -251,7 +253,7 @@ export function PlanningHome() {
   ]
   const confirmed = (cabeceraList ?? []).filter((row) => row.status === 'confirmada')
   const unconfirmed = (cabeceraList ?? []).filter((row) => row.status !== 'confirmada')
-  const reached = new Set(remitos.map((remito) => remito.cabeceraCueAnexo)).size
+  const reached = new Set(remitos.flatMap((remito) => (remito.cabeceraCueAnexo ? [remito.cabeceraCueAnexo] : []))).size
   const multipleCampaigns = Boolean(overview && overview.campaignOptions.length > 1)
 
   return (

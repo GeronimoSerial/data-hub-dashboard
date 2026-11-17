@@ -138,9 +138,9 @@ export function ControlView() {
             <ul className="k-list">
               {page.remitos.map((remito) => (
                 <li key={remito.remitoId}>
-                  <button type="button" className="k-row" aria-label={`Envío a ${remito.cabeceraName}, ${when(remito.dispatchedAt)}`} onClick={() => setOpenId(remito.remitoId)}>
+                  <button type="button" className="k-row" aria-label={`${remitoTitle(remito)}, ${when(remito.dispatchedAt)}`} onClick={() => setOpenId(remito.remitoId)}>
                     <span className="k-row-main" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: '.75rem', rowGap: '.1rem' }}>
-                      <span className="k-row-title">{remito.cabeceraName}</span>
+                      <span className="k-row-title">{remito.cabeceraCueAnexo === null ? 'Envío directo' : remito.cabeceraName}</span>
                       <span className="k-row-meta">{when(remito.dispatchedAt)} · {remito.lines.length} escuela{remito.lines.length === 1 ? '' : 's'}</span>
                       {stageChip(remito)}
                       {remito.observations.length > 0 ? <Chip tone="info">{remito.observations.length} observación{remito.observations.length === 1 ? '' : 'es'}</Chip> : null}
@@ -157,16 +157,19 @@ export function ControlView() {
         </Panel>
       ) : null}
 
-      <Modal open={open !== null} title={open ? `Envío a ${open.cabeceraName}` : 'Envío'} description={open ? `CUE ${dashedCue(open.cabeceraCueAnexo)}` : undefined} onClose={() => setOpenId(null)}>
+      <Modal open={open !== null} title={open ? remitoTitle(open) : 'Envío'} description={open?.cabeceraCueAnexo ? `CUE ${dashedCue(open.cabeceraCueAnexo)}` : undefined} onClose={() => setOpenId(null)}>
         {open ? <RemitoDetail key={open.remitoId} remito={open} onObservation={(observation) => observationAdded(open.remitoId, observation)} /> : null}
       </Modal>
     </section>
   )
 }
 
+/** A directo envío has no cabecera: its name is "Envío directo" and it never waits for one. */
+const remitoTitle = (remito: RemitoControlRemito) => (remito.cabeceraCueAnexo === null ? 'Envío directo' : `Envío a ${remito.cabeceraName}`)
+
 function stageChip(remito: RemitoControlRemito) {
   if (remito.hasShortfall) return <Chip tone="danger">Llegó de menos</Chip>
-  if (!remito.cabeceraReceivedAt) return <Chip tone="warn">Esperando a la cabecera</Chip>
+  if (remito.cabeceraCueAnexo !== null && !remito.cabeceraReceivedAt) return <Chip tone="warn">Esperando a la cabecera</Chip>
   if (remito.lines.every((line) => line.schoolReceivedAt)) return <Chip tone="ok">Llegó a la escuela</Chip>
   return <Chip tone="warn">Esperando a la escuela</Chip>
 }
@@ -180,8 +183,17 @@ function journeySteps(remito: RemitoControlRemito): JourneyStep[] {
   const received = remito.lines.filter((line) => line.schoolReceivedAt).length
   const allReceived = remito.lines.length > 0 && received === remito.lines.length
   const cabeceraWho = `${remito.cabeceraReceivedByName ?? 'La cabecera'}${remito.cabeceraReceivedAt ? ` · ${when(remito.cabeceraReceivedAt)}` : ''}`
+  const sent = { label: 'Enviado', state: 'done' as const, detail: `${remito.dispatchedByName} · ${when(remito.dispatchedAt)}` }
+  if (remito.cabeceraCueAnexo === null) {
+    return [
+      sent,
+      allReceived
+        ? { label: 'Llegó a la escuela', state: shortAtSchool ? 'short' : 'done', detail: `${received} de ${remito.lines.length} escuelas${shortAtSchool ? ' · llegó de menos' : ''}` }
+        : { label: 'Llegó a la escuela', state: 'current', detail: `${received} de ${remito.lines.length} escuelas` },
+    ]
+  }
   return [
-    { label: 'Enviado', state: 'done', detail: `${remito.dispatchedByName} · ${when(remito.dispatchedAt)}` },
+    sent,
     remito.cabeceraReceivedAt
       ? { label: 'Llegó a la cabecera', state: shortAtCabecera ? 'short' : 'done', detail: `${cabeceraWho}${shortAtCabecera ? ' · llegó de menos' : ''}` }
       : { label: 'Llegó a la cabecera', state: 'current' },

@@ -277,4 +277,20 @@ describe('PlanningHome', () => {
     expect(steps.map((step) => step.getAttribute('data-state'))).toEqual(['done', 'current', 'pending'])
     expect(steps[1]).toHaveTextContent('Todavía no')
   })
+
+  it('names a directo envío and keeps it out of the envíos waiting for a cabecera', async () => {
+    const direct = {
+      remitoId: 'remito-direct', campaignId: 'campaign-1', modo: 'directo', cabeceraCueAnexo: null, status: 'dispatched',
+      dispatchedAt: '2026-11-10T12:00:00.000Z', cabeceraReceivedAt: null,
+      lines: [{ recipientCueAnexo: '180123457', recipientName: 'Escuela A', status: 'in_transit', items: [
+        { productId: 'book-a', dispatchedQuantity: 5, cabeceraReceivedQuantity: null, schoolReceivedQuantity: null },
+      ] }],
+    }
+    vi.stubGlobal('fetch', routedFetch(overview, [direct]))
+
+    render(<PlanningHome />)
+
+    expect(await screen.findByRole('button', { name: /Envío a Envío directo/ })).toHaveTextContent('En camino a escuelas')
+    expect(screen.getByRole('region', { name: 'Lo que tenés que hacer' })).toHaveTextContent('Ningún envío está esperando a la cabecera.')
+  })
 })

@@ -104,3 +104,45 @@ describe('SchoolReceipts', () => {
     expect(JSON.parse(String(init?.body))).toEqual({ idempotencyKey: 'key-1', items: [{ productId: 'p1', receivedQuantity: 20 }], shortfallReason: 'Se perdieron' })
   })
 })
+
+describe('SchoolReceipts for a directo line', () => {
+  const direct = {
+    ...base, lineId: 'direct', modo: 'directo', cabeceraCueAnexo: null, status: 'in_transit',
+    items: [{ productId: 'p1', productName: 'Cuadernillo para estudiantes de 1° grado', expectedQuantity: 12, schoolReceivedQuantity: null }],
+  }
+
+  function setupDirect() {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => (init?.method === 'POST' ? json({ receipt: {} }) : json({ kind: 'school', lines: [direct] })))
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('crypto', { randomUUID: () => 'key-1' })
+    return fetchMock
+  }
+
+  it('is signable while in transit, shows the dispatched quantity and has no cabecera step', async () => {
+    const fetchMock = setupDirect()
+    render(<SchoolReceipts />)
+
+    const pending = within(await screen.findByRole('region', { name: 'Pendientes' }))
+    expect(pending.getByText('1° grado: 12')).toBeTruthy()
+    const journey = within(pending.getByRole('list', { name: 'Recorrido del envío' }))
+    expect(journey.queryByText('Llegó a la cabecera')).toBeNull()
+    expect(journey.getByText('Llegó a la escuela').closest('li')?.getAttribute('data-state')).toBe('current')
+    expect(screen.queryByRole('region', { name: 'En camino' })).toBeNull()
+
+    fireEvent.click(pending.getByRole('button', { name: 'Sí, llegó todo' }))
+    fireEvent.click(pending.getByRole('button', { name: SIGN }))
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))
+    const [url, init] = fetchMock.mock.calls.find(([, i]) => i?.method === 'POST')!
+    expect(url).toBe('/api/cuadernillos/remito-lineas/direct/recibir')
+    expect(JSON.parse(String(init?.body))).toEqual({ idempotencyKey: 'key-1', items: [{ productId: 'p1', receivedQuantity: 12 }] })
+  })
+
+  it('words the shortfall reason as the leg Planeamiento → Escuela', async () => {
+    setupDirect()
+    render(<SchoolReceipts />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Llegó menos' }))
+    fireEvent.change(screen.getByLabelText('Cantidad recibida · direct · 1° grado'), { target: { value: '9' } })
+    expect(screen.getByLabelText('¿Qué pasó en el tramo Planeamiento → Escuela?')).toBeTruthy()
+  })
+})
