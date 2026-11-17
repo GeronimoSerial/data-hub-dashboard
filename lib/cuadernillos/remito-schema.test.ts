@@ -104,7 +104,8 @@ describe('booklet remito schema (migration 0062)', () => {
 
       await expect(client.exec(`UPDATE booklet_remito_item SET cabecera_received_quantity = 31 WHERE line_id = 'line1'`))
         .rejects.toThrow(/booklet_remito_item_cabecera_check/)
-      await expect(client.exec(`UPDATE booklet_remito_item SET school_received_quantity = 5 WHERE line_id = 'line1'`))
+      await client.exec(`UPDATE booklet_remito_item SET school_received_quantity = 5 WHERE line_id = 'line1'`)
+      await expect(client.exec(`UPDATE booklet_remito_item SET school_received_quantity = 31 WHERE line_id = 'line1'`))
         .rejects.toThrow(/booklet_remito_item_school_check/)
       await client.exec(`UPDATE booklet_remito_item SET cabecera_received_quantity = 28 WHERE line_id = 'line1'`)
       await expect(client.exec(`UPDATE booklet_remito_item SET school_received_quantity = 29 WHERE line_id = 'line1'`))
@@ -116,6 +117,103 @@ describe('booklet remito schema (migration 0062)', () => {
         .rejects.toThrow(/booklet_remito_line_school_signature_check/)
       await expect(client.exec(`UPDATE booklet_remito_line SET cabecera_shortfall_reason = '   ' WHERE id = 'line1'`))
         .rejects.toThrow(/booklet_remito_line_cabecera_reason_check/)
+    } finally {
+      await client.close()
+    }
+  }, 120_000)
+})
+
+describe('booklet remito direct mode (migration 0063)', () => {
+  const MODO_MIGRATION = '0063_booklet_remito_modo'
+
+  async function migratedClient() {
+    const client = new PGlite()
+    await migrate(drizzle(client), { migrationsFolder: './drizzle' })
+    await seedHistory(client)
+    return client
+  }
+
+  it('marks remitos created before 0063 as cabecera remitos without changing their data', async () => {
+    const { dir, cleanup } = await migrationsBefore(MODO_MIGRATION)
+    const client = new PGlite()
+    try {
+      await migrate(drizzle(client), { migrationsFolder: dir })
+      await seedHistory(client)
+      await insertRemito(client)
+      await migrate(drizzle(client), { migrationsFolder: './drizzle' })
+
+      const remitos = await client.query<{ id: string; modo: string; cabecera_cue_anexo: string | null; status: string }>(
+        'SELECT id, modo, cabecera_cue_anexo, status FROM booklet_remito ORDER BY id',
+      )
+      expect(remitos.rows).toEqual([{ id: 'rem1', modo: 'cabecera', cabecera_cue_anexo: '180000100', status: 'dispatched' }])
+    } finally {
+      await client.close()
+      await cleanup()
+    }
+  }, 120_000)
+
+  it('rejects a direct remito that still names a cabecera', async () => {
+    const client = await migratedClient()
+    try {
+      await expect(client.exec(`INSERT INTO booklet_remito (id, campaign_id, cabecera_cue_anexo, status, modo, dispatched_by_user_id, dispatched_at)
+        VALUES ('rem-d1', 'c1', '180000100', 'dispatched', 'directo', 'u1', now())`))
+        .rejects.toThrow(/booklet_remito_modo_check/)
+    } finally {
+      await client.close()
+    }
+  }, 120_000)
+
+  it('rejects a cabecera remito without a cabecera', async () => {
+    const client = await migratedClient()
+    try {
+      await expect(client.exec(`INSERT INTO booklet_remito (id, campaign_id, cabecera_cue_anexo, status, modo, dispatched_by_user_id, dispatched_at)
+        VALUES ('rem-c1', 'c1', NULL, 'dispatched', 'cabecera', 'u1', now())`))
+        .rejects.toThrow(/booklet_remito_modo_check/)
+    } finally {
+      await client.close()
+    }
+  }, 120_000)
+
+  it('lets a direct remito without a cabecera be received with no cabecera signer', async () => {
+    const client = await migratedClient()
+    try {
+      await client.exec(`INSERT INTO booklet_remito (id, campaign_id, cabecera_cue_anexo, status, modo, dispatched_by_user_id, dispatched_at)
+        VALUES ('rem-d2', 'c1', NULL, 'dispatched', 'directo', 'u1', now())`)
+      await client.exec(`UPDATE booklet_remito SET status = 'received' WHERE id = 'rem-d2'`)
+
+      const remitos = await client.query<{ status: string; cabecera_received_by_user_id: string | null }>(
+        `SELECT status, cabecera_received_by_user_id FROM booklet_remito WHERE id = 'rem-d2'`,
+      )
+      expect(remitos.rows).toEqual([{ status: 'received', cabecera_received_by_user_id: null }])
+    } finally {
+      await client.close()
+    }
+  }, 120_000)
+
+  it('checks direct item school quantities against the dispatched quantity', async () => {
+    const client = await migratedClient()
+    try {
+      await client.exec(`INSERT INTO booklet_remito (id, campaign_id, cabecera_cue_anexo, status, modo, dispatched_by_user_id, dispatched_at)
+        VALUES ('rem-d3', 'c1', NULL, 'dispatched', 'directo', 'u1', now());
+        INSERT INTO booklet_remito_line (id, remito_id, recipient_cue_anexo, status)
+          VALUES ('line-d3', 'rem-d3', '180000200', 'in_transit');
+        INSERT INTO booklet_remito_item (line_id, product_id, dispatched_quantity) VALUES ('line-d3', 'p1', 30);`)
+
+      await client.exec(`UPDATE booklet_remito_item SET school_received_quantity = 30 WHERE line_id = 'line-d3'`)
+      await expect(client.exec(`UPDATE booklet_remito_item SET school_received_quantity = 31 WHERE line_id = 'line-d3'`))
+        .rejects.toThrow(/booklet_remito_item_school_check/)
+    } finally {
+      await client.close()
+    }
+  }, 120_000)
+
+  it('keeps cabecera remitos from being received without a cabecera signer', async () => {
+    const client = await migratedClient()
+    try {
+      await client.exec(`INSERT INTO booklet_remito (id, campaign_id, cabecera_cue_anexo, status, dispatched_by_user_id, dispatched_at)
+        VALUES ('rem-c2', 'c1', '180000100', 'dispatched', 'u1', now())`)
+      await expect(client.exec(`UPDATE booklet_remito SET status = 'received' WHERE id = 'rem-c2'`))
+        .rejects.toThrow(/booklet_remito_receipt_signature_check/)
     } finally {
       await client.close()
     }
