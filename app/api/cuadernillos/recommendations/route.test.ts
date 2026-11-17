@@ -96,7 +96,6 @@ describe('GET /api/cuadernillos/recommendations', () => {
     for (const query of [
       'cueAnexo=18012345&campaignId=campaign-1',
       'cueAnexo=180123456',
-      'cueAnexo=180123457&campaignId=campaign-1',
       'cueAnexo=180123457&cabeceraCueAnexo=180123456&campaignId=',
       'cueAnexo=180123457&cueAnexo=180123458&cabeceraCueAnexo=180123456&campaignId=campaign-1',
     ]) {
@@ -124,6 +123,25 @@ describe('GET /api/cuadernillos/recommendations', () => {
     expect(canAccessSchool).toHaveBeenCalledWith(expect.objectContaining({ id: 'cabecera-1' }), '180123456', 'cabecera')
     expect(getEnrollmentRecommendations).toHaveBeenCalledWith('180123457', 'campaign-1')
     expect(JSON.stringify(body)).not.toMatch(/studentId|nombreAlumno|apellidoAlumno|dni|email|phone/i)
+  })
+
+  it('lets a planning actor read recommendations without a cabecera', async () => {
+    vi.mocked(canAccessSchool).mockImplementation(async (_actor, _cue, capability) => capability === 'planning')
+
+    const response = await GET(request('cueAnexo=180123457&campaignId=campaign-1'))
+
+    expect(response.status).toBe(200)
+    expect(canAccessSchool).toHaveBeenCalledWith(expect.objectContaining({ id: 'cabecera-1' }), '180123457', 'planning')
+    expect(getEnrollmentRecommendations).toHaveBeenCalledWith('180123457', 'campaign-1')
+  })
+
+  it('denies a non-planning actor who sends no cabecera', async () => {
+    vi.mocked(canAccessSchool).mockImplementation(async () => false)
+
+    const response = await GET(request('cueAnexo=180123457&campaignId=campaign-1'))
+
+    expect(response.status).toBe(403)
+    expect(getEnrollmentRecommendations).not.toHaveBeenCalled()
   })
 
   it('authorizes the requesting cabecera cue, not the recipient school, which needs no assignment', async () => {
