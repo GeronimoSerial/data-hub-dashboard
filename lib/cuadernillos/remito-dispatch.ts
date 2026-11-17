@@ -16,9 +16,13 @@ const DISPATCH_OPERATION = 'remito.dispatch'
 const DEFAULT_PAGE_SIZE = 20
 const MAX_PAGE_SIZE = 100
 
+export type RemitoModo = 'cabecera' | 'directo'
+
 export type DispatchRemitoInput = {
   campaignId: string
-  cabeceraCueAnexo: string
+  /** Missing means 'cabecera'. A 'directo' remito goes straight to its schools and must not carry a cabecera. */
+  modo?: RemitoModo
+  cabeceraCueAnexo?: string
   idempotencyKey: string
   lines: Array<{ recipientCueAnexo: string; items: Array<{ productId: string; quantity: number }> }>
 }
@@ -26,7 +30,8 @@ export type DispatchRemitoInput = {
 export type DispatchedRemito = {
   remitoId: string
   campaignId: string
-  cabeceraCueAnexo: string
+  modo: RemitoModo
+  cabeceraCueAnexo: string | null
   status: 'dispatched'
   dispatchedAt: string
   lines: Array<{
@@ -49,7 +54,8 @@ export type RemitoSigner = { userId: string; name: string }
 export type RemitoRow = {
   remitoId: string
   campaignId: string
-  cabeceraCueAnexo: string
+  modo: RemitoModo
+  cabeceraCueAnexo: string | null
   status: 'dispatched' | 'received'
   dispatchedByUserId: string
   dispatchedAt: Date
@@ -76,7 +82,7 @@ export type RemitoRepository = Pick<ApprovalRepository,
   getRecipientEligibility(cueAnexo: string, geSchema?: GeSchemaReady): Promise<Eligibility & { name: string | null }>
   recordDispatchMovement(input: { campaignId: string; productId: string; remitoId: string; quantity: number; actorUserId: string; idempotencyKey: string }): Promise<void>
   insertRemito(remito: {
-    id: string; campaignId: string; cabeceraCueAnexo: string; status: 'dispatched'
+    id: string; campaignId: string; modo: RemitoModo; cabeceraCueAnexo: string | null; status: 'dispatched'
     dispatchedByUserId: string; dispatchedAt: Date; lines: StoredRemitoLine[]
   }): Promise<void>
   listRemitos(query: RemitoListQuery): Promise<RemitoRow[]>
@@ -119,7 +125,7 @@ export function createRemitoRepository(db: Db, overrides: Partial<RemitoReposito
     },
     async insertRemito(remito) {
       await db.insert(bookletRemito).values({
-        id: remito.id, campaignId: remito.campaignId, cabeceraCueAnexo: remito.cabeceraCueAnexo, status: remito.status,
+        id: remito.id, campaignId: remito.campaignId, modo: remito.modo, cabeceraCueAnexo: remito.cabeceraCueAnexo, status: remito.status,
         dispatchedByUserId: remito.dispatchedByUserId, dispatchedAt: remito.dispatchedAt,
       })
       await db.insert(bookletRemitoLine).values(remito.lines.map((line) => ({
@@ -158,7 +164,7 @@ export function createRemitoRepository(db: Db, overrides: Partial<RemitoReposito
       const signerNames = new Map(signerRows.map((row) => [row.id, row.name]))
       const signer = (userId: string | null): RemitoSigner | null => userId === null ? null : { userId, name: signerNames.get(userId) ?? '' }
       return remitos.map((remito) => ({
-        remitoId: remito.id, campaignId: remito.campaignId, cabeceraCueAnexo: remito.cabeceraCueAnexo,
+        remitoId: remito.id, campaignId: remito.campaignId, modo: remito.modo as RemitoModo, cabeceraCueAnexo: remito.cabeceraCueAnexo,
         status: remito.status as RemitoRow['status'], dispatchedByUserId: remito.dispatchedByUserId,
         dispatchedAt: remito.dispatchedAt, cabeceraReceivedAt: remito.cabeceraReceivedAt,
         cabeceraReceivedBy: signer(remito.cabeceraReceivedByUserId),
@@ -185,12 +191,19 @@ const databaseRepository: RemitoRepository = new Proxy({} as RemitoRepository, {
 })
 
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
+// An absent modo and modo 'cabecera' are the same request; drop the default so
+// both hash identically and records saved before modo existed still match.
+const payloadHash = (input: DispatchRemitoInput) =>
+  hash(input.modo === 'cabecera' ? { ...input, modo: undefined } : input)
 const CUE = /^\d{9}$/
 
 function validate(input: DispatchRemitoInput): void {
   const fail = (code: string) => { throw new BookletServiceError(code, 400) }
   if (typeof input.campaignId !== 'string' || input.campaignId.trim() === '') fail('invalid_campaign')
-  if (!CUE.test(input.cabeceraCueAnexo)) fail('invalid_cabecera')
+  const modo = input.modo ?? 'cabecera'
+  if (modo !== 'cabecera' && modo !== 'directo') fail('invalid_modo')
+  if (modo === 'cabecera' && (typeof input.cabeceraCueAnexo !== 'string' || !CUE.test(input.cabeceraCueAnexo))) fail('invalid_cabecera')
+  if (modo === 'directo' && input.cabeceraCueAnexo !== undefined) fail('invalid_cabecera')
   if (typeof input.idempotencyKey !== 'string' || input.idempotencyKey.trim() === '') fail('invalid_idempotency_key')
   if (!Array.isArray(input.lines) || input.lines.length === 0) fail('invalid_remito')
   if (new Set(input.lines.map((line) => line.recipientCueAnexo)).size !== input.lines.length) fail('duplicate_recipient')
@@ -216,6 +229,9 @@ async function assertPlanning(actor: SessionUser | null, repository: RemitoRepos
 
 export async function dispatchRemito(actor: SessionUser, input: DispatchRemitoInput, repository: RemitoRepository = databaseRepository): Promise<DispatchedRemito> {
   validate(input)
+  const modo: RemitoModo = input.modo ?? 'cabecera'
+  // Null exactly when modo is 'directo' (validated above): no cabecera leg, so no cabecera authority check.
+  const cabeceraCueAnexo = modo === 'cabecera' ? input.cabeceraCueAnexo! : null
   // Prepared outside the transaction, exactly like approveRequest: the projection bootstrap uses a separate connection.
   const geSchema = await repository.prepareCurrentEligibilityProjection?.()
   return repository.transaction(async (tx) => {
@@ -224,12 +240,12 @@ export async function dispatchRemito(actor: SessionUser, input: DispatchRemitoIn
     await tx.lockIdempotency(actor.id, DISPATCH_OPERATION, input.idempotencyKey)
     const record = await tx.getIdempotency(actor.id, DISPATCH_OPERATION, input.idempotencyKey)
     if (record) {
-      if (record.payloadHash !== hash(input)) throw new BookletServiceError('idempotency_conflict', 409)
+      if (record.payloadHash !== payloadHash(input)) throw new BookletServiceError('idempotency_conflict', 409)
       describirAuditoria({ resultado: 'repetido' })
       return record.response as DispatchedRemito
     }
     assertCampaign(await tx.getCampaign(input.campaignId))
-    if (!await tx.approvalAuthorityReady(input.cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
+    if (cabeceraCueAnexo !== null && !await tx.approvalAuthorityReady(cabeceraCueAnexo)) throw new BookletServiceError('authority_unavailable', 503)
 
     const names = new Map<string, string | null>()
     const notCritical: string[] = []
@@ -253,7 +269,7 @@ export async function dispatchRemito(actor: SessionUser, input: DispatchRemitoIn
     const dispatchedAt = new Date()
     // The remito row comes first: dispatch movements carry a foreign key to it.
     await tx.insertRemito({
-      id: remitoId, campaignId: input.campaignId, cabeceraCueAnexo: input.cabeceraCueAnexo, status: 'dispatched',
+      id: remitoId, campaignId: input.campaignId, modo, cabeceraCueAnexo, status: 'dispatched',
       dispatchedByUserId: actor.id, dispatchedAt,
       lines: input.lines.map((line) => ({
         id: randomUUID(), recipientCueAnexo: line.recipientCueAnexo, recipientName: names.get(line.recipientCueAnexo) ?? null, status: 'in_transit' as const,
@@ -266,14 +282,14 @@ export async function dispatchRemito(actor: SessionUser, input: DispatchRemitoIn
       await tx.recordDispatchMovement({ campaignId: input.campaignId, productId, remitoId, quantity, actorUserId: actor.id, idempotencyKey: input.idempotencyKey })
     }
     const response: DispatchedRemito = {
-      remitoId, campaignId: input.campaignId, cabeceraCueAnexo: input.cabeceraCueAnexo, status: 'dispatched',
+      remitoId, campaignId: input.campaignId, modo, cabeceraCueAnexo, status: 'dispatched',
       dispatchedAt: dispatchedAt.toISOString(),
       lines: input.lines.map((line) => ({
         recipientCueAnexo: line.recipientCueAnexo, recipientName: names.get(line.recipientCueAnexo) ?? null, status: 'in_transit' as const,
         items: line.items.map(({ productId, quantity }) => ({ productId, quantity })),
       })),
     }
-    await tx.saveIdempotency(actor.id, DISPATCH_OPERATION, input.idempotencyKey, { payloadHash: hash(input), response })
+    await tx.saveIdempotency(actor.id, DISPATCH_OPERATION, input.idempotencyKey, { payloadHash: payloadHash(input), response })
     return response
   })
 }

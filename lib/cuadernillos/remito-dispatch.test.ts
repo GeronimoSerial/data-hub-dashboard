@@ -189,6 +189,60 @@ describe('dispatchRemito', () => {
   })
 })
 
+describe('dispatchRemito in directo mode', () => {
+  const directLines = input().lines
+  const directo = (overrides: Partial<DispatchRemitoInput> = {}): DispatchRemitoInput => ({
+    campaignId: 'campaign-1', modo: 'directo', idempotencyKey: 'dispatch-directo-1', lines: directLines, ...overrides,
+  })
+
+  it('dispatches without a cabecera or authority check, stores a null cabecera and debits stock', async () => {
+    state.authorityReady = false
+    const result = await dispatchRemito(planner, directo(), repository)
+
+    expect(result).toMatchObject({ status: 'dispatched', modo: 'directo', cabeceraCueAnexo: null })
+    expect(result.lines.map((l) => l.status)).toEqual(['in_transit', 'in_transit'])
+    expect(state.stock.get('campaign-1:product-1')).toBe(52)
+    expect(state.stock.get('campaign-1:product-2')).toBe(15)
+    expect(state.movements).toHaveLength(2)
+    expect(state.remitos).toHaveLength(1)
+    expect(state.remitos[0]).toMatchObject({ modo: 'directo', cabeceraCueAnexo: null, status: 'dispatched' })
+    expect(state.remitos[0].lines.map((l) => l.status)).toEqual(['in_transit', 'in_transit'])
+  })
+
+  it('rejects a provided cabecera and writes nothing', async () => {
+    await expect(dispatchRemito(planner, directo({ cabeceraCueAnexo: '180000100' }), repository))
+      .rejects.toMatchObject({ code: 'invalid_cabecera', status: 400 })
+    untouched()
+  })
+
+  it('rejects a non-Crítica recipient with recipients_not_critical, exactly like cabecera mode', async () => {
+    state.schools.set('180000300', { severity: 'Alta', name: 'Escuela B' })
+    const error = await dispatchRemito(planner, directo(), repository).catch((e) => e)
+    expect(error).toMatchObject({ code: 'recipients_not_critical', status: 409, details: { recipientCueAnexos: ['180000300'] } })
+    untouched()
+  })
+
+  it('still rejects insufficient stock in directo mode', async () => {
+    state.stock.set('campaign-1:product-1', 47)
+    await expect(dispatchRemito(planner, directo(), repository)).rejects.toMatchObject({ code: 'insufficient_stock', status: 409, details: { productIds: ['product-1'] } })
+    expect(state.stock.get('campaign-1:product-1')).toBe(47)
+    expect(state.stock.get('campaign-1:product-2')).toBe(40)
+    expect(state.movements).toHaveLength(0)
+    expect(state.remitos).toHaveLength(0)
+  })
+
+  it('replays the same directo payload and conflicts when the same key arrives with another modo', async () => {
+    const first = await dispatchRemito(planner, directo(), repository)
+    expect(await dispatchRemito(planner, directo(), repository)).toEqual(first)
+    expect(state.remitos).toHaveLength(1)
+    expect(state.stock.get('campaign-1:product-1')).toBe(52)
+
+    await expect(dispatchRemito(planner, directo({ modo: 'cabecera', cabeceraCueAnexo: '180000100' }), repository))
+      .rejects.toMatchObject({ code: 'idempotency_conflict', status: 409 })
+    expect(state.remitos).toHaveLength(1)
+  })
+})
+
 describe('listRemitosForPlanning', () => {
   it('rejects an actor without planning capability', async () => {
     state.memberships.clear()
@@ -197,7 +251,7 @@ describe('listRemitosForPlanning', () => {
 
   it('pages newest first and returns a cursor only when more rows exist', async () => {
     const rows = ['r3', 'r2', 'r1'].map((id, index) => ({
-      remitoId: id, campaignId: 'campaign-1', cabeceraCueAnexo: '180000100', status: 'dispatched' as const,
+      remitoId: id, campaignId: 'campaign-1', modo: 'cabecera' as const, cabeceraCueAnexo: '180000100', status: 'dispatched' as const,
       dispatchedByUserId: 'planner-1', dispatchedAt: new Date(Date.UTC(2026, 10, 14, 12 - index)), cabeceraReceivedAt: null, cabeceraReceivedBy: null, lines: [],
     }))
     const seen: unknown[] = []
