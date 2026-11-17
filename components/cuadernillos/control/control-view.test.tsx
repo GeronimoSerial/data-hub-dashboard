@@ -192,4 +192,16 @@ describe('ControlView', () => {
     render(<ControlView />)
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudieron cargar los envíos.')
   })
+
+  it('names a directo envío without cabecera instead of a null cabecera', async () => {
+    const direct = { ...remito, remitoId: 'remito-direct', modo: 'directo', cabeceraCueAnexo: null, cabeceraName: null, cabeceraReceivedByUserId: null, cabeceraReceivedByName: null, cabeceraReceivedAt: null, hasShortfall: false }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page([direct]))))
+
+    render(<ControlView />)
+
+    expect(await screen.findByRole('button', { name: /Envío directo/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Envío directo/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Envío directo')).toBeInTheDocument()
+  })
 })

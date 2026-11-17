@@ -205,4 +205,35 @@ describe('RemitoBuilder', () => {
     expect(receipt).not.toHaveTextContent('2.º grado')
     expect(receipt).toHaveTextContent('Total30 cuadernillos')
   })
+
+  it('sends directly to schools: no cabecera step, recommendations without a cabecera, and modo directo in the POST', async () => {
+    const onDispatched = vi.fn()
+    const fetchMock = mockFetch(() => response({ remito: { remitoId: 'r2' } }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderBuilder({ onDispatched })
+    fireEvent.click(await screen.findByRole('button', { name: 'Directo a escuelas' }))
+    expect(screen.queryByText('Cabecera Norte')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+    fireEvent.change(screen.getByLabelText('Buscar escuela por CUE'), { target: { value: '180123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Agregar Escuela A/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
+
+    const receipt = await screen.findByRole('region', { name: 'Detalle del envío' })
+    expect(receipt).toHaveTextContent('Sin cabecera: cada escuela firma su recepción')
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+
+    await waitFor(() => expect(onDispatched).toHaveBeenCalled())
+    const post = fetchMock.mock.calls.find(([url, init]) => url === '/api/cuadernillos/remitos' && init?.method === 'POST')!
+    const body = JSON.parse(String(post[1].body))
+    expect(body).toEqual({
+      campaignId: 'campaign-1', modo: 'directo', idempotencyKey: expect.any(String),
+      lines: [{ recipientCueAnexo: '180123457', items: [{ productId: 'book-1', quantity: 30 }, { productId: 'book-2', quantity: 25 }] }],
+    })
+    expect(body).not.toHaveProperty('cabeceraCueAnexo')
+    const recommendation = String(fetchMock.mock.calls.find(([url]) => String(url).startsWith('/api/cuadernillos/recommendations'))![0])
+    expect(recommendation).not.toContain('cabeceraCueAnexo')
+  })
 })
