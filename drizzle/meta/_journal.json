@@ -442,6 +442,13 @@
       "when": 1794699325262,
       "tag": "0062_booklet_remitos",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1794926752148,
+      "tag": "0063_booklet_remito_modo",
+      "breakpoints": true
     }
   ]
 }

@@ -2116,12 +2116,14 @@ export const bookletStockMovement = pgTable('booklet_stock_movement', {
   check('booklet_stock_movement_binding_check', sql`(${t.movement} = 'approval' AND ${t.requestId} IS NOT NULL AND ${t.remitoId} IS NULL) OR (${t.movement} = 'dispatch' AND ${t.remitoId} IS NOT NULL AND ${t.requestId} IS NULL) OR (${t.movement} IN ('initial', 'replenishment') AND ${t.requestId} IS NULL AND ${t.remitoId} IS NULL)`),
 ])
 
-// A remito is what Planeamiento dispatches to one cabecera. Dispatch deducts
-// global stock; the cabecera account signs one receipt for the whole remito.
+// A remito goes either to one cabecera (`modo = 'cabecera'`) or directly to
+// schools (`modo = 'directo'`, no cabecera and no cabecera receipt). Dispatch
+// deducts global stock.
 export const bookletRemito = pgTable('booklet_remito', {
   id: text('id').primaryKey(),
   campaignId: text('campaign_id').notNull().references(() => bookletCampaign.id, { onDelete: 'restrict' }),
-  cabeceraCueAnexo: text('cabecera_cue_anexo').notNull().references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
+  modo: text('modo').notNull().default('cabecera'),
+  cabeceraCueAnexo: text('cabecera_cue_anexo').references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
   status: text('status').notNull(),
   dispatchedByUserId: text('dispatched_by_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
   dispatchedAt: timestamp('dispatched_at', { withTimezone: true }).notNull(),
@@ -2131,7 +2133,8 @@ export const bookletRemito = pgTable('booklet_remito', {
   index('booklet_remito_cabecera_dispatched_idx').on(t.cabeceraCueAnexo, t.dispatchedAt),
   index('booklet_remito_campaign_dispatched_idx').on(t.campaignId, t.dispatchedAt),
   check('booklet_remito_status_check', sql`${t.status} IN ('dispatched', 'received')`),
-  check('booklet_remito_receipt_signature_check', sql`(${t.status} = 'received' AND ${t.cabeceraReceivedByUserId} IS NOT NULL AND ${t.cabeceraReceivedAt} IS NOT NULL) OR (${t.status} = 'dispatched' AND ${t.cabeceraReceivedByUserId} IS NULL AND ${t.cabeceraReceivedAt} IS NULL)`),
+  check('booklet_remito_modo_check', sql`${t.modo} IN ('cabecera', 'directo') AND ((${t.modo} = 'cabecera' AND ${t.cabeceraCueAnexo} IS NOT NULL) OR (${t.modo} = 'directo' AND ${t.cabeceraCueAnexo} IS NULL))`),
+  check('booklet_remito_receipt_signature_check', sql`(${t.modo} = 'cabecera' AND ((${t.status} = 'received' AND ${t.cabeceraReceivedByUserId} IS NOT NULL AND ${t.cabeceraReceivedAt} IS NOT NULL) OR (${t.status} = 'dispatched' AND ${t.cabeceraReceivedByUserId} IS NULL AND ${t.cabeceraReceivedAt} IS NULL))) OR (${t.modo} = 'directo' AND ${t.cabeceraReceivedByUserId} IS NULL AND ${t.cabeceraReceivedAt} IS NULL)`),
 ])
 
 // One line per destination school. Recipients are any Crítica Consejo school,
@@ -2169,7 +2172,9 @@ export const bookletRemitoItem = pgTable('booklet_remito_item', {
   primaryKey({ columns: [t.lineId, t.productId] }),
   check('booklet_remito_item_dispatched_check', sql`${t.dispatchedQuantity} > 0`),
   check('booklet_remito_item_cabecera_check', sql`${t.cabeceraReceivedQuantity} IS NULL OR (${t.cabeceraReceivedQuantity} >= 0 AND ${t.cabeceraReceivedQuantity} <= ${t.dispatchedQuantity})`),
-  check('booklet_remito_item_school_check', sql`${t.schoolReceivedQuantity} IS NULL OR (${t.cabeceraReceivedQuantity} IS NOT NULL AND ${t.schoolReceivedQuantity} >= 0 AND ${t.schoolReceivedQuantity} <= ${t.cabeceraReceivedQuantity})`),
+  // Direct remitos have no cabecera leg: the school confirms against the
+  // dispatched quantity. The service layer enforces cabecera-first order for cabecera remitos.
+  check('booklet_remito_item_school_check', sql`${t.schoolReceivedQuantity} IS NULL OR (${t.schoolReceivedQuantity} >= 0 AND ${t.schoolReceivedQuantity} <= COALESCE(${t.cabeceraReceivedQuantity}, ${t.dispatchedQuantity}))`),
 ])
 
 // After-the-fact supervisor control: observations never change quantities.
