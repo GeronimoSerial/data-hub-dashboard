@@ -74,8 +74,11 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
 
   const labels = useMemo(() => new Map(products.map((p) => [p.productId, p.productLabel])), [products])
   const schoolNames = useMemo(() => new Map(schools.map((s) => [s.cueAnexo, s.nombre])), [schools])
-  const visibleCabeceras = (cabeceras ?? []).filter((row) =>
-    !cabeceraFilter.trim() || `${row.nombre} ${row.cue}`.toLowerCase().includes(cabeceraFilter.trim().toLowerCase()))
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/-/g, '')
+  const visibleCabeceras = (cabeceras ?? []).filter((row) => {
+    const query = normalize(cabeceraFilter.trim())
+    return query !== '' && normalize(`${row.nombre} ${row.cue}`).includes(query)
+  })
 
   const totals = useMemo(() => products.map((product) => ({
     ...product,
@@ -170,33 +173,46 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
         <WizardHeader step={stepIndex + 1} total={STEPS.length} title={current.title} description={current.description} />
         {step === 'cabecera' ? (
           <div className="k-field">
-            <ul className="pl-pick">
+            <ul className="k-options">
               <li>
-                <button type="button" aria-pressed={mode === 'directo'} onClick={() => chooseMode('directo')}>
-                  <span className="pl-radio" aria-hidden="true" />
-                  <span className="pl-pick-name">Directo a escuelas</span>
-                  <span className="pl-pick-meta">Sin cabecera: cada escuela firma su recepción</span>
+                <button type="button" className="k-option" aria-pressed={mode === 'directo'} onClick={() => chooseMode('directo')}>
+                  <strong>Directo a escuelas</strong>
+                  <span>Sin cabecera: cada escuela firma su recepción</span>
                 </button>
               </li>
             </ul>
+            {cabeceras && cabeceras.length > 0 ? <p className="k-options-label">O elegí una cabecera</p> : null}
                 {cabeceraError ? <Note tone="danger">{cabeceraError}</Note> : null}
                 {!cabeceras && !cabeceraError ? <p role="status" className="k-note">Cargando escuelas cabecera…</p> : null}
                 {cabeceras && cabeceras.length === 0 ? <EmptyState title="Ninguna cabecera confirmó su cuenta" description="Una cabecera tiene que confirmar su cuenta para poder recibir envíos." /> : null}
-                {cabeceras && cabeceras.length > 8 ? (
-                  <Input aria-label="Buscar cabecera" placeholder="Buscar por nombre o CUE" value={cabeceraFilter} onChange={(event) => setCabeceraFilter(event.target.value)} />
+                {cabeceras && cabeceras.length > 0 && mode === 'cabecera' && cabecera ? (
+                  <div className="k-picked">
+                    <span className="k-picked-main">
+                      <strong>{cabecera.nombre}</strong>
+                      <span>{cabecera.departamento} · CUE {dashedCue(cabecera.cue)}</span>
+                    </span>
+                    <button type="button" className="k-link-btn" onClick={() => { setCabecera(null); setCabeceraFilter('') }}>Cambiar</button>
+                  </div>
                 ) : null}
-                {cabeceras && cabeceras.length > 0 && visibleCabeceras.length === 0 ? <p className="k-note">Ninguna cabecera coincide con la búsqueda.</p> : null}
-                <ul className="pl-pick">
-                  {visibleCabeceras.map((row) => (
-                    <li key={row.cue}>
-                      <button type="button" aria-pressed={mode === 'cabecera' && cabecera?.cue === row.cue} onClick={() => chooseCabecera(row)}>
-                        <span className="pl-radio" aria-hidden="true" />
-                        <span className="pl-pick-name">{row.nombre}</span>
-                        <span className="pl-pick-meta">{row.departamento} · CUE {dashedCue(row.cue)}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                {cabeceras && cabeceras.length > 0 && !(mode === 'cabecera' && cabecera) ? (
+                  <div className="k-search">
+                    <Input aria-label="Buscar cabecera" placeholder="Nombre o CUE de la cabecera" value={cabeceraFilter} autoComplete="off" onChange={(event) => setCabeceraFilter(event.target.value)} />
+                    {cabeceraFilter.trim() && visibleCabeceras.length === 0 ? <p className="k-note">Ninguna cabecera coincide con la búsqueda.</p> : null}
+                    {cabeceraFilter.trim() && visibleCabeceras.length > 0 ? (
+                      <ul className="k-results" aria-label="Cabeceras encontradas">
+                        {visibleCabeceras.slice(0, 6).map((row) => (
+                          <li key={row.cue}>
+                            <button type="button" onClick={() => { chooseCabecera(row); setCabeceraFilter('') }}>
+                              <strong>{row.nombre}</strong>
+                              <span>{row.departamento} · CUE {dashedCue(row.cue)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {visibleCabeceras.length > 6 ? <p className="k-hint" style={{ margin: 0 }}>{`Hay ${visibleCabeceras.length - 6} más: escribí más letras o dígitos para acotar.`}</p> : null}
+                  </div>
+                ) : null}
           </div>
         ) : null}
 

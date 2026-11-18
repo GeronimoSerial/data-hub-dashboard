@@ -39,6 +39,7 @@ function mockFetch(post: () => unknown) {
 }
 
 async function goToQuantities() {
+  fireEvent.change(await screen.findByLabelText('Buscar cabecera'), { target: { value: 'norte' } })
   fireEvent.click(await screen.findByRole('button', { name: /Cabecera Norte/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
   fireEvent.change(screen.getByLabelText('Buscar escuela por CUE'), { target: { value: '180123' } })
@@ -79,6 +80,24 @@ describe('RemitoBuilder', () => {
     })
     const recommendation = fetchMock.mock.calls.find(([url]) => String(url).startsWith('/api/cuadernillos/recommendations'))![0]
     expect(recommendation).toContain('cabeceraCueAnexo=180000000')
+  })
+
+  it('picks one cabecera by name or CUE search, never lists unconfirmed ones, and lets the planner change it', async () => {
+    vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
+    renderBuilder()
+
+    const search = await screen.findByLabelText('Buscar cabecera')
+    expect(screen.queryByRole('button', { name: /Cabecera Norte/ })).not.toBeInTheDocument()
+    fireEvent.change(search, { target: { value: 'sin cuenta' } })
+    expect(await screen.findByText('Ninguna cabecera coincide con la búsqueda.')).toBeInTheDocument()
+    fireEvent.change(search, { target: { value: '1800-000' } })
+    fireEvent.click(await screen.findByRole('button', { name: /Cabecera Norte/ }))
+
+    expect(screen.queryByLabelText('Buscar cabecera')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar' }))
+    expect(screen.getByLabelText('Buscar cabecera')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
   })
 
   it('keeps the same idempotency key when the dispatch is retried', async () => {

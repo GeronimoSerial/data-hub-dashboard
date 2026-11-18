@@ -36,7 +36,8 @@ describe('SchoolReceipts', () => {
     render(<SchoolReceipts />)
     expect(await screen.findByText('Te llegó un envío de cuadernillos. Confirmá qué recibiste.')).toBeTruthy()
     const pending = within(screen.getByRole('region', { name: 'Pendientes' }))
-    expect(pending.getByText('1° grado: 28')).toBeTruthy()
+    expect(pending.getByText('1° grado')).toBeTruthy()
+    expect(pending.getByText('28')).toBeTruthy()
     const transit = within(screen.getByRole('region', { name: 'En camino' }))
     expect(transit.getByText(/primero tiene que llegar a la cabecera/)).toBeTruthy()
     expect(transit.queryByRole('button')).toBeNull()
@@ -119,7 +120,8 @@ describe('SchoolReceipts for a directo line', () => {
     render(<SchoolReceipts />)
 
     const pending = within(await screen.findByRole('region', { name: 'Pendientes' }))
-    expect(pending.getByText('1° grado: 12')).toBeTruthy()
+    expect(pending.getByText('1° grado')).toBeTruthy()
+    expect(pending.getByText('12')).toBeTruthy()
     expect(pending.queryByText('Llegó a la cabecera')).toBeNull()
     expect(screen.queryByRole('region', { name: 'En camino' })).toBeNull()
 

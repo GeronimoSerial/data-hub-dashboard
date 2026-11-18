@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { PackageCheck, PackageMinus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Choice, Note, Stepper, WizardHeader, formatCount, shortProduct } from '../kit'
 import {
-  EMPTY_ANSWERS, allArrived, errorMessage, evaluateLine, lessArrived, postReceipt, reasonFor, summarizeItems, useIdempotencyKey,
+  EMPTY_ANSWERS, allArrived, errorMessage, evaluateLine, lessArrived, postReceipt, reasonFor, useIdempotencyKey,
   type LineAnswers, type ReceiptItem,
 } from './receipt-model'
 
@@ -92,26 +93,32 @@ export function ReceiptWizard({ heading, place, lines, leg, note, remaining = 0,
 
   return (
     <section className="k-wiz" aria-label={heading}>
-      <p className="k-hint" style={{ margin: 0 }}>{remaining > 0 ? `${heading} · ${remaining === 1 ? 'Queda 1 más' : `Quedan ${remaining} más`}` : heading}</p>
+      <p className="k-wiz-kicker">{remaining > 0 ? `${heading} · ${remaining === 1 ? 'Queda 1 más' : `Quedan ${remaining} más`}` : heading}</p>
 
       {step === 'arrived' ? (
         <>
-          <WizardHeader step={1} total={TOTAL} title={`¿Llegó todo a ${place}?`} description="Esto es lo que figura en el envío." />
+          <WizardHeader step={1} total={TOTAL} title={`¿Llegó todo a ${place}?`} description="Esto es lo que figura en el envío:" />
           {note ? <p className="k-hint" style={{ margin: 0 }}>{note}</p> : null}
-          <div className="k-stack" style={{ gap: '.6rem' }}>
+          <div className="k-note-list">
             {lines.map((line) => {
-              const summary = summarizeItems(line.items)
+              const sendable = line.items.filter((item) => item.expected > 0)
               return (
-                <div key={line.id} className="k-row" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
-                  {several && line.name ? <strong className="k-row-title">{line.name}</strong> : null}
-                  <span style={{ fontWeight: several ? 400 : 600 }}>{summary || 'No corresponden cuadernillos.'}</span>
+                <div key={line.id} className="k-note-group">
+                  {several && line.name ? <h4>{line.name}</h4> : null}
+                  {sendable.length === 0 ? <p className="k-hint" style={{ margin: 0 }}>No corresponden cuadernillos.</p> : (
+                    <dl>
+                      {sendable.map((item) => (
+                        <div key={item.productId}><dt>{shortProduct(item.productName)}</dt><dd>{formatCount(item.expected)}</dd></div>
+                      ))}
+                    </dl>
+                  )}
                 </div>
               )
             })}
           </div>
           <div className="k-choices">
-            <Choice title="Sí, llegó todo" description="Confirmás todo lo que figura." onClick={answerAll} />
-            <Choice title="Llegó menos" description="Cargás cuánto llegó de cada uno." quiet onClick={answerLess} />
+            <Choice title="Sí, llegó todo" description="Confirmás todo lo que figura." icon={<PackageCheck size={20} />} onClick={answerAll} />
+            <Choice title="Llegó menos" description="Cargás cuánto llegó de cada uno." icon={<PackageMinus size={20} />} quiet onClick={answerLess} />
           </div>
         </>
       ) : null}
