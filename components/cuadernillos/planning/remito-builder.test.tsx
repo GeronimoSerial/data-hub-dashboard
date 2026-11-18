@@ -44,46 +44,96 @@ async function addSchoolByCue() {
   await waitFor(() => expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled())
 }
 
-async function goToQuantities() {
+async function pickCabecera() {
   fireEvent.click(await screen.findByRole('button', { name: 'Directo a cabecera' }))
   fireEvent.change(await screen.findByLabelText('Buscar cabecera'), { target: { value: 'norte' } })
   fireEvent.click(await screen.findByRole('button', { name: /Elegir Cabecera Norte/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+}
+
+/** Cabecera mode: pick the cabecera and land on the per-grade quantities. */
+async function goToReserve() {
+  await pickCabecera()
+  await screen.findByText('¿Cuántos cuadernillos?')
+}
+
+/** Directo mode: land on the schools step with one school added. */
+async function goToQuantities() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Directo a la escuela afectada' }))
   await addSchoolByCue()
 }
+
+const reservePosts = (fetchMock: ReturnType<typeof mockFetch>) =>
+  fetchMock.mock.calls.filter(([url, init]) => url === '/api/cuadernillos/remitos' && init?.method === 'POST')
 
 function renderBuilder(overrides: Partial<{ onDispatched: () => void; products: typeof products }> = {}) {
   return render(<RemitoBuilder open campaignId="campaign-1" products={overrides.products ?? products} onClose={() => undefined} onDispatched={overrides.onDispatched ?? (() => undefined)} />)
 }
 
 describe('RemitoBuilder', () => {
-  it('offers only confirmed cabeceras and posts the exact payload with prefilled, editable quantities', async () => {
+  it('sends a reserve: one stepper per grade, no schools, and the reserve body in the POST', async () => {
     const onDispatched = vi.fn()
     const fetchMock = mockFetch(() => response({ remito: { remitoId: 'r1' } }, 201))
     vi.stubGlobal('fetch', fetchMock)
 
     renderBuilder({ onDispatched })
-    await goToQuantities()
-    expect(screen.queryByText('Cabecera Sin Cuenta')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Escuela A · Cuadernillo 1.er grado')).toHaveValue(30)
-    fireEvent.change(screen.getByLabelText('Escuela A · Cuadernillo 2.º grado'), { target: { value: '20' } })
+    await goToReserve()
+    expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Buscar escuela')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Cuadernillo 1.er grado')).toHaveValue(0)
+    expect(screen.getByLabelText('Cuadernillo 2.º grado')).toHaveValue(0)
+    expect(screen.getByText('(quedan 100)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Cuadernillo 1.er grado'), { target: { value: '40' } })
+    fireEvent.change(screen.getByLabelText('Cuadernillo 2.º grado'), { target: { value: '10' } })
+    expect(screen.getByText('50')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
+
     const receipt = await screen.findByRole('region', { name: 'Detalle del envío' })
+    expect(screen.getByText('Paso 4 de 4')).toBeInTheDocument()
     expect(receipt).toHaveTextContent('Envío aCabecera Norte')
-    expect(receipt).toHaveTextContent('Escuela A')
+    expect(receipt).toHaveTextContent('1.er grado40')
+    expect(receipt).toHaveTextContent('2.º grado10')
+    expect(receipt).toHaveTextContent('La cabecera los reparte entre sus escuelas en estado crítico.')
     expect(receipt).toHaveTextContent('Total50 cuadernillos')
-    expect(receipt).not.toHaveTextContent('Stock')
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
     await waitFor(() => expect(onDispatched).toHaveBeenCalled())
-    const post = fetchMock.mock.calls.find(([url, init]) => url === '/api/cuadernillos/remitos' && init?.method === 'POST')!
-    const body = JSON.parse(String(post[1].body))
+    const body = JSON.parse(String(reservePosts(fetchMock)[0][1].body))
     expect(body).toEqual({
-      campaignId: 'campaign-1', cabeceraCueAnexo: '180000000', idempotencyKey: expect.any(String),
-      lines: [{ recipientCueAnexo: '180123457', items: [{ productId: 'book-1', quantity: 30 }, { productId: 'book-2', quantity: 20 }] }],
+      campaignId: 'campaign-1', modo: 'cabecera', cabeceraCueAnexo: '180000000', reserve: true, idempotencyKey: expect.any(String),
+      items: [{ productId: 'book-1', quantity: 40 }, { productId: 'book-2', quantity: 10 }],
     })
-    const recommendation = fetchMock.mock.calls.find(([url]) => String(url).startsWith('/api/cuadernillos/recommendations'))![0]
-    expect(recommendation).toContain('cabeceraCueAnexo=180000000')
+    expect(body).not.toHaveProperty('lines')
+    const urls = fetchMock.mock.calls.map(([url]) => String(url))
+    expect(urls.some((url) => url.startsWith('/api/cuadernillos/schools') || url.startsWith('/api/cuadernillos/recommendations'))).toBe(false)
+  })
+
+  it('stops a reserve that exceeds the stock before the review', async () => {
+    const fetchMock = mockFetch(() => response({ remito: {} }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+    renderBuilder()
+    await goToReserve()
+    fireEvent.change(screen.getByLabelText('Cuadernillo 2.º grado'), { target: { value: '31' } })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('No alcanza el stock de 2.º grado. Bajá las cantidades para poder enviar.')
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Cuadernillo 2.º grado'), { target: { value: '30' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled()
+    expect(reservePosts(fetchMock)).toHaveLength(0)
+  })
+
+  it('lists in the reserve review only the grades being sent', async () => {
+    vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
+    renderBuilder()
+    await goToReserve()
+    fireEvent.change(screen.getByLabelText('Cuadernillo 1.er grado'), { target: { value: '12' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
+    const receipt = await screen.findByRole('region', { name: 'Detalle del envío' })
+    expect(receipt).toHaveTextContent('1.er grado12')
+    expect(receipt).not.toHaveTextContent('2.º grado')
   })
 
   it('picks one cabecera by name or CUE with the same search the schools use, never offering unconfirmed ones', async () => {
@@ -123,7 +173,8 @@ describe('RemitoBuilder', () => {
     const onDispatched = vi.fn()
 
     renderBuilder({ onDispatched })
-    await goToQuantities()
+    await goToReserve()
+    fireEvent.change(screen.getByLabelText('Cuadernillo 1.er grado'), { target: { value: '5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Enviar' }))
     expect(await screen.findByText('No se pudo enviar. Intentá nuevamente.')).toBeInTheDocument()
@@ -154,7 +205,8 @@ describe('RemitoBuilder', () => {
     vi.stubGlobal('fetch', mockFetch(() => response({ error: 'insufficient_stock', productIds: ['book-2'] }, 409)))
 
     renderBuilder()
-    await goToQuantities()
+    await goToReserve()
+    fireEvent.change(screen.getByLabelText('Cuadernillo 2.º grado'), { target: { value: '5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Enviar' }))
 
@@ -165,7 +217,8 @@ describe('RemitoBuilder', () => {
     vi.stubGlobal('fetch', mockFetch(() => response({ error: 'authority_unavailable' }, 409)))
 
     renderBuilder()
-    await goToQuantities()
+    await goToReserve()
+    fireEvent.change(screen.getByLabelText('Cuadernillo 1.er grado'), { target: { value: '5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Enviar' }))
 
@@ -191,9 +244,10 @@ describe('RemitoBuilder', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Atrás' }))
     expect(screen.getByText('¿Cómo querés enviarlo?')).toBeInTheDocument()
 
-    await goToQuantities()
-    expect(screen.getByText('¿Qué escuelas y cuántos?')).toBeInTheDocument()
+    await pickCabecera()
+    expect(screen.getByText('¿Cuántos cuadernillos?')).toBeInTheDocument()
     expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Cuadernillo 1.er grado'), { target: { value: '5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
     expect(await screen.findByRole('region', { name: 'Detalle del envío' })).toBeInTheDocument()
     expect(screen.getByText('Paso 4 de 4')).toBeInTheDocument()

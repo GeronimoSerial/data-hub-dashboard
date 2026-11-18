@@ -7,10 +7,10 @@ import { dashedCue, errorCode, isRecommendationList, isSchoolList, readJson, typ
 import { Choice, EmptyState, Modal, ModalBody, ModalFoot, Note, Stepper, WizardHeader, formatCount, shortProduct } from '../kit'
 import { PickSearch, foldText, type ParsedQuery } from '../pick-search'
 import {
-  dispatchErrorMessage, isCabeceraList, recommendationsParams, remitoDispatchBody, type ConfirmedCabecera, type ProductOption, type RemitoModo,
+  dispatchErrorMessage, isCabeceraList, recommendationsParams, remitoDispatchBody, reserveDispatchBody, type ConfirmedCabecera, type ProductOption, type RemitoModo,
 } from './remito-api'
 
-type Step = 'modo' | 'cabecera' | 'escuelas' | 'revision'
+type Step = 'modo' | 'cabecera' | 'cantidades' | 'escuelas' | 'revision'
 type Quantities = Record<string, Record<string, number>>
 
 const MAX_RESULTS = 6
@@ -19,6 +19,7 @@ function stepCopy(step: Step): { title: string; description?: string } {
   switch (step) {
     case 'modo': return { title: '¿Cómo querés enviarlo?' }
     case 'cabecera': return { title: '¿A qué cabecera?', description: 'Buscala por nombre o CUE. Solo aparecen las que ya confirmaron su cuenta.' }
+    case 'cantidades': return { title: '¿Cuántos cuadernillos?', description: 'La cabecera los reparte después entre sus escuelas en estado crítico.' }
     case 'escuelas': return { title: '¿Qué escuelas y cuántos?', description: 'Las cantidades se completan solas según la matrícula. Podés ajustarlas.' }
     case 'revision': return { title: 'Revisá y enviá' }
   }
@@ -55,6 +56,8 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   const [cabecera, setCabecera] = useState<ConfirmedCabecera | null>(null)
   const [schools, setSchools] = useState<CriticalSchool[]>([])
   const [quantities, setQuantities] = useState<Quantities>({})
+  // A reserve has no schools: one quantity per grade for the cabecera to split later.
+  const [reserve, setReserve] = useState<Record<string, number>>({})
   const [loadingRecs, setLoadingRecs] = useState<string[]>([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -81,8 +84,14 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   const schoolNames = useMemo(() => new Map(schools.map((s) => [s.cueAnexo, s.nombre])), [schools])
   const totals = useMemo(() => products.map((product) => ({
     ...product,
-    requested: schools.reduce((sum, school) => sum + (quantities[school.cueAnexo]?.[product.productId] ?? 0), 0),
-  })), [products, schools, quantities])
+    requested: mode === 'cabecera'
+      ? reserve[product.productId] ?? 0
+      : schools.reduce((sum, school) => sum + (quantities[school.cueAnexo]?.[product.productId] ?? 0), 0),
+  })), [products, schools, quantities, reserve, mode])
+  const reserveItems = products.flatMap((product) => {
+    const quantity = reserve[product.productId] ?? 0
+    return quantity > 0 ? [{ productId: product.productId, quantity }] : []
+  })
   const lines = schools
     .map((school) => ({
       recipientCueAnexo: school.cueAnexo,
@@ -124,13 +133,12 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   }
 
   function chooseCabecera(next: ConfirmedCabecera) {
-    if (cabecera?.cue !== next.cue) { setSchools([]); setQuantities({}) }
     setCabecera(next)
   }
 
   // Recommendations depend on the send mode, so the schools picked for one mode do not carry over to the other.
   function chooseMode(next: RemitoModo) {
-    if (next !== mode) { setSchools([]); setQuantities({}) }
+    if (next !== mode) { setSchools([]); setQuantities({}); setReserve({}) }
     setMode(next)
     setStep(next === 'cabecera' ? 'cabecera' : 'escuelas')
   }
@@ -152,14 +160,17 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   }
 
   async function dispatch() {
-    if (!canContinue || mode === null || lines.length === 0 || short.length > 0) return
+    const empty = mode === 'cabecera' ? reserveItems.length === 0 : lines.length === 0
+    if (!canContinue || mode === null || empty || short.length > 0) return
     setSending(true)
     setError(null)
     try {
       const response = await fetch('/api/cuadernillos/remitos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(remitoDispatchBody({ mode, campaignId, cabeceraCueAnexo: cabecera?.cue ?? null, idempotencyKey: idempotencyKey.current, lines })),
+        body: JSON.stringify(mode === 'cabecera' && cabecera
+          ? reserveDispatchBody({ campaignId, cabeceraCueAnexo: cabecera.cue, idempotencyKey: idempotencyKey.current, items: reserveItems })
+          : remitoDispatchBody({ mode, campaignId, cabeceraCueAnexo: null, idempotencyKey: idempotencyKey.current, lines })),
       })
       const data = await readJson(response)
       if (!response.ok) {
@@ -175,11 +186,15 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   }
 
   const recsPending = loadingRecs.length > 0
-  const steps: Step[] = mode === 'cabecera' ? ['modo', 'cabecera', 'escuelas', 'revision'] : ['modo', 'escuelas', 'revision']
+  const steps: Step[] = mode === 'cabecera' ? ['modo', 'cabecera', 'cantidades', 'revision'] : ['modo', 'escuelas', 'revision']
   const stepIndex = steps.indexOf(step)
   const copy = stepCopy(step)
   const previous = steps[Math.max(0, stepIndex - 1)]
   const totalUnits = totals.reduce((sum, row) => sum + row.requested, 0)
+  const nothingToSend = mode === 'cabecera' ? reserveItems.length === 0 : lines.length === 0
+  const stockNote = short.length > 0
+    ? `No alcanza el stock de ${short.map((row) => shortProduct(row.productLabel)).join(', ')}. Bajá las cantidades para poder enviar.`
+    : null
   const schoolTotal = (cue: string) => products.reduce((sum, product) => sum + (quantities[cue]?.[product.productId] ?? 0), 0)
 
   return (
@@ -217,6 +232,20 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
               />
             ) : null}
           </div>
+        ) : null}
+
+        {step === 'cantidades' ? (
+          <>
+            <ul className="k-qty-list">
+              {totals.map((row) => (
+                <li key={row.productId} className="k-qty-row" data-active={row.requested > 0 ? 'true' : undefined}>
+                  <span>{shortProduct(row.productLabel)} <span className="k-hint">{`(quedan ${formatCount(row.available)})`}</span></span>
+                  <Stepper label={row.productLabel} value={row.requested} onChange={(value) => setReserve((current) => ({ ...current, [row.productId]: value }))} />
+                </li>
+              ))}
+            </ul>
+            {stockNote ? <Note tone="danger">{stockNote}</Note> : null}
+          </>
         ) : null}
 
         {step === 'escuelas' ? (
@@ -271,9 +300,7 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
                     <span />
                   </div>
                 </div>
-                {short.length > 0 ? (
-                  <Note tone="danger">{`No alcanza el stock de ${short.map((row) => shortProduct(row.productLabel)).join(', ')}. Bajá las cantidades para poder enviar.`}</Note>
-                ) : null}
+                {stockNote ? <Note tone="danger">{stockNote}</Note> : null}
               </div>
             ) : (
               <p className="pl-matrix-empty">Buscá una escuela para agregarla.</p>
@@ -289,7 +316,20 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
                 <strong>{mode === 'directo' ? 'Directo a escuelas' : cabecera?.nombre}</strong>
               </header>
               {mode === 'directo' ? <p className="k-hint" style={{ margin: 0 }}>Sin cabecera: cada escuela firma su recepción.</p> : null}
-              {lines.map((line) => (
+              {mode === 'cabecera' ? (
+                <div className="k-receipt-group">
+                  <dl>
+                    {reserveItems.map((item) => (
+                      <div key={item.productId}>
+                        <dt>{shortProduct(labels.get(item.productId) ?? item.productId)}</dt>
+                        <dd>{formatCount(item.quantity)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              ) : null}
+              {mode === 'cabecera' ? <p className="k-hint" style={{ margin: 0 }}>La cabecera los reparte entre sus escuelas en estado crítico.</p> : null}
+              {mode === 'directo' ? lines.map((line) => (
                 <div key={line.recipientCueAnexo} className="k-receipt-group">
                   <h4>{schoolNames.get(line.recipientCueAnexo) ?? line.recipientCueAnexo}</h4>
                   <dl>
@@ -301,21 +341,24 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
                     ))}
                   </dl>
                 </div>
-              ))}
+              )) : null}
               <p className="k-receipt-total">
                 <span>Total</span>
                 <strong>{formatCount(totalUnits)} cuadernillos</strong>
               </p>
             </section>
             {short.length > 0 ? <Note tone="danger">{`No alcanza el stock: ${short.map((row) => `${shortProduct(row.productLabel)} (quedan ${formatCount(row.available)}, pediste ${formatCount(row.requested)})`).join(', ')}. Volvé atrás y bajá las cantidades.`}</Note> : null}
-            {lines.length === 0 ? <Note tone="danger">El envío no tiene cantidades. Volvé atrás y cargalas.</Note> : null}
+            {nothingToSend ? <Note tone="danger">El envío no tiene cantidades. Volvé atrás y cargalas.</Note> : null}
           </div>
         ) : null}
 
         {error ? <Note tone="danger">{error}</Note> : null}
       </ModalBody>
       <ModalFoot>
-        {(step === 'escuelas' || step === 'revision') && lines.length > 0 ? (
+        {step === 'cantidades' && totalUnits > 0 ? (
+          <p className="pl-foot-sum"><strong>{formatCount(totalUnits)}</strong> cuadernillos</p>
+        ) : null}
+        {(step === 'escuelas' || step === 'revision') && mode === 'directo' && lines.length > 0 ? (
           <p className="pl-foot-sum">
             <strong>{lines.length}</strong> escuela{lines.length === 1 ? '' : 's'} · <strong>{formatCount(totalUnits)}</strong> cuadernillos
           </p>
@@ -326,7 +369,10 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
           <Button type="button" variant="ghost" disabled={sending} onClick={() => setStep(previous)}>Atrás</Button>
         )}
         {step === 'cabecera' ? (
-          <Button type="button" disabled={!canContinue} onClick={() => setStep('escuelas')}>Siguiente</Button>
+          <Button type="button" disabled={!canContinue} onClick={() => setStep('cantidades')}>Siguiente</Button>
+        ) : null}
+        {step === 'cantidades' ? (
+          <Button type="button" disabled={nothingToSend || short.length > 0} onClick={() => setStep('revision')}>Revisar</Button>
         ) : null}
         {step === 'escuelas' ? (
           <Button type="button" disabled={lines.length === 0 || recsPending} onClick={() => setStep('revision')}>
@@ -334,7 +380,7 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
           </Button>
         ) : null}
         {step === 'revision' ? (
-          <Button type="button" disabled={sending || lines.length === 0 || short.length > 0 || !canContinue} onClick={() => void dispatch()}>
+          <Button type="button" disabled={sending || nothingToSend || short.length > 0 || !canContinue} onClick={() => void dispatch()}>
             {sending ? 'Enviando…' : 'Enviar'}
           </Button>
         ) : null}
