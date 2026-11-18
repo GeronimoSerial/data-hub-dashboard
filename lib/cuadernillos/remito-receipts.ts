@@ -47,6 +47,8 @@ export type CabeceraRemitoView = {
     recipientCueAnexo: string
     recipientName: string | null
     status: string
+    /** A reserve line stays at the cabecera: it splits the quantities among critical schools instead of a school signing. */
+    reserva: boolean
     cabeceraShortfallReason: string | null
     schoolReceivedBy: Signer | null
     schoolReceivedAt: string | null
@@ -61,6 +63,7 @@ export type SchoolLineView = {
   cabeceraCueAnexo: string | null
   recipientCueAnexo: string
   status: string
+  reserva: boolean
   dispatchedAt: string
   cabeceraReceivedBy: Signer | null
   cabeceraReceivedAt: string | null
@@ -179,7 +182,8 @@ export async function receiveRemitoAtCabecera(actor: SessionUser, remitoId: stri
 
     const resultLines: CabeceraReceiptResult['lines'] = []
     for (const { line, received, reason, total } of plan) {
-      const ownLine = line.recipientCueAnexo === cabeceraCue
+      // A reserve line also goes to the cabecera's own CUE, but it is not a school receipt: it stays at the cabecera.
+      const ownLine = line.recipientCueAnexo === cabeceraCue && !line.reserva
       for (const item of received) {
         await tx.update(bookletRemitoItem).set({
           cabeceraReceivedQuantity: item.receivedQuantity,
@@ -214,6 +218,8 @@ export async function receiveRemitoLineAtSchool(actor: SessionUser, lineId: stri
     assertActiveAccount(actor, account)
     const sessionCue = normalizeCue(actor.cueAnexo ?? '')
     if (!sessionCue || sessionCue.kind !== 'anexo' || sessionCue.value !== toDashedCue(line.recipientCueAnexo)) throw forbidden()
+    // The cabecera assigns a reserve onward; no school can sign it as received.
+    if (line.reserva) throw new BookletServiceError('reserve_line_not_receivable', 409)
 
     const payload = { lineId, items: input.items, shortfallReason: input.shortfallReason, idempotencyKey: input.idempotencyKey }
     const replayed = await replay<SchoolReceiptResult>(tx, actor.id, OPERATION_SCHOOL, input.idempotencyKey, payload)
@@ -303,7 +309,7 @@ async function listForCabecera(cues: string[], db: ReceiptDb): Promise<Extract<R
     status: remito.status as CabeceraRemitoView['status'], dispatchedAt: iso(remito.dispatchedAt)!,
     cabeceraReceivedBy: signer(remito.cabeceraReceivedByUserId, names), cabeceraReceivedAt: iso(remito.cabeceraReceivedAt),
     lines: lines.filter((line) => line.remitoId === remito.id).sort((a, b) => a.id.localeCompare(b.id)).map((line) => ({
-      lineId: line.id, recipientCueAnexo: line.recipientCueAnexo, recipientName: line.recipientName, status: line.status,
+      lineId: line.id, recipientCueAnexo: line.recipientCueAnexo, recipientName: line.recipientName, status: line.status, reserva: line.reserva,
       cabeceraShortfallReason: line.cabeceraShortfallReason,
       schoolReceivedBy: signer(line.schoolReceivedByUserId, names), schoolReceivedAt: iso(line.schoolReceivedAt), schoolShortfallReason: line.schoolShortfallReason,
       items: items.filter((item) => item.lineId === line.id).sort((a, b) => a.productId.localeCompare(b.productId))
@@ -321,7 +327,7 @@ async function listForSchool(actor: SessionUser, db: ReceiptDb): Promise<Receipt
   const recipient = cue.base + cue.anexo
   const rows = await db.select({ line: bookletRemitoLine, remito: bookletRemito }).from(bookletRemitoLine)
     .innerJoin(bookletRemito, eq(bookletRemito.id, bookletRemitoLine.remitoId))
-    .where(eq(bookletRemitoLine.recipientCueAnexo, recipient))
+    .where(and(eq(bookletRemitoLine.recipientCueAnexo, recipient), eq(bookletRemitoLine.reserva, false)))
   const items = rows.length ? await db.select({
     lineId: bookletRemitoItem.lineId, productId: bookletRemitoItem.productId, productName: bookletProduct.name,
     dispatchedQuantity: bookletRemitoItem.dispatchedQuantity,
@@ -331,7 +337,7 @@ async function listForSchool(actor: SessionUser, db: ReceiptDb): Promise<Receipt
   const names = await loadNames(db, rows.flatMap((row) => [row.remito.cabeceraReceivedByUserId, row.line.schoolReceivedByUserId]))
   const views: SchoolLineView[] = rows.map(({ line, remito }) => ({
     lineId: line.id, remitoId: remito.id, modo: remito.modo as RemitoModo, cabeceraCueAnexo: remito.cabeceraCueAnexo,
-    recipientCueAnexo: line.recipientCueAnexo, status: line.status,
+    recipientCueAnexo: line.recipientCueAnexo, status: line.status, reserva: line.reserva,
     dispatchedAt: iso(remito.dispatchedAt)!,
     cabeceraReceivedBy: signer(remito.cabeceraReceivedByUserId, names), cabeceraReceivedAt: iso(remito.cabeceraReceivedAt),
     cabeceraShortfallReason: line.cabeceraShortfallReason,
