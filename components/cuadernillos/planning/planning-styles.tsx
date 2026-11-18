@@ -5,6 +5,7 @@
 const CSS = `
 .pl-home { display: grid; gap: 1.75rem; }
 .pl-home .k-head { align-items: center; }
+.pl-summary{margin:0;color:var(--muted,#5b5a58);font-size:.9rem}
 .pl-lead { display: grid; gap: 0; }
 
 /* Task band: the one action of the screen, with the action on the right. */

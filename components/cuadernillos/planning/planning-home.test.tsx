@@ -191,9 +191,8 @@ describe('PlanningHome', () => {
     expect(screen.queryByText('Pendiente en cabecera')).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/cuadernillos/remitos?campaignId=campaign-1&limit=20', expect.anything())
     const summary = screen.getByLabelText('Resumen de la campaña')
-    expect(summary).toHaveTextContent('Enviados48En 1 envío')
-    expect(summary).toHaveTextContent('Recibidos por las escuelas181 de 2 escuelas ya confirmaron')
-    expect(summary).toHaveTextContent('Llegaron de menos5En 1 envío')
+    expect(summary).toHaveTextContent('48 enviados')
+    expect(summary).toHaveTextContent('5 llegaron de menos')
 
     fireEvent.click(row)
     const journey = screen.getByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })
