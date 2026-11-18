@@ -293,4 +293,24 @@ describe('PlanningHome', () => {
     expect(await screen.findByRole('button', { name: /Envío a Envío directo/ })).toHaveTextContent('En camino a escuelas')
     expect(screen.getByRole('region', { name: 'Lo que tenés que hacer' })).toHaveTextContent('Ningún envío está esperando a la cabecera.')
   })
+
+  it('labels a reserve line as a reserve to split, not as a school', async () => {
+    const reserve = {
+      ...remito, remitoId: 'remito-reserve',
+      lines: [{ reserva: true, recipientCueAnexo: '180000000', recipientName: 'Cabecera Norte', status: 'at_cabecera', items: [
+        { productId: 'book-a', dispatchedQuantity: 100, cabeceraReceivedQuantity: 100, schoolReceivedQuantity: null },
+      ] }],
+    }
+    vi.stubGlobal('fetch', routedFetch(overview, [reserve]))
+
+    render(<PlanningHome />)
+    const row = await screen.findByRole('button', { name: /Envío a Cabecera Norte/ })
+    expect(row).toHaveTextContent('Reserva para repartir')
+    expect(row).toHaveTextContent('Reserva recibida')
+    expect(row).not.toHaveTextContent('1 escuela')
+    fireEvent.click(row)
+    const steps = within(screen.getByRole('list', { name: 'Recorrido del envío a Cabecera Norte' })).getAllByRole('listitem')
+    expect(steps).toHaveLength(2)
+    expect(screen.getAllByText('Reserva para repartir').length).toBeGreaterThan(1)
+  })
 })

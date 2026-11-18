@@ -143,6 +143,7 @@ export function ControlView() {
                       <span className="k-row-title">{remito.cabeceraCueAnexo === null ? 'Envío directo' : remito.cabeceraName}</span>
                       <span className="k-row-meta">{when(remito.dispatchedAt)} · {remito.lines.length} escuela{remito.lines.length === 1 ? '' : 's'}</span>
                       {stageChip(remito)}
+                      {remito.origenCabeceraCueAnexo ? <Chip tone="info">Enviado por la cabecera</Chip> : null}
                       {remito.observations.length > 0 ? <Chip tone="info">{remito.observations.length} observación{remito.observations.length === 1 ? '' : 'es'}</Chip> : null}
                     </span>
                     <span className="k-row-side"><ChevronRight aria-hidden size={18} /></span>
@@ -157,7 +158,7 @@ export function ControlView() {
         </Panel>
       ) : null}
 
-      <Modal open={open !== null} title={open ? remitoTitle(open) : 'Envío'} description={open?.cabeceraCueAnexo ? `CUE ${dashedCue(open.cabeceraCueAnexo)}` : undefined} onClose={() => setOpenId(null)}>
+      <Modal open={open !== null} title={open ? remitoTitle(open) : 'Envío'} description={open?.cabeceraCueAnexo ? `CUE ${dashedCue(open.cabeceraCueAnexo)}` : open?.origenCabeceraName ? `Enviado por la cabecera ${open.origenCabeceraName}` : undefined} onClose={() => setOpenId(null)}>
         {open ? <RemitoDetail key={open.remitoId} remito={open} onObservation={(observation) => observationAdded(open.remitoId, observation)} /> : null}
       </Modal>
     </section>

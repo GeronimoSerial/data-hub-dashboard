@@ -20,6 +20,12 @@ describe('envioStatus', () => {
     expect(status).toMatchObject({ stage: 'waiting', short: false, label: 'Esperando a la cabecera', detail: 'Salió hace 2 días y todavía no confirmó que llegó' })
   })
 
+  it('treats a reserve as done once the cabecera has it, and still waits while it has not', () => {
+    const line = { reserva: true, recipientCueAnexo: 'a', recipientName: 'A', status: 'at_cabecera' as const, items: [item(100, 100, null)] }
+    expect(envioStatus(remito({ lines: [line] }), now)).toMatchObject({ stage: 'done', label: 'Reserva recibida', detail: 'La cabecera la reparte entre sus escuelas' })
+    expect(envioStatus(remito({ cabeceraReceivedAt: null, lines: [line] }), now)).toMatchObject({ stage: 'waiting', label: 'Esperando a la cabecera' })
+  })
+
   it('is delivering while some school has not confirmed, and names a shortfall', () => {
     const status = envioStatus(remito({ lines: [
       { recipientCueAnexo: 'a', recipientName: 'A', status: 'received', items: [item(10, 8, 8)] },
