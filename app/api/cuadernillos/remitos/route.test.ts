@@ -54,6 +54,24 @@ describe('POST /api/cuadernillos/remitos', () => {
     expect(service.dispatchRemito).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-user' }), directo)
   })
 
+  it('accepts a reserve body (items, no lines) and dispatches it unchanged', async () => {
+    const reserve = { campaignId: 'campaign-1', modo: 'cabecera', cabeceraCueAnexo: '180000100', reserve: true, idempotencyKey: 'key-reserve', items: [{ productId: 'product-1', quantity: 100 }] }
+    expect((await POST(post(reserve))).status).toBe(201)
+    expect(service.dispatchRemito).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-user' }), reserve)
+    const withoutModo = { ...reserve, modo: undefined }
+    expect((await POST(post(withoutModo))).status).toBe(201)
+  })
+
+  it('rejects malformed reserve bodies: lines alongside, reserve false, directo, no cabecera, empty or bad items', async () => {
+    const reserve = { campaignId: 'campaign-1', cabeceraCueAnexo: '180000100', reserve: true, idempotencyKey: 'key-reserve', items: [{ productId: 'product-1', quantity: 100 }] }
+    const { cabeceraCueAnexo: _cabecera, ...noCabecera } = reserve
+    for (const value of [
+      { ...reserve, lines: body.lines }, { ...reserve, reserve: false }, { ...reserve, modo: 'directo' }, noCabecera,
+      { ...reserve, items: [] }, { ...reserve, items: [{ productId: 'p', quantity: 0 }] }, { ...reserve, items: [{ productId: 'p', quantity: 1, extra: 1 }] },
+    ]) expect((await POST(post(value))).status).toBe(400)
+    expect(service.dispatchRemito).not.toHaveBeenCalled()
+  })
+
   it('rejects a directo body that carries a cabecera', async () => {
     expect((await POST(post({ ...body, modo: 'directo' }))).status).toBe(400)
     expect(service.dispatchRemito).not.toHaveBeenCalled()
