@@ -2124,6 +2124,8 @@ export const bookletRemito = pgTable('booklet_remito', {
   campaignId: text('campaign_id').notNull().references(() => bookletCampaign.id, { onDelete: 'restrict' }),
   modo: text('modo').notNull().default('cabecera'),
   cabeceraCueAnexo: text('cabecera_cue_anexo').references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
+  // Set only on a directo remito that a cabecera sends out of its reserve; no global stock is debited for it.
+  origenCabeceraCueAnexo: text('origen_cabecera_cue_anexo').references(() => bookletSchoolAssignment.cueAnexo, { onDelete: 'restrict' }),
   status: text('status').notNull(),
   dispatchedByUserId: text('dispatched_by_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
   dispatchedAt: timestamp('dispatched_at', { withTimezone: true }).notNull(),
@@ -2132,6 +2134,8 @@ export const bookletRemito = pgTable('booklet_remito', {
 }, (t) => [
   index('booklet_remito_cabecera_dispatched_idx').on(t.cabeceraCueAnexo, t.dispatchedAt),
   index('booklet_remito_campaign_dispatched_idx').on(t.campaignId, t.dispatchedAt),
+  index('booklet_remito_origen_campaign_idx').on(t.origenCabeceraCueAnexo, t.campaignId),
+  check('booklet_remito_origen_check', sql`${t.origenCabeceraCueAnexo} IS NULL OR ${t.modo} = 'directo'`),
   check('booklet_remito_status_check', sql`${t.status} IN ('dispatched', 'received')`),
   check('booklet_remito_modo_check', sql`${t.modo} IN ('cabecera', 'directo') AND ((${t.modo} = 'cabecera' AND ${t.cabeceraCueAnexo} IS NOT NULL) OR (${t.modo} = 'directo' AND ${t.cabeceraCueAnexo} IS NULL))`),
   check('booklet_remito_receipt_signature_check', sql`(${t.modo} = 'cabecera' AND ((${t.status} = 'received' AND ${t.cabeceraReceivedByUserId} IS NOT NULL AND ${t.cabeceraReceivedAt} IS NOT NULL) OR (${t.status} = 'dispatched' AND ${t.cabeceraReceivedByUserId} IS NULL AND ${t.cabeceraReceivedAt} IS NULL))) OR (${t.modo} = 'directo' AND ${t.cabeceraReceivedByUserId} IS NULL AND ${t.cabeceraReceivedAt} IS NULL)`),
@@ -2145,6 +2149,8 @@ export const bookletRemitoLine = pgTable('booklet_remito_line', {
   remitoId: text('remito_id').notNull().references(() => bookletRemito.id, { onDelete: 'restrict' }),
   recipientCueAnexo: text('recipient_cue_anexo').notNull(),
   recipientName: text('recipient_name'),
+  // A reserve line goes to the cabecera's own CUE and stays at the cabecera: the cabecera splits it among schools.
+  reserva: boolean('reserva').notNull().default(false),
   status: text('status').notNull(),
   cabeceraShortfallReason: text('cabecera_shortfall_reason'),
   schoolReceivedByUserId: text('school_received_by_user_id').references(() => user.id, { onDelete: 'restrict' }),

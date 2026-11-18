@@ -1,0 +1,5 @@
+ALTER TABLE "booklet_remito" ADD COLUMN "origen_cabecera_cue_anexo" text;--> statement-breakpoint
+ALTER TABLE "booklet_remito_line" ADD COLUMN "reserva" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "booklet_remito" ADD CONSTRAINT "booklet_remito_origen_cabecera_cue_anexo_booklet_school_assignment_cue_anexo_fk" FOREIGN KEY ("origen_cabecera_cue_anexo") REFERENCES "public"."booklet_school_assignment"("cue_anexo") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "booklet_remito_origen_campaign_idx" ON "booklet_remito" USING btree ("origen_cabecera_cue_anexo","campaign_id");--> statement-breakpoint
+ALTER TABLE "booklet_remito" ADD CONSTRAINT "booklet_remito_origen_check" CHECK ("booklet_remito"."origen_cabecera_cue_anexo" IS NULL OR "booklet_remito"."modo" = 'directo');
