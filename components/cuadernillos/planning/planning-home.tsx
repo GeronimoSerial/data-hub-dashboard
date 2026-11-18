@@ -352,13 +352,13 @@ export function PlanningHome() {
                     <div><dt>Ya les enviaste</dt><dd>{reached}{plus}</dd></div>
                   </dl>
                   {unconfirmed.length > 0 ? (
-                    <div className="pl-unconfirmed">
-                      <p>Todavía no confirmaron su cuenta y no se les puede enviar:</p>
+                    <details className="pl-unconfirmed">
+                      <summary>{`${unconfirmed.length} sin cuenta confirmada`}</summary>
+                      <p>No se les puede enviar hasta que confirmen su cuenta.</p>
                       <ul>
-                        {unconfirmed.slice(0, 4).map((row) => <li key={row.cue}>{row.nombre} <span>· {row.departamento}</span></li>)}
+                        {unconfirmed.map((row) => <li key={row.cue}><strong>{row.nombre}</strong><span>{row.departamento}</span></li>)}
                       </ul>
-                      {unconfirmed.length > 4 ? <p>y {unconfirmed.length - 4} más.</p> : null}
-                    </div>
+                    </details>
                   ) : null}
                 </Panel>
               ) : null}
