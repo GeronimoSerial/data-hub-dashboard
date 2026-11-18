@@ -6,13 +6,17 @@ import { buildJourney, formatWhen, pluralize, type ReceiptItem } from '../receip
 import { ReceiptWizard } from '../receipts/receipt-wizard'
 import { SignedNote } from '../receipts/sign-panel'
 import { useReceiptListing, type CabeceraRemitoView } from '../receipts/use-receipt-listing'
+import { RESERVE_LABEL } from './reserve-api'
+import { ReservePanel, hasReserve } from './reserve-panel'
+import { useReserve } from './use-reserve'
 
 type RemitoLine = CabeceraRemitoView['lines'][number]
 
 const lineItems = (line: RemitoLine): ReceiptItem[] =>
   line.items.map((item) => ({ productId: item.productId, productName: item.productName, expected: item.dispatchedQuantity }))
 
-const lineName = (line: RemitoLine) => line.recipientName ?? `CUE ${line.recipientCueAnexo}`
+const isReserve = (line: RemitoLine) => 'reserva' in line && line.reserva === true
+const lineName = (line: RemitoLine) => (isReserve(line) ? RESERVE_LABEL : line.recipientName ?? `CUE ${line.recipientCueAnexo}`)
 
 function remitoJourney(remito: CabeceraRemitoView) {
   const confirmed = remito.lines.filter((line) => line.status === 'received' || line.status === 'closed_empty')
@@ -37,7 +41,7 @@ function PendingRemito({ remito, remaining, onSigned }: { remito: CabeceraRemito
       heading={`Envío del ${formatWhen(remito.dispatchedAt)}`}
       place="tu cabecera"
       remaining={remaining}
-      lines={remito.lines.map((line) => ({ id: line.lineId, name: lineName(line), items: lineItems(line) }))}
+      lines={remito.lines.map((line) => ({ id: line.lineId, name: lineName(line), reserve: isReserve(line), items: lineItems(line) }))}
       request={(lines) => ({ url: `/api/cuadernillos/remitos/${encodeURIComponent(remito.remitoId)}/recibir`, body: { lines } })}
       onSigned={onSigned}
     />
@@ -73,6 +77,7 @@ export function CabeceraHome() {
   const { listing, error, reload, retry } = useReceiptListing()
   const remitos = listing?.kind === 'cabecera' ? listing.remitos : null
   const readOnly = listing?.kind === 'cabecera' && listing.readOnly === true
+  const reserve = useReserve(remitos !== null && !readOnly)
   const pending = remitos?.filter((remito) => remito.status === 'dispatched') ?? []
   const history = remitos?.filter((remito) => remito.status !== 'dispatched') ?? []
   const title = readOnly
@@ -82,6 +87,13 @@ export function CabeceraHome() {
   return (
     <section aria-labelledby="cabecera-home-title" className="k-stack">
       <PageHeader id="cabecera-home-title" title="Recepción de envíos" description="Confirmá qué cuadernillos llegaron a tu cabecera para cada escuela." />
+      {hasReserve(reserve.view) ? <ReservePanel view={reserve.view} onChanged={reserve.reload} /> : null}
+      {reserve.error ? (
+        <div className="k-stack" style={{ gap: '.4rem', justifyItems: 'start' }}>
+          <Note tone="danger">{reserve.error}</Note>
+          <button type="button" className="k-link-btn" onClick={reserve.reload}>Reintentar lo que tenés para repartir</button>
+        </div>
+      ) : null}
       {error ? (
         <div className="k-stack" style={{ gap: '.5rem', justifyItems: 'start' }}>
           <Note tone="danger">{error}</Note>

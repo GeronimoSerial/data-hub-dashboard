@@ -10,7 +10,8 @@ import {
   type LineAnswers, type ReceiptItem,
 } from './receipt-model'
 
-export type WizardLine = { id: string; name?: string; items: ReceiptItem[] }
+/** `reserve` lines always show their name: a single reserve has no school to tell it apart from a delivery. */
+export type WizardLine = { id: string; name?: string; reserve?: boolean; items: ReceiptItem[] }
 export type SubmitLine = { lineId: string; items: Array<{ productId: string; receivedQuantity: number }>; shortfallReason?: string }
 
 type Step = 'arrived' | 'quantities' | 'confirm'
@@ -104,7 +105,7 @@ export function ReceiptWizard({ heading, place, lines, leg, note, remaining = 0,
               const sendable = line.items.filter((item) => item.expected > 0)
               return (
                 <div key={line.id} className="k-note-group">
-                  {several && line.name ? <h4>{line.name}</h4> : null}
+                  {line.name && (several || line.reserve) ? <h4>{line.name}</h4> : null}
                   {sendable.length === 0 ? <p className="k-hint" style={{ margin: 0 }}>No corresponden cuadernillos.</p> : (
                     <dl>
                       {sendable.map((item) => (
@@ -131,7 +132,7 @@ export function ReceiptWizard({ heading, place, lines, leg, note, remaining = 0,
               const name = line.name ?? ''
               return (
                 <div key={line.id} className="k-stack" style={{ gap: '.4rem' }}>
-                  {several && name ? <h4 className="k-row-title" style={{ margin: 0 }}>{name}</h4> : null}
+                  {name && (several || line.reserve) ? <h4 className="k-row-title" style={{ margin: 0 }}>{name}</h4> : null}
                   <ul className="k-qty-list">
                     {line.items.filter((item) => item.expected > 0).map((item) => {
                       const product = shortProduct(item.productName)

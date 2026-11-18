@@ -16,6 +16,8 @@ export type RemitoItemRow = {
 }
 
 export type RemitoLineRow = {
+  /** The line is the cabecera's reserve to split among schools, not a school delivery. */
+  reserva?: boolean
   recipientCueAnexo: string
   recipientName: string | null
   status: 'in_transit' | 'at_cabecera' | 'received' | 'closed_empty'
@@ -55,6 +57,17 @@ export function remitoDispatchBody(input: {
   const { mode, campaignId, cabeceraCueAnexo, idempotencyKey, lines } = input
   if (mode === 'directo') return { campaignId, modo: 'directo' as const, idempotencyKey, lines }
   return { campaignId, cabeceraCueAnexo, idempotencyKey, lines }
+}
+
+/** Planeamiento sends a cabecera a reserve per grade; the cabecera assigns it to schools later. */
+export function reserveDispatchBody(input: {
+  campaignId: string
+  cabeceraCueAnexo: string
+  idempotencyKey: string
+  items: Array<{ productId: string; quantity: number }>
+}) {
+  const { campaignId, cabeceraCueAnexo, idempotencyKey, items } = input
+  return { campaignId, modo: 'cabecera' as const, cabeceraCueAnexo, reserve: true as const, items, idempotencyKey }
 }
 
 /** Recommendations need the cabecera only when the send goes through one. */

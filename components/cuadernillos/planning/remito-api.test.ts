@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dispatchErrorMessage, recommendationsParams, remitoDispatchBody, REMITO_ERRORS } from './remito-api'
+import { dispatchErrorMessage, recommendationsParams, remitoDispatchBody, reserveDispatchBody, REMITO_ERRORS } from './remito-api'
 
 const labels = new Map([['p1', 'Cuadernillo para estudiantes de 1.er grado'], ['p2', 'Cuadernillo para estudiantes de 2.º grado']])
 const schools = new Map([['180123457', 'Escuela N° 5'], ['180123458', 'Colegio Sur']])
@@ -62,5 +62,14 @@ describe('recommendationsParams', () => {
       .toBe('cueAnexo=180123457&campaignId=c1&cabeceraCueAnexo=180000000')
     expect(recommendationsParams({ mode: 'directo', cueAnexo: '180123457', cabeceraCueAnexo: null, campaignId: 'c1' }).toString())
       .toBe('cueAnexo=180123457&campaignId=c1')
+  })
+})
+
+describe('reserveDispatchBody', () => {
+  it('sends the reserve shape: modo cabecera, reserve true, items and no lines', () => {
+    const items = [{ productId: 'book-1', quantity: 40 }]
+    const body = reserveDispatchBody({ campaignId: 'c1', cabeceraCueAnexo: '180000000', idempotencyKey: 'k1', items })
+    expect(body).toEqual({ campaignId: 'c1', modo: 'cabecera', cabeceraCueAnexo: '180000000', reserve: true, items, idempotencyKey: 'k1' })
+    expect(body).not.toHaveProperty('lines')
   })
 })
