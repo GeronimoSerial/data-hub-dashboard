@@ -11,19 +11,25 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 const noStore = { 'Cache-Control': 'private, no-store' }
 const cue = z.string().regex(/^\d{9}$/)
+const item = z.object({ productId: z.string().trim().min(1).max(128), quantity: z.number().int().positive().safe() }).strict()
 const remitoBase = {
   campaignId: z.string().trim().min(1).max(128),
   idempotencyKey: z.string().trim().min(1).max(128),
   lines: z.array(z.object({
     recipientCueAnexo: cue,
-    items: z.array(z.object({ productId: z.string().trim().min(1).max(128), quantity: z.number().int().positive().safe() }).strict()).min(1).max(100),
+    items: z.array(item).min(1).max(100),
   }).strict()).min(1).max(200),
 }
 // Zod cannot default a discriminator, so a missing `modo` is a cabecera body: existing clients keep working.
 // A directo body has no cabecera, and the strict objects reject one that carries it.
+// A reserve (cabecera only) carries `items` instead of `lines`: the strict objects keep the two shapes apart.
 const schema = z.union([
   z.object({ ...remitoBase, modo: z.literal('cabecera').optional(), cabeceraCueAnexo: cue }).strict(),
   z.object({ ...remitoBase, modo: z.literal('directo') }).strict(),
+  z.object({
+    campaignId: remitoBase.campaignId, idempotencyKey: remitoBase.idempotencyKey,
+    modo: z.literal('cabecera').optional(), cabeceraCueAnexo: cue, reserve: z.literal(true), items: z.array(item).min(1).max(100),
+  }).strict(),
 ])
 const getSchema = z.object({
   campaignId: z.string().trim().min(1).max(128).optional(),

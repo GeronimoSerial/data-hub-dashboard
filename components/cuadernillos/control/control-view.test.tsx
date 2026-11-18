@@ -204,4 +204,15 @@ describe('ControlView', () => {
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Envío directo')).toBeInTheDocument()
   })
+
+  it('marks an envío sent by a cabecera from its reserve, and leaves other envíos unmarked', async () => {
+    const onward = { ...remito, remitoId: 'remito-onward', modo: 'directo', cabeceraCueAnexo: null, cabeceraName: null, cabeceraReceivedByUserId: null, cabeceraReceivedByName: null, cabeceraReceivedAt: null, hasShortfall: false, origenCabeceraCueAnexo: '180000000', origenCabeceraName: 'Cabecera Norte' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page([onward, remito]))))
+
+    render(<ControlView />)
+
+    expect(await screen.findAllByText('Enviado por la cabecera')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: /Envío directo/ }))
+    expect(within(await screen.findByRole('dialog')).getByText('Enviado por la cabecera Cabecera Norte')).toBeInTheDocument()
+  })
 })

@@ -57,6 +57,10 @@ export function envioStatus(remito: RemitoSummary, now: number): EnvioStatus {
   if (!direct && !remito.cabeceraReceivedAt) {
     return { stage: 'waiting', short, label: 'Esperando a la cabecera', detail: `Salió ${daysAgo(remito.dispatchedAt, now)} y todavía no confirmó que llegó`, schools, schoolsDone }
   }
+  // A reserve is finished for Planeamiento once the cabecera has it; the cabecera splits it among schools afterwards.
+  if (remito.lines.some((line) => line.reserva)) {
+    return { stage: 'done', short, label: 'Reserva recibida', detail: 'La cabecera la reparte entre sus escuelas', schools, schoolsDone }
+  }
   if (schools > 0 && schoolsDone === schools) {
     if (short) {
       const confirmed = schools === 1 ? 'la escuela ya confirmó' : `las ${schools} escuelas ya confirmaron`
