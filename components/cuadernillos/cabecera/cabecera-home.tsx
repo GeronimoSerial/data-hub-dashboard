@@ -1,14 +1,10 @@
 'use client'
 
-import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { CircuitGuide, EmptyState, Note, PageHeader, Panel, ShipmentJourney, TaskCard, formatCount, shortProduct } from '../kit'
-import { LineQuestions } from '../receipts/line-questions'
-import {
-  EMPTY_ANSWERS, allArrived, arrivalMode, buildJourney, errorMessage, evaluateLine, formatWhen, pluralize, postReceipt, reasonFor, useIdempotencyKey,
-  type LineAnswers, type ReceiptItem,
-} from '../receipts/receipt-model'
-import { SignPanel, SignedNote } from '../receipts/sign-panel'
+import { buildJourney, formatWhen, pluralize, type ReceiptItem } from '../receipts/receipt-model'
+import { ReceiptWizard } from '../receipts/receipt-wizard'
+import { SignedNote } from '../receipts/sign-panel'
 import { useReceiptListing, type CabeceraRemitoView } from '../receipts/use-receipt-listing'
 
 type RemitoLine = CabeceraRemitoView['lines'][number]
@@ -35,65 +31,16 @@ function remitoJourney(remito: CabeceraRemitoView) {
   })
 }
 
-function PendingRemito({ remito, onSigned }: { remito: CabeceraRemitoView; onSigned: () => void }) {
-  const [states, setStates] = useState<Record<string, LineAnswers>>({})
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const keyFor = useIdempotencyKey()
-
-  const evaluated = remito.lines.map((line) => {
-    const items = lineItems(line)
-    const state = states[line.lineId] ?? EMPTY_ANSWERS
-    return { line, items, state, evaluation: evaluateLine(items, state) }
-  })
-  const complete = evaluated.every(({ evaluation }) => evaluation.complete)
-  const reasonMissing = evaluated.some(({ evaluation }) => evaluation.reasonMissing)
-  const receivedTotal = evaluated.reduce((sum, { evaluation }) => sum + evaluation.receivedTotal, 0)
-  const expectedTotal = evaluated.reduce((sum, { evaluation }) => sum + evaluation.expectedTotal, 0)
-  const everythingArrived = evaluated.every(({ items, state }) => arrivalMode(items, state) === 'all' || items.every((item) => item.expected === 0))
-
-  function confirmEverything() {
-    setStates(Object.fromEntries(evaluated.map(({ line, items }) => [line.lineId, allArrived(items)])))
-  }
-
-  async function sign() {
-    const body = {
-      lines: evaluated.map(({ line, state, evaluation }) => {
-        const reason = reasonFor(evaluation, state)
-        return { lineId: line.lineId, items: evaluation.items, ...(reason !== undefined ? { shortfallReason: reason } : {}) }
-      }),
-    }
-    setBusy(true)
-    setError(null)
-    const result = await postReceipt(`/api/cuadernillos/remitos/${encodeURIComponent(remito.remitoId)}/recibir`, { idempotencyKey: keyFor(JSON.stringify(body)), ...body })
-    setBusy(false)
-    if (result.ok) onSigned()
-    else setError(errorMessage(result.code))
-  }
-
+function PendingRemito({ remito, remaining, onSigned }: { remito: CabeceraRemitoView; remaining: number; onSigned: () => void }) {
   return (
-    <Panel title={`Envío del ${formatWhen(remito.dispatchedAt)}`}>
-      <div className="k-stack" style={{ gap: '.8rem' }}>
-        <ShipmentJourney steps={remitoJourney(remito)} />
-        <div className="k-stack" style={{ gap: '.3rem' }}>
-          {evaluated.map(({ line, state }) => (
-            <div key={line.lineId}>
-              <LineQuestions scope={line.lineId} label={lineName(line)} variant="less-only" items={lineItems(line)} state={state} disabled={busy}
-                onChange={(next) => setStates((current) => ({ ...current, [line.lineId]: next }))} />
-            </div>
-          ))}
-        </div>
-        <SignPanel receivedTotal={receivedTotal} expectedTotal={expectedTotal} answered={complete} canSign={complete && !reasonMissing} busy={busy} error={error}
-          hint={reasonMissing ? 'Contanos qué pasó en cada escuela a la que llegó menos para poder confirmar.' : undefined}
-          before={(
-            <Button type="button" style={{ minHeight: '2.5rem' }} variant={everythingArrived ? 'default' : 'secondary'} disabled={busy}
-              aria-pressed={everythingArrived} onClick={confirmEverything}>
-              Sí, llegó todo
-            </Button>
-          )}
-          onSign={() => { void sign() }} />
-      </div>
-    </Panel>
+    <ReceiptWizard
+      heading={`Envío del ${formatWhen(remito.dispatchedAt)}`}
+      place="tu cabecera"
+      remaining={remaining}
+      lines={remito.lines.map((line) => ({ id: line.lineId, name: lineName(line), items: lineItems(line) }))}
+      request={(lines) => ({ url: `/api/cuadernillos/remitos/${encodeURIComponent(remito.remitoId)}/recibir`, body: { lines } })}
+      onSigned={onSigned}
+    />
   )
 }
 
@@ -152,9 +99,9 @@ export function CabeceraHome() {
       ) : null}
       {pending.length > 0 ? (
         <div className="k-stack" role="region" aria-label="Pendientes">
-          {pending.map((remito) => readOnly
-            ? <HistoryRemito key={remito.remitoId} remito={remito} />
-            : <PendingRemito key={remito.remitoId} remito={remito} onSigned={reload} />)}
+          {readOnly
+            ? pending.map((remito) => <HistoryRemito key={remito.remitoId} remito={remito} />)
+            : <PendingRemito key={pending[0].remitoId} remito={pending[0]} remaining={pending.length - 1} onSigned={reload} />}
         </div>
       ) : null}
       {history.length > 0 ? (

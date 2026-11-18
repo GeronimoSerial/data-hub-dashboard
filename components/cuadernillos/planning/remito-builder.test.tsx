@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { RemitoBuilder } from './remito-builder'
 
 afterEach(() => {
@@ -139,22 +139,24 @@ describe('RemitoBuilder', () => {
     expect(alert).not.toHaveTextContent('authority_unavailable')
   })
 
-  it('shows the three numbered steps and moves the current one forward', async () => {
+  it('asks one question per step with a progress counter and only Atrás plus one primary action', async () => {
     vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
 
     renderBuilder()
-    const steps = await screen.findByRole('list', { name: 'Pasos del envío' })
-    const items = () => within(steps).getAllByRole('listitem')
-    expect(items().map((item) => item.textContent)).toEqual(['1. ¿A qué cabecera?', '2. ¿Qué escuelas y cuántos?', '3. Revisar y enviar'])
-    expect(items()[0]).toHaveAttribute('aria-current', 'step')
+    expect(await screen.findByText('¿A quién le enviás?')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 3')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Atrás' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
 
     await goToQuantities()
-    expect(items()[1]).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByText('¿Qué escuelas y cuántos?')).toBeInTheDocument()
+    expect(screen.getByText('Paso 2 de 3')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
     expect(await screen.findByRole('region', { name: 'Detalle del envío' })).toBeInTheDocument()
-    expect(items()[2]).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByText('Paso 3 de 3')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Atrás' }))
+    expect(screen.getByText('Paso 2 de 3')).toBeInTheDocument()
   })
 
   it('shows the school name first and the CUE as secondary text', async () => {
@@ -181,17 +183,15 @@ describe('RemitoBuilder', () => {
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   })
 
-  it('shows the stock left per grade while loading quantities and flags a grade that runs out', async () => {
+  it('flags a grade that runs out while loading quantities', async () => {
     vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
 
     renderBuilder({ products: [products[0], { ...products[1], available: 20 }] })
     await goToQuantities()
 
-    const left = screen.getByRole('group', { name: 'Stock que queda por grado' })
-    expect(left).toHaveTextContent('-5')
-    expect(left.querySelectorAll('[data-state="over"]')).toHaveLength(1)
     expect(screen.getByRole('alert')).toHaveTextContent('No alcanza el stock de 2.º grado. Bajá las cantidades para poder enviar.')
     expect(screen.getByLabelText('Total para Escuela A')).toHaveTextContent('55')
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled()
   })
 
   it('lists in the review only what is being sent, like a receipt', async () => {
@@ -212,8 +212,7 @@ describe('RemitoBuilder', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderBuilder({ onDispatched })
-    fireEvent.click(await screen.findByRole('button', { name: 'Directo a escuelas' }))
-    expect(screen.queryByText('Cabecera Norte')).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /Directo a escuelas/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     fireEvent.change(screen.getByLabelText('Buscar escuela por CUE'), { target: { value: '180123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
