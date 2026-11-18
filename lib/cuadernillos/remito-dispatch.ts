@@ -24,7 +24,14 @@ export type DispatchRemitoInput = {
   modo?: RemitoModo
   cabeceraCueAnexo?: string
   idempotencyKey: string
-  lines: Array<{ recipientCueAnexo: string; items: Array<{ productId: string; quantity: number }> }>
+  /** Absent when `reserve` is true: a reserve carries `items` and never `lines`. */
+  lines?: Array<{ recipientCueAnexo: string; items: Array<{ productId: string; quantity: number }> }>
+  /**
+   * A reserve (modo 'cabecera' only) sends quantities per product to the cabecera, which later splits them among
+   * critical schools. It becomes ONE line to the cabecera's own CUE and skips the Crítica recipient check.
+   */
+  reserve?: boolean
+  items?: Array<{ productId: string; quantity: number }>
 }
 
 export type DispatchedRemito = {
@@ -38,6 +45,7 @@ export type DispatchedRemito = {
     recipientCueAnexo: string
     recipientName: string | null
     status: 'in_transit'
+    reserva: boolean
     items: Array<{ productId: string; quantity: number }>
   }>
 }
@@ -48,6 +56,7 @@ export type StoredRemitoLine = {
   recipientCueAnexo: string
   recipientName: string | null
   status: 'in_transit' | 'at_cabecera' | 'received' | 'closed_empty'
+  reserva?: boolean
   items: StoredRemitoItem[]
 }
 export type RemitoSigner = { userId: string; name: string }
@@ -56,13 +65,16 @@ export type RemitoRow = {
   campaignId: string
   modo: RemitoModo
   cabeceraCueAnexo: string | null
+  /** Set when a cabecera sent this directo remito out of its reserve. */
+  origenCabeceraCueAnexo?: string | null
   status: 'dispatched' | 'received'
   dispatchedByUserId: string
   dispatchedAt: Date
   cabeceraReceivedAt: Date | null
   cabeceraReceivedBy: RemitoSigner | null
-  lines: Array<Omit<StoredRemitoLine, 'id' | 'items'> & {
+  lines: Array<Omit<StoredRemitoLine, 'id' | 'items' | 'reserva'> & {
     lineId?: string
+    reserva: boolean
     cabeceraShortfallReason: string | null
     schoolShortfallReason: string | null
     schoolReceivedBy: RemitoSigner | null
@@ -82,7 +94,7 @@ export type RemitoRepository = Pick<ApprovalRepository,
   getRecipientEligibility(cueAnexo: string, geSchema?: GeSchemaReady): Promise<Eligibility & { name: string | null }>
   recordDispatchMovement(input: { campaignId: string; productId: string; remitoId: string; quantity: number; actorUserId: string; idempotencyKey: string }): Promise<void>
   insertRemito(remito: {
-    id: string; campaignId: string; modo: RemitoModo; cabeceraCueAnexo: string | null; status: 'dispatched'
+    id: string; campaignId: string; modo: RemitoModo; cabeceraCueAnexo: string | null; origenCabeceraCueAnexo?: string | null; status: 'dispatched'
     dispatchedByUserId: string; dispatchedAt: Date; lines: StoredRemitoLine[]
   }): Promise<void>
   listRemitos(query: RemitoListQuery): Promise<RemitoRow[]>
@@ -126,10 +138,12 @@ export function createRemitoRepository(db: Db, overrides: Partial<RemitoReposito
     async insertRemito(remito) {
       await db.insert(bookletRemito).values({
         id: remito.id, campaignId: remito.campaignId, modo: remito.modo, cabeceraCueAnexo: remito.cabeceraCueAnexo, status: remito.status,
+        origenCabeceraCueAnexo: remito.origenCabeceraCueAnexo ?? null,
         dispatchedByUserId: remito.dispatchedByUserId, dispatchedAt: remito.dispatchedAt,
       })
       await db.insert(bookletRemitoLine).values(remito.lines.map((line) => ({
         id: line.id, remitoId: remito.id, recipientCueAnexo: line.recipientCueAnexo, recipientName: line.recipientName, status: line.status,
+        reserva: line.reserva ?? false,
       })))
       await db.insert(bookletRemitoItem).values(remito.lines.flatMap((line) => line.items.map((item) => ({
         lineId: line.id, productId: item.productId, dispatchedQuantity: item.dispatchedQuantity,
@@ -164,13 +178,13 @@ export function createRemitoRepository(db: Db, overrides: Partial<RemitoReposito
       const signerNames = new Map(signerRows.map((row) => [row.id, row.name]))
       const signer = (userId: string | null): RemitoSigner | null => userId === null ? null : { userId, name: signerNames.get(userId) ?? '' }
       return remitos.map((remito) => ({
-        remitoId: remito.id, campaignId: remito.campaignId, modo: remito.modo as RemitoModo, cabeceraCueAnexo: remito.cabeceraCueAnexo,
+        remitoId: remito.id, campaignId: remito.campaignId, modo: remito.modo as RemitoModo, cabeceraCueAnexo: remito.cabeceraCueAnexo, origenCabeceraCueAnexo: remito.origenCabeceraCueAnexo,
         status: remito.status as RemitoRow['status'], dispatchedByUserId: remito.dispatchedByUserId,
         dispatchedAt: remito.dispatchedAt, cabeceraReceivedAt: remito.cabeceraReceivedAt,
         cabeceraReceivedBy: signer(remito.cabeceraReceivedByUserId),
         lines: lines.filter((line) => line.remitoId === remito.id).map((line) => ({
           lineId: line.id, recipientCueAnexo: line.recipientCueAnexo, recipientName: line.recipientName,
-          status: line.status as StoredRemitoLine['status'],
+          status: line.status as StoredRemitoLine['status'], reserva: line.reserva,
           cabeceraShortfallReason: line.cabeceraShortfallReason, schoolShortfallReason: line.schoolShortfallReason,
           schoolReceivedBy: signer(line.schoolReceivedByUserId), schoolReceivedAt: line.schoolReceivedAt,
           items: items.filter((item) => item.lineId === line.id).map((item) => ({
@@ -205,9 +219,21 @@ function validate(input: DispatchRemitoInput): void {
   if (modo === 'cabecera' && (typeof input.cabeceraCueAnexo !== 'string' || !CUE.test(input.cabeceraCueAnexo))) fail('invalid_cabecera')
   if (modo === 'directo' && input.cabeceraCueAnexo !== undefined) fail('invalid_cabecera')
   if (typeof input.idempotencyKey !== 'string' || input.idempotencyKey.trim() === '') fail('invalid_idempotency_key')
+  if (input.reserve !== undefined && input.reserve !== true) fail('invalid_remito')
+  if (input.reserve === true) {
+    // A reserve is a cabecera remito with `items` only: `lines` alongside would be ambiguous.
+    if (modo !== 'cabecera' || input.lines !== undefined) fail('invalid_remito')
+    if (!Array.isArray(input.items) || input.items.length === 0) fail('invalid_remito')
+    for (const item of input.items!) {
+      if (typeof item?.productId !== 'string' || item.productId.trim() === '' || !Number.isSafeInteger(item.quantity) || item.quantity <= 0) fail('invalid_quantity')
+    }
+    if (new Set(input.items!.map((item) => item.productId)).size !== input.items!.length) fail('invalid_quantity')
+    return
+  }
   if (!Array.isArray(input.lines) || input.lines.length === 0) fail('invalid_remito')
-  if (new Set(input.lines.map((line) => line.recipientCueAnexo)).size !== input.lines.length) fail('duplicate_recipient')
-  for (const line of input.lines) {
+  const lines = input.lines ?? []
+  if (new Set(lines.map((line) => line.recipientCueAnexo)).size !== lines.length) fail('duplicate_recipient')
+  for (const line of lines) {
     if (!CUE.test(line.recipientCueAnexo)) fail('invalid_recipient')
     if (!Array.isArray(line.items) || line.items.length === 0) fail('invalid_remito')
     for (const item of line.items) {
@@ -217,7 +243,7 @@ function validate(input: DispatchRemitoInput): void {
   }
 }
 
-function assertCampaign(campaign: CampaignPolicy | null): void {
+export function assertCampaign(campaign: CampaignPolicy | null): void {
   if (!campaign || campaign.status !== 'active') throw new BookletServiceError('campaign_inactive', 409)
   if (!campaign.distributionEnabled || campaign.overassignmentAllowed === null || campaign.overassignmentAllowed) throw new BookletServiceError('policy_unresolved', 409)
 }
@@ -232,6 +258,9 @@ export async function dispatchRemito(actor: SessionUser, input: DispatchRemitoIn
   const modo: RemitoModo = input.modo ?? 'cabecera'
   // Null exactly when modo is 'directo' (validated above): no cabecera leg, so no cabecera authority check.
   const cabeceraCueAnexo = modo === 'cabecera' ? input.cabeceraCueAnexo! : null
+  const reserve = input.reserve === true
+  // A reserve is ONE line to the cabecera's own CUE; everything below treats it like any other line.
+  const requestLines = reserve ? [{ recipientCueAnexo: cabeceraCueAnexo!, items: input.items! }] : input.lines!
   // Prepared outside the transaction, exactly like approveRequest: the projection bootstrap uses a separate connection.
   const geSchema = await repository.prepareCurrentEligibilityProjection?.()
   return repository.transaction(async (tx) => {
@@ -249,15 +278,16 @@ export async function dispatchRemito(actor: SessionUser, input: DispatchRemitoIn
 
     const names = new Map<string, string | null>()
     const notCritical: string[] = []
-    for (const line of input.lines) {
+    for (const line of requestLines) {
       const eligibility = await tx.getRecipientEligibility(line.recipientCueAnexo, geSchema)
-      if (!eligibility.eligible || eligibility.severity !== 'Crítica') notCritical.push(line.recipientCueAnexo)
+      // The reserve goes to the cabecera itself, which need not be Crítica: only its name is read.
+      if (!reserve && (!eligibility.eligible || eligibility.severity !== 'Crítica')) notCritical.push(line.recipientCueAnexo)
       names.set(line.recipientCueAnexo, eligibility.name)
     }
     if (notCritical.length > 0) throw new RemitoDispatchError('recipients_not_critical', 409, { recipientCueAnexos: notCritical.sort() })
 
     const totals = new Map<string, number>()
-    for (const line of input.lines) for (const item of line.items) totals.set(item.productId, (totals.get(item.productId) ?? 0) + item.quantity)
+    for (const line of requestLines) for (const item of line.items) totals.set(item.productId, (totals.get(item.productId) ?? 0) + item.quantity)
     const products = [...totals.keys()].sort()
     for (const productId of products) if (!await tx.productExists(productId)) throw new BookletServiceError('product_not_found', 404)
     for (const productId of products) await tx.lockProduct(input.campaignId, productId)
@@ -271,8 +301,8 @@ export async function dispatchRemito(actor: SessionUser, input: DispatchRemitoIn
     await tx.insertRemito({
       id: remitoId, campaignId: input.campaignId, modo, cabeceraCueAnexo, status: 'dispatched',
       dispatchedByUserId: actor.id, dispatchedAt,
-      lines: input.lines.map((line) => ({
-        id: randomUUID(), recipientCueAnexo: line.recipientCueAnexo, recipientName: names.get(line.recipientCueAnexo) ?? null, status: 'in_transit' as const,
+      lines: requestLines.map((line) => ({
+        id: randomUUID(), recipientCueAnexo: line.recipientCueAnexo, recipientName: names.get(line.recipientCueAnexo) ?? null, status: 'in_transit' as const, reserva: reserve,
         items: line.items.map((item) => ({ productId: item.productId, dispatchedQuantity: item.quantity })),
       })),
     })
@@ -284,8 +314,8 @@ export async function dispatchRemito(actor: SessionUser, input: DispatchRemitoIn
     const response: DispatchedRemito = {
       remitoId, campaignId: input.campaignId, modo, cabeceraCueAnexo, status: 'dispatched',
       dispatchedAt: dispatchedAt.toISOString(),
-      lines: input.lines.map((line) => ({
-        recipientCueAnexo: line.recipientCueAnexo, recipientName: names.get(line.recipientCueAnexo) ?? null, status: 'in_transit' as const,
+      lines: requestLines.map((line) => ({
+        recipientCueAnexo: line.recipientCueAnexo, recipientName: names.get(line.recipientCueAnexo) ?? null, status: 'in_transit' as const, reserva: reserve,
         items: line.items.map(({ productId, quantity }) => ({ productId, quantity })),
       })),
     }
@@ -328,6 +358,7 @@ export async function listRemitosForPlanning(actor: SessionUser | null, input: R
       ...row,
       dispatchedAt: row.dispatchedAt.toISOString(),
       cabeceraReceivedAt: row.cabeceraReceivedAt?.toISOString() ?? null,
+      origenCabeceraCueAnexo: row.origenCabeceraCueAnexo ?? null,
       lines: row.lines.map((line) => ({ ...line, schoolReceivedAt: line.schoolReceivedAt?.toISOString() ?? null })),
     })),
     hasMore: rows.length > pageSize,

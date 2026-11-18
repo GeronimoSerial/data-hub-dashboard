@@ -59,19 +59,24 @@ function journeySteps(remito: RemitoSummary): JourneyStep[] {
 
   const sent: JourneyStep = { label: 'Enviado', state: 'done', detail: `Planeamiento · ${dateTimeFormat.format(new Date(remito.dispatchedAt))}` }
   if (direct) return [sent, { ...school, detail: schoolDetail }]
+  const arrived: JourneyStep = {
+    label: 'Llegó a la cabecera',
+    state: remito.cabeceraReceivedAt ? (cabeceraShort ? 'short' : 'done') : 'current',
+    detail: remito.cabeceraReceivedAt ? `${cabeceraWho}${cabeceraShort ? ' · llegó de menos' : ''}` : null,
+  }
+  // A reserve ends at the cabecera: it splits it among schools later.
+  if (remito.lines.some((line) => line.reserva)) return [sent, arrived]
   return [
     sent,
-    {
-      label: 'Llegó a la cabecera',
-      state: remito.cabeceraReceivedAt ? (cabeceraShort ? 'short' : 'done') : 'current',
-      detail: remito.cabeceraReceivedAt ? `${cabeceraWho}${cabeceraShort ? ' · llegó de menos' : ''}` : null,
-    },
+    arrived,
     { ...school, detail: schoolDetail },
   ]
 }
 
+const RESERVE_LABEL = 'Reserva para repartir'
+
 function LineDetail({ line, direct, productLabels }: { line: RemitoLineRow; direct: boolean; productLabels: Map<string, string> }) {
-  const name = line.recipientName ?? 'Escuela'
+  const name = line.reserva ? RESERVE_LABEL : line.recipientName ?? 'Escuela'
   const schoolSigner = signature(line.schoolReceivedBy, line.schoolReceivedAt)
   return (
     <section aria-label={line.recipientName ?? line.recipientCueAnexo} className="pl-line">
@@ -191,7 +196,7 @@ export function RemitosList({ remitos, cabeceras, productLabels, hasMore, loadin
                   </span>
                   <span className="pl-envio-what">
                     <strong>{formatCount(units)} cuadernillos</strong>
-                    <span>{remito.lines.length} escuela{remito.lines.length === 1 ? '' : 's'}</span>
+                    <span>{remito.lines.some((line) => line.reserva) ? RESERVE_LABEL : `${remito.lines.length} escuela${remito.lines.length === 1 ? '' : 's'}`}</span>
                   </span>
                   <span className="pl-envio-status" data-tone={tone}>
                     <strong>{status.label}</strong>

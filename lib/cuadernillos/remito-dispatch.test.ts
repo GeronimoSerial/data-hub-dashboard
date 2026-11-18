@@ -243,6 +243,71 @@ describe('dispatchRemito in directo mode', () => {
   })
 })
 
+describe('dispatchRemito reserve variant', () => {
+  const reserve = (overrides: Partial<DispatchRemitoInput> = {}): DispatchRemitoInput => ({
+    campaignId: 'campaign-1', modo: 'cabecera', cabeceraCueAnexo: '180000100', reserve: true, idempotencyKey: 'reserve-1',
+    items: [{ productId: 'product-1', quantity: 60 }, { productId: 'product-2', quantity: 25 }], ...overrides,
+  })
+
+  it('stores one reserve line to the cabecera own CUE without the Crítica check and debits stock like a normal dispatch', async () => {
+    // The cabecera itself is not Crítica: a reserve never checks it.
+    state.schools.set('180000100', { severity: 'Baja', name: 'Cabecera Norte' })
+    const result = await dispatchRemito(planner, reserve(), repository)
+
+    expect(result).toMatchObject({ modo: 'cabecera', cabeceraCueAnexo: '180000100', status: 'dispatched', lines: [{
+      recipientCueAnexo: '180000100', recipientName: 'Cabecera Norte', status: 'in_transit', reserva: true,
+      items: [{ productId: 'product-1', quantity: 60 }, { productId: 'product-2', quantity: 25 }],
+    }] })
+    expect(state.stock.get('campaign-1:product-1')).toBe(40)
+    expect(state.stock.get('campaign-1:product-2')).toBe(15)
+    expect(state.movements.map((m) => [m.productId, m.quantity, m.remitoId])).toEqual([['product-1', 60, result.remitoId], ['product-2', 25, result.remitoId]])
+    expect(state.remitos[0].lines).toHaveLength(1)
+    expect(state.remitos[0].lines[0]).toMatchObject({ recipientCueAnexo: '180000100', reserva: true, status: 'in_transit' })
+  })
+
+  it('still requires campaign policy, cabecera authority, planning capability, products and stock', async () => {
+    state.authorityReady = false
+    await expect(dispatchRemito(planner, reserve(), repository)).rejects.toMatchObject({ code: 'authority_unavailable', status: 503 })
+    state.authorityReady = true
+    state.stock.set('campaign-1:product-1', 59)
+    await expect(dispatchRemito(planner, reserve(), repository)).rejects.toMatchObject({ code: 'insufficient_stock', status: 409, details: { productIds: ['product-1'] } })
+    await expect(dispatchRemito(planner, reserve({ items: [{ productId: 'ghost', quantity: 1 }] }), repository)).rejects.toMatchObject({ code: 'product_not_found', status: 404 })
+    state.memberships.clear()
+    await expect(dispatchRemito(planner, reserve(), repository)).rejects.toMatchObject({ code: 'forbidden', status: 403 })
+    expect(state.remitos).toHaveLength(0)
+    expect(state.movements).toHaveLength(0)
+  })
+
+  it('rejects reserve without items, with lines alongside, or outside cabecera mode', async () => {
+    const bad = [
+      reserve({ items: undefined }), reserve({ items: [] }),
+      reserve({ lines: input().lines }), reserve({ modo: 'directo', cabeceraCueAnexo: undefined }),
+      reserve({ items: [{ productId: 'product-1', quantity: 0 }] }),
+      reserve({ items: [{ productId: 'product-1', quantity: 1 }, { productId: 'product-1', quantity: 2 }] }),
+    ]
+    for (const value of bad) await expect(dispatchRemito(planner, value, repository)).rejects.toMatchObject({ status: 400 })
+    expect(state.calls).toHaveLength(0)
+  })
+
+  it('replays an identical reserve and conflicts on a changed payload', async () => {
+    const first = await dispatchRemito(planner, reserve(), repository)
+    expect(await dispatchRemito(planner, reserve(), repository)).toEqual(first)
+    expect(state.remitos).toHaveLength(1)
+    await expect(dispatchRemito(planner, reserve({ items: [{ productId: 'product-1', quantity: 1 }] }), repository)).rejects.toMatchObject({ code: 'idempotency_conflict' })
+  })
+
+  it('keeps the idempotency hash of non-reserve requests byte-identical to the stored one', async () => {
+    const { createHash } = await import('node:crypto')
+    const request = input()
+    const legacy = createHash('sha256').update(JSON.stringify(request)).digest('hex')
+    await dispatchRemito(planner, request, repository)
+    expect([...state.idempotency.values()][0].payloadHash).toBe(legacy)
+    const direct = input({ modo: 'directo', cabeceraCueAnexo: undefined, idempotencyKey: 'd1', lines: [{ recipientCueAnexo: '180000200', items: [{ productId: 'product-1', quantity: 1 }] }] })
+    await dispatchRemito(planner, direct, repository)
+    expect(state.idempotency.get('planner-1:remito.dispatch:d1')!.payloadHash).toBe(createHash('sha256').update(JSON.stringify(direct)).digest('hex'))
+  })
+})
+
 describe('listRemitosForPlanning', () => {
   it('rejects an actor without planning capability', async () => {
     state.memberships.clear()
