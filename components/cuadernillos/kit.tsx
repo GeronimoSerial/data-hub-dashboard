@@ -150,6 +150,30 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-receipt-total { display: flex; justify-content: space-between; align-items: baseline; margin: 0; padding-top: .6rem; border-top: 2px solid var(--ink); color: var(--ink-soft); }
 .k-receipt-total strong { color: var(--ink); font-size: 1.05rem; }
 
+/* Wizard: one question per step, a progress bar, and at most Atrás + one primary action. */
+.k-wiz { display: grid; gap: 1.25rem; width: 100%; max-width: 40rem; box-sizing: border-box; margin: 0 auto; }
+.k-wiz-head { display: grid; gap: .5rem; }
+.k-wiz-count { margin: 0; color: var(--ink-soft); font-size: .85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.k-wiz-bar { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .3rem; }
+.k-wiz-bar > span { height: 4px; background: var(--line); transition: background-color 160ms ease-out; }
+.k-wiz-bar > span[data-on] { background: var(--ink); }
+.k-wiz-title { margin: 0; font-family: var(--font-display); font-size: clamp(1.35rem, 3.2vw, 1.8rem); line-height: 1.15; text-transform: none; letter-spacing: 0; color: var(--ink); text-wrap: balance; }
+.k-wiz-sub { margin: 0; color: var(--ink-soft); }
+.k-wiz-foot { display: flex; flex-wrap: wrap-reverse; align-items: center; justify-content: space-between; gap: .75rem; padding-top: .5rem; }
+.k-wiz-foot > .ui-button:last-child { margin-left: auto; min-height: 48px; min-width: 11rem; }
+.k-wiz-foot > .ui-button:only-child { margin-left: auto; }
+.k-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .75rem; }
+.k-choice { display: grid; gap: .2rem; align-content: center; min-height: 5rem; padding: 1rem 1.25rem; box-sizing: border-box; border: 1.5px solid var(--ink); border-radius: var(--r-md); background: var(--card); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: background-color 120ms ease-out; }
+.k-choice:hover:not(:disabled) { background: var(--fill); }
+.k-choice:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
+.k-choice:disabled { opacity: .5; cursor: not-allowed; }
+.k-choice strong { font-size: 1.1rem; font-weight: 700; }
+.k-choice span { color: var(--ink-soft); font-size: .88rem; }
+.k-choice[data-quiet] { border-color: var(--line); }
+@media (prefers-reduced-motion: reduce) {
+  .k-wiz-bar > span, .k-choice { transition: none; }
+}
+
 /* Dense on desktop; touch screens keep 44px targets. */
 @media (pointer: coarse) {
   .k-row { min-height: 44px; }
@@ -298,6 +322,30 @@ export function Stepper({ label, value, max, disabled, onChange }: {
       />
       <button type="button" aria-label={`Sumar · ${label}`} disabled={disabled || (max !== undefined && value >= max)} onClick={() => onChange(clamp(value + 1))}><Plus aria-hidden size={16} /></button>
     </div>
+  )
+}
+
+/** "Paso 2 de 3", a segmented progress bar and the question of the step. */
+export function WizardHeader({ step, total, title, description }: { step: number; total: number; title: string; description?: string }) {
+  return (
+    <header className="k-wiz-head">
+      <p className="k-wiz-count">{`Paso ${step} de ${total}`}</p>
+      <div className="k-wiz-bar" role="progressbar" aria-label="Progreso" aria-valuemin={1} aria-valuemax={total} aria-valuenow={step}>
+        {Array.from({ length: total }, (_, index) => <span key={index} data-on={index < step ? '' : undefined} />)}
+      </div>
+      <h3 className="k-wiz-title">{title}</h3>
+      {description ? <p className="k-wiz-sub">{description}</p> : null}
+    </header>
+  )
+}
+
+/** A large answer to the question of the step; picking one moves on. */
+export function Choice({ title, description, quiet, disabled, onClick }: { title: string; description?: string; quiet?: boolean; disabled?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className="k-choice" aria-label={title} data-quiet={quiet ? '' : undefined} disabled={disabled} onClick={onClick}>
+      <strong>{title}</strong>
+      {description ? <span>{description}</span> : null}
+    </button>
   )
 }
 
