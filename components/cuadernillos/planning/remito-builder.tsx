@@ -1,24 +1,28 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { X } from 'lucide-react'
+import { Building2, School, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { dashedCue, errorCode, isRecommendationList, readJson, type CriticalSchool } from '../cabecera/cabecera-api'
-import { SchoolSearch, useSchoolSearchState } from '../cabecera/school-search'
-import { EmptyState, Modal, ModalBody, ModalFoot, Note, Stepper, WizardHeader, formatCount, shortProduct } from '../kit'
+import { dashedCue, errorCode, isRecommendationList, isSchoolList, readJson, type CriticalSchool } from '../cabecera/cabecera-api'
+import { Choice, EmptyState, Modal, ModalBody, ModalFoot, Note, Stepper, WizardHeader, formatCount, shortProduct } from '../kit'
+import { PickSearch, foldText, type ParsedQuery } from '../pick-search'
 import {
   dispatchErrorMessage, isCabeceraList, recommendationsParams, remitoDispatchBody, type ConfirmedCabecera, type ProductOption, type RemitoModo,
 } from './remito-api'
 
-type Step = 'cabecera' | 'escuelas' | 'revision'
+type Step = 'modo' | 'cabecera' | 'escuelas' | 'revision'
 type Quantities = Record<string, Record<string, number>>
 
-const STEPS: { id: Step; title: string; description?: string }[] = [
-  { id: 'cabecera', title: '¿A quién le enviás?', description: 'Una cabecera recibe y reparte a sus escuelas. O enviá directo a las escuelas.' },
-  { id: 'escuelas', title: '¿Qué escuelas y cuántos?', description: 'Las cantidades se completan solas según la matrícula. Podés ajustarlas.' },
-  { id: 'revision', title: 'Revisá y enviá' },
-]
+const MAX_RESULTS = 6
+
+function stepCopy(step: Step): { title: string; description?: string } {
+  switch (step) {
+    case 'modo': return { title: '¿Cómo querés enviarlo?' }
+    case 'cabecera': return { title: '¿A qué cabecera?', description: 'Buscala por nombre o CUE. Solo aparecen las que ya confirmaron su cuenta.' }
+    case 'escuelas': return { title: '¿Qué escuelas y cuántos?', description: 'Las cantidades se completan solas según la matrícula. Podés ajustarlas.' }
+    case 'revision': return { title: 'Revisá y enviá' }
+  }
+}
 
 const CABECERAS_ERROR = 'No se pudieron cargar las escuelas cabecera.'
 
@@ -44,18 +48,17 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
 }) {
   // One key per dialog: a retry after a failed or lost response replays the same dispatch instead of duplicating it.
   const idempotencyKey = useRef(crypto.randomUUID())
-  const [step, setStep] = useState<Step>('cabecera')
-  const [mode, setMode] = useState<RemitoModo>('cabecera')
+  const [step, setStep] = useState<Step>('modo')
+  const [mode, setMode] = useState<RemitoModo | null>(null)
   const [cabeceras, setCabeceras] = useState<ConfirmedCabecera[] | null>(null)
   const [cabeceraError, setCabeceraError] = useState<string | null>(null)
-  const [cabeceraFilter, setCabeceraFilter] = useState('')
   const [cabecera, setCabecera] = useState<ConfirmedCabecera | null>(null)
   const [schools, setSchools] = useState<CriticalSchool[]>([])
   const [quantities, setQuantities] = useState<Quantities>({})
   const [loadingRecs, setLoadingRecs] = useState<string[]>([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const search = useSchoolSearchState()
+  const addedCues = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     const controller = new AbortController()
@@ -72,14 +75,10 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
     return () => controller.abort()
   }, [])
 
+  useEffect(() => { addedCues.current = new Set(schools.map((school) => school.cueAnexo)) }, [schools])
+
   const labels = useMemo(() => new Map(products.map((p) => [p.productId, p.productLabel])), [products])
   const schoolNames = useMemo(() => new Map(schools.map((s) => [s.cueAnexo, s.nombre])), [schools])
-  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/-/g, '')
-  const visibleCabeceras = (cabeceras ?? []).filter((row) => {
-    const query = normalize(cabeceraFilter.trim())
-    return query !== '' && normalize(`${row.nombre} ${row.cue}`).includes(query)
-  })
-
   const totals = useMemo(() => products.map((product) => ({
     ...product,
     requested: schools.reduce((sum, school) => sum + (quantities[school.cueAnexo]?.[product.productId] ?? 0), 0),
@@ -96,10 +95,10 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   const stockLeft = useMemo(() => new Map(products.map((p) => [p.productId, p.available])), [products])
   const short = totals.filter((row) => row.requested > row.available)
 
-  const canContinue = mode === 'directo' || cabecera !== null
+  const canContinue = mode === 'directo' || (mode === 'cabecera' && cabecera !== null)
 
   async function addSchool(school: CriticalSchool) {
-    if (!canContinue || schools.some((row) => row.cueAnexo === school.cueAnexo)) return
+    if (!canContinue || mode === null || schools.some((row) => row.cueAnexo === school.cueAnexo)) return
     setSchools((current) => [...current, school])
     setQuantities((current) => ({ ...current, [school.cueAnexo]: {} }))
     setLoadingRecs((current) => [...current, school.cueAnexo])
@@ -125,19 +124,35 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   }
 
   function chooseCabecera(next: ConfirmedCabecera) {
-    if (cabecera?.cue !== next.cue || mode !== 'cabecera') { setSchools([]); setQuantities({}) }
+    if (cabecera?.cue !== next.cue) { setSchools([]); setQuantities({}) }
     setCabecera(next)
-    setMode('cabecera')
   }
 
   // Recommendations depend on the send mode, so the schools picked for one mode do not carry over to the other.
   function chooseMode(next: RemitoModo) {
     if (next !== mode) { setSchools([]); setQuantities({}) }
     setMode(next)
+    setStep(next === 'cabecera' ? 'cabecera' : 'escuelas')
+  }
+
+  // Cabeceras and schools are searched the same way: digits are a CUE, anything else part of the name.
+  async function searchCabeceras(query: ParsedQuery): Promise<ConfirmedCabecera[]> {
+    const wanted = query.kind === 'cue' ? query.value : foldText(query.value)
+    return (cabeceras ?? [])
+      .filter((row) => (query.kind === 'cue' ? row.cue.startsWith(wanted) : foldText(row.nombre).includes(wanted)))
+      .slice(0, MAX_RESULTS)
+  }
+
+  async function searchSchools(query: ParsedQuery, signal: AbortSignal): Promise<CriticalSchool[]> {
+    const param = query.kind === 'cue' ? 'cue' : 'q'
+    const response = await fetch(`/api/cuadernillos/schools?${param}=${encodeURIComponent(query.value)}`, { cache: 'no-store', signal })
+    const data = await readJson(response)
+    if (!response.ok || !isSchoolList(data)) throw new Error('search_failed')
+    return data.schools.filter((school) => !addedCues.current.has(school.cueAnexo)).slice(0, MAX_RESULTS)
   }
 
   async function dispatch() {
-    if (!canContinue || lines.length === 0 || short.length > 0) return
+    if (!canContinue || mode === null || lines.length === 0 || short.length > 0) return
     setSending(true)
     setError(null)
     try {
@@ -159,68 +174,60 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
     }
   }
 
-  const pickable = search.results?.filter((school) => !schools.some((row) => row.cueAnexo === school.cueAnexo)) ?? null
-  const searchState = { ...search, results: pickable && pickable.length === 0 && (search.results?.length ?? 0) > 0 ? null : pickable }
   const recsPending = loadingRecs.length > 0
-  const stepIndex = STEPS.findIndex((item) => item.id === step)
-  const current = STEPS[stepIndex]
+  const steps: Step[] = mode === 'cabecera' ? ['modo', 'cabecera', 'escuelas', 'revision'] : ['modo', 'escuelas', 'revision']
+  const stepIndex = steps.indexOf(step)
+  const copy = stepCopy(step)
+  const previous = steps[Math.max(0, stepIndex - 1)]
   const totalUnits = totals.reduce((sum, row) => sum + row.requested, 0)
   const schoolTotal = (cue: string) => products.reduce((sum, product) => sum + (quantities[cue]?.[product.productId] ?? 0), 0)
 
   return (
     <>
       <ModalBody>
-        <WizardHeader step={stepIndex + 1} total={STEPS.length} title={current.title} description={current.description} />
+        <WizardHeader step={stepIndex + 1} total={steps.length} title={copy.title} description={copy.description} />
+        {step === 'modo' ? (
+          <div className="k-choices">
+            <Choice quiet title="Directo a cabecera" description="Una escuela cabecera recibe el envío y lo reparte a sus escuelas." icon={<Building2 size={20} />} onClick={() => chooseMode('cabecera')} />
+            <Choice quiet title="Directo a la escuela afectada" description="Cada escuela recibe su parte y firma su recepción." icon={<School size={20} />} onClick={() => chooseMode('directo')} />
+          </div>
+        ) : null}
+
         {step === 'cabecera' ? (
           <div className="k-field">
-            <ul className="k-options">
-              <li>
-                <button type="button" className="k-option" aria-pressed={mode === 'directo'} onClick={() => chooseMode('directo')}>
-                  <strong>Directo a escuelas</strong>
-                  <span>Sin cabecera: cada escuela firma su recepción</span>
-                </button>
-              </li>
-            </ul>
-            {cabeceras && cabeceras.length > 0 ? <p className="k-options-label">O elegí una cabecera</p> : null}
-                {cabeceraError ? <Note tone="danger">{cabeceraError}</Note> : null}
-                {!cabeceras && !cabeceraError ? <p role="status" className="k-note">Cargando escuelas cabecera…</p> : null}
-                {cabeceras && cabeceras.length === 0 ? <EmptyState title="Ninguna cabecera confirmó su cuenta" description="Una cabecera tiene que confirmar su cuenta para poder recibir envíos." /> : null}
-                {cabeceras && cabeceras.length > 0 && mode === 'cabecera' && cabecera ? (
-                  <div className="k-picked">
-                    <span className="k-picked-main">
-                      <strong>{cabecera.nombre}</strong>
-                      <span>{cabecera.departamento} · CUE {dashedCue(cabecera.cue)}</span>
-                    </span>
-                    <button type="button" className="k-link-btn" onClick={() => { setCabecera(null); setCabeceraFilter('') }}>Cambiar</button>
-                  </div>
-                ) : null}
-                {cabeceras && cabeceras.length > 0 && !(mode === 'cabecera' && cabecera) ? (
-                  <div className="k-search">
-                    <Input aria-label="Buscar cabecera" placeholder="Nombre o CUE de la cabecera" value={cabeceraFilter} autoComplete="off" onChange={(event) => setCabeceraFilter(event.target.value)} />
-                    {cabeceraFilter.trim() && visibleCabeceras.length === 0 ? <p className="k-note">Ninguna cabecera coincide con la búsqueda.</p> : null}
-                    {cabeceraFilter.trim() && visibleCabeceras.length > 0 ? (
-                      <ul className="k-results" aria-label="Cabeceras encontradas">
-                        {visibleCabeceras.slice(0, 6).map((row) => (
-                          <li key={row.cue}>
-                            <button type="button" onClick={() => { chooseCabecera(row); setCabeceraFilter('') }}>
-                              <strong>{row.nombre}</strong>
-                              <span>{row.departamento} · CUE {dashedCue(row.cue)}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    {visibleCabeceras.length > 6 ? <p className="k-hint" style={{ margin: 0 }}>{`Hay ${visibleCabeceras.length - 6} más: escribí más letras o dígitos para acotar.`}</p> : null}
-                  </div>
-                ) : null}
+            {cabeceraError ? <Note tone="danger">{cabeceraError}</Note> : null}
+            {!cabeceras && !cabeceraError ? <p role="status" className="k-note">Cargando escuelas cabecera…</p> : null}
+            {cabeceras && cabeceras.length === 0 ? <EmptyState title="Ninguna cabecera confirmó su cuenta" description="Una cabecera tiene que confirmar su cuenta para poder recibir envíos." /> : null}
+            {cabeceras && cabeceras.length > 0 && cabecera ? (
+              <div className="k-picked">
+                <span className="k-picked-main">
+                  <strong>{cabecera.nombre}</strong>
+                  <span>{cabecera.departamento} · CUE {dashedCue(cabecera.cue)}</span>
+                </span>
+                <button type="button" className="k-link-btn" onClick={() => setCabecera(null)}>Cambiar</button>
+              </div>
+            ) : null}
+            {cabeceras && cabeceras.length > 0 && !cabecera ? (
+              <PickSearch<ConfirmedCabecera>
+                label="Buscar cabecera"
+                noun="cabecera"
+                search={searchCabeceras}
+                describe={(row) => ({ key: row.cue, title: row.nombre, meta: `${row.departamento} · CUE ${dashedCue(row.cue)}`, label: `Elegir ${row.nombre}, CUE ${row.cue}` })}
+                onPick={chooseCabecera}
+              />
+            ) : null}
           </div>
         ) : null}
 
         {step === 'escuelas' ? (
           <>
-            <div className="pl-search">
-              <SchoolSearch selected={null} onChoose={(school) => void addSchool(school)} onClear={() => undefined} state={searchState} />
-            </div>
+            <PickSearch<CriticalSchool>
+              label="Buscar escuela"
+              noun="escuela"
+              search={searchSchools}
+              describe={(school) => ({ key: school.cueAnexo, title: school.nombre, meta: `${school.departamento} · CUE ${dashedCue(school.cueAnexo)}`, label: `Agregar ${school.nombre}, CUE ${school.cueAnexo}` })}
+              onPick={(school) => void addSchool(school)}
+            />
             {schools.length > 0 ? (
               <div className="pl-matrix-wrap">
                 <div className="pl-matrix" style={{ '--pl-cols': products.length } as CSSProperties}>
@@ -308,15 +315,15 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
         {error ? <Note tone="danger">{error}</Note> : null}
       </ModalBody>
       <ModalFoot>
-        {step !== 'cabecera' && lines.length > 0 ? (
+        {(step === 'escuelas' || step === 'revision') && lines.length > 0 ? (
           <p className="pl-foot-sum">
             <strong>{lines.length}</strong> escuela{lines.length === 1 ? '' : 's'} · <strong>{formatCount(totalUnits)}</strong> cuadernillos
           </p>
         ) : null}
-        {step !== 'cabecera' ? (
-          <Button type="button" variant="ghost" disabled={sending} onClick={() => setStep(step === 'revision' ? 'escuelas' : 'cabecera')}>Atrás</Button>
-        ) : (
+        {step === 'modo' ? (
           <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+        ) : (
+          <Button type="button" variant="ghost" disabled={sending} onClick={() => setStep(previous)}>Atrás</Button>
         )}
         {step === 'cabecera' ? (
           <Button type="button" disabled={!canContinue} onClick={() => setStep('escuelas')}>Siguiente</Button>
