@@ -61,6 +61,14 @@ describe('searchCriticalConsejoSchools', () => {
     ])
   })
 
+  it('searches the name ignoring case and accents, still critical-only', async () => {
+    await expect(searchCriticalConsejoSchools('escuela uno', reader)).resolves.toEqual([
+      { cueAnexo: '180000100', nombre: 'ESCUELA UNO', departamento: 'BELLA VISTA', severity: 'Crítica' },
+    ])
+    await expect(searchCriticalConsejoSchools('escuela dos', reader)).resolves.toEqual([])
+    await expect(searchCriticalConsejoSchools('es', reader)).resolves.toEqual([])
+  })
+
   it('never returns a non-critical school even when its CUE matches', async () => {
     await expect(searchCriticalConsejoSchools('180000200', reader)).resolves.toEqual([])
   })

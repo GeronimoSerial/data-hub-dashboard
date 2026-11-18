@@ -95,11 +95,16 @@ const readConsejoSeverityRows: ConsejoSeverityReader = async () => {
  * Severity is decided by getSchoolEligibility, the same rule used to admit a request. A CUE reported more
  * than once by the map is dropped rather than guessed.
  */
+const foldText = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+/** Digits search by CUE prefix; anything else is a case- and accent-insensitive search of the school name. */
 export async function searchCriticalConsejoSchools(
-  cuePrefix: string,
+  query: string,
   readRows: ConsejoSeverityReader = readConsejoSeverityRows,
 ): Promise<CriticalConsejoSchool[]> {
-  if (!/^\d{1,9}$/.test(cuePrefix)) return []
+  const byCue = /^\d{1,9}$/.test(query)
+  const text = byCue ? '' : foldText(query)
+  if (!byCue && text.length < 3) return []
   const rows = await readRows()
   const occurrences = new Map<string, number>()
   for (const row of rows) occurrences.set(row.cueAnexo, (occurrences.get(row.cueAnexo) ?? 0) + 1)
@@ -107,7 +112,7 @@ export async function searchCriticalConsejoSchools(
   const results: CriticalConsejoSchool[] = []
   for (const row of rows) {
     const cue = row.cueAnexo.replace('-', '')
-    if (!cue.startsWith(cuePrefix) || occurrences.get(row.cueAnexo) !== 1) continue
+    if (!(byCue ? cue.startsWith(query) : foldText(row.nombre).includes(text)) || occurrences.get(row.cueAnexo) !== 1) continue
     const eligibility = await getSchoolEligibility(cue, async () => row.peorSeveridad)
     if (!eligibility.eligible || eligibility.severity !== 'Crítica') continue
     results.push({ cueAnexo: cue, nombre: row.nombre, departamento: row.departamento, severity: 'Crítica' })

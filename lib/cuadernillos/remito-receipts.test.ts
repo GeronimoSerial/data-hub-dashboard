@@ -19,6 +19,7 @@ const actor = (id: string, role: SessionUser['role'], cueAnexo?: string, banned 
 const cabeceraActor = actor('u-cab', 'consulta')
 const adminActor = actor('u-admin', 'admin')
 const schoolActor = actor('u-school', 'operador_establecimiento', '1800002-00')
+const cabeceraSchoolActor = actor('u-school-cab', 'operador_establecimiento', '1800001-00')
 const schoolBActor = actor('u-school2', 'operador_establecimiento', '1800009-00')
 
 beforeAll(async () => {
@@ -33,7 +34,8 @@ beforeAll(async () => {
       ('u-admin', 'Admin', 'admin@example.test', true, now(), now()),
       ('u-school', 'School A', 'school@example.test', true, now(), now()),
       ('u-school2', 'School B', 'school2@example.test', true, now(), now()),
-      ('u-unbound', 'Unbound Cabecera', 'unbound@example.test', true, now(), now());
+      ('u-unbound', 'Unbound Cabecera', 'unbound@example.test', true, now(), now()),
+      ('u-school-cab', 'Cabecera School', 'schoolcab@example.test', true, now(), now());
     INSERT INTO booklet_membership (id, user_id, capability, granted_by_user_id) VALUES
       ('m1', 'u-cab', 'cabecera', 'u-plan'), ('m2', 'u-cab2', 'cabecera', 'u-plan'), ('m3', 'u-admin', 'planning', 'u-plan'), ('m4', 'u-unbound', 'cabecera', 'u-plan');
     INSERT INTO booklet_campaign (id, name, status, distribution_enabled, overassignment_allowed)
@@ -49,7 +51,7 @@ beforeAll(async () => {
 
 afterAll(async () => { await client.close() })
 
-type SeedLine = { cue: string; items: Array<[string, number]> }
+type SeedLine = { cue: string; items: Array<[string, number]>; reserva?: boolean }
 const DEFAULT_LINES: SeedLine[] = [
   { cue: SCHOOL_A, items: [['p1', 30], ['p2', 10]] },
   { cue: CAB, items: [['p1', 5]] },
@@ -65,7 +67,7 @@ async function seed(lines: SeedLine[] = DEFAULT_LINES, directo = false) {
   for (const [index, line] of lines.entries()) {
     const lineId = `line-${n}-${index}`
     lineIds.push(lineId)
-    await client.exec(`INSERT INTO booklet_remito_line (id, remito_id, recipient_cue_anexo, status) VALUES ('${lineId}', '${remitoId}', '${line.cue}', 'in_transit')`)
+    await client.exec(`INSERT INTO booklet_remito_line (id, remito_id, recipient_cue_anexo, status, reserva) VALUES ('${lineId}', '${remitoId}', '${line.cue}', 'in_transit', ${line.reserva === true})`)
     for (const [productId, quantity] of line.items) {
       await client.exec(`INSERT INTO booklet_remito_item (line_id, product_id, dispatched_quantity) VALUES ('${lineId}', '${productId}', ${quantity})`)
     }
@@ -461,3 +463,47 @@ describe('direct remitos (modo directo)', () => {
   })
 })
 
+
+describe('reserve lines', () => {
+  const reserveLines: SeedLine[] = [{ cue: CAB, items: [['p1', 100]], reserva: true }]
+
+  it('records the cabecera received quantity and keeps the reserve line at the cabecera, not school-received', async () => {
+    const { remitoId, lineIds } = await seed(reserveLines)
+    const result = await receiveRemitoAtCabecera(cabeceraActor, remitoId, fullInput(lineIds, reserveLines, { 0: { quantities: [90], shortfallReason: 'Faltaron 10' } }), db)
+    expect(result.lines).toEqual([{ lineId: lineIds[0], status: 'at_cabecera' }])
+    const [item] = await q<{ cab: number; school: number | null }>(`SELECT cabecera_received_quantity AS cab, school_received_quantity AS school FROM booklet_remito_item WHERE line_id = '${lineIds[0]}'`)
+    expect(item).toEqual({ cab: 90, school: null })
+    const [line] = await q<{ status: string; by: string | null; reserva: boolean }>(`SELECT status, school_received_by_user_id AS by, reserva FROM booklet_remito_line WHERE id = '${lineIds[0]}'`)
+    expect(line).toEqual({ status: 'at_cabecera', by: null, reserva: true })
+  })
+
+  it('closes an all-zero reserve line as closed_empty', async () => {
+    const { remitoId, lineIds } = await seed(reserveLines)
+    const result = await receiveRemitoAtCabecera(cabeceraActor, remitoId, fullInput(lineIds, reserveLines, { 0: { quantities: [0], shortfallReason: 'No llegó' } }), db)
+    expect(result.lines).toEqual([{ lineId: lineIds[0], status: 'closed_empty' }])
+  })
+
+  it('exposes reserva in the cabecera listing and keeps reserve lines out of the school listing and signing', async () => {
+    const { remitoId, lineIds } = await seed(reserveLines)
+    await receiveRemitoAtCabecera(cabeceraActor, remitoId, fullInput(lineIds, reserveLines), db)
+    const cabecera = await listReceiptsForActor(cabeceraActor, db)
+    if (cabecera.kind !== 'cabecera') throw new Error('unreachable')
+    const remito = cabecera.remitos.find((candidate) => candidate.remitoId === remitoId)!
+    expect(remito.lines).toEqual([expect.objectContaining({ lineId: lineIds[0], reserva: true, status: 'at_cabecera' })])
+    const plain = cabecera.remitos.find((candidate) => candidate.lines.some((line) => !line.reserva))
+    expect(plain!.lines.every((line) => line.reserva === false)).toBe(true)
+
+    const school = await listReceiptsForActor(cabeceraSchoolActor, db)
+    if (school.kind !== 'school') throw new Error('unreachable')
+    expect(school.lines.map((line) => line.lineId)).not.toContain(lineIds[0])
+    expect(await rejection(receiveRemitoLineAtSchool(cabeceraSchoolActor, lineIds[0], { idempotencyKey: `rk-${++counter}`, items: [{ productId: 'p1', receivedQuantity: 100 }] }, db)))
+      .toMatchObject({ code: 'reserve_line_not_receivable', status: 409 })
+    expect(await q(`SELECT 1 FROM booklet_remito_line WHERE id = '${lineIds[0]}' AND status = 'at_cabecera'`)).toHaveLength(1)
+  })
+
+  it('a non-reserve line to the cabecera own school still closes with the same signature', async () => {
+    const { remitoId, lineIds } = await seed([{ cue: CAB, items: [['p1', 5]] }])
+    await receiveRemitoAtCabecera(cabeceraActor, remitoId, fullInput(lineIds, [{ cue: CAB, items: [['p1', 5]] }]), db)
+    expect(await q(`SELECT 1 FROM booklet_remito_line WHERE id = '${lineIds[0]}' AND status = 'received'`)).toHaveLength(1)
+  })
+})

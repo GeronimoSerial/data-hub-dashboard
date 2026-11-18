@@ -42,6 +42,8 @@ export type RemitoControlLine = {
   recipientCueAnexo: string
   recipientName: string | null
   status: string
+  /** A reserve line stays at the cabecera: its quantities are split among schools through onward remitos. */
+  reserva: boolean
   schoolReceivedByUserId: string | null
   schoolReceivedByName: string | null
   schoolReceivedAt: string | null
@@ -57,6 +59,9 @@ export type RemitoControlRemito = {
   /** Null for direct remitos, which have no cabecera. */
   cabeceraCueAnexo: string | null
   cabeceraName: string | null
+  /** Set on a directo remito that a cabecera sent out of its reserve (read-only for the supervisor). */
+  origenCabeceraCueAnexo: string | null
+  origenCabeceraName: string | null
   status: string
   dispatchedByUserId: string
   dispatchedByName: string
@@ -138,13 +143,14 @@ export async function getSupervisorControl(actor: SessionUser | null, query: Rem
   const scope: SQL[] = []
   if (query.campaignId) scope.push(eq(bookletRemito.campaignId, query.campaignId))
   if (!admin) {
-    // Direct remitos have no cabecera, so this filter already excludes them; `modo` makes that explicit.
-    scope.push(eq(bookletRemito.modo, 'cabecera'))
-    scope.push(inArray(
-      bookletRemito.cabeceraCueAnexo,
-      db.select({ cue: bookletSchoolAssignment.cueAnexo }).from(bookletSchoolAssignment)
-        .where(and(eq(bookletSchoolAssignment.relationship, 'cabecera'), eq(bookletSchoolAssignment.supervisorUserId, actor!.id))),
-    ))
+    // Planeamiento's direct remitos have no cabecera, so they stay out. The onward remitos a supervised
+    // cabecera sends from its reserve (`origen`) are included: the supervisor reviews them afterwards.
+    const supervised = () => db.select({ cue: bookletSchoolAssignment.cueAnexo }).from(bookletSchoolAssignment)
+      .where(and(eq(bookletSchoolAssignment.relationship, 'cabecera'), eq(bookletSchoolAssignment.supervisorUserId, actor!.id)))
+    scope.push(or(
+      and(eq(bookletRemito.modo, 'cabecera'), inArray(bookletRemito.cabeceraCueAnexo, supervised())),
+      and(eq(bookletRemito.modo, 'directo'), inArray(bookletRemito.origenCabeceraCueAnexo, supervised())),
+    )!)
   }
   const scoped = scope.length ? and(...scope) : undefined
 
@@ -182,7 +188,8 @@ async function computeSummary(db: Db, scoped: SQL | undefined): Promise<RemitoCo
     db.select({ n: sql<number>`count(*)::int` }).from(bookletRemitoLine)
       .innerJoin(bookletRemito, eq(bookletRemito.id, bookletRemitoLine.remitoId))
       .where(withRemito(or(
-        eq(bookletRemitoLine.status, 'at_cabecera'),
+        // A reserve line waits at the cabecera for good: no school signs it.
+        and(eq(bookletRemitoLine.status, 'at_cabecera'), eq(bookletRemitoLine.reserva, false)),
         and(eq(bookletRemitoLine.status, 'in_transit'), eq(bookletRemito.modo, 'directo')),
       )!)),
     db.select({
@@ -226,7 +233,7 @@ async function hydrate(db: Db, remitos: Array<typeof bookletRemito.$inferSelect>
     ...lines.map((l) => l.schoolReceivedByUserId),
     ...observations.map((o) => o.authorUserId),
   ].filter((id): id is string => id !== null))]
-  const cues = [...new Set(remitos.flatMap((r) => r.cabeceraCueAnexo ? [r.cabeceraCueAnexo] : []))]
+  const cues = [...new Set(remitos.flatMap((r) => [r.cabeceraCueAnexo, r.origenCabeceraCueAnexo].filter((cue): cue is string => cue !== null)))]
   const [users, schools] = await Promise.all([
     db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, userIds)),
     db.select({ cue: bookletSchoolAssignment.cueAnexo, name: bookletSchoolAssignment.schoolName }).from(bookletSchoolAssignment)
@@ -251,7 +258,7 @@ async function hydrate(db: Db, remitos: Array<typeof bookletRemito.$inferSelect>
   const linesByRemito = new Map<string, RemitoControlLine[]>()
   for (const line of lines) {
     const entry: RemitoControlLine = {
-      lineId: line.id, recipientCueAnexo: line.recipientCueAnexo, recipientName: line.recipientName, status: line.status,
+      lineId: line.id, recipientCueAnexo: line.recipientCueAnexo, recipientName: line.recipientName, status: line.status, reserva: line.reserva,
       schoolReceivedByUserId: line.schoolReceivedByUserId,
       schoolReceivedByName: line.schoolReceivedByUserId ? userName.get(line.schoolReceivedByUserId) ?? null : null,
       schoolReceivedAt: iso(line.schoolReceivedAt),
@@ -274,6 +281,8 @@ async function hydrate(db: Db, remitos: Array<typeof bookletRemito.$inferSelect>
       remitoId: remito.id, campaignId: remito.campaignId, modo: remito.modo as RemitoControlRemito['modo'],
       cabeceraCueAnexo: remito.cabeceraCueAnexo,
       cabeceraName: remito.cabeceraCueAnexo === null ? null : schoolName.get(remito.cabeceraCueAnexo) ?? '',
+      origenCabeceraCueAnexo: remito.origenCabeceraCueAnexo,
+      origenCabeceraName: remito.origenCabeceraCueAnexo === null ? null : schoolName.get(remito.origenCabeceraCueAnexo) ?? '',
       status: remito.status,
       dispatchedByUserId: remito.dispatchedByUserId, dispatchedByName: userName.get(remito.dispatchedByUserId) ?? '',
       dispatchedAt: new Date(remito.dispatchedAt).toISOString(),

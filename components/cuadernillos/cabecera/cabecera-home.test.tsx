@@ -55,8 +55,12 @@ describe('CabeceraHome receipt view', () => {
     render(<CabeceraHome />)
 
     expect(await screen.findByText('Tenés 1 envío para recibir.')).toBeTruthy()
-    expect(screen.getByText('1° grado: 30 · 2° grado: 25')).toBeTruthy()
-    expect(screen.getByText('1° grado: 18')).toBeTruthy()
+    const pendingRegion = within(screen.getByRole('region', { name: 'Pendientes' }))
+    expect(pendingRegion.getByText('Escuela Cabecera')).toBeTruthy()
+    expect(pendingRegion.getByText('Escuela B')).toBeTruthy()
+    expect(pendingRegion.getAllByText('1° grado')).toHaveLength(2)
+    expect(pendingRegion.getByText('30')).toBeTruthy()
+    expect(pendingRegion.getByText('18')).toBeTruthy()
     expect(screen.queryByText(/Un solo recibido/)).toBeNull()
     expect(document.body.textContent).not.toMatch(/remito|despach|tramo|faltante|Crítica/i)
     const details = document.querySelector('details') as HTMLDetailsElement
@@ -100,30 +104,35 @@ describe('CabeceraHome receipt view', () => {
     expect(screen.getByRole('complementary', { name: 'Cómo funciona' })).toBeTruthy()
   })
 
-  it('shows the journey with who and when for each step', async () => {
+  it('shows the journey with who and when for each step in the history', async () => {
     setup()
     render(<CabeceraHome />)
     await screen.findByText('Tenés 1 envío para recibir.')
-    const pending = within(screen.getByRole('region', { name: 'Pendientes' }))
-    const journey = within(pending.getByRole('list', { name: 'Recorrido del envío' }))
-    expect(journey.getByText('Enviado')).toBeTruthy()
-    expect(journey.getByText(/^Planeamiento · /)).toBeTruthy()
-    expect(journey.getByText('Llegó a la cabecera').closest('li')?.getAttribute('data-state')).toBe('current')
-    expect(journey.getByText('Llegó a la escuela').closest('li')?.getAttribute('data-state')).toBe('pending')
-
     const done = within(within(screen.getByRole('region', { name: 'Historial', hidden: true })).getByRole('list', { name: 'Recorrido del envío', hidden: true }))
     expect(done.getByText('Llegó a la cabecera').closest('li')?.getAttribute('data-state')).toBe('short')
     expect(done.getByText(/^Ana Cabecera · /)).toBeTruthy()
   })
 
+  it('asks one question first and walks pending envíos one at a time', async () => {
+    setup(undefined, [pendingRemito, { ...pendingRemito, remitoId: 'remito-2' }])
+    render(<CabeceraHome />)
+    expect(await screen.findByText('¿Llegó todo a tu cabecera?')).toBeTruthy()
+    expect(screen.getByText('Paso 1 de 3')).toBeTruthy()
+    expect(screen.getByText(/Queda 1 más/)).toBeTruthy()
+    expect(screen.getAllByRole('button').filter((button) => !button.closest('details'))).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: SIGN })).toBeNull()
+  })
+
   it('keeps signing disabled until answered, then "Sí, llegó todo" posts full quantities and retries with the same key', async () => {
     const fetchMock = setup(() => json({ error: 'cabecera_receipt_pending' }, false))
     render(<CabeceraHome />)
-    const sign = await screen.findByRole('button', { name: SIGN })
-    expect(sign).toBeDisabled()
+    await screen.findByText('¿Llegó todo a tu cabecera?')
+    expect(screen.queryByRole('button', { name: SIGN })).toBeNull()
 
     await confirmAll()
+    const sign = screen.getByRole('button', { name: SIGN })
     expect(sign).toBeEnabled()
+    expect(screen.getByText('Paso 3 de 3')).toBeTruthy()
     expect(screen.getByText('Llegaron los 73 cuadernillos')).toBeTruthy()
     fireEvent.click(sign)
     await screen.findByText(/La cabecera todavía no confirmó/)
@@ -147,19 +156,21 @@ describe('CabeceraHome receipt view', () => {
     render(<CabeceraHome />)
     await screen.findByText('Tenés 1 envío para recibir.')
     expect(screen.queryByLabelText(/Cantidad recibida/)).toBeNull()
-    await confirmAll()
-    fireEvent.click(screen.getByRole('button', { name: /^Llegó menos · Escuela B/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Llegó menos/ }))
     const quantity = screen.getByLabelText('Cantidad recibida · line-b · 1° grado')
-    expect(screen.queryByLabelText('Cantidad recibida · line-own · 1° grado')).toBeNull()
+    expect(screen.getByLabelText('Cantidad recibida · line-own · 1° grado')).toHaveValue(30)
     fireEvent.change(quantity, { target: { value: '99' } })
     expect((quantity as HTMLInputElement).value).toBe('18')
     fireEvent.change(quantity, { target: { value: '12' } })
 
-    const sign = screen.getByRole('button', { name: SIGN })
-    expect(sign).toBeDisabled()
-    fireEvent.change(screen.getByLabelText('¿Qué pasó?'), { target: { value: 'Faltaron 6' } })
-    expect(sign).toBeEnabled()
-    fireEvent.click(sign)
+    const next = screen.getByRole('button', { name: 'Siguiente' })
+    expect(next).toBeDisabled()
+    expect(screen.queryByLabelText('¿Qué pasó en Escuela Cabecera?')).toBeNull()
+    fireEvent.change(screen.getByLabelText('¿Qué pasó en Escuela B?'), { target: { value: 'Faltaron 6' } })
+    expect(next).toBeEnabled()
+    fireEvent.click(next)
+    expect(screen.getByText('Llegaron 67 de 73 cuadernillos')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: SIGN }))
 
     await waitFor(() => expect(posts(fetchMock)).toHaveLength(1))
     const body = JSON.parse(String(posts(fetchMock)[0][1]?.body))
@@ -175,5 +186,191 @@ describe('CabeceraHome receipt view', () => {
     fireEvent.click(screen.getByRole('button', { name: SIGN }))
     expect(await screen.findByText(/ya fue confirmado/)).toBeTruthy()
     expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith('/api/cuadernillos/recepciones'))).toHaveLength(1)
+  })
+})
+
+const GRADE_1 = 'Cuadernillo para estudiantes de 1° grado'
+const GRADE_2 = 'Cuadernillo para estudiantes de 2° grado'
+const critical = { cueAnexo: '180123457', nombre: 'Escuela Crítica', departamento: 'Capital', severity: 'Crítica' }
+
+type ReserveSetup = { available?: [number, number]; assignments?: unknown[]; assign?: () => unknown; remitos?: unknown[] }
+
+function setupReserve({ available = [80, 25], assignments = [], assign = () => json({ remitoId: 'rem-9', recipientName: 'Escuela Crítica' }, true), remitos = [signedRemito] }: ReserveSetup = {}) {
+  let current = { available, assignments }
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') {
+      const result = assign() as { ok: boolean }
+      if (result.ok) current = { available: [available[0] - 20, available[1]], assignments: [{ remitoId: 'rem-9', recipientCueAnexo: '180123457', recipientName: 'Escuela Crítica', dispatchedAt: '2026-11-15T12:00:00.000Z', status: 'in_transit', items: [{ productId: 'p1', productName: GRADE_1, quantity: 20 }] }] }
+      return result
+    }
+    if (url.startsWith('/api/cuadernillos/recepciones')) return json({ kind: 'cabecera', remitos })
+    if (url.startsWith('/api/cuadernillos/overview')) return json({ campaignId: 'c1', campaignOptions: [], balances: [] })
+    if (url.startsWith('/api/cuadernillos/reserva')) {
+      return json({
+        campaignId: 'c1', cabeceraCueAnexo: '180123456',
+        balances: [
+          { productId: 'p1', productName: GRADE_1, received: 100, assigned: 100 - current.available[0], available: current.available[0] },
+          { productId: 'p2', productName: GRADE_2, received: 25, assigned: 25 - current.available[1], available: current.available[1] },
+        ],
+        assignments: current.assignments,
+      })
+    }
+    if (url.startsWith('/api/cuadernillos/schools')) return json({ schools: [critical] })
+    return json({})
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+const reservePosts = (fetchMock: ReturnType<typeof setupReserve>) => fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')
+
+async function openAssign() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Asignar a una escuela' }))
+  fireEvent.change(await screen.findByLabelText('Buscar escuela'), { target: { value: '180123' } })
+  fireEvent.click(await screen.findByRole('button', { name: /Elegir Escuela Crítica/ }))
+}
+
+describe('CabeceraHome reserve', () => {
+  beforeEach(() => {
+    let n = 0
+    vi.stubGlobal('crypto', { randomUUID: () => `key-${++n}` })
+  })
+
+  it('shows what is left to hand out per grade, read for the campaign of the overview', async () => {
+    const fetchMock = setupReserve()
+    render(<CabeceraHome />)
+
+    const panel = await screen.findByRole('region', { name: 'Para repartir' })
+    expect(within(panel).getByText('80')).toBeTruthy()
+    expect(within(panel).getByText('Recibidos 100 · asignados 20')).toBeTruthy()
+    expect(within(panel).getByText('A escuelas en estado crítico. No necesita autorización del supervisor.')).toBeTruthy()
+    const urls = fetchMock.mock.calls.map(([url]) => String(url))
+    expect(urls).toContain('/api/cuadernillos/overview?capability=cabecera')
+    expect(urls).toContain('/api/cuadernillos/reserva?campaignId=c1')
+  })
+
+  it('disables the button and explains why when nothing is left', async () => {
+    setupReserve({ available: [0, 0] })
+    render(<CabeceraHome />)
+    expect(await screen.findByRole('button', { name: 'Asignar a una escuela' })).toBeDisabled()
+    expect(screen.getByText('No queda nada para repartir.')).toBeTruthy()
+  })
+
+  it('hides the section until the cabecera received a reserve, and for the admin read-only view', async () => {
+    setup()
+    render(<CabeceraHome />)
+    await screen.findByText('Tenés 1 envío para recibir.')
+    expect(screen.queryByRole('region', { name: 'Para repartir' })).toBeNull()
+    cleanup()
+    const fetchMock = vi.fn(async (url: string) => (url.startsWith('/api/cuadernillos/recepciones') ? json({ kind: 'cabecera', readOnly: true, remitos: [pendingRemito] }) : json({})))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<CabeceraHome />)
+    await screen.findByText('1 envío está esperando a su cabecera.')
+    expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith('/api/cuadernillos/reserva'))).toBe(false)
+  })
+
+  it('walks school, quantities and review, then posts the assignment and refreshes balances and the list', async () => {
+    const fetchMock = setupReserve()
+    render(<CabeceraHome />)
+    await openAssign()
+
+    expect(screen.getByText('Paso 1 de 3')).toBeTruthy()
+    expect(screen.getByText('Escuela Crítica')).toBeTruthy()
+    expect(screen.queryByLabelText('Buscar escuela')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+
+    expect(screen.getByText('¿Cuántos?')).toBeTruthy()
+    const revisar = screen.getByRole('button', { name: 'Revisar' })
+    expect(revisar).toBeDisabled()
+    const first = screen.getByLabelText(GRADE_1)
+    fireEvent.change(first, { target: { value: '999' } })
+    expect((first as HTMLInputElement).value).toBe('80')
+    fireEvent.change(first, { target: { value: '20' } })
+    expect(revisar).toBeEnabled()
+    fireEvent.click(revisar)
+
+    const review = screen.getByRole('region', { name: 'Detalle de la asignación' })
+    expect(screen.getByText('Revisá y asignar')).toBeTruthy()
+    expect(review).toHaveTextContent('Escuela Crítica')
+    expect(review).toHaveTextContent('1° grado20')
+    expect(review).toHaveTextContent('No necesita autorización del supervisor')
+    fireEvent.click(screen.getByRole('button', { name: 'Asignar' }))
+
+    expect(await screen.findByText('Asignaste 20 cuadernillos a Escuela Crítica.')).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    const [url, init] = reservePosts(fetchMock)[0]
+    expect(url).toBe('/api/cuadernillos/reserva/asignaciones')
+    expect(JSON.parse(String(init?.body))).toEqual({ campaignId: 'c1', recipientCueAnexo: '180123457', items: [{ productId: 'p1', quantity: 20 }], idempotencyKey: 'key-1' })
+    const list = await screen.findByRole('list', { name: 'Ya asignadas' })
+    expect(within(list).getByText('Escuela Crítica')).toBeTruthy()
+    expect(within(list).getByText('En camino a la escuela')).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'Para repartir' })).getByText('60')).toBeTruthy()
+  })
+
+  it('lets the cabecera change the school and go back without losing the flow', async () => {
+    setupReserve()
+    render(<CabeceraHome />)
+    await openAssign()
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar' }))
+    expect(screen.getByLabelText('Buscar escuela')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Buscar escuela'), { target: { value: '180123' } })
+    fireEvent.click(await screen.findByRole('button', { name: /Elegir Escuela Crítica/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Atrás' }))
+    expect(screen.getByText('¿A qué escuela?')).toBeTruthy()
+  })
+
+  it.each([
+    ['insufficient_reserve', { error: 'insufficient_reserve', details: { productIds: ['p1'] } }, 'Ya no queda esa cantidad de 1° grado.'],
+    ['recipients_not_critical', { error: 'recipients_not_critical' }, 'Esa escuela ya no figura como prioritaria.'],
+    ['forbidden', { error: 'forbidden' }, 'Tu cuenta no puede repartir cuadernillos de esta cabecera.'],
+  ])('explains %s in plain Spanish and reuses the same key on retry', async (_code, body, text) => {
+    const fetchMock = setupReserve({ assign: () => json(body, false) })
+    render(<CabeceraHome />)
+    await openAssign()
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+    fireEvent.change(screen.getByLabelText(GRADE_1), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Asignar' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(text)
+    expect(alert).not.toHaveTextContent(/insufficient_reserve|recipients_not_critical|forbidden$/)
+    fireEvent.click(screen.getByRole('button', { name: 'Asignar' }))
+    await waitFor(() => expect(reservePosts(fetchMock)).toHaveLength(2))
+    expect(JSON.parse(String(reservePosts(fetchMock)[1][1]?.body)).idempotencyKey).toBe('key-1')
+  })
+
+  it('says so when the connection fails', async () => {
+    const fetchMock = setupReserve({ assign: () => { throw new Error('offline') } })
+    render(<CabeceraHome />)
+    await openAssign()
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+    fireEvent.change(screen.getByLabelText(GRADE_1), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Asignar' }))
+    expect(await screen.findByText('No se pudo asignar. Revisá la conexión y probá de nuevo.')).toBeTruthy()
+    expect(reservePosts(fetchMock)).toHaveLength(1)
+  })
+
+  it('labels a reserve line "Reserva para repartir" in the receipt wizard and in the history', async () => {
+    const reserveLine = { ...pendingRemito.lines[0], lineId: 'line-reserve', reserva: true }
+    const pending = { ...pendingRemito, lines: [reserveLine] }
+    const history = { ...signedRemito, lines: [{ ...signedRemito.lines[0], reserva: true, recipientName: 'Escuela Cabecera' }] }
+    setup(undefined, [pending, history])
+    render(<CabeceraHome />)
+
+    expect(await within(await screen.findByRole('region', { name: 'Pendientes' })).findByRole('heading', { name: 'Reserva para repartir', level: 4 })).toBeTruthy()
+    expect(screen.queryByText('Escuela Cabecera')).toBeNull()
+    expect(within(screen.getByRole('region', { name: 'Historial', hidden: true })).getByText('Reserva para repartir')).toBeTruthy()
+  })
+
+  it('keeps the school name on a normal line and shows no name for a single-line envío', async () => {
+    setup(undefined, [{ ...pendingRemito, lines: [pendingRemito.lines[1]] }])
+    render(<CabeceraHome />)
+    await screen.findByText('¿Llegó todo a tu cabecera?')
+    expect(screen.queryByRole('heading', { level: 4 })).toBeNull()
+    expect(screen.queryByText('Reserva para repartir')).toBeNull()
   })
 })

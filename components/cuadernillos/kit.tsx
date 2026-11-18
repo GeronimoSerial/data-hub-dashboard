@@ -77,7 +77,7 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-modal-body { display: grid; gap: 1rem; align-content: start; padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 .k-modal-foot { display: flex; flex-wrap: wrap; gap: .5rem; padding: .9rem 1.5rem; border-top: 1px solid var(--line); background: var(--card); }
 .k-modal-foot > * { flex: 1 1 8rem; min-height: 44px; }
-.k-modal.k-modal--wide { width: min(64rem, calc(100vw - 2rem)); height: min(46rem, calc(100dvh - 2rem)); max-height: none; }
+.k-modal.k-modal--wide { width: min(64rem, calc(100vw - 2rem)); height: auto; min-height: min(30rem, calc(100dvh - 2rem)); max-height: calc(100dvh - 2rem); }
 .k-modal--wide .k-modal-foot { align-items: center; justify-content: flex-end; }
 .k-modal--wide .k-modal-foot > .ui-button { flex: 0 0 auto; min-width: 9.5rem; }
 @media (max-width: 640px) {
@@ -103,7 +103,9 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-total { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .25rem .1rem; color: var(--ink-soft); }
 .k-total strong { color: var(--ink); font-family: var(--font-display); font-size: 1.4rem; font-variant-numeric: tabular-nums; }
 
-.k-task { display: grid; gap: .35rem; justify-items: start; padding: 0 0 .25rem; }
+.k-task { display: grid; gap: .35rem; justify-items: start; padding: 1.1rem 1.35rem; border-left: 4px solid var(--line); border-radius: 0 var(--r-md) var(--r-md) 0; background: var(--fill); }
+.k-task[data-tone="warn"] { border-left-color: var(--marker); }
+.k-task[data-tone="ok"] { border-left-color: var(--ok); background: var(--ok-tint); }
 .k-task h3 { margin: 0; font-family: var(--font-display); font-size: clamp(1.2rem, 2.6vw, 1.45rem); line-height: 1.2; text-transform: none; letter-spacing: 0; color: var(--ink); }
 .k-task p { margin: 0; color: var(--ink-soft); }
 .k-task[data-tone="warn"] h3 { color: var(--ink); }
@@ -129,10 +131,12 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
   .k-journey li::after { top: 1.6rem; bottom: -.6rem; left: .64rem; right: auto; width: 2px; height: auto; }
 }
 
-.k-guide { display: grid; gap: .3rem; color: var(--ink-soft); font-size: .9rem; }
-.k-guide-head { display: flex; align-items: baseline; gap: .75rem; }
-.k-guide-head strong { color: var(--ink); font-weight: 600; }
-.k-guide ol { margin: 0; padding-left: 1.25rem; display: grid; gap: .1rem; }
+.k-guide { display: grid; gap: .75rem; color: var(--ink-soft); font-size: .9rem; }
+.k-guide-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.k-guide-head strong { color: var(--ink); font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.k-guide ol { margin: 0; padding: 0; list-style: none; counter-reset: k-guide; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .75rem 1.25rem; }
+.k-guide li { counter-increment: k-guide; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .65rem; align-items: start; line-height: 1.4; color: var(--ink); }
+.k-guide li::before { content: counter(k-guide); display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--ink); color: var(--white); font-size: .78rem; font-weight: 700; }
 .k-guide button { padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: .85rem; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .k-guide button:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
 
@@ -149,6 +153,75 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-receipt-group dd { order: 2; margin: 0; color: var(--ink); font-weight: 600; }
 .k-receipt-total { display: flex; justify-content: space-between; align-items: baseline; margin: 0; padding-top: .6rem; border-top: 2px solid var(--ink); color: var(--ink-soft); }
 .k-receipt-total strong { color: var(--ink); font-size: 1.05rem; }
+
+/* Wizard: one question per step, a progress bar, and at most Atrás + one primary action. */
+.k-wiz { display: grid; gap: 1.5rem; width: 100%; max-width: 40rem; box-sizing: border-box; margin: 0; padding: clamp(1.25rem, 4vw, 2rem); border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.k-wiz-head { display: grid; gap: .6rem; }
+.k-wiz-count { margin: 0; color: var(--ink-faint); font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.k-wiz-bar { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .35rem; }
+.k-wiz-bar > span { height: 6px; border-radius: 999px; background: var(--line-soft); transition: background-color 160ms ease-out; }
+.k-wiz-bar > span[data-on] { background: var(--ink); }
+.k-wiz-title { margin: .35rem 0 0; font-family: var(--font-display); font-size: clamp(1.5rem, 3.4vw, 2rem); font-weight: 700; line-height: 1.1; text-transform: none; letter-spacing: -.005em; color: var(--ink); text-wrap: balance; }
+.k-wiz-sub { margin: 0; color: var(--ink-soft); line-height: 1.45; text-wrap: pretty; }
+.k-wiz-kicker { margin: 0; color: var(--ink-faint); font-size: .85rem; font-weight: 500; }
+.k-wiz-foot { display: flex; flex-wrap: wrap-reverse; align-items: center; justify-content: space-between; gap: .75rem; padding-top: 1rem; border-top: 1px solid var(--line-soft); }
+.k-wiz-foot > .ui-button:last-child { margin-left: auto; min-height: 48px; min-width: 11rem; }
+.k-wiz-foot > .ui-button:only-child { margin-left: auto; }
+.k-modal .k-wiz-head { padding-bottom: .25rem; }
+
+/* What the envío holds, itemised like a delivery note. */
+.k-note-list { display: grid; gap: 1rem; margin: 0; padding: 1rem 1.1rem; border-radius: var(--r-md); background: var(--fill); }
+.k-note-group { display: grid; gap: .3rem; }
+.k-note-group h4 { margin: 0; font-size: .95rem; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.k-note-group dl { display: grid; margin: 0; }
+.k-note-group dl > div { display: flex; align-items: baseline; gap: .5rem; padding: .2rem 0; font-variant-numeric: tabular-nums; }
+.k-note-group dl > div::after { content: ""; order: 1; flex: 1; border-bottom: 1px dotted var(--ink-faint); transform: translateY(-.25rem); opacity: .6; }
+.k-note-group dt { order: 0; color: var(--ink-soft); }
+.k-note-group dd { order: 2; margin: 0; color: var(--ink); font-weight: 700; }
+
+/* Big answers: the likely one is filled, the other is outlined. */
+.k-choices { display: grid; gap: .75rem; }
+.k-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .15rem 1rem; min-height: 4.5rem; padding: 1rem 1.25rem; box-sizing: border-box; border: 2px solid var(--ink); border-radius: 10px; background: var(--ink); color: var(--white); font: inherit; text-align: left; cursor: pointer; transition: background-color 120ms ease-out, transform 120ms ease-out; }
+.k-choice:hover:not(:disabled) { background: #1c1b1a; }
+.k-choice:active:not(:disabled) { transform: scale(.995); }
+.k-choice:focus-visible { outline: 3px solid var(--marker); outline-offset: 2px; }
+.k-choice:disabled { opacity: .5; cursor: not-allowed; }
+.k-choice-icon { grid-row: span 2; display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 50%; background: rgba(255, 255, 255, .14); }
+.k-choice strong { font-size: 1.1rem; font-weight: 700; line-height: 1.2; }
+.k-choice small { color: rgba(255, 255, 255, .78); font-size: .88rem; line-height: 1.3; }
+.k-choice[data-quiet] { background: var(--card); color: var(--ink); border-color: var(--line); }
+.k-choice[data-quiet]:hover:not(:disabled) { background: var(--fill); border-color: var(--ink-faint); }
+.k-choice[data-quiet] .k-choice-icon { background: var(--fill); }
+.k-choice[data-quiet] small { color: var(--ink-soft); }
+
+/* Selectable cards: destination picker. */
+.k-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: .6rem; margin: 0; padding: 0; list-style: none; }
+.k-option { position: relative; display: grid; gap: .15rem; width: 100%; height: 100%; box-sizing: border-box; padding: .9rem 1rem .9rem 2.6rem; border: 1.5px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: border-color 120ms ease-out, background-color 120ms ease-out; }
+.k-option::before { content: ""; position: absolute; left: 1rem; top: 1.05rem; width: 1rem; height: 1rem; box-sizing: border-box; border: 1.5px solid var(--ink-faint); border-radius: 50%; background: var(--card); transition: border-width 120ms ease-out, border-color 120ms ease-out; }
+.k-option:hover { border-color: var(--ink-faint); background: var(--fill); }
+.k-option:focus-visible { outline: 3px solid var(--marker); outline-offset: 2px; }
+.k-option[aria-pressed="true"] { border-color: var(--ink); background: var(--fill); box-shadow: inset 0 0 0 1px var(--ink); }
+.k-option[aria-pressed="true"]::before { border: 5px solid var(--ink); }
+.k-option strong { font-weight: 700; }
+.k-option span { color: var(--ink-soft); font-size: .85rem; }
+.k-options-label { margin: .25rem 0 0; color: var(--ink-faint); font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+/* Single-pick search: type, choose one result, the pick becomes a card with Cambiar. */
+.k-search { display: grid; gap: .4rem; }
+.k-search-label { color: var(--ink); font-weight: 600; }
+.k-results { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; background: var(--card); }
+.k-results li + li { border-top: 1px solid var(--line-soft); }
+.k-results button { display: grid; gap: .1rem; width: 100%; padding: .65rem .9rem; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.k-results button:hover, .k-results button:focus-visible { background: var(--fill); outline: none; box-shadow: inset 3px 0 0 var(--marker); }
+.k-results strong { font-weight: 700; }
+.k-results span { color: var(--ink-soft); font-size: .85rem; }
+.k-picked { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem 1rem; border: 1.5px solid var(--ink); border-radius: 10px; background: var(--fill); }
+.k-picked-main { display: grid; gap: .1rem; min-width: 0; }
+.k-picked-main span { color: var(--ink-soft); font-size: .85rem; }
+.k-link-btn { flex: none; min-height: 36px; padding: 0 .5rem; border: 0; background: transparent; color: var(--accent); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.k-link-btn:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .k-wiz-bar > span, .k-choice, .k-option, .k-option::before { transition: none; }
+}
 
 /* Dense on desktop; touch screens keep 44px targets. */
 @media (pointer: coarse) {
@@ -182,7 +255,7 @@ export function KpiStrip({ items, label }: { items: Kpi[]; label: string }) {
   return (
     <dl aria-label={label} className="k-kpis">
       {items.map((item) => (
-        <div key={item.label} className="k-kpi" data-tone={item.tone}>
+        <div key={item.label} className="k-kpi" data-tone={item.tone} data-zero={item.value === 0 || item.value === '0' ? '' : undefined}>
           <dt>{item.label}</dt>
           <dd>{item.value}</dd>
           {item.hint ? <span className="k-kpi-hint">{item.hint}</span> : null}
@@ -298,6 +371,31 @@ export function Stepper({ label, value, max, disabled, onChange }: {
       />
       <button type="button" aria-label={`Sumar · ${label}`} disabled={disabled || (max !== undefined && value >= max)} onClick={() => onChange(clamp(value + 1))}><Plus aria-hidden size={16} /></button>
     </div>
+  )
+}
+
+/** "Paso 2 de 3", a segmented progress bar and the question of the step. */
+export function WizardHeader({ step, total, title, description }: { step: number; total: number; title: string; description?: string }) {
+  return (
+    <header className="k-wiz-head">
+      <p className="k-wiz-count">{`Paso ${step} de ${total}`}</p>
+      <div className="k-wiz-bar" role="progressbar" aria-label="Progreso" aria-valuemin={1} aria-valuemax={total} aria-valuenow={step}>
+        {Array.from({ length: total }, (_, index) => <span key={index} data-on={index < step ? '' : undefined} />)}
+      </div>
+      <h3 className="k-wiz-title">{title}</h3>
+      {description ? <p className="k-wiz-sub">{description}</p> : null}
+    </header>
+  )
+}
+
+/** A large answer to the question of the step; picking one moves on. */
+export function Choice({ title, description, icon, quiet, disabled, onClick }: { title: string; description?: string; icon?: ReactNode; quiet?: boolean; disabled?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className="k-choice" aria-label={title} data-quiet={quiet ? '' : undefined} disabled={disabled} onClick={onClick}>
+      {icon ? <span className="k-choice-icon" aria-hidden="true">{icon}</span> : null}
+      <strong>{title}</strong>
+      {description ? <small>{description}</small> : null}
+    </button>
   )
 }
 
