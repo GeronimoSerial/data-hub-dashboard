@@ -38,14 +38,18 @@ function mockFetch(post: () => unknown) {
   })
 }
 
-async function goToQuantities() {
-  fireEvent.change(await screen.findByLabelText('Buscar cabecera'), { target: { value: 'norte' } })
-  fireEvent.click(await screen.findByRole('button', { name: /Cabecera Norte/ }))
-  fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
-  fireEvent.change(screen.getByLabelText('Buscar escuela por CUE'), { target: { value: '180123' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
+async function addSchoolByCue() {
+  fireEvent.change(screen.getByLabelText('Buscar escuela'), { target: { value: '180123' } })
   fireEvent.click(await screen.findByRole('button', { name: /Agregar Escuela A/ }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled())
+}
+
+async function goToQuantities() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Directo a cabecera' }))
+  fireEvent.change(await screen.findByLabelText('Buscar cabecera'), { target: { value: 'norte' } })
+  fireEvent.click(await screen.findByRole('button', { name: /Elegir Cabecera Norte/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+  await addSchoolByCue()
 }
 
 function renderBuilder(overrides: Partial<{ onDispatched: () => void; products: typeof products }> = {}) {
@@ -82,22 +86,34 @@ describe('RemitoBuilder', () => {
     expect(recommendation).toContain('cabeceraCueAnexo=180000000')
   })
 
-  it('picks one cabecera by name or CUE search, never lists unconfirmed ones, and lets the planner change it', async () => {
+  it('picks one cabecera by name or CUE with the same search the schools use, never offering unconfirmed ones', async () => {
     vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
     renderBuilder()
+    fireEvent.click(await screen.findByRole('button', { name: 'Directo a cabecera' }))
 
     const search = await screen.findByLabelText('Buscar cabecera')
     expect(screen.queryByRole('button', { name: /Cabecera Norte/ })).not.toBeInTheDocument()
     fireEvent.change(search, { target: { value: 'sin cuenta' } })
     expect(await screen.findByText('Ninguna cabecera coincide con la búsqueda.')).toBeInTheDocument()
     fireEvent.change(search, { target: { value: '1800-000' } })
-    fireEvent.click(await screen.findByRole('button', { name: /Cabecera Norte/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Elegir Cabecera Norte/ }))
 
     expect(screen.queryByLabelText('Buscar cabecera')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Cambiar' }))
     expect(screen.getByLabelText('Buscar cabecera')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+  })
+
+  it('searches schools by name as well as CUE', async () => {
+    const fetchMock = mockFetch(() => response({ remito: {} }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+    renderBuilder()
+    fireEvent.click(await screen.findByRole('button', { name: 'Directo a la escuela afectada' }))
+    fireEvent.change(await screen.findByLabelText('Buscar escuela'), { target: { value: 'Escuela A' } })
+    await screen.findByRole('button', { name: /Agregar Escuela A/ })
+    const urls = fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url.startsWith('/api/cuadernillos/schools'))
+    expect(urls).toEqual(['/api/cuadernillos/schools?q=Escuela%20A'])
   })
 
   it('keeps the same idempotency key when the dispatch is retried', async () => {
@@ -158,24 +174,32 @@ describe('RemitoBuilder', () => {
     expect(alert).not.toHaveTextContent('authority_unavailable')
   })
 
-  it('asks one question per step with a progress counter and only Atrás plus one primary action', async () => {
+  it('asks one question per step: two ways to send, then search, with only Atrás plus one primary action', async () => {
     vi.stubGlobal('fetch', mockFetch(() => response({ remito: {} }, 201)))
 
     renderBuilder()
-    expect(await screen.findByText('¿A quién le enviás?')).toBeInTheDocument()
+    expect(await screen.findByText('¿Cómo querés enviarlo?')).toBeInTheDocument()
     expect(screen.getByText('Paso 1 de 3')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Atrás' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Directo a cabecera' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Directo a la escuela afectada' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Siguiente' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Directo a cabecera' }))
+    expect(await screen.findByText('¿A qué cabecera?')).toBeInTheDocument()
+    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Atrás' }))
+    expect(screen.getByText('¿Cómo querés enviarlo?')).toBeInTheDocument()
 
     await goToQuantities()
     expect(screen.getByText('¿Qué escuelas y cuántos?')).toBeInTheDocument()
-    expect(screen.getByText('Paso 2 de 3')).toBeInTheDocument()
+    expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
     expect(await screen.findByRole('region', { name: 'Detalle del envío' })).toBeInTheDocument()
-    expect(screen.getByText('Paso 3 de 3')).toBeInTheDocument()
+    expect(screen.getByText('Paso 4 de 4')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Atrás' }))
-    expect(screen.getByText('Paso 2 de 3')).toBeInTheDocument()
+    expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
   })
 
   it('shows the school name first and the CUE as secondary text', async () => {
@@ -231,12 +255,8 @@ describe('RemitoBuilder', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderBuilder({ onDispatched })
-    fireEvent.click(await screen.findByRole('button', { name: /Directo a escuelas/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
-    fireEvent.change(screen.getByLabelText('Buscar escuela por CUE'), { target: { value: '180123' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela' }))
-    fireEvent.click(await screen.findByRole('button', { name: /Agregar Escuela A/ }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled())
+    fireEvent.click(await screen.findByRole('button', { name: 'Directo a la escuela afectada' }))
+    await addSchoolByCue()
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
 
     const receipt = await screen.findByRole('region', { name: 'Detalle del envío' })

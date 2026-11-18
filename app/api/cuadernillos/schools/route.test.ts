@@ -60,6 +60,20 @@ describe('GET /api/cuadernillos/schools', () => {
     expect(searchCriticalConsejoSchools).not.toHaveBeenCalled()
   })
 
+  it('searches by part of the school name with the q parameter', async () => {
+    const response = await GET(request('q=Bella%20Vista'))
+
+    expect(response.status).toBe(200)
+    expect(searchCriticalConsejoSchools).toHaveBeenCalledWith('Bella Vista')
+  })
+
+  it('rejects short, numeric or mixed name queries', async () => {
+    for (const query of ['q=ab', 'q=12345', 'q=escuela%2012', 'q=escuela&cue=18000', 'q=a&q=b', `q=${'x'.repeat(61)}`]) {
+      expect((await GET(request(query))).status).toBe(400)
+    }
+    expect(searchCriticalConsejoSchools).not.toHaveBeenCalled()
+  })
+
   it('denies actors without cabecera capability, admin included only through the capability check', async () => {
     vi.mocked(hasBookletCapability).mockResolvedValue(false)
 

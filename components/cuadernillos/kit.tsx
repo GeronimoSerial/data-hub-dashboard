@@ -207,6 +207,7 @@ button.k-row:focus-visible, .k-link:focus-visible { outline: 2px solid var(--mar
 .k-options-label { margin: .25rem 0 0; color: var(--ink-faint); font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 /* Single-pick search: type, choose one result, the pick becomes a card with Cambiar. */
 .k-search { display: grid; gap: .4rem; }
+.k-search-label { color: var(--ink); font-weight: 600; }
 .k-results { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; background: var(--card); }
 .k-results li + li { border-top: 1px solid var(--line-soft); }
 .k-results button { display: grid; gap: .1rem; width: 100%; padding: .65rem .9rem; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }

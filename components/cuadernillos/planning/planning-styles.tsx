@@ -48,10 +48,17 @@ const CSS = `
 .pl-facts > div { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: .45rem 0; border-bottom: 1px solid var(--line); }
 .pl-facts dt { color: var(--ink-soft); font-size: .9rem; }
 .pl-facts dd { margin: 0; color: var(--ink); font-family: var(--font-display); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
-.pl-unconfirmed { display: grid; gap: .3rem; color: var(--ink-soft); font-size: .85rem; }
-.pl-unconfirmed p { margin: 0; }
-.pl-unconfirmed ul { display: grid; gap: .15rem; margin: 0; padding: 0; list-style: none; color: var(--ink); }
-.pl-unconfirmed li span { color: var(--ink-soft); }
+.pl-unconfirmed { margin-top: .25rem; color: var(--ink-soft); font-size: .85rem; }
+.pl-unconfirmed summary { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 2.25rem; color: var(--ink); font-weight: 600; cursor: pointer; list-style: none; }
+.pl-unconfirmed summary::-webkit-details-marker { display: none; }
+.pl-unconfirmed summary::after { content: ""; width: .5rem; height: .5rem; border-right: 2px solid var(--ink-faint); border-bottom: 2px solid var(--ink-faint); transform: rotate(45deg); transition: transform 160ms ease-out; }
+.pl-unconfirmed[open] summary::after { transform: rotate(-135deg); }
+.pl-unconfirmed summary:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
+.pl-unconfirmed p { margin: 0 0 .5rem; }
+.pl-unconfirmed ul { display: grid; max-height: 14rem; margin: 0; padding: 0; overflow-y: auto; list-style: none; border-top: 1px solid var(--line); }
+.pl-unconfirmed li { display: grid; gap: .05rem; padding: .5rem 0; border-bottom: 1px solid var(--line-soft); }
+.pl-unconfirmed li strong { color: var(--ink); font-size: .85rem; font-weight: 600; line-height: 1.3; }
+.pl-unconfirmed li span { color: var(--ink-faint); font-size: .78rem; text-transform: none; }
 
 /* Envíos: one row per envío, read left to right — who, when, what, and where it stands. */
 .pl-filters { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; }
@@ -228,7 +235,7 @@ const CSS = `
 
 @media (prefers-reduced-motion: reduce) {
   .pl-skeleton > span[aria-hidden] { animation: none; }
-  .pl-envio-chevron, .pl-radio { transition: none; }
+  .pl-envio-chevron, .pl-radio, .pl-unconfirmed summary::after { transition: none; }
 }
 `
 
