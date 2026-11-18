@@ -1,14 +1,10 @@
 'use client'
 
-import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { CircuitGuide, EmptyState, KitStyles, Note, PageHeader, Panel, ShipmentJourney, TaskCard, formatCount, shortProduct } from '../kit'
-import { LineQuestions } from './line-questions'
-import {
-  EMPTY_ANSWERS, buildJourney, errorMessage, evaluateLine, formatWhen, postReceipt, reasonFor, useIdempotencyKey,
-  type LineAnswers, type ReceiptItem,
-} from './receipt-model'
-import { SignPanel, SignedNote } from './sign-panel'
+import { buildJourney, formatWhen, type ReceiptItem } from './receipt-model'
+import { ReceiptWizard } from './receipt-wizard'
+import { SignedNote } from './sign-panel'
 import { useReceiptListing, type SchoolLineView } from './use-receipt-listing'
 
 const DIRECT_LEG = 'Planeamiento → Escuela'
@@ -28,35 +24,22 @@ function lineJourney(line: SchoolLineView) {
   })
 }
 
-function PendingLine({ line, onSigned }: { line: SchoolLineView; onSigned: () => void }) {
-  const [state, setState] = useState<LineAnswers>(EMPTY_ANSWERS)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const keyFor = useIdempotencyKey()
+function PendingLine({ line, remaining, onSigned }: { line: SchoolLineView; remaining: number; onSigned: () => void }) {
   const items: ReceiptItem[] = line.items.map((item) => ({ productId: item.productId, productName: item.productName, expected: item.expectedQuantity ?? 0 }))
-  const evaluation = evaluateLine(items, state)
-
-  async function sign() {
-    const body = { items: evaluation.items, ...(reasonFor(evaluation, state) !== undefined ? { shortfallReason: reasonFor(evaluation, state) } : {}) }
-    setBusy(true)
-    setError(null)
-    const result = await postReceipt(`/api/cuadernillos/remito-lineas/${encodeURIComponent(line.lineId)}/recibir`, { idempotencyKey: keyFor(JSON.stringify(body)), ...body })
-    setBusy(false)
-    if (result.ok) onSigned()
-    else setError(errorMessage(result.code))
-  }
-
   return (
-    <Panel title={`Envío del ${formatWhen(line.dispatchedAt)}`}>
-      <div className="k-stack" style={{ gap: '.7rem' }}>
-        <ShipmentJourney steps={lineJourney(line)} />
-        {line.cabeceraShortfallReason ? <p className="k-hint" style={{ margin: 0 }}>{`Lo que pasó en la cabecera: ${line.cabeceraShortfallReason}`}</p> : null}
-        <LineQuestions scope={line.lineId} items={items} state={state} disabled={busy} leg={line.modo === 'directo' ? DIRECT_LEG : undefined} onChange={setState} />
-        <SignPanel receivedTotal={evaluation.receivedTotal} expectedTotal={evaluation.expectedTotal} answered={evaluation.complete}
-          canSign={evaluation.complete && !evaluation.reasonMissing} busy={busy} error={error}
-          hint={evaluation.reasonMissing ? 'Contanos qué pasó para poder confirmar.' : undefined} onSign={() => { void sign() }} />
-      </div>
-    </Panel>
+    <ReceiptWizard
+      heading={`Envío del ${formatWhen(line.dispatchedAt)}`}
+      place="tu escuela"
+      remaining={remaining}
+      lines={[{ id: line.lineId, items }]}
+      leg={line.modo === 'directo' ? DIRECT_LEG : undefined}
+      note={line.cabeceraShortfallReason ? `Lo que pasó en la cabecera: ${line.cabeceraShortfallReason}` : null}
+      request={([answered]) => ({
+        url: `/api/cuadernillos/remito-lineas/${encodeURIComponent(line.lineId)}/recibir`,
+        body: { items: answered.items, ...(answered.shortfallReason !== undefined ? { shortfallReason: answered.shortfallReason } : {}) },
+      })}
+      onSigned={onSigned}
+    />
   )
 }
 
@@ -130,7 +113,7 @@ export function SchoolReceipts() {
       ) : null}
       {pending.length > 0 ? (
         <div className="k-stack" role="region" aria-label="Pendientes">
-          {pending.map((line) => <PendingLine key={line.lineId} line={line} onSigned={reload} />)}
+          <PendingLine key={pending[0].lineId} line={pending[0]} remaining={pending.length - 1} onSigned={reload} />
         </div>
       ) : null}
       {transit.length > 0 ? (

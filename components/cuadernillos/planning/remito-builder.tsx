@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { dashedCue, errorCode, isRecommendationList, readJson, type CriticalSchool } from '../cabecera/cabecera-api'
 import { SchoolSearch, useSchoolSearchState } from '../cabecera/school-search'
-import { EmptyState, Modal, ModalBody, ModalFoot, Note, Segmented, Stepper, formatCount, shortProduct } from '../kit'
+import { EmptyState, Modal, ModalBody, ModalFoot, Note, Stepper, WizardHeader, formatCount, shortProduct } from '../kit'
 import {
   dispatchErrorMessage, isCabeceraList, recommendationsParams, remitoDispatchBody, type ConfirmedCabecera, type ProductOption, type RemitoModo,
 } from './remito-api'
@@ -14,10 +14,10 @@ import {
 type Step = 'cabecera' | 'escuelas' | 'revision'
 type Quantities = Record<string, Record<string, number>>
 
-const STEPS: { id: Step; label: string }[] = [
-  { id: 'cabecera', label: '¿A qué cabecera?' },
-  { id: 'escuelas', label: '¿Qué escuelas y cuántos?' },
-  { id: 'revision', label: 'Revisar y enviar' },
+const STEPS: { id: Step; title: string; description?: string }[] = [
+  { id: 'cabecera', title: '¿A quién le enviás?', description: 'Una cabecera recibe y reparte a sus escuelas. O enviá directo a las escuelas.' },
+  { id: 'escuelas', title: '¿Qué escuelas y cuántos?', description: 'Las cantidades se completan solas según la matrícula. Podés ajustarlas.' },
+  { id: 'revision', title: 'Revisá y enviá' },
 ]
 
 const CABECERAS_ERROR = 'No se pudieron cargar las escuelas cabecera.'
@@ -30,7 +30,7 @@ export function RemitoBuilder({ open, campaignId, products, onClose, onDispatche
   onDispatched: () => void
 }) {
   return (
-    <Modal open={open} size="wide" title="Enviar cuadernillos" description="Cada envío va a una escuela cabecera, que después lo reparte a sus escuelas." onClose={onClose}>
+    <Modal open={open} size="wide" title="Enviar cuadernillos" onClose={onClose}>
       {open ? <BuilderForm campaignId={campaignId} products={products} onClose={onClose} onDispatched={onDispatched} /> : null}
     </Modal>
   )
@@ -122,8 +122,9 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   }
 
   function chooseCabecera(next: ConfirmedCabecera) {
-    if (cabecera?.cue !== next.cue) { setSchools([]); setQuantities({}) }
+    if (cabecera?.cue !== next.cue || mode !== 'cabecera') { setSchools([]); setQuantities({}) }
     setCabecera(next)
+    setMode('cabecera')
   }
 
   // Recommendations depend on the send mode, so the schools picked for one mode do not carry over to the other.
@@ -159,44 +160,25 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
   const searchState = { ...search, results: pickable && pickable.length === 0 && (search.results?.length ?? 0) > 0 ? null : pickable }
   const recsPending = loadingRecs.length > 0
   const stepIndex = STEPS.findIndex((item) => item.id === step)
-  // The first step is the send mode; a directo send has no cabecera to choose, so its question changes.
-  const stepLabel = (item: { id: Step; label: string }) => (item.id === 'cabecera' && mode === 'directo' ? '¿Cómo se envía?' : item.label)
+  const current = STEPS[stepIndex]
   const totalUnits = totals.reduce((sum, row) => sum + row.requested, 0)
   const schoolTotal = (cue: string) => products.reduce((sum, product) => sum + (quantities[cue]?.[product.productId] ?? 0), 0)
 
   return (
     <>
-      <div className="pl-steps-bar">
-        <ol aria-label="Pasos del envío" className="pl-steps">
-          {STEPS.map((item, index) => (
-            <li key={item.id} aria-current={index === stepIndex ? 'step' : undefined} data-state={index < stepIndex ? 'done' : undefined}>
-              <span><span className="sr-only">{`${index + 1}. `}</span>{stepLabel(item)}</span>
-            </li>
-          ))}
-        </ol>
-        {step !== 'cabecera' && mode === 'directo' ? (
-          <p className="pl-dest"><span>Envío</span> <strong>Directo a escuelas</strong></p>
-        ) : null}
-        {step !== 'cabecera' && mode === 'cabecera' && cabecera ? (
-          <p className="pl-dest">
-            <span>Para</span> <strong>{cabecera.nombre}</strong> <span>· {cabecera.departamento}</span>
-          </p>
-        ) : null}
-      </div>
       <ModalBody>
+        <WizardHeader step={stepIndex + 1} total={STEPS.length} title={current.title} description={current.description} />
         {step === 'cabecera' ? (
           <div className="k-field">
-            <Segmented<RemitoModo>
-              label="Modo de envío"
-              value={mode}
-              onChange={chooseMode}
-              options={[{ value: 'cabecera', label: 'A una cabecera' }, { value: 'directo', label: 'Directo a escuelas' }]}
-            />
-            {mode === 'directo' ? (
-              <p className="k-hint" style={{ margin: 0 }}>Sin cabecera: el envío va directo a las escuelas que elijas, y cada una firma su recepción.</p>
-            ) : (
-              <>
-                <span className="k-label">Elegí la escuela cabecera que recibe el envío</span>
+            <ul className="pl-pick">
+              <li>
+                <button type="button" aria-pressed={mode === 'directo'} onClick={() => chooseMode('directo')}>
+                  <span className="pl-radio" aria-hidden="true" />
+                  <span className="pl-pick-name">Directo a escuelas</span>
+                  <span className="pl-pick-meta">Sin cabecera: cada escuela firma su recepción</span>
+                </button>
+              </li>
+            </ul>
                 {cabeceraError ? <Note tone="danger">{cabeceraError}</Note> : null}
                 {!cabeceras && !cabeceraError ? <p role="status" className="k-note">Cargando escuelas cabecera…</p> : null}
                 {cabeceras && cabeceras.length === 0 ? <EmptyState title="Ninguna cabecera confirmó su cuenta" description="Una cabecera tiene que confirmar su cuenta para poder recibir envíos." /> : null}
@@ -207,7 +189,7 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
                 <ul className="pl-pick">
                   {visibleCabeceras.map((row) => (
                     <li key={row.cue}>
-                      <button type="button" aria-pressed={cabecera?.cue === row.cue} onClick={() => chooseCabecera(row)}>
+                      <button type="button" aria-pressed={mode === 'cabecera' && cabecera?.cue === row.cue} onClick={() => chooseCabecera(row)}>
                         <span className="pl-radio" aria-hidden="true" />
                         <span className="pl-pick-name">{row.nombre}</span>
                         <span className="pl-pick-meta">{row.departamento} · CUE {dashedCue(row.cue)}</span>
@@ -215,8 +197,6 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
                     </li>
                   ))}
                 </ul>
-              </>
-            )}
           </div>
         ) : null}
 
@@ -227,7 +207,6 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
             </div>
             {schools.length > 0 ? (
               <div className="pl-matrix-wrap">
-                <p className="pl-matrix-hint">Cantidades sugeridas por matrícula (1 por estudiante). Podés ajustarlas.</p>
                 <div className="pl-matrix" style={{ '--pl-cols': products.length } as CSSProperties}>
                   <div className="pl-mrow pl-mhead" aria-hidden="true">
                     <span>Escuela</span>
@@ -268,24 +247,13 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
                     <span className="pl-mtotal">{formatCount(totalUnits)}</span>
                     <span />
                   </div>
-                  <div className="pl-mrow pl-mfoot pl-mleft" role="group" aria-label="Stock que queda por grado">
-                    <span className="pl-mname"><strong>Queda en stock</strong></span>
-                    {totals.map((row) => (
-                      <span key={row.productId} className="pl-cell" data-state={row.requested > row.available ? 'over' : undefined}>
-                        <span className="pl-cell-label" aria-hidden="true">{shortProduct(row.productLabel)}</span>
-                        <span className="pl-msum">{formatCount(row.available - row.requested)}</span>
-                      </span>
-                    ))}
-                    <span />
-                    <span />
-                  </div>
                 </div>
                 {short.length > 0 ? (
                   <Note tone="danger">{`No alcanza el stock de ${short.map((row) => shortProduct(row.productLabel)).join(', ')}. Bajá las cantidades para poder enviar.`}</Note>
                 ) : null}
               </div>
             ) : (
-              <p className="pl-matrix-empty">Agregá al menos una escuela. Las cantidades se completan solas según la matrícula y las podés ajustar.</p>
+              <p className="pl-matrix-empty">Buscá una escuela para agregarla.</p>
             )}
           </>
         ) : null}
@@ -330,9 +298,9 @@ function BuilderForm({ campaignId, products, onClose, onDispatched }: {
           </p>
         ) : null}
         {step !== 'cabecera' ? (
-          <Button type="button" variant="secondary" disabled={sending} onClick={() => setStep(step === 'revision' ? 'escuelas' : 'cabecera')}>Atrás</Button>
+          <Button type="button" variant="ghost" disabled={sending} onClick={() => setStep(step === 'revision' ? 'escuelas' : 'cabecera')}>Atrás</Button>
         ) : (
-          <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
         )}
         {step === 'cabecera' ? (
           <Button type="button" disabled={!canContinue} onClick={() => setStep('escuelas')}>Siguiente</Button>
