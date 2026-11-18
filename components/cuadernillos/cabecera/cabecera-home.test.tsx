@@ -55,8 +55,12 @@ describe('CabeceraHome receipt view', () => {
     render(<CabeceraHome />)
 
     expect(await screen.findByText('Tenés 1 envío para recibir.')).toBeTruthy()
-    expect(screen.getByText('1° grado: 30 · 2° grado: 25')).toBeTruthy()
-    expect(screen.getByText('1° grado: 18')).toBeTruthy()
+    const pendingRegion = within(screen.getByRole('region', { name: 'Pendientes' }))
+    expect(pendingRegion.getByText('Escuela Cabecera')).toBeTruthy()
+    expect(pendingRegion.getByText('Escuela B')).toBeTruthy()
+    expect(pendingRegion.getAllByText('1° grado')).toHaveLength(2)
+    expect(pendingRegion.getByText('30')).toBeTruthy()
+    expect(pendingRegion.getByText('18')).toBeTruthy()
     expect(screen.queryByText(/Un solo recibido/)).toBeNull()
     expect(document.body.textContent).not.toMatch(/remito|despach|tramo|faltante|Crítica/i)
     const details = document.querySelector('details') as HTMLDetailsElement
